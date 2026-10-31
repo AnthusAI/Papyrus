@@ -25,10 +25,16 @@ export function prospectusSignInUrl(returnPath: string): string {
   return `${SIGN_IN_PATH}?returnTo=${encodeURIComponent(returnPath)}`;
 }
 
+/** The demo pages (?demo=1) have no Prospectus account, so they never ask the session route and never log its 503. */
+function isDemoPage(): boolean {
+  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
+}
+
 export async function loadProspectusAccountState(
   returnPath: string,
   fetchImplementation: FetchImplementation = fetch,
 ): Promise<ProspectusAccountState> {
+  if (isDemoPage()) return { status: "unavailable" };
   let response: Response;
   try {
     response = await fetchImplementation(SESSION_PATH, { credentials: "same-origin", cache: "no-store" });

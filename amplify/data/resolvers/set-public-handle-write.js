@@ -1,5 +1,6 @@
-// setPublicHandle, step 3 of 3: write the checked handle (or remove the attribute, so the unique index holds only handles that
-// are set) and the time. The condition refuses a profile that does not exist, so an update never creates one.
+// setPublicHandle, step 4 of 5: write the claimed handle (or remove the attribute, so the profile holds only handles that are set)
+// and the time. The condition refuses a profile that does not exist, so an update never creates one. A failed write does not stop
+// the pipeline: the failure is kept in the stash so the next step can release the claim that was just made, and then raises it.
 import { util } from "@aws-appsync/utils";
 import * as ddb from "@aws-appsync/utils/dynamodb";
 
@@ -17,8 +18,10 @@ export function request(ctx) {
 
 export function response(ctx) {
   if (ctx.error) {
-    if (ctx.error.type === "DynamoDB:ConditionalCheckFailedException") util.error("Your profile was not found.", "BadRequest");
-    util.error(ctx.error.message, ctx.error.type);
+    const missing = ctx.error.type === "DynamoDB:ConditionalCheckFailedException";
+    ctx.stash.writeFailure = { message: missing ? "Your profile was not found." : ctx.error.message, type: missing ? "BadRequest" : ctx.error.type };
+    return null;
   }
+  ctx.stash.profile = ctx.result;
   return ctx.result;
 }

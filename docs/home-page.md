@@ -90,6 +90,11 @@ With `homePage.threads.enabled` the same task also writes `_data/home-page/threa
 - **Links**: with a forum, the title of a thread card from `::include{kind="threads"}` links to `/<threadBase>/<key>/`.
 - **Freshness**: the page's digest folds in its own thread file (and the anchor Reference's record), so the snapshot task rewrites a thread page, its twin, `llms.txt` and the sitemap only when the thread set or that file changed. When a thread stops being public the task deletes its file and then its page and twin.
 
+## Public handles
+
+A public handle is held by a `PublicHandleClaim` record keyed by the lowercase handle (`ownerKind`, `ownerId`, `claimedAt`), written by a conditional put in `setPublicHandle`, so two people claiming the same handle at once leave exactly one owner; changing or clearing a handle releases the old claim, and a failed profile write releases the new one.
+Sites that had handles before the claim records existed run `scripts/backfill-public-handle-claims.ts` once (an operator with IAM, idempotent, it reports conflicts).
+
 ## Freshness
 
 Curation changes reach the pages without anyone running a command. The backend plugin `home-page` (`backend.plugins: ["home-page"]` in `papyrus.config.ts`) wires four things, and only for a site that lists it: every other site synthesizes exactly what it did before.
