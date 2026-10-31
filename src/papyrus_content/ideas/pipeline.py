@@ -9,6 +9,7 @@ from typing import Any
 from . import dedupe, synthesis
 from .digest import ACCEPTED, PENDING, iso
 from .review import mark_steering_applied, merge_feedback, read_steering, request_human_review
+from .items import IdeaRefused
 from .store import JsonStore, ProposalStore
 
 DEFAULT_MAXIMUM_COST_USD = 0.50
@@ -152,7 +153,11 @@ def synthesize(
         for candidate in kept:
             idea = idea_record(candidate, run=run, digest=digest, now=moment)
             if proposal_store:
-                proposal_store.mark(idea, proposal_store.file_idea(idea, idea["body"], digest["digestId"]))
+                try:
+                    proposal_store.mark(idea, proposal_store.file_idea(idea, idea["body"], digest["digestId"]))
+                except IdeaRefused as refusal:   # the editorial check found an error-severity violation: not filed
+                    run["invalid"].append(refusal.as_invalid(idea))
+                    continue
             json_store.save_idea(idea)
             run["ideas"].append(idea)
     run["ideasCreated"] = len(run["ideas"])

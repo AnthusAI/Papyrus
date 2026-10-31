@@ -121,7 +121,9 @@ def digest_command(flags: list[str]) -> None:
 def _idea_store(name: str, client: Any):
     """The store a run files into: Items at the idea stage (they also see the older story draft Proposals when readable), Proposals, or none."""
     if name == ITEMS:
-        return ItemStore(client, legacy=ProposalStore(client).story_drafts)
+        from .gate import HumanusGate
+
+        return ItemStore(client, legacy=ProposalStore(client).story_drafts, gate=HumanusGate.for_site())
     return ProposalStore(client) if name == PROPOSALS else None
 
 

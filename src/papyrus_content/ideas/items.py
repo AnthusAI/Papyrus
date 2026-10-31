@@ -30,6 +30,53 @@ DEFAULT_ACTOR = "AI"
 KIND = "items"
 
 
+class IdeaRefused(ValueError):
+    """The editorial check found error-severity violations in an idea's text, so it is not filed. ``findings`` are the compact findings."""
+
+    def __init__(self, findings: list[dict[str, Any]]) -> None:
+        self.findings = findings
+        super().__init__("The editorial check found " + "; ".join(f"{finding.get('policyId')}: {finding.get('message')}" for finding in findings[:3]) + (f" (and {len(findings) - 3} more)" if len(findings) > 3 else ""))
+
+    def as_invalid(self, draft: dict[str, Any]) -> dict[str, Any]:
+        return {"title": draft.get("title") or "", "referenceId": draft.get("referenceId"), "reason": "editorial_check_failed", "message": str(self)[:300], "findings": self.findings}
+
+
+class Gate:
+    """The Humanus check an idea passes before it is filed (``ideas/gate.py`` builds the real one). ``check(body, section)`` returns the Humanus
+    result, or ``{"skipped": reason}`` when the site's checks are turned off; ``record(item, result)`` stores it as the Item's check run."""
+
+    def check(self, body: str, section: str | None) -> dict[str, Any]: ...
+
+    def record(self, item: dict[str, Any], result: dict[str, Any]) -> None: ...
+
+
+SEVERITY_ORDER = ("error", "warn", "info")
+
+
+def summarize_check(result: dict[str, Any]) -> dict[str, Any]:
+    """What the Item keeps of a check, and what the batch review orders by: counts by severity, the non-error findings, and which lanes ran. A lane
+    that did not run (no ``TYPESAFE_API_KEY`` for the judgment lane) is recorded as not run, with its reason, never as a pass."""
+    if result.get("skipped"):
+        return {"ran": False, "skipped": result["skipped"]}
+    findings = [finding for finding in result.get("findings") or [] if finding.get("status") in ("violation", "review")]
+    counts = {severity: sum(1 for finding in findings if finding.get("severity") == severity) for severity in SEVERITY_ORDER}
+    lanes = {name: {key: lane.get(key) for key in ("status", "reason") if lane.get(key)} for name, lane in (result.get("lanes") or {}).items() if isinstance(lane, dict)}
+    judgment = lanes.get("classifier") or {}
+    return {
+        "ran": True, "counts": counts, "findings": [{key: finding.get(key) for key in ("id", "policyId", "severity", "status", "message", "excerpt") if finding.get(key) is not None} for finding in findings],
+        "lanes": lanes, "judgment": {"ran": judgment.get("status") == "ran", **judgment}, "packVersion": (result.get("pack") or {}).get("version") or result.get("packVersion"),
+    }
+
+
+def review_order(ideas: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Ideas for a batch review, clean ones first: fewest error, then warn, then info findings (an idea with no check keeps its place)."""
+    def key(idea: dict[str, Any]) -> tuple[int, ...]:
+        counts = (idea.get("editorialCheck") or {}).get("counts") or {}
+        return tuple(int(counts.get(severity) or 0) for severity in SEVERITY_ORDER)
+
+    return sorted(ideas, key=key)
+
+
 def front_matter_of(item: dict[str, Any]) -> dict[str, Any]:
     metadata = item.get("metadata")
     metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
@@ -54,10 +101,16 @@ def item_id_for_idea(draft: dict[str, Any]) -> str:
 
 def file_idea_item(
     client: Any, draft: dict[str, Any], *, actor: str = DEFAULT_ACTOR, now: str | None = None, source_text_reader: SourceTextReader | None = None,
-    extra_generated: dict[str, Any] | None = None,
+    extra_generated: dict[str, Any] | None = None, gate: Gate | None = None,
 ) -> dict[str, Any]:
     """Saves a generated idea as an Item at the idea stage and links the References it cites ``based_on``. Returns ``itemId``, ``lineageId``,
     ``created`` and ``linked``. A body that copies a cited Reference's text raises ``StoryCopiedFromReference`` before anything is written.
+
+    With a ``gate`` the text is checked first: error-severity violations raise ``IdeaRefused`` and nothing is written; any other finding is kept on the Item
+    (``generated.check``) and as its check run. ``supersedes`` (a list of Item lineage ids the idea replaces) is kept in ``generated``.
+
+    With a ``gate`` the text is checked first: error-severity violations raise ``IdeaRefused`` and nothing is written; any other finding is kept on the Item
+    (``generated.check``) and as its check run. ``supersedes`` (Item lineage ids the idea replaces) is kept in ``generated``.
 
     ``draft``: ``title``, ``angle``, ``body``, ``section``, ``targets``, ``ideaId``, ``origin`` and optional ``runId``, ``monitorId``, ``evidence``, ``citedItems``."""
     now = now or utc_now_iso()
@@ -72,15 +125,26 @@ def file_idea_item(
             raise ValueError(f"Reference {lineage} named by the idea was not found.")
         references.append(row)
     title = str(draft["title"]).strip()
+    check: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
     if existing is None:
         body = "\n".join(line for line in str(draft.get("body") or "").splitlines() if not line.startswith("Section: ")).strip() + "\n"
         if references:
             check_body_against_references(client, body, references, source_text_reader)
         section = slugify(str(draft.get("section") or "")) or None
+        for superseded in draft.get("supersedes") or []:
+            if client.get_record("Item", f"{superseded}-v1") is None and not any((row.get("lineageId") or row["id"]) == superseded for row in client.list_records("Item")):
+                raise ValueError(f"supersedes names {superseded}, which is not an Item lineage.")
+        if gate is not None:
+            result = gate.check(body, section)
+            check = summarize_check(result)
+            errors = [finding for finding in check.get("findings") or [] if finding.get("severity") == "error" and finding.get("status") == "violation"]
+            if errors:
+                raise IdeaRefused(errors)
         generated = {
             "origin": draft.get("origin") or "idea-pipeline", "proposedBy": draft.get("proposedBy") or "AI", "ideaId": draft["ideaId"],
             "runId": draft.get("runId"), "monitorId": draft.get("monitorId"), "targets": draft.get("targets"), "evidence": draft.get("evidence"),
-            **(extra_generated or {}),
+            "supersedes": list(draft.get("supersedes") or []), "check": check, **(extra_generated or {}),
         }
         front = {"title": title, "deck": str(draft.get("angle") or ""), GENERATED_KEY: {key: value for key, value in generated.items() if value not in (None, "", [])}}
         sources = [{"title": cited.get("title"), "url": cited.get("url")} for cited in draft.get("citedItems") or [] if cited.get("url")]
@@ -93,9 +157,11 @@ def file_idea_item(
             actor=actor, now=now,
         )
         existing = client.get_record("Item", item_id)
+        if gate is not None and result is not None and not result.get("skipped"):
+            gate.record(existing, result)
     lineage_id = existing.get("lineageId") or item_id
     linked = [link_reference_to_story(client, lineage_id, row["id"], role=BASED_ON, actor=actor, now=now)["referenceLineageId"] for row in references]
-    return {"itemId": item_id, "lineageId": lineage_id, "created": created, "linked": linked}
+    return {"itemId": item_id, "lineageId": lineage_id, "created": created, "linked": linked, "check": check}
 
 
 def idea_rows(client: Any) -> list[dict[str, Any]]:
@@ -120,14 +186,19 @@ class ItemStore:
 
     kind = KIND
 
-    def __init__(self, client: Any, *, actor: str = DEFAULT_ACTOR, source_text_reader: SourceTextReader | None = None, legacy: Callable[[], list[dict[str, Any]]] | None = None) -> None:
+    def __init__(self, client: Any, *, actor: str = DEFAULT_ACTOR, source_text_reader: SourceTextReader | None = None, legacy: Callable[[], list[dict[str, Any]]] | None = None,
+                 gate: Gate | None = None) -> None:
         self.client = client
+        self.gate = gate
         self.actor = actor
         self.source_text_reader = source_text_reader
         self.legacy = legacy
 
     def file_story_draft(self, draft: dict[str, Any]) -> str:
-        return file_idea_item(self.client, draft, actor=self.actor, source_text_reader=self.source_text_reader)["lineageId"]
+        result = file_idea_item(self.client, draft, actor=self.actor, source_text_reader=self.source_text_reader, gate=self.gate)
+        if result["check"] is not None:
+            draft["editorialCheck"] = result["check"]
+        return result["lineageId"]
 
     def file_idea(self, idea: dict[str, Any], body: str, digest_id: str) -> str:
         lineages = list(dict.fromkeys(str(c.get("lineageId") or c["id"]) for c in idea.get("citations") or []))
@@ -135,7 +206,10 @@ class ItemStore:
             **idea, "body": body, "origin": "synthesis", "targets": [{"type": "entity", "id": f"{REFERENCE_TARGET_PREFIX}{lineage}"} for lineage in lineages],
             "evidence": {"signals": len(lineages), "source": f"ideas digest {digest_id}"},
         }
-        return self.file_story_draft(draft)
+        lineage = self.file_story_draft(draft)
+        if draft.get("editorialCheck") is not None:
+            idea["editorialCheck"] = draft["editorialCheck"]
+        return lineage
 
     def story_drafts(self) -> list[dict[str, Any]]:
         """The generated ideas, plus the story draft Proposals filed before ideas became Items when they can be read (they still count as drafted)."""

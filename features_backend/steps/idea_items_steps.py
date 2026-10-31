@@ -13,7 +13,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 
 from papyrus_content.ideas import monitor_stories  # noqa: E402
-from papyrus_content.ideas.items import ItemStore, file_idea_item, generated_of  # noqa: E402
+from papyrus_content.ideas.items import IdeaRefused, ItemStore, file_idea_item, generated_of, review_order  # noqa: E402
 from papyrus_content.ideas.migrate import migrate, plan  # noqa: E402
 from papyrus_content.story_from_reference import StoryCopiedFromReference  # noqa: E402
 from papyrus_content.story_reporting import move_story_stage, story_references  # noqa: E402
@@ -36,13 +36,14 @@ def step_reference(context, title):
     state(context).client = backend()
 
 
-def file(context, body=None):
+def file(context, body=None, **changes):
     held = state(context)
-    changes = {"body": body} if body else {}
+    if body:
+        changes["body"] = body
     try:
-        held.result = file_idea_item(held.client, support.draft(**changes), now=NOW, source_text_reader=reader)
+        held.result = file_idea_item(held.client, support.draft(**changes), now=NOW, source_text_reader=reader, gate=getattr(held, "gate", None))
         held.lineage = held.result["lineageId"]
-    except StoryCopiedFromReference as error:
+    except (StoryCopiedFromReference, IdeaRefused) as error:
         held.error = error
 
 
@@ -50,6 +51,7 @@ def file(context, body=None):
 @when("the pipeline files an idea citing the Reference")
 def step_file(context):
     file(context)
+    state(context).first_lineage = state(context).lineage
 
 
 @when("the pipeline files an idea whose body repeats the Reference's captured text")
@@ -143,3 +145,63 @@ def step_again(context, identifier):
     held = state(context)
     got = {entry["proposalId"]: entry.get("reason") for entry in plan(held.client, held.proposals)}
     assert got[identifier] == "already_covered", got
+
+
+@given('the site\'s editorial check finds an error violation of "{policy}" and a warning')
+def step_gate_error(context, policy):
+    state(context).gate = support.FakeGate([support.finding("error", policy=policy), support.finding("warn")])
+
+
+@given("the site's editorial check finds only a warning")
+def step_gate_warn(context):
+    state(context).gate = support.FakeGate([support.finding("warn")])
+
+
+@given("the judgment lane is unavailable because no TYPESAFE_API_KEY is set")
+def step_gate_unavailable(context):
+    state(context).gate = support.FakeGate(classifier={"status": "unavailable", "reason": "no decision model is configured (set TYPESAFE_API_KEY)"})
+
+
+@then('the filing is refused and the reason names "{policy}"')
+def step_refused_policy(context, policy):
+    error = state(context).error
+    assert isinstance(error, IdeaRefused) and policy in str(error)
+
+
+@then("the Item keeps {count:d} warning in its check result")
+def step_warning_kept(context, count):
+    assert generated_of(items(context)[0])["check"]["counts"]["warn"] == count
+
+
+@then("the check is stored as the Item's check run")
+def step_check_run(context):
+    assert [item_id for item_id, _ in state(context).gate.recorded] == [items(context)[0]["id"]]
+
+
+@then("the Item's check says the judgment lane did not run and why")
+def step_judgment(context):
+    judgment = generated_of(items(context)[0])["check"]["judgment"]
+    assert judgment["ran"] is False and "TYPESAFE_API_KEY" in judgment["reason"]
+
+
+@given("three ideas with no findings, one warning and one note")
+def step_three(context):
+    state(context).ideas = [{"ideaId": "warning", "editorialCheck": {"counts": {"error": 0, "warn": 1, "info": 0}}}, {"ideaId": "clean"}, {"ideaId": "note", "editorialCheck": {"counts": {"error": 0, "warn": 0, "info": 1}}}]
+
+
+@then("the review lists them in that order: no findings, then the note, then the warning")
+def step_order(context):
+    assert [idea["ideaId"] for idea in review_order(state(context).ideas)] == ["clean", "note", "warning"]
+
+
+@when("a roundup idea that supersedes it is filed")
+def step_roundup(context):
+    held = state(context)
+    file(context, ideaId="idea-roundup", supersedes=[held.lineage], title="Clef roundup", targets=[{"type": "entity", "id": "topic-clef"}])
+
+
+@then("the roundup records the earlier idea's lineage as superseded")
+def step_superseded(context):
+    held = state(context)
+    roundup = next(item for item in items(context) if item["lineageId"] == held.result["lineageId"])
+    assert generated_of(roundup)["supersedes"] == [state(context).first_lineage]

@@ -382,3 +382,13 @@ A generated story (a monitor story, a trend story, a synthesized idea) is filed 
 - Filing the same idea again finds the Item that exists (its id comes from the Reference lineages it cites).
 - An editor accepts an idea by moving it forward and declines it by moving it to `spiked` with a reason (`papyrus stories move`); the reason is recorded on the Item's `stageMoves`.
 - `papyrus ideas migrate-proposals [--write]` converts the open `story_draft` Proposals into idea Items once. It is a dry run unless `--write`, skips decided Proposals, ones whose References already have a story, and duplicates, and leaves the Proposals as they are. It needs an editor session (an operator cannot read Proposals). The `Proposal` model stays for reader steering.
+
+### The editorial gate
+
+With `--store items` every idea is checked against the site's editorial policies (the same composed pack `papyrus editorial check` uses, rules lane and judgment lane) before it is filed.
+
+- An **error-severity violation refuses the filing**: nothing is written, and the run's `invalid[]` records `editorial_check_failed` with the findings, as the citation check does.
+- Warnings and notes stay with the Item (`generated.check`: counts by severity, the findings, the lanes) and are stored as the Item's editorial check run. The batch review lists clean ideas first.
+- The judgment lane needs `TYPESAFE_API_KEY`. When it is missing Humanus reports the lane as unavailable and the Item records `judgment: {ran: false, reason}`; the idea is not passed off as judged. Checks turned off for the site are recorded as `{ran: false, skipped: disabled}`.
+- `supersedes`: an idea may list Item lineages it replaces (stored in `generated.supersedes`, each must be an existing Item). The editor can then spike those in the same review.
+- The router's `items` store files ungated for now: the router role has no editorial grants. Keep `monitorStories.store` at `proposals` until both grants are in.

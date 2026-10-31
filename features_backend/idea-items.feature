@@ -43,3 +43,29 @@ Feature: Generated story ideas are Items at the idea stage
     When the editor runs the migration with writing
     Then exactly 1 Item exists at the idea stage
     And running the plan again skips "prop-a" because it is already covered
+
+  Scenario: An idea whose text breaks an error-severity editorial policy is not filed
+    Given the site's editorial check finds an error violation of "production-claims" and a warning
+    When the pipeline files an idea citing the Reference
+    Then the filing is refused and the reason names "production-claims"
+    And no Item exists
+
+  Scenario: Warnings travel with the idea and its check is stored
+    Given the site's editorial check finds only a warning
+    When the pipeline files an idea citing the Reference
+    Then the Item keeps 1 warning in its check result
+    And the check is stored as the Item's check run
+
+  Scenario: A judgment lane that could not run is recorded, never passed silently
+    Given the judgment lane is unavailable because no TYPESAFE_API_KEY is set
+    When the pipeline files an idea citing the Reference
+    Then the Item's check says the judgment lane did not run and why
+
+  Scenario: Cleaner ideas come first in the batch review
+    Given three ideas with no findings, one warning and one note
+    Then the review lists them in that order: no findings, then the note, then the warning
+
+  Scenario: An idea can name the earlier ideas it replaces
+    Given the pipeline filed an idea citing the Reference
+    When a roundup idea that supersedes it is filed
+    Then the roundup records the earlier idea's lineage as superseded
