@@ -57,6 +57,10 @@ papyrus home-page snapshot --site KEY --dry-run          # counts and file size;
 
 Mutation commands write by default; `--dry-run` prints the report and the size of the file only. `--static-dir` points at the site checkout so its `projection.json` (including `urls.basePath`) applies; without it the defaults are used.
 
+## Stories beside the Reference grids
+
+A home page that interleaves Stories with the Reference grids uses the ordinary `listing` include. It can show a single Story type with `types` (any of) and `notTypes` (none of), for example `::include{kind="listing" sections="articles" types="article" count="1" card="text" layout="bare"}` for the newest article even when newer posts exist. A type is only selectable if `listings.types` lists it. Pages that do not use the attributes render exactly as before.
+
 ## The references include
 
 `::include{kind="references" select="recent|confident|recommended" count="6" [section="Tools"] [card="tile|row"] [heading="..."] [more="/path/"] [empty="..."]}` places Reference cards on an authored page, rendered at projection time from `_data/home-page/references.json`. A site needs the `homePage` setting; without it the include is a build error that names the page file.
