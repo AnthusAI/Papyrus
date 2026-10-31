@@ -284,6 +284,29 @@ Feature: A site writes about the items its monitors find
     Then the Proposals filed are for "First item" and "Next item"
     And the model was asked exactly 2 times in all
 
+  Scenario: The same address delivered as two References is drafted once
+    Given the monitors of the site delivered these items:
+      | monitor | title             | verdict      | days ago |
+      | hn      | Shared item       | include 0.80 | 1        |
+      | email   | Shared item again | include 0.70 | 1        |
+    And "Shared item again" links to the same address as "Shared item"
+    And every linked page can be read
+    When the operator drafts monitor stories and files them as Proposals with a limit of 3
+    And the operator drafts monitor stories and files them as Proposals with a limit of 3
+    Then the Proposals filed are for "Shared item"
+    And the model was asked exactly 1 times in all
+    And the run record counts 1 item skipped for sharing an address with a drafted one
+
+  Scenario: A Reference that another run drafted while this one was working is not filed again
+    Given the monitors of the site delivered these items:
+      | monitor | title      | verdict      | days ago |
+      | hn      | First item | include 0.80 | 1        |
+    And every linked page can be read
+    And another run files a Proposal for "First item" after this run has read the existing ones
+    When the operator drafts monitor stories and files them as Proposals with a limit of 3
+    Then no Proposal is filed by this run
+    And the run record says "First item" was already drafted
+
   Scenario: A draft an editor declined is not drafted again
     Given the monitors of the site delivered these items:
       | monitor | title      | verdict      | days ago |

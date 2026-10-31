@@ -551,6 +551,28 @@ async function publicSiteOriginTests() {
   assert.equal((await handleProspectusPublishingAccountCreation(creation, { ...routeOptions(runtime), environment })).status, 401, "creation accepts the public Origin");
 }
 
+async function consoleOriginTests() {
+  const consoleOrigin = "https://newsroom.p.apyr.us";
+  const { runtime } = prospectusRuntime({});
+  const post = (path: string, origin: string, body: unknown) => computeRequest(path, "POST", { "content-type": "application/json", origin }, body);
+  const withConsole = { PAPYRUS_SITE_ORIGIN: siteOrigin, SITE_ENV: "production", PAPYRUS_CONSOLE_ORIGIN: consoleOrigin };
+  const without = { PAPYRUS_SITE_ORIGIN: siteOrigin, SITE_ENV: "production" };
+  const routes: Array<[string, (request: NextRequest, options: ProspectusSignInRouteOptions) => Promise<{ status: number }>, unknown]> = [
+    ["/api/auth/prospectus/selection", handleProspectusAccountSelection, { accountId: "account-1" }],
+    ["/api/auth/prospectus/accounts", handleProspectusPublishingAccountCreation, { name: "x" }],
+  ];
+  for (const [path, handler, body] of routes) {
+    assert.equal((await handler(post(path, consoleOrigin, body), { ...routeOptions(runtime), environment: withConsole })).status, 401, `${path} accepts the console Origin when configured`);
+    assert.equal((await handler(post(path, "https://evil.example", body), { ...routeOptions(runtime), environment: withConsole })).status, 403, `${path} still refuses a foreign Origin`);
+    assert.equal((await handler(post(path, consoleOrigin, body), { ...routeOptions(runtime), environment: without })).status, 403, `${path} refuses the console Origin when none is configured`);
+  }
+  const connect = (origin: string, environment: Record<string, string>) => handleProspectusSignInStart(
+    computeRequest("/api/auth/prospectus/sign-in?newsroomChat=true", "POST", { origin }), { ...routeOptions(runtime), environment });
+  assert.equal((await connect(consoleOrigin, withConsole)).status, 401, "newsroom chat connect accepts the console Origin (then needs a newsroom identity)");
+  assert.equal((await connect(consoleOrigin, without)).status, 403, "newsroom chat connect refuses the console Origin when none is configured");
+  assert.equal((await connect("https://evil.example", withConsole)).status, 403, "newsroom chat connect refuses a foreign Origin");
+}
+
 async function siteOriginFailsClosedTests() {
   const { runtime } = prospectusRuntime({ "POST /v1/identities/google/challenge": { challengeId: "challenge-1", nonce: "prospectus-nonce", expiresAt: 1_300 } });
   for (const environment of [{ SITE_ENV: "production" }, { SITE_ENV: "staging" }, { PAPYRUS_SITE_ORIGIN: "http://p.apyr.us" }, { PAPYRUS_SITE_ORIGIN: "https://p.apyr.us/path" }, { PAPYRUS_SITE_ORIGIN: "https://p.apyr.us/" }, { PAPYRUS_SITE_ORIGIN: "p.apyr.us" }]) {
@@ -699,6 +721,7 @@ async function main() {
   await configurationTests();
   await signInRouteTests();
   await publicSiteOriginTests();
+  await consoleOriginTests();
   await siteOriginFailsClosedTests();
   await loopbackDevelopmentFallbackTests();
   publicationAccessTests();

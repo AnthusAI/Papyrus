@@ -109,7 +109,7 @@ function input(overrides: Record<string, unknown> = {}, withLinking = false) {
 
 const behaviours: Record<string, () => void | Promise<void>> = {
   "manifest is complete": () => {
-    const config = resolveAlexaConfig({ ...request, locales: ["en-US", "en-GB"], accountLinking: true });
+    const config = resolveAlexaConfig({ ...request, locales: ["en-US", "en-GB"], accountLinking: true, amazonVendorId: "M2EXAMPLEVENDOR" });
     const manifest = JSON.parse(generateSkillPackage(config, { endpointArn: ARN, modules })[SKILL_MANIFEST_PATH]).manifest;
     for (const locale of ["en-US", "en-GB"]) {
       const info = manifest.publishingInformation.locales[locale];
@@ -118,8 +118,8 @@ const behaviours: Record<string, () => void | Promise<void>> = {
       assert.deepEqual(info.keywords, ["the example", "news"]);
       assert.equal(info.smallIconUri, "https://example.com/alexa/icon-108.png");
       assert.equal(info.largeIconUri, "https://example.com/alexa/icon-512.png");
-      assert.equal(manifest.privacyAndCompliance.locales[locale].privacyPolicyUrl, "https://example.com/alexa/privacy");
-      assert.equal(manifest.privacyAndCompliance.locales[locale].termsOfUseUrl, "https://example.com/alexa/terms");
+      assert.equal(manifest.privacyAndCompliance.locales[locale].privacyPolicyUrl, "https://example.com/alexa/privacy/");
+      assert.equal(manifest.privacyAndCompliance.locales[locale].termsOfUseUrl, "https://example.com/alexa/terms/");
     }
     assert.equal(manifest.publishingInformation.category, "NEWS");
     assert.deepEqual(manifest.apis.custom.interfaces, [{ type: "ALEXA_PRESENTATION_APL" }]);
@@ -224,7 +224,7 @@ const behaviours: Record<string, () => void | Promise<void>> = {
     });
 
     const world = fakes();
-    await syncAlexaSkill(input({ accountLinking: true }, true), world.ports);
+    await syncAlexaSkill(input({ accountLinking: true, amazonVendorId: "M2EXAMPLEVENDOR" }, true), world.ports);
     assert.ok(world.amazonCalls().includes(`linking ${NEW_SKILL_ID}`));
     assert.equal((world.smapi.linking as { accountLinkingRequest: { clientSecret: string } }).accountLinkingRequest.clientSecret, "cognito-client-secret");
 
@@ -233,15 +233,15 @@ const behaviours: Record<string, () => void | Promise<void>> = {
     assert.equal(off.amazonCalls().some((call) => call.startsWith("linking")), false, "linking is not pushed unless the site turns it on");
 
     const noSecret = fakes({ secret: undefined });
-    await syncAlexaSkill(input({ accountLinking: true }, true), noSecret.ports);
+    await syncAlexaSkill(input({ accountLinking: true, amazonVendorId: "M2EXAMPLEVENDOR" }, true), noSecret.ports);
     assert.equal(noSecret.amazonCalls().some((call) => call.startsWith("linking")), false);
     assert.ok(noSecret.logs.some((line) => /no secret/.test(line)));
 
     const rotated = fakes();
-    await syncAlexaSkill(input({ accountLinking: true }, true), rotated.ports);
+    await syncAlexaSkill(input({ accountLinking: true, amazonVendorId: "M2EXAMPLEVENDOR" }, true), rotated.ports);
     rotated.calls.length = 0;
     rotated.ports.clientSecrets = { clientSecret: async () => "a-new-secret" };
-    await syncAlexaSkill(input({ accountLinking: true }, true), rotated.ports);
+    await syncAlexaSkill(input({ accountLinking: true, amazonVendorId: "M2EXAMPLEVENDOR" }, true), rotated.ports);
     assert.ok(rotated.amazonCalls().includes(`linking ${NEW_SKILL_ID}`), "a rotated client secret is pushed again");
   },
 

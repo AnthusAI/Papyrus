@@ -20,8 +20,8 @@
       "isExportCompliant": true,
       "locales": {
         "en-US": {
-          "privacyPolicyUrl": "https://example.com/alexa/privacy",
-          "termsOfUseUrl": "https://example.com/alexa/terms"
+          "privacyPolicyUrl": "https://example.com/alexa/privacy/",
+          "termsOfUseUrl": "https://example.com/alexa/terms/"
         }
       },
       "usesPersonalInfo": false

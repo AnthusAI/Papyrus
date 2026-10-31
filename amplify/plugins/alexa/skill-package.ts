@@ -48,8 +48,8 @@ export function skillLocales(config: AlexaConfig): readonly string[] {
 export function skillPublicUrls(config: AlexaConfig) {
   const under = (path: string) => (config.siteOrigin === undefined ? undefined : `${config.siteOrigin}${path}`);
   return {
-    privacyPolicyUrl: config.privacyPolicyUrl ?? under("/alexa/privacy"),
-    termsOfUseUrl: config.termsOfUseUrl ?? under("/alexa/terms"),
+    privacyPolicyUrl: config.privacyPolicyUrl ?? under("/alexa/privacy/"),
+    termsOfUseUrl: config.termsOfUseUrl ?? under("/alexa/terms/"),
     smallIconUri: config.iconSmallUri ?? under("/alexa/icon-108.png"),
     largeIconUri: config.iconLargeUri ?? under("/alexa/icon-512.png"),
   };

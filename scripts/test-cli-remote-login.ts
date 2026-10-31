@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { NextRequest } from "next/server";
 import { App, Stack } from "aws-cdk-lib";
-import { Template } from "aws-cdk-lib/assertions";
+import { Annotations, Match, Template } from "aws-cdk-lib/assertions";
 import { Code } from "aws-cdk-lib/aws-lambda";
 import { defineBackend } from "@aws-amplify/backend";
 import { defineSiteAuth } from "../amplify/auth/resource";
@@ -235,7 +235,7 @@ const behaviours: Record<string, () => Promise<unknown>> = {
 
   // -- the resources ----------------------------------------------------------------------------------------------
   async the_broker_keeps_its_security_properties() {
-    const template = synthesizeBroker();
+    const { template } = synthesizeBroker();
     const [brokerId, broker] = Object.entries(template.findResources("AWS::Lambda::Function")).find(([, resource]) => resource.Properties.Handler === "cli_login.broker.handler.lambda_handler")!;
     const [pagesId, pages] = Object.entries(template.findResources("AWS::Lambda::Function")).find(([, resource]) => resource.Properties.Handler === "handler.handler")!;
     assert.equal(broker.Properties.ReservedConcurrentExecutions, 10, "reserved concurrency");
@@ -291,9 +291,36 @@ const behaviours: Record<string, () => Promise<unknown>> = {
     assert.equal(pages.Properties.Environment.Variables.IDENTITY_PROVIDER, "Google");
     return {};
   },
+
+  async the_broker_alarms_notify_the_sites_alarm_topic_when_one_is_configured() {
+    const topicArn = "arn:aws:sns:us-east-1:111111111111:example-site-alarms";
+    const { template, annotations } = synthesizeBroker(topicArn);
+    const alarms = Object.values(template.findResources("AWS::CloudWatch::Alarm")).map((resource) => resource.Properties);
+    assert.equal(alarms.length, 2);
+    for (const alarm of alarms) {
+      assert.deepEqual(alarm.AlarmActions, [topicArn]);
+      assert.deepEqual(alarm.OKActions, [topicArn]);
+    }
+    annotations.hasNoWarning("*", Match.stringLikeRegexp("notify nobody"));
+    return {};
+  },
+
+  async without_an_alarm_topic_the_synth_warns_once_and_names_the_setting() {
+    const { template, annotations } = synthesizeBroker();
+    const alarms = Object.values(template.findResources("AWS::CloudWatch::Alarm")).map((resource) => resource.Properties);
+    assert.equal(alarms.length, 2);
+    for (const alarm of alarms) {
+      assert.equal("AlarmActions" in alarm, false);
+      assert.equal("OKActions" in alarm, false);
+    }
+    const warnings = annotations.findWarning("*", Match.stringLikeRegexp("PAPYRUS_ALARM_TOPIC_ARN"));
+    assert.equal(warnings.length, 1);
+    assert.match(String(warnings[0].entry.data), /cms\.alarmTopicArn/);
+    return {};
+  },
 };
 
-function synthesizeBroker(): Template {
+function synthesizeBroker(alarmTopicArn?: string): { template: Template; annotations: Annotations } {
   const stack = new Stack(new App(), "CliRemoteLoginTest", { env: { account: "111111111111", region: "us-east-1" } });
   addCliRemoteLogin(stack, {
     plan: planCliRemoteLogin(true, { PAPYRUS_SITE_ORIGIN: site, PAPYRUS_CLI_INVOKER_ROLE_ARN: invokerRoleArn })!,
@@ -303,8 +330,9 @@ function synthesizeBroker(): Template {
     product: "Papyrus (shipped.example.test)",
     brokerCode: Code.fromInline("def lambda_handler(event, context): pass"),
     pagesCode: Code.fromInline("def handler(event, context): pass"),
+    alarmTopicArn,
   });
-  return Template.fromStack(stack);
+  return { template: Template.fromStack(stack), annotations: Annotations.fromStack(stack) };
 }
 
 function authChild(mode: string): void {

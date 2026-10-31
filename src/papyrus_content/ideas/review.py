@@ -31,15 +31,19 @@ def request_human_review(client: Any, run: dict[str, Any], ideas: list[dict[str,
     elif client is None:
         review = {"status": "pending", "requested": False, "ideas": len(ideas), "note": "No review client was given."}
     else:
-        identifiers = [idea.get("proposalId") or idea["ideaId"] for idea in ideas]
+        from .items import review_order
+
+        ideas = review_order(ideas)   # clean ones first (ideas with no editorial check keep their place)
+        identifiers = [idea.get("proposalId") or idea.get("itemLineageId") or idea["ideaId"] for idea in ideas]
+        as_items = all(idea.get("itemLineageId") for idea in ideas)
         try:
-            request = review_requests.raise_batch_review(client, raised_by=RAISED_BY, batch_id=run["runId"], proposal_ids=identifiers, noun=noun)
+            request = review_requests.raise_batch_review(client, raised_by=RAISED_BY, batch_id=run["runId"], proposal_ids=identifiers, noun=noun, link_type="story" if as_items else "proposal")
         except Exception as error:  # noqa: BLE001 - the ideas are stored; a site without review requests must not fail the run
             review = {"status": "not_raised", "requested": False, "ideas": len(ideas), "error": f"{type(error).__name__}: {error}"[:300]}
         else:
             review = {
                 "status": "requested", "requested": True, "ideas": len(ideas), "requestId": request["id"], "deadline": request.get("deadline"),
-                "linkedAs": "proposal" if all(idea.get("proposalId") for idea in ideas) else "idea",
+                "linkedAs": "story" if as_items else ("proposal" if all(idea.get("proposalId") for idea in ideas) else "idea"),
             }
     review["ideaIds"] = [idea["ideaId"] for idea in ideas]
     log.info("review %s: %d new story ideas from run %s", review["status"], len(ideas), run.get("runId"))

@@ -84,6 +84,10 @@ With `homePage.threads.enabled` the same task also writes `_data/home-page/threa
 - **De-duplication**: threads claim `thread:<key>` in the page ledger, so two threads includes on one page never repeat a thread, and they do not interfere with the Reference cards.
 - **Freshness**: with `threads.enabled`, the `home-page` plugin also reads the Message table's stream into the same trigger. A new comment, or a change of its `status`, `content`, `editedAt` or `deletedAt`, opens the same debounce window. A Message stream that another feature already switched on is reused, not replaced.
 
+## Stylesheet
+
+`css/papyrus-home-page.css` is written whenever `homePage` is set, but a page links it only when it places a references or threads include, with a `?v=` token of its own (the first 12 hex characters of that file's SHA-256). The file is left out of the site-wide `?v=`, so a page with no cards keeps the same bytes with or without `homePage`.
+
 ## Thread pages
 
 `homePage.forum` (an object, `{}` is enough) gives every public thread its own static, read-only page at `<threadBase>/<key>/`, where `threadBase` defaults to `conversations` and `key` is the thread's opaque 12-hex-character key from `threads.json`. It needs `homePage.threads.enabled`, because the page is drawn from `_data/home-page/threads/<key>.json`. `threadBase` follows the same rule as a section `base`: `_data`, `_plugins`, `_papyrus`, `_next` and `api` are reserved (and `newsroom` on a site whose edge routes the CMS), and it may not equal a section base. `forum.index.pageSize` (default 50) and `forum.posting` are read for the forum index and posting tasks and do nothing yet. A site without `homePage.forum` renders no thread page and is byte-identical to before.

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f5ccf8cf-d569-453f-aad8-e809016fa2e9",
+  "title": "Copy-edit and copywriting skills: newsroom batch passes, judgment lane, publish; .claude/skills links .agents/skills",
+  "description": "Fold the 2026-10-31 Anth.us copy-edit pass into .agents/skills/editorial-copyedit-cycle and copywriting: articles live in the newsroom (not git); connecting by login or the IAM operator lane; batch pass over published articles; report a missing judgment lane and propose judgment policies to the CMS; triage rule noise; exact-match apply and re-check; save-version then authorized ops content publish; verify live. Link .claude/skills -> .agents/skills so Claude sessions load the same skills as other agents.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T13:43:27.570963Z",
+  "updated_at": "2026-10-31T14:09:59.968919Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
