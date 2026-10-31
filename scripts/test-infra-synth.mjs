@@ -543,6 +543,19 @@ try {
   assert.match(edgeVariables, /"Name":"PAPYRUS_SITE_ORIGIN","Value":"https:\/\/shipped\.anth\.us"/);
   assert.match(edgeVariables, /https:\/\/shipped\.anth\.us\//, "siteOrigin joins the OAuth redirect list");
   assert.match(edgeVariables, /DefaultDomain/, "the amplifyapp.com origin stays in the OAuth redirect list");
+  assert.doesNotMatch(edgeVariables, /PAPYRUS_CONSOLE_ORIGIN/, "without consoleOrigin the production branch is unchanged");
+
+  const consoleSite = synthVariant("console-site", "pretext.site.json", (config) => {
+    removeDomains(config);
+    config.cms.siteOrigin = "https://shipped.anth.us";
+    config.cms.consoleOrigin = "https://newsroom.shipped.anth.us";
+  });
+  const consoleMain = resourcesOfType(consoleSite, "AWS::Amplify::Branch").find((branch) => branch.Properties.BranchName === "main");
+  const consoleVariables = JSON.stringify(consoleMain.Properties.EnvironmentVariables);
+  assert.match(consoleVariables, /"Name":"PAPYRUS_SITE_ORIGIN","Value":"https:\/\/shipped\.anth\.us"/, "the site origin stays the public origin");
+  assert.match(consoleVariables, /"Name":"PAPYRUS_CONSOLE_ORIGIN","Value":"https:\/\/newsroom\.shipped\.anth\.us"/);
+  assert.match(consoleVariables, /https:\/\/newsroom\.shipped\.anth\.us\//, "the console origin joins the OAuth redirect list");
+  assert.match(consoleVariables, /https:\/\/shipped\.anth\.us\//, "the site origin stays in the OAuth redirect list");
   const edgeStaging = resourcesOfType(edgeSite, "AWS::Amplify::Branch").find((branch) => branch.Properties.BranchName === "staging");
   assert.match(JSON.stringify(edgeStaging.Properties.EnvironmentVariables), /"Name":"PAPYRUS_SITE_ORIGIN","Value":\{"Fn::Join":\["",\["https:\/\/staging\.",\{"Fn::GetAtt":\["App","DefaultDomain"\]\}\]\]\}/, "staging origin is unchanged");
   assert.doesNotMatch(noDomainRedirects, /"Name":"PAPYRUS_SITE_ORIGIN","Value":"https:\/\/shipped/, "without siteOrigin the origin is still the default domain");

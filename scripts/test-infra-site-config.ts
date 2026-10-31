@@ -131,6 +131,14 @@ for (const bad of ["http://shipped.anth.us", "https://shipped.anth.us/newsroom",
   assertRejects(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.siteOrigin = bad; }), "cms.siteOrigin");
 }
 assertRejects(mutated("pretext.site.json", (c) => { c.cms.siteOrigin = "https://shipped.anth.us"; }), "remove it when cms.domainName is set");
+const consoleSiteConfig = parseCmsSite(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.siteOrigin = "https://shipped.anth.us"; c.cms.consoleOrigin = "https://newsroom.shipped.anth.us"; }));
+assert.equal(consoleSiteConfig.cms.consoleOrigin, "https://newsroom.shipped.anth.us");
+assert.equal(edgeSiteConfig.cms.consoleOrigin, undefined);
+for (const bad of ["http://newsroom.shipped.anth.us", "https://newsroom.shipped.anth.us/newsroom", "https://newsroom.shipped.anth.us/", "newsroom.shipped.anth.us"]) {
+  assertRejects(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.siteOrigin = "https://shipped.anth.us"; c.cms.consoleOrigin = bad; }), "cms.consoleOrigin");
+}
+assertRejects(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.consoleOrigin = "https://newsroom.shipped.anth.us"; }), "requires cms.siteOrigin");
+assertRejects(mutated("pretext.site.json", (c) => { domainFree(c); c.cms.siteOrigin = "https://shipped.anth.us"; c.cms.consoleOrigin = "https://shipped.anth.us"; }), "must differ from cms.siteOrigin");
 const noStagingConfig = parseCmsSite(mutated("pretext.site.json", (c) => {
   c.cms.staging = false;
   c.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS = "http://localhost:3001/,https://newsroom.example.test/";

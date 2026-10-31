@@ -141,6 +141,19 @@ backend is configured without the app-shell can set the same two variables itsel
 `PAPYRUS_SITE_ORIGIN`, which production branches already have. With the flag off, the
 synthesized backend and the Cognito client are unchanged.
 
+### A console on its own host
+
+When the newsroom console is served from its own host (`cms.consoleOrigin` in the app-shell
+`site.json`, for example `https://newsroom.shipped.anth.us`), the app shell sets
+`PAPYRUS_CONSOLE_ORIGIN`, and remote login follows it: the approval page and the callback
+(`/cli/approve`, `/cli/callback`) and the Cognito return URL are on the console origin, and
+`broker_endpoint` and `remote_callback_uri` in `/.well-known/papyrus-cli.json` name it.
+`PAPYRUS_SITE_ORIGIN` stays the public site's origin. The login file names the console origin
+as `publication`, because the CLI requires `publication` to equal the origin it was given.
+The new address is therefore `papyrus login --site https://newsroom.shipped.anth.us` (or
+`papyrus login --remote newsroom.shipped.anth.us`). The public host serves the same file, so
+the CLI refuses it there with the publication mismatch until the old address is retired.
+
 ## Sign in by site name
 
 ```sh

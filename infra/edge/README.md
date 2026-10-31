@@ -33,6 +33,10 @@ Changing the function code needs a new immutable version: edit the `Description`
 
 A pure S3 distribution without CMS behaviors (`anth-us-s3.yaml`, `pilobol-us.yaml`, the distribution the site backend creates) has nothing to mask, and keeps its error responses.
 
+## The console on its own host
+
+A site can serve its newsroom console from a separate host (`newsroom.<site host>`). That host gets its own small distribution: one default behavior to the site's CMS Amplify app, uncached, all methods, the `x-forwarded-host` viewer-request function, no S3 origin and no `CustomErrorResponses`. The stack creates its own ACM certificate (DNS validation in the Route 53 zone) and the alias records, so no Amplify domain association is needed, which matters where `create-domain-association` is throttled. The Shipped template is `infra/edge/shipped-console.yaml` in Shipped-web. The site's app-shell `site.json` names the host as `cms.consoleOrigin`.
+
 ## New sites
 
 A new Markus site does not need one of these. Set `backend.publication.distribution` in `papyrus.config.ts` and the site backend creates the distribution:
