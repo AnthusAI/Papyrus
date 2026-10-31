@@ -317,7 +317,7 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             print_group_help(group)
             return 0
         return _map_analysis(command, flags)
-    if group in {"editions", "batch", "messages", "reader", "proposals", "ideas", "cyclotron", "items"}:
+    if group in {"editions", "batch", "messages", "reader", "proposals", "ideas", "cyclotron", "items", "home-page"}:
         if command is None:
             print_group_help(group)
             return 0

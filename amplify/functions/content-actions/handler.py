@@ -10,6 +10,7 @@ from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
 from papyrus_content.projection.lease import ProjectionLeaseHeld
 from papyrus_content.projection.engine import project, project_all, project_item_pages
+from papyrus_content.home_page.task import TASK_NAME as HOME_PAGE_SNAPSHOT_TASK, home_page_settings_of, run_home_page_snapshot
 from papyrus_content.reader_steering.task import TASK_NAME as READER_SNAPSHOT_TASK, run_reader_snapshot
 from papyrus_content.projection.runtime import (
     DEAD_LETTER_QUEUE_ENV,
@@ -73,6 +74,7 @@ def derive_markus_action(arguments: dict) -> dict:
 
 
 PROJECTION_TASK_KEY = "projectionTask"
+HOME_PAGE_SNAPSHOT_WORKERS = 8
 
 
 class ProjectionTaskFailed(Exception):
@@ -185,6 +187,21 @@ def run_deploy_render_task(client) -> dict:
     return report.to_dict()
 
 
+def run_home_page_snapshot_task(client) -> dict:
+    """Write the site's public Reference file when it changed. A site whose projection.json has no ``homePage`` setting ignores the task."""
+    context = projection_context(client)
+    report = run_home_page_snapshot(
+        context,
+        client,
+        home_page_settings_of(context.projector),
+        client_factory=lambda: create_authoring_client()[0],
+        workers=HOME_PAGE_SNAPSHOT_WORKERS,
+    )
+    if report.get("errors"):
+        raise ProjectionTaskFailed("; ".join(report["errors"]))
+    return {"ok": True, **report}
+
+
 def run_projection_task(task: dict) -> dict:
     """An asynchronous projection task. Raising makes Lambda retry it, then send the event to the dead letter queue."""
     try:
@@ -207,6 +224,8 @@ def _run_projection_task(task: dict) -> dict:
         return run_deploy_render_task(client)
     elif task.get("task") == READER_SNAPSHOT_TASK:
         return run_reader_snapshot(projection_context(client), client, poll_retirements=task.get("retirementPoll") is True).to_dict()
+    elif task.get("task") == HOME_PAGE_SNAPSHOT_TASK:
+        return run_home_page_snapshot_task(client)
     elif task.get("task") == "invalidate":
         invalidate = projection_context(client).invalidate
         if invalidate is None:
