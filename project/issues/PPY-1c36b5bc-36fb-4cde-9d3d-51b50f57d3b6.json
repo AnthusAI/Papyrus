@@ -1,0 +1,20 @@
+{
+  "id": "PPY-1c36b5bc-36fb-4cde-9d3d-51b50f57d3b6",
+  "title": "AudioPlayer playback with resume state",
+  "description": "AudioPlayer directives, PlaybackController events, and resume state per Alexa user in DynamoDB. Gherkin covers play, pause, resume and next.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-00ac19f5-01e2-4c83-9e1a-3a04d8e4b5cc",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:50.378460Z",
+  "updated_at": "2026-10-31T14:06:50.378494Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

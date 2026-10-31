@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "27782589-39a2-4f94-99f7-5265fd1b588c",
+  "issue_id": "PPY-33162de1-7459-47b2-88a7-d24db08ce346",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:48.014Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Viewport profiles and device capability checks",
+    "description": "Layouts for hubRoundSmall, hubLandscapeSmall/Medium/Large, plus a check of supportedInterfaces on every response. Test in the APL authoring tool simulator for each profile and on the real Shows. Screenshots of each profile go to Ryan.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-5e0b9224-b7e0-451a-8afb-23f53f1b443d",
+    "labels": []
+  }
+}
