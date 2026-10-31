@@ -370,3 +370,21 @@ allow:
     kind: "Bare UUID (potential session/agent identifier)"
     reason: "Public AWS managed CloudFront policy ids (CachingDisabled, AllViewerExceptHostHeader); not session identifiers"
     added: 2026-10-31
+  - id: "9e6e60cb952e1eb2"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/threat-intelligence.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "AWS-managed CloudFront cache and origin-request policy ids, public"
+    added: 2026-10-31
+  - id: "0aaf3d05752453a2"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/threat-intelligence.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "AWS-managed CloudFront cache and origin-request policy ids, public"
+    added: 2026-10-31
+  - id: "c889be54bb3c3d82"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/threat-intelligence.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "AWS-managed CloudFront cache and origin-request policy ids, public"
+    added: 2026-10-31
