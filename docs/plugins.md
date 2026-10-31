@@ -158,6 +158,8 @@ pins the registry, the settings, the web ACL and the manifest-to-schema match.
 
 ## Other plugins
 
+`alexa` (an Alexa custom skill for the site's published stories) is documented in [alexa.md](alexa.md). It adds no model or mutation: one TypeScript function that only the Alexa service may invoke, and a skill package generated from the site's settings.
+
 `home-page` (curation changes reach the public home-page pages by themselves) is documented in [home-page.md](home-page.md#freshness). It adds no model or mutation: a stream on the Reference table, one trigger function, a scheduler role and, optionally, an interval rule.
 
 `reader-steering` (reader identity, votes, ratings and live numbers) is documented in [reader-steering.md](reader-steering.md). It builds on the Proposals queue, which is core to every site rather than part of any plugin: the `Proposal` model, `fileProposal`, `transitionProposal`, `editProposal` and `listStoryDrafts` live in `amplify/functions/proposal-actions/` and are in the base schema, so a site without the plugin receives AI story drafts. The plugin adds only reader votes on proposals and public publishing.

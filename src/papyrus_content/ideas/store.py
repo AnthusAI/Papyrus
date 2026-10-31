@@ -17,8 +17,8 @@ from ..proposals_commands import FILE_MUTATION, LIST_QUERY, list_proposals, oper
 
 STORE_DIRECTORY_ENVIRONMENT = "PAPYRUS_IDEAS_DIR"
 PUBLIC_DIRECTORY_NAMES = {"_data", "public", "static-root"}
-JSON, PROPOSALS = "json", "proposals"
-STORES = (JSON, PROPOSALS)
+JSON, PROPOSALS, ITEMS = "json", "proposals", "items"
+STORES = (JSON, PROPOSALS, ITEMS)
 
 
 class StoreRefused(ValueError):
@@ -84,13 +84,22 @@ class JsonStore:
         return [json.loads(path.read_text(encoding="utf-8")) for path in sorted(directory.glob("*.json"))]
 
 
+MAXIMUM_TARGETS = 10  # what a Proposal may name (amplify/functions/proposal-actions TARGET_COUNTS)
+
+
 class ProposalStore:
     """Files ideas as draft story_draft Proposals, as an editor or admin (`papyrus login`) or as an operator role of the site's own
     account (`PAPYRUS_GRAPHQL_AUTH=iam`). Only editors and admins may read Proposals in full; an operator reads the story drafts through
     ``listStoryDrafts`` (id, title, summary, targets, state, createdAt and nothing else), which is all a run needs to dedupe."""
 
+    kind = PROPOSALS
+
     def __init__(self, client: Any) -> None:
         self.client = client
+
+    @staticmethod
+    def mark(record: dict[str, Any], identifier: str) -> None:
+        record["proposalId"] = identifier
 
     def file_idea(self, idea: dict[str, Any], body: str, digest_id: str) -> str:
         variables = {
@@ -100,6 +109,11 @@ class ProposalStore:
             "body": body,
             "evidence": json.dumps({"signals": len(idea["citedReferenceIds"]), "source": f"ideas digest {digest_id}"}),
         }
+        # The cited References are the targets (``entity:reference:<lineage id>``), the same as a monitor story: that is how every later run, from
+        # whichever path, sees these References are covered. A Proposal names at most ten subjects; the ones past that are not marked.
+        lineages = list(dict.fromkeys(str(c.get("lineageId") or c["id"]) for c in idea.get("citations") or []))
+        if lineages:
+            variables["targets"] = json.dumps([{"type": "entity", "id": f"reference:{lineage}"} for lineage in lineages[:MAXIMUM_TARGETS]])
         return receipt(self.client.graphql(FILE_MUTATION, variables), "fileProposal")
 
     def file_story_draft(self, draft: dict[str, Any]) -> str:
@@ -121,4 +135,4 @@ class ProposalStore:
         return [row for row in list_proposals(self.client) if row.get("kind") == "story_draft"]
 
 
-__all__ = ["JSON", "PROPOSALS", "STORES", "JsonStore", "ProposalStore", "StoreRefused", "LIST_QUERY", "assert_private", "default_root"]
+__all__ = ["JSON", "PROPOSALS", "ITEMS", "STORES", "JsonStore", "ProposalStore", "StoreRefused", "LIST_QUERY", "assert_private", "default_root"]

@@ -20,7 +20,9 @@ The flow is read, rank, fetch, one model call per item, a deterministic citation
   a number or an ISO date that is not in the source it cites, several sentences in one entry or a banned word fails the whole draft.
 * **File.** The same operator path as a trend story (``ProposalStore.file_story_draft``, one soft review request per run). The Proposal's
   target is ``entity:reference:<Reference lineage id>``: that is how a later run knows the Reference is drafted (the operator can read targets,
-  not bodies), declined drafts included, so a Reference is never drafted twice.
+  not bodies), declined drafts included, so a Reference is never drafted twice. The same address delivered as another Reference (a second
+  monitor, a repost) counts as the same Reference: ``sameSource`` in the run record. Before each filing the targets are read again, so a second run
+  that overlaps this one files nothing the first run just filed.
 
 Nothing here publishes or transitions a Proposal. Approving the copy is an editor's decision.
 """
@@ -51,7 +53,9 @@ from . import source_text
 from .source_text import SourceFetcher, fetch_source
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, comparison_documents
 from .review import request_human_review
+from .items import IdeaRefused
 from .store import JsonStore, ProposalStore
+from ..story_from_reference import url_key
 
 DEFAULT_LIMIT = 3
 MINIMUM_FRESHNESS_EXAMPLES = 10  # fewer accepted examples than this and there is no freshness weight: nothing is guessed
@@ -313,6 +317,11 @@ def target_for(item: MonitoredItem) -> dict[str, str]:
     return {"type": TARGET_TYPE, "id": f"{TARGET_PREFIX}{item.lineage_id}"}
 
 
+def source_keys(items: Iterable[MonitoredItem]) -> dict[str, str | None]:
+    """Reference lineage id to the match key of its address (``url_key``), for the items whose address has one."""
+    return {item.lineage_id: url_key(item.url) for item in items}
+
+
 def drafted_lineage_ids(proposals: list[dict[str, Any]], stored: list[dict[str, Any]]) -> set[str]:
     """Reference lineage ids that an earlier draft cites: Proposals in any state (a declined draft counts) and monitor stories in the JSON store."""
     found: set[str] = set()
@@ -540,7 +549,7 @@ def draft_monitor_stories(
     moment = now or datetime.now(timezone.utc)
     run: dict[str, Any] = {
         "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model,
-        "store": "dry-run" if dry_run else ("proposals" if proposal_store else "json"), "dryRun": dry_run, "private": True,
+        "store": "dry-run" if dry_run else (proposal_store.kind if proposal_store else "json"), "dryRun": dry_run, "private": True,
         "window": {"since": since, "until": iso(moment)}, "limit": limit, "stoppedBy": None,
         "excludedSourceHosts": list(normalize_hosts(excluded_hosts)), "statuses": list(dict.fromkeys(statuses)),
     }
@@ -561,7 +570,21 @@ def draft_monitor_stories(
     run["freshness"] = freshness or {"tauDays": None, "examples": sum(item.status == "accepted" for item in items), "note": f"Fewer than {MINIMUM_FRESHNESS_EXAMPLES} accepted examples: no freshness weight, the score alone ranks."}
     promoted = promoted_reference_ids(client, items) if items else set()
     counts.update(alreadyDrafted=sum(item.lineage_id in already for item in items), promoted=sum(item.reference_id in promoted and item.lineage_id not in already for item in items))
-    candidates = rank([item for item in items if item.lineage_id not in already and item.reference_id not in promoted], freshness, moment)
+    # One Reference is drafted once: not when its lineage, nor the address it came from, is already covered by a Proposal in any state, nor twice in this run.
+    keys = source_keys(items)
+    covered_addresses = {keys[lineage] for lineage in already if keys.get(lineage)}
+    ranked = rank([item for item in items if item.lineage_id not in already and item.reference_id not in promoted], freshness, moment)
+    candidates, seen_lineages, seen_addresses, same_source = [], set(), set(), 0
+    for item in ranked:
+        address = keys.get(item.lineage_id)
+        if item.lineage_id in seen_lineages or (address and (address in covered_addresses or address in seen_addresses)):
+            same_source += 1
+            continue
+        seen_lineages.add(item.lineage_id)
+        if address:
+            seen_addresses.add(address)
+        candidates.append(item)
+    counts["sameSource"] = same_source
     counts["candidates"] = len(candidates)
     run["inputs"] = counts
     attempt_cap = None if limit is None else limit * ATTEMPT_FACTOR
@@ -617,9 +640,16 @@ def draft_monitor_stories(
             if not dry_run:
                 try:
                     if proposal_store:
-                        record["proposalId"] = proposal_store.file_story_draft(record)
+                        # Read the targets again: another run (an overlapping task, a laptop) may have filed this Reference since this run began.
+                        if item.lineage_id in drafted_lineage_ids(proposal_store.story_drafts(), []):
+                            run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": "already_drafted"})
+                            continue
+                        proposal_store.mark(record, proposal_store.file_story_draft(record))
                     if json_store:
                         json_store.save_idea(record)
+                except IdeaRefused as refusal:   # the editorial check found an error-severity violation: not filed, the run goes on
+                    run["invalid"].append({**refusal.as_invalid(record), "referenceId": item.reference_id})
+                    continue
                 except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; stop before paying for drafts that cannot be kept
                     run["fileError"] = f"{type(error).__name__}: {error}"[:300]
                     run["stoppedBy"] = "file_error"
@@ -657,7 +687,7 @@ def render_report(run: dict[str, Any]) -> str:
         f"Run `{run['runId']}`, " + (f"items that arrived in the last {run['window']['since']}" if run["window"]["since"] else "every undrafted monitored item") + f". Proposed by AI." + (" Dry run: nothing was filed." if run["dryRun"] else " Private drafts for review; nothing here is published."),
         "",
         "- Freshness: " + (f"tau {run['freshness']['tauDays']} days from {run['freshness']['examples']} accepted items" if run["freshness"]["tauDays"] else f"none ({run['freshness']['note']})"),
-        f"- Monitored items read ({', '.join(run['statuses'])} only; pending not read: {inputs.get('notAccepted', 0)}): {inputs['inWindow'] - inputs['notMonitored'] - inputs.get('excludedHost', 0) - inputs.get('handledByAutomation', 0) - inputs.get('hasStory', 0)}; from excluded source hosts (never drafted): {inputs.get('excludedHost', 0)}; handled by an automation (a story based on it, or a procedure run recorded or in progress; never drafted here): {inputs.get('handledByAutomation', 0)}; already has a story based on it: {inputs.get('hasStory', 0)}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
+        f"- Monitored items read ({', '.join(run['statuses'])} only; pending not read: {inputs.get('notAccepted', 0)}): {inputs['inWindow'] - inputs['notMonitored'] - inputs.get('excludedHost', 0) - inputs.get('handledByAutomation', 0) - inputs.get('hasStory', 0)}; from excluded source hosts (never drafted): {inputs.get('excludedHost', 0)}; handled by an automation (a story based on it, or a procedure run recorded or in progress; never drafted here): {inputs.get('handledByAutomation', 0)}; already has a story based on it: {inputs.get('hasStory', 0)}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; the same address as a drafted or earlier candidate: {inputs.get('sameSource', 0)}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
         f"- Drafts attempted: {run['attempted']} ({'no limit' if run['limit'] is None else 'limit ' + str(run['limit'])}); kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; skipped: {len(run['skipped'])}; duplicates dropped: {len(run['duplicates'])}",
         f"- Model {run['model']}: {usage.get('inputTokens', 0)} input and {usage.get('outputTokens', 0)} output tokens in {usage.get('calls', 0)} call(s), cost ${usage.get('costUsd') if usage.get('costUsd') is not None else 'unknown'}",
         "",

@@ -192,6 +192,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         product: `Papyrus (${new URL(cliRemoteLoginPlan.origin).host})`,
         brokerCode: cliLoginBrokerCode(),
         pagesCode: cliLoginPagesCode(),
+        alarmTopicArn: (process.env.PAPYRUS_ALARM_TOPIC_ARN ?? "").trim() || undefined,
         ...cliEnrollmentPlan,
       })
     : undefined;

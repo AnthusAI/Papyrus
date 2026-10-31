@@ -252,6 +252,7 @@ export class AmplifyAppShellStack extends Stack {
           ? { PAPYRUS_ENABLE_CLI_REMOTE_LOGIN: "true", PAPYRUS_CLI_INVOKER_ROLE_ARN: computeRole.roleArn }
           : {}),
         ...(config.cms.cliOnFederationClient ? { PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT: "true" } : {}),
+        ...(config.cms.alarmTopicArn ? { PAPYRUS_ALARM_TOPIC_ARN: config.cms.alarmTopicArn } : {}),
         ...(revalidateSecretParameterName ? { PAPYRUS_REVALIDATE_SECRET_PARAMETER: revalidateSecretParameterName } : {}),
         ...prospectusEnvironment,
       }),

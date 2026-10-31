@@ -415,6 +415,8 @@ PORTED_COMMANDS = frozenset(
         "ideas:synthesize",
         "ideas:trends",
         "ideas:monitor-stories",
+        "ideas:migrate-proposals",
+        "ideas:labels",
         "proposals:create",
         "proposals:list",
         "proposals:show",
@@ -473,6 +475,7 @@ PORTED_COMMANDS = frozenset(
         "editorial:import",
         "editorial:policies",
         "editorial:check-version",
+        "editorial:copy-edit",
         "editorial:check-drafts",
         "renderers:markus-build",
     }
@@ -982,6 +985,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         editorial_policies(flags)
     elif route == "editorial:check-version":
         editorial_check_version(flags)
+    elif route == "editorial:copy-edit":
+        from .copy_edit import run_command as copy_edit_command
+        copy_edit_command(flags)
     elif route == "editorial:check-drafts":
         editorial_check_drafts(flags)
     elif route == "editorial:import":
