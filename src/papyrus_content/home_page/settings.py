@@ -13,7 +13,7 @@ from typing import Any
 from .export import PUBLIC_REFERENCE_FIELDS, REQUIRED_PUBLISHED_FIELDS
 
 LAYOUTS = ("latest", "sections")
-THREAD_AUTHOR_POLICIES = ("handle", "anonymous")
+THREAD_AUTHOR_POLICIES = ("handle", "none", "anonymous")
 DEFAULT_SUMMARY_CHARACTERS = 240
 
 

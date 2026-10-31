@@ -113,6 +113,31 @@ def ten_accepted(context, span: int) -> None:
         context.site.receive([ACCEPTED_RECORD], number * span / 9)
 
 
+MESSAGE_COMMENT = {"messageKind": {"S": "comment"}, "status": {"S": "active"}, "content": {"S": "Hello"}}
+
+
+@when("a Message is posted")
+def message_posted(context) -> None:
+    context.site.receive([{"eventName": "INSERT", "dynamodb": {"NewImage": MESSAGE_COMMENT}}], 0)
+
+
+@when("another Message is posted {later:d} seconds later")
+def message_posted_later(context, later: int) -> None:
+    context.site.receive([{"eventName": "INSERT", "dynamodb": {"NewImage": MESSAGE_COMMENT}}], later)
+
+
+@when("a Message changes only a private field")
+def message_private_change(context) -> None:
+    changed = {**MESSAGE_COMMENT, "responseStatus": {"S": "done"}}
+    context.site.receive([{"eventName": "MODIFY", "dynamodb": {"OldImage": MESSAGE_COMMENT, "NewImage": changed}}], 0)
+
+
+@when("a Message is soft-deleted")
+def message_soft_deleted(context) -> None:
+    deleted = {**MESSAGE_COMMENT, "status": {"S": "deleted"}, "deletedAt": {"S": "2026-10-31T00:00:00.000Z"}}
+    context.site.receive([{"eventName": "MODIFY", "dynamodb": {"OldImage": MESSAGE_COMMENT, "NewImage": deleted}}], 0)
+
+
 @when("another Reference is accepted {later:d} seconds later")
 def accepted_later(context, later: int) -> None:
     context.site.receive([ACCEPTED_RECORD], later)
@@ -221,6 +246,11 @@ def synth_with(context) -> None:
     plugin_behaviours(context, "the_plugin_adds_the_stream_the_trigger_the_scheduler_and_nothing_else", "plain_cloudformation_tables_are_found_by_name_too")
 
 
+@when("a site synthesizes its backend with the home-page plugin and threads enabled")
+def synth_threads(context) -> None:
+    plugin_behaviours(context, "threads_enabled_adds_the_message_stream_to_the_same_trigger", "an_existing_message_stream_is_reused_and_never_replaced")
+
+
 @when("a site asks for the home-page plugin with an interval of 6 hours")
 def synth_interval(context) -> None:
     plugin_behaviours(context, "an_interval_adds_one_rule_that_runs_the_snapshot_task")
@@ -237,6 +267,8 @@ def synth_refused(context) -> None:
 @then("the Reference table streams old and new images to one trigger function")
 @then("the trigger function may create only schedules named for the home-page snapshot and pass only the scheduler role")
 @then("the debounce window reaches the trigger function")
+@then("the Message table feeds the same trigger function through its own filter")
+@then("a Message stream that already exists is reused and not replaced")
 @then("one rule runs the home-page-snapshot task every 6 hours without retries")
 @then("a site that sets no interval gets no rule")
 @then("the backend refuses to synthesize and says what is missing")

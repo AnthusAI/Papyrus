@@ -72,6 +72,38 @@
       "description": "References not yet accepted.",
       "dependsOn": [],
       "source": "pages/recommended.md"
+    },
+    {
+      "id": "threads-list",
+      "path": "threads-list",
+      "title": "Threads List",
+      "description": "Threads as a list.",
+      "dependsOn": [],
+      "source": "pages/threads-list.md"
+    },
+    {
+      "id": "threads-grid",
+      "path": "threads-grid",
+      "title": "Threads Grid",
+      "description": "Threads as a grid.",
+      "dependsOn": [],
+      "source": "pages/threads-grid.md"
+    },
+    {
+      "id": "threads-mixed",
+      "path": "threads-mixed",
+      "title": "Threads Mixed",
+      "description": "References and threads on one page.",
+      "dependsOn": [],
+      "source": "pages/threads-mixed.md"
+    },
+    {
+      "id": "threads-empty",
+      "path": "threads-empty",
+      "title": "Threads Empty",
+      "description": "Threads with nothing to show.",
+      "dependsOn": [],
+      "source": "pages/threads-empty.md"
     }
   ]
 }

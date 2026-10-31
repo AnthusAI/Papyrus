@@ -6,6 +6,10 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
   changes that follow inside the window find it open and schedule nothing, because the run reads them all. The run writes the
   snapshot only when it changed and re-renders only the pages that read the changed selection.
 
+  When the site shows Message threads (homePage.threads.enabled), the Message table's stream feeds the same trigger. A new
+  comment, or a change to a comment's status, text, edit time or deletion time, opens the same window, so one run refreshes the
+  References and the threads together. A site that already streams its Messages for another feature has that stream reused.
+
   The plugin is opt-in. A site that does not list it gets no stream, no trigger function, no scheduler role and no rule, so
   every other site is unchanged by the release. The window defaults to 300 seconds, the lifetime of the page at the edge,
   because a page cannot be fresher than that anyway; an interval rule and edge purging are off unless the site asks.
@@ -26,6 +30,19 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
     When a Reference is accepted
     And another Reference is accepted 301 seconds later
     Then 2 home-page snapshot runs are scheduled
+
+  Scenario: Posting a Message schedules one snapshot at the end of the debounce window
+    Given a trigger function with a 300 second debounce window
+    When a Message is posted
+    And another Message is posted 100 seconds later
+    Then one home-page snapshot run is scheduled for 300 seconds later
+
+  Scenario: Deleting or editing a Message schedules a snapshot, and a Message change no thread shows does not
+    Given a trigger function with a 300 second debounce window
+    When a Message changes only a private field
+    Then no home-page snapshot run is scheduled
+    When a Message is soft-deleted
+    Then one home-page snapshot run is scheduled for 300 seconds later
 
   Scenario: An edit that changes no public field schedules nothing
     Given a trigger function with a 300 second debounce window
@@ -77,6 +94,11 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
     Then the Reference table streams old and new images to one trigger function
     And the trigger function may create only schedules named for the home-page snapshot and pass only the scheduler role
     And the debounce window reaches the trigger function
+
+  Scenario: A site with threads enabled streams its Messages to the same trigger and reuses a stream that already exists
+    When a site synthesizes its backend with the home-page plugin and threads enabled
+    Then the Message table feeds the same trigger function through its own filter
+    And a Message stream that already exists is reused and not replaced
 
   Scenario: A site with an interval set runs the snapshot on that interval even without changes
     When a site asks for the home-page plugin with an interval of 6 hours

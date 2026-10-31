@@ -11,12 +11,18 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from ...home_page.export import clip_summary
 from ...home_page.settings import HomePageSettings
 from . import home_page_components as parts
 from .knowledge_components import esc, safe_href
 from .page_ledger import PageLedger
 
 KIND = "references"
+THREADS_KIND = "threads"
+THREADS_ATTRIBUTES = {"select", "count", "layout", "heading", "empty"}
+THREAD_SELECTIONS = ("recent",)
+THREAD_LAYOUTS = ("list", "grid")
+THREAD_LEDGER_PREFIX = "thread:"
 ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty"}
 SELECTIONS = ("recent", "confident", "recommended")
 CARDS = ("tile", "row")
@@ -28,6 +34,10 @@ NOT_CONFIGURED = "homePage is not configured in projection.json"
 
 def is_home_page_include(attributes: Mapping) -> bool:
     return attributes.get("kind") == KIND
+
+
+def is_threads_include(attributes: Mapping) -> bool:
+    return attributes.get("kind") == THREADS_KIND
 
 
 def check(attributes: Mapping, source: str) -> None:
@@ -121,3 +131,47 @@ def render(
         f'<section class="home-page-references" data-select="{esc(attributes["select"])}" data-card="{esc(card)}">{heading}'
         f'<ul class="home-page-grid" data-card="{esc(card)}">{cards}</ul>{more}</section>'
     )
+
+
+def check_threads(attributes: Mapping, source: str) -> None:
+    """Validate a threads include's attributes; ``source`` names the file for the error."""
+    unknown = set(attributes) - THREADS_ATTRIBUTES - {"kind"}
+    if unknown:
+        raise ValueError(f"{source}: ::include threads has unknown attributes: {', '.join(sorted(unknown))}")
+    if attributes.get("select") not in THREAD_SELECTIONS:
+        raise ValueError(f"{source}: ::include threads needs select to be one of {', '.join(THREAD_SELECTIONS)}, got {attributes.get('select')!r}")
+    if "count" in attributes and not str(attributes["count"]).isdigit():
+        raise ValueError(f"{source}: ::include threads count must be a whole number, got {attributes['count']!r}")
+    if attributes.get("layout", "list") not in THREAD_LAYOUTS:
+        raise ValueError(f"{source}: ::include threads layout must be one of {', '.join(THREAD_LAYOUTS)}, got {attributes['layout']!r}")
+
+
+def select_threads(document: Mapping | None, attributes: Mapping, ledger: PageLedger, default_count: int = DEFAULT_COUNT) -> list[Mapping[str, Any]]:
+    """The threads one include places: most recently active first, minus what the page already shows, up to ``count``; each one is claimed in the ledger."""
+    candidates = [thread for thread in (document or {}).get("threads") or [] if isinstance(thread, Mapping) and thread.get("key")]
+    candidates.sort(key=lambda thread: _text(thread, "key"))
+    candidates.sort(key=lambda thread: _text(thread, "lastAt"), reverse=True)
+    count = int(attributes["count"]) if "count" in attributes else default_count
+    chosen: list[Mapping[str, Any]] = []
+    for thread in candidates:
+        if len(chosen) >= count:
+            break
+        if ledger.claim(THREAD_LEDGER_PREFIX + thread["key"]):
+            chosen.append(thread)
+    return chosen
+
+
+def render_threads(attributes: Mapping, source_doc: Mapping | None, ledger: PageLedger, settings: HomePageSettings) -> str:
+    chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings))
+    empty = attributes.get("empty", "")
+    if not chosen:
+        return f'<p class="home-page-empty">{esc(empty)}</p>' if empty else ""
+    layout = attributes.get("layout", "list")
+    heading = f'<h2 class="home-page-heading">{esc(attributes["heading"])}</h2>' if attributes.get("heading") else ""
+    characters = settings.references.summary_characters
+    cards = ""
+    for thread in chosen:
+        latest = thread.get("latest") if isinstance(thread.get("latest"), Mapping) else {}
+        excerpt = clip_summary(parts.plain_text(_text(latest, "text")), characters) or ""
+        cards += f"<li>{parts.thread_card(thread, excerpt)}</li>"
+    return f'<section class="home-page-threads" data-layout="{esc(layout)}">{heading}<ul class="home-page-grid" data-layout="{esc(layout)}">{cards}</ul></section>'
