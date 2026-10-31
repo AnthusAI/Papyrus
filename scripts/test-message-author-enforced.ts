@@ -61,6 +61,8 @@ test("a post records the signed-in user as the author, whatever the client sends
   assert.equal(op.item!.updatedAt, "2026-10-29T12:00:00.000Z");
   assert.equal(op.item!.responseStatus, "COMPLETED");
   assert.equal(op.item!.status, "active");
+  assert.equal(op.item!.authorKind, "staff", "a post through the console is a staff post");
+  assert.equal("authorReaderId" in op.item!, false);
   assert.equal(op.item!.content, "Hello");
   assert.equal(op.item!.__typename, "Message");
   assert.deepEqual(op.condition, { id: { attributeExists: false } }, "an existing message is never replaced");
@@ -210,4 +212,12 @@ test("every message resolver is found by an absolute path, also when a site load
   assert.equal(new URL("./resolvers/post-message.js", fromPackage).pathname, "/site/node_modules/@anthusai/papyrus/amplify/data/resolvers/post-message.js",
     "resolving against a loader URL drops its query and keeps the package directory");
   assert.equal(resolverEntry("./resolvers/post-message.js"), join(root, "amplify/data/resolvers/post-message.js"));
+});
+
+test("a Message reads as staff unless a reader wrote it, and no reader field reaches the public export", () => {
+  const block = modelBlock("Message");
+  assert.match(block, /authorKind: String @default\(value: "staff"\)/, "an existing Message reads as staff");
+  assert.match(block, /authorReaderId: String/);
+  const publicFields = read("src/papyrus_content/home_page/threads.py").match(/PUBLIC_MESSAGE_FIELDS = \(([^)]*)\)/)![1];
+  assert.doesNotMatch(publicFields, /authorKind|authorReaderId|authorSub|siteSubject/, "the export names no reader or identity field");
 });
