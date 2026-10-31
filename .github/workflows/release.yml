@@ -58,6 +58,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_LOGLEVEL: verbose
+      - name: Mark whether the release affects sites
+        if: steps.semantic.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ steps.semantic.outputs.version }}
+        run: |
+          previous_tag="$(git describe --tags --abbrev=0 "v${RELEASE_VERSION}^")"
+          marker="$(python3 procedures/release/classify_release.py classify --base "$previous_tag" --head "v${RELEASE_VERSION}")"
+          notes="$(gh release view "v${RELEASE_VERSION}" --json body --jq .body)"
+          gh release edit "v${RELEASE_VERSION}" --notes "${notes}"$'\n\n'"${marker}"
       - if: steps.semantic.outputs.published == 'true'
         uses: actions/upload-artifact@v4
         with:
