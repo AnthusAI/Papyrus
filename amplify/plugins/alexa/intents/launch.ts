@@ -1,14 +1,12 @@
 import type { IntentModule } from "../contracts";
+import { readHeadlines } from "../speech/conversation";
 
-/**
- * A placeholder so the skeleton answers "Alexa, open ...". The intents task replaces this file's content: the real launch reads
- * the latest headlines from `dependencies.stories`.
- */
+/** "Alexa, open <publication>": reads the latest headlines and asks which story. */
 export const launchIntent: IntentModule = {
   id: "launch",
-  create: () => ({
+  create: (dependencies) => ({
     canHandle: (handlerInput) => handlerInput.requestEnvelope.request.type === "LaunchRequest",
     handle: (handlerInput) =>
-      handlerInput.responseBuilder.speak("This skill is still being set up. Please try again soon.").withShouldEndSession(true).getResponse(),
+      readHeadlines(handlerInput, dependencies, { greeting: `Welcome to ${dependencies.config.skillName}.`, fresh: true }),
   }),
 };

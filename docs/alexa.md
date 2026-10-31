@@ -53,7 +53,13 @@ Only what an anonymous visitor can read:
    `deck`, `byline`, `publishedAt`, `bodyMarkus` and `bodyIr`. `lib/graphql-content-repository.ts` is the existing client.
 
 The skill function has no AppSync credentials; a guest read needs the API's guest (identity pool) mode, so path 1 is the simpler
-fit. The content source task chooses.
+fit. **Chosen: path 1**, `content/public-site-story-source.ts`. `PublishedItem` allows only guest (identity pool) and staff-group callers,
+and the site API has no API-key rule on it, so a Lambda role cannot read it without a schema change. The source lists from
+`_data/latest.json` (older stories from `_data/search-index.json`) and reads each story's `.md` twin. `content/markus-source.ts` reads the
+twin's Markus into the same `MarkusDocument` nodes `bodyIr` holds, and `speech/markus-speech.ts` walks those nodes into SSML units that
+`speech/ssml.ts` cuts at a sentence so the output stays under 8000 characters. The intents (launch, `ReadStoryIntent`, next, previous,
+repeat, help, stop, cancel, fallback, navigate home, session ended) are in `intents/`; the listener's position lives in session attributes.
+A site needs `siteOrigin` set and `publicData.latest` on (the default).
 
 ## Markus to SSML
 
