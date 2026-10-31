@@ -422,6 +422,15 @@ job, check that the branch has `enableAutoBuild` true, that exactly one Amplify 
 connected to the repository branch, and CloudTrail for the `amplify.amazonaws.com` webhook
 events before replacing it with a pipeline.
 
+## Which releases need a site bump
+
+Every site bump is a push to `main` and therefore a build of about ten minutes, so seven sites cost about 84 minutes per Papyrus release. Two rules keep that bounded without a numeric cap.
+
+1. **Classify.** The release workflow appends one line to every release's notes, `Affects sites: yes` or `Affects sites: no`, from `procedures/release/classify_release.py classify`. A release affects sites when it changes a path that ships in the npm package or the standard projector: `app/`, `components/`, `lib/`, `renderers/`, `amplify/` (not tests, fixtures or seeds), `packages/`, `infra/amplify-app-shell/`, `scripts/videoml/`, `src/papyrus_content/` and `middleware.ts`. A release that changes only the Python CLI, newsroom libraries, docs or board does not. A release with no marker is treated as affecting sites.
+2. **Batch.** A site bumps at most once per planned bump, straight to the newest release, and only when at least one release since its pin affects sites. Save `gh release list -R AnthusAI/Papyrus --json tagName,body,isPrerelease` as JSON (rename `isPrerelease` to `prerelease`), then run `python3 procedures/release/classify_release.py plan-bump --current <pinned version> --releases-json <file>`. It prints `bump_needed`, the `target` version and the site-affecting releases.
+
+Spec: `features_backend/release-classification.feature`.
+
 ## Authoring role and the CLI
 
 Every app-shell stack creates the role `<siteId>-papyrus-authoring`
