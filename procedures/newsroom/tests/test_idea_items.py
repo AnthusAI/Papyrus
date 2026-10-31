@@ -149,3 +149,72 @@ def test_supersedes_names_item_lineages_the_idea_replaces():
 def test_the_batch_review_lists_clean_ideas_first():
     ideas = [{"ideaId": "a", "editorialCheck": {"counts": {"error": 0, "warn": 2, "info": 0}}}, {"ideaId": "b"}, {"ideaId": "c", "editorialCheck": {"counts": {"error": 0, "warn": 0, "info": 1}}}]
     assert [idea["ideaId"] for idea in review_order(ideas)] == ["b", "c", "a"]
+
+
+# --- decisions are labels -------------------------------------------------------------------------------------------------------
+
+
+from papyrus_content.ideas.labels import decision_of, export_rows, feedback_entries  # noqa: E402
+
+
+def decided_world():
+    client = backend()
+    accepted = file_idea_item(client, draft(), now=NOW, source_text_reader=reader)["lineageId"]
+    declined = file_idea_item(client, draft(ideaId="idea-2", title="Clef again", targets=[{"type": "entity", "id": "topic-clef"}]), now=NOW)["lineageId"]
+    pending = file_idea_item(client, draft(ideaId="idea-3", title="Still waiting", targets=[{"type": "entity", "id": "topic-other"}]), now=NOW)["lineageId"]
+    move_story_stage(client, accepted, "reporting", actor="editor", reason="good angle", now="2026-10-31T10:00:00Z")
+    move_story_stage(client, accepted, "spiked", actor="editor", reason="dropped later", now="2026-10-31T11:00:00Z")
+    move_story_stage(client, declined, "spiked", actor="editor", reason="Too basic for our readers. Write to someone@example.com", now="2026-10-31T10:30:00Z")
+    return client, accepted, declined, pending
+
+
+def test_the_first_move_out_of_the_idea_stage_is_the_decision():
+    client, accepted, declined, pending = decided_world()
+    items = {row["lineageId"]: row for row in client.list_records("Item")}
+    assert decision_of(items[accepted])["label"] == "include" and decision_of(items[declined])["label"] == "exclude" and decision_of(items[pending]) is None
+    assert decision_of(items[declined])["reason"].startswith("Too basic")
+
+
+def test_decisions_become_feedback_for_the_next_synthesis_with_addresses_removed():
+    client = decided_world()[0]
+    entries = feedback_entries(client)
+    assert [(e["title"], e["verdict"]) for e in entries] == [("Clef routes requests", "accept"), ("Clef again", "decline")]
+    assert "someone@example.com" not in entries[1]["note"] and "Too basic" in entries[1]["note"]
+
+
+def test_the_export_is_priming_rows_with_the_reason_and_the_cited_references():
+    client, accepted, declined, _ = decided_world()
+    rows = export_rows(client)
+    assert [r["labels"]["idea-accept"]["label"] for r in rows] == ["include", "exclude"]
+    first = rows[0]
+    assert first["id"] == f"idea-{accepted}" and first["provenance"]["referenceLineageIds"] == ["reference-clef"] and first["provenance"]["modelMade"] is False
+    assert first["provenance"]["labeledBy"] == "editor" and "text" in first["values"] and "someone@example.com" not in json.dumps(rows)
+    assert not [r for r in rows if r["id"].endswith("waiting")]
+
+
+def test_decisions_reach_the_next_synthesis_as_feedback(tmp_path):
+    from procedures.newsroom.tests.test_ideas import PipelineTests, FakeModel, idea, run_pipeline
+
+    class Decisions:
+        kind = "items"
+
+        def story_drafts(self):
+            return []
+
+        def feedback(self):
+            return [{"title": "Rotating cloud keys safely", "verdict": "decline", "note": "Too basic for our readers.", "source": "stage-move"}]
+
+        def file_idea(self, *args):
+            return "item-1"
+
+        @staticmethod
+        def mark(record, identifier):
+            record["itemLineageId"] = identifier
+
+    case = PipelineTests()
+    client = case.client()
+    model = FakeModel([idea("Safely rotating cloud keys", ["R1", "R2"], angle="Key rotation for cloud accounts."), idea("Weights and trust", ["R3", "R4"], section="News")])
+    run, _ = run_pipeline(client, model, root=tmp_path / "ideas", proposal_store=Decisions())
+    assert run["steering"]["decisions"] == 1
+    assert model.model_input["reviewer_feedback"][0]["note"] == "Too basic for our readers."
+    assert [idea["title"] for idea in run["ideas"]] == ["Weights and trust"] and run["ideas"][0]["itemLineageId"] == "item-1"

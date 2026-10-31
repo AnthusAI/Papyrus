@@ -42,6 +42,7 @@ USAGE = (
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      (drafts one cited story for each of the top --limit items the site's monitors found, ranked by the relevance Cyclotron's verdict)\n"
     "  papyrus ideas migrate-proposals [--write] [--json]   (open story_draft Proposals to Items at the idea stage; a dry run unless --write; needs an editor session)\n"
+    "  papyrus ideas labels [--out FILE]   (editors' accept and decline decisions on generated ideas as JSON Lines for a Cyclotron; read-only)\n"
     "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or Items at the idea stage with --store items (the editors accept an idea by moving it forward and decline it by spiking it with a reason). --store proposals files story_draft Proposals, the older way."
 )
 
@@ -355,7 +356,25 @@ def migrate_proposals_command(flags: list[str]) -> None:
         print("\t".join(str(part) for part in (entry["action"], entry["proposalId"], entry.get("reason") or entry.get("itemLineageId") or "", entry["title"])))
 
 
-COMMANDS = {"digest": digest_command, "synthesize": synthesize_command, "trends": trends_command, "monitor-stories": monitor_stories_command, "migrate-proposals": migrate_proposals_command}
+def labels_command(flags: list[str]) -> None:
+    """``ideas labels [--out FILE]``: the editors' decisions on generated ideas as JSON Lines for a Cyclotron's import (read-only)."""
+    from ..priming_export import encode_lines, summary_of
+    from .labels import export_rows
+
+    options = parse_options(flags)
+    client, _ = create_authoring_client()
+    rows = export_rows(client)
+    out = normalize_string(options.get("out"))
+    if out:
+        Path(out).expanduser().write_text(encode_lines(rows), encoding="utf-8")
+    else:
+        sys.stdout.write(encode_lines(rows))
+    print(f"ideas\tlabels\t{len(rows)}\t{out or 'stdout'}", file=sys.stderr)
+    for key, count in sorted(summary_of(rows).items()):
+        print(f"  {key}\t{count}", file=sys.stderr)
+
+
+COMMANDS = {"digest": digest_command, "synthesize": synthesize_command, "trends": trends_command, "monitor-stories": monitor_stories_command, "migrate-proposals": migrate_proposals_command, "labels": labels_command}
 
 
 def ideas_command(command: str, flags: list[str]) -> None:

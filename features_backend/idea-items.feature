@@ -69,3 +69,9 @@ Feature: Generated story ideas are Items at the idea stage
     Given the pipeline filed an idea citing the Reference
     When a roundup idea that supersedes it is filed
     Then the roundup records the earlier idea's lineage as superseded
+
+  Scenario: An editor's decisions on ideas are labels for the idea pipeline and a Cyclotron
+    Given three generated ideas: one the editor moved forward, one the editor spiked saying "Too basic for our readers", and one still waiting
+    Then the pipeline's feedback holds an accept and a decline with the reason, and nothing for the waiting idea
+    And the Cyclotron export has an include row and an exclude row that carry the reason and the cited Reference
+    And no Message was written
