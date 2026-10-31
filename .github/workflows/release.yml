@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     branches: [main, develop, 5.41.x]
+    # Board-only commits (Kanbus issues and events) never release.
+    paths-ignore:
+      - "project/**"
 
 concurrency:
   group: release-${{ github.ref }}
