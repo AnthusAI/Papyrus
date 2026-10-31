@@ -1,0 +1,400 @@
+{
+ "threads": [
+  {
+   "thread": {
+    "id": "thread-01",
+    "threadKind": "reference_conversation",
+    "status": "active",
+    "title": "Is this tool worth adopting?",
+    "primaryAnchorKey": "reference#record-032",
+    "createdBySub": "sub-0000-private",
+    "createdByLabel": "editor@example.test",
+    "createdByUserProfileId": "profile-ryan"
+   },
+   "messages": [
+    {
+     "id": "message-01",
+     "threadId": "thread-01",
+     "sequenceNumber": 1,
+     "messageKind": "comment",
+     "status": "active",
+     "role": "human",
+     "content": "Great find, see **the guide** at [the docs](https://example.org/docs). Write to ed@example.test or quote {uuid}.",
+     "createdAt": "2026-10-29T09:00:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-ryan",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron"
+    },
+    {
+     "id": "message-02",
+     "threadId": "thread-01",
+     "sequenceNumber": 2,
+     "messageKind": "comment",
+     "status": "deleted",
+     "role": "human",
+     "content": "SECRET text of a deleted message",
+     "createdAt": "2026-10-29T09:30:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-quiet",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron",
+     "deletedAt": "2026-10-29T09:45:00.000Z",
+     "deletedBySub": "sub-0000-moderator"
+    },
+    {
+     "id": "message-03",
+     "threadId": "thread-01",
+     "sequenceNumber": 3,
+     "messageKind": "comment",
+     "status": "hidden",
+     "role": "human",
+     "content": "SECRET text of a hidden message",
+     "createdAt": "2026-10-29T09:40:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-quiet",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron"
+    },
+    {
+     "id": "message-04",
+     "threadId": "thread-01",
+     "sequenceNumber": 4,
+     "messageKind": "system_event",
+     "status": "active",
+     "role": "human",
+     "content": "SECRET system note",
+     "createdAt": "2026-10-29T09:50:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-quiet",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron"
+    },
+    {
+     "id": "message-05",
+     "threadId": "thread-01",
+     "sequenceNumber": 5,
+     "messageKind": "comment",
+     "status": "active",
+     "role": "human",
+     "content": "Agreed, a useful tool for the team.",
+     "createdAt": "2026-10-29T10:00:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-quiet",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron",
+     "editedAt": "2026-10-29T10:05:00.000Z"
+    }
+   ]
+  },
+  {
+   "thread": {
+    "id": "thread-02",
+    "threadKind": "reference_conversation",
+    "status": "active",
+    "title": "Notes on the pending high candidate",
+    "primaryAnchorKey": "reference#record-040",
+    "createdBySub": "sub-0000-private",
+    "createdByLabel": "editor@example.test",
+    "createdByUserProfileId": "profile-ryan"
+   },
+   "messages": [
+    {
+     "id": "message-06",
+     "threadId": "thread-02",
+     "sequenceNumber": 1,
+     "messageKind": "comment",
+     "status": "active",
+     "role": "assistant",
+     "content": "The first finding is that the tool is dependable in practice and has been for years. The second finding is that its documentation is thorough and its examples run unchanged on a clean machine. The third finding concerns performance under heavy load, where it holds up well. The fourth is cost.",
+     "createdAt": "2026-10-30T08:00:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": null,
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron"
+    }
+   ]
+  },
+  {
+   "thread": {
+    "id": "thread-03",
+    "threadKind": "story_conversation",
+    "status": "active",
+    "title": "Fungi follow-up",
+    "primaryAnchorKey": "item#item-fungi",
+    "createdBySub": "sub-0000-private",
+    "createdByLabel": "editor@example.test",
+    "createdByUserProfileId": "profile-ryan"
+   },
+   "messages": [
+    {
+     "id": "message-07",
+     "threadId": "thread-03",
+     "sequenceNumber": 1,
+     "messageKind": "comment",
+     "status": "active",
+     "role": "human",
+     "content": "Do spores really travel that far?",
+     "createdAt": "2026-10-27T12:00:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-bad-handle",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron"
+    }
+   ]
+  },
+  {
+   "thread": {
+    "id": "thread-04",
+    "threadKind": "reference_conversation",
+    "status": "active",
+    "title": "",
+    "primaryAnchorKey": "reference#record-028",
+    "createdBySub": "sub-0000-private",
+    "createdByLabel": "editor@example.test",
+    "createdByUserProfileId": "profile-ryan"
+   },
+   "messages": [
+    {
+     "id": "message-08",
+     "threadId": "thread-04",
+     "sequenceNumber": 1,
+     "messageKind": "comment",
+     "status": "active",
+     "role": "human",
+     "content": "Worth a look; write to desk@example.test about it. {uuid} is not an id. Second sentence here.",
+     "createdAt": "2026-10-28T15:00:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-ryan",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron"
+    }
+   ]
+  },
+  {
+   "thread": {
+    "id": "thread-05",
+    "threadKind": "reference_conversation",
+    "status": "active",
+    "title": "Chat about a rejected Reference",
+    "primaryAnchorKey": "reference#record-063",
+    "createdBySub": "sub-0000-private",
+    "createdByLabel": "editor@example.test",
+    "createdByUserProfileId": "profile-ryan"
+   },
+   "messages": [
+    {
+     "id": "message-09",
+     "threadId": "thread-05",
+     "sequenceNumber": 1,
+     "messageKind": "comment",
+     "status": "active",
+     "role": "human",
+     "content": "SECRET rejected anchor",
+     "createdAt": "2026-10-30T10:00:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-quiet",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron"
+    }
+   ]
+  },
+  {
+   "thread": {
+    "id": "thread-06",
+    "threadKind": "story_conversation",
+    "status": "active",
+    "title": "Chat about an unpublished Story",
+    "primaryAnchorKey": "item#item-never-published",
+    "createdBySub": "sub-0000-private",
+    "createdByLabel": "editor@example.test",
+    "createdByUserProfileId": "profile-ryan"
+   },
+   "messages": [
+    {
+     "id": "message-10",
+     "threadId": "thread-06",
+     "sequenceNumber": 1,
+     "messageKind": "comment",
+     "status": "active",
+     "role": "human",
+     "content": "SECRET unpublished story",
+     "createdAt": "2026-10-30T11:00:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-quiet",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron"
+    }
+   ]
+  },
+  {
+   "thread": {
+    "id": "thread-07",
+    "threadKind": "reference_conversation",
+    "status": "active",
+    "title": "Chat with no anchor",
+    "primaryAnchorKey": null,
+    "createdBySub": "sub-0000-private",
+    "createdByLabel": "editor@example.test",
+    "createdByUserProfileId": "profile-ryan"
+   },
+   "messages": [
+    {
+     "id": "message-11",
+     "threadId": "thread-07",
+     "sequenceNumber": 1,
+     "messageKind": "comment",
+     "status": "active",
+     "role": "human",
+     "content": "SECRET no anchor",
+     "createdAt": "2026-10-30T12:00:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-quiet",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron"
+    }
+   ]
+  },
+  {
+   "thread": {
+    "id": "thread-08",
+    "threadKind": "reference_conversation",
+    "status": "archived",
+    "title": "An archived thread",
+    "primaryAnchorKey": "reference#record-032",
+    "createdBySub": "sub-0000-private",
+    "createdByLabel": "editor@example.test",
+    "createdByUserProfileId": "profile-ryan"
+   },
+   "messages": [
+    {
+     "id": "message-12",
+     "threadId": "thread-08",
+     "sequenceNumber": 1,
+     "messageKind": "comment",
+     "status": "active",
+     "role": "human",
+     "content": "SECRET archived thread",
+     "createdAt": "2026-10-30T13:00:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-quiet",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron"
+    }
+   ]
+  },
+  {
+   "thread": {
+    "id": "thread-09",
+    "threadKind": "conversation",
+    "status": "active",
+    "title": "A console conversation",
+    "primaryAnchorKey": "reference#record-032",
+    "createdBySub": "sub-0000-private",
+    "createdByLabel": "editor@example.test",
+    "createdByUserProfileId": "profile-ryan"
+   },
+   "messages": [
+    {
+     "id": "message-13",
+     "threadId": "thread-09",
+     "sequenceNumber": 1,
+     "messageKind": "comment",
+     "status": "active",
+     "role": "human",
+     "content": "SECRET unanchored kind",
+     "createdAt": "2026-10-30T14:00:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-quiet",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron"
+    }
+   ]
+  },
+  {
+   "thread": {
+    "id": "thread-10",
+    "threadKind": "reference_conversation",
+    "status": "active",
+    "title": "Only deleted messages",
+    "primaryAnchorKey": "reference#record-016",
+    "createdBySub": "sub-0000-private",
+    "createdByLabel": "editor@example.test",
+    "createdByUserProfileId": "profile-ryan"
+   },
+   "messages": [
+    {
+     "id": "message-14",
+     "threadId": "thread-10",
+     "sequenceNumber": 1,
+     "messageKind": "comment",
+     "status": "deleted",
+     "role": "human",
+     "content": "SECRET only deleted",
+     "createdAt": "2026-10-30T15:00:00.000Z",
+     "authorSub": "sub-0000-private",
+     "authorUserProfileId": "profile-quiet",
+     "authorLabel": "editor@example.test",
+     "metadata": {
+      "lastAuthorLabel": "editor@example.test"
+     },
+     "responseOwner": "auto:cyclotron",
+     "deletedAt": "2026-10-30T15:30:00.000Z"
+    }
+   ]
+  }
+ ],
+ "profiles": {
+  "profile-ryan": {
+   "id": "profile-ryan",
+   "publicHandle": "ryan"
+  },
+  "profile-quiet": {
+   "id": "profile-quiet",
+   "publicHandle": null
+  },
+  "profile-bad-handle": {
+   "id": "profile-bad-handle",
+   "publicHandle": "someone@example.test"
+  }
+ }
+}

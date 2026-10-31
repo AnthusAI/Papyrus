@@ -234,8 +234,12 @@ class StandardMarkusProjector(MarkusSiteProjector):
         return [self._knowledge.digest(knowledge_blocks.entity_keys(used))] if used else []
 
     def _home_page_inputs(self, found: list[dict]) -> list:
-        used = any(home_page_blocks.is_home_page_include(attributes) for attributes in found)
-        return [self._home_page.digest()] if used else []
+        inputs = []
+        if any(home_page_blocks.is_home_page_include(attributes) for attributes in found):
+            inputs.append(self._home_page.digest())
+        if any(home_page_blocks.is_threads_include(attributes) for attributes in found):
+            inputs.append(["threads", self._home_page.threads_digest()])
+        return inputs
 
     def _item_include(self, attributes: dict, source: str, site: SiteIndex, *, wiki_page: bool = False) -> str:
         """The includes an item page may place: the knowledge blocks, and, on a wiki page (a topic page), listings of other entries."""
@@ -1239,6 +1243,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if kind == "references":
             labels = {section.name: section.label for section in self.standard.sections}
             return home_page_blocks.render(attributes, self._home_page.references(), page.ledger, self.standard.home_page, labels)
+        if kind == "threads":
+            return home_page_blocks.render_threads(attributes, self._home_page.threads(), page.ledger, self.standard.home_page)
         if knowledge_blocks.is_knowledge_block(attributes):
             return knowledge_blocks.render_block(attributes, self._knowledge, source)
         if self.hooks.block is None:

@@ -145,3 +145,35 @@ def test_two_sites_in_one_account_never_share_a_slot_or_a_schedule_name():
     other = "arn:aws:lambda:us-east-1:123456789012:function:content-actions-site-b"
     assert handler_module.scope_of(FUNCTION_ARN) != handler_module.scope_of(other)
     assert handler_module.schedule_name(handler_module.scope_of(FUNCTION_ARN), 5) != handler_module.schedule_name(handler_module.scope_of(other), 5)
+
+
+def message_record(event_name: str, old: dict | None, new: dict) -> dict:
+    images = {"NewImage": new}
+    if old is not None:
+        images["OldImage"] = old
+    return {"eventName": event_name, "dynamodb": images}
+
+
+COMMENT = {"messageKind": {"S": "comment"}, "status": {"S": "active"}, "content": {"S": "Hello"}}
+
+
+@pytest.mark.parametrize(
+    ("record", "expected"),
+    [
+        (message_record("INSERT", None, COMMENT), True),
+        (message_record("MODIFY", None, {**COMMENT, "status": {"S": "deleted"}, "deletedAt": {"S": "2026-10-31T00:00:00Z"}}), True),
+        (message_record("MODIFY", COMMENT, {**COMMENT, "status": {"S": "deleted"}}), True),
+        (message_record("MODIFY", COMMENT, {**COMMENT, "content": {"S": "Edited"}, "editedAt": {"S": "2026-10-31T00:00:00Z"}}), True),
+        (message_record("MODIFY", COMMENT, {**COMMENT, "responseStatus": {"S": "done"}}), False),
+        (message_record("INSERT", None, {**COMMENT, "messageKind": {"S": "system"}}), False),
+    ],
+)
+def test_message_records_change_only_when_a_public_field_does(record, expected):
+    assert handler_module.record_changed(record) is expected
+
+
+def test_a_posted_message_schedules_one_snapshot_for_the_end_of_the_window(monkeypatch):
+    first, dynamo, scheduler = run([message_record("INSERT", None, COMMENT)], monkeypatch=monkeypatch)
+    second, _, _ = run([message_record("INSERT", None, COMMENT)], dynamo, scheduler, NOW + 100, monkeypatch)
+    assert first["scheduled"] is True and second["scheduled"] is False
+    assert len(scheduler.calls) == 1 and scheduler.calls[0]["Name"].endswith(f"-{NOW + 300}")

@@ -1,4 +1,4 @@
-"""homePageTrigger: turns changes to the Reference table into one debounced run of the ``home-page-snapshot`` projection task.
+"""homePageTrigger: turns changes to the Reference table (and, when threads are on, to the Message table) into one debounced run of the ``home-page-snapshot`` projection task.
 
 The Reference table's DynamoDB stream invokes this function with batches of records. A record that changes none of the public fields
 is ignored. The first change in a quiet period claims a debounce slot (a conditional write in the shared projection lock table) and
@@ -17,6 +17,8 @@ import time
 from typing import Any, Mapping
 
 CHANGE_FIELDS = ("curationStatus", "feedStateKey", "predictionSortKey", "versionState", "title", "curationSectionId")
+MESSAGE_CHANGE_FIELDS = ("status", "content", "editedAt", "deletedAt")
+PUBLIC_MESSAGE_KIND = "comment"
 CHANGING_EVENTS = ("INSERT", "MODIFY")
 REMOVE_EVENT = "REMOVE"
 DEBOUNCE_KEY_PREFIX = "home-page-debounce#"
@@ -43,7 +45,21 @@ def record_changed(record: Mapping[str, Any]) -> bool:
     images = record.get("dynamodb") or {}
     old_image = images.get("OldImage") or {}
     new_image = images.get("NewImage") or {}
+    if "messageKind" in new_image:
+        return message_changed(old_image, new_image)
     return any(old_image.get(field) != new_image.get(field) for field in CHANGE_FIELDS)
+
+
+def message_changed(old_image: Mapping[str, Any], new_image: Mapping[str, Any]) -> bool:
+    """True for a comment that is new or whose status, content, edit time or deletion time differs.
+
+    A Message stream that carries only the new image (the console responder's) has no old image to compare, so every write of a comment counts.
+    """
+    if (new_image.get("messageKind") or {}).get("S") != PUBLIC_MESSAGE_KIND:
+        return False
+    if not old_image:
+        return True
+    return any(old_image.get(field) != new_image.get(field) for field in MESSAGE_CHANGE_FIELDS)
 
 
 def scope_of(function_arn: str) -> str:

@@ -37,7 +37,7 @@ from .config import StandardSettings
 from .entries import StandardEntry, sorted_by
 from .select import Selection, selection_from_mapping
 
-KINDS = ("listing", "showcase", "form", "block", "references")
+KINDS = ("listing", "showcase", "form", "block", "references", "threads")
 LISTING_ATTRIBUTES = {"kind", "collection", "sections", "tags", "allTags", "notTags", "sort", "ties", "count", "skip", "card", "layout", "tag", "class"}
 WRAPPER_TAGS = ("ul", "ol", "div", "section")
 LAYOUTS = ("grid", "bare")
@@ -89,6 +89,10 @@ def check(attributes: Mapping, settings: StandardSettings, source: str) -> str:
         if settings.home_page is None:
             raise ValueError(f"{source}: ::include references: {home_page_blocks.NOT_CONFIGURED}")
         home_page_blocks.check(attributes, source)
+    elif kind == "threads":
+        if settings.home_page is None:
+            raise ValueError(f"{source}: ::include threads: {home_page_blocks.NOT_CONFIGURED}")
+        home_page_blocks.check_threads(attributes, source)
     elif set(attributes) - {"kind"}:
         raise ValueError(f"{source}: ::include {kind} takes no attributes")
     return kind
@@ -136,6 +140,8 @@ def include_inputs(includes: list[dict], entries: list[StandardEntry], settings:
             inputs.append([dict(attributes), [entry.fingerprint(full=True) for entry in chosen]])
         elif kind == "references":
             inputs.append([dict(attributes), "home-page:references"])
+        elif kind == "threads":
+            inputs.append([dict(attributes), "home-page:threads"])
         else:
             inputs.append(dict(attributes))
     return inputs

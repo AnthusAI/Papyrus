@@ -15,6 +15,8 @@ from .export import PUBLIC_REFERENCE_FIELDS
 
 HOME_PAGE_DATA_DIRECTORY = "_data/home-page"
 REFERENCES_FILE = f"{HOME_PAGE_DATA_DIRECTORY}/references.json"
+THREADS_FILE = f"{HOME_PAGE_DATA_DIRECTORY}/threads.json"
+THREADS_DIRECTORY = f"{HOME_PAGE_DATA_DIRECTORY}/threads"
 GENERATED_AT = "generatedAt"
 
 
@@ -36,6 +38,35 @@ def build_snapshot(
         reverse=True,
     )
     return {GENERATED_AT: _stamp(now), "corpus": corpus, "fields": list(fields), "references": ordered}
+
+
+def thread_file(key: str) -> str:
+    return f"{THREADS_DIRECTORY}/{key}.json"
+
+
+def build_threads_snapshot(threads: Iterable[Mapping[str, Any]], now: datetime) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    """``threads.json`` (one entry per thread, most recently active first) and one document per thread keyed by file name.
+
+    Each entry carries the count of public Messages, the time of the latest one and the latest Message itself; the per-thread document
+    holds every public Message in sequence.
+    """
+    ordered = sorted((dict(thread) for thread in threads), key=lambda thread: (thread["messages"][-1].get("at") or "", thread["key"]), reverse=True)
+    entries = [
+        {
+            "key": thread["key"],
+            "title": thread["title"],
+            "anchor": thread["anchor"],
+            "messages": len(thread["messages"]),
+            "lastAt": thread["messages"][-1].get("at"),
+            "latest": thread["messages"][-1],
+        }
+        for thread in ordered
+    ]
+    documents = {
+        thread["key"]: {"key": thread["key"], "title": thread["title"], "anchor": thread["anchor"], "messages": thread["messages"]}
+        for thread in ordered
+    }
+    return {GENERATED_AT: _stamp(now), "threads": entries}, documents
 
 
 def snapshot_bytes(document: Mapping[str, Any]) -> bytes:

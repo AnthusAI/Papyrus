@@ -63,3 +63,10 @@ def test_reconcile_never_calls_a_home_page_data_file_an_orphan():
     assert is_plugin_runtime_key("_data/home-page/references.json")
     assert is_plugin_runtime_key("updates/_data/home-page/references.json")
     assert not is_plugin_runtime_key("_data/home-pagex.json")
+
+
+def test_the_threads_author_policy_accepts_handle_and_none():
+    from papyrus_content.home_page.settings import home_page_settings_from_mapping
+
+    assert home_page_settings_from_mapping({"threads": {"enabled": True, "authors": "none"}}).threads.authors == "none"
+    assert home_page_settings_from_mapping({"threads": {"authors": "handle"}}).threads.authors == "handle"

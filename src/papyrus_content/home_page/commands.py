@@ -21,6 +21,9 @@ class _NoStore:
         def get(self, key: str) -> None:
             return None
 
+        def list(self, prefix: str = "") -> list:
+            return []
+
     projector = None
     invalidate = None
     writer = _Writer()
@@ -69,9 +72,9 @@ def home_page_snapshot(flags: list[str]) -> None:
     if options.get("json"):
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
-        print(f"home-page\tsnapshot\t{report['references']} references\t{report['bytes']} bytes")
+        print(f"home-page\tsnapshot\t{report['references']} references\t{report['threads']} threads\t{report['bytes']} bytes")
         print(
-            f"home-page\tsnapshot\t{len(report['written'])} written\t{len(report['unchanged'])} unchanged\t"
+            f"home-page\tsnapshot\t{len(report['written'])} written\t{len(report['unchanged'])} unchanged\t{len(report['deleted'])} deleted\t"
             f"{report['pagesRewritten']} pages rewritten\t{len(report['purged'])} purged"
         )
     for error in report.get("errors", ()):

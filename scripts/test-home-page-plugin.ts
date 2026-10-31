@@ -5,10 +5,10 @@ import path from "node:path";
 import { AmplifyDynamoDbTableWrapper } from "@aws-amplify/graphql-api-construct";
 import { App, CfnResource, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
-import { CfnTable } from "aws-cdk-lib/aws-dynamodb";
+import { CfnTable, StreamViewType } from "aws-cdk-lib/aws-dynamodb";
 import { Architecture, Code, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
 import { DEFAULT_DEBOUNCE_SECONDS, readProjectionFreshness, resolveHomePageConfig } from "../amplify/plugins/home-page/config";
-import { HOME_PAGE_SNAPSHOT_TASK, homePageManifest, homePagePlugin, homePageStreamFilterPattern } from "../amplify/plugins/home-page/papyrus.plugin";
+import { HOME_PAGE_SNAPSHOT_TASK, homePageManifest, homePageMessageStreamFilterPattern, homePagePlugin, homePageStreamFilterPattern } from "../amplify/plugins/home-page/papyrus.plugin";
 import { KNOWN_PLUGINS, resolvePlugins } from "../amplify/plugins/registry";
 import { wirePlugins, PLUGINS_OUTPUT_KEY } from "../amplify/plugins/wire";
 
@@ -30,7 +30,8 @@ function fakeBackend(mode: TableMode = "manager") {
   let amplifyDynamoDbTables: Record<string, AmplifyDynamoDbTableWrapper> = {};
   if (mode === "manager") {
     const resource = new CfnResource(dataStack, "ReferenceManaged", { type: "Custom::AmplifyDynamoDBTable", properties: { tableName: "Reference-test", billingMode: "PAY_PER_REQUEST" } });
-    amplifyDynamoDbTables = { Reference: new AmplifyDynamoDbTableWrapper(resource) };
+    const message = new CfnResource(dataStack, "MessageManaged", { type: "Custom::AmplifyDynamoDBTable", properties: { tableName: "Message-test", billingMode: "PAY_PER_REQUEST" } });
+    amplifyDynamoDbTables = { Reference: new AmplifyDynamoDbTableWrapper(resource), Message: new AmplifyDynamoDbTableWrapper(message) };
   } else {
     const reference = new CfnTable(dataStack, mode === "cfn" ? "Reference" : "ReferenceTable", {
       keySchema: [{ attributeName: "id", keyType: "HASH" }],
@@ -88,12 +89,13 @@ function resourceTypes(templates: Template[]): string[] {
 const behaviours: Record<string, () => Promise<unknown>> = {
   async the_defaults_are_justified_and_configurable() {
     assert.equal(DEFAULT_DEBOUNCE_SECONDS, 300, "the window equals the HTML s-maxage the writers set");
-    assert.deepEqual(resolveHomePageConfig("home-page"), { debounceSeconds: 300, intervalHours: null, purge: false });
-    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 60, intervalHours: 6 }), { debounceSeconds: 60, intervalHours: 6, purge: false });
+    assert.deepEqual(resolveHomePageConfig("home-page"), { debounceSeconds: 300, intervalHours: null, purge: false, threads: false });
+    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 60, intervalHours: 6 }), { debounceSeconds: 60, intervalHours: 6, purge: false, threads: false });
     const directory = siteDirectory({ homePage: { freshness: { debounceSeconds: 120, intervalHours: 12, purge: true } } });
-    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: directory }), { debounceSeconds: 120, intervalHours: 12, purge: true }, "projection.json supplies the freshness");
-    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 30, intervalHours: null }, { staticDir: directory }), { debounceSeconds: 30, intervalHours: null, purge: true }, "the request wins over projection.json");
-    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: {} }) }), { debounceSeconds: 300, intervalHours: null, purge: false });
+    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: directory }), { debounceSeconds: 120, intervalHours: 12, purge: true, threads: false }, "projection.json supplies the freshness");
+    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 30, intervalHours: null }, { staticDir: directory }), { debounceSeconds: 30, intervalHours: null, purge: true, threads: false }, "the request wins over projection.json");
+    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: {} }) }), { debounceSeconds: 300, intervalHours: null, purge: false, threads: false });
+    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: { threads: { enabled: true } } }) }).threads, true, "homePage.threads.enabled turns the Message stream on");
     assert.throws(() => resolveHomePageConfig({ name: "home-page", debounceSeconds: 0 }), /whole number of seconds/);
     assert.throws(() => resolveHomePageConfig({ name: "home-page", debounceSeconds: 1.5 }), /whole number of seconds/);
     assert.throws(() => resolveHomePageConfig({ name: "home-page", intervalHours: 0 }), /hours/);
@@ -172,6 +174,33 @@ const behaviours: Record<string, () => Promise<unknown>> = {
     assert.ok(contentActions);
     const published = (outputs[0] as { custom: Record<string, Record<string, unknown>> }).custom[PLUGINS_OUTPUT_KEY];
     assert.deepEqual(published, { "home-page": { contract: 1, debounceSeconds: 300, intervalHours: null, purge: false } });
+    return {};
+  },
+
+  async threads_enabled_adds_the_message_stream_to_the_same_trigger() {
+    const threadsSite = { staticDir: siteDirectory({ homePage: { threads: { enabled: true } } }) };
+    const { templates } = wireFake(["home-page"], threadsSite);
+    const [data, ...others] = templates();
+    assert.deepEqual(streamSpecificationsOf(data), [{ streamViewType: "NEW_AND_OLD_IMAGES" }, { streamViewType: "NEW_AND_OLD_IMAGES" }], "both tables stream old and new images");
+    const mappings = others.flatMap((template) => Object.values(template.findResources("AWS::Lambda::EventSourceMapping")));
+    assert.equal(mappings.length, 2, "one mapping per table, both on the one trigger");
+    const patterns = mappings.map((mapping) => mapping.Properties.FilterCriteria.Filters[0].Pattern);
+    assert.deepEqual(patterns, [homePageStreamFilterPattern(), homePageMessageStreamFilterPattern()]);
+    assert.deepEqual(JSON.parse(homePageMessageStreamFilterPattern()).$or[1], { dynamodb: { NewImage: { messageKind: { S: ["comment"] } } } });
+    assert.equal(new Set(mappings.map((mapping) => JSON.stringify(mapping.Properties.FunctionName))).size, 1, "one trigger function");
+    const withoutThreads = wireFake(["home-page"], { staticDir: siteDirectory({ homePage: {} }) });
+    assert.equal(withoutThreads.templates().slice(1).flatMap((template) => Object.keys(template.findResources("AWS::Lambda::EventSourceMapping"))).length, 1, "a site without threads has only the Reference stream");
+    return {};
+  },
+
+  async an_existing_message_stream_is_reused_and_never_replaced() {
+    const fake = fakeBackend("manager");
+    const existingArn = "arn:aws:dynamodb:us-east-1:123456789012:table/Message-test/stream/2026-10-31T00:00:00.000";
+    (fake.backend.data.resources as Record<string, unknown>).tables = { Message: { tableStreamArn: existingArn } };
+    const { templates } = wireFake(["home-page"], { staticDir: siteDirectory({ homePage: { threads: { enabled: true } } }) }, true, fake);
+    assert.deepEqual(streamSpecificationsOf(templates()[0]), [{ streamViewType: "NEW_AND_OLD_IMAGES" }], "only the Reference table is switched on; the Message stream is not touched");
+    const arns = templates().slice(1).flatMap((template) => Object.values(template.findResources("AWS::Lambda::EventSourceMapping"))).map((mapping) => mapping.Properties.EventSourceArn);
+    assert.ok(arns.includes(existingArn), "the trigger reads the stream that already exists");
     return {};
   },
 

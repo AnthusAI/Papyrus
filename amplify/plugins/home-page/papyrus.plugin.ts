@@ -39,6 +39,16 @@ export function homePageStreamFilterPattern(): string {
   });
 }
 
+/**
+ * Lambda event filter for the Message stream: a removal, or a write of a comment (the only Message kind a public thread shows). The
+ * handler compares `status`, `content`, `editedAt` and `deletedAt` when the stream carries the old image.
+ */
+export function homePageMessageStreamFilterPattern(): string {
+  return JSON.stringify({
+    $or: [{ eventName: ["REMOVE"] }, { dynamodb: { NewImage: { messageKind: { S: ["comment"] } } } }],
+  });
+}
+
 type AmplifyTableWrapper = { streamSpecification: { streamViewType: StreamViewType }; resource: CfnResource };
 type ReferenceStream = { enable: () => void; streamArn: string };
 
@@ -70,6 +80,43 @@ function referenceStream(backend: any): ReferenceStream {
       found.streamSpecification = { streamViewType: StreamViewType.NEW_AND_OLD_IMAGES };
     },
     streamArn: found.attrStreamArn,
+  };
+}
+
+/**
+ * The Message table's stream. When the console responder (or another feature) already switched a stream on, its ARN is read and the
+ * specification is left alone, so there is never a second stream; otherwise the stream is switched on with both images.
+ */
+function messageStream(backend: any): ReferenceStream {
+  const existingArn: string | undefined = backend.data.resources.tables?.Message?.tableStreamArn;
+  const cfnResources = backend.data.resources.cfnResources;
+  const wrapper = (cfnResources.amplifyDynamoDbTables as Record<string, AmplifyTableWrapper> | undefined)?.Message;
+  if (wrapper !== undefined) {
+    return {
+      enable: () => {
+        if (existingArn === undefined) {
+          wrapper.streamSpecification = { streamViewType: StreamViewType.NEW_AND_OLD_IMAGES };
+        }
+      },
+      streamArn: existingArn ?? wrapper.resource.getAtt("TableStreamArn").toString(),
+    };
+  }
+  const cfnTables = cfnResources.cfnTables as Record<string, CfnTable>;
+  const found =
+    cfnTables.Message ??
+    cfnTables.MessageTable ??
+    Object.entries(cfnTables).find(([key]) => {
+      const normalized = key.toLowerCase();
+      return normalized.includes("message") && !normalized.includes("thread");
+    })?.[1];
+  if (!found) throw new Error(`The home-page plugin needs the Message table when homePage.threads is enabled. cfnTables=${Object.keys(cfnTables).join(",")}`);
+  return {
+    enable: () => {
+      if (existingArn === undefined && found.streamSpecification === undefined) {
+        found.streamSpecification = { streamViewType: StreamViewType.NEW_AND_OLD_IMAGES };
+      }
+    },
+    streamArn: existingArn ?? found.attrStreamArn,
   };
 }
 
@@ -106,7 +153,8 @@ export const homePagePlugin: PapyrusPlugin<HomePageConfig, { homePageTrigger: ty
         resources: [streamArn],
       }),
     );
-    new CfnEventSourceMapping(context.createStack("home-page-trigger") as Stack, "HomePageReferenceStreamMapping", {
+    const mappingStack = context.createStack("home-page-trigger") as Stack;
+    new CfnEventSourceMapping(mappingStack, "HomePageReferenceStreamMapping", {
       eventSourceArn: streamArn,
       functionName: trigger.functionArn,
       startingPosition: "TRIM_HORIZON",
@@ -116,6 +164,28 @@ export const homePagePlugin: PapyrusPlugin<HomePageConfig, { homePageTrigger: ty
       maximumRetryAttempts: HOME_PAGE_STREAM_RETRY_ATTEMPTS,
       filterCriteria: { filters: [{ pattern: homePageStreamFilterPattern() }] },
     });
+
+    if (config.threads) {
+      const messages = messageStream(backend);
+      messages.enable();
+      trigger.addToRolePolicy(
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ["dynamodb:DescribeStream", "dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:ListStreams"],
+          resources: [messages.streamArn],
+        }),
+      );
+      new CfnEventSourceMapping(mappingStack, "HomePageMessageStreamMapping", {
+        eventSourceArn: messages.streamArn,
+        functionName: trigger.functionArn,
+        startingPosition: "TRIM_HORIZON",
+        batchSize: HOME_PAGE_STREAM_BATCH_SIZE,
+        maximumBatchingWindowInSeconds: HOME_PAGE_STREAM_BATCH_WINDOW_SECONDS,
+        bisectBatchOnFunctionError: true,
+        maximumRetryAttempts: HOME_PAGE_STREAM_RETRY_ATTEMPTS,
+        filterCriteria: { filters: [{ pattern: homePageMessageStreamFilterPattern() }] },
+      });
+    }
 
     // The debounce item lives in the shared projection lock table (partition key `publication`), under a key of its own.
     trigger.addToRolePolicy(

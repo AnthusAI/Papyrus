@@ -1,6 +1,6 @@
 # Home page: public data files
 
-> Status: Beta, phase 1 of the `homePage` epic (PPY-1b83d3). This page covers the data files, the fields, the task and the CLI. The Reference grids are described under "The references include"; the freshness trigger is described under "Freshness"; the threads come in a later task.
+> Status: Beta, phase 1 of the `homePage` epic (PPY-1b83d3). This page covers the data files, the fields, the task and the CLI. The Reference grids are described under "The references include"; the freshness trigger is described under "Freshness"; the Message threads are described under "Message threads".
 
 A Papyrus site can show part of its curation to visitors. The first piece is a public JSON file of the site's accepted References and of the pending ones the Cyclotron expects an editor to accept. It is served next to the pages, for example `https://anth.us/_data/home-page/references.json`.
 
@@ -9,6 +9,8 @@ A Papyrus site can show part of its curation to visitors. The first piece is a p
 | File | Holds |
 | --- | --- |
 | `_data/home-page/references.json` | `generatedAt`, `corpus`, `fields` (the published field names) and `references`, accepted ones newest-accepted first, then recommended ones newest arrival first |
+| `_data/home-page/threads.json` | With `homePage.threads.enabled`: `generatedAt` and `threads`, most recently active first (see "Message threads") |
+| `_data/home-page/threads/<key>.json` | With `homePage.threads.enabled`: one file per public thread with its Messages in sequence |
 
 The file lives under the site's URL policy, so `urls.basePath` is honoured (`<basePath>/_data/home-page/references.json`). Reconcile never calls it an orphan.
 
@@ -63,6 +65,17 @@ Mutation commands write by default; `--dry-run` prints the report and the size o
 - A card shows confidence as "93% confidence" with a Lucide `gauge` icon and a five-segment meter drawn by shape (filled or outlined). A recommended card says "Recommended by Cyclotron, not yet accepted" with a `sparkles` icon. Cards use flat tones and rounded corners, with no borders. A component with nothing left draws the `empty` text, or nothing.
 - The Markdown twin keeps the include line as written. A page's digest folds in the snapshot digest, so a changed snapshot rewrites only the pages that place a references include.
 - `pages[].path`, a section `base` or a collection `base` equal to `_data`, `_plugins`, `_papyrus`, `_next` or `api` is a build error. `newsroom` is also reserved on sites whose edge routes the CMS.
+
+## Message threads
+
+With `homePage.threads.enabled` the same task also writes `_data/home-page/threads.json` and one `_data/home-page/threads/<key>.json` per thread, and `::include{kind="threads" select="recent" count="8" layout="list|grid" [heading="..."] [empty="..."]}` places them on an authored page, rendered at projection time. Today only `select="recent"` (most recently active first) exists. `count` defaults to `homePage.references.defaultCount`. The task owns `_data/home-page/threads/`: it deletes the file of a thread that is no longer public. Nothing reads the per-thread files yet; they are the seam for the later forum pages.
+
+- **Public threads**: `threadKind` is `reference_conversation` or `story_conversation`, `status` is `active`, and the anchor is public: `reference#<lineageId>` whose public key is in the current `references.json`, or `item#<lineageId>` of a published Story that has a page. Unanchored and other-kind threads, and threads on rejected or archived References, are never exported. A thread with no public Message is left out.
+- **Public Messages**: `status` active, `messageKind` comment, never deleted. A deleted or moderated Message is omitted entirely and the count excludes it, because its text stays in the database after a soft delete.
+- **Message fields**: `key` (first 12 hex characters of the SHA-256 of the id), `at`, `edited`, `text` (the Message as written, with raw HTML removed and anything shaped like an email address, a UUID or a site subject scrubbed) and `author`. Thread entries carry `key` (hashed the same way), `title`, `anchor` (`{kind: "reference", key, title}` or `{kind: "story", url, title}`), `messages` (the count), `lastAt` and `latest` (the latest Message). The author is `{"handle": "ryan"}` when the person set a public handle in their profile settings and `homePage.threads.authors` is `handle` (the default), otherwise `{"label": "Editor"}` (`homePage.threads.anonymousLabel`) or `{"label": "AI"}` for a Message that was not written by a person. `authors: "none"` always uses the label and reads no profile. Never written: `authorSub`, `authorUserProfileId`, `authorLabel`, `deletedBySub`, `createdBySub`, `createdByLabel`, `metadata`, `responseOwner` or any record id.
+- **The card** names what the thread is on in words and a Lucide icon (`link` for a Reference, `file-text` for a Story, whose title links to its page), the title, "N messages" beside a `message-square` icon, the date of the last activity, the latest Message as plain text clipped at a sentence boundary (`publicData.summaryCharacters`, default 240) and "by" the author. Flat tones, rounded corners, no borders.
+- **De-duplication**: threads claim `thread:<key>` in the page ledger, so two threads includes on one page never repeat a thread, and they do not interfere with the Reference cards.
+- **Freshness**: with `threads.enabled`, the `home-page` plugin also reads the Message table's stream into the same trigger. A new comment, or a change of its `status`, `content`, `editedAt` or `deletedAt`, opens the same debounce window. A Message stream that another feature already switched on is reused, not replaced.
 
 ## Freshness
 

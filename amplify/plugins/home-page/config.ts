@@ -6,6 +6,7 @@ import type { PluginRequest, PluginResolveOptions } from "../types";
 export const DEFAULT_DEBOUNCE_SECONDS = 300;
 const REQUEST_KEYS = ["name", "debounceSeconds", "intervalHours"];
 const FRESHNESS_KEYS = ["debounceSeconds", "intervalHours", "purge"];
+const THREADS_KEYS = ["enabled", "authors", "anonymousLabel"];
 const MINUTES_PER_HOUR = 60;
 
 export type HomePageConfig = {
@@ -15,9 +16,11 @@ export type HomePageConfig = {
   intervalHours: number | null;
   /** Mirrors `homePage.freshness.purge`; the projection task does the invalidation, the backend only reports it. */
   purge: boolean;
+  /** Mirrors `homePage.threads.enabled`: the Message table stream feeds the same trigger, so a new or changed Message refreshes the threads. */
+  threads: boolean;
 };
 
-type ProjectionFreshness = { debounceSeconds?: unknown; intervalHours?: unknown; purge?: unknown };
+type ProjectionFreshness = { debounceSeconds?: unknown; intervalHours?: unknown; purge?: unknown; threads?: boolean };
 
 function wholeSeconds(value: unknown, where: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1) throw new Error(`${where} must be a whole number of seconds, at least 1`);
@@ -39,14 +42,18 @@ export function readProjectionFreshness(options: PluginResolveOptions): Projecti
   if (options.staticDir === undefined) return undefined;
   const settingsPath = resolve(options.baseDirectory ?? process.cwd(), options.staticDir, "projection.json");
   if (!existsSync(settingsPath)) return undefined;
-  const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as { homePage?: { freshness?: ProjectionFreshness } };
+  const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as { homePage?: { freshness?: ProjectionFreshness; threads?: { enabled?: unknown } } };
   if (settings.homePage === undefined || settings.homePage === null) {
     throw new Error(`The home-page plugin needs a "homePage" setting in ${settingsPath}; without it the snapshot task does nothing.`);
   }
   const freshness = settings.homePage.freshness ?? {};
   const unknown = Object.keys(freshness).filter((key) => !FRESHNESS_KEYS.includes(key));
   if (unknown.length > 0) throw new Error(`Unknown homePage.freshness settings: ${unknown.join(", ")}`);
-  return freshness;
+  const threads = (settings.homePage.threads ?? {}) as Record<string, unknown>;
+  const unknownThreads = Object.keys(threads).filter((key) => !THREADS_KEYS.includes(key));
+  if (unknownThreads.length > 0) throw new Error(`Unknown homePage.threads settings: ${unknownThreads.join(", ")}`);
+  if (threads.enabled !== undefined && typeof threads.enabled !== "boolean") throw new Error("homePage.threads.enabled must be true or false");
+  return { ...freshness, threads: threads.enabled === true };
 }
 
 /** Request values win over the site's projection.json; both fall back to the defaults. */
@@ -63,5 +70,6 @@ export function resolveHomePageConfig(request: PluginRequest, options: PluginRes
     debounceSeconds: wholeSeconds(debounce, "home-page debounceSeconds"),
     intervalHours: intervalHours(interval, "home-page intervalHours"),
     purge,
+    threads: projected.threads === true,
   };
 }

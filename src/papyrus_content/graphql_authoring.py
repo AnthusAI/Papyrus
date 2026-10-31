@@ -119,6 +119,7 @@ REVIEW_RECIPIENT_RULE_FIELDS = "id scope key roles emails updatedBy updatedAt"
 USER_ROLE_ASSIGNMENT_FIELDS = (
     "id userProfileId userSub email role status grantedBy grantedAt revokedAt notes"
 )
+USER_PROFILE_PUBLIC_FIELDS = "id publicHandle"   # the home-page threads read only the opt-in handle of a profile, never its email or name
 MODEL_ATTACHMENT_FIELDS = (
     "id ownerKind ownerId ownerLineageId ownerVersionNumber ownerVersionKey role sortKey storagePath filename "
     "mediaType byteSize sha256 etag importRunId createdAt updatedAt status"
@@ -198,6 +199,7 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "ReviewReadMark": {"field": "listReviewReadMarks", "fields": REVIEW_READ_MARK_FIELDS},
     "ReviewRecipientRule": {"field": "listReviewRecipientRules", "fields": REVIEW_RECIPIENT_RULE_FIELDS},
     "UserRoleAssignment": {"field": "listUserRoleAssignments", "fields": USER_ROLE_ASSIGNMENT_FIELDS},
+    "UserProfile": {"field": "listUserProfiles", "fields": USER_PROFILE_PUBLIC_FIELDS},
     "ModelAttachment": {"field": "listModelAttachments", "fields": MODEL_ATTACHMENT_FIELDS},
     "NewsroomSection": {"field": "listNewsroomSections", "fields": NEWSROOM_SECTION_FIELDS},
     "Edition": {"field": "listEditions", "fields": EDITION_FIELDS},
@@ -414,6 +416,13 @@ mutation CreateModelAttachmentDownload($attachmentId: ID!) {
 """
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
+    "messageThreadsByKindAndUpdatedAt": {"field": "listMessageThreadsByKindAndUpdatedAt", "partitionKey": "threadKind", "fields": MESSAGE_THREAD_FIELDS},
+    "messagesByThreadAndSequence": {
+        "field": "listMessagesByThreadAndSequence",
+        "partitionKey": "threadId",
+        "partitionType": "ID",
+        "fields": MESSAGE_FIELDS,
+    },
     "knowledgeCorporaByRoleAndName": {"field": "listKnowledgeCorporaByRoleAndName", "partitionKey": "role", "fields": KNOWLEDGE_CORPUS_FIELDS},
     "itemBySlug": {"field": "itemBySlug", "partitionKey": "slug", "fields": ITEM_FIELDS},
     "itemByTenantSlug": {"field": "itemByTenantSlug", "partitionKey": "tenantSlug", "fields": ITEM_FIELDS},
