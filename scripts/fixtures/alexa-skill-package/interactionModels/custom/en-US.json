@@ -1,0 +1,17 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "intents": [
+        {
+          "name": "LatestStoriesIntent",
+          "samples": [
+            "what is new",
+            "read the news"
+          ]
+        }
+      ],
+      "invocationName": "the example",
+      "types": []
+    }
+  }
+}

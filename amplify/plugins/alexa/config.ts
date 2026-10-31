@@ -2,7 +2,25 @@ import type { PluginRequest } from "../types";
 
 /** The environment variable that carries the resolved config to the skill function. */
 export const ALEXA_SETTINGS_ENVIRONMENT_VARIABLE = "PAPYRUS_ALEXA_SETTINGS";
-const REQUEST_KEYS = ["name", "invocationName", "skillName", "skillId", "accountLinking", "siteOrigin"];
+const REQUEST_KEYS = [
+  "name",
+  "invocationName",
+  "skillName",
+  "skillId",
+  "accountLinking",
+  "siteOrigin",
+  "siteId",
+  "locales",
+  "keywords",
+  "iconSmallUri",
+  "iconLargeUri",
+  "privacyPolicyUrl",
+  "termsOfUseUrl",
+];
+const SITE_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
+/** Alexa locales a custom skill can be published in (the ones with a model we can generate unchanged). */
+export const SKILL_LOCALES = ["en-US", "en-GB", "en-CA", "en-AU", "en-IN"] as const;
+export const DEFAULT_SKILL_LOCALES: readonly string[] = ["en-US"];
 /** Alexa's own rule for a custom skill's invocation name: lowercase letters, apostrophes, periods and spaces, 2 to 50 characters. */
 export const INVOCATION_NAME = /^[a-z](?:[a-z' .]{0,48}[a-z.])$/;
 export const SKILL_ID = /^amzn1\.ask\.skill\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -24,9 +42,41 @@ export type AlexaConfig = {
   skillId?: string;
   /** Account linking is optional: the public parts of the skill work without it. */
   accountLinking: boolean;
-  /** The site's public https origin, for the public story source. */
+  /** The site's public https origin, for the public story source and the manifest's icon and legal URLs. */
   siteOrigin?: string;
+  /**
+   * The site's id: names the skill's SSM parameters (`/papyrus/<siteId>/alexa/skill-id`). Defaults to the invocation name with
+   * every run of other characters turned into one hyphen. The deploy-time sync and the function read the same resolved value.
+   */
+  siteId?: string;
+  /** Locales to publish (default `["en-US"]`). Every locale gets the same generated model. */
+  locales?: string[];
+  /** Skill-store search keywords (default: the invocation name and "news"). */
+  keywords?: string[];
+  /** 108x108 PNG. Default `<siteOrigin>/alexa/icon-108.png`. */
+  iconSmallUri?: string;
+  /** 512x512 PNG. Default `<siteOrigin>/alexa/icon-512.png`. */
+  iconLargeUri?: string;
+  /** Default `<siteOrigin>/alexa/privacy`. */
+  privacyPolicyUrl?: string;
+  /** Default `<siteOrigin>/alexa/terms`. */
+  termsOfUseUrl?: string;
 };
+
+/** The id that names the skill's SSM parameters. */
+export function resolveSiteId(config: Pick<AlexaConfig, "invocationName" | "siteId">): string {
+  return config.siteId ?? config.invocationName.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+/** Where the sync stores, and the function reads, the skill ID. A plain String parameter: a skill ID is not secret. */
+export function skillIdParameterName(config: Pick<AlexaConfig, "invocationName" | "siteId">): string {
+  return `/papyrus/${resolveSiteId(config)}/alexa/skill-id`;
+}
+
+/** Where the sync keeps the hash of what it last pushed, so an unchanged deploy makes no Amazon call. */
+export function contentHashParameterName(config: Pick<AlexaConfig, "invocationName" | "siteId">): string {
+  return `/papyrus/${resolveSiteId(config)}/alexa/content-hash`;
+}
 
 function titleCase(value: string): string {
   return value
@@ -61,11 +111,37 @@ export function resolveAlexaConfig(request: PluginRequest): AlexaConfig {
   if (siteOrigin !== undefined && (typeof siteOrigin !== "string" || !HTTPS_ORIGIN.test(siteOrigin))) {
     throw new Error("alexa siteOrigin must be an https origin without a path, such as https://example.com");
   }
+  const siteId = settings.siteId;
+  if (siteId !== undefined && (typeof siteId !== "string" || !SITE_ID.test(siteId))) {
+    throw new Error("alexa siteId must be lowercase letters, digits and hyphens (it names the skill's SSM parameters)");
+  }
+  const locales = settings.locales;
+  if (
+    locales !== undefined &&
+    (!Array.isArray(locales) || locales.length === 0 || locales.some((locale) => !(SKILL_LOCALES as readonly string[]).includes(locale)) || new Set(locales).size !== locales.length)
+  ) {
+    throw new Error(`alexa locales must be a non-empty list without repeats from: ${SKILL_LOCALES.join(", ")}`);
+  }
+  const keywords = settings.keywords;
+  if (keywords !== undefined && (!Array.isArray(keywords) || keywords.length === 0 || keywords.some((word) => typeof word !== "string" || word.trim() === ""))) {
+    throw new Error("alexa keywords must be a non-empty list of words");
+  }
+  const urls: Record<string, string> = {};
+  for (const key of ["iconSmallUri", "iconLargeUri", "privacyPolicyUrl", "termsOfUseUrl"]) {
+    const value = settings[key];
+    if (value === undefined) continue;
+    if (typeof value !== "string" || !/^https:\/\/\S+$/.test(value)) throw new Error(`alexa ${key} must be an https URL`);
+    urls[key] = value;
+  }
   return {
     invocationName,
     skillName,
     ...(skillId === undefined ? {} : { skillId }),
     accountLinking,
     ...(siteOrigin === undefined ? {} : { siteOrigin }),
+    ...(siteId === undefined ? {} : { siteId }),
+    ...(locales === undefined ? {} : { locales: locales as string[] }),
+    ...(keywords === undefined ? {} : { keywords: keywords as string[] }),
+    ...urls,
   };
 }
