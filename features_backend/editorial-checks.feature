@@ -206,7 +206,61 @@ Feature: Editorial checks
     Then Humanus was asked to run the classifier with a 12 second deadline
     And the classifier lane status is reported
 
-  Scenario: Two current missions are still an error
+  # Editors never lose their rule checks to odd doctrine: two current missions cannot say which one governs, so no mission applies.
+  Scenario: Two current missions: rule checks run, judgment checks are skipped
     Given the publication has 2 current missions
+    And the editorial check settings turn the classifier on with a 12 second deadline
     When an editor checks "This game-changing release." in section "engineering"
-    Then the check fails with "expected exactly one current record, found 2"
+    Then the findings are for policies "no-hype"
+    And Humanus was asked to run without the classifier
+    And the classifier lane is skipped because the publication has no mission
+
+  # Production saw "NewsroomSection not found" for values like "Papyrus" or "articles": an unknown section checks against
+  # the publication's policies with no section guidance.
+  Scenario: A section name no section matches still gets the publication's policies
+    Given the section has no NewsroomSection record
+    When an editor checks "This game-changing synergy ships." in section "Newsroom How-To"
+    Then the findings are for policies "no-hype"
+    And the section is recorded as skipped because there is "no section configuration"
+
+  # The severity names are info, warn and error; an info finding is a normal finding, not a crash.
+  Scenario: An info finding is returned and stored with the checked version
+    When the saved version of a story with "This synergy ships." is checked
+    Then version 1 has a stored finding for policy "jargon" with severity "info"
+
+  # Every saved version is checked on the server, so findings exist for content changed outside the editor (PPY: auto-run).
+  Scenario: Saving a version checks it and stores the result with the version
+    When version 1 of the story is saved with "This game-changing release." and checked
+    Then Humanus was asked to check
+    And version 1 has a stored check with 1 finding for policy "no-hype"
+
+  # Identical content is never sent to the provider twice, which keeps automatic checks from running up a bill.
+  Scenario: Checking a version again without changes does not ask Humanus again
+    Given version 1 of the story is saved with "This game-changing release." and checked
+    When version 1 of the story is checked again
+    Then the check was skipped as unchanged
+    And Humanus was not asked again
+
+  Scenario: A new version with the same content reuses the earlier check
+    Given version 1 of the story is saved with "This game-changing release." and checked
+    When version 2 of the story is saved with the same content as version 1 and checked
+    Then the check was skipped as unchanged
+    And Humanus was not asked again
+    And version 2 has a stored check with 1 finding for policy "no-hype"
+
+  Scenario: Changed content is checked again
+    Given version 1 of the story is saved with "This game-changing release." and checked
+    When version 2 of the story is saved with "A calm release." and checked
+    Then Humanus was asked to check
+    And version 2 has a stored check with 0 finding for policy "no-hype"
+
+  Scenario: The same text in another section is checked again, because the section picks the policies
+    Given version 1 of the story is saved with "This synergy ships." and checked
+    When version 2 of the story is saved in section "culture" with "This synergy ships." and checked
+    Then Humanus was asked to check
+
+  Scenario: A check whose judgment lane did not finish is retried on the next update
+    Given version 1 of the story is saved with "This game-changing release." and checked
+    And the stored check of version 1 did not finish its judgment lane
+    When version 1 of the story is checked again
+    Then Humanus was asked to check

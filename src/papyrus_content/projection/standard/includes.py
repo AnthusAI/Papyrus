@@ -17,6 +17,8 @@ source) says where generated blocks go::
               nothing at all when the selection is empty.
 ``showcase``  the logo wall of the ``showcase`` settings.
 ``form``      a ``forms`` entry of ``projection.json``.
+``references`` a grid of Reference cards from the home-page snapshot (see ``home_page_blocks.py``); needs ``homePage`` in
+              ``projection.json``. Components on one page never show the same Reference twice: the first one wins.
 ``block``     the markup the site's ``block`` hook returns for ``name``; the remaining attributes are passed to it.
               ``depends`` lists the sections (``@root`` for items without one, ``*`` for all) it reads. The names that start
               with ``knowledge-`` are the standard knowledge blocks (see ``knowledge_blocks.py``), rendered without a hook.
@@ -30,12 +32,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from . import knowledge_blocks
+from . import home_page_blocks, knowledge_blocks
 from .config import StandardSettings
 from .entries import StandardEntry, sorted_by
 from .select import Selection, selection_from_mapping
 
-KINDS = ("listing", "showcase", "form", "block")
+KINDS = ("listing", "showcase", "form", "block", "references")
 LISTING_ATTRIBUTES = {"kind", "collection", "sections", "tags", "allTags", "notTags", "sort", "ties", "count", "skip", "card", "layout", "tag", "class"}
 WRAPPER_TAGS = ("ul", "ol", "div", "section")
 LAYOUTS = ("grid", "bare")
@@ -83,6 +85,10 @@ def check(attributes: Mapping, settings: StandardSettings, source: str) -> str:
             raise ValueError(f"{source}: ::include block needs a name")
         if attributes["name"].startswith(knowledge_blocks.PREFIX):
             knowledge_blocks.check(attributes, source)
+    elif kind == "references":
+        if settings.home_page is None:
+            raise ValueError(f"{source}: ::include references: {home_page_blocks.NOT_CONFIGURED}")
+        home_page_blocks.check(attributes, source)
     elif set(attributes) - {"kind"}:
         raise ValueError(f"{source}: ::include {kind} takes no attributes")
     return kind
@@ -128,6 +134,8 @@ def include_inputs(includes: list[dict], entries: list[StandardEntry], settings:
             wanted = depends_of(attributes)
             chosen = [entry for entry in entries if "*" in wanted or (entry.section.name if entry.section else "@root") in wanted]
             inputs.append([dict(attributes), [entry.fingerprint(full=True) for entry in chosen]])
+        elif kind == "references":
+            inputs.append([dict(attributes), "home-page:references"])
         else:
             inputs.append(dict(attributes))
     return inputs

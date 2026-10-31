@@ -16,10 +16,23 @@ import type { CheckStatus } from "./editorial-findings-panel";
 
 const CHECK_PAUSE_MS = 2000;
 
+/** Checks run on their own unless a publication's stored settings say `checkWhileTyping: false`; absent or null means on. */
+export function runsAutomatically(settings: Pick<EditorialSettings, "checkWhileTyping"> | null | undefined): boolean {
+  return settings?.checkWhileTyping !== false;
+}
+
+/** What a check was computed for. The same body in another section is a different check (the section picks the policies). */
+export function checkKey(body: string, section: string): string {
+  return `${section.trim()}\u0000${body}`;
+}
+
 /**
  * Editorial checks for one article body. A result only applies to the exact body
- * it was computed for: if the editor typed while the check ran, the result is
- * dropped and the next pause checks again.
+ * and section it was computed for. Checks run by themselves a pause after the
+ * body or section changes, one at a time: if the editor typed while a check ran,
+ * its result is dropped and the next pause checks the latest text. After a save
+ * the pending check runs at once and the saved version is checked on the server
+ * (which skips content it has already checked).
  */
 export function useEditorialChecks({
   backend,
@@ -39,12 +52,20 @@ export function useEditorialChecks({
   const enabled = available && settings.enabled;
   const [result, setResult] = useState<EditorialCheckResult | null>(null);
   const [checkedBody, setCheckedBody] = useState<string | null>(null);
+  const [checkedKey, setCheckedKey] = useState<string | null>(null);
+  /** The text a check failed on: it is not retried by itself (that would loop on a provider outage), only when the text changes or the editor asks. */
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const [saveRevision, setSaveRevision] = useState(0);
   const [status, setStatus] = useState<CheckStatus>({ state: "idle" });
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const [activeFindingId, setActiveFindingId] = useState<string | null>(null);
   const [selection, setSelection] = useState<Span>({ start: 0, end: 0 });
   const latestBody = useRef(body);
   latestBody.current = body;
+  const sectionName = section.trim();
+  const latestSection = useRef(sectionName);
+  latestSection.current = sectionName;
+  const key = body === null ? null : checkKey(body, sectionName);
   const sequence = useRef(0);
 
   useEffect(() => {
@@ -59,29 +80,56 @@ export function useEditorialChecks({
 
   const check = useCallback(async () => {
     const text = latestBody.current;
+    const sectionAtStart = latestSection.current;
     if (!backend || !enabled || text === null || !text.trim()) return;
+    const checking = checkKey(text, sectionAtStart);
     const run = ++sequence.current;
     setStatus({ state: "checking" });
     try {
-      const checked = await backend.check(text, section.trim() || null);
+      const checked = await backend.check(text, sectionAtStart || null);
       if (run !== sequence.current) return;
-      if (latestBody.current !== text) {
+      if (latestBody.current !== text || latestSection.current !== sectionAtStart) {
         setStatus({ state: "idle" });
         return;
       }
       setResult(checked);
       setCheckedBody(text);
+      setCheckedKey(checking);
+      setFailedKey(null);
       setStatus({ state: "idle" });
     } catch (error) {
-      if (run === sequence.current) setStatus({ state: "error", message: error instanceof Error ? error.message : "The check failed." });
+      if (run === sequence.current) {
+        setFailedKey(checking);
+        setStatus({ state: "error", message: error instanceof Error ? error.message : "The check failed." });
+      }
     }
-  }, [backend, enabled, section]);
+  }, [backend, enabled]);
 
+  const auto = enabled && settingsLoaded && runsAutomatically(settings);
+  const pending = key !== null && key !== checkedKey && key !== failedKey && body !== null && body.trim() !== "";
+  const inFlight = status.state === "checking";
   useEffect(() => {
-    if (!enabled || !settingsLoaded || !settings.checkWhileTyping || body === null || body === checkedBody) return;
+    if (!auto || !pending || inFlight) return;
     const timer = window.setTimeout(() => void check(), CHECK_PAUSE_MS);
     return () => window.clearTimeout(timer);
-  }, [body, check, checkedBody, enabled, settings.checkWhileTyping, settingsLoaded]);
+  }, [auto, check, inFlight, key, pending]);
+
+  // A save runs whatever is pending now instead of waiting for the pause.
+  useEffect(() => {
+    if (saveRevision === 0 || !auto || !pending || inFlight) return;
+    void check();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveRevision]);
+
+  /** Call after a version is saved: check what is pending now, and have the server check and store the saved version. */
+  const afterSave = useCallback(
+    (savedItemId: string | null) => {
+      setSaveRevision((revision) => revision + 1);
+      if (!enabled || !savedItemId || !backend?.checkVersion) return;
+      void backend.checkVersion(savedItemId).catch(() => undefined);
+    },
+    [backend, enabled],
+  );
 
   const record = useCallback(
     (finding: EditorialFinding, decision: FeedbackDecision, reason: string | null = null) => {
@@ -107,7 +155,7 @@ export function useEditorialChecks({
     [backend, section],
   );
 
-  const current = enabled && result && checkedBody === body;
+  const current = enabled && result && checkedKey === key;
   return {
     enabled,
     settings,
@@ -121,6 +169,7 @@ export function useEditorialChecks({
     selection,
     setSelection,
     check,
+    afterSave,
     suggest,
     dismiss,
     accept: (finding: EditorialFinding) => record(finding, "accepted"),

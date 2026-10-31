@@ -154,10 +154,18 @@ class EditorialContextTests(unittest.TestCase):
         self.assertNotIn('missingPublicationDoctrine', optional)
         self.assertEqual(optional['contextHash'], default['contextHash'])
 
-    def test_optional_doctrine_still_rejects_ambiguous_missions(self):
+    def test_optional_doctrine_treats_ambiguous_missions_as_missing_and_warns(self):
+        client = Records(); client.records['Item']['editorial-doctrine-mission'].append(dict(client.records['Item']['editorial-doctrine-mission'][0], id='mission-other'))
+        with self.assertLogs('papyrus_content.editorial_context', level='WARNING') as logs:
+            pack = resolve_editorial_context(client, endpoint='https://example.invalid', optional_publication_doctrine=True)
+        self.assertEqual(pack['missingPublicationDoctrine'], ['mission'])
+        self.assertIn('example', logs.output[0])
+        self.assertIn('found 2', logs.output[0])
+
+    def test_strict_resolution_still_rejects_ambiguous_missions(self):
         client = Records(); client.records['Item']['editorial-doctrine-mission'].append(dict(client.records['Item']['editorial-doctrine-mission'][0], id='mission-other'))
         with self.assertRaisesRegex(ValueError, 'found 2'):
-            resolve_editorial_context(client, endpoint='https://example.invalid', optional_publication_doctrine=True)
+            resolve_editorial_context(client, endpoint='https://example.invalid')
 
     def test_publication_comes_from_the_hosted_canonical_corpus(self):
         pack = resolve_editorial_context(Records(), endpoint='https://example.invalid/graphql')

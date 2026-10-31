@@ -3,7 +3,7 @@
 import { generateClient } from "aws-amplify/data";
 import type { EditorialCheckResult, EditorialFeedbackInput, EditorialFinding, RewriteResult, Span } from "./editorial-checks";
 import type { EditorialChecksBackend } from "./editorial-checks-backend";
-import { DEFAULT_EDITORIAL_SETTINGS, type EditorialSettings } from "./editorial-checks-settings";
+import { DEFAULT_EDITORIAL_SETTINGS, mergeEditorialSettings, type EditorialSettings } from "./editorial-checks-settings";
 
 export { DEFAULT_EDITORIAL_SETTINGS, type EditorialSettings };
 
@@ -50,6 +50,10 @@ export async function suggestRewrites(
     },
   );
   return parsed<RewriteResult>(data.suggestEditorialRewrite);
+}
+
+export async function checkSavedVersion(itemId: string): Promise<void> {
+  await call(`mutation CheckItemVersion($itemId: ID!) { checkItemVersion(itemId: $itemId) }`, { itemId });
 }
 
 export async function recordFeedback(input: EditorialFeedbackInput): Promise<void> {
@@ -140,7 +144,7 @@ export async function loadSettings(): Promise<{ settings: EditorialSettings; exi
   );
   const stored = data.getEditorialCheckSettings ? parsed<Partial<EditorialSettings>>(data.getEditorialCheckSettings.settings) : {};
   return {
-    settings: { ...DEFAULT_EDITORIAL_SETTINGS, ...stored, lanes: { ...DEFAULT_EDITORIAL_SETTINGS.lanes, ...(stored.lanes ?? {}) } },
+    settings: mergeEditorialSettings(stored),
     exists: data.getEditorialCheckSettings !== null,
   };
 }
@@ -209,4 +213,5 @@ export const graphqlEditorialBackend: EditorialChecksBackend = {
   check: checkEditorial,
   suggest: suggestRewrites,
   recordFeedback,
+  checkVersion: checkSavedVersion,
 };

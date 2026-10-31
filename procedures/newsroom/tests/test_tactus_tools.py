@@ -47,6 +47,7 @@ class TactusToolsModuleTests(unittest.TestCase):
 
     def test_save_story_version_keeps_the_latest_front_matter_when_none_is_given(self):
         client = client_with_one_story()
+        client.graphql = lambda *_: {"checkItemVersion": json.dumps(json.dumps({"itemId": "x", "violations": 0}))}
         with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, None)):
             saved = tactus_tools.papyrus_save_story_version(LINEAGE, "Second draft.", "Revise", "Ruling analyst")
             versions = tactus_tools.papyrus_story_versions(LINEAGE)
@@ -185,6 +186,8 @@ class CheckStoryVersionTests(unittest.TestCase):
         client = checking_client(run=stored_run([]))
         with mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, None)):
             saved = tactus_tools.papyrus_save_story_version(LINEAGE, "Second.", "Revise", "Bot")
+        self.assertEqual(client.graphql_calls[0][1], {"itemId": saved["versionId"]}, "the save checks the version it wrote")
+        client.graphql_calls.clear()
         client.tables["EditorialCheckRun"] = {}
         self.check(client, story=LINEAGE, version_number=1)
         self.assertEqual(client.graphql_calls[0][1], {"itemId": LINEAGE})

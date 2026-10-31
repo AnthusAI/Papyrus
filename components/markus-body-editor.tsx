@@ -90,9 +90,10 @@ const theme = EditorView.theme({
   ".cm-content": { fontFamily: "var(--font-mono, ui-monospace, monospace)", minHeight: "28rem", padding: "0.75rem 0" },
   ".cm-line": { padding: "0 0.75rem" },
   ".cm-editorial-finding": { textDecorationLine: "underline", textDecorationStyle: "wavy", textUnderlineOffset: "3px", cursor: "pointer" },
-  ".cm-editorial-error": { textDecorationColor: "var(--destructive)" },
-  ".cm-editorial-warn": { textDecorationColor: "oklch(0.75 0.16 70)" },
-  ".cm-editorial-info": { textDecorationColor: "oklch(0.65 0.12 250)" },
+  // Severity is also the line's weight, so it never depends on colour: must-fix thick, should-fix medium, consider thin.
+  ".cm-editorial-error": { textDecorationColor: "var(--destructive)", textDecorationThickness: "2.5px" },
+  ".cm-editorial-warn": { textDecorationColor: "oklch(0.75 0.16 70)", textDecorationThickness: "1.5px" },
+  ".cm-editorial-info": { textDecorationColor: "oklch(0.65 0.12 250)", textDecorationThickness: "1px" },
   ".cm-editorial-review": { textDecorationStyle: "dotted" },
   ".cm-editorial-active": { backgroundColor: "color-mix(in oklch, var(--ring) 22%, transparent)" },
 });

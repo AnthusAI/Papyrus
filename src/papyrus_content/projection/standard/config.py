@@ -16,6 +16,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from ...home_page.settings import HomePageSettings, home_page_settings_from_mapping
 from .grouping import valid_group_by
 from .redirects import RedirectRule, rule_from_mapping
 from .select import Selection, selection_from_mapping
@@ -23,7 +24,7 @@ from .select import Selection, selection_from_mapping
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands", "collections", "notFound", "wiki", "mermaid",
+    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage",
 )
 URL_STYLES = ("html", "directory", "clean")
 SITEMAP_STYLES = ("single", "index")
@@ -51,6 +52,22 @@ def _path_segment(value: str, where: str) -> str:
     if value and not SLUG_PATTERN.match(value):
         raise ValueError(f"{where} must be a lowercase path such as 'commentary', got {value!r}")
     return value
+
+
+RESERVED_PATH_PREFIXES = ("_data", "_plugins", "_papyrus", "_next", "api")
+
+
+def _unreserved_segment(value: str, where: str) -> str:
+    """A page path or listing base that is not one of the paths the platform serves itself.
+
+    ``newsroom`` is also reserved on a site whose edge routes the CMS (``/newsroom*``); projection cannot see the edge, so it names the
+    segment in the message and refuses only the prefixes it knows."""
+    if str(value).strip("/") in RESERVED_PATH_PREFIXES:
+        raise ValueError(
+            f"{where} {str(value).strip('/')!r} is reserved: the platform serves {', '.join(RESERVED_PATH_PREFIXES)} itself "
+            "(and 'newsroom' is reserved on sites whose edge routes the CMS); choose another path"
+        )
+    return _path_segment(value, where)
 
 
 @dataclass(frozen=True)
@@ -380,6 +397,7 @@ class StandardSettings:
     page_actions: PageActionSettings = field(default_factory=PageActionSettings)
     mermaid: bool = True                      # ```mermaid blocks render as diagrams (self-hosted script, loaded only on pages that have one)
     wiki: WikiSettings = field(default_factory=WikiSettings)
+    home_page: HomePageSettings | None = None   # the ``homePage`` key; None means the site has no home-page behaviour
 
     @property
     def sectioned(self) -> bool:
@@ -474,7 +492,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         sections.append(
             SectionConfig(
                 name=section_name,
-                base=_path_segment(entry.get("base", section_name), f"urls.sections.{section_name}.base"),
+                base=_unreserved_segment(entry.get("base", section_name), f"urls.sections.{section_name}.base"),
                 label=str(entry.get("label") or section_name.replace("-", " ").title()),
                 pages=bool(entry.get("pages", True)),
                 listing=bool(entry.get("listing", True)),
@@ -627,7 +645,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         collection_id = str(entry.get("id", ""))
         if not re.fullmatch(r"[a-z][a-z0-9-]*", collection_id) or any(c.id == collection_id for c in collections):
             raise ValueError(f"collections need a unique lowercase id, got {collection_id!r}")
-        base = _path_segment(str(entry.get("base", collection_id)), f"collections.{collection_id}.base")
+        base = _unreserved_segment(str(entry.get("base", collection_id)), f"collections.{collection_id}.base")
         if not base or any(base == section.base and section.listing_page for section in sections):
             raise ValueError(f"collections.{collection_id}.base must be a path that no section with a listing page uses")
         if any(base == other.base for other in collections):
@@ -669,7 +687,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         custom.append(
             CustomPage(
                 id=str(entry["id"]),
-                path=_path_segment(str(entry["path"]), "pages.path"),
+                path=_unreserved_segment(str(entry["path"]), "pages.path"),
                 title=str(entry["title"]),
                 description=str(entry.get("description", "")),
                 depends_on=tuple(entry.get("dependsOn", ("*",))),
@@ -835,4 +853,5 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         page_actions=page_actions,
         mermaid=bool(mermaid_raw.get("enabled", True)),
         wiki=wiki,
+        home_page=home_page_settings_from_mapping(raw["homePage"]) if raw.get("homePage") is not None else None,
     )

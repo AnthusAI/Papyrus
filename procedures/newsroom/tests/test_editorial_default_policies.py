@@ -76,6 +76,12 @@ class CheckingStore(MemoryStore):
     def put_check_run(self, record):
         self.runs[record["id"]] = record
 
+    def get_check_run(self, item_id):
+        return self.runs.get(item_id)
+
+    def list_check_runs_by_lineage(self, lineage_id, limit):
+        return sorted((run for run in self.runs.values() if run["lineageId"] == lineage_id), key=lambda run: -run["versionNumber"])[:limit]
+
     def get_editorial_context(self, section):
         from papyrus_content.editorial_context import build_context
         return build_context({"key": "example"}, {"sectionId": section}, [
@@ -92,6 +98,20 @@ def test_a_saved_version_is_checked_and_the_result_is_stored_with_it():
     assert run["lineageId"] == "story" and run["versionNumber"] == 2 and run["contentHash"] == "h2"
     assert summary["violations"] == run["violations"] and run["violations"] > 0
     assert all({"id", "policyId", "status"} <= set(finding) for finding in run["findings"])
+
+
+def test_identical_content_is_checked_once():
+    body = "Great question! Let's delve into this game-changing landscape."
+    store = CheckingStore([{"id": "story-v1", "lineageId": "story", "versionNumber": 1, "section": "news", "contentHash": "h", "bodyMarkus": body},
+                           {"id": "story-v2", "lineageId": "story", "versionNumber": 2, "section": "news", "contentHash": "h", "bodyMarkus": body}])
+    editorial.ensure_default_policies(store)
+    first = editorial.Services(store=store, decision_model=None, generator=None)
+    editorial.check_item_version({"itemId": "story-v1"}, first)
+    assert first.last_check_request is not None
+    again = editorial.Services(store=store, decision_model=None, generator=None)
+    summary = editorial.check_item_version({"itemId": "story-v2"}, again)
+    assert again.last_check_request is None and summary["skipped"] == "unchanged"
+    assert store.runs["story-v2"]["findings"] == store.runs["story-v1"]["findings"] and store.runs["story-v2"]["versionNumber"] == 2
 
 
 def test_checks_turned_off_are_a_skip_not_an_error():

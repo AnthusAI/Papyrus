@@ -5,12 +5,14 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import logging
 import re
 from typing import Any
 
 from .env import graphql_endpoint, load_dotenv
 from .newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND
 
+LOGGER = logging.getLogger(__name__)
 PRECEDENCE = ['publication', 'section', 'assignment']
 
 
@@ -124,7 +126,7 @@ def resolve_editorial_context(client, *, endpoint: str, publication_key: str | N
                               assignment_id: str | None = None, max_characters: int = 0,
                               optional_publication_doctrine: bool = False) -> dict:
     """``optional_publication_doctrine``: no current mission or policy record is reported in ``missingPublicationDoctrine``
-    instead of failing (the editorial check's rule lane needs no doctrine); more than one is still an error."""
+    instead of failing (the editorial check's rule lane needs no doctrine); more than one current record is treated the same way, with a warning that names the publication."""
     if not endpoint:
         raise ValueError('An endpoint is required for hosted editorial context.')
     publication = hosted_publication(client, publication_key)
@@ -159,7 +161,11 @@ def resolve_editorial_context(client, *, endpoint: str, publication_key: str | N
     for kind, definition in DOCTRINE_DEFINITION_BY_KIND.items():
         rows = client.list_by_index('itemBySlug', definition['slug'])
         rows = [row for row in rows if row.get('type') == 'doctrine' and row.get('status') == 'private']
-        if optional_publication_doctrine and not any(row.get('versionState') == 'current' for row in rows):
+        current_count = sum(1 for row in rows if row.get('versionState') == 'current')
+        if optional_publication_doctrine and current_count != 1:
+            # Checks run without odd doctrine (none, or more than one current record). Log the publication, never content.
+            LOGGER.warning('Editorial checks run without the publication %s for %s: expected exactly one current record, found %d.',
+                           kind, publication.get('key'), current_count)
             missing.append(kind)
             continue
         record = current_record(rows, f'Publication {kind}')
@@ -169,7 +175,16 @@ def resolve_editorial_context(client, *, endpoint: str, publication_key: str | N
             raise ValueError(f'Required publication {kind} is empty.')
         entries.append(_entry('publication', kind, text, record))
     if section_id:
-        section = find_section(client, section_id)
+        try:
+            section = find_section(client, section_id)
+        except ValueError as error:
+            # An ambiguous name falls back to publication policies for checks; other callers still need an exact section.
+            if not optional_publication_doctrine or 'is ambiguous' not in str(error):
+                raise
+            section = None
+        if not section and optional_publication_doctrine:
+            LOGGER.warning("Editorial checks run without section guidance for %s: no single NewsroomSection matches the story's section.",
+                           publication.get('key'))
         if not section and not optional_publication_doctrine:
             raise ValueError(f'Requested section not found: {section_id}')
         if not section:

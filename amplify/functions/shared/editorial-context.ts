@@ -160,7 +160,13 @@ export async function resolveEditorialContext(client: EditorialClient, options: 
     const rows = await pages(client, "Item", options.tenantId ? "itemByTenantSlug" : "itemBySlug",
       options.tenantId ? { tenantSlug: tenantScopedValue(options.tenantId, slug) } : { slug });
     const current = rows.filter(row => row.type === "doctrine" && row.status === "private" && row.versionState === "current");
-    if (current.length === 0 && options.optionalPublicationDoctrine) { missingPublicationDoctrine.push(kind); continue; }
+    // Checks must not crash on odd doctrine: no record, or more than one current record, means they run without it.
+    // The log names the publication and the record count, never any content.
+    if (options.optionalPublicationDoctrine && current.length !== 1) {
+      console.warn(`Editorial checks run without the publication ${kind} for ${publication.key}: expected exactly one current record, found ${current.length}.`);
+      missingPublicationDoctrine.push(kind);
+      continue;
+    }
     if (current.length !== 1) throw new Error(`Publication ${kind}: expected exactly one current record, found ${current.length}.`);
     const record = current[0];
     tenant(record, options.tenantId);
@@ -169,9 +175,18 @@ export async function resolveEditorialContext(client: EditorialClient, options: 
     entries.push(entry("publication", kind, text, record));
   }
   if (sectionId) {
-    const section = await findSection(client, sectionId, options.tenantId);
+    let section: EditorialRecord | null = null;
+    try {
+      section = await findSection(client, sectionId, options.tenantId);
+    } catch (error) {
+      // An ambiguous name falls back to publication policies for checks; other callers still need an exact section.
+      if (!options.optionalPublicationDoctrine || !/is ambiguous/.test(String((error as Error)?.message))) throw error;
+    }
     if (!section && !options.optionalPublicationDoctrine) throw new Error(`NewsroomSection not found: ${sectionId}`);
-    if (!section) { missingSectionConfiguration.push(sectionId); requestedSection = sectionId; sectionId = null; }
+    if (!section) {
+      console.warn(`Editorial checks run without section guidance for ${publication.key}: no single NewsroomSection matches the story's section.`);
+      missingSectionConfiguration.push(sectionId); requestedSection = sectionId; sectionId = null;
+    }
     else {
     tenant(section, options.tenantId);
     if (section.id !== sectionId) requestedSection = sectionId;

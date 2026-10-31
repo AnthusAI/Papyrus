@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -20,6 +21,8 @@ from typing import Any, Callable, Protocol
 
 import humanus
 from humanus.packs import builtin_pack, list_builtin_packs
+
+LOGGER = logging.getLogger(__name__)
 
 PUBLICATION_SCOPE = "publication"
 SETTINGS_ID = "settings"
@@ -49,6 +52,8 @@ class EditorialStore(Protocol):
     def put_settings(self, values: dict[str, Any], *, exists: bool) -> None: ...
     def get_item(self, item_id: str) -> dict[str, Any] | None: ...
     def put_check_run(self, record: dict[str, Any]) -> None: ...
+    def get_check_run(self, item_id: str) -> dict[str, Any] | None: ...
+    def list_check_runs_by_lineage(self, lineage_id: str, limit: int) -> list[dict[str, Any]]: ...
 
 
 _DEFAULT = object()
@@ -231,6 +236,13 @@ def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, 
     pack, context = editing_pack_and_context(services.store, arguments.get("section"), settings)
     # Judgments apply the mission and policy; rule checks do not need them, so they still run (PPY-2c4b56).
     missing_doctrine = context.get("missingPublicationDoctrine") or []
+    if missing_doctrine or context.get("missingSectionConfiguration"):
+        # Odd editorial context never stops a check; the log names the publication and what was missing, never content.
+        LOGGER.warning(
+            "Editorial check for %s runs without: %s",
+            (context.get("publication") or {}).get("key") or "an unknown publication",
+            ", ".join([*(f"publication {kind}" for kind in missing_doctrine), *(["section guidance"] if context.get("missingSectionConfiguration") else [])]),
+        )
     lanes = dict(settings["lanes"])
     skip_judgments = bool(missing_doctrine) and bool(lanes.get("classifier"))
     if skip_judgments:
@@ -397,15 +409,55 @@ def check_run_record(item: dict[str, Any], result: dict[str, Any], checked_at: d
     }
 
 
+CHECK_SUMMARY_KEYS = ("itemId", "lineageId", "versionNumber", "violations", "reviews", "packVersion", "checkedAt")
+# A stored lane that did not finish is not a result worth keeping: the next check of the same text runs again.
+FINISHED_LANE_STATUSES = ("ran", "disabled", "skipped")
+PRIOR_RUNS_CONSIDERED = 3
+
+
+def _finished(run: dict[str, Any]) -> bool:
+    lanes = _awsjson_document(run.get("lanes")) or {}
+    return all((lane or {}).get("status") in FINISHED_LANE_STATUSES for lane in lanes.values() if isinstance(lane, dict))
+
+
+def reusable_check_run(item: dict[str, Any], services: Services) -> dict[str, Any] | None:
+    """A finished stored check of identical content: this version's own, or a recent earlier version of the story.
+
+    The key is the version's content hash (front matter and body) plus its section, which picks the policies. Identical
+    content is never sent to the provider again.
+    """
+    content_hash = item.get("contentHash")
+    if not content_hash:
+        return None
+    candidates = [services.store.get_check_run(item["id"])]
+    lineage_id = item.get("lineageId") or item["id"]
+    candidates += services.store.list_check_runs_by_lineage(lineage_id, PRIOR_RUNS_CONSIDERED)
+    for run in candidates:
+        if run and run.get("contentHash") == content_hash and (run.get("section") or None) == (item.get("section") or None) and _finished(run):
+            return run
+    return None
+
+
 def check_item_version(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
     """Check one saved version of a story against its section's pack and store the result with the version.
 
     Every save path (the article editor, ``stories save-version``, imports, copywriting) calls this, so drafts written
-    by people and by agents are copy-edited the same way. Turned-off checks are a skip, not an error.
+    by people and by agents are copy-edited the same way. Turned-off checks are a skip, not an error. A version whose
+    content (and section) was already checked is not checked again: its stored result is kept or copied to it.
     """
     item = services.store.get_item(arguments["itemId"])
     if item is None:
         raise ValueError(f"No item version {arguments['itemId']}.")
+    reusable = reusable_check_run(item, services)
+    if reusable is not None:
+        if reusable.get("id") != item["id"]:
+            services.store.put_check_run({
+                **{key: reusable.get(key) for key in ("section", "contentHash", "packVersion", "violations", "reviews", "checkedAt")},
+                "id": item["id"], "itemId": item["id"], "lineageId": item.get("lineageId") or item["id"],
+                "versionNumber": int(item.get("versionNumber") or 1),
+                "findings": _awsjson_document(reusable.get("findings")) or [], "lanes": _awsjson_document(reusable.get("lanes")),
+            })
+        return {**{key: reusable.get(key) for key in CHECK_SUMMARY_KEYS}, "itemId": item["id"], "skipped": "unchanged"}
     try:
         result = check_editorial({"body": item.get("bodyMarkus") or "", "format": "markus", "section": item.get("section")}, services)
     except EditorialChecksDisabled:
@@ -414,7 +466,7 @@ def check_item_version(arguments: dict[str, Any], services: Services) -> dict[st
     if services.last_check_request:
         record["packVersion"] = services.last_check_request["pack"].get("version")
     services.store.put_check_run(record)
-    return {key: record[key] for key in ("itemId", "lineageId", "versionNumber", "violations", "reviews", "packVersion", "checkedAt")}
+    return {key: record[key] for key in CHECK_SUMMARY_KEYS if key != "itemId"} | {"itemId": record["itemId"]}
 
 
 def recalibrate(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
@@ -487,6 +539,12 @@ CREATE_POLICY = "mutation CreateEditorialPolicy($input: CreateEditorialPolicyInp
 UPDATE_POLICY = "mutation UpdateEditorialPolicy($input: UpdateEditorialPolicyInput!) { updateEditorialPolicy(input: $input) { id } }"
 GET_ITEM = "query GetItemForEditorialCheck($id: ID!) { getItem(id: $id) { id lineageId versionNumber section contentHash bodyMarkus } }"
 GET_CHECK_RUN = "query GetEditorialCheckRun($id: ID!) { getEditorialCheckRun(id: $id) { id } }"
+_CHECK_RUN_SELECTION = "id itemId lineageId versionNumber section contentHash packVersion violations reviews findings lanes checkedAt"
+GET_CHECK_RUN_RECORD = f"query GetEditorialCheckRunRecord($id: ID!) {{ getEditorialCheckRun(id: $id) {{ {_CHECK_RUN_SELECTION} }} }}"
+LIST_CHECK_RUNS_BY_LINEAGE = (
+    "query ListEditorialCheckRunsByLineage($lineageId: String!, $limit: Int) { "
+    f"listEditorialCheckRunsByLineage(lineageId: $lineageId, sortDirection: DESC, limit: $limit) {{ items {{ {_CHECK_RUN_SELECTION} }} }} }}"
+)
 CREATE_CHECK_RUN = "mutation CreateEditorialCheckRun($input: CreateEditorialCheckRunInput!) { createEditorialCheckRun(input: $input) { id } }"
 UPDATE_CHECK_RUN = "mutation UpdateEditorialCheckRun($input: UpdateEditorialCheckRunInput!) { updateEditorialCheckRun(input: $input) { id } }"
 CREATE_SETTINGS = "mutation CreateEditorialCheckSettings($input: CreateEditorialCheckSettingsInput!) { createEditorialCheckSettings(input: $input) { id } }"
@@ -559,6 +617,12 @@ class GraphQLEditorialStore:
 
     def get_item(self, item_id: str) -> dict[str, Any] | None:
         return self._execute(GET_ITEM, {"id": item_id})["getItem"]
+
+    def get_check_run(self, item_id: str) -> dict[str, Any] | None:
+        return self._execute(GET_CHECK_RUN_RECORD, {"id": item_id})["getEditorialCheckRun"]
+
+    def list_check_runs_by_lineage(self, lineage_id: str, limit: int) -> list[dict[str, Any]]:
+        return self._execute(LIST_CHECK_RUNS_BY_LINEAGE, {"lineageId": lineage_id, "limit": limit})["listEditorialCheckRunsByLineage"]["items"]
 
     def put_check_run(self, record: dict[str, Any]) -> None:
         exists = self._execute(GET_CHECK_RUN, {"id": record["id"]})["getEditorialCheckRun"] is not None

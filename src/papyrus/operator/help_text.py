@@ -26,6 +26,7 @@ Operator groups:
   proposals     File, decide and publish map proposals (proposals create|list|show|transition|approve|decline|override|pin|hold|exclude-votes|needs-a-look|publish)
   ideas         Digest recent references and synthesise private story ideas (ideas digest|synthesize)
   items         Stories as a whole (items link-references)
+  home-page     Public data of the home page (home-page snapshot)
   editorial     Editorial context and quality loop commands
   publication   Create the backend's canonical publication (publication init)
   site          Site repository operations (site google-secrets set|check)

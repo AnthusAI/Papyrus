@@ -1,5 +1,8 @@
 const assert = require("node:assert/strict");
-const { When, Then } = require("@cucumber/cucumber");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { Given, When, Then } = require("@cucumber/cucumber");
 
 function requirePage(world) {
   assert.ok(world.page, "The browser page is not open");
@@ -27,6 +30,84 @@ async function editorMarks(page) {
 function popover(page) {
   return page.locator("[data-editorial-preview-popover]");
 }
+
+/** The demo backend counts what it was asked on window.__PAPYRUS_DEMO_EDITORIAL__. */
+async function probe(page) {
+  return page.evaluate(() => window.__PAPYRUS_DEMO_EDITORIAL__ ?? { checks: 0, versionChecks: [] });
+}
+
+const FINDINGS_COUNT = "[data-editorial-findings-count]";
+
+Given("the editorial checks provider is down", async function () {
+  await requirePage(this).evaluate(() => {
+    window.__PAPYRUS_DEMO_EDITORIAL__ = { checks: 0, versionChecks: [], failNextChecks: true };
+  });
+});
+
+When("I enter the article body {string}", async function (text) {
+  const page = requirePage(this);
+  await showTab(page, "edit");
+  await page.locator("[data-newsroom-article-body]").fill(text);
+});
+
+Then("the editorial findings appear by themselves", async function () {
+  // No click on Check: the panel fills a moment after the text stops changing.
+  await requirePage(this).waitForFunction(
+    (selector) => /\d+ open/.test(document.querySelector(selector)?.textContent ?? ""),
+    FINDINGS_COUNT,
+    { timeout: 15_000 },
+  );
+});
+
+Then("the body editor marks {string}", async function (text) {
+  const page = requirePage(this);
+  await showTab(page, "edit");
+  await page.waitForFunction(
+    (expected) => [...document.querySelectorAll(".cm-editorial-finding")].some((node) => node.textContent === expected),
+    text,
+    { timeout: 15_000 },
+  );
+});
+
+Then("the body editor marks {string} with the {string} severity", async function (text, severity) {
+  const page = requirePage(this);
+  await showTab(page, "edit");
+  const marked = await page.locator(`.cm-editorial-${severity}`).evaluateAll((nodes) => nodes.map((node) => node.textContent));
+  assert.ok(marked.includes(text), `Marks with severity ${severity}: ${JSON.stringify(marked)}`);
+});
+
+Then("the findings panel lists {string} as {string}", async function (policy, label) {
+  const group = requirePage(this).locator(`[data-editorial-policy="${policy}"]`);
+  await group.waitFor({ state: "visible", timeout: 5_000 });
+  assert.match(await group.innerText(), new RegExp(label));
+});
+
+Then("the editor asked for exactly {int} check after waiting {int} seconds", async function (count, seconds) {
+  const page = requirePage(this);
+  await page.waitForTimeout(seconds * 1000);
+  assert.equal((await probe(page)).checks, count);
+});
+
+Then("the findings panel shows the error {string}", async function (text) {
+  const alert = requirePage(this).locator("[data-editorial-findings] [role=alert]");
+  await alert.waitFor({ state: "visible", timeout: 15_000 });
+  assert.match(await alert.innerText(), new RegExp(text));
+});
+
+Then("the server was asked to check the saved version", async function () {
+  const page = requirePage(this);
+  await page.waitForFunction(() => (window.__PAPYRUS_DEMO_EDITORIAL__?.versionChecks ?? []).length > 0, null, { timeout: 10_000 });
+  assert.equal((await probe(page)).versionChecks.length, 1);
+});
+
+Then("I save a screenshot named {string}", async function (name) {
+  const dir = process.env.EDITORIAL_SHOTS_DIR || path.join(os.tmpdir(), "editorial-shots");
+  fs.mkdirSync(dir, { recursive: true });
+  const page = requirePage(this);
+  // Show the findings panel itself (it sits below the body), then the viewport as the editor sees it.
+  await page.locator("[data-editorial-findings]").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: path.join(dir, `${name}.png`) });
+});
 
 When("I check the article's editorial policies", async function () {
   const page = requirePage(this);

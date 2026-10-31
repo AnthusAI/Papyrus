@@ -48,6 +48,23 @@ Administration has an Editorial checks panel for policies (including the
 AI-writing tells starter pack, a "try it" box and drafted judgment questions),
 settings and recalibration.
 
+**Checks run by themselves.** The editor checks the body a moment (two seconds) after the body or section
+stops changing, one check at a time (a result for text that has since changed is dropped), and again as soon as
+a save finishes. Findings mark the body and fill the panel with no click. `checkWhileTyping` in the settings
+controls this: on by default, and a missing or null value counts as on; only an admin setting it to false stops it
+(the Check now button still works). A failed check shows its error in the panel and is not retried until the text
+changes. Each save also asks the server to check the saved version (`checkItemVersion`), as `papyrus stories
+save-version` and `papyrus_save_story_version` do, and the result is stored in `EditorialCheckRun` for that version.
+Results are keyed by the version's content hash plus its section: identical content is never checked again (the
+stored result is kept, or copied to a new version with the same content), while a check whose judgment lane did not
+finish is retried on the next update. A failed server check never undoes the save.
+
+**Odd editorial context never stops a check.** A section value that matches no `NewsroomSection` (matched by id,
+slug or name, ignoring case; or ambiguous) checks against the publication's policies with no section guidance. A
+publication with no current mission, or more than one, checks without the mission and its judgment lane is
+skipped. Both log a warning that names the publication. Real failures (the provider or Humanus being unavailable)
+still surface as an error in the panel.
+
 **From a file.** Operators and agents without a signed-in admin can load policies,
 including judgment (classifier) questions, from a Humanus `policy-pack-v1` file with
 `papyrus editorial policies add --file pack.json`, and write the site's policies back

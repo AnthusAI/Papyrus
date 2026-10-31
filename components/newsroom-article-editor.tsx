@@ -226,6 +226,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     section: editor?.section ?? "",
     itemId: editor?.id ?? null,
   });
+  const afterEditorialSave = editorial.afterSave;
   const editorialOpen = useMemo(
     () => (editorial.result ? visibleFindings(editorial.result.findings, editorial.dismissed) : []),
     [editorial.result, editorial.dismissed],
@@ -350,12 +351,13 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
       setChangeReason("");
       setActiveArticleId(result.item.id);
       setNotice({ tone: "ok", text: `Saved as version ${result.item.versionNumber ?? ""}.` });
+      afterEditorialSave(result.item.id);
     } catch (error) {
       setNotice({ tone: "error", text: failureMessage(error) });
     } finally {
       setBusy(null);
     }
-  }, [aliases, backend, changeReason, editor]);
+  }, [aliases, backend, changeReason, editor, afterEditorialSave]);
 
   const saveDraft = useCallback(async (): Promise<string | null> => {
     if (!editor) return null;
@@ -392,6 +394,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
         );
       }
       setNotice({ tone: "ok", text: "Draft saved." });
+      afterEditorialSave(result.item.id);
       return result.item.id;
     } catch (error) {
       if (error instanceof ContentActionFailure && error.errors.some((entry) => entry.code === "conflict")) {
@@ -405,7 +408,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     } finally {
       setBusy(null);
     }
-  }, [aliases, backend, demo, editor]);
+  }, [aliases, backend, demo, editor, afterEditorialSave]);
 
   const requestPublish = () => {
     if (editorial.openWarnings.length > 0) {

@@ -10,6 +10,7 @@ export type EditorialSettings = {
   maxExamplesPerQuestion: number;
   guidance: string;
   publishWarning: boolean;
+  /** Checks run on their own after the body changes and after each save. On unless an admin sets this to false (absent or null counts as on). */
   checkWhileTyping: boolean;
 };
 
@@ -25,3 +26,14 @@ export const DEFAULT_EDITORIAL_SETTINGS: EditorialSettings = {
   publishWarning: true,
   checkWhileTyping: true,
 };
+
+/**
+ * Stored settings over the defaults. A stored `null` (or a missing key) never overrides a default, so a record that
+ * predates a setting, or holds null for it, behaves like the default: checks run automatically.
+ */
+export function mergeEditorialSettings(stored: Partial<{ [K in keyof EditorialSettings]: EditorialSettings[K] | null }> | null | undefined): EditorialSettings {
+  const merged: Record<string, unknown> = { ...DEFAULT_EDITORIAL_SETTINGS };
+  for (const [name, value] of Object.entries(stored ?? {})) if (value !== null && value !== undefined) merged[name] = value;
+  merged.lanes = { ...DEFAULT_EDITORIAL_SETTINGS.lanes, ...(stored?.lanes ?? {}) };
+  return merged as EditorialSettings;
+}

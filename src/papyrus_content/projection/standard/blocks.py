@@ -321,7 +321,13 @@ def _band_html(band: dict) -> str:
     )
 
 
-def _knowledge_block(attributes: dict) -> bool:
+KEPT_INCLUDE_KINDS = ("references", "threads")
+
+
+def _kept_include(attributes: dict) -> bool:
+    """Includes whose line stays in the twin: the knowledge blocks and the home-page components."""
+    if attributes.get("kind") in KEPT_INCLUDE_KINDS:
+        return True
     return attributes.get("kind") == "block" and attributes.get("name", "").startswith("knowledge-")
 
 
@@ -329,14 +335,14 @@ def twin(text: str, values: Mapping[str, str], source: str) -> str:
     """The Markdown twin's source: tokens replaced and every page block kept as written (an island carries its ``summary``).
 
     Only ``::include`` and ``::raw`` regions are left out: they place generated or hand-written markup that has no
-    source text to read. The knowledge blocks (``::include{kind="block" name="knowledge-..."}``) are the exception: they
-    stay as written, because the line says what the page shows and where the data lives."""
+    source text to read. The knowledge blocks (``::include{kind="block" name="knowledge-..."}``) and the home-page components
+    (``::include{kind="references"}``) are the exception: they stay as written, because the line says what the page shows and where the data lives."""
     text = substitute(text, values, source)
     if not uses_blocks(text):
         return text
     front = FRONT_MATTER.match(text)
     head, body = (text[: front.end()], text[front.end():]) if front else ("", text)
-    out = [line for line, name, attributes, _inside in _directives(body) if name not in ("include", "raw", "rawline", "endraw") or (name == "include" and _knowledge_block(attributes))]
+    out = [line for line, name, attributes, _inside in _directives(body) if name not in ("include", "raw", "rawline", "endraw") or (name == "include" and _kept_include(attributes))]
     return head + re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip() + "\n"
 
 

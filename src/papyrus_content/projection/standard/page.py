@@ -11,6 +11,7 @@ from .entries import StandardEntry
 from .environment import SiteEnvironment
 from .head import PageHead
 from .hooks import HookSite
+from .page_ledger import PageLedger
 
 KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "archive", "not_found", "newsletter_page")
 
@@ -62,6 +63,7 @@ class StandardPage:
     page_actions: str = ""                      # item pages: the page-actions markup core would place (empty when off), for hooks that compose their own body
     wiki_stamp: str = ""                        # wiki pages: the review stamp and any superseded notice, placed above the text
     wiki_footer: str = ""                       # wiki pages: "Updated", the data link and the suggest-an-edit form, placed below the text
+    ledger: PageLedger = field(default_factory=PageLedger)   # what this page render has placed so far; shared by every include on it
     components = components
 
     @property
