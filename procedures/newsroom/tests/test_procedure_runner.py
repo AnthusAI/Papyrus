@@ -445,6 +445,17 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     assert invoke["Action"] == "lambda:InvokeFunction" and invoke["Resource"][1].endswith(":function:papyrus-procedure-runner")
 
 
+def test_the_runner_role_reaches_exactly_the_newsrooms_it_is_granted():
+    resources = cloudformation(INFRA / "procedures" / "papyrus-procedure-runner.yaml")["Resources"]
+    statements = {s["Sid"]: s for s in resources["RunnerRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]}
+    granted = statements["PublicationNewsrooms"]["Resource"]
+    apis = {resource[1].split("apis/")[1].split("/")[0] for resource in granted}
+    assert apis == {"${DistinctiveApiId}", "${AnthUsApiId}"}
+    for api in apis:   # each newsroom: every Query and Mutation field, nothing else (no Subscription)
+        kinds = sorted(resource[1].split("/types/")[1] for resource in granted if f"apis/{api}/" in resource[1])
+        assert kinds == ["Mutation/fields/*", "Query/fields/*"]
+
+
 def test_the_router_may_start_only_the_named_runner():
     template = cloudformation(INFRA / "monitoring" / "papyrus-monitoring.yaml")
     policy = template["Resources"]["RouterProcedureRunnerPolicy"]

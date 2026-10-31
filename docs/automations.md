@@ -79,6 +79,10 @@ papyrus automations create --id distinctive.ruling.copy-edit --title "Copy-edit 
   --procedure distinctive.ruling.copy-edit
 ```
 
+A generic editor-review bot (`procedures/newsroom/editor_review.tac`) is meant for the same `copywriting` stage, in
+place of or after a copy-edit bot: it records a review on the version and holds or advances the story. See
+[editor agents](editor-agents.md#editor-review-stage-bot-beta).
+
 The stored record is an `event` automation, `trigger.config` = `{"event": "story.stage_entered", "onStage", "nextStage",
 "monitorId", "publicationId"}`; `limits.maxHops` is the hop limit. `monitorId` names the monitoring-table partition that holds
 the run rows, and `publicationId` the router publication that supplies the site's endpoint and model key (the same two things a

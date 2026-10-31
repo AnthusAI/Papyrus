@@ -272,3 +272,38 @@ def papyrus_check_story_version(story: str = "", version: str = "", version_numb
         if time.monotonic() >= deadline:
             return {**base, "status": "pending", "clean": False, "findings": []}
         time.sleep(CHECK_POLL_SECONDS)
+
+
+def papyrus_editor_review_inputs(story: str, version: str) -> dict:
+    """Everything an editor reads to review one story version: the version (front matter and Markus body), its pipe tables
+    (the editorial check skips them), the References linked to the story, the brief (or none: then the doctrine is the brief),
+    the editorial context with its hash, and the editorial check run on that exact version (Humanus rules and the Jev lane)."""
+
+    from papyrus_content.editor_review import gather_review_inputs
+    from papyrus_content.graphql_authoring import create_authoring_client
+
+    client, _ = create_authoring_client()
+    return gather_review_inputs(
+        client, story, version,
+        run_check=lambda version_id: papyrus_check_story_version(version=version_id),
+        read_context=lambda lineage: papyrus_editorial_context(story=lineage),
+    )
+
+
+def papyrus_record_editor_review(story: str, version: str, review: dict, model: str, context_hash: str) -> dict:
+    """Record the editor's review as Item.metadata.editorReview on the version it reviewed and return the stage-bot contract
+    {version, hold, reason, verdict}: approve lets the engine advance the story, revise or reframe holds it. A review that
+    left a criterion unassessed or has an error-level failure cannot approve. Writes metadata only: never a Message, never a
+    state or stage change, never publishing."""
+
+    from datetime import datetime, timezone
+
+    from papyrus_content.editor_review import record_review
+    from papyrus_content.editorial_commands import read_item_check_run
+    from papyrus_content.graphql_authoring import create_authoring_client
+
+    client, _ = create_authoring_client()
+    stored = read_item_check_run(version, client.graphql)
+    check = _check_result({"id": version, "lineageId": story}, stored) if stored is not None else None
+    return record_review(client, story, version, review, model=model, context_hash=context_hash, check=check,
+                         at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))

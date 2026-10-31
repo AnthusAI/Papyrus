@@ -17,6 +17,7 @@ INDEX_MODELS = {
     "semanticRelationsBySubjectState": "SemanticRelation",
     "semanticRelationsByObjectState": "SemanticRelation",
     "referencesByLineageAndVersion": "Reference",
+    "assignmentsByItemLineageAndCreatedAt": "Assignment",
 }
 
 
