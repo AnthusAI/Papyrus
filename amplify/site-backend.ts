@@ -31,6 +31,7 @@ import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
+import { resolveExcludedModelGroups } from "./data/schema";
 import { editorialChecks } from "./functions/editorial-checks/resource";
 import { automationView } from "./functions/automation-view/resource";
 import { wireAutomationView } from "./functions/automation-view/wire";
@@ -138,7 +139,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     categoryAction,
     contentActions,
     editorialChecks,
-    data: defineSiteData(pluginDefinitions, site.excludeModelGroups ?? []),
+    data: defineSiteData(pluginDefinitions, resolveExcludedModelGroups(site.excludeModelGroups, process.env)),
     knowledgeQuery,
     manageUserRole,
     monitoringView,

@@ -111,6 +111,8 @@ The steps below are the real sequence; each links to the page that holds the det
    ```
 
    [Deploying the app-shell stack](docs/site-hosting.md#deploying-the-app-shell-stack-from-a-checkout), [GitHub App connection](docs/site-hosting.md#one-time-github-app-connection-per-app).
+   **First backend build: two deploys.** The full backend is more than CloudFormation's 2,500-resource limit per operation, so a new site's first build runs with the Amplify branch variable `PAPYRUS_BOOTSTRAP_STAGE=1`, then a second build without it. [Exact commands](docs/site-hosting.md#start-a-new-papyrus-site-the-two-deploy-first-backend).
+
 5. **Secrets.** Create the site's Google OAuth client, then from the site repository run `papyrus site google-secrets set` (it stores SSM SecureString secrets after asserting the account) and `papyrus site google-secrets check`. Add editors to a Cognito group after their first sign-in. [Google sign-in](docs/site-hosting.md#google-sign-in), [OAuth setup](docs/google-oauth-setup.md).
 6. **Edge.** Give the site its own CloudFront: `backend.publication.distribution` in `papyrus.config.ts`, or a `papyrus-edge-<siteId>` stack from `infra/edge/s3-projection-cms.yaml` (use this one when `/newsroom*` and `/api/*` share the host: it carries the 404 handler). DNS and certificates: [edge README](infra/edge/README.md), [own CloudFront](docs/site-hosting.md#own-cloudfront-in-front-of-the-bucket-papyrus-edge-).
 7. **First content and projection.** `papyrus publication init --key <key> --name <name>`, then `papyrus ops content project --all`. [How a publish flows](docs/how-a-publish-flows.md).
