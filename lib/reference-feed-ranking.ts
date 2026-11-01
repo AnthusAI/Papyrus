@@ -151,3 +151,49 @@ export function applyFeedOrderSnapshot(snapshot: FeedOrderSnapshot, live: FeedIt
     newCount: live.filter((item) => !item.rated && !snapshot.known.has(item.lineageId)).length,
   };
 }
+
+/** How many unanswered items one page of the feed adds. A page of the screen, not a limit: scrolling to the end shows the next. */
+export const FEED_PAGE_SIZE = 24;
+
+/**
+ * The part of the feed that is on screen: the newest `pages` pages of unanswered items, plus the answered items that arrived since the
+ * oldest of them. Predictions are read for these items only. The server's own order (newest arrival first) decides which items are next,
+ * so nothing has to be read about the older ones to know where the next page starts.
+ */
+export function feedWindow(items: FeedItem[], pages: number, pageSize = FEED_PAGE_SIZE): FeedItem[] {
+  const newestFirst = [...items].sort((left, right) => (referenceArrivalTime(right.reference) ?? 0) - (referenceArrivalTime(left.reference) ?? 0)
+    || left.lineageId.localeCompare(right.lineageId));
+  const wanted = Math.max(1, pages) * pageSize;
+  let unrated = 0;
+  let cut = newestFirst.length;
+  for (let index = 0; index < newestFirst.length; index += 1) {
+    if (newestFirst[index].rated) continue;
+    unrated += 1;
+    if (unrated === wanted) { cut = index + 1; break; }
+  }
+  return newestFirst.slice(0, cut);
+}
+
+/**
+ * Add a later page to the order: older items go after everything already placed, each sort in its own order, so nothing above moves.
+ * Items that arrived after the snapshot are not added here; they wait behind the "new items" pill as before.
+ */
+export function extendFeedOrderSnapshot(snapshot: FeedOrderSnapshot, items: FeedItem[]): FeedOrderSnapshot {
+  const fresh = items.filter((item) => !snapshot.known.has(item.lineageId));
+  if (!fresh.length) return snapshot;
+  return {
+    ...snapshot,
+    known: new Set([...snapshot.known, ...fresh.map((item) => item.lineageId)]),
+    unrated: new Set([...snapshot.unrated, ...fresh.filter((item) => !item.rated).map((item) => item.lineageId)]),
+    best: [...snapshot.best, ...orderFeedItems(fresh, "best").map((item) => item.lineageId)],
+    newest: [...snapshot.newest, ...orderFeedItems(fresh, "newest").map((item) => item.lineageId)],
+  };
+}
+
+/**
+ * The items in `live` that were already in the newsroom when the snapshot was taken (`seen`) but not yet placed: the next page, as opposed to
+ * items that arrived since, which wait behind the new-items pill.
+ */
+export function laterPageItems(snapshot: FeedOrderSnapshot, seen: ReadonlySet<string>, live: FeedItem[]): FeedItem[] {
+  return live.filter((item) => seen.has(item.lineageId) && !snapshot.known.has(item.lineageId));
+}

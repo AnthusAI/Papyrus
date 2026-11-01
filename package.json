@@ -82,7 +82,7 @@
     "test:newsroom-ux-review": "tsx scripts/test-newsroom-ux-review.ts && cucumber-js --profile newsroomUxReview",
     "test:related-links": "tsx --test scripts/test-reference-links-lib.ts && tsx scripts/test-related-links.ts && cucumber-js --profile referenceRelatedUi",
     "test:conversations": "tsx --test scripts/test-conversation-lib.ts && tsx scripts/test-conversations.ts && cucumber-js --profile conversations",
-    "test:reference-feed": "tsx scripts/test-newsroom-all-pages.ts && tsx scripts/test-reference-feed-ranking.ts && tsx scripts/test-reference-feed.ts && tsx scripts/test-reference-sync.ts && cucumber-js --profile referenceFeed",
+    "test:reference-feed": "tsx scripts/test-newsroom-all-pages.ts && tsx scripts/test-reference-feed-ranking.ts && tsx --test scripts/test-reference-predictions.ts && tsx scripts/test-reference-feed.ts && tsx scripts/test-reference-sync.ts && cucumber-js --profile referenceFeed",
     "export:reference-feed-fixture": "python3 scripts/export-reference-feed-fixture.py",
     "capture:reference-feed": "node scripts/capture-reference-feed-shots.mjs",
     "test:cli-login-discovery": "tsx scripts/test-cli-login-discovery.ts && cucumber-js --profile cliLoginDiscovery",

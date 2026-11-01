@@ -2213,27 +2213,22 @@ async function loadReferencePageByFallbackList(options: NewsroomReferencePageOpt
   };
 }
 
-export async function loadEditorSemanticRelationsData(): Promise<SemanticRelationRecord[]> {
+/**
+ * One Reference's current relations (its prediction among them), read by the subject index. The feed calls this for the References
+ * it shows and nothing else: there is no read of the newsroom's whole relation feed, so no page budget to run out of.
+ */
+export async function loadEditorReferencePredictions(lineageId: string): Promise<SemanticRelationRecord[]> {
+  configureAmplifyClient();
   const testMock = getTestEditorNewsroomMock();
-  if (testMock?.semanticRelations) return testMock.semanticRelations;
-  const rows: SemanticRelationRecord[] = [];
-  const seenIds = new Set<string>();
-  let nextToken: string | null | undefined = null;
-  let pageCount = 0;
-
-  do {
-    const page = await loadNewsroomSemanticRelationPage({ nextToken });
-    for (const relation of page.items) {
-      if (!relation?.id || seenIds.has(relation.id)) continue;
-      seenIds.add(relation.id);
-      rows.push(relation);
-    }
-    nextToken = page.nextToken;
-    pageCount += 1;
-  } while (nextToken && pageCount < 40);
-
-  if (nextToken) throw new Error("The activity feed is incomplete. Select a reference to load its prediction directly.");
-  return rows;
+  if (testMock?.semanticRelations) {
+    return testMock.semanticRelations.filter((relation) => relation.subjectKind === "reference" && relation.subjectLineageId === lineageId);
+  }
+  return loadSemanticRelationsByState({
+    field: "listSemanticRelationsBySubjectState",
+    keyName: "subjectStateKey",
+    keyValue: `reference#${lineageId}#current`,
+    query: LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY,
+  });
 }
 
 /** Selected-reference details use indexes, not the bounded global activity feed. */
@@ -3539,8 +3534,7 @@ export async function loadSemanticRelationsByState({
       rows.push(item);
     }
     nextToken = connection.nextToken ?? null;
-  } while (nextToken && pageCount < 200);
-  if (nextToken) throw new Error("Reference details are incomplete. Try again before reviewing its prediction.");
+  } while (nextToken);
   return rows;
 }
 

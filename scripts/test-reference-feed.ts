@@ -27,11 +27,14 @@ function browserBundle(): Promise<string> {
     banner: { js: 'window.process = { env: { NODE_ENV: "development" } };' },
     stdin: { resolveDir: root, loader: "tsx", sourcefile: "reference-feed-fixture.tsx", contents: `
 import { createRoot } from "react-dom/client";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ReferenceFeed } from "./components/reference-feed";
 import { ReferencesPageLoading } from "./components/references-page-loading";
 import { useFeedPreferences } from "./components/use-feed-preferences";
 import { applyFeedOrderSnapshot, buildFeedItems, takeFeedOrderSnapshot } from "./lib/reference-feed-ranking";
+import { useReferencePredictions } from "./lib/use-reference-predictions";
+import { useFeedWindow } from "./components/use-feed-window";
+import { currentRelevanceDecisions } from "./lib/relevance-decisions";
 
 const params = new URLSearchParams(location.search);
 const NOW = Date.parse("2026-10-27T12:00:00Z");
@@ -91,7 +94,61 @@ function Harness() {
     disabledReason={params.get("disabled")}
   />;
 }
-createRoot(document.getElementById("root")).render(params.has("page-loading") ? <ReferencesPageLoading /> : <Harness />);
+
+// A newsroom with far more relations than any page budget: 60 References, 20000 relation records, and the one read the page makes per Reference.
+window.reads = [];
+window.noiseRelations = 20000;
+function PagedHarness() {
+  const total = Number(params.get("total") || 60);
+  const references = useMemo(() => Array.from({ length: total }, (_, index) => make("p" + index, { createdAt: ago(0.001 * (index + 1)), sourcePublishedAt: ago(0.4 + 0.001 * index) })), [total]);
+  const [relations, setRelations] = useState([]);
+  const failed = useRef(new Set());
+  const load = async (lineageId) => {
+    window.reads.push(lineageId);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    if (params.has("failAll") || (params.get("failOne") === lineageId && !failed.current.has(lineageId))) {
+      failed.current.add(lineageId);
+      throw new Error("The relation index refused " + lineageId + ".");
+    }
+    const index = Number(lineageId.slice(1));
+    return [
+      { id: "noise-" + lineageId, predicate: "classified_as", relationState: "current", subjectKind: "reference", subjectLineageId: lineageId },
+      { id: "rel-" + lineageId, predicate: "relevance_decision_is", relationState: "current", subjectKind: "reference", subjectLineageId: lineageId,
+        confidence: 0.5 + ((index * 7) % 45) / 100, metadata: { label: index % 5 === 4 ? "exclude" : "include", decisionId: "d" + index, positiveLabel: "include", labels: ["include", "exclude"], reviewControl: "thumbs" } },
+    ];
+  };
+  const [requested, setRequested] = useState([]);
+  const request = useCallback((ids) => setRequested((current) => (ids.every((id) => current.includes(id)) ? current : [...new Set([...current, ...ids])])), []);
+  const predictions = useReferencePredictions({
+    enabled: true, ids: requested, load,
+    onRelations: (lineageId, rows) => setRelations((current) => [...current.filter((row) => row.subjectLineageId !== lineageId), ...rows]),
+  });
+  const decisions = useMemo(() => currentRelevanceDecisions(relations), [relations]);
+  const { sort, setSort, show, setShow } = useFeedPreferences();
+  const all = useMemo(() => buildFeedItems(references, decisions), [references, decisions]);
+  const windowState = useFeedWindow({ allItems: all, blocked: false, predictionStatuses: predictions.statuses, onRequestPredictions: request, sort, show, visitRated: new Set() });
+  return <ReferenceFeed
+    now={NOW}
+    onOpen={() => undefined}
+    onRate={async () => undefined}
+    onShowChange={setShow}
+    onSortChange={setSort}
+    onVisitRated={() => undefined}
+    items={windowState.items}
+    leadId={windowState.leadId}
+    ratedCount={0}
+    previews={new Map()}
+    show={show}
+    sort={sort}
+    visitRated={new Set()}
+    predictionStatuses={predictions.statuses}
+    onRetryPrediction={predictions.retry}
+    hasMore={windowState.hasMore}
+    loadingMore={windowState.loadingMore}
+    onLoadMore={windowState.loadMore}
+  />;
+}
+createRoot(document.getElementById("root")).render(params.has("page-loading") ? <ReferencesPageLoading /> : params.has("paged") ? <PagedHarness /> : <Harness />);
 ` },
   }).then((result) => result.outputFiles[0].text);
   return bundle;
@@ -543,6 +600,58 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok(box.x >= 0 && box.x + box.width <= (await page.evaluate(() => window.innerWidth)), "inside the screen");
       await page.keyboard.press("Escape");
       assert.equal(await panel.count(), 0);
+    });
+  },
+
+  /**
+   * A newsroom with more relations than any page budget: the feed reads one prediction per visible Reference, a later page only when
+   * scrolled to, a failure shows on its own card, and the cards render without predictions.
+   */
+  async predictions() {
+    const shots = process.env.FEED_PREDICTION_SHOTS;
+    if (shots) fs.mkdirSync(shots, { recursive: true });
+    const reads = (page: Page) => page.evaluate(() => (window as unknown as { reads: string[] }).reads.slice());
+    const bars = (page: Page) => page.locator("[data-feed-card] [data-confidence-value]").count();
+    await run("?paged", [390, 1440], async (page, width) => {
+      await page.locator("[data-feed-card]").first().waitFor();
+      await page.waitForFunction(() => document.querySelectorAll("[data-feed-card]").length === 24 && document.querySelectorAll("[data-prediction-state]").length === 0);
+      assert.equal((await reads(page)).length, 24, "one read for each Reference on the first page, none for the other 36 and none for the relation feed");
+      assert.equal(await cards(page).count(), 24);
+      assert.equal(await page.getByText(/Predictions unavailable|activity feed is incomplete/i).count(), 0, "no page-wide failure");
+      assert.equal(await page.locator("[data-prediction-state=loading], [data-prediction-state=error]").count(), 0);
+      const firstPage = await order(page);
+      await page.locator("[data-feed-more]").scrollIntoViewIfNeeded();
+      await page.waitForFunction(() => document.querySelectorAll("[data-feed-card]").length === 48);
+      assert.equal((await reads(page)).length, 48, "scrolling to the end reads the next page's predictions and only those");
+      assert.deepEqual((await order(page)).slice(0, 24), firstPage, "the first page does not move when the next one joins");
+      assert.equal(await bars(page), 48, "every card on screen has its prediction");
+      if (shots) {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.screenshot({ path: `${shots}/feed-with-predictions-${width}.png` });
+      }
+    });
+    await run("?paged&total=30&failOne=p3", [390, 1440], async (page, width) => {
+      await page.waitForFunction(() => document.querySelectorAll("[data-feed-card]").length === 24 && document.querySelectorAll("[data-prediction-state=loading]").length === 0);
+      const failing = card(page, "p3");
+      assert.match(await failing.locator("[data-prediction-caption]").innerText(), /prediction unavailable/i);
+      assert.ok((await failing.locator("[data-retry-prediction]").innerText()).includes("Retry"), "a retry on that card");
+      assert.equal(await page.locator("[data-prediction-state=error]").count(), 1, "only that card failed");
+      assert.equal(await page.getByText(/Predictions unavailable/i).count(), 0, "no page-wide failure");
+      assert.equal(await page.locator("[role=alert]").count(), 0);
+      if (shots) await page.screenshot({ path: `${shots}/feed-one-card-failed-${width}.png` });
+      await failing.locator("[data-retry-prediction]").click();
+      await failing.locator("[data-confidence-value], [data-confidence-fill]").first().waitFor();
+      assert.equal(await page.locator("[data-prediction-state=error]").count(), 0, "the retry read it");
+    });
+    await run("?paged&total=30&failAll=1", [390, 1440], async (page, width) => {
+      await page.locator("[data-prediction-state=error]").first().waitFor();
+      await page.waitForFunction(() => document.querySelectorAll("[data-prediction-state=loading]").length === 0);
+      assert.equal(await cards(page).count(), 24, "the References still render, with titles and Accept and Reject buttons");
+      assert.ok((await card(page, "p0").innerText()).includes("Title of p0"));
+      assert.equal(await card(page, "p0").locator("[data-review-choice=accept]").count(), 1);
+      assert.equal(await page.locator("[data-feed-card] [data-prediction-state=error]").count(), 24);
+      assert.equal(await page.getByText(/Predictions unavailable/i).count(), 0, "no page-wide failure");
+      if (shots) await page.screenshot({ path: `${shots}/feed-without-predictions-${width}.png` });
     });
   },
 
