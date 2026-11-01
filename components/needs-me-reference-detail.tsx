@@ -12,6 +12,7 @@ import { DefaultOutcome, Heading, type DetailProps } from "./needs-me-bodies";
 import { decidedChoiceOf } from "./needs-me-shared";
 import { predictionFromDecision, ReviewCard, type CardPrediction } from "./reference-review-card";
 import { ReferenceConversation } from "./reference-conversation";
+import { RelatedSection } from "./related-section";
 import { ReferenceCapturePanel } from "./reference-capture-panel";
 import { useReferenceCapture } from "./reference-capture-client";
 import { ReferenceSourcePreview } from "./reference-source-preview";
@@ -58,6 +59,7 @@ export function ReferenceBody(props: DetailProps & { payload: Extract<NeedsMeEnt
         titleHref={url}
       >
         {payload.decision ? <div data-reference-relevance-decision={lineageId}><ReferenceSuggestionProvenance decision={payload.decision} /></div> : null}
+        <RelatedSection disabledReason={disabledReason ? "Editor access is required to change links." : null} lineageId={lineageId} referenceId={reference.id} />
         <ReferenceConversation disabledReason={disabledReason ? "Editor access is required to write messages." : null} lineageId={lineageId} referenceId={reference.id} title={referenceDisplayTitle(reference)} />
       </ReviewCard>
       <DefaultOutcome item={item} />

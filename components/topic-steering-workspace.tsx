@@ -99,6 +99,7 @@ import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
 import { ConversationProvider } from "./conversation-provider";
+import { ReferenceLinksProvider } from "./reference-links-provider";
 import { ConversationsPage } from "./conversations-page";
 import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
 import { NewsroomTopicsView } from "./newsroom-topics-view";
@@ -2995,6 +2996,7 @@ function NewsDeskDashboard({
 
   return (
     <ConversationProvider authorLabel={authState.label} demo={Boolean(dashboard.isDemo)}>
+    <ReferenceLinksProvider demo={Boolean(dashboard.isDemo) || isLocalPreviewEnabled()}>
       <NewsroomOpsShell
         activeTab={activeTab}
         appTitle={SITE_BRAND.appTitle}
@@ -3222,6 +3224,7 @@ function NewsDeskDashboard({
         </div>
       </NewsroomOpsShell>
       {topBarSearchControl.dialog}
+    </ReferenceLinksProvider>
     </ConversationProvider>
   );
 }

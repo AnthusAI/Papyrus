@@ -70,6 +70,11 @@ module.exports = {
     require: ["features/step_definitions/conversations.steps.js"],
     format: ["summary"],
   },
+  referenceRelatedUi: {
+    paths: ["features/reference-related-ui.feature"],
+    require: ["features/step_definitions/reference-related-ui.steps.js"],
+    format: ["summary"],
+  },
   referenceVoteSaved: {
     paths: ["features/newsroom-reference-vote-saved.feature"],
     require: ["features/step_definitions/reference-vote-saved.steps.js"],
