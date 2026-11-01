@@ -437,7 +437,6 @@ class BedrockProvider(OpenAIProvider):
     ``InvokeFetch`` / ``ExternalWebAccess`` for live pages) besides inference access. It has no key to configure."""
 
     name = "bedrock"
-    DEFAULT_MODEL = "openai.gpt-5.6-luna"
 
     def __init__(self, *, token: Callable[[str], str] | None = None, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -452,7 +451,11 @@ class BedrockProvider(OpenAIProvider):
         return (self._environ.get("AWS_REGION") or self._environ.get("AWS_DEFAULT_REGION") or "us-east-1").strip()
 
     def model(self) -> str:
-        return self._model or (self._environ.get("BEDROCK_SEARCH_MODEL") or "").strip() or self.DEFAULT_MODEL
+        """The Bedrock model id (``BEDROCK_SEARCH_MODEL``, for example an ``openai.`` Luna model); there is no default in code."""
+        model = self._model or (self._environ.get("BEDROCK_SEARCH_MODEL") or "").strip()
+        if not model:
+            raise SearchUnavailable("BEDROCK_SEARCH_MODEL is not set")
+        return model
 
     def credential(self) -> str:
         if self._token_value:

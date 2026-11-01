@@ -993,9 +993,10 @@ their defaults (empty, and `off`) the stack is unchanged: Tavily alone, from `Ta
 | `OpenAiSearchKeyParameter` | empty | Sets `PAPYRUS_OPENAI_KEY_PARAMETER`; standard name `/papyrus/search/openai-api-key`. |
 | `PerplexityKeyParameter` | empty | Sets `PAPYRUS_PERPLEXITY_KEY_PARAMETER`; standard name `/papyrus/search/perplexity-api-key`. |
 | `GeminiKeyParameter` | empty | Sets `PAPYRUS_GEMINI_KEY_PARAMETER`; standard name `/papyrus/search/gemini-api-key`. |
+| `BedrockSearchModel` | empty | Sets `BEDROCK_SEARCH_MODEL`, the Bedrock model id (an `openai.` Luna model); there is no default in code, and with it empty `bedrock` is skipped as unavailable. |
 | `BedrockWebSearch` | `off` | `on` attaches `AmazonBedrockMantleInferenceAccess` and `bedrock:CallWithBearerToken`, `bedrock-websearch:InvokeSearch`, `bedrock-websearch:InvokeFetch` to the roles. |
 
 `Collector<Provider>SearchKeyPolicy` and `Router<Provider>SearchKeyPolicy` (each only when its key parameter is set) let each role read exactly the named
 parameter and decrypt through SSM. Create each key as a SecureString under the standard name (`aws ssm put-parameter --type SecureString`)
 outside the repository, then update the stack. The OpenAI search model is `OPENAI_SEARCH_MODEL` (default: the repo's `DEFAULT_LLM_MODEL`),
-the Gemini model `GEMINI_SEARCH_MODEL`, the Bedrock model `BEDROCK_SEARCH_MODEL`.
+the Gemini model `GEMINI_SEARCH_MODEL`.

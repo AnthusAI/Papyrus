@@ -136,6 +136,12 @@ Parameters:
     Description: >-
       "on" lets the collector and the router sign a Bedrock token and use Web Search on Amazon Bedrock (provider "bedrock" in the
       chain): bedrock:CallWithBearerToken, bedrock-websearch:InvokeSearch / InvokeFetch and the Bedrock Mantle inference policy.
+  BedrockSearchModel:
+    Type: String
+    Default: ""
+    Description: >-
+      The Bedrock model id used for provider "bedrock" (environment variable BEDROCK_SEARCH_MODEL). Required when BedrockWebSearch is
+      "on"; with it empty the bedrock provider is skipped as unavailable.
   EnrichmentGrobidUrl:
     Type: String
     Default: ""
@@ -154,6 +160,7 @@ Conditions:
   HasPerplexityKey: !Not [!Equals [!Ref PerplexityKeyParameter, ""]]
   HasGeminiKey: !Not [!Equals [!Ref GeminiKeyParameter, ""]]
   HasBedrockWebSearch: !Equals [!Ref BedrockWebSearch, "on"]
+  HasBedrockSearchModel: !Not [!Equals [!Ref BedrockSearchModel, ""]]
   HasEnrichmentGrobid: !Not [!Equals [!Ref EnrichmentGrobidUrl, ""]]
 
 Resources:
@@ -269,6 +276,7 @@ Resources:
           PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
+          BEDROCK_SEARCH_MODEL: !If [HasBedrockSearchModel, !Ref BedrockSearchModel, !Ref AWS::NoValue]
 
   ScheduleDeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -534,6 +542,7 @@ Resources:
           PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
+          BEDROCK_SEARCH_MODEL: !If [HasBedrockSearchModel, !Ref BedrockSearchModel, !Ref AWS::NoValue]
           BIBLICUS_GROBID_URL: !If [HasEnrichmentGrobid, !Ref EnrichmentGrobidUrl, !Ref AWS::NoValue]
 
   RouterEnrichmentStoragePolicy:

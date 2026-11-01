@@ -104,18 +104,23 @@ def test_gemini_also_reads_grounding_metadata():
 
 def test_bedrock_uses_the_mantle_endpoint_a_signed_token_and_no_external_web_access():
     http = FakeHttp({"output": [{"action": {"sources": [{"url": "https://a.example/1"}]}}]})
-    provider = BedrockProvider(environ={"AWS_REGION": "us-west-2"}, http=http, token=lambda region: f"bedrock-api-key-{region}")
+    provider = BedrockProvider(environ={"AWS_REGION": "us-west-2", "BEDROCK_SEARCH_MODEL": "openai.test-model"}, http=http, token=lambda region: f"bedrock-api-key-{region}")
     assert [h.url for h in provider.run(SearchRequest("q")).hits] == ["https://a.example/1"]
     url, headers, payload = http.calls[0]
     assert url == "https://bedrock-mantle.us-west-2.api.aws/openai/v1/responses" and headers["Authorization"] == "Bearer bedrock-api-key-us-west-2"
-    assert payload["tools"] == [{"type": "web_search", "external_web_access": False}] and payload["model"].startswith("openai.")
+    assert payload["tools"] == [{"type": "web_search", "external_web_access": False}] and payload["model"] == "openai.test-model"
+
+
+def test_bedrock_without_a_model_is_unavailable():
+    with pytest.raises(SearchUnavailable, match="BEDROCK_SEARCH_MODEL"):
+        BedrockProvider(environ={}, http=FakeHttp(), token=lambda region: "t").search("q")
 
 
 def test_bedrock_without_aws_credentials_is_unavailable():
     def no_credentials(region):
         raise RuntimeError("no AWS credentials")
     with pytest.raises(SearchUnavailable):
-        BedrockProvider(environ={}, http=FakeHttp(), token=no_credentials).search("q")
+        BedrockProvider(environ={"BEDROCK_SEARCH_MODEL": "m"}, http=FakeHttp(), token=no_credentials).search("q")
 
 
 def test_exclude_domains_hold_for_providers_that_cannot_express_them():
