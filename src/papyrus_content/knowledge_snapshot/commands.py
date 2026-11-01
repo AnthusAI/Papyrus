@@ -32,8 +32,9 @@ from ..reader_steering.task import snapshot_key
 from ..categories_steering import semantic_state_key
 from ..records import apply_record_changes, build_record_change_from_current
 from .actors import Actor, actor_from_options, clean_name
-from .archive import ArchiveError, archive_entry, build_entry
-from .builder import CLUSTERS_FILE, ENTITY_DIRECTORY, INDEX_FILE, build_files
+from .archive import HISTORY_DIRECTORY, ArchiveError, archive_entry, build_entry
+from .builder import CLUSTERS_FILE, CLUSTERS_HISTORY_FILE, ENTITY_DIRECTORY, INDEX_FILE, SCHEMA_VERSION, build_files
+from .cluster_history import valid_weeks, weeks_from_archive
 from .cluster_review import (
     ClusterReviewError,
     accept_cluster_patches,
@@ -480,10 +481,39 @@ def _snapshot_inputs(options: dict[str, Any]) -> tuple[Any, KnowledgeData, Snaps
     return context, data, snapshot_options
 
 
+def previous_cluster_history(context: Any, snapshot_options: SnapshotOptions) -> dict | None:
+    """The stored ``clusters-history.json``, to carry forward. Without a usable one, the weeks of the weekly archive entries
+    (``history/<asOf>.json``) are the backfill; with neither there is no previous history."""
+    writer, projector = context.writer, getattr(context, "projector", None)
+    stored = writer.get(snapshot_key(projector, CLUSTERS_HISTORY_FILE))
+    if stored is not None:
+        try:
+            document = json.loads(stored)
+        except ValueError:
+            document = None
+        if valid_weeks(document, SCHEMA_VERSION) is not None:
+            return document
+    prefix = snapshot_key(projector, HISTORY_DIRECTORY + "/")
+    entries = []
+    for stored_object in sorted(writer.list(prefix), key=lambda candidate: candidate.key):
+        name = stored_object.key[len(prefix):]
+        if len(name) != len("YYYY-MM-DD.json") or not name.endswith(".json"):
+            continue
+        try:
+            entry = json.loads(writer.get(stored_object.key))
+        except (TypeError, ValueError):
+            continue
+        if isinstance(entry, dict) and entry.get("asOf") and isinstance(entry.get("clusters"), list):
+            entries.append(entry)
+    if not entries:
+        return None
+    return {"schemaVersion": SCHEMA_VERSION, "weeks": weeks_from_archive(entries, include_unnamed=snapshot_options.unaccepted_clusters == UNACCEPTED_UNNAMED)}
+
+
 def knowledge_snapshot(flags: list[str]) -> None:
     options = parse_options(flags)
     context, data, snapshot_options = _snapshot_inputs(options)
-    files = build_files(data, snapshot_options)
+    files = build_files(data, snapshot_options, previous_cluster_history(context, snapshot_options))
     with context.leased() if hasattr(context, "leased") else nullcontext():
         outcome = write_files(context, files, projector=context.projector)
     entities = sum(1 for key in files if key.startswith(ENTITY_DIRECTORY + "/"))
