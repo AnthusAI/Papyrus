@@ -47,7 +47,7 @@ Preloaded in the research harness (`src/papyrus_newsroom/tactus_runtime.py`):
 - `knowledge_search_uri(uri, options)` → anchored query
 - `resolve_papyrus_uri(uri)` / `papyrus.resolve_uri`
 - `evidence_item_ids_from_knowledge(knowledge)` — accepted references only
-- `web_search(query)` — Tavily by default via `papyrus.reference.web_search` (`WEB_SEARCH_PROVIDER=tavily`); set `provider="openai"` or `WEB_SEARCH_PROVIDER=openai` for OpenAI web search
+- `web_search(query)` — Gemini then OpenAI by default via `papyrus.reference.web_search` (`WEB_SEARCH_PROVIDERS=gemini,openai`); set `provider="tavily"` or `WEB_SEARCH_PROVIDER=tavily` to use Tavily
 - `finish_research{...}` / `finish_research_from_search{...}` — standard packet shape
 
 Constrained one-shot researcher (`researcher.tac`) tells the agent to call
