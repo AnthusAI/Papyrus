@@ -331,3 +331,20 @@ def step_lanes(context):
 @then("no story draft is filed")
 def step_none_filed(context):
     assert not filed(context), filed(context)
+
+
+@when("the router runs its daily monitor stories without naming a publication")
+def step_fan_out(context):
+    from papyrus_content.monitoring_router import run_router
+
+    held = state(context)
+    held.started = []
+    held.result = run_router(held.store, "hn", now=tms.NOW.timestamp(), task="monitor-stories", fan_out=held.started.append, story_transport=held.model)
+
+
+@then('it starts one run for "{first}" and one for "{second}", takes no lock and files no story draft')
+def step_fanned(context, first, second):
+    held = state(context)
+    assert held.result["status"] == "fanned-out" and held.started == [first, second]
+    assert not filed(context, first) and not filed(context, second)
+    assert not [key for key in held.table.items if str(key[1]).startswith("LOCK#")]

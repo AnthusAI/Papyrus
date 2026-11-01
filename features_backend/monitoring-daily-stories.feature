@@ -139,3 +139,9 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
     Given 2 accepted References that the "hn" monitor delivered
     When the router runs its daily monitor stories for the publication "nope"
     Then the result is an error that names "nope", nothing is drafted and nothing stays locked
+
+  Scenario: A run that names no publication starts one run per enabled publication and drafts nothing itself
+    Given 2 accepted References that the "hn" monitor delivered
+    And a second publication "other-site" with 2 accepted References that the "hn" monitor delivered
+    When the router runs its daily monitor stories without naming a publication
+    Then it starts one run for "example-site" and one for "other-site", takes no lock and files no story draft

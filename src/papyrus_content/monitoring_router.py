@@ -2617,7 +2617,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                rung_job_ids=(), enricher: Enricher | None = None, max_decisions: int | None = None,
                hold_override: bool = False, previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
                story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None,
-               publication_id: str | None = None) -> dict:
+               publication_id: str | None = None, fan_out: Callable[[str], None] | None = None) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -2626,6 +2626,14 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
     config = validate_router_config(raw)
     if not config["enabled"]:
         return {"monitorId": monitor_id, "runId": run_id, "status": "disabled"}
+    if task == "monitor-stories" and publication_id is None and fan_out is not None:
+        # No publication named: this run only starts one run per publication that has monitor stories on, each in its own invocation
+        # (the whole time budget and its own lock). It takes no lock and drafts nothing itself.
+        started = [p["publicationId"] for p in config["publications"] if (p.get("monitorStories") or {}).get("enabled", True)]
+        for pid in started:
+            fan_out(pid)
+        print(json.dumps({"monitorStories": "fanned-out", "monitorId": monitor_id, "publications": started}))
+        return {"monitorId": monitor_id, "runId": run_id, "status": "fanned-out", "publications": started}
     lock_sk = ROUTER_LOCK_SK
     if publication_id is not None:
         # One publication of the daily monitor-stories task: validated against the monitor's config, and locked per publication so the runs
@@ -2719,6 +2727,15 @@ def handle_decision_ready(store, event, collect: Callable[..., dict]) -> dict:
     return {"status": status, "collected": collected, "ignoredMonitors": ignored}
 
 
+def invoke_self(context, payload: dict) -> None:
+    """Starts this function again, asynchronously, with `payload`. The function's own ARN comes from the Lambda context. The function's event
+    invoke config sets zero async retries, so a publication run that fails is not repeated (the next day's fan-out, or a hand run, covers it);
+    were it retried anyway, filing is idempotent by id, so nothing would be filed twice."""
+    import boto3  # provided by the Lambda runtime
+
+    boto3.client("lambda").invoke(FunctionName=context.invoked_function_arn, InvocationType="Event", Payload=json.dumps(payload).encode())
+
+
 def handler(event, context):
     """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"|"monitor-stories"}` limits the pass (operator debugging).
     `{"task": "monitor-stories", "monitorId": "hn", "publicationId": "anth-us"}` runs only that publication, with the whole time budget and its own lock."""
@@ -2736,8 +2753,8 @@ def handler(event, context):
             store, monitor_id, task="collect", time_left=remaining, cognito=cognito, start_procedure=starter,
             rung_job_ids=[job_id], enricher=enricher, previewer=attach_preview))
     # The model key is read from SSM only for the daily monitor-stories task; every other invocation leaves it alone.
-    story_transport = lambda_story_transport() if event.get("task") == "monitor-stories" else None
-    embedding_key = lambda_openai_key() if event.get("task") == "monitor-stories" else None
+    story_transport = lambda_story_transport() if event.get("task") == "monitor-stories" and event.get("publicationId") else None   # the fan-out run drafts nothing
+    embedding_key = lambda_openai_key() if event.get("task") == "monitor-stories" and event.get("publicationId") else None
     cap = event.get("maxDecisions")
     if "maxDecisions" in event and (not isinstance(cap, int) or isinstance(cap, bool) or cap < 1):
         raise ValueError("maxDecisions must be a positive integer")
@@ -2745,6 +2762,7 @@ def handler(event, context):
                         cognito=cognito, start_procedure=starter, enricher=enricher, previewer=attach_preview, max_decisions=cap,
                         story_transport=story_transport, embedding_key=embedding_key,
                         hold_override=event.get("holdOverride") is False,
-                        publication_id=event.get("publicationId"))   # only false lifts the hold, and only for this invocation
+                        publication_id=event.get("publicationId"),
+                        fan_out=lambda pid: invoke_self(context, {**event, "publicationId": pid}))   # only false lifts the hold, and only for this invocation
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
-    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "waitingForClassifier", "posted", "reason")}
+    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "waitingForClassifier", "posted", "reason", "publications")}

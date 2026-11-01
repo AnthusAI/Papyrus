@@ -493,31 +493,44 @@ def test_every_managed_policy_of_the_router_fits_the_6144_character_limit():
             assert len(re.sub(r"\s", "", document)) <= 6144, (name, len(document))
 
 
-HN_PUBLICATIONS = ("anth-us", "p-apyr-us", "threat-intelligence", "data-parade", "pilobol-us", "shipped")
-
-
-def test_each_hn_publication_has_its_own_daily_monitor_stories_schedule():
+def test_one_daily_schedule_for_the_hn_monitor_names_no_publication():
     resources = _template()["Resources"]
-    assert "MonitorStoriesSchedule" not in resources
-    inputs = {}
-    for name, resource in resources.items():
-        if resource["Type"] == "AWS::Scheduler::Schedule" and name.startswith("MonitorStories") and name != "MonitorStoriesPolicy":
-            props = resource["Properties"]
-            inputs[json.loads(props["Target"]["Input"])["publicationId"]] = (name, props)
-    assert set(inputs) == set(HN_PUBLICATIONS)
-    for pid, (name, props) in inputs.items():
-        assert json.loads(props["Target"]["Input"]) == {"task": "monitor-stories", "monitorId": "hn", "publicationId": pid}
-        assert props["ScheduleExpression"] == "cron(30 7 * * ? *)"
-        assert props["State"] == resources["TtabRouteSchedule"]["Properties"]["State"]   # the same ScheduleState wiring
-        assert props["Target"]["RoleArn"] == resources["MonitorStoriesAnthUsSchedule"]["Properties"]["Target"]["RoleArn"]
-        assert props["Target"]["Arn"] == resources["MonitorStoriesAnthUsSchedule"]["Properties"]["Target"]["Arn"]
-        assert props["Target"]["RetryPolicy"] == {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 0}
+    hn = resources["MonitorStoriesSchedule"]["Properties"]
+    assert json.loads(hn["Target"]["Input"]) == {"task": "monitor-stories", "monitorId": "hn"}
+    assert hn["ScheduleExpression"] == "cron(30 7 * * ? *)" and hn["Target"]["RetryPolicy"] == {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 0}
+    assert not [n for n in resources if n.startswith("MonitorStories") and n.endswith("Schedule") and n != "MonitorStoriesSchedule"]
+
+
+def test_the_router_may_invoke_itself_through_the_idea_policy_and_retries_are_off():
+    text = (Path(__file__).resolve().parents[3] / "infra/monitoring/papyrus-monitoring.yaml").read_text()
+    policy = text[text.index("  RouterIdeaPolicy:"):text.index("  RouterIdeaPolicy:") + 12000]
+    assert "Action: lambda:InvokeFunction" in policy and "Resource: !GetAtt RouterFunction.Arn" in policy
+    assert _template()["Resources"]["RouterInvokeConfig"]["Properties"]["MaximumRetryAttempts"] == 0   # a failed publication run is not retried
+
+
+def test_a_monitor_stories_run_without_a_publication_fans_out_and_drafts_nothing():
+    table, store = router(("example-site", "other-site", "off-site"), {"off-site": {"enabled": False}})
+    started = []
+    result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", fan_out=started.append, story_transport=StoryModel())
+    assert result == {"monitorId": "hn", "runId": result["runId"], "status": "fanned-out", "publications": ["example-site", "other-site"]}
+    assert started == ["example-site", "other-site"]
+    assert not [k for k in table.items if str(k[1]).startswith(("LOCK#", "ROUTERUN#"))]   # no lock, no receipt
+
+
+def test_the_handler_invokes_its_own_arn_asynchronously_once_per_publication(monkeypatch):
+    from papyrus_content import monitoring_router as mr
+    calls = []
+    fake = type("C", (), {"invoke": lambda self, **kw: calls.append(kw)})()
+    monkeypatch.setitem(sys.modules, "boto3", type("B", (), {"client": staticmethod(lambda name: fake)}))
+    mr.invoke_self(type("Ctx", (), {"invoked_function_arn": "arn:aws:lambda:x:1:function:f"}), {"task": "monitor-stories", "monitorId": "hn", "publicationId": "a"})
+    assert calls[0]["FunctionName"] == "arn:aws:lambda:x:1:function:f" and calls[0]["InvocationType"] == "Event"
+    assert json.loads(calls[0]["Payload"])["publicationId"] == "a"
 
 
 def test_distinctive_has_its_own_daily_monitor_stories_schedule():
     # The hn router does not list Distinctive Mark, so its web monitor runs the same task on its own schedule, at the same hour.
     resources = _template()["Resources"]
-    hn, distinctive = resources["MonitorStoriesAnthUsSchedule"]["Properties"], resources["DistinctiveMonitorStoriesSchedule"]["Properties"]
+    hn, distinctive = resources["MonitorStoriesSchedule"]["Properties"], resources["DistinctiveMonitorStoriesSchedule"]["Properties"]
     assert json.loads(distinctive["Target"]["Input"]) == {"task": "monitor-stories", "monitorId": "web-distinctive"}
     assert distinctive["ScheduleExpression"] == hn["ScheduleExpression"]
     assert distinctive["Target"]["RetryPolicy"] == hn["Target"]["RetryPolicy"] == {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 0}
