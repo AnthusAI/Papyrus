@@ -13,6 +13,7 @@ import {
 import { dekAddsInformation, isCardStyleImage, referenceDek, referenceSourceHost, formatFeedAge, type ReferencePreview } from "../lib/reference-preview";
 import { referenceDisplayTitle } from "../lib/newsroom-references";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
+import type { PredictionStatus, PredictionStatuses } from "../lib/reference-predictions";
 import { cn } from "@/lib/utils";
 import { predictionFromDecision, type ReviewChoice } from "./reference-review-card";
 import { DecisionControl } from "./decision-control";
@@ -73,6 +74,14 @@ export type ReferenceFeedProps = {
   sort: FeedSort;
   show: FeedShow;
   predictionLoading?: boolean;
+  /** Each Reference's own prediction read. A failure shows on that card only, with a way to read it again. */
+  predictionStatuses?: PredictionStatuses;
+  onRetryPrediction?: (lineageId: string) => void;
+  /** More References follow the last card: scrolling to the end asks for them. */
+  hasMore?: boolean;
+  /** The next page is being read; its cards join the feed when their predictions have arrived. */
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
   previews: ReadonlyMap<string, ReferencePreview>;
   selectedLineageId?: string;
   /** Capture status per Reference lineage, for the small badge on each card. Optional. */
@@ -269,6 +278,8 @@ export function FeedCard({
   onOpen,
   onRate,
   predictionLoading,
+  predictionStatus,
+  onRetryPrediction,
   preview,
   ratings,
   selected,
@@ -286,6 +297,8 @@ export function FeedCard({
   onOpen: () => void;
   onRate: ReferenceFeedProps["onRate"];
   predictionLoading: boolean;
+  predictionStatus?: PredictionStatus | undefined;
+  onRetryPrediction?: (() => void) | undefined;
   preview: ReferencePreview | undefined;
   /** Optional: a shared rating store. Without it the card keeps its own. */
   ratings?: RatingController | undefined;
@@ -354,7 +367,10 @@ export function FeedCard({
           onChoose={(choice) => { if (!disabledReason) store.choose(item.lineageId, choice); }}
           onReasonChange={(text) => store.setNote(item.lineageId, text)}
           onReasonCommit={() => { if (!disabledReason) store.commitNote(item.lineageId); }}
-          prediction={decision ? predictionFromDecision(decision) : predictionLoading ? { state: "loading" } : { state: "none" }}
+          onRetryPrediction={!decision && predictionStatus?.state === "error" ? onRetryPrediction : undefined}
+          prediction={decision ? predictionFromDecision(decision)
+            : predictionStatus?.state === "error" ? { state: "error" }
+              : predictionLoading || predictionStatus?.state === "loading" ? { state: "loading" } : { state: "none" }}
           reason={rating.note ?? ""}
           reasonRequiredFor="reject"
           statusOverlay
@@ -415,6 +431,30 @@ function RankingPopover() {
   );
 }
 
+/**
+ * The end of the feed. When it scrolls near the view, the next page is asked for; the page's cards arrive once their predictions have.
+ * It watches again after every change in the number of cards, so a short page that leaves it in view asks for the next one too.
+ */
+function FeedMoreSentinel({ hasMore, itemCount, loadingMore, onLoadMore }: { hasMore: boolean; itemCount: number; loadingMore: boolean; onLoadMore?: (() => void) | undefined }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || !hasMore || loadingMore || !onLoadMore || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) onLoadMore(); }, {
+      root: element.closest("[data-radix-scroll-area-viewport]"),
+      rootMargin: "0px 0px 800px 0px",
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [hasMore, itemCount, loadingMore, onLoadMore]);
+  if (!hasMore && !loadingMore) return null;
+  return (
+    <div className="flex min-h-12 items-center justify-center gap-2 text-sm text-muted-foreground" data-feed-more ref={ref} role="status">
+      <Loader2Icon aria-hidden="true" className={cn("size-4", loadingMore && "animate-spin")} />{loadingMore ? "Reading predictions for more items…" : "More items"}
+    </div>
+  );
+}
+
 export function ReferenceFeed({
   disabledReason = null,
   loading = false,
@@ -428,6 +468,11 @@ export function ReferenceFeed({
   items,
   ratedCount,
   predictionLoading = false,
+  predictionStatuses,
+  onRetryPrediction,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
   previews,
   selectedLineageId = "",
   captures,
@@ -452,7 +497,9 @@ export function ReferenceFeed({
       now={now}
       onOpen={() => onOpen(item.lineageId)}
       onRate={async (reference, choice, reasonCode) => { onVisitRated(item.lineageId); await onRate(reference, choice, reasonCode); }}
+      onRetryPrediction={onRetryPrediction ? () => onRetryPrediction(item.lineageId) : undefined}
       predictionLoading={predictionLoading}
+      predictionStatus={predictionStatuses?.get(item.lineageId)}
       preview={previews.get(item.lineageId)}
       ratings={ratings}
       selected={selectedLineageId === item.lineageId}
@@ -517,7 +564,12 @@ export function ReferenceFeed({
 
       {loading ? <ReferenceFeedSkeleton /> : (
         items.length ? (
-          <div className={FEED_GRID} data-feed-grid>{items.map((item) => renderCard(item, item.lineageId === leadId))}</div>
+          <>
+            <div className={FEED_GRID} data-feed-grid>{items.map((item) => renderCard(item, item.lineageId === leadId))}</div>
+            <FeedMoreSentinel hasMore={hasMore} itemCount={items.length} loadingMore={loadingMore} onLoadMore={onLoadMore} />
+          </>
+        ) : hasMore || loadingMore ? (
+          <FeedMoreSentinel hasMore={hasMore} itemCount={0} loadingMore={loadingMore} onLoadMore={onLoadMore} />
         ) : empty(ratedCount && show === "unrated" ? "You are all caught up. Choose Include rated to see your answers." : "No references yet.")
       )}
     </div>
