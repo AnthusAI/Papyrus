@@ -139,3 +139,54 @@ def test_an_unrelated_anchor_is_kept_and_a_spiked_anchor_needs_both_conditions()
     assert suppress_repeats([pack], [only_reference]).kept == ()
     both = idea_from(pack, state="declined", extra={"referenceLineageIds": [], "window": {"windowDays": pack.scan["windowDays"], "count": 0, "tested": pack.scan["tested"]}})
     assert suppress_repeats([pack], [both]).kept == (pack,)
+
+
+def dated_vote(lineage: str, accepted_days_ago: float, added_days_ago: float, published_days_ago: float | None) -> HumanVote:
+    published = moment(published_days_ago) if published_days_ago is not None else None
+    return HumanVote(f"{lineage}-v1", lineage, f"Title {lineage}", f"https://example.org/{lineage}", "accepted", moment(accepted_days_ago), "someone", None, None, None,
+                     moment(added_days_ago), published, ("concept-voice",))
+
+
+def ordinary_votes(count: int = 120) -> list[HumanVote]:
+    return [dated_vote(f"plain-{number}", 2 + number * 0.5, 3 + number * 0.5, 4 + number * 0.5) for number in range(count)]
+
+
+def test_an_old_source_getting_new_attention_yields_a_resurfaced_pack_on_publication_basis():
+    old = dated_vote("old-source", 0.4, 200, 600)
+    asked = [message(1, 0.2, thread="thread-old", anchor="reference#old-source")]
+    packs = build_packs(inputs(votes=[*ordinary_votes(), old], messages=asked), LOOKUPS, now=NOW)
+    resurfaced = [pack for pack in packs if pack.signal_type == "resurfaced"]
+    assert [pack.anchor for pack in resurfaced] == ["reference#old-source"]
+    shown = resurfaced[0].as_json()
+    assert shown["signal"]["dateBasis"] == "publication"
+    assert shown["signal"]["publicationGapDays"] == 400 and shown["signal"]["gapPercentile"] > 0.99
+    assert shown["signal"]["correctedPValue"] <= 0.01
+    assert [row["kind"] for row in shown["signal"]["pointedAttentionAt"]] == ["human accept", "message"]
+    assert shown["signal"]["pointedAttentionAt"][1]["handle"] == shown["messages"][0]["handle"]
+    assert shown["references"][0]["published"] == moment(600)[:10] and shown["references"][0]["added"] == moment(200)[:10]
+
+
+def test_an_old_source_nobody_attends_to_now_yields_no_resurfaced_pack():
+    forgotten = dated_vote("old-source", 150, 200, 600)
+    packs = build_packs(inputs(votes=[*ordinary_votes(), forgotten]), LOOKUPS, now=NOW)
+    assert not [pack for pack in packs if pack.signal_type == "resurfaced"]
+
+
+def test_a_reference_with_an_unknown_publication_date_has_no_gap_and_stays_null():
+    unknown = dated_vote("unknown-date", 0.4, 200, None)
+    packs = build_packs(inputs(votes=[*ordinary_votes(), unknown]), LOOKUPS, now=NOW)
+    assert not [pack for pack in packs if pack.signal_type == "resurfaced"]
+    rows = [row for pack in packs for row in pack.as_json()["references"] if row["title"] == "Title unknown-date"]
+    assert all(row["published"] is None and row["orderedBy"] == "added" for row in rows)
+
+
+def test_references_in_an_acceptance_pack_are_ordered_by_publication_date_with_the_fallback_flagged():
+    early_published = dated_vote("published-early", 1.0, 0.9, 400)
+    late_published = dated_vote("published-late", 1.1, 0.8, 5)
+    no_date = dated_vote("no-date", 1.2, 0.7, None)
+    packs = build_packs(inputs(votes=[*acceptance_votes(), early_published, late_published, no_date]), LOOKUPS, now=NOW)
+    shown = next(pack for pack in packs if pack.signal_type == "acceptance").as_json()
+    rows = {row["title"]: (position, row) for position, row in enumerate(shown["references"])}
+    assert rows["Title published-late"][0] < rows["Title published-early"][0]
+    assert rows["Title no-date"][1]["published"] is None and rows["Title no-date"][1]["orderedBy"] == "added"
+    assert rows["Title published-late"][1]["orderedBy"] == "published"
