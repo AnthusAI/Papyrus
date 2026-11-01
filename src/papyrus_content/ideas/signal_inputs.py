@@ -23,8 +23,8 @@ Fields of ``SignalInputs``:
   only (never a vote). Each has ``reference_id``, ``lineage_id``, ``title``, ``url``, ``created_at``, ``source_published_at``, ``score`` and
   ``concept_ids``.
 * ``published``: ``StoryRecord`` tuple of the published Items, for repeat suppression.
-* ``ideas``: ``StoryRecord`` tuple of every existing generated idea, spiked ones included (``state`` is ``declined`` when spiked), with ``targets``.
-  ``StoryRecord`` fields: ``story_id``, ``title``, ``summary``, ``section``, ``state``, ``date``, ``targets`` (JSON text).
+* ``ideas``: ``StoryRecord`` tuple of every existing generated idea, spiked ones included (``state`` is ``declined`` when spiked), with ``targets`` and ``evidence`` (the ``generated.evidence`` the idea recorded).
+  ``StoryRecord`` fields: ``story_id``, ``title``, ``summary``, ``section``, ``state``, ``date``, ``targets`` and ``evidence`` (JSON text).
 """
 
 from __future__ import annotations
@@ -112,6 +112,7 @@ class StoryRecord:
     state: str
     date: str | None
     targets: str
+    evidence: str = "{}"
 
 
 @dataclass(frozen=True)
@@ -188,8 +189,8 @@ def concept_links_of(lineage: str, relations: list[dict[str, Any]]) -> list[Conc
     return [found[key] for key in sorted(found)]
 
 
-def story_record(entry: dict[str, Any], targets: str = "[]") -> StoryRecord:
-    return StoryRecord(str(entry["id"]), entry["title"], entry.get("summary") or "", entry.get("section"), entry["state"], entry.get("date"), targets)
+def story_record(entry: dict[str, Any], targets: str = "[]", evidence: str = "{}") -> StoryRecord:
+    return StoryRecord(str(entry["id"]), entry["title"], entry.get("summary") or "", entry.get("section"), entry["state"], entry.get("date"), targets, evidence)
 
 
 def load_signal_inputs(
@@ -231,7 +232,7 @@ def load_signal_inputs(
                 pending.append(PendingReference(score=verdict.get("score"), **common))
     stories = [story_entry(row) for row in list_stories(client) if row.get("versionState") == "current" and row.get("status") == "published"]
     ideas = [
-        story_record({"id": row["id"], "title": row["title"], "summary": row["summary"], "state": row["state"], "date": (row.get("createdAt") or "")[:10] or None}, row["targets"])
+        story_record({"id": row["id"], "title": row["title"], "summary": row["summary"], "state": row["state"], "date": (row.get("createdAt") or "")[:10] or None}, row["targets"], row.get("evidence") or "{}")
         for row in idea_rows(client)
     ]
     return SignalInputs(
