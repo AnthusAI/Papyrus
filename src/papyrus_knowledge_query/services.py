@@ -379,6 +379,40 @@ class S3VectorsProvider:
             )
         return matches
 
+    def get_vector(self, key: str) -> list[float] | None:
+        """The stored embedding for one vector key (``GetVectors`` with ``returnData``); no embedding call is made."""
+        client = self._s3vectors_client()
+        response = client.get_vectors(indexArn=self.vector_index_arn, keys=[key], returnData=True)
+        vectors = response.get("vectors") or []
+        if not vectors:
+            return None
+        return list((vectors[0].get("data") or {}).get("float32") or []) or None
+
+    def query_by_vector(self, vector: list[float], top_k: int, metadata_filter: dict[str, Any] | None) -> list[dict[str, Any]]:
+        """``QueryVectors`` with a ready vector; each match is ``{key, distance, metadata}``."""
+        client = self._s3vectors_client()
+        arguments: dict[str, Any] = {
+            "indexArn": self.vector_index_arn,
+            "queryVector": {"float32": vector},
+            "topK": top_k,
+            "returnDistance": True,
+            "returnMetadata": True,
+        }
+        if metadata_filter:
+            arguments["filter"] = metadata_filter
+        response = client.query_vectors(**arguments)
+        return [
+            {"key": match.get("key"), "distance": match.get("distance"), "metadata": match.get("metadata") or {}}
+            for match in response.get("vectors") or []
+        ]
+
+    def _s3vectors_client(self):
+        try:
+            import boto3  # type: ignore
+        except ImportError as exc:  # pragma: no cover - deployment guard
+            raise RuntimeError("boto3 is required for S3VectorsProvider") from exc
+        return boto3.client("s3vectors", region_name=self.region_name)
+
     def _embed(self, text: str) -> list[float]:
         api_key = _resolve_openai_api_key()
         if not api_key:

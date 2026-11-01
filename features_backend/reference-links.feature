@@ -43,3 +43,24 @@ Feature: References are linked to each other and tagged with concepts, and a sug
     Then the concept "node-voice" has 1 distinct Reference in the report
     And the concept page data for "node-voice" lists "reference-a" as a linking Reference
     And the Reference-to-Reference link is not counted as a concept mention
+
+  Scenario: Suggesting links for a Reference makes no embedding call
+    Given the accepted References "reference-a", "reference-b" and "reference-c" are indexed
+    When the newsroom suggests links for "reference-a"
+    Then no embedding is requested
+    And "reference-b" is suggested as related to "reference-a"
+
+  Scenario: A rejected neighbour is never suggested again
+    Given an editor rejected the link between "reference-a" and "reference-b"
+    When the newsroom suggests links for "reference-a"
+    Then "reference-b" is not suggested
+
+  Scenario: A neighbour that is already linked is not suggested
+    Given an editor linked "reference-a" and "reference-b" as related
+    When the newsroom suggests links for "reference-a"
+    Then "reference-b" is not suggested
+
+  Scenario: How many neighbours are kept is decided by the largest drop in similarity
+    Given the neighbours of a Reference have similarities 0.91, 0.88, 0.85, 0.52, 0.50, 0.49
+    When the number of neighbours to keep is chosen
+    Then the first 3 neighbours are kept
