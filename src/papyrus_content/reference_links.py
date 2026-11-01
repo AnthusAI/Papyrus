@@ -17,7 +17,7 @@ from typing import Any
 from .ids import hash_short
 from .publishing import utc_now_iso
 from .relation_types import semantic_relation_type_fields_for_predicate
-from .story_reporting import current_reference
+from .story_reporting import current_reference, latest_story_version
 
 RELATED_TO = "related_to"
 CITES = "cites"
@@ -29,6 +29,7 @@ PROVENANCES = ("human", "suggested", "derived")
 DECISIONS = ("accepted", "rejected")
 REFERENCE_LINK_KIND = "reference.link"
 REFERENCE_CONCEPT_KIND = "reference.concept"
+ITEM_CONCEPT_KIND = "item.concept"
 REFERENCE_LINK_FEED_KEY = "reference-links"
 STATE_FOR_PROVENANCE = {"human": "current", "derived": "current", "suggested": "suggested"}
 STATE_FOR_DECISION = {"accepted": "current", "rejected": "rejected"}
@@ -232,6 +233,41 @@ def link_concept(
         confidence=confidence,
         classifier_id=classifier_id,
         model_version=model_version,
+        note=note,
+        now=now,
+    )
+
+
+def link_item_concept(
+    client,
+    item_lineage_id: str,
+    node: dict[str, Any],
+    provenance: str,
+    *,
+    actor: str,
+    note: str | None = None,
+    now: str | None = None,
+) -> dict[str, Any]:
+    """Tags a story (an Item, by lineage id) with a concept: a ``related_to`` edge from the item to the ``semanticNode`` row ``node``, so the
+    story shows on the concept's page. Same row conventions as ``link_concept``; ``related_to`` allows an item as its subject."""
+    _require_provenance(provenance)
+    now = now or utc_now_iso()
+    story = latest_story_version(client, item_lineage_id)
+    item_end = {"kind": "item", "id": story["id"], "lineageId": item_lineage_id, "versionNumber": story.get("versionNumber")}
+    node_end = {"kind": "semanticNode", "id": node["id"], "lineageId": node.get("lineageId") or node["id"], "versionNumber": node.get("versionNumber")}
+    return _write_edge(
+        client,
+        relation_id=reference_link_relation_id(RELATED_TO, item_lineage_id, node_end["lineageId"]),
+        kind=ITEM_CONCEPT_KIND,
+        predicate=RELATED_TO,
+        subject=item_end,
+        object_=node_end,
+        provenance=provenance,
+        actor=actor,
+        score=None,
+        confidence=None,
+        classifier_id=None,
+        model_version=None,
         note=note,
         now=now,
     )

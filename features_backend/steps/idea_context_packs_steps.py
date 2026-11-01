@@ -118,6 +118,111 @@ def step_offered(context):
     assert len(context.suppression.kept) == 1
 
 
+import test_idea_pack_stories as pack_support  # noqa: E402
+from papyrus_content.ideas import pack_stories  # noqa: E402
+from papyrus_content.ideas.items import generated_of  # noqa: E402
+from papyrus_content.story_reporting import story_references  # noqa: E402
+
+
+def prepare_pack_run(context, ideas, errors=()):
+    context.agent_pack = pack_support.acceptance_pack()
+    context.agent_client = pack_support.backend(context.agent_pack)
+    context.agent_transport = pack_support.transport_of(*ideas)
+    context.agent_gate = pack_support.Gate(errors=errors)
+
+
+@given("an acceptance pack and a model that proposes an idea citing two accepted References and a concept")
+def step_agent_valid(context):
+    prepare_pack_run(context, [pack_support.idea("Synthetic voices spread through newsrooms", ["R1", "R2", "C1"])])
+
+
+@given("an acceptance pack and a model that proposes an idea citing two accepted References")
+def step_agent_two(context):
+    prepare_pack_run(context, [pack_support.idea("Synthetic voices spread through newsrooms", ["R1", "R2"])])
+
+
+@given("an acceptance pack and a model that proposes one idea citing a single Reference and one citing two")
+def step_agent_one_and_two(context):
+    prepare_pack_run(context, [pack_support.idea("Only one source", ["R1"]), pack_support.idea("Consent rules lag behind cloning tools", ["R3", "R4"])])
+
+
+@given("an acceptance pack and a model that proposes an idea citing a pending Reference")
+def step_agent_pending(context):
+    pack = pack_support.acceptance_pack()
+    pending = [row["handle"] for row in pack.references if row["status"] == "pending"]
+    prepare_pack_run(context, [pack_support.idea("Waiting on a source", pending)])
+
+
+@given("an editorial gate that finds an error in the idea")
+def step_agent_gate(context):
+    context.agent_gate = pack_support.Gate(errors=["Unsupported claim."])
+
+
+def run_agent(context, dry_run):
+    context.agent_result = pack_support.run(context.agent_pack, context.agent_client, context.agent_transport, gate=context.agent_gate, dry_run=dry_run)
+
+
+@when("the pack ideas are drafted")
+def step_agent_run(context):
+    run_agent(context, False)
+
+
+@when("the pack ideas are drafted as a dry run")
+def step_agent_dry(context):
+    run_agent(context, True)
+
+
+@then("one idea is filed at the idea stage with a based_on link for each cited Reference")
+def step_agent_filed(context):
+    result = context.agent_result
+    assert result.filed_count == 1
+    item = context.agent_client.get_record("Item", result.filed[0]["itemId"])
+    assert item["stage"] == "idea"
+    linked = {link["referenceLineageId"] for link in story_references(context.agent_client, result.filed[0]["lineageId"]) if link["role"] == "based_on"}
+    assert linked == set(result.filed[0]["citedReferences"]) and len(linked) == 2
+
+
+@then("the idea records the context-pack origin and the pack evidence")
+def step_agent_evidence(context):
+    generated = generated_of(context.agent_client.get_record("Item", context.agent_result.filed[0]["itemId"]))
+    assert generated["origin"] == "context-pack" and generated["evidence"]["packId"] == context.agent_pack.pack_id
+
+
+@then("the idea is linked to the concept with a derived related_to edge")
+def step_agent_concept(context):
+    edges = [row for row in context.agent_client.tables["SemanticRelation"].values() if row["objectKind"] == "semanticNode"]
+    assert len(edges) == 1 and edges[0]["predicate"] == "related_to" and json.loads(edges[0]["metadata"])["provenance"] == "derived"
+
+
+@then("the idea body ends with an Evidence section")
+def step_agent_body(context):
+    body = context.agent_client.get_record("Item", context.agent_result.filed[0]["itemId"])["bodyMarkus"]
+    assert "## Evidence" in body and "#voice-cloning" in body
+
+
+@then("one idea is filed and one idea is dropped for failing the citation check")
+def step_agent_one_dropped(context):
+    result = context.agent_result
+    assert (result.filed_count, result.dropped_count, result.dropped[0]["reason"]) == (1, 1, "citation_check_failed")
+
+
+@then("no idea is filed and the idea is dropped for citing a pending Reference")
+def step_agent_pending_dropped(context):
+    result = context.agent_result
+    reasons = [problem["reason"] for drop in result.dropped for problem in drop["citationCheck"]["problems"]]
+    assert result.filed_count == 0 and "cites_pending_reference" in reasons
+
+
+@then("no idea is filed and one idea is refused")
+def step_agent_refused(context):
+    assert (context.agent_result.filed_count, context.agent_result.refused_count) == (0, 1)
+
+
+@then("no idea is filed and nothing is written")
+def step_agent_nothing(context):
+    assert context.agent_result.filed_count == 0
+    assert not context.agent_client.tables.get("Item") and not context.agent_client.tables.get("SemanticRelation")
+
 from papyrus_content.ideas.context_packs import rank_packs  # noqa: E402
 from papyrus_content.ideas.item_signals import ordered_queue, score_items  # noqa: E402
 import test_item_signals as item_support  # noqa: E402
