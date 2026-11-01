@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "1f9b5b55-1bc2-477a-86bd-2da2fb536ff5",
+  "issue_id": "PPY-ee688455-d773-4c03-ab58-580ba9e12138",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T12:05:28.563Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Web search providers: tavily, openai, perplexity, gemini, bedrock behind one interface with a configured fallback chain",
+    "description": "Ryan, 2026-11-01: build out search support for all those options. Tavily fails on billing (HTTP 432), so Papyrus must support several web-search providers behind one interface and switch or fall back by configuration alone.\n\nScope: papyrus_content.web_search (stdlib) with tavily, openai (Responses web_search), perplexity (Search API), gemini (Google Search grounding), bedrock (Web Search on Amazon Bedrock). WEB_SEARCH_PROVIDERS ordered chain, per-monitor searchProviders override, keys from <PROVIDER>_API_KEY or SSM /papyrus/search/<provider>-api-key. Billing, quota and auth failures fall through and are named in the monitor log. Opt-in infra parameters. Deep research is a separate follow-up.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "monitoring",
+      "search"
+    ]
+  }
+}

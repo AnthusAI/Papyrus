@@ -99,6 +99,43 @@ Parameters:
     Description: >-
       Name of the SSM SecureString holding the Tavily key for link-exploration search (environment variable
       PAPYRUS_TAVILY_KEY_PARAMETER). The role may read only this parameter and decrypt through SSM. Empty disables search.
+  WebSearchProviders:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^(tavily|openai|perplexity|gemini|bedrock)(,(tavily|openai|perplexity|gemini|bedrock))*$"
+    Description: >-
+      Opt-in ordered web-search fallback chain for the collector and the router (environment variable WEB_SEARCH_PROVIDERS), for
+      example "openai,tavily". A provider whose key is not configured is skipped; a provider whose plan is used up, whose key is
+      refused or that stays rate limited falls through to the next. Empty keeps today's behaviour: Tavily alone. A monitor may
+      override the chain with searchProviders in its own CONFIG.
+  OpenAiSearchKeyParameter:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the OpenAI key for web search (environment variable PAPYRUS_OPENAI_KEY_PARAMETER);
+      the standard name is /papyrus/search/openai-api-key. Empty leaves the openai provider unavailable.
+  PerplexityKeyParameter:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the Perplexity key (PAPYRUS_PERPLEXITY_KEY_PARAMETER); the standard name is
+      /papyrus/search/perplexity-api-key. Empty leaves the perplexity provider unavailable.
+  GeminiKeyParameter:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the Gemini key (PAPYRUS_GEMINI_KEY_PARAMETER); the standard name is
+      /papyrus/search/gemini-api-key. Empty leaves the gemini provider unavailable.
+  BedrockWebSearch:
+    Type: String
+    Default: "off"
+    AllowedValues: ["off", "on"]
+    Description: >-
+      "on" lets the collector and the router sign a Bedrock token and use Web Search on Amazon Bedrock (provider "bedrock" in the
+      chain): bedrock:CallWithBearerToken, bedrock-websearch:InvokeSearch / InvokeFetch and the Bedrock Mantle inference policy.
   EnrichmentGrobidUrl:
     Type: String
     Default: ""
@@ -112,6 +149,11 @@ Conditions:
   HasEditorUserPools: !Not [!Equals [!Join ["", !Ref EditorUserPoolArns], ""]]
   HasEnrichmentKey: !Not [!Equals [!Ref EnrichmentOpenAiKeyParameter, ""]]
   HasTavilyKey: !Not [!Equals [!Ref TavilyKeyParameter, ""]]
+  HasWebSearchChain: !Not [!Equals [!Ref WebSearchProviders, ""]]
+  HasOpenAiSearchKey: !Not [!Equals [!Ref OpenAiSearchKeyParameter, ""]]
+  HasPerplexityKey: !Not [!Equals [!Ref PerplexityKeyParameter, ""]]
+  HasGeminiKey: !Not [!Equals [!Ref GeminiKeyParameter, ""]]
+  HasBedrockWebSearch: !Equals [!Ref BedrockWebSearch, "on"]
   HasEnrichmentGrobid: !Not [!Equals [!Ref EnrichmentGrobidUrl, ""]]
 
 Resources:
@@ -171,6 +213,10 @@ Resources:
   CollectorRole:
     Type: AWS::IAM::Role
     Properties:
+      ManagedPolicyArns: !If
+        - HasBedrockWebSearch
+        - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
+        - !Ref AWS::NoValue
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -219,6 +265,10 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
+          WEB_SEARCH_PROVIDERS: !If [HasWebSearchChain, !Ref WebSearchProviders, !Ref AWS::NoValue]
+          PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
 
   ScheduleDeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -355,6 +405,10 @@ Resources:
   RouterRole:
     Type: AWS::IAM::Role
     Properties:
+      ManagedPolicyArns: !If
+        - HasBedrockWebSearch
+        - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
+        - !Ref AWS::NoValue
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -476,6 +530,10 @@ Resources:
           ENRICHMENT_BUCKET: !Ref EnrichmentBucket
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
+          WEB_SEARCH_PROVIDERS: !If [HasWebSearchChain, !Ref WebSearchProviders, !Ref AWS::NoValue]
+          PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
           BIBLICUS_GROBID_URL: !If [HasEnrichmentGrobid, !Ref EnrichmentGrobidUrl, !Ref AWS::NoValue]
 
   RouterEnrichmentStoragePolicy:
@@ -559,6 +617,160 @@ Resources:
             Condition:
               StringEquals:
                 kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  RouterOpenAiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasOpenAiSearchKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the OpenAI key for web search.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadOpenAiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OpenAiSearchKeyParameter}"
+          - Sid: DecryptOpenAiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  RouterPerplexitySearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasPerplexityKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the Perplexity key for web search.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadPerplexitySearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${PerplexityKeyParameter}"
+          - Sid: DecryptPerplexitySearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  RouterGeminiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasGeminiKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the Gemini key for web search.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadGeminiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiKeyParameter}"
+          - Sid: DecryptGeminiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  RouterBedrockWebSearchPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasBedrockWebSearch
+    Properties:
+      Description: Lets the router use Web Search on Amazon Bedrock (provider "bedrock").
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: BedrockWebSearch
+            Effect: Allow
+            Action: [bedrock:CallWithBearerToken, "bedrock-websearch:InvokeSearch", "bedrock-websearch:InvokeFetch"]
+            Resource: "*"
+
+  CollectorOpenAiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasOpenAiSearchKey
+    Properties:
+      Description: Lets the collector read the one SSM parameter that holds the OpenAI key for web search.
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadOpenAiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OpenAiSearchKeyParameter}"
+          - Sid: DecryptOpenAiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  CollectorPerplexitySearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasPerplexityKey
+    Properties:
+      Description: Lets the collector read the one SSM parameter that holds the Perplexity key for web search.
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadPerplexitySearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${PerplexityKeyParameter}"
+          - Sid: DecryptPerplexitySearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  CollectorGeminiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasGeminiKey
+    Properties:
+      Description: Lets the collector read the one SSM parameter that holds the Gemini key for web search.
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadGeminiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiKeyParameter}"
+          - Sid: DecryptGeminiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  CollectorBedrockWebSearchPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasBedrockWebSearch
+    Properties:
+      Description: Lets the collector use Web Search on Amazon Bedrock (provider "bedrock").
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: BedrockWebSearch
+            Effect: Allow
+            Action: [bedrock:CallWithBearerToken, "bedrock-websearch:InvokeSearch", "bedrock-websearch:InvokeFetch"]
+            Resource: "*"
 
   RouterProcedureRunnerPolicy:
     Type: AWS::IAM::ManagedPolicy

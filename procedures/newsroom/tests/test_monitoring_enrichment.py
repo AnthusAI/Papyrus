@@ -432,3 +432,26 @@ def test_the_collector_gets_the_same_tavily_key_grants_for_web_search():
     read, decrypt = policy["Properties"]["PolicyDocument"]["Statement"]
     assert read["Action"] == "ssm:GetParameter" and "TavilyKeyParameter" in json.dumps(read["Resource"]) and "*" not in json.dumps(read["Resource"])
     assert decrypt["Action"] == "kms:Decrypt" and "kms:ViaService" in json.dumps(decrypt["Condition"])
+
+
+def test_web_search_chain_and_provider_keys_are_opt_in_and_least_privilege():
+    from test_monitoring_router import _template
+    template = _template()
+    parameters, resources = template["Parameters"], template["Resources"]
+    for name in ("WebSearchProviders", "OpenAiSearchKeyParameter", "PerplexityKeyParameter", "GeminiKeyParameter"):
+        assert parameters[name]["Default"] == ""
+    assert parameters["BedrockWebSearch"]["Default"] == "off" and parameters["TavilyKeyParameter"]["Default"] == "/papyrus/shared/tavily-api-key"
+    for function in ("CollectorFunction", "RouterFunction"):
+        env = resources[function]["Properties"]["Environment"]["Variables"]
+        for key in ("WEB_SEARCH_PROVIDERS", "PAPYRUS_OPENAI_KEY_PARAMETER", "PAPYRUS_PERPLEXITY_KEY_PARAMETER", "PAPYRUS_GEMINI_KEY_PARAMETER"):
+            assert env[key][0] == "If" and env[key][1][2] == ("Ref", "AWS::NoValue"), key   # absent unless configured
+    for role in ("Collector", "Router"):
+        for key, condition, parameter in (("OpenAi", "HasOpenAiSearchKey", "OpenAiSearchKeyParameter"), ("Perplexity", "HasPerplexityKey", "PerplexityKeyParameter"),
+                                          ("Gemini", "HasGeminiKey", "GeminiKeyParameter")):
+            policy = resources[f"{role}{key}SearchKeyPolicy"]
+            assert policy["Condition"] == condition and policy["Properties"]["Roles"] == [("Ref", f"{role}Role")]
+            text = json.dumps(policy["Properties"]["PolicyDocument"])
+            assert "ssm:GetParameter" in text and "kms:ViaService" in text and parameter in text
+            assert all(s["Resource"] != "*" for s in policy["Properties"]["PolicyDocument"]["Statement"])
+        assert resources[f"{role}BedrockWebSearchPolicy"]["Condition"] == "HasBedrockWebSearch"
+        assert "ManagedPolicyArns" in resources[f"{role}Role"]["Properties"]

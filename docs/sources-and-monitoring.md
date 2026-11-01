@@ -45,7 +45,7 @@ Research assignments find candidate sources.
 - `papyrus editions dispatch-research` creates research assignments for an edition.
 - `papyrus assignments research-intake-now` runs source discovery and proposal intake right away. A worked example with a schedule is [automation-ai-ml-academic-research-dispatch.md](automation-ai-ml-academic-research-dispatch.md).
 - `papyrus assignments run-tavily-deep-research` and `papyrus assignments poll-tavily-deep-research` run Tavily Research tasks (`src/papyrus_newsroom/tavily_research.py`).
-- Web search for references uses a provider chosen by the `WEB_SEARCH_PROVIDER` environment variable: `tavily` (the default) or `openai` (`src/papyrus_newsroom/web_search_providers.py`).
+- Web search for references goes through `papyrus_content.web_search` (providers `tavily`, `openai`, `perplexity`, `gemini`, `bedrock`), chosen by `WEB_SEARCH_PROVIDERS`, an ordered fallback chain such as `openai,tavily`, or the older single `WEB_SEARCH_PROVIDER`; `tavily` is the default. `src/papyrus_newsroom/web_search_providers.py` only shapes the answer for the research tools, and the payload's metadata records the chain, the provider that answered and why others were skipped. Keys: `<PROVIDER>_API_KEY` or the SSM SecureString named by `PAPYRUS_<PROVIDER>_KEY_PARAMETER` (standard names `/papyrus/search/<provider>-api-key`). See `docs/monitoring-cloud.md` for the failure kinds and the stack parameters.
 
 How assignments work: [automated-publication-research-workflow.md](automated-publication-research-workflow.md) and [newsroom-operations.md](newsroom-operations.md).
 
