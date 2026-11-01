@@ -46,7 +46,7 @@ from ..categories_steering import semantic_state_key
 from ..link_exploration import Context, Exploration
 from ..knowledge_snapshot.monitor_records import discovery_details, discovery_monitor_id
 from ..monitor_promotion import promoted_reference_ids
-from . import dedupe, synthesis, trends
+from . import dedupe, duplicate_cut, synthesis, trends
 from .digest import CORPUS_PREFIX, collect_references, iso, parse_time, parse_window, relations_of, relevance_of
 from .excluded_hosts import is_excluded, normalize_hosts
 from . import source_text
@@ -533,7 +533,7 @@ def draft_monitor_stories(
     model: str = synthesis.DEFAULT_MODEL,
     limit: int | None = DEFAULT_LIMIT,
     since: str | None = None,
-    threshold: float = dedupe.DEFAULT_THRESHOLD,
+    threshold: float | None = None,
     maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
     dry_run: bool = False,
     now: datetime | None = None,
@@ -564,7 +564,10 @@ def draft_monitor_stories(
     ``context-pack``) and in the one review; ``run['packs']`` lists the packs offered and ``packsSkippedNoNewEvidence`` those held back."""
     from .pack_stories import MAXIMUM_OUTPUT_TOKENS as PACK_OUTPUT_TOKENS, SYSTEM_PROMPT as PACK_PROMPT, CostMeter, draft_pack_ideas
     moment = now or datetime.now(timezone.utc)
+    cut = duplicate_cut.resolve_threshold(client, threshold)
+    threshold = cut.threshold
     run: dict[str, Any] = {
+        "duplicateCut": cut.record(),
         "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model,
         "store": "dry-run" if dry_run else (idea_store.kind if idea_store else "json"), "dryRun": dry_run, "private": True,
         "window": {"since": since, "until": iso(moment)}, "limit": limit, "stoppedBy": None,

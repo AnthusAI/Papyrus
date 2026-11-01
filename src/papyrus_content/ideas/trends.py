@@ -33,7 +33,7 @@ from collections.abc import Iterable
 from typing import Any, Callable
 
 from ..knowledge_snapshot.trends import SERIES_SHORT, TrendConfig, corpus_volume, exceeds_report, scan_window
-from . import dedupe, synthesis
+from . import dedupe, duplicate_cut, synthesis
 from .digest import iso
 from .excluded_hosts import is_excluded, normalize_hosts
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, comparison_documents
@@ -942,7 +942,7 @@ def draft_trends(
     review_client: Any = None,
     model: str = synthesis.DEFAULT_MODEL,
     maximum: int = DEFAULT_MAXIMUM_DRAFTS,
-    threshold: float = dedupe.DEFAULT_THRESHOLD,
+    threshold: float | None = None,
     maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
     dry_run: bool = False,
     now: datetime | None = None,
@@ -952,7 +952,10 @@ def draft_trends(
 ) -> dict[str, Any]:
     """Drafts trend stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing."""
     moment = now or datetime.now(timezone.utc)
+    cut = duplicate_cut.resolve_threshold(review_client, threshold)
+    threshold = cut.threshold
     run: dict[str, Any] = {
+        "duplicateCut": cut.record(),
         "runId": run_id_for(snapshot["source"], moment), "kind": "trends-run", "publication": site, "startedAt": iso(moment), "model": model,
         "store": "dry-run" if dry_run else (idea_store.kind if idea_store else "json"), "dryRun": dry_run, "private": True,
         "snapshot": {"source": snapshot["source"], "asOf": snapshot["asOf"]},

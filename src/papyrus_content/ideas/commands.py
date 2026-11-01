@@ -21,7 +21,6 @@ from . import digest as digest_module
 from ..knowledge_snapshot.trends import TrendConfig
 from . import monitor_stories, synthesis, trends
 from .context import corpus_ids_for, hosted_corpora, load_context
-from .dedupe import DEFAULT_THRESHOLD
 from .digest import parse_window
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, render_report, synthesize
 from .review import load_feedback
@@ -33,13 +32,13 @@ USAGE = (
     "  papyrus ideas digest --publication KEY [--since 7d] [--status accepted[,pending]] [--max-references N] [--excerpts]\n"
     "      [--out DIR] [--json]\n"
     "  papyrus ideas synthesize --publication KEY [--digest ID|PATH | --since 7d [--status ...] [--excerpts]] [--max 5]\n"
-    "      [--store items|json (default items)] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
-    "      [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
+    "      [--store items|json (default items)] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold X (default: learned from editors' duplicate decisions)] [--max-cost-usd 0.50]\n"
+    "      [--story-days N (default: every story the site has)] [--out DIR] [--report FILE] [--json]\n"
     "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store items|json (default items)] [--dry-run] [--max 3] [--trend-config FILE] [--model gpt-6-luna]\n"
-    "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
+    "      [--dedupe-threshold X (default: learned from editors' duplicate decisions)] [--max-cost-usd 0.50] [--story-days N (default: every story the site has)] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
     "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--status accepted[,pending] (default: accepted only)] [--store items|json (default items)] [--dry-run] [--model gpt-6-luna]\n"
-    "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
+    "      [--dedupe-threshold X (default: learned from editors' duplicate decisions)] [--max-cost-usd 0.50] [--story-days N (default: every story the site has)] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      [--packs-only | --single-only]\n"
     "      (with --store items, one queue of context packs and single items ranked by the newsroom's own signals; --packs-only drafts only theme ideas from packs,\n"
     "       --single-only is the single-item path ranked by the relevance Cyclotron's verdict, with no packs; --dry-run prints the packs and writes nothing)\n"
@@ -81,6 +80,14 @@ def _integer(options: dict[str, Any], key: str, default: int) -> int:
     if not value.isdigit() or int(value) < 1:
         raise ValueError(f"--{key} must be a positive whole number.")
     return int(value)
+
+
+def _optional_integer(options: dict[str, Any], key: str) -> int | None:
+    return None if normalize_string(options.get(key)) is None else _integer(options, key, 1)
+
+
+def _optional_number(options: dict[str, Any], key: str) -> float | None:
+    return None if normalize_string(options.get(key)) is None else _number(options, key, 0.0)
 
 
 def _number(options: dict[str, Any], key: str, default: float) -> float:
@@ -144,7 +151,7 @@ def synthesize_command(flags: list[str]) -> None:
         raise ValueError(f"Digest {digest['digestId']} is for {digest['publication']}, not {publication}.")
     json_store.save_digest(digest)
     now = datetime.now(timezone.utc)
-    context = load_context(client, now=now, story_days=_integer(options, "story-days", 90))
+    context = load_context(client, now=now, story_days=_optional_integer(options, "story-days"))
     api_key = resolve_openai_api_key()
     if not api_key:
         raise ValueError("Synthesis needs OPENAI_API_KEY (or openai.apiKey in the Papyrus config).")
@@ -159,7 +166,7 @@ def synthesize_command(flags: list[str]) -> None:
             feedback=load_feedback(normalize_string(options.get("feedback"))),
             model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
             maximum=_integer(options, "max", synthesis.DEFAULT_MAXIMUM_IDEAS),
-            threshold=_number(options, "dedupe-threshold", DEFAULT_THRESHOLD),
+            threshold=_optional_number(options, "dedupe-threshold"),
             maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
             now=now,
         )
@@ -210,7 +217,7 @@ def trends_command(flags: list[str]) -> None:
     json_store = JsonStore(_root(options, site))
     client, _ = create_authoring_client()
     now = datetime.now(timezone.utc)
-    context = load_context(client, now=now, story_days=_integer(options, "story-days", 90))
+    context = load_context(client, now=now, story_days=_optional_integer(options, "story-days"))
     api_key = resolve_openai_api_key()
     if not api_key:
         raise ValueError("Trend drafting needs OPENAI_API_KEY (or openai.apiKey in the Papyrus config).")
@@ -225,7 +232,7 @@ def trends_command(flags: list[str]) -> None:
             review_client=client,
             model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
             maximum=_integer(options, "max", trends.DEFAULT_MAXIMUM_DRAFTS),
-            threshold=_number(options, "dedupe-threshold", DEFAULT_THRESHOLD),
+            threshold=_optional_number(options, "dedupe-threshold"),
             maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
             dry_run=dry_run,
             now=now,
@@ -289,7 +296,7 @@ def monitor_stories_command(flags: list[str]) -> None:
     json_store = JsonStore(_root(options, site))
     client, _ = create_authoring_client()
     now = datetime.now(timezone.utc)
-    context = load_context(client, now=now, story_days=_integer(options, "story-days", 90))
+    context = load_context(client, now=now, story_days=_optional_integer(options, "story-days"))
     api_key = resolve_openai_api_key()
     if not api_key:
         raise ValueError("Monitor story drafting needs OPENAI_API_KEY (or openai.apiKey in the Papyrus config).")
@@ -312,7 +319,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
         limit=limit,
         since=since,
-        threshold=_number(options, "dedupe-threshold", DEFAULT_THRESHOLD),
+        threshold=_optional_number(options, "dedupe-threshold"),
         maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
         dry_run=dry_run,
         now=now,

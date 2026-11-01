@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -11,7 +12,6 @@ from .digest import CORPUS_PREFIX, corpus_key, parse_time
 
 STORY_TYPES = {"article", "story"}
 IN_FLIGHT_STATUSES = {"draft", "review", "in_review", "scheduled"}
-STORY_DAYS = 90
 STORY_FIELDS = "id lineageId versionState type status stage section title deck headline publishedAt updatedAt tenantId"
 STORIES_QUERY = f"""
 query ListStories($limit: Int, $nextToken: String) {{
@@ -91,21 +91,23 @@ def sections_for(client: Any, stories: list[dict[str, Any]]) -> list[dict[str, s
     return [{"id": name, "title": name} for name in names]
 
 
-def load_context(client: Any, *, now: datetime, story_days: int = STORY_DAYS) -> dict[str, Any]:
+def load_context(client: Any, *, now: datetime, story_days: int | None = None) -> dict[str, Any]:
     rows = [row for row in list_stories(client) if row.get("versionState") == "current" and row.get("type") in STORY_TYPES]
     all_stories = [story_entry(row) for row in rows]
-    cutoff = now - timedelta(days=story_days)
+    cutoff = None if story_days is None else now - timedelta(days=story_days)
     stories = [
         story for story in all_stories
         if story["title"]
-        and (story["state"] != "published" or (parse_time(story["date"]) or cutoff) >= cutoff)
+        and (cutoff is None or story["state"] != "published" or (parse_time(story["date"]) or cutoff) >= cutoff)
     ]
     stories.sort(key=lambda story: (story["date"] or "", story["title"]), reverse=True)
     doctrine = doctrine_texts(client)
+    dates = [moment for story in stories for moment in [parse_time(story["date"])] if moment is not None]
+    window_days = story_days if story_days is not None else (max(1, math.ceil((now - min(dates)).total_seconds() / 86400)) if dates else None)
     return {
         "mission": doctrine.get("mission"),
         "policy": doctrine.get("policy"),
         "sections": sections_for(client, all_stories),
         "stories": stories,
-        "storyDays": story_days,
+        "storyDays": window_days,
     }
