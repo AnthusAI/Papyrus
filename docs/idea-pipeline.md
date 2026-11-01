@@ -360,7 +360,7 @@ With `--store items` every idea is checked against the site's editorial policies
 - Warnings and notes stay with the Item (`generated.check`: counts by severity, the findings, the lanes) and are stored as the Item's editorial check run. The batch review lists clean ideas first.
 - The judgment lane needs `TYPESAFE_API_KEY`. When it is missing Humanus reports the lane as unavailable and the Item records `judgment: {ran: false, reason}`; the idea is not passed off as judged. Checks turned off for the site are recorded as `{ran: false, skipped: disabled}`.
 - `supersedes`: an idea may list Item lineages it replaces (stored in `generated.supersedes`, each must be an existing Item). The editor can then spike those in the same review.
-- The router's `items` store files ungated for now: the router role has no editorial grants, so its ideas are filed without the Humanus gate (they still pass the citation check). The CLI and the knowledge run gate every idea.
+- The router's ideas pass the same gate: it reads the site's policies through the publication's own API (`RouterIdeaGatePolicy`, `RouterIdeaGateSharedSitesPolicy`) and takes the judgment lane's key from one shared SSM parameter (`RouterEditorialJudgmentKeyPolicy`). With no key the rules lane still runs and the Item records the judgment lane as not run ([monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily)).
 
 ### Decisions are labels
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from ..editorial_checks import EditorialChecksDisabled, GraphQLEditorialStore, Services, check_editorial, check_run_record
@@ -17,6 +18,15 @@ class HumanusGate:
     @classmethod
     def for_site(cls) -> "HumanusGate":
         return cls(Services(store=GraphQLEditorialStore()))
+
+    @classmethod
+    def for_client(cls, client: Any, *, judgment_key: Any = None) -> "HumanusGate":
+        """A gate that reads the site behind ``client`` (the router, which serves several sites and so cannot use the process's own endpoint).
+        ``judgment_key`` is the TypeSafe key for the judgment lane, or None: then the environment is left as it is and, with no
+        ``TYPESAFE_API_KEY`` there, Humanus reports the lane unavailable and the Item records why. The rules lane runs either way."""
+        if judgment_key:
+            os.environ["TYPESAFE_API_KEY"] = judgment_key
+        return cls(Services(store=GraphQLEditorialStore(execute=client.graphql)))
 
     def check(self, body: str, section: str | None) -> dict[str, Any]:
         try:

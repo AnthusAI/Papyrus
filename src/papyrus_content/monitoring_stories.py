@@ -76,20 +76,42 @@ def lambda_story_transport(environment: dict[str, str] | None = None, *, ssm: An
     return synthesis.openai_transport(key) if key else None
 
 
+def lambda_judgment_key(environment: dict[str, str] | None = None, *, ssm: Any = None) -> str | None:
+    """The TypeSafe key for the judgment lane of the idea gate, from the SSM SecureString ``EDITORIAL_JUDGMENT_KEY_PARAMETER`` names (one shared key for
+    every routed site), or None when there is no parameter or it cannot be read. None is not an error: the idea records that the judgment lane did not
+    run and the rules lane still checks it. The key is placed only in the process environment Humanus reads, never logged or stored."""
+    environment = os.environ if environment is None else environment
+    parameter = (environment.get("EDITORIAL_JUDGMENT_KEY_PARAMETER") or "").strip()
+    if not parameter:
+        return None
+    try:
+        if ssm is None:
+            import boto3
+
+            ssm = boto3.client("ssm")
+        return str(ssm.get_parameter(Name=parameter, WithDecryption=True)["Parameter"]["Value"]).strip() or None
+    except Exception:  # noqa: BLE001 - an unreadable key means "judgment lane not run", recorded on each idea
+        return None
+
+
 def run_publication(client: Any, publication: dict[str, Any], *, transport: Callable, now: datetime, out_of_time: Callable[[], bool],
                     fetch: Any = None, explorer: Any = REAL_EXPLORER, maximum_cost_usd: float = MAXIMUM_COST_USD,
-                    handled_references: Any = ()) -> dict[str, Any]:
+                    handled_references: Any = (), gate: Any = None) -> dict[str, Any]:
     """Drafts one publication's undrafted accepted monitored References and returns its log record (the shape the router prints).
     ``fetch`` and ``explorer`` default to the real page reader and link explorer; tests pass fakes. ``handled_references`` are the ids of the References
     an Automation has a procedure run recorded or in progress for (the router reads them from its trigger rows); those are left to it."""
     from .ideas import monitor_stories
     from .ideas.context import load_context
     from .ideas.items import ItemStore
+    from .ideas.gate import HumanusGate
     from .ideas.store import legacy_story_drafts
+
+    # Each idea passes the same Humanus gate as `ideas monitor-stories --store items`, through this publication's own API.
+    gate = gate if gate is not None else HumanusGate.for_client(client, judgment_key=lambda_judgment_key())
 
     run = monitor_stories.draft_monitor_stories(
         client=client, site=publication["publicationId"], corpus_key=publication["corpusKey"],
-        context=load_context(client, now=now), json_store=None, idea_store=ItemStore(client, legacy=lambda: legacy_story_drafts(client)), review_client=client,
+        context=load_context(client, now=now), json_store=None, idea_store=ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=gate), review_client=client,
         transport=transport, limit=None, dry_run=False, now=now, fetch=fetch or monitor_stories.fetch_source,
         explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer, out_of_time=out_of_time,
         maximum_cost_usd=maximum_cost_usd, read_workers=READ_WORKERS, automation_handled=handled_references)
@@ -98,7 +120,8 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         "publicationId": publication["publicationId"], "status": "stopped" if run["stoppedBy"] else "complete",
         "drafted": len(run["drafts"]), "candidates": inputs["candidates"], "notAccepted": inputs["notAccepted"],
         "skipped": len(run["skipped"]), "stoppedBy": run["stoppedBy"], "notMonitored": inputs["notMonitored"],
-        "attempted": run["attempted"], "failedTheCheck": len(run["invalid"]), "duplicates": len(run["duplicates"]),
+        "attempted": run["attempted"], "failedTheCheck": len(run["invalid"]),
+        "refusedByEditorialCheck": sum(1 for entry in run["invalid"] if entry.get("reason") == "editorial_check_failed"), "duplicates": len(run["duplicates"]),
         "handledByAutomation": inputs.get("handledByAutomation", 0), "costUsd": usage.get("costUsd"),
         "review": (run.get("review") or {}).get("status"), **({"fileError": run["fileError"]} if run.get("fileError") else {}),
     }

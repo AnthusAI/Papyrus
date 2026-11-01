@@ -35,7 +35,18 @@ def iam_auth(monkeypatch):
 @pytest.fixture(autouse=True)
 def fake_idea_sink(monkeypatch):
     """The router files ideas through ``ItemStore``; these tests read what was filed from the fake backend, so the sink is its recording double (ItemStore itself: test_idea_items.py)."""
-    monkeypatch.setattr("papyrus_content.ideas.items.ItemStore", lambda client, **options: FakeIdeaStore(client))
+    monkeypatch.setattr("papyrus_content.ideas.items.ItemStore", lambda client, **options: FakeIdeaStore(client, gate=options.get("gate")))
+
+
+@pytest.fixture(autouse=True)
+def quiet_gate(monkeypatch):
+    """Unless a test passes its own gate, the router's editorial gate finds nothing (the real one reads the site's policies; test_idea_items.py covers it)."""
+    from test_idea_items import FakeGate
+
+    from papyrus_content.ideas import gate as gate_module
+
+    gate_module._REAL_FOR_CLIENT = gate_module.__dict__.get("_REAL_FOR_CLIENT") or gate_module.HumanusGate.__dict__["for_client"]
+    monkeypatch.setattr("papyrus_content.ideas.gate.HumanusGate.for_client", classmethod(lambda cls, client, **options: FakeGate()))
 
 
 def router(publications=(PUBLICATION,), settings=None):
@@ -52,14 +63,14 @@ def router(publications=(PUBLICATION,), settings=None):
     return table, store
 
 
-def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_table=None):
+def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_table=None, gate=None):
     """Runs the monitor-stories task; `clients` maps a publication id to its backend. Returns (result, log lines by publication)."""
     endpoints = {tr.ENDPOINT.replace("abc123", f"api{n}"): client for n, client in enumerate(clients.values())}
     out = io.StringIO()
     with redirect_stdout(out):
         result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint],
                             deliver=tr.Delivery(), time_left=time_left, story_transport=model,
-                            story_drafter=partial(run_publication, fetch=fetch or pages(*range(1, 60)), explorer=None))
+                            story_drafter=partial(run_publication, fetch=fetch or pages(*range(1, 60)), explorer=None, **({"gate": gate} if gate else {})))
     lines = {line["publicationId"]: line for line in map(json.loads, (l for l in out.getvalue().splitlines() if l.startswith('{"monitorStories"')))}
     return result, lines
 
@@ -461,3 +472,62 @@ def test_distinctive_has_its_own_daily_monitor_stories_schedule():
     assert json.loads(distinctive["Target"]["Input"]) == {"task": "monitor-stories", "monitorId": "web-distinctive"}
     assert distinctive["ScheduleExpression"] == hn["ScheduleExpression"]
     assert distinctive["Target"]["RetryPolicy"] == hn["Target"]["RetryPolicy"] == {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 0}
+
+
+# --- the editorial gate the router runs on each idea ---------------------------------------------------------------------
+
+
+def test_the_judgment_key_is_read_from_the_shared_parameter_and_a_missing_one_is_not_an_error():
+    from papyrus_content.monitoring_stories import lambda_judgment_key
+
+    class Ssm:
+        def __init__(self, fail=False):
+            self.fail, self.asked = fail, []
+
+        def get_parameter(self, Name, WithDecryption):
+            self.asked.append((Name, WithDecryption))
+            if self.fail:
+                raise RuntimeError("ParameterNotFound")
+            return {"Parameter": {"Value": " key-1 "}}
+
+    ssm = Ssm()
+    assert lambda_judgment_key({"EDITORIAL_JUDGMENT_KEY_PARAMETER": "/papyrus/shared/typesafe-api-key"}, ssm=ssm) == "key-1"
+    assert ssm.asked == [("/papyrus/shared/typesafe-api-key", True)]
+    assert lambda_judgment_key({}, ssm=ssm) is None and len(ssm.asked) == 1   # no parameter: no read at all
+    assert lambda_judgment_key({"EDITORIAL_JUDGMENT_KEY_PARAMETER": "/x"}, ssm=Ssm(fail=True)) is None
+
+
+def test_the_gate_reads_through_the_publications_own_client_and_sets_the_key_only_when_it_has_one(monkeypatch):
+    from papyrus_content.ideas import gate as gate_module
+
+    real_for_client = gate_module._REAL_FOR_CLIENT
+    HumanusGate = type("RealGate", (), {"for_client": staticmethod(lambda client, **options: real_for_client.__func__(gate_module.HumanusGate, client, **options))})
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    calls = []
+
+    class Client:
+        def graphql(self, query, variables=None):
+            calls.append(query)
+            return {}
+
+    gate = HumanusGate.for_client(Client(), judgment_key=None)
+    assert "TYPESAFE_API_KEY" not in os.environ
+    gate.services.store._execute("query { x }", {})
+    assert calls == ["query { x }"], "the gate's reads go through the client of the publication being filed"
+    HumanusGate.for_client(Client(), judgment_key="key-2")
+    assert os.environ["TYPESAFE_API_KEY"] == "key-2"
+    monkeypatch.delenv("TYPESAFE_API_KEY")
+
+
+def test_the_router_policies_grant_the_gate_fields_on_every_routed_site_and_the_key_parameter():
+    text = (Path(__file__).resolve().parents[3] / "infra" / "monitoring" / "papyrus-monitoring.yaml").read_text()
+    apis = ("AnthUsApiId", "PapyrusApiId", "ThreatIntelApiId", "DataParadeApiId", "PilobolusApiId", "ShippedApiId", "DistinctiveApiId")
+    needed = ("Query/fields/getEditorialCheckSettings", "Query/fields/getEditorialContext", "Query/fields/getEditorialCheckRun", "Query/fields/listEditorialFeedbacks",
+              "Query/fields/listEditorialPolicies", "Query/fields/listItemsByVersionStateAndUpdatedAt", "Mutation/fields/createEditorialCheckRun", "Mutation/fields/updateEditorialCheckRun")
+    gate = text[text.index("  RouterIdeaGatePolicy:"):text.index("  RouterEditorialJudgmentKeyPolicy:")]
+    for api in apis:
+        for field in needed:
+            assert f"apis/${{{api}}}/types/{field}\"" in gate, (api, field)
+    for item_field in ("getItem", "createItem", "updateItem"):
+        assert all(f"apis/${{{api}}}/types/" in text and f"${{{api}}}/types/{'Mutation' if item_field != 'getItem' else 'Query'}/fields/{item_field}\"" in text for api in apis), item_field
+    assert "EDITORIAL_JUDGMENT_KEY_PARAMETER" in text and "ssm:GetParameter" in text[text.index("  RouterEditorialJudgmentKeyPolicy:"):] and "kms:Decrypt" in text

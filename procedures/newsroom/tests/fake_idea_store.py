@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from papyrus_content.ideas.items import IdeaRefused, summarize_check
 from papyrus_content.ideas.store import ITEMS, legacy_story_drafts
 from papyrus_content.proposals_commands import FILE_MUTATION, receipt
 
@@ -19,8 +20,9 @@ MAXIMUM_TARGETS = 10
 class FakeIdeaStore:
     kind = ITEMS
 
-    def __init__(self, client: Any) -> None:
+    def __init__(self, client: Any, gate: Any = None) -> None:
         self.client = client
+        self.gate = gate
 
     @staticmethod
     def mark(record: dict[str, Any], identifier: str) -> None:
@@ -37,6 +39,14 @@ class FakeIdeaStore:
         return receipt(self.client.graphql(FILE_MUTATION, variables), "fileProposal")
 
     def file_story_draft(self, draft: dict[str, Any]) -> str:
+        if self.gate is not None:   # the same steps as ItemStore: an error-severity violation refuses the filing, anything else travels with the idea
+            result = self.gate.check(draft["body"], draft.get("section"))
+            check = summarize_check(result)
+            errors = [finding for finding in check.get("findings") or [] if finding.get("severity") == "error" and finding.get("status") == "violation"]
+            if errors:
+                raise IdeaRefused(errors)
+            draft["editorialCheck"] = check
+            self.gate.record({"id": "idea"}, result)
         variables = {
             "kind": "story_draft", "title": draft["title"][:200], "summary": draft["angle"][:300], "body": draft["body"],
             "targets": json.dumps(draft["targets"]), "evidence": json.dumps(draft["evidence"]),

@@ -36,6 +36,27 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
     Then 2 story drafts are filed, one per Reference, each citing its source
     And the log line for "example-site" says drafted 2, candidates 2, notAccepted 2, skipped 0 and stoppedBy none
 
+  Scenario: An idea whose text has an error finding in the router's editorial check is refused and the run says so
+    Given 2 accepted References that the "hn" monitor delivered
+    And the router's editorial check finds an error violation of "production-claims" and a warning
+    When the router runs its daily monitor stories
+    Then no story draft is filed
+    And the log line for "example-site" says 2 ideas were refused by the editorial check and drafted 0
+
+  Scenario: An idea with only warnings is filed with its check result stored
+    Given 2 accepted References that the "hn" monitor delivered
+    And the router's editorial check finds only a warning
+    When the router runs its daily monitor stories
+    Then 2 story drafts are filed, one per Reference, each citing its source
+    And the editorial check ran on both and its result was stored with each idea
+
+  Scenario: A router with no TypeSafe key still runs the rules lane and records the judgment lane as not run
+    Given 1 accepted References that the "hn" monitor delivered
+    And the router has no TypeSafe key
+    When the router runs its daily monitor stories
+    Then 1 story drafts are filed, one per Reference, each citing its source
+    And the stored check says the rules lane ran and the judgment lane did not run, and why
+
   Scenario: A publication that turns monitor stories off is skipped
     Given the publication's monitorStories setting is {"enabled": false}
     And 3 accepted References that the "hn" monitor delivered

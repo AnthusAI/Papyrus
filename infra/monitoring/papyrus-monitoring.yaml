@@ -99,6 +99,15 @@ Parameters:
     Description: >-
       Name of the SSM SecureString holding the Tavily key for link-exploration search (environment variable
       PAPYRUS_TAVILY_KEY_PARAMETER). The role may read only this parameter and decrypt through SSM. Empty disables search.
+  EditorialJudgmentKeyParameter:
+    Type: String
+    Default: /papyrus/shared/typesafe-api-key
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the TypeSafe key (TYPESAFE_API_KEY, the decision model) for the judgment lane of the Humanus editorial
+      gate that checks each generated idea before the router files it (environment variable EDITORIAL_JUDGMENT_KEY_PARAMETER). One shared key for every
+      routed site. The role may read only this parameter and decrypt through SSM. Empty, or a parameter that does not exist, leaves the judgment lane
+      recorded as not run on the idea (the rules lane still runs).
   EnrichmentGrobidUrl:
     Type: String
     Default: ""
@@ -112,6 +121,7 @@ Conditions:
   HasEditorUserPools: !Not [!Equals [!Join ["", !Ref EditorUserPoolArns], ""]]
   HasEnrichmentKey: !Not [!Equals [!Ref EnrichmentOpenAiKeyParameter, ""]]
   HasTavilyKey: !Not [!Equals [!Ref TavilyKeyParameter, ""]]
+  HasEditorialJudgmentKey: !Not [!Equals [!Ref EditorialJudgmentKeyParameter, ""]]
   HasEnrichmentGrobid: !Not [!Equals [!Ref EnrichmentGrobidUrl, ""]]
 
 Resources:
@@ -475,6 +485,7 @@ Resources:
           PROCEDURE_RUNNER_FUNCTION: !If [HasProcedureRunner, !Ref ProcedureRunnerFunctionName, !Ref AWS::NoValue]
           ENRICHMENT_BUCKET: !Ref EnrichmentBucket
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
+          EDITORIAL_JUDGMENT_KEY_PARAMETER: !If [HasEditorialJudgmentKey, !Ref EditorialJudgmentKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
           BIBLICUS_GROBID_URL: !If [HasEnrichmentGrobid, !Ref EnrichmentGrobidUrl, !Ref AWS::NoValue]
 
@@ -1056,8 +1067,8 @@ Resources:
       Description: >-
         Lets the router's daily monitor-stories task file generated story ideas as Items at the idea stage (src/papyrus_content/ideas/items.py) on the seven
         routed publications: read and write the Item, read the published-item guard and the Reference by lineage. The reads and the SemanticRelation writes
-        (based_on links) are already granted by the intake, decision-relation and monitor-stories policies. The Humanus editorial gate does not run in the
-        router, so no editorial grants. Hand-run with a change set.
+        (based_on links) are already granted by the intake, decision-relation and monitor-stories policies. The editorial gate that checks each idea has its
+        own grants (RouterIdeaGatePolicy, RouterIdeaGateSharedSitesPolicy, RouterEditorialJudgmentKeyPolicy). Hand-run with a change set.
       Roles: [!Ref RouterRole]
       PolicyDocument:
         Version: "2012-10-17"
@@ -1101,6 +1112,111 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listReferencesByLineageAndVersion"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createItem"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateItem"
+
+  RouterIdeaGatePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Lets the router run the Humanus editorial gate on each generated idea before it files it (src/papyrus_content/ideas/gate.py): read the site's editorial settings, context, policies and feedback, read current and draft story versions (cross-story boilerplate check), and read and write the EditorialCheckRun stored with the idea. Split in two because one managed policy holds at most 6,144 characters; together they cover the seven routed publications. This one covers Anth.us, the Papyrus product site, Threat Intelligence and Data Parade. Hand-run with a change set.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: IdeaGate
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getEditorialCheckSettings"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getEditorialContext"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listEditorialFeedbacks"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listEditorialPolicies"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/createEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/updateEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getEditorialCheckSettings"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getEditorialContext"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listEditorialFeedbacks"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listEditorialPolicies"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/createEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/updateEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getEditorialCheckSettings"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getEditorialContext"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listEditorialFeedbacks"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listEditorialPolicies"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/createEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/updateEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/getEditorialCheckSettings"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/getEditorialContext"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/getEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listEditorialFeedbacks"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listEditorialPolicies"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Mutation/fields/createEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Mutation/fields/updateEditorialCheckRun"
+
+  RouterIdeaGateSharedSitesPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Lets the router run the Humanus editorial gate on each generated idea before it files it (src/papyrus_content/ideas/gate.py): read the site's editorial settings, context, policies and feedback, read current and draft story versions (cross-story boilerplate check), and read and write the EditorialCheckRun stored with the idea. Split in two because one managed policy holds at most 6,144 characters; together they cover the seven routed publications. This one covers Pilobolus, Shipped and Distinctive Mark. Hand-run with a change set.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: IdeaGate
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/getEditorialCheckSettings"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/getEditorialContext"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/getEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listEditorialFeedbacks"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listEditorialPolicies"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/createEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/updateEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getEditorialCheckSettings"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getEditorialContext"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listEditorialFeedbacks"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listEditorialPolicies"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/updateEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/getEditorialCheckSettings"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/getEditorialContext"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/getEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listEditorialFeedbacks"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listEditorialPolicies"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateEditorialCheckRun"
+
+  RouterEditorialJudgmentKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasEditorialJudgmentKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the TypeSafe key for the judgment lane of the idea gate.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadEditorialJudgmentKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${EditorialJudgmentKeyParameter}"
+          - Sid: DecryptEditorialJudgmentKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
 
   RouterMonitorStoriesDistinctivePolicy:
     Type: AWS::IAM::ManagedPolicy
