@@ -7,9 +7,9 @@ from papyrus_newsroom import web_search_providers
 
 
 class WebSearchProvidersTests(unittest.TestCase):
-    def test_normalize_defaults_to_gemini(self):
+    def test_normalize_defaults_to_the_first_provider_of_the_default_chain(self):
         with mock.patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(web_search_providers.normalize_web_search_provider(None), "gemini")
+            self.assertEqual(web_search_providers.normalize_web_search_provider(None), "tavily")
 
     def test_normalize_respects_env_override(self):
         with mock.patch.dict(os.environ, {"WEB_SEARCH_PROVIDER": "openai"}, clear=False):
