@@ -379,7 +379,6 @@ def _prepare_reference_for_indexing(
 
 
 SUMMARY_SOURCES = ("curation", "canonical", "preview")
-MIN_SUMMARY_ONLY_TEXT_CHARS = 80
 
 
 def _attachment_metadata(attachment: dict[str, Any]) -> dict[str, Any]:
@@ -441,8 +440,6 @@ def _prepare_summary_only_vector(
         reference_summary_payload=summary_payload,
     )
     if not candidate:
-        return None
-    if len(candidate["text"]) < MIN_SUMMARY_ONLY_TEXT_CHARS:
         return None
     candidate["metadata"]["summarySource"] = source
     candidate["metadata"]["contentHash"] = hashlib.sha256(candidate["text"].encode("utf-8")).hexdigest()
