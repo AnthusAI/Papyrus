@@ -559,3 +559,17 @@ def test_the_router_idea_policy_grants_the_item_and_gate_fields_and_the_key_para
     assert "Roles: [!Ref RouterRole]" in policy
     assert "ssm:GetParameter" in policy and "parameter${EditorialJudgmentKeyParameter}" in policy and "kms:ViaService" in policy
     assert "EDITORIAL_JUDGMENT_KEY_PARAMETER" in text
+
+
+def test_every_managed_policy_description_fits_the_iam_limit():
+    """IAM refuses a managed policy description over 1000 characters, and the stack rolls back (context-packs change set, 2026-11-01)."""
+    import yaml
+
+    class Loader(yaml.SafeLoader):
+        pass
+
+    Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
+    template = yaml.load((Path(__file__).resolve().parents[3] / "infra" / "monitoring" / "papyrus-monitoring.yaml").read_text(), Loader=Loader)
+    lengths = {name: len(resource["Properties"].get("Description") or "") for name, resource in template["Resources"].items()
+               if resource["Type"] == "AWS::IAM::ManagedPolicy"}
+    assert lengths and all(length <= 1000 for length in lengths.values()), {name: length for name, length in lengths.items() if length > 1000}
