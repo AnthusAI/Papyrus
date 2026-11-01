@@ -82,6 +82,10 @@ class MemoryClient:
         self.tables.setdefault(model, {})[row["id"]] = copy.deepcopy(row)
         return "created"
 
+    def update_record(self, model, row):
+        self.writes += 1
+        self.tables[model][row["id"]].update(copy.deepcopy(row))
+
     def card(self, reference_id):
         for row in self.tables["ReferenceAttachment"].values():
             if row.get("role") == "curation" and row.get("referenceId") == reference_id:
