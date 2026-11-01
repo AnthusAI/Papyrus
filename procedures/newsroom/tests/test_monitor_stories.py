@@ -163,12 +163,12 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(by_id[rows[0]["lineageId"]].verdict["score"], 0.5)
         self.assertEqual(counts["inWindow"], 2)
 
-    def test_a_reference_no_monitor_delivered_is_not_a_monitored_item(self) -> None:
+    def test_an_accepted_reference_no_monitor_delivered_is_still_a_candidate(self) -> None:
         rows, client = world(2)
         del client.references[1]["discoveredByMonitorId"]
         items, counts = stories.collect_monitored_items(client, site=SITE, since="7d", now=NOW)
-        self.assertEqual([item.lineage_id for item in items], [rows[0]["lineageId"]])
-        self.assertEqual(counts["notMonitored"], 1)
+        self.assertEqual(sorted(item.lineage_id for item in items), sorted(row["lineageId"] for row in rows))
+        self.assertIsNone({item.lineage_id: item for item in items}[rows[1]["lineageId"]].monitor_id)
 
     def test_rejected_references_are_not_read_and_a_given_window_leaves_out_older_ones(self) -> None:
         rows, client = world(3)
@@ -307,6 +307,14 @@ class DraftingTests(unittest.TestCase):
             self.assertEqual(record["monitorId"], "hn")
             self.assertIn("hn monitor", record["body"])
             self.assertEqual(record["evidence"]["source"], f"hn monitor: {record['citedItems'][0]['url']}")
+
+    def test_an_ordered_candidate_list_replaces_the_ranking_and_leaves_out_the_rest(self) -> None:
+        rows, client = world(4, verdicts={1: 0.5, 2: 0.9, 3: 0.7, 4: 0.6})
+        model = StoryModel()
+        order = [rows[0]["lineageId"], rows[3]["lineageId"]]
+        run = draft(client, model, limit=None, ordered_candidates=order)
+        self.assertEqual([entry["referenceId"] for entry in run["ranking"]], [rows[0]["id"], rows[3]["id"]])
+        self.assertEqual(len(run["drafts"]), 2)
 
     def test_the_model_is_shown_the_source_and_the_page_text_and_not_the_verdict(self) -> None:
         rows, client = world(1, details={1: {"points": 120, "author": "pat", "summary": "A Show item."}})
@@ -600,7 +608,7 @@ class ExcludedHostAndAutomationTests(unittest.TestCase):
         items, counts = stories.collect_monitored_items(client, site=SITE, now=NOW, excluded_hosts=["ipwatchdog.com"])
         self.assertEqual(sorted(item.lineage_id for item in items), sorted(row["lineageId"] for row in rows[1:]))
         self.assertEqual(counts["excludedHost"], 1)
-        self.assertEqual(counts["notMonitored"], 0)
+        self.assertEqual(counts["noSourceUri"], 0)
         self.assertNotIn(("incoming", f"reference#{rows[0]['lineageId']}"), [call for call in client.calls if call[0] == "incoming"])
 
     def test_a_run_never_drafts_from_an_excluded_host(self) -> None:

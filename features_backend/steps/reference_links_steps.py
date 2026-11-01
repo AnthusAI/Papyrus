@@ -111,3 +111,49 @@ def step_direction(context):
 @then('the link uses the "{predicate}" relation')
 def step_predicate(context, predicate):
     assert only_row(context)["predicate"] == predicate
+
+
+def _report_inputs(context):
+    refs = [{"id": f"{n}-v1", "lineageId": n, "versionState": "current", "curationStatus": "accepted"} for n in ("reference-a", "reference-b")]
+    return refs, [{"id": "node-voice-v1", "lineageId": "node-voice", "versionState": "current", "nodeKind": "topic", "displayName": "Voice"}]
+
+
+@given('the accepted Reference "{reference}" is linked to the concept "{node}" only by an editor\'s related-to link')
+def step_given_concept_link(context, reference, node):
+    link_concept(state(context).client, reference, state(context).node, "human", actor="editor", now=NOW)
+
+
+@given('the accepted Reference "{second}" is linked to "{first}" by a related-to link')
+def step_given_reference_link(context, second, first):
+    link_references(state(context).client, first, second, "related_to", "human", actor="editor", now=NOW)
+
+
+@when("the concept report is built")
+def step_build_report(context):
+    from papyrus_newsroom.coverage_theme import _concept_report_context
+
+    refs, nodes = _report_inputs(context)
+    relations = list(state(context).client.tables["SemanticRelation"].values())
+    context.rl.report = _concept_report_context(references=refs, semantic_nodes=nodes, semantic_relations=relations, corpus_key="", node_kinds=[], now=NOW)
+
+
+@then('the concept "{node}" has {count:d} distinct Reference in the report')
+def step_report_count(context, node, count):
+    mentions = context.rl.report["mentionsByConcept"]["node-voice-v1"]
+    assert len({m["referenceLineageId"] for m in mentions}) == count, mentions
+
+
+@then('the concept page data for "{node}" lists "{reference}" as a linking Reference')
+def step_page_data(context, node, reference):
+    from papyrus_content.ontology_enrichment import rank_concepts
+
+    rl = context.rl
+    relations = list(rl.client.tables["SemanticRelation"].values())
+    ranked = rank_concepts({"models": {"SemanticNode": [{**rl.node, "versionState": "current"}], "SemanticRelation": relations}}, include_profile_status=False)
+    assert ranked and ranked[0]["acceptedReferenceMentions"] == 1, ranked
+
+
+@then("the Reference-to-Reference link is not counted as a concept mention")
+def step_not_counted(context):
+    mentions = context.rl.report["mentionsByConcept"]["node-voice-v1"]
+    assert {m["referenceLineageId"] for m in mentions} == {"reference-a"}, mentions
