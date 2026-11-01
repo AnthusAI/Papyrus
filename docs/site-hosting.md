@@ -733,7 +733,7 @@ A new site therefore deploys its backend twice:
    leaves out the optional model groups in `OPTIONAL_MODEL_GROUPS` (`amplify/data/schema.ts`): editions, knowledge,
    semantic, review, procedures, editorial checks and steering. Nothing else depends on those models, so the schema
    stays valid. A minimal site synthesizes to about 1,700 resources (a site with the `home-page` plugin: 1,678), well
-   under the limit. `scripts/test-bootstrap-stage.ts` holds the figure under 2,000.
+   under the limit. `scripts/test-bootstrap-stage.ts` holds the figure under 2,000. Plugins add their own models (reader-steering plus signup: 2,030), so a site with many plugins has less headroom; check it with `npx tsx scripts/synth-site-backend.mts <dir> '<backend json>'` under `PAPYRUS_BOOTSTRAP_STAGE=1`.
 2. **Second deploy, normal.** Remove the variable and deploy again. This is an ordinary update that adds the deferred
    models (about 1,000 resources, created in the one update).
 
