@@ -269,6 +269,7 @@ PORTED_COMMANDS = frozenset(
         "references:reject",
         "references:request-delegation",
         "references:list-predictions",
+        "references:audit",
         "references:auto-accept",
         "references:review-classification",
         "references:label",
@@ -578,6 +579,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_review_curation(flags)
     elif route == "references:list-predictions":
         references_list_predictions(flags)
+    elif route == "references:audit":
+        from .relevance_audit import references_audit
+        references_audit(flags)
     elif route == "references:auto-accept":
         from .references_commands import references_auto_accept
         references_auto_accept(flags)
