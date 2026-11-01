@@ -305,7 +305,8 @@ def references_suggest_links(flags: list[str]) -> None:
         raise RuntimeError("Missing PAPYRUS_S3_VECTOR_INDEX_ARN and custom.knowledgeQuery.s3VectorIndexArn")
     client, _ = create_authoring_client()
     provider = S3VectorsProvider(vector_index_arn=index_arn, region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"))
-    print(json.dumps(suggest_for(client, provider, reference_id, corpus_id=corpus_id, dry_run=not apply), indent=2))
+    from .suggestion_calibration import load_calibration
+    print(json.dumps(suggest_for(client, provider, reference_id, corpus_id=corpus_id, calibration=load_calibration(client), dry_run=not apply), indent=2))
 
 
 def references_backfill_feed_keys(flags: list[str]) -> None:

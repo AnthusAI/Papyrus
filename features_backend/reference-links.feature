@@ -64,3 +64,16 @@ Feature: References are linked to each other and tagged with concepts, and a sug
     Given the neighbours of a Reference have similarities 0.91, 0.88, 0.85, 0.52, 0.50, 0.49
     When the number of neighbours to keep is chosen
     Then the first 3 neighbours are kept
+
+  Scenario: The Wilson cut once decisions exist
+    Given people decided 40 suggestions scored 0.50 as rejected and 40 suggestions scored 0.80 as accepted
+    When the suggestion cut is learned
+    Then the cut is 0.80
+    And a suggestion scored 0.85 is marked "likely"
+    And a suggestion scored 0.60 is marked "possible"
+
+  Scenario: No cut while there are too few decisions
+    Given people decided 3 suggestions scored 0.90 as accepted
+    When the suggestion cut is learned
+    Then there is no cut and the reason is "no cut: too few decisions"
+    And a suggestion scored 0.85 is not marked

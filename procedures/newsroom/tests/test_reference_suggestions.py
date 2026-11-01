@@ -129,6 +129,18 @@ class SuggestForTests(unittest.TestCase):
         result = suggest_for(client, provider, "reference-a", cut=lambda similarities: len(similarities), now=NOW)
         self.assertEqual({entry["lineageId"] for entry in result["references"]}, {"reference-b", "reference-c"})
 
+    def test_a_learned_cut_labels_the_neighbours_and_no_cut_labels_nothing(self):
+        from papyrus_content.suggestion_calibration import calibrate
+        client, provider = build()
+        unlabeled = suggest_for(client, provider, "reference-a", dry_run=True, calibration=calibrate([]))
+        self.assertTrue(all("label" not in entry for entry in unlabeled["references"]))
+        self.assertEqual(unlabeled["calibration"]["reference"]["reason"], "no cut: too few decisions")
+        decisions = [{"objectKind": "reference", "score": 0.5, "metadata": '{"provenance": "suggested", "decision": "rejected", "decidedBy": "user:s"}'}] * 40 + [
+            {"objectKind": "reference", "score": 0.99, "metadata": '{"provenance": "suggested", "decision": "accepted", "decidedBy": "user:s"}'}] * 40
+        labeled = suggest_for(client, provider, "reference-a", dry_run=True, calibration=calibrate(decisions))
+        self.assertTrue(all(entry["label"] in ("likely", "possible") for entry in labeled["references"]))
+        self.assertEqual(labeled["calibration"]["reference"]["threshold"], 0.99)
+
     def test_filters_only_accepted_in_the_corpus(self):
         client, provider = build()
         provider.add_reference("reference-d", 0.02, status="pending")
