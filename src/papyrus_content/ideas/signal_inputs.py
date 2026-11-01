@@ -7,12 +7,15 @@ Fields of ``SignalInputs``:
 
 * ``site``, ``loaded_at``: the publication key and the time of the read (ISO, from ``now``).
 * ``messages``: ``SignalMessage`` tuple, oldest first. Only Messages written by people (role ``human``/``user``, active, not deleted, with text)
-  count as human signal; each has ``message_id``, ``thread_id``, ``thread_kind``, ``anchor_key`` (the thread's ``primaryAnchorKey``),
+  count as human signal (role is the test: ``human`` or ``user``; assistant, system and tool Messages are machines); each has ``message_id``, ``thread_id``, ``thread_kind``, ``anchor_key`` (the thread's ``primaryAnchorKey``),
   ``created_at``, ``author_kind`` (staff, reader, ...) and ``text``.
 * ``votes``: ``HumanVote`` tuple for every Reference whose latest vote was cast by a person (``curationActorKind == "human"``, the only kind that
   trains), in every curation status. Each has ``reference_id``, ``lineage_id``, ``title``, ``url``, ``status``, ``voted_at``
   (``curationStatusUpdatedAt``), ``voted_by``, ``reason`` (``curationStatusReason``), ``reason_code``, ``section_id``, ``created_at`` (when the
   Reference arrived) and ``source_published_at`` (the two dates), and ``concept_ids``.
+* Relations are read only for References that can matter: those with a human vote, pending ones (the verdict is a relation, so a pending
+  Reference must be read to be judged) and those a Message thread is anchored on (``reference#<lineage>``). An accepted or rejected Reference with
+  no human vote and no thread triggers no query. The reads run concurrently (``DEFAULT_WORKERS``, one client copy per thread).
 * ``concept_links``: ``ConceptLink`` tuple, one per current SemanticRelation from a Reference to a semanticNode with predicate ``mentions`` or
   ``related_to`` (``related_to`` is the human "relates to this concept" link): ``reference_lineage_id``, ``concept_id``, ``predicate``.
   Links of every Reference the pass read, so a signal can use them for votes, for pending context and for Messages anchored on a Reference.
@@ -26,17 +29,21 @@ Fields of ``SignalInputs``:
 
 from __future__ import annotations
 
+import copy
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
 from ..reference_vote import ACTION_FOR_STATUS, HUMAN
+from ..knowledge_snapshot.parallel import DEFAULT_WORKERS, map_with_clients
 from .context import list_stories, story_entry
 from .digest import CORPUS_PREFIX, collect_references, iso, relations_of, relevance_of
 from .items import idea_rows
 from .monitor_stories import POSITIVE_LABEL
 
 CONCEPT_PREDICATES = ("mentions", "related_to")
+REFERENCE_ANCHOR_PREFIX = "reference#"
 HUMAN_ROLES = ("human", "user")
 MESSAGE_FIELDS = "id threadId sequenceNumber messageKind status role authorKind authorLabel content createdAt editedAt deletedAt"
 MESSAGES_QUERY = f"""
@@ -119,6 +126,14 @@ class SignalInputs:
     ideas: tuple[StoryRecord, ...]
 
 
+def independent_copy(client: Any) -> Any:
+    """A copy of the client with a connection of its own, for a worker thread (the pattern of monitor_stories.collect_monitored_items)."""
+    duplicate = copy.copy(client)
+    if hasattr(duplicate, "_connection"):
+        duplicate._connection = None
+    return duplicate
+
+
 def is_human_message(row: dict[str, Any]) -> bool:
     return (
         row.get("status") == "active"
@@ -139,11 +154,16 @@ def list_thread_messages(client: Any, thread_id: str) -> list[dict[str, Any]]:
             return found
 
 
-def load_messages(client: Any) -> tuple[SignalMessage, ...]:
+def load_messages(client: Any) -> tuple[tuple[SignalMessage, ...], set[str]]:
+    """(the human Messages, the lineage ids of the References any thread is anchored on)."""
     messages: list[SignalMessage] = []
+    anchored: set[str] = set()
     for thread in client.list_records("MessageThread"):
         if not thread or not thread.get("id"):
             continue
+        anchor = str(thread.get("primaryAnchorKey") or "")
+        if anchor.startswith(REFERENCE_ANCHOR_PREFIX):
+            anchored.add(anchor.removeprefix(REFERENCE_ANCHOR_PREFIX))
         for row in list_thread_messages(client, str(thread["id"])):
             if is_human_message(row):
                 messages.append(SignalMessage(
@@ -151,7 +171,7 @@ def load_messages(client: Any) -> tuple[SignalMessage, ...]:
                     anchor_key=str(thread.get("primaryAnchorKey") or ""), created_at=str(row.get("createdAt") or ""),
                     author_kind=str(row.get("authorKind") or "staff"), text=str(row["content"]).strip(),
                 ))
-    return tuple(sorted(messages, key=lambda message: (message.created_at, message.message_id)))
+    return tuple(sorted(messages, key=lambda message: (message.created_at, message.message_id))), anchored
 
 
 def concept_links_of(lineage: str, relations: list[dict[str, Any]]) -> list[ConceptLink]:
@@ -172,15 +192,24 @@ def story_record(entry: dict[str, Any], targets: str = "[]") -> StoryRecord:
     return StoryRecord(str(entry["id"]), entry["title"], entry.get("summary") or "", entry.get("section"), entry["state"], entry.get("date"), targets)
 
 
-def load_signal_inputs(client: Any, *, site: str, now: datetime) -> SignalInputs:
+def load_signal_inputs(
+    client: Any, *, site: str, now: datetime, workers: int = DEFAULT_WORKERS, client_factory: Callable[[], Any] | None = None
+) -> SignalInputs:
     """One read pass for the publication ``site``: Messages, human votes, concept links, pending verdicts, published Items and ideas."""
-    references = collect_references(client, [f"{CORPUS_PREFIX}{site}"], list(ACTION_FOR_STATUS), None)
+    references = sorted(collect_references(client, [f"{CORPUS_PREFIX}{site}"], list(ACTION_FOR_STATUS), None), key=lambda entry: str(entry["id"]))
+    messages, anchored = load_messages(client)
+    needed = [
+        row for row in references
+        if row.get("curationActorKind") == HUMAN or str(row.get("curationStatus") or "pending") == "pending" or str(row.get("lineageId") or row["id"]) in anchored
+    ]
+    read = map_with_clients(needed, lambda reader, row: relations_of(reader, row), client=client, client_factory=client_factory or (lambda: independent_copy(client)), workers=workers)
+    relations_by_id = {row["id"]: relations for row, relations in zip(needed, read)}
     links: list[ConceptLink] = []
     votes: list[HumanVote] = []
     pending: list[PendingReference] = []
-    for row in sorted(references, key=lambda entry: str(entry["id"])):
+    for row in needed:
         lineage = str(row.get("lineageId") or row["id"])
-        relations = relations_of(client, row)
+        relations = relations_by_id[row["id"]]
         reference_links = concept_links_of(lineage, relations)
         links.extend(reference_links)
         concepts = tuple(sorted({link.concept_id for link in reference_links}))
@@ -206,7 +235,7 @@ def load_signal_inputs(client: Any, *, site: str, now: datetime) -> SignalInputs
         for row in idea_rows(client)
     ]
     return SignalInputs(
-        site=site, loaded_at=iso(now), messages=load_messages(client), votes=tuple(votes), concept_links=tuple(links),
+        site=site, loaded_at=iso(now), messages=messages, votes=tuple(votes), concept_links=tuple(links),
         pending_context=tuple(pending), published=tuple(story_record(entry) for entry in stories), ideas=tuple(ideas),
     )
 

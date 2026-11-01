@@ -41,6 +41,7 @@ class FakeSignalClient:
         self.items = list(items)
         self.page_size = page_size
         self.message_pages = 0
+        self.relation_queries: list[str] = []
 
     def list_records(self, model: str) -> list[dict[str, Any]]:
         return {"MessageThread": self.threads, "Item": self.items}.get(model, [])
@@ -50,6 +51,7 @@ class FakeSignalClient:
         return [row for row in self.references if row["corpusId"] == corpus and row["curationStatus"] == status]
 
     def list_semantic_relations_by_subject_state(self, key: str) -> list[dict[str, Any]]:
+        self.relation_queries.append(key)
         return self.relations.get(key.split("#")[1], [])
 
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -128,3 +130,14 @@ def test_the_snapshot_is_frozen_and_reads_only_the_sites_corpus():
     assert len(inputs.votes) == 1 and inputs.site == "example-site" and CORPUS.endswith("example-site")
     with pytest.raises(dataclasses.FrozenInstanceError):
         inputs.site = "x"  # type: ignore[misc]
+
+
+def test_relations_are_read_only_for_votes_pending_and_thread_anchors():
+    plain, rejected_by_rule, anchored = voted(1, "accepted", actor=None), voted(2, "rejected", actor="cyclotron"), voted(3, "accepted", actor=None)
+    human, pending = voted(4, "accepted"), reference(5, status="pending")
+    client = FakeSignalClient(
+        references=[plain, rejected_by_rule, anchored, human, pending],
+        threads=[{"id": "t1", "threadKind": "reference_conversation", "primaryAnchorKey": f"reference#{anchored['lineageId']}"}],
+    )
+    load_signal_inputs(client, site="example-site", now=NOW)
+    assert sorted(client.relation_queries) == sorted(f"reference#{row['lineageId']}#current" for row in (anchored, human, pending))
