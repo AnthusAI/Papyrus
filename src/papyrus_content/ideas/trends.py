@@ -33,7 +33,7 @@ from collections.abc import Iterable
 from typing import Any, Callable
 
 from ..knowledge_snapshot.trends import SERIES_SHORT, TrendConfig, corpus_volume, exceeds_report, scan_window
-from . import dedupe, synthesis
+from . import dedupe, duplicate_cut, synthesis
 from .digest import iso
 from .excluded_hosts import is_excluded, normalize_hosts
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, comparison_documents
@@ -615,15 +615,16 @@ def build_input(snapshot: dict[str, Any], signals: list[dict[str, Any]], context
     item_handles = {identifier: handle for handle, identifier in handles.items() if handle.startswith("I")}
     items = collect_items(signals)
     behind = {identifier: [signal_handles[signal["id"]] for signal in signals if any(i["id"] == identifier for i in signal.get("items", []))] for identifier in items}
-    return {
+    model_input = {
         "mission": context.get("mission"), "policy": context.get("policy"),
         "allowed_sections": [section["title"] for section in context.get("sections", [])],
         "maximum_drafts": maximum, "snapshot_week_of": snapshot["asOf"],
         "signals": [signal_view(handle, by_id[identifier], by_id[identifier]["asOf"], item_handles) for handle, identifier in handles.items() if handle.startswith("S")],
         "items": [item_view(item_handles[identifier], item, behind[identifier]) for identifier, item in items.items()],
-        "recent_and_in_flight_stories": [{key: story.get(key) for key in ("title", "section", "state", "date", "summary") if story.get(key)} for story in context.get("stories", [])],
         "earlier_drafts": [{key: draft.get(key) for key in ("title", "state", "angle") if draft.get(key)} for draft in context.get("drafts", [])],
     }
+    model_input["recent_and_in_flight_stories"] = synthesis.fit_stories(model_input, context)
+    return model_input
 
 
 # --- the model call -------------------------------------------------------------------------------------------------------
@@ -942,7 +943,7 @@ def draft_trends(
     review_client: Any = None,
     model: str = synthesis.DEFAULT_MODEL,
     maximum: int = DEFAULT_MAXIMUM_DRAFTS,
-    threshold: float = dedupe.DEFAULT_THRESHOLD,
+    threshold: float | None = None,
     maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
     dry_run: bool = False,
     now: datetime | None = None,
@@ -952,7 +953,10 @@ def draft_trends(
 ) -> dict[str, Any]:
     """Drafts trend stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing."""
     moment = now or datetime.now(timezone.utc)
+    cut = duplicate_cut.resolve_threshold(review_client, threshold)
+    threshold = cut.threshold
     run: dict[str, Any] = {
+        "duplicateCut": cut.record(),
         "runId": run_id_for(snapshot["source"], moment), "kind": "trends-run", "publication": site, "startedAt": iso(moment), "model": model,
         "store": "dry-run" if dry_run else (idea_store.kind if idea_store else "json"), "dryRun": dry_run, "private": True,
         "snapshot": {"source": snapshot["source"], "asOf": snapshot["asOf"]},
@@ -1010,6 +1014,7 @@ def draft_trends(
         run["review"] = {"status": "skipped", "requested": False, "ideas": len(run["drafts"]), "note": "Dry run: nothing was filed, so no review was requested."}
     else:
         request_human_review(review_client, run, run["drafts"], noun="trend story draft")
+    run["storiesInPrompts"] = context.get("promptStories")
     run["finishedAt"] = iso(datetime.now(timezone.utc))
     if json_store and not dry_run:
         json_store.save_run(run)
