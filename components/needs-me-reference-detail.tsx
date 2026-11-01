@@ -8,6 +8,7 @@ import { isAutoAccepted, referenceReasonCode, normalizeReferenceCurationStatus }
 import { AutoAcceptedBadge } from "./auto-accepted-badge";
 import type { ReferenceRecord } from "../lib/category-repository";
 import type { NeedsMeEntry } from "../lib/needs-me-items";
+import { referenceDatesText } from "../lib/reference-links";
 import { DefaultOutcome, Heading, type DetailProps } from "./needs-me-bodies";
 import { decidedChoiceOf } from "./needs-me-shared";
 import { predictionFromDecision, ReviewCard, type CardPrediction } from "./reference-review-card";
@@ -49,7 +50,7 @@ export function ReferenceBody(props: DetailProps & { payload: Extract<NeedsMeEnt
         initialReason={referenceReasonCode(reference) ?? null}
         dek={dek}
         itemId={item.id}
-        meta={<><Heading item={item} />{auto ? <AutoAcceptedBadge actor={reference.curationStatusUpdatedBy} reason={reference.curationStatusReason} /> : null}</>}
+        meta={<><Heading item={item} /><span className="text-xs text-muted-foreground" data-reference-dates>{referenceDatesText(reference)}</span>{auto ? <AutoAcceptedBadge actor={reference.curationStatusUpdatedBy} reason={reference.curationStatusReason} /> : null}</>}
         onDecide={async () => undefined}
         prediction={cardPrediction(item, predictionLoading)}
         ratings={ratings}

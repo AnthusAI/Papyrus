@@ -24,6 +24,13 @@ Feature: Editors see and manage what a Reference is related to
     Then every Reference card says when it was published and when it was added
     And a Reference with no publication date says "published unknown"
 
+  Scenario: The feed card and the Reference detail show both dates
+    Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
+    When the editor looks at the feed card and the Reference detail header
+    Then each says "published <date> · added <date>" as plain text with no border
+    And a month-precision date reads "published Oct 2026" and a year-precision date reads "published 2026"
+    And a Reference with no publication date says "published unknown" and never shows the added date as published
+
   Scenario: Accepting a suggestion makes it a confirmed link
     Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
     When the editor accepts the suggested concept
