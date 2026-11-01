@@ -54,6 +54,8 @@ class EditorialStore(Protocol):
     def put_check_run(self, record: dict[str, Any]) -> None: ...
     def get_check_run(self, item_id: str) -> dict[str, Any] | None: ...
     def list_check_runs_by_lineage(self, lineage_id: str, limit: int) -> list[dict[str, Any]]: ...
+    # Optional: every current and draft story version of the site, for the cross-story boilerplate check.
+    # def list_story_versions(self) -> list[dict[str, Any]]: ...
 
 
 _DEFAULT = object()
@@ -438,6 +440,26 @@ def reusable_check_run(item: dict[str, Any], services: Services) -> dict[str, An
     return None
 
 
+def with_cross_story_findings(item: dict[str, Any], findings: list[dict[str, Any]], services: Services, segments: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """``findings`` with this version's cross-story boilerplate findings, computed now against the site's other stories.
+
+    These depend on the other stories, not only on this version's content, so they are never reused from an earlier
+    check. A store without ``list_story_versions`` (a policy file) has no corpus and adds none.
+    """
+    from . import cross_story_boilerplate as boilerplate
+
+    kept = [finding for finding in findings if finding.get("policyId") != boilerplate.POLICY_ID]
+    list_versions = getattr(services.store, "list_story_versions", None)
+    if list_versions is None:
+        return kept
+    lineage_id = item.get("lineageId") or item["id"]
+    others = [story for story in boilerplate.latest_stories(list_versions()) if story.lineage_id != lineage_id]
+    if not others:
+        return kept
+    index = boilerplate.ShingleIndex(others)
+    return kept + boilerplate.cross_story_findings(item.get("bodyMarkus") or "", lineage_id, index, segments)
+
+
 def check_item_version(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
     """Check one saved version of a story against its section's pack and store the result with the version.
 
@@ -450,18 +472,25 @@ def check_item_version(arguments: dict[str, Any], services: Services) -> dict[st
         raise ValueError(f"No item version {arguments['itemId']}.")
     reusable = reusable_check_run(item, services)
     if reusable is not None:
-        if reusable.get("id") != item["id"]:
+        stored = _awsjson_document(reusable.get("findings")) or []
+        findings = with_cross_story_findings(item, stored, services)
+        if reusable.get("id") != item["id"] or findings != stored:
             services.store.put_check_run({
-                **{key: reusable.get(key) for key in ("section", "contentHash", "packVersion", "violations", "reviews", "checkedAt")},
+                **{key: reusable.get(key) for key in ("section", "contentHash", "packVersion", "checkedAt")},
+                "violations": sum(1 for finding in findings if finding.get("status") == "violation"),
+                "reviews": sum(1 for finding in findings if finding.get("status") == "review"),
                 "id": item["id"], "itemId": item["id"], "lineageId": item.get("lineageId") or item["id"],
                 "versionNumber": int(item.get("versionNumber") or 1),
-                "findings": _awsjson_document(reusable.get("findings")) or [], "lanes": _awsjson_document(reusable.get("lanes")),
+                "findings": [{key: finding.get(key) for key in FINDING_SUMMARY_FIELDS if finding.get(key) is not None} for finding in findings],
+                "lanes": _awsjson_document(reusable.get("lanes")),
             })
+            return {**{key: reusable.get(key) for key in CHECK_SUMMARY_KEYS}, "itemId": item["id"], "violations": sum(1 for f in findings if f.get("status") == "violation"), "skipped": "unchanged"}
         return {**{key: reusable.get(key) for key in CHECK_SUMMARY_KEYS}, "itemId": item["id"], "skipped": "unchanged"}
     try:
         result = check_editorial({"body": item.get("bodyMarkus") or "", "format": "markus", "section": item.get("section")}, services)
     except EditorialChecksDisabled:
         return {"itemId": item["id"], "skipped": "disabled"}
+    result = {**result, "findings": with_cross_story_findings(item, result.get("findings") or [], services, result.get("segments"))}
     record = check_run_record(item, result, services.now())
     if services.last_check_request:
         record["packVersion"] = services.last_check_request["pack"].get("version")
@@ -538,6 +567,7 @@ LIST_FEEDBACK = "query ListEditorialFeedbacks($nextToken: String) { listEditoria
 CREATE_POLICY = "mutation CreateEditorialPolicy($input: CreateEditorialPolicyInput!) { createEditorialPolicy(input: $input) { id } }"
 UPDATE_POLICY = "mutation UpdateEditorialPolicy($input: UpdateEditorialPolicyInput!) { updateEditorialPolicy(input: $input) { id } }"
 GET_ITEM = "query GetItemForEditorialCheck($id: ID!) { getItem(id: $id) { id lineageId versionNumber section contentHash bodyMarkus } }"
+LIST_STORY_VERSIONS = "query ListStoryVersionsForEditorialCheck($versionState: String!, $nextToken: String) { listItemsByVersionStateAndUpdatedAt(versionState: $versionState, limit: 200, nextToken: $nextToken) { items { id lineageId versionNumber versionState slug bodyMarkus } nextToken } }"
 GET_CHECK_RUN = "query GetEditorialCheckRun($id: ID!) { getEditorialCheckRun(id: $id) { id } }"
 _CHECK_RUN_SELECTION = "id itemId lineageId versionNumber section contentHash packVersion violations reviews findings lanes checkedAt"
 GET_CHECK_RUN_RECORD = f"query GetEditorialCheckRunRecord($id: ID!) {{ getEditorialCheckRun(id: $id) {{ {_CHECK_RUN_SELECTION} }} }}"
@@ -617,6 +647,19 @@ class GraphQLEditorialStore:
 
     def get_item(self, item_id: str) -> dict[str, Any] | None:
         return self._execute(GET_ITEM, {"id": item_id})["getItem"]
+
+    def list_story_versions(self) -> list[dict[str, Any]]:
+        """The site's current and draft item versions, with their bodies, for the cross-story boilerplate check."""
+        rows: list[dict[str, Any]] = []
+        for state in ("current", "draft"):
+            token = None
+            while True:
+                page = self._execute(LIST_STORY_VERSIONS, {"versionState": state, "nextToken": token})["listItemsByVersionStateAndUpdatedAt"]
+                rows.extend(page["items"])
+                token = page.get("nextToken")
+                if not token:
+                    break
+        return rows
 
     def get_check_run(self, item_id: str) -> dict[str, Any] | None:
         return self._execute(GET_CHECK_RUN_RECORD, {"id": item_id})["getEditorialCheckRun"]

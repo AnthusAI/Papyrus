@@ -1,5 +1,6 @@
 import { getIntentName, getRequestType } from "ask-sdk-core";
 import type { IntentModule } from "../contracts";
+import { inReview, previous } from "../review/flow";
 import { currentPosition, NOTHING_PUBLISHED, readStory, say, sayAndEnd } from "../speech/conversation";
 import { sentence, wrapSpeak } from "../speech/ssml";
 
@@ -11,6 +12,7 @@ export const previousIntent: IntentModule = {
   create: (dependencies) => ({
     canHandle: (handlerInput) => getRequestType(handlerInput.requestEnvelope) === "IntentRequest" && getIntentName(handlerInput.requestEnvelope) === INTENT_NAME,
     handle: async (handlerInput) => {
+      if (inReview(handlerInput)) return previous(handlerInput, dependencies);
       const position = await currentPosition(handlerInput, dependencies);
       if (position === undefined) return sayAndEnd(handlerInput, NOTHING_PUBLISHED);
       if (position.current === null || position.current === 0) {

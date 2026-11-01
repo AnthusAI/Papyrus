@@ -55,6 +55,8 @@ export type SkillDependencies = {
   stories: PublicStorySource;
   /** Present only when the site turned account linking on. */
   tokens?: AccessTokenVerifier;
+  /** The newsroom bound to a linked editor's own access token (review/newsroom.ts). Present only with account linking. */
+  review?: (accessToken: string) => import("./review/newsroom").NewsroomReview;
 };
 
 export type InteractionModelSlot = { name: string; type: string; samples?: string[] };

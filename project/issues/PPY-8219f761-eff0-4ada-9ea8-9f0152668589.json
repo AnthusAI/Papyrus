@@ -1,0 +1,20 @@
+{
+  "id": "PPY-8219f761-eff0-4ada-9ea8-9f0152668589",
+  "title": "Conversation design: what editors will actually say around reviewing, and graceful handling of all of it",
+  "description": "Ryan, 2026-10-31: think hard about UX, because voice UX starts from a low point. Before the review intents are final, write a conversation design in docs/alexa.md and build it:\n- **Likely requests**, near each turn of reviewing: 'how many are left', 'undo that' / 'I changed my mind' (reopen the last vote), 'why do you think I'd like this' (say the Cyclotron's P and its review reason in plain words), 'who published it' / 'when', 'read the summary again', 'more detail', 'send it to my phone' (an Alexa app card with the source link), 'switch to best bets' / 'what needs my help' mid-queue, 'go back' / 'previous', 'skip', 'pause' / 'later', 'stop', 'what?' after a long summary, 'accept all of these' (refuse kindly: one at a time).\n- **Each one** either works or fails gracefully with a concrete next step. No dead ends, never 'I did not get that' without options, and the listener always knows where they are ('3 of 12, needs my help').\n- **Brevity**: short confirmations ('Accepted.'); prompts that shorten once the editor has heard them; nothing re-explained every turn.\n- **Tests**: a transcript test that runs whole conversations, including mishearings and these requests, against fakes, plus Gherkin scenarios for the important ones.\n- **Device check**: Ryan tries the list on a real Echo Show, and the misses become fixes.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:08.348068Z",
+  "updated_at": "2026-10-31T19:52:08.348101Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

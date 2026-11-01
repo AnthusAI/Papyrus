@@ -1,4 +1,5 @@
-"""Web-search monitors: a monitor's queries asked of Tavily, newest news since the monitor's last complete pass.
+"""Web-search monitors: a monitor's queries asked of the configured web-search chain (Tavily unless `WEB_SEARCH_PROVIDERS` or the
+monitor's own `searchProviders` says otherwise; see `web_search`), newest news since the monitor's last complete pass.
 
 Tavily's search has no result offset: one request returns at most `TAVILY_PAGE_LIMIT` (its own maximum) results.
 So the way to read *everything* it has is to narrow the date range: a window whose answer fills the page is split
@@ -10,7 +11,10 @@ Recency comes from each query's own high-water mark (`highWater` on its `QUERY#`
 read it to its end), never from a fixed window. A query that has no mark yet asks once with the config's `startDate`
 when it has one, else with Tavily's own default recency.
 
-Imports stay light on purpose: stdlib, `link_search` (stdlib) and `monitoring` / `monitoring_paging`.
+Only Tavily (and Perplexity) can bound a search by date. When another provider answers, the window is asked once and never split
+(`dateBounded` is false in its answer): splitting would only repeat the same results.
+
+Imports stay light on purpose: stdlib, `web_search` (stdlib) and `monitoring` / `monitoring_paging`.
 """
 from __future__ import annotations
 
@@ -18,7 +22,6 @@ import dataclasses
 from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import hashlib
-import json
 import re
 from typing import Callable
 from urllib.error import HTTPError, URLError
@@ -26,10 +29,10 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
-from .link_search import TAVILY_ENDPOINT, SearchUnavailable, TavilySearch
 from .monitoring import SourceItem, canonical_url
 from .monitoring_candidates import url_hash
-from .monitoring_paging import RateLimited, retry_after_seconds
+from .monitoring_paging import RateLimited
+from .web_search import ProviderFailure, SearchChain, SearchChainFailed, SearchError, SearchRequest, parse_names
 
 WEB_SEARCH = "web-search"
 TAVILY_SOURCE_URL = "https://api.tavily.com/search"   # the monitor config's sourceUrl (its host is the source type's)
@@ -38,7 +41,6 @@ TOPICS = ("news", "general")
 DEFAULT_INTERVAL_SECONDS = 3600
 TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 4_000_000
-_tavily = TavilySearch()        # reads the key lazily (TAVILY_API_KEY or the SSM parameter in PAPYRUS_TAVILY_KEY_PARAMETER)
 
 
 def validate_web_config(raw: dict) -> dict:
@@ -56,33 +58,69 @@ def validate_web_config(raw: dict) -> dict:
     if group is not None and (not isinstance(group, str) or not group.strip()):
         raise ValueError("Config candidateGroup must be a non-empty string")
     return {"topic": topic, "startDate": str(start) if start else None,
-            "candidateGroup": group.strip() if group else None}
+            "candidateGroup": group.strip() if group else None,
+            "searchProviders": search_providers(raw.get("searchProviders")),
+            "excludeDomains": domain_list(raw.get("excludeDomains"), "Config excludeDomains")}
+
+
+def search_providers(value) -> list[str]:
+    """The monitor's own provider chain (`searchProviders`: a list or a comma string), or [] to use the deployment's."""
+    if value is None or value == "" or value == []:
+        return []
+    if not isinstance(value, (str, list, tuple)):
+        raise ValueError("Config searchProviders must be a list or a comma separated string of provider names")
+    names = parse_names(value, strict=True)
+    if not names:
+        raise ValueError("Config searchProviders must name at least one provider")
+    return names
+
+
+def domain_list(value, label: str) -> list[str]:
+    """A list of bare domains (`example.org`, no scheme or path) for the providers' include / exclude filters."""
+    if value is None:
+        return []
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{label} must be a list of domains")
+    domains = []
+    for entry in value:
+        domain = str(entry or "").strip().lower()
+        if not domain or "/" in domain or ":" in domain or " " in domain or "." not in domain:
+            raise ValueError(f"{label} entries must be bare domains such as example.org, not {entry!r}")
+        if domain not in domains:
+            domains.append(domain)
+    return domains
 
 
 def web_source_id(url: str) -> str:
     return "w" + url_hash(url)[:32]
 
 
-def tavily_fetch(payload: dict) -> dict:
-    """One Tavily search. A 429 raises `RateLimited` (with Retry-After); no key raises `SearchUnavailable`."""
-    request = Request(TAVILY_ENDPOINT, data=json.dumps(payload).encode(), method="POST",
-                      headers={"Authorization": f"Bearer {_tavily.api_key()}", "Content-Type": "application/json"})
-    try:
-        with urlopen(request, timeout=TIMEOUT_SECONDS) as response:   # noqa: S310 - fixed https endpoint
-            body = response.read(MAX_RESPONSE_BYTES + 1)
-    except HTTPError as error:
-        if error.code == 429:
-            raise RateLimited("Tavily rate limit reached", retry_after_seconds(error.headers.get("Retry-After"))) from error
-        raise ValueError(f"Tavily search failed: HTTP {error.code}") from None
-    if len(body) > MAX_RESPONSE_BYTES:
-        raise ValueError("Tavily response exceeds the size bound")
-    try:
-        parsed = json.loads(body)
-    except ValueError as error:
-        raise ValueError("Tavily did not return JSON") from error
-    if not isinstance(parsed, dict) or not isinstance(parsed.get("results"), list):
-        raise ValueError("Expected a Tavily result list, not an error response")
-    return parsed
+def search_fetch(config: dict, chain: SearchChain | None = None) -> Callable[[dict], dict]:
+    """The monitor's search call: one request through its provider chain, answered in the Tavily result shape the feed reads
+    (`results`, `usage`) plus `provider`, `skipped` (why earlier providers were passed over) and `dateBounded`. A 429 that every
+    provider answered raises `RateLimited` (with the longest Retry-After), so the pass waits as it always has; no usable key
+    raises `SearchUnavailable`; any other failure is a `ValueError` naming each provider's failure kind."""
+    chain = chain or SearchChain(config.get("searchProviders") or None)
+
+    def fetch(payload: dict) -> dict:
+        request = SearchRequest(payload["query"], limit=int(payload.get("max_results") or TAVILY_PAGE_LIMIT), topic=payload.get("topic"),
+                                start_date=payload.get("start_date"), end_date=payload.get("end_date"),
+                                include_domains=tuple(payload.get("include_domains") or ()),
+                                exclude_domains=tuple(payload.get("exclude_domains") or ()))
+        try:
+            response = chain.run(request)
+        except SearchChainFailed as error:
+            if error.rate_limited:
+                raise RateLimited(str(error), error.retry_after) from None
+            raise ValueError(f"Web search failed: {error}") from None
+        except ProviderFailure as error:   # pragma: no cover - the chain wraps these
+            raise ValueError(f"Web search failed: {error}") from None
+        return {"results": [{"url": h.url, "title": h.title, "content": h.snippet, "score": h.score, "published_date": h.published}
+                            for h in response.hits],
+                "usage": response.usage, "provider": response.provider, "skipped": response.skipped_records(),
+                "dateBounded": response.date_bounded}
+
+    return fetch
 
 
 def _published(value) -> str | None:
@@ -191,7 +229,7 @@ def _split(start: str, end: str) -> tuple[list[str], list[str]]:
 
 
 def query_record(monitor_id: str, text: str, rationale: str, *, origin: str, created_by: str, now_iso: str,
-                 approved_by: str | None = None) -> dict:
+                 approved_by: str | None = None, exclude_domains=None, include_domains=None) -> dict:
     """A `QUERY#` record (docs/search-monitors.md). The id is stable for a monitor and text, so seeding twice is one record."""
     if origin not in ("drafted", "editor"):
         raise ValueError("Query origin must be drafted or editor")
@@ -202,7 +240,9 @@ def query_record(monitor_id: str, text: str, rationale: str, *, origin: str, cre
     return {"pk": f"MONITOR#{monitor_id}", "sk": f"QUERY#{query_id}", "id": query_id, "text": text, "rationale": rationale.strip(),
             "origin": origin, "createdBy": created_by, "createdAt": now_iso, "status": "active",
             "history": [{"at": now_iso, "by": created_by, "change": "created", "after": text, "reason": rationale.strip()}],
-            **({"approvedBy": approved_by, "approvedAt": now_iso} if approved_by else {})}
+            **({"approvedBy": approved_by, "approvedAt": now_iso} if approved_by else {}),
+            **({"excludeDomains": domain_list(exclude_domains, "Query excludeDomains")} if exclude_domains else {}),
+            **({"includeDomains": domain_list(include_domains, "Query includeDomains")} if include_domains else {})}
 
 
 def searchable(record: dict) -> bool:
@@ -217,10 +257,13 @@ def web_feed(config: dict, queries: list[dict], now: float, fetch: Callable[[dic
     (JSON): the pass's end time, the current query with its date window and the windows still to read, and the queries after
     it (each with its window), so a resumed pass needs nothing but the cursor. `stats[queryId]` collects what each query's
     QueryRun records: requests, results returned, credits, the windows asked."""
-    fetch = fetch or tavily_fetch
+    fetch = fetch or search_fetch(config)
 
     def plan(record: dict) -> dict:
-        return {"id": record["id"], "text": record["text"], "win": query_window(config, record.get("highWater"), now)}
+        excluded = domain_list([*(config.get("excludeDomains") or []), *(record.get("excludeDomains") or [])], "excludeDomains")
+        included = domain_list(record.get("includeDomains"), "Query includeDomains")
+        return {"id": record["id"], "text": record["text"], "win": query_window(config, record.get("highWater"), now),
+                **({"exclude": excluded} if excluded else {}), **({"include": included} if included else {})}
 
     def fetch_page(cursor):
         if cursor is None:
@@ -233,6 +276,10 @@ def web_feed(config: dict, queries: list[dict], now: float, fetch: Callable[[dic
         start, end = stack.pop()
         payload = {"query": current["text"], "topic": config["topic"], "search_depth": "basic", "include_answer": False,
                    "max_results": TAVILY_PAGE_LIMIT}
+        if current.get("exclude"):
+            payload["exclude_domains"] = current["exclude"]
+        if current.get("include"):
+            payload["include_domains"] = current["include"]
         if start:   # Tavily refuses a range that starts and ends on one day, so a one-day window also asks the day before
             first = (date.fromisoformat(start) - timedelta(days=1)).isoformat() if start == end else start
             payload.update(start_date=first, end_date=end)
@@ -244,7 +291,13 @@ def web_feed(config: dict, queries: list[dict], now: float, fetch: Callable[[dic
         credits = (response.get("usage") or {}).get("credits")
         used["credits"] += int(round(credits)) if isinstance(credits, (int, float)) and not isinstance(credits, bool) else 1
         used["windows"].append([start, end])
-        if len(results) >= TAVILY_PAGE_LIMIT and start and start < end:   # a full page: there may be more in this window
+        if response.get("provider"):
+            used.setdefault("providers", {}).setdefault(response["provider"], 0)
+            used["providers"][response["provider"]] += 1
+        for skip in response.get("skipped") or []:
+            if skip["message"] not in used.setdefault("skipped", []):
+                used["skipped"].append(skip["message"])
+        if len(results) >= TAVILY_PAGE_LIMIT and start and start < end and response.get("dateBounded", True):   # a full page: there may be more in this window
             older, newer = _split(start, end)
             stack += [older, newer]
         rest = list(cursor["rest"])

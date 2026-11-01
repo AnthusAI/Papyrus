@@ -63,6 +63,16 @@ export type ReaderSteeringConfig = {
     itemType: string;
     /** The section of that draft. */
     section: string;
+    /**
+     * Off unless set. When set, the snapshot worker reads each visible submission's link and asks a model which model, maker and task it is
+     * about (docs/reader-steering.md, Extraction). The plugin only grants read access to the key and lengthens the worker's timeout.
+     */
+    extraction?: {
+      /** The SSM SecureString that holds the API key: `/papyrus/<site>/openai-api-key`. */
+      apiKeyParameter: string;
+      /** The time a run may spend on extraction, in seconds. The worker's timeout is this plus a minute. */
+      seconds: number;
+    };
   };
   /**
    * The kinds of subject a signed-in reader may vote on and flag, by `{type, id}`. Default: items and submissions, which is
@@ -202,7 +212,11 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   if (combination !== "blend" && combination !== "shrinkage") throw new Error("reader-steering plugin ranking.combination must be blend or shrinkage");
   const shrinking = combination === "shrinkage";
   const snapshot = object(raw.snapshot, "snapshot", ["schedule", "intervalHours", "hypeMinimum"]);
-  const submissions = object(raw.submissions, "submissions", ["perDay", "similarHours", "kinds", "itemType", "section"]);
+  const submissions = object(raw.submissions, "submissions", ["perDay", "similarHours", "kinds", "itemType", "section", "extraction"]);
+  const extraction = object(submissions.extraction, "submissions.extraction", ["apiKeyParameter", "seconds"]);
+  if (submissions.extraction !== undefined && (typeof extraction.apiKeyParameter !== "string" || !AI_KEY_PARAMETER.test(extraction.apiKeyParameter))) {
+    throw new Error("reader-steering plugin submissions.extraction.apiKeyParameter must be the SSM SecureString name /papyrus/<site>/openai-api-key");
+  }
   const moderation = object(raw.moderation, "moderation", ["mode", "preModeration", "reportsPerDay", "ai"]);
   const mode = moderation.mode === undefined ? "human" : moderation.mode;
   if (!MODERATION_MODES.includes(mode as (typeof MODERATION_MODES)[number])) {
@@ -268,6 +282,9 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       kinds: kinds.length > 0 ? kinds : ["link"],
       itemType: lowercaseName(submissions.itemType, "submissions.itemType", "brief"),
       section: lowercaseName(submissions.section, "submissions.section", "unsectioned"),
+      ...(submissions.extraction === undefined
+        ? {}
+        : { extraction: { apiKeyParameter: extraction.apiKeyParameter as string, seconds: integer(extraction.seconds, "submissions.extraction.seconds", 240, 60, 840) } }),
     },
     subjects: { types: [...new Set(subjectTypes)] as (typeof SUBJECT_TYPES)[number][] },
     moderation: {

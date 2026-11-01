@@ -66,11 +66,13 @@ of it, and a failed capture (no body) is counted under its own failure instead.
 
 ## Search provider
 
-`papyrus_content.link_search` defines `SearchProvider` (`search(query, limit) -> list[SearchHit]`) and one implementation, `TavilySearch`,
-which uses the same endpoint and `TAVILY_API_KEY` as the newsroom's web search. Where an environment variable cannot hold the key (the
-deployed Lambdas), `PAPYRUS_TAVILY_KEY_PARAMETER` names an SSM SecureString (for example `/papyrus/shared/tavily-api-key`) that is read
-once with decryption; the function's role needs `ssm:GetParameter` on that parameter. With neither, search is skipped and the reason is
-`search_unavailable`.
+`papyrus_content.link_search` defines `SearchProvider` (`search(query, limit) -> list[SearchHit]`). Its default is the configured provider
+chain of `papyrus_content.web_search` (`WEB_SEARCH_PROVIDERS`, for example `openai,tavily`; Tavily alone when nothing is set), and
+`TavilySearch` remains as Tavily on its own. Tavily's key is `TAVILY_API_KEY`; where an environment variable cannot hold a key (the
+deployed Lambdas), `PAPYRUS_TAVILY_KEY_PARAMETER` (and `PAPYRUS_<PROVIDER>_KEY_PARAMETER` for the other providers, standard names
+`/papyrus/search/<provider>-api-key`) names an SSM SecureString (for example `/papyrus/shared/tavily-api-key`) that is read once with
+decryption; the function's role needs `ssm:GetParameter` on that parameter. A provider with no key is skipped; with no usable provider,
+search is skipped and the reason is `search_unavailable`; a chain whose providers all failed is `search_error`.
 
 ## Where it is used
 

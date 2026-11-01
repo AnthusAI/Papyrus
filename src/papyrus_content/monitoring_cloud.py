@@ -374,6 +374,8 @@ def record_query_runs(store, monitor_id: str, config: dict, queries: list[dict],
                        "requests": used.get("requests", 0), "resultsReturned": used.get("resultsReturned", 0),
                        "newCount": used.get("newCount", 0), "duplicateCount": used.get("duplicateCount", 0),
                        "credits": used.get("credits", 0),
+                       **({"providers": used["providers"]} if used.get("providers") else {}),
+                       **({"skipped": used["skipped"]} if used.get("skipped") else {}),
                        "stoppedBy": reading.stopped_by if carry else None})
     if reading.errors:
         return

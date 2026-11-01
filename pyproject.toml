@@ -10,7 +10,7 @@ dependencies = [
     "citeproc-py >=0.8.2,<1.0.0",
     # The `papyrus` CLI imports humanus at import time, and Papyrus is
     # integrating it more deeply, so it is a base dependency (Ryan, 2026-10-05).
-    "humanus >=0.33,<0.34",
+    "humanus >=0.34,<0.35",
     "biblicus >=1.15.0,<2",
     # The shared CLI login library: `papyrus login` stores sessions in the platform's secure store
     # (macOS Keychain, Linux Secret Service/kernel keyring/memory agent, Windows Credential Manager).

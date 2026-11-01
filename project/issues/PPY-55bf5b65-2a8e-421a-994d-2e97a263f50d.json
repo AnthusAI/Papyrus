@@ -3,7 +3,7 @@
   "title": "Implement launch, story navigation and required built-in intents with SSML from Markus",
   "description": "Handler (ASK SDK for Python): LaunchRequest reads the latest headlines; ReadStoryIntent (ordinal or title slot), Next, Previous, Repeat; AMAZON.HelpIntent, StopIntent, CancelIntent, FallbackIntent, NavigateHomeIntent; SessionEndedRequest. A Markus to SSML converter escapes text and stays under the speech-length limit. Content comes through the public published-story read path. Gherkin scenarios for every intent against a fake content source.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -29,11 +29,18 @@
       "text": "PR: https://github.com/AnthusAI/Papyrus/pull/946",
       "created_at": "2026-10-31T15:20:05.723505Z",
       "comment_type": "default"
+    },
+    {
+      "id": "2104f039-f173-49d5-a966-80c690d38c35",
+      "author": "home",
+      "text": "Done: voice intents, SSML from Markus and the public story source in AnthusAI/Papyrus#946. Ryan's first real-device test then exposed gaps, fixed in AnthusAI/Papyrus#958: headlines in everyday words, no dead ends, stories read in parts of about a minute with 'continue', no 'by by'.",
+      "created_at": "2026-10-31T19:52:05.592164Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-31T14:06:47.374030Z",
-  "updated_at": "2026-10-31T15:20:05.723756Z",
-  "closed_at": null,
+  "updated_at": "2026-10-31T19:52:05.783386Z",
+  "closed_at": "2026-10-31T19:52:05.783098Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

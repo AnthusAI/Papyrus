@@ -65,6 +65,7 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
         slug,
         section: headlineIndex === 0 ? "news" : "features",
         updatedAt: isoTimestampHoursBeforeBase(stageIndex * 3 + headlineIndex),
+        versionCreatedBy: stageKey === "idea" && headlineIndex === 0 ? "AI" : "Preview editor",
       };
     });
   });

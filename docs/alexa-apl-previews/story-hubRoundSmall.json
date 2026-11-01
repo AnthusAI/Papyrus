@@ -175,11 +175,14 @@
                   "item": {
                     "type": "Container",
                     "width": "100%",
+                    "shrink": 0,
                     "data": "${payload.storyData.paragraphs}",
                     "items": [
                       {
                         "type": "Text",
                         "text": "${data}",
+                        "width": "100%",
+                        "shrink": 0,
                         "color": "${payload.storyData.theme.text}",
                         "fontSize": "@bodySize",
                         "lineHeight": 1.4,
@@ -241,11 +244,14 @@
                   {
                     "type": "Container",
                     "width": "100%",
+                    "shrink": 0,
                     "data": "${payload.storyData.paragraphs}",
                     "items": [
                       {
                         "type": "Text",
                         "text": "${data}",
+                        "width": "100%",
+                        "shrink": 0,
                         "color": "${payload.storyData.theme.text}",
                         "fontSize": "@bodySize",
                         "lineHeight": 1.4,

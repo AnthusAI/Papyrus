@@ -3,17 +3,25 @@
   "title": "Never draft a Reference twice in monitor stories",
   "description": "monitor_stories files several Proposals for the same Reference (CPU cache x4, Bernstein x3); the docs promise once. Fix and dedupe.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c1176d2e-815d-4966-aea9-ea74c39b9009",
+      "author": "home",
+      "text": "Merged #929 (dedupe: same address, re-read before filing, synthesize targets). Released in 5.66.0.",
+      "created_at": "2026-11-01T11:58:33.258095Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:07:27.298785Z",
-  "updated_at": "2026-10-31T14:07:27.298913Z",
-  "closed_at": null,
+  "updated_at": "2026-11-01T11:58:33.374701Z",
+  "closed_at": "2026-11-01T11:58:33.374674Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

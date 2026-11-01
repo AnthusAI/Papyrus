@@ -21,9 +21,19 @@ default, so pushes run only the package smoke checks and publish nothing. Set it
 after the registry setup below is done. Local check: `npm run release:dry-run` with
 `GITHUB_TOKEN` set publishes nothing.
 
+- After a stable release the `back-merge` job merges `main` back into `develop` (Git Flow). The stable tag sits on main's merge
+  commit, so without it semantic-release on develop cannot see the tag and keeps numbering prereleases from an old version.
+
 ## Trying a prerelease in a publication
 
+Every merge to `develop` that carries a `feat:` or `fix:` publishes `X.Y.Z-next.N` (npm dist-tag `next`, PyPI `X.Y.Z.devN`),
+built from develop exactly as a release is built from main. To develop a site feature without promoting to `main` each time,
+pin the site to that exact prerelease, the same way it pins a release (the site's `package.json`, `infra/package.json` and
+`infra/site.json` `papyrusVersion`), and put the site change in the same pull request so it deploys once. Go back to a stable
+version once the feature is released.
+
 ```
+npm view @anthusai/papyrus dist-tags.next      # the newest develop prerelease
 npm i @anthusai/papyrus@next
 pip install --pre papyrus-newsroom
 ```

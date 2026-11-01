@@ -18,7 +18,7 @@ import { performProposalMove } from "../lib/proposals-client";
 type GraphResult = { data?: Record<string, { items?: ProposalRow[]; nextToken?: string | null } | null>; errors?: { message?: string }[] };
 const MAXIMUM_PAGES = 20;
 
-async function loadProposals(): Promise<ProposalRow[]> {
+export async function loadProposals(): Promise<ProposalRow[]> {
   const client = generateClient({ authMode: "userPool" });
   const rows: ProposalRow[] = [];
   let nextToken: string | null | undefined;

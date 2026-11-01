@@ -3,17 +3,25 @@
   "title": "Editor decisions on Proposed Stories train the idea pipeline",
   "description": "Accept/decline on Proposals (with reasons) become labels the idea pipeline and the site's relevance Cyclotron learn from, per the Cyclotron learning-loop standard.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "99e17fea-fc76-4f8b-9732-7d810549e10d",
+      "author": "home",
+      "text": "Merged #933: idea stage moves are the labels; papyrus ideas labels exports idea-accept rows. Cyclotron side requested on the Cyclotron board. Released in 5.66.0.",
+      "created_at": "2026-11-01T11:58:33.899729Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:07:27.522199Z",
-  "updated_at": "2026-10-31T14:07:27.522240Z",
-  "closed_at": null,
+  "updated_at": "2026-11-01T11:58:34.018080Z",
+  "closed_at": "2026-11-01T11:58:34.018035Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

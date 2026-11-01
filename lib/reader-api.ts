@@ -10,9 +10,10 @@ export const READER_MAXIMUM_BODY_BYTES = 4096;
 /** Larger bodies for actions that carry reader text: a URL, a title and a note; a comment of 2,000 characters. */
 export const READER_BODY_BYTES_BY_ACTION: Partial<Record<ReaderAction, number>> = { submit: 8192, comment: 12288, "comment-edit": 12288 };
 export const READER_MAXIMUM_SUBJECTS = 50;
+export const READER_SUBMISSION_ID = /^sub-[0-9a-f]{24}$/;
 export const READER_SUBJECT_KEY = /^[A-Za-z0-9._:-]{1,200}$/;
 
-export type ReaderAction = "me" | "handle" | "vote" | "rating" | "submit" | "comment" | "comment-edit" | "comment-delete" | "report" | "flag";
+export type ReaderAction = "me" | "handle" | "vote" | "rating" | "submit" | "extraction" | "extraction-confirm" | "comment" | "comment-edit" | "comment-delete" | "report" | "flag";
 
 export interface ReaderActionEvent {
   publication: string;
@@ -92,6 +93,13 @@ function subjectsFromQuery(request: NextRequest): { payload: Record<string, unkn
   return { payload: { subjects } };
 }
 
+/** `GET /api/reader/extraction?subject=sub-...`: one submission id, nothing else (the function checks it is the caller's own). */
+function submissionFromQuery(request: NextRequest): { payload: Record<string, unknown> } | { response: NextResponse } {
+  const subject = request.nextUrl.searchParams.get("subject") ?? "";
+  if (!READER_SUBMISSION_ID.test(subject)) return { response: failure(400, "invalid_subject", "Send the id of a submission you filed.") };
+  return { payload: { subject } };
+}
+
 async function signedInReaderSession(request: NextRequest, options: ReaderApiOptions): Promise<ProspectusSignedInSession | null | "unavailable"> {
   const sealingSecret = await (options.loadSealingSecret ?? (() => loadProspectusSessionSealingSecret({ environment: options.environment })))();
   if (!sealingSecret) return "unavailable";
@@ -120,6 +128,8 @@ export async function handleReaderRequest(request: NextRequest, action: ReaderAc
   let parsed: { payload: Record<string, unknown> } | { response: NextResponse };
   if (action === "me") {
     parsed = subjectsFromQuery(request);
+  } else if (action === "extraction") {
+    parsed = submissionFromQuery(request);
   } else {
     if (request.headers.get("origin") !== origin) return failure(403, "origin_mismatch", "This request did not come from this site.");
     parsed = await readJsonBody(request, READER_BODY_BYTES_BY_ACTION[action] ?? READER_MAXIMUM_BODY_BYTES);

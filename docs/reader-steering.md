@@ -67,6 +67,8 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `comments.maximumLength` | 2000 | Characters in a comment. |
 | `comments.maximumLinks` | 3 | Links (`http://`, `https://` or `www.`) in a comment. |
 | `proposals.publish` | `false` | Publish proposals, in every state, as public `_data/proposals/` files. Off by default: proposals stay private records (AI-filed story ideas are private drafts) until a site opts in. Sets `PAPYRUS_READER_PUBLISH_PROPOSALS` (`true` or `false`) on content-actions. Turning it off stops further updates; it does not delete files already published. See [Proposals](#proposals). |
+| `submissions.extraction.apiKeyParameter` | unset | Turns extraction on (see [Extraction](#extraction)). The SSM SecureString that holds the model's API key, named `/papyrus/<site>/openai-api-key`. The plugin lets the snapshot worker (`content-actions`) read this one parameter and never creates it. Without it nothing is fetched and submissions stay `extractionState: "pending"`. |
+| `submissions.extraction.seconds` | 240 | 60 to 840. The time one run may spend on extraction. The worker's timeout becomes this plus 60 seconds, for this site only. |
 | `submissions.itemType`, `submissions.section` | `brief`, `unsectioned` | The type and section of the draft item that promoting a submission creates. |
 | `moderation.mode` | `human` | `human`: new submissions and comments are public at once and wait in the Administration queue. `off`: no queue; moderators can still hide, ban and undo. `ai`: a model decides each new item, with human override. See [Moderation](#moderation). |
 | `moderation.ai.apiKeyParameter` | required in `ai` mode | The SSM SecureString that holds the model's API key, named `/papyrus/<site>/openai-api-key`. The plugin only grants read access to this one parameter; it never creates it. |
@@ -119,6 +121,8 @@ Next route handlers in the CMS app: `app/api/reader/*`, `Cache-Control: no-store
 | `POST /api/reader/comment/edit` | `{id, body}` | `200 {id, body, editedAt}`; `403 edit_window_closed`; `404` for a comment that is not the caller's. |
 | `POST /api/reader/comment/delete` | `{id}` | `200 {id, state: "deleted"}`; idempotent. |
 | `POST /api/reader/submit` | `{url, title, kind?, note?}` | `201 {subject, url, title, kind, state: "pending", extraction: "pending", similar: [{subject, url, title}]}`. `409 duplicate_submission` with `existing: {subject, url, title, state}`. See [Submissions](#submissions). |
+| `GET /api/reader/extraction?subject=sub-...` | | `200 {subject, url, title, state, extraction, confirmation}`: what the worker pulled out of the caller's own submission (see [Extraction](#extraction)). `404 unknown_submission` for a submission that is not the caller's, exactly as for one that does not exist. `400 invalid_subject`. |
+| `POST /api/reader/extraction/confirm` | `{subject, decision: "confirm" \| "correct", model?, maker?, task?}` | `200` with the same shape as the read, `confirmation` filled in. `409 extraction_not_ready`, `409 nothing_to_confirm`, `404 unknown_submission`, `422`. See [Extraction](#extraction). |
 
 The subject is the lineage id of a published item, or the id of a visible submission (`sub-` plus 24 hex characters). The
 function checks it against the `PublishedItem` table or the `ReaderSubmission` table (`404 unknown_subject`; a hidden
@@ -233,7 +237,7 @@ This shape is stable: fields may be added, never renamed or removed.
 |---|---|---|
 | `ReaderProfile` | the siteSubject | `siteSubject`, `readerId` (UUID, public), `handle`, `state` (`active`, `limited`, `banned`), `karma` (materialised by the snapshot), `createdAt` |
 | `ReaderHandle` | the lowercase handle | `readerId`. A claim written together with the profile's handle in one transaction, which is what makes a handle unique. |
-| `ReaderSubmission` | `sub-` + the first 24 hex characters of the SHA-256 of the canonical URL | `canonicalUrl`, `domain`, `title`, `kind`, `note`, `readerId`, `state` (`pending`, `promoted`, `hidden`), `similar` (submission ids), `signals` (JSON string), `extractionState`, `itemId`, `reviewedAt`, `createdAt`. A secondary index `submissionsByDomain` (`domain`, `createdAt`) finds recent items from one site. |
+| `ReaderSubmission` | `sub-` + the first 24 hex characters of the SHA-256 of the canonical URL | `canonicalUrl`, `domain`, `title`, `kind`, `note`, `readerId`, `state` (`pending`, `promoted`, `hidden`), `similar` (submission ids), `signals` (JSON string), `extractionState` (`pending`, `extracted`, `failed`), `extraction`, `extractedAt`, `extractionConfirmation` (see [Extraction](#extraction)), `itemId`, `reviewedAt`, `createdAt`. A secondary index `submissionsByDomain` (`domain`, `createdAt`) finds recent items from one site. |
 | `ReaderComment` | `cmt-` + 32 hex characters | `subjectKey`, `readerId`, `body` (empty once deleted), `parentId`, `ratingContext` (JSON string `{dimension, value}`), `state` (`visible`, `hidden`, `deleted`), `signals`, `reviewedAt`, `editedAt`, `deletedAt`, `createdAt` |
 | `ReaderReport` | `rep-` + 24 hex characters of the SHA-256 of `readerId#target` | `targetType`, `target`, `reporterReaderId`, `reason`, `state` (`open`, `closed`), `closedAt`, `createdAt`. An index `reportsByTarget`. |
 | `ModerationAction` | `mod-` + 32 hex characters | `by` (`human`, `ai`), `actorSub` (the staff member's Cognito subject, or `ai`), `action`, `targetType` (`submission`, `comment`, `reader`), `target`, `reason`, `fromState`, `toState`, `fromModeration`, `toModeration`, `undoOf`, `undoneBy`, `at`. An index `actionsByTarget`. |
@@ -418,7 +422,7 @@ validates a Cognito editor identity, records `user:<sub>` as the actor and write
 attachments. A reader has none of that, and a Reference carries no field for reader provenance. A submission therefore
 lives in its own table, keyed by the canonical URL, with the reader's `readerId` as provenance. The plugin
 function canonicalises with a verbatim copy of `canonical_source_url` (the function ships alone, without the package); a test
-pins the two to the same answers. A later extraction step (below) is where a submission meets References and entities.
+pins the two to the same answers. The extraction step (see [Extraction](#extraction)) is where a submission meets References and entities.
 
 **The request.** Validation, then the rate limit, then the duplicate check:
 
@@ -440,9 +444,7 @@ of `{source, policy, detector, severity, excerpt}` built from Humanus rule check
 `ai-writing-tells` pack and a small `reader-spam` pack (promotion, shouting), both on title and note, plus a URL shortener check
 (`reader_steering/signals.py`). Signals are advice for moderators; they never hide anything. Nothing runs in the request.
 
-**Extraction hook.** Entity extraction is not LLM based and runs later in the worker. For now the submit path stores the link and
-the reader's text only, and `extractionState` stays `pending`; the worker step that fills it in (owned by the knowledge-base
-work) reads `pending` rows and leaves `pending` alone until it succeeds. Nothing in the request waits for it.
+**Extraction.** The request only stores the link and the reader's text; `extractionState` starts `pending`. What the link is about is worked out later, in the worker (see [Extraction](#extraction)).
 
 **Public file.** `_data/reader/submissions.json`:
 
@@ -462,6 +464,66 @@ Newest first, at most 200, `pending` and `promoted` only: a hidden submission is
 on a submission use the existing vote route with `subject` set to its id, and appear in `items.json` under that id.
 
 A deleted reader's submissions are deleted by the retirement poll and a merged reader's move to the surviving profile.
+
+## Extraction
+
+After a reader files a link, the snapshot worker works out which **model**, which **maker** and which **task** the link is about, so the Submit page can show "Confirm what the map pulled out" and the reader can confirm it or correct it. It is off unless the site sets `submissions.extraction.apiKeyParameter` (see the settings table); nothing in the request path waits for it.
+
+**When it runs.** Last in the `reader-snapshot` run, after the public files are written and the edge is purged, so a slow link can never delay the numbers. It takes every submission that is *visible* (`pending` or `promoted`) and still `extractionState: "pending"`, oldest first. That is the moderation rule: a submission held by pre-moderation, or hidden by a moderator or the AI moderator, is never fetched; once a moderator approves or shows it again, the next run picks it up. With the default `human` mode a submission is public at once, so it is read at once. The run is bounded by the time `submissions.extraction.seconds` allows (a link needs at most 20 seconds to fetch and 30 for the model), not by a count; what does not fit waits for the next run, and every submission is also a trigger, because a submit schedules a snapshot run a minute later.
+
+**What it does** (`src/papyrus_content/reader_steering/extraction.py`):
+
+1. Reads the link with `link_exploration.explore` (public http(s) only, redirects and trackers resolved, HTML and PDF), with the search fallback off: only the page the reader gave counts.
+2. Asks the model, `DEFAULT_LLM_MODEL` from `model_defaults.py`, through the Responses API (`store: false`, JSON object output), for `{model, maker, task}`, each a short name or `null`. The reader's title and note and the page text go in as data in the request input, never in the instructions, and the instructions tell the model to ignore instructions inside them. The model never sees a `readerId`, handle or siteSubject. The API key is read from the one SSM parameter when the run starts, held only by the transport, and never logged or stored; an error is recorded by class name.
+3. Matches each name to an **accepted** knowledge entity (`SemanticNode`, current version) by name or alias, ignoring case and white space, the way the knowledge snapshot matches names. `model` also matches a model family; a `maker` matches only a maker and a `task` only a task. A name that two entities share matches nothing (a guess is worse than none), and a proposed or rejected entity is never matched. The link is matched to a current `Reference` by its canonical address (tracking parameters and fragment dropped).
+4. Stores the result on the submission and sets `extractionState: "extracted"`.
+
+**What is stored.** On `ReaderSubmission` (all private, staff-readable like the rest of the model, never in a public file):
+
+- `extraction`: a JSON string. Extracted: `{version, at, model, maker, task, reference, llm, seconds}` where each of `model`, `maker`, `task` is `null` or `{name, match: {key, name, kind} | null}`, `reference` is `null` or `{lineageId, title}` and `llm` is `{model, promptVersion}`. Failed: `{version, at, failure}` or, while it will be retried, `{version, at, lastFailure}`.
+- `extractionState`: `pending`, `extracted` or `failed`.
+- `extractedAt`: when the state last moved.
+- `extractionConfirmation`: the reader's answer, a JSON string `{status: "confirmed" | "corrected", at, model, maker, task}` (same field shape, `match` kept only where the name is unchanged).
+
+**Failures are recorded, never fatal.** A reason that will not change ends in `failed` with the typed reason of link exploration (`http_4xx`, `not_public`, `unreadable`, `dns`, `tls`, `blocked`, `too_large`, ...) or `no_text` or `empty_answer` (the model found none of the three). A reason that may pass (`timeout`, `http_5xx`, `connection`, `model_failed`, an unexpected error by class name) leaves the row `pending` with `lastFailure`, and the next run tries again. Three model failures in a row end the run (the rest wait). A knowledge base that cannot be read leaves everything pending and reports `extraction.error`. The run report carries `extraction: {enabled, extracted, failed, retry, notReached, error}`. Nothing here ever fails the snapshot run.
+
+**The read API (reader-scoped).** Two routes in the CMS app, the same session, `readerSubject`, Origin and size checks as every other reader route, both `Cache-Control: no-store`; the `reader-actions` function does the work (actions `extraction` and `extraction-confirm`).
+
+`GET /api/reader/extraction?subject=sub-<24 hex>` answers `200`:
+
+```json
+{
+  "subject": "sub-0123456789abcdef01234567",
+  "url": "https://example.com/post",
+  "title": "A small tool",
+  "state": "pending",
+  "extraction": {
+    "state": "extracted",
+    "model": { "name": "whisper", "match": { "key": "model--whisper", "name": "Whisper", "kind": "model" } },
+    "maker": { "name": "OpenAI", "match": null },
+    "task": null,
+    "knownReference": true
+  },
+  "confirmation": null
+}
+```
+
+- `state` is the submission's: `pending`, `promoted` or `held` (a hidden submission reads as held, as in the submit answer).
+- `extraction.state` is `pending` (not read yet; only `state`), `extracted` (`model`, `maker`, `task`, each `null` or `{name, match}`, and `knownReference`: whether the link is already a Reference in the newsroom, a boolean only) or `failed` (`reason`, the typed reason).
+- `confirmation` is `null` until the reader answers, then `{status: "confirmed" | "corrected", at, model, maker, task}` with the same field shape.
+
+`POST /api/reader/extraction/confirm` takes `{subject, decision, model?, maker?, task?}`:
+
+- `decision: "confirm"` sends no fields and needs `extraction.state: "extracted"` (`409 nothing_to_confirm` otherwise). It records the extracted values as the reader's answer.
+- `decision: "correct"` sends at least one of `model`, `maker`, `task`. A field sent as a string (at most 120 characters, plain text, no email address) replaces the extracted one; a field sent as `null` says there is none; a field left out keeps the extracted value. It works after a failed extraction too, so the reader can fill in what the map could not find. A corrected name keeps its entity `match` only when it is the same name in other case; otherwise `match` is `null` (the worker does not re-match corrections yet).
+- Either decision answers `409 extraction_not_ready` while `extraction.state` is `pending`. A reader may answer again; the last answer stands. Unknown fields are `422`; a `limited` reader gets `403 reader_limited`; confirmations share the hourly action allowance (`limits.actionsPerHour`).
+- Reading is allowed to a `banned` reader (it is their own record); changing is not (`403 reader_banned`).
+
+**What a confirmation changes: nothing else.** It records the reader's answer on the submission row. It creates no Reference, entity, vote or item, changes no state or moderation, and does not feed the ranking or karma. Staff can read `extractionConfirmation` on the staff-readable `ReaderSubmission` model; using it (to promote with the right entities, or to train the extractor) is a later decision.
+
+**Privacy.** The extraction and the confirmation belong to the reader who filed the submission. The function compares the submission's `readerId` with the caller's profile and answers an identical `404 unknown_submission` whether the id is someone else's or does not exist, so a reader cannot probe for other readers' submissions. The reader sees names and public entity matches only: never the Reference id or title (only that one exists), the model, the prompt version, the page text, a `readerId`, a handle or a siteSubject. `submissions.json` and every other public file never carry any of these fields, and the privacy scan test covers a submission with an extraction and a correction. There is no AppSync query or mutation for readers: readers have no Cognito identity (their identity is the Prospectus session), so, like every reader action, this goes through the CMS route and the `reader-actions` function, which only the CMS compute role may invoke.
+
+**Cost and resources.** A site that does not set `submissions.extraction` gets no new IAM statement, environment variable, timeout change or table; the only schema change is three optional fields on `ReaderSubmission`, which exists only with the plugin. `test-reader-steering-plugin.ts` pins this, and a synth of the plugin without the setting is byte-identical to the one before this change. With the setting: one `ssm:GetParameter` on the named parameter, two environment variables on `content-actions`, and its timeout becomes `seconds + 60`. Matching lists the `SemanticNode` and `Reference` models through the worker's existing authoring client, once per run and only when a submission is waiting.
 
 ## Comments
 
@@ -834,6 +896,7 @@ handles are only ever set as text. While the API answers `503 reader_identity_un
 - `procedures/newsroom/tests/test_reader_submissions.py` and `features_backend/reader-submissions.feature`: submit, the canonical URL
   parity with reference intake, dedupe, similar, validation, the daily limit, votes and karma, the snapshot file, the review signals
   (with real Humanus rules) and retirement of submissions, against moto.
+- `procedures/newsroom/tests/test_reader_extraction.py` and `features_backend/reader-submission-extraction.feature`: the extraction step with a scripted page and model (matching, held submissions, permanent and passing failures, the time budget, no identity in the model request), the read and confirm actions (own submission only, the identical 404, corrections, limits), and that no public file carries any of it.
 - `procedures/newsroom/tests/test_reader_ai_moderation.py`: the AI step with a stubbed model and the network closed: allow and hide, human override and undo, held content, failures, deadline,
   the key (read from the one parameter, absent from every log, result and row), the prompt file, what the model sees, and the scheduling; `scripts/test-reader-steering-plugin.ts` pins the IAM.
 - `procedures/newsroom/tests/test_reader_moderation.py` and `features_backend/reader-moderation.feature`: reports, every transition, the stale-view guard,

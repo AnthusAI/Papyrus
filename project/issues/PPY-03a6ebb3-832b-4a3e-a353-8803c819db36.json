@@ -3,17 +3,25 @@
   "title": "Accept a Proposed Story creates the story (proposals accept --create-story)",
   "description": "Approving a story_draft Proposal today creates nothing. Accept should create the content item (story_from_story_draft path), link it to the Proposal and its References, and move it to copywriting.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "568984f3-42d2-40d2-93d3-3d1f232aebaf",
+      "author": "home",
+      "text": "Replaced by the idea-Items model (Ryan 10-31: proposed and idea are one stage). Merged #930: generated ideas filed as Items at idea, migrate-proposals command (dry run by default). Released in 5.66.0.",
+      "created_at": "2026-11-01T11:58:33.470748Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:07:27.025285Z",
-  "updated_at": "2026-10-31T14:07:27.025341Z",
-  "closed_at": null,
+  "updated_at": "2026-11-01T11:58:33.588586Z",
+  "closed_at": "2026-11-01T11:58:33.588558Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

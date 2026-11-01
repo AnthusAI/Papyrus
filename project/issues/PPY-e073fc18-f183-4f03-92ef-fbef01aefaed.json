@@ -1,0 +1,22 @@
+{
+  "id": "PPY-e073fc18-f183-4f03-92ef-fbef01aefaed",
+  "title": "Knowledge snapshot: weekly cluster history (clusters-history.json) with lineage events",
+  "description": "Requested by the Shipped session for Ryan (\"Yes, do both\", 2026-10-31). Planning, no rush ahead of the Shipped console move.\n\nGoal: the knowledge snapshot exposes a per-week cluster history so a site can render a \"cluster river\" (signals per cluster per week, with births, merges and splits) and a \"what continued, was born, merged or split\" panel.\n\nShape: for each weekly asOf, each cluster's stable id, label and item count, plus lineage events (born, continued, merged_from, split_into). The topic-model stage already keeps topic identity against the previous run in S3; expose that as clusters-history.json beside clusters.json in the knowledge snapshot, and add a KnowledgeSource accessor (e.g. history()) for projectors.\n\nConsumer: Shipped-web hooks _map_river and _map_sample_river_html (Map) and the Front changes panel.\n\nAcceptance: Gherkin for history across three weekly runs with a birth, a merge and a split; the snapshot file and accessor documented; no identity data; reconcile treats the file as task-owned.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "shipped"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T20:08:12.479857Z",
+  "updated_at": "2026-10-31T20:08:12.479981Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

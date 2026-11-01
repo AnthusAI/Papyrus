@@ -278,6 +278,7 @@ def run_snapshot(
     ranking: dict | None = None,
     subject_types: tuple[str, ...] | None = None,
     publish_proposals: bool | None = True,
+    extraction: Any = None,
 ):
     """The reader-snapshot task against the backend's moto tables and a page writer, one minute after the backend's clock."""
     published_ids = {published_item_id_for(subject) for subject in published}
@@ -318,4 +319,5 @@ def run_snapshot(
         comment_signals=comment_signals,
         retirement_poll=retirement_poll,
         poll_retirements=poll_retirements,
+        extraction=extraction,
     )

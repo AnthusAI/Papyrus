@@ -1,5 +1,6 @@
 import { assertUniqueIds, type AplDocument } from "../contracts";
 import { feedDocument } from "./feed";
+import { referenceDocument } from "./reference";
 import { storyDocument } from "./story";
 
 /**
@@ -9,6 +10,7 @@ import { storyDocument } from "./story";
  */
 export const APL_DOCUMENTS: readonly AplDocument[] = [
   feedDocument,
+  referenceDocument,
   storyDocument,
 ];
 

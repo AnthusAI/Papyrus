@@ -1,6 +1,6 @@
 import { getIntentName, getRequestType, getSlotValue } from "ask-sdk-core";
 import type { IntentModule } from "../contracts";
-import { currentPosition, NOTHING_PUBLISHED, readStory, sayAndEnd, say, storyNumber } from "../speech/conversation";
+import { currentPosition, NOTHING_PUBLISHED, readHeadlines, readStory, sayAndEnd, say, storyNumber, welcomeIfNew } from "../speech/conversation";
 import { sentence, wrapSpeak } from "../speech/ssml";
 
 export const INTENT_NAME = "ReadStoryIntent";
@@ -16,9 +16,8 @@ export const readStoryIntent: IntentModule = {
 
       const number = storyNumber(getSlotValue(handlerInput.requestEnvelope, "ordinal"), getSlotValue(handlerInput.requestEnvelope, "number"));
       const count = position.headlines.length;
-      if (number === undefined) {
-        return say(handlerInput, wrapSpeak(sentence("Which story would you like? Say the number, like the second one.")), wrapSpeak(sentence("Say the number of a story.")));
-      }
+      // No number ("read me something", "I don't know"): the list is the answer, never a question with no options.
+      if (number === undefined) return readHeadlines(handlerInput, dependencies, { greeting: welcomeIfNew(handlerInput, dependencies), position });
       if (number < 1 || number > count) {
         const range = count === 1 ? "I only have one story" : `I only have ${count} stories`;
         return say(handlerInput, wrapSpeak(sentence(`${range}. Say a number from one to ${count}.`)), wrapSpeak(sentence("Say the number of a story.")));

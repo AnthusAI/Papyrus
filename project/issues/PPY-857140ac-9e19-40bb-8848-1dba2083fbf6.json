@@ -1,0 +1,20 @@
+{
+  "id": "PPY-857140ac-9e19-40bb-8848-1dba2083fbf6",
+  "title": "APL reference card for review",
+  "description": "An APL document for one reference: title, subtitle, summary, source name and date, the queue name and position ('3 of 12'), and Accept / Reject / Skip touch buttons. Touch sends the same actions as voice. All viewport profiles. No colour-only meaning. Gherkin covers it.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:08.525258Z",
+  "updated_at": "2026-10-31T19:52:08.525282Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

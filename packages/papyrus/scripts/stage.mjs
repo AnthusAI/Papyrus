@@ -130,6 +130,8 @@ const compileList = [...copied].filter((r) => /^amplify\/.*\.ts$/.test(r) && !HA
 compileList.push("lib/define-site.ts");
 // The alexa plugin's speech and content modules read the Markus IR types and schema version.
 compileList.push("lib/markus-ir.ts");
+// The alexa plugin's review flow shares the newsroom's ranking, reason-code and decision rules (never copies of them).
+compileList.push("lib/reference-policy.ts", "lib/newsroom-references.ts", "lib/reference-feed-ranking.ts", "lib/needs-me-ranking.ts", "lib/relevance-decisions.ts");
 const compiled = new Set(compileList.map((r) => r.replace(/\.ts$/, ".js")));
 const writeCompiled = (rel) => {
   const file = path.join(stage, rel);

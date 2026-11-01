@@ -17,7 +17,7 @@ const SESSION_KEY = "alexaPosition";
 
 export type Headline = { slug: string; title: string; deck?: string; byline?: string };
 /** Where the listener is: `current` is the index of the story being read, or `null` while they are at the headline list. */
-export type Position = { headlines: Headline[]; current: number | null };
+export type Position = { headlines: Headline[]; current: number | null; part?: number };
 
 function readPosition(handlerInput: HandlerInput): Position | undefined {
   const value = handlerInput.attributesManager.getSessionAttributes()[SESSION_KEY] as Position | undefined;
@@ -57,6 +57,11 @@ export const NOTHING_PUBLISHED = wrapSpeak(sentence("There are no published stor
 
 const HEADLINE_PROMPT = "Which one would you like to hear? Say the number, like the second one.";
 const HEADLINE_REPROMPT = "Say the number of the story you want to hear, or say help.";
+
+/** The welcome for the first request of a session (Alexa+ often opens a skill with an intent, not a launch). */
+export function welcomeIfNew(handlerInput: HandlerInput, dependencies: SkillDependencies): string | undefined {
+  return handlerInput.requestEnvelope.session?.new ? `Welcome to ${dependencies.config.skillName}.` : undefined;
+}
 
 /** Reads the headlines (the position's, or fresh ones) and asks which story. */
 export async function readHeadlines(
@@ -98,14 +103,64 @@ export function storyNumber(...values: (string | null | undefined)[]): number | 
 
 const NEXT_OFFER = "Say next for the next story, previous to go back, repeat to hear it again, or stop.";
 const LAST_OFFER = "That was the last of the latest stories. Say previous to go back, headlines for the list again, or stop.";
-const TRUNCATION_NOTICE = "That is as much of this story as I can read aloud.";
+const CONTINUE_OFFER = "Say continue to keep reading, or next for the next story.";
+const END_NOTICE = "That is the end of the story.";
 
-/** Reads one story: title, byline, deck and as much of the body as fits, then what to say next. */
+/**
+ * How much of a story one reply speaks. Alexa turns the whole reply into speech before it says a word, so a reply near the
+ * 8000-character limit leaves the listener waiting; a part this size starts within a couple of seconds (about a minute of speech).
+ */
+export const STORY_PART_LENGTH = 1800;
+
+function storyOpening(story: { title: string; byline?: string; deck?: string }): string[] {
+  const opening = [sentence(story.title)];
+  if (story.byline) opening.push(sentence(spokenByline(story.byline)));
+  opening.push(pause(500));
+  if (story.deck) opening.push(...splitSentences(story.deck).map(sentence), pause(500));
+  return opening;
+}
+
+function storyOpeningLength(story: { title: string; byline?: string; deck?: string }): number {
+  return storyOpening(story).join("").length;
+}
+
+/** "By Ada" for "Ada", unchanged for a byline that already says "by ...". */
+export function spokenByline(byline: string): string {
+  return /^by\s/i.test(byline.trim()) ? byline.trim() : `By ${byline.trim()}`;
+}
+
+/**
+ * The body's units cut into parts, always between units (a unit longer than a part gets a part to itself). The first part holds
+ * `firstLength` characters, the rest `length`, so a part that follows the opening is no slower to start than the others.
+ */
+export function storyParts(units: readonly string[], firstLength: number, length: number): string[][] {
+  const parts: string[][] = [];
+  let part: string[] = [];
+  let used = 0;
+  for (const unit of units) {
+    const limit = parts.length === 0 ? firstLength : length;
+    if (part.length > 0 && used + unit.length > limit) {
+      parts.push(part);
+      part = [];
+      used = 0;
+    }
+    part.push(unit);
+    used += unit.length;
+  }
+  if (part.some((unit) => !unit.startsWith("<break"))) parts.push(part);
+  return parts;
+}
+
+/**
+ * Reads part `part` of one story. Part 0 opens with the title, byline and deck. Each reply is one short part, then what to say
+ * next: continue while parts remain, otherwise next (or the end of the list).
+ */
 export async function readStory(
   handlerInput: HandlerInput,
   dependencies: SkillDependencies,
   position: Position,
   index: number,
+  part = 0,
 ): Promise<Response> {
   const headline = position.headlines[index];
   const story = await dependencies.stories.getStory(headline.slug);
@@ -113,22 +168,20 @@ export async function readStory(
     return readHeadlines(handlerInput, dependencies, { greeting: "I could not find that story any more.", fresh: true });
   }
 
-  const offer = sentence(index + 1 < position.headlines.length ? NEXT_OFFER : LAST_OFFER);
-  const opening: string[] = [sentence(story.title)];
-  if (story.byline) opening.push(sentence(`By ${story.byline}`));
-  opening.push(pause(500));
-  if (story.deck) opening.push(...splitSentences(story.deck).map(sentence), pause(500));
+  const opening = part === 0 ? storyOpening(story) : [];
+  // The first part shares its length with the opening (title, byline, deck), so every part starts about as quickly.
+  const parts = storyParts(storyBodyUnits(story), Math.max(400, STORY_PART_LENGTH - storyOpeningLength(story)), STORY_PART_LENGTH);
+  const body = parts[part] ?? [];
+  const remaining = part + 1 < parts.length;
 
-  const reserved = wrapSpeak(offer + sentence(TRUNCATION_NOTICE) + pause(500)).length;
-  const room = MAX_SSML_LENGTH - reserved;
-  const head = fitUnits(opening, room);
-  let body = { ssml: "", truncated: head.truncated };
-  if (!head.truncated) body = fitUnits(storyBodyUnits(story), room - head.ssml.length);
-  const notice = body.truncated ? sentence(TRUNCATION_NOTICE) : "";
+  const isLast = index + 1 >= position.headlines.length;
+  const offer = remaining ? sentence(CONTINUE_OFFER) : sentence(END_NOTICE) + sentence(isLast ? LAST_OFFER : NEXT_OFFER);
+  const room = MAX_SSML_LENGTH - wrapSpeak(pause(500) + offer).length;
+  const spoken = fitUnits([...opening, ...body], room);
 
-  savePosition(handlerInput, { headlines: position.headlines, current: index });
-  show(handlerInput, () => storyDirective(story, storyParagraphs(story), themeFromConfig(dependencies.config)));
-  return say(handlerInput, wrapSpeak(head.ssml + body.ssml + pause(500) + notice + offer), wrapSpeak(sentence(NEXT_OFFER)));
+  savePosition(handlerInput, { headlines: position.headlines, current: index, part });
+  if (part === 0) show(handlerInput, () => storyDirective(story, storyParagraphs(story), themeFromConfig(dependencies.config)));
+  return say(handlerInput, wrapSpeak(spoken.ssml + pause(500) + offer), wrapSpeak(sentence(remaining ? CONTINUE_OFFER : NEXT_OFFER)));
 }
 
 /** Opens the story at `index` of the headline list (a touched card on the feed screen): the same reading a spoken request gets. */

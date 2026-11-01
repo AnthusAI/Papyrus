@@ -138,6 +138,106 @@ def test_config_validation():
             _validate_config({**base, **bad})
 
 
+def test_domain_filters_are_validated_as_bare_domains():
+    base = monitor_config("distinctive", enabled=True)
+    assert _validate_config({**base, "excludeDomains": ["Facebook.com", "facebook.com", "x.com"]})["excludeDomains"] == ["facebook.com", "x.com"]
+    for bad in ("facebook.com", ["https://facebook.com/page"], ["facebook"], [""]):
+        with pytest.raises(ValueError):
+            _validate_config({**base, "excludeDomains": bad})
+    with pytest.raises(ValueError):
+        query_record(MONITOR, "q", "r", origin="editor", created_by="x", now_iso="2026-10-20T00:00:00Z", exclude_domains=["a/b.com"])
+
+
+def test_a_querys_domain_filters_and_the_monitors_are_sent_with_the_search():
+    table = web_table("ai agents", "open models", excludeDomains=["facebook.com"])
+    narrow = queries_of(table)["ai agents"]
+    table.put_item({**narrow, "excludeDomains": ["linkedin.com", "facebook.com"], "includeDomains": ["law360.com"]})
+    tavily = FakeTavily(article(1, day(-1), "ai agents"), article(2, day(-1), "open models"))
+
+    collect(table, tavily)
+
+    asked = {c["query"]: c for c in tavily.calls}
+    assert asked["ai agents"]["exclude_domains"] == ["facebook.com", "linkedin.com"]
+    assert asked["ai agents"]["include_domains"] == ["law360.com"]
+    assert asked["open models"]["exclude_domains"] == ["facebook.com"] and "include_domains" not in asked["open models"]
+
+
+def test_a_query_without_domain_filters_sends_none():
+    tavily = FakeTavily(article(1, day(-1)))
+    collect(web_table(), tavily)
+    assert all("exclude_domains" not in c and "include_domains" not in c for c in tavily.calls)
+
+
+# --- provider chain ----------------------------------------------------------------------------------------------------------
+
+def _chain(**http_by_name):
+    from test_web_search import FakeHttp, make
+    from papyrus_content.web_search import OpenAIProvider, PerplexityProvider, SearchChain, TavilyProvider
+    classes = {"tavily": TavilyProvider, "openai": OpenAIProvider, "perplexity": PerplexityProvider}
+    return SearchChain(list(http_by_name), providers={name: make(classes[name], http, **{f"{name.upper()}_API_KEY": "k"})
+                                                     for name, http in http_by_name.items()}), {n: h for n, h in http_by_name.items()}
+
+
+def test_the_monitors_own_chain_is_validated_and_stored():
+    base = monitor_config("distinctive", enabled=True)
+    assert _validate_config({**base, "searchProviders": "openai, tavily"})["searchProviders"] == ["openai", "tavily"]
+    assert _validate_config({**base, "searchProviders": ["perplexity"]})["searchProviders"] == ["perplexity"]
+    assert _validate_config(base)["searchProviders"] == []
+    for bad in ("openai,bogus", ["nope"], 5):
+        with pytest.raises((ValueError, TypeError)):
+            _validate_config({**base, "searchProviders": bad})
+
+
+def test_an_exhausted_tavily_plan_falls_back_and_the_query_run_records_who_answered_and_why():
+    from test_web_search import FakeHttp
+    from papyrus_content.web_search import HttpStatusError
+    from papyrus_content.monitoring_web import search_fetch
+    tavily = FakeHttp(*[HttpStatusError(432, "{}")] * 5)
+    perplexity = FakeHttp(*[{"results": [{"url": "https://example.org/story-1", "title": "Story 1", "snippet": "S", "date": day(-1)}]}] * 5)
+    chain, _ = _chain(tavily=tavily, perplexity=perplexity)
+    table = web_table()
+
+    result = collect(table, search_fetch({}, chain))
+
+    assert result["new"] == 1 and not result.get("errors")
+    (run,) = rows(table, "QRUN#")
+    assert run["providers"] == {"perplexity": run["requests"]} and run["skipped"] == ["tavily: plan exhausted (432)"]
+
+
+def test_a_provider_that_cannot_bound_dates_is_asked_once_not_split_into_days():
+    from test_web_search import FakeHttp
+    from papyrus_content.monitoring_web import search_fetch
+    rows_ = [{"url": f"https://example.org/s-{n}", "title": f"S{n}", "snippet": ""} for n in range(25)]
+    openai = FakeHttp(*[{"output": [{"action": {"sources": [{"url": r["url"]} for r in rows_]}}]}] * 20)
+    chain, _ = _chain(openai=openai)
+    table = web_table()
+    table.put_item({**queries_of(table)["ai agents"], "highWater": NOW - 14 * DAY})
+
+    result = collect(table, search_fetch({}, chain))
+
+    assert len(openai.calls) == 1 and result["new"] == 20   # one request, the monitor's own page of twenty
+
+
+def test_all_providers_rate_limited_waits_as_a_single_provider_does():
+    from test_web_search import FakeHttp
+    from papyrus_content.web_search import HttpStatusError
+    from papyrus_content.monitoring_web import search_fetch
+    limited = HttpStatusError(429, "", {"Retry-After": "30"})
+    chain, _ = _chain(tavily=FakeHttp(limited, limited))
+    with pytest.raises(RateLimited) as caught:
+        search_fetch({}, chain)({"query": "q", "max_results": 20})
+    assert caught.value.retry_after == 30.0
+
+
+def test_all_providers_failing_names_each_failure_in_the_run_error():
+    from test_web_search import FakeHttp
+    from papyrus_content.web_search import HttpStatusError
+    from papyrus_content.monitoring_web import search_fetch
+    chain, _ = _chain(tavily=FakeHttp(HttpStatusError(432)), openai=FakeHttp(HttpStatusError(401)))
+    with pytest.raises(ValueError, match=r"tavily: plan exhausted \(432\); openai: authentication failed \(401\)"):
+        search_fetch({}, chain)({"query": "q", "max_results": 20})
+
+
 # --- query records ---------------------------------------------------------------------------------------------------------
 
 def test_a_query_record_has_a_stable_id_origin_creator_approval_status_and_history():

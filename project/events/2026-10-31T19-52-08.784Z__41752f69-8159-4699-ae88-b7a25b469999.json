@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "41752f69-8159-4699-ae88-b7a25b469999",
+  "issue_id": "PPY-975257b6-4503-4b63-9d25-73405666d46f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T19:52:08.784Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Research the Messages model and thread queries for a voice reader",
+    "description": "Find the Conversations/Messages model and queries (see the papyrus-conversations-messages decisions): thread listing by recency, messages in a thread, author display names, and what an editor may read. Write the findings into this epic before implementing.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-22a7abce-533f-4ed8-8ae2-72126b53efa5",
+    "labels": []
+  }
+}

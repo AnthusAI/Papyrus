@@ -111,7 +111,7 @@ assert.deepEqual(
   EDITORIAL_CHECKS_FUNCTION_FIELDS.map((field) => field.split("/").pop()).sort(),
   [
     "createEditorialCheckRun", "createEditorialPolicy", "getEditorialCheckRun", "getEditorialCheckSettings", "getEditorialContext", "getItem",
-    "listEditorialFeedbacks", "listEditorialPolicies", "listKnowledgeCorporaByRoleAndName", "updateEditorialCheckRun", "updateEditorialPolicy",
+    "listEditorialFeedbacks", "listEditorialPolicies", "listItemsByVersionStateAndUpdatedAt", "listKnowledgeCorporaByRoleAndName", "updateEditorialCheckRun", "updateEditorialPolicy",
   ],
 );
 
