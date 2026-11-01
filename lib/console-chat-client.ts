@@ -3,7 +3,7 @@
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import { configureAmplifyClient } from "../components/amplify-client-provider";
-import { postMessageArguments, postMessageMutation } from "./post-message";
+import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments, postMessageMutation } from "./post-message";
 import { loadModelPayloadsForOwner, uploadModelPayloadForOwner } from "../components/news-desk-taxonomy-client";
 
 const USER_POOL_AUTH_MODE = "userPool";
@@ -602,6 +602,11 @@ export async function createConsoleMessage(input: CreateConsoleMessageInput): Pr
       });
       const created = normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "postMessage"));
       await maybeUploadConsoleMessageBody(created.id, input.content);
+      if (messageHasHashtag(input.content)) {
+        void getGraphQLClient()
+          .graphql({ query: LINK_MESSAGE_HASHTAGS_MUTATION, variables: { messageId: created.id }, authMode: USER_POOL_AUTH_MODE })
+          .catch(() => undefined);
+      }
       return input.content?.trim() ? { ...created, content: input.content } : created;
     } catch (error) {
       if (!isUnavailableQueryError(error)) throw normalizeUnknownError(error, "postMessage");

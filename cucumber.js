@@ -70,6 +70,11 @@ module.exports = {
     require: ["features/step_definitions/reference-vote-saved.steps.js"],
     format: ["summary"],
   },
+  messageHashtags: {
+    paths: ["features/message-hashtags.feature"],
+    require: ["features/step_definitions/message-hashtags.steps.js"],
+    format: ["summary"],
+  },
   messageAuthorEnforced: {
     paths: ["features/message-author-enforced.feature"],
     require: ["features/step_definitions/message-author-enforced.steps.js"],
