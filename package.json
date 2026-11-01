@@ -26,6 +26,7 @@
     "test:pretext-layout": "tsx scripts/test-pretext-layout.ts",
     "test:public-forms": "tsx scripts/test-public-forms.ts",
     "test:schema-parity": "tsx scripts/test-schema-parity.ts",
+    "test:concept-hashtags": "tsx scripts/test-concept-hashtags.ts",
     "test:reference-feed-keys": "tsx scripts/test-reference-feed-keys.ts",
     "test:assignment-data-access": "node --import tsx scripts/test-assignment-data-access.ts",
     "test:reference-vote-saved": "tsx --test scripts/test-reference-review-api.ts && cucumber-js --profile referenceVoteSaved",
