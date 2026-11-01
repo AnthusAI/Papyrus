@@ -298,7 +298,7 @@ def test_the_router_zip_can_run_the_drafting_and_the_editorial_gate_with_nothing
     zipfile.ZipFile(archive).extractall(unpacked)
     script = ("import sys; sys.path.insert(0, sys.argv[1]); import papyrus_content.monitoring_router; "
               "from papyrus_content import monitoring_stories as m; from papyrus_content.ideas import monitor_stories, context, store, synthesis, review, gate, items, signal_inputs, context_packs, item_signals, pack_stories, signal_queue; from papyrus_content.knowledge_snapshot import keys, loaders, trends; from papyrus_content import reference_links; "
-              "from papyrus_content import link_exploration; import humanus.check, typesafe_sdk, humanus; "
+              "from papyrus_content import link_exploration; from papyrus_content import monitoring_vectors, reference_suggestions, suggestion_calibration; from papyrus_knowledge_query import vector_index, services; import humanus.check, typesafe_sdk, humanus; "
               "assert all(sys.argv[1] in module.__file__ for module in (humanus, typesafe_sdk, gate)); "
               "pack = {'schemaVersion': 1, 'packId': 'test', 'version': '1', 'policies': [{'id': 'no-synergy', 'version': 1, 'title': 'No synergy', "
               "'guidance': 'Avoid it.', 'severity': 'warn', 'detectors': [{'id': 'synergy', 'lane': 'rules', 'kind': 'phrase', 'phrases': ['synergy']}]}]}; "
@@ -346,7 +346,7 @@ def test_a_read_that_runs_out_of_time_leaves_the_rest_unread_and_says_so():
 
 
 def test_monitor_stories_is_on_by_default_and_the_setting_is_validated():
-    on = {"singleItem": True, "contextPacks": {"enabled": True, "signals": None}}   # single items and every context-pack signal that has data
+    on = {"singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True}, "vectorIndexArn": None, "storageBucketName": None}   # single items, every context-pack signal that has data, suggestions; no index until the site's outputs supply one
     assert validate_monitor_stories("p", None) == {"enabled": True, "store": "items", **on}   # ideas are Items at the idea stage by default
     assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "items", **on}
     assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "items", **on}
