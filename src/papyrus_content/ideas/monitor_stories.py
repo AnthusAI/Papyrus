@@ -398,13 +398,14 @@ def has_material(view: dict[str, Any]) -> bool:
 
 
 def build_input(item: MonitoredItem, view: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-    return {
+    model_input = {
         "mission": context.get("mission"), "policy": context.get("policy"),
         "allowed_sections": [section["title"] for section in context.get("sections", [])],
         "source": view,
-        "recent_and_in_flight_stories": [{key: story.get(key) for key in ("title", "section", "state", "date", "summary") if story.get(key)} for story in context.get("stories", [])],
         "earlier_drafts": [{key: draft.get(key) for key in ("title", "state", "angle") if draft.get(key)} for draft in context.get("drafts", [])],
     }
+    model_input["recent_and_in_flight_stories"] = synthesis.fit_stories(model_input, context)
+    return model_input
 
 
 def call_model(transport: synthesis.Transport, model: str, model_input: dict[str, Any]) -> tuple[dict[str, Any], synthesis.Usage]:
@@ -733,6 +734,7 @@ def draft_monitor_stories(
         run["review"] = {"status": "skipped", "requested": False, "ideas": len(run["drafts"]), "note": "Dry run: nothing was filed, so no review was requested."}
     else:
         request_human_review(review_client, run, run["drafts"], noun="monitor story draft")
+    run["storiesInPrompts"] = context.get("promptStories")
     run["finishedAt"] = iso(datetime.now(timezone.utc))
     if json_store and not dry_run:
         json_store.save_run(run)

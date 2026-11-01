@@ -30,3 +30,16 @@ def test_duplication_is_named_by_code_note_or_move_reason():
     assert duplicate_cut.names_duplication({"decision": {"note": "A duplicate of Monday's piece"}}, "")
     assert duplicate_cut.names_duplication({}, "Duplicates the earlier story")
     assert not duplicate_cut.names_duplication({"decision": {"reasonCode": "off_topic"}}, "Not for us")
+
+
+def test_a_site_with_many_stories_yields_a_prompt_under_the_bound():
+    import json
+    from papyrus_content.ideas import synthesis
+    stories = [{"id": f"s{n}", "title": f"Story number {n} " + "word " * 40, "summary": "summary " * 40, "date": "2026-10-01"} for n in range(5000)]
+    context = {"stories": stories, "sections": [], "drafts": []}
+    model_input = {"source": {"page_text": "x" * 50_000}}
+    model_input["recent_and_in_flight_stories"] = synthesis.fit_stories(model_input, context)
+    size = len(json.dumps(model_input, ensure_ascii=False, separators=(",", ":")))
+    assert size <= synthesis.MAXIMUM_INPUT_CHARACTERS
+    assert 0 < context["promptStories"] < len(stories) and model_input["recent_and_in_flight_stories"][0]["title"].startswith("Story number 0")
+    assert len(context["stories"]) == 5000

@@ -167,6 +167,7 @@ def synthesize(
             run["ideas"].append(idea)
     run["ideasCreated"] = len(run["ideas"])
     request_human_review(review_client, run, run["ideas"])
+    run["storiesInPrompts"] = context.get("promptStories")
     run["finishedAt"] = iso(datetime.now(timezone.utc))
     json_store.save_run(run)
     return run
