@@ -291,3 +291,10 @@ Feature: Editorial checks
     Given the site has a current story "other-article" that says "We run this for clients at scale."
     When the saved version of the story "this-article" with "We run this for clients at scale." is checked
     Then the story "this-article" has no stored "cross-story-boilerplate" finding
+
+  Scenario: The checks function may call everything its store calls
+    The function talks to the site's data API with its own role, so a query its store
+    makes without a grant fails at run time with 401, after deploy, for every editor.
+    That happened when reusing an earlier check run was added without its grant.
+    When the editorial-checks store's GraphQL operations are compared with the function's role
+    Then every field the store calls is granted to the role

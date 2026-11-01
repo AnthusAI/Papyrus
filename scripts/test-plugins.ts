@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { App, Stack } from "aws-cdk-lib";
 import { Template, Match } from "aws-cdk-lib/assertions";
@@ -110,10 +111,22 @@ assert.ok(EDITORIAL_CHECKS_TIMEOUT_SECONDS < 30, "the function must finish insid
 assert.deepEqual(
   EDITORIAL_CHECKS_FUNCTION_FIELDS.map((field) => field.split("/").pop()).sort(),
   [
-    "createEditorialCheckRun", "createEditorialPolicy", "getEditorialCheckRun", "getEditorialCheckSettings", "getEditorialContext", "getItem",
-    "listEditorialFeedbacks", "listEditorialPolicies", "listItemsByVersionStateAndUpdatedAt", "listKnowledgeCorporaByRoleAndName", "updateEditorialCheckRun", "updateEditorialPolicy",
+    "createEditorialCheckRun", "createEditorialCheckSettings", "createEditorialPolicy", "getEditorialCheckRun", "getEditorialCheckSettings", "getEditorialContext", "getItem",
+    "listEditorialCheckRunsByLineage", "listEditorialFeedbacks", "listEditorialPolicies", "listItemsByVersionStateAndUpdatedAt", "listKnowledgeCorporaByRoleAndName", "updateEditorialCheckRun", "updateEditorialCheckSettings", "updateEditorialPolicy",
   ],
 );
+
+// Every field the function's GraphQL store calls must be granted to its role, or the call fails with 401 at run time
+// (5.63 added the reusable-run lookup without its grant, and every automatic check failed).
+{
+  const storeSource = readFileSync(new URL("../src/papyrus_content/editorial_checks.py", import.meta.url), "utf8");
+  const storeClass = storeSource.slice(storeSource.indexOf("class GraphQLEditorialStore"));
+  const granted = new Set(EDITORIAL_CHECKS_FUNCTION_FIELDS.map((field) => field.split("/").pop()));
+  const queries = Object.fromEntries([...storeSource.matchAll(/^([A-Z_]+) = .*?(?:query|mutation) \w+[^{]*\{\s*(\w+)\(/gms)].map((m) => [m[1], m[2]]));
+  for (const [constant, field] of Object.entries(queries)) {
+    if (storeClass.includes(constant)) assert.ok(granted.has(field), `the editorial-checks role is granted ${field}, which GraphQLEditorialStore calls`);
+  }
+}
 
 // The function reads its provider keys from SSM itself; it may read exactly those two names.
 const secretArns = editorialChecksSecretParameters("us-east-1", "123456789012", "dabc123");
