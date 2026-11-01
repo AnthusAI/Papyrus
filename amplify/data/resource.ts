@@ -486,6 +486,46 @@ const schema = a.schema({
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(functionHandler("categoryAction", categoryAction)),
 
+  ReferenceLinkResult: a.customType({
+    ok: a.boolean().required(),
+    relationId: a.string().required(),
+    relationState: a.string().required(),
+    outcome: a.string(),
+    decision: a.string(),
+  }),
+
+  createReferenceLink: a
+    .mutation()
+    .arguments({
+      subjectLineageId: a.id().required(),
+      objectKind: a.string().required(),
+      objectLineageId: a.id().required(),
+      predicate: a.string().required(),
+      note: a.string(),
+    })
+    .returns(a.ref("ReferenceLinkResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  decideReferenceLink: a
+    .mutation()
+    .arguments({
+      relationId: a.id().required(),
+      decision: a.string().required(),
+      reasonCode: a.string(),
+      note: a.string(),
+    })
+    .returns(a.ref("ReferenceLinkResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  suggestReferenceLinks: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
   createReferenceNote: a
     .mutation()
     .arguments({
