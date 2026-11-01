@@ -5,8 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any, Callable
 
-from .biblicus_runner import BiblicusRunner, BiblicusRunnerError
-
 _HTTP_URI_PATTERN = re.compile(r"^https?://", re.IGNORECASE)
 _LOCAL_HTML_SOURCE_URI = "https://papyrus.local/imported-html"
 
@@ -166,6 +164,8 @@ def _web_metadata_summary(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _run_biblicus_web_metadata(payload: dict[str, Any]) -> dict[str, Any]:
     from biblicus.api import WebMetadataRequest
+
+    from .biblicus_runner import BiblicusRunner, BiblicusRunnerError  # lazy: pydantic stays out of the Lambda zips
 
     try:
         response = BiblicusRunner.from_environment().extract_web_metadata(WebMetadataRequest(**payload))

@@ -13,6 +13,7 @@ from typing import Protocol
 from ..markus_renderer.build import DEFAULT_THEME, render_fragment_text
 from ..markus_renderer.citations import CitationRendering
 from ..markus_renderer.content_markup import prepare_page
+from ..markus_renderer.images import dark_sibling_candidates
 from ..markus_renderer.convert import convert_text_in_process
 from ..markus_renderer.pages import (
     ARTICLES_INDEX_SLUG,
@@ -239,7 +240,15 @@ class MarkusSiteProjector:
         if self._renditions is None:
             raise ValueError("This site configures images but the projector has no rendition store.")
         catalog = RenditionCatalog(self._renditions, pipeline)
-        catalog.prefetch(request.src for request in prepare_page(text, images=pipeline, citations=None).images.values())
+        requests = list(prepare_page(text, images=pipeline, citations=None).images.values())
+        sources = [request.src for request in requests]
+        for request in requests:
+            if request.src_dark is not None:
+                sources.append(request.src_dark)
+            elif request.pair_by_name:
+                # ``figure.dark.png`` next to ``figure.png`` pairs automatically.
+                sources.extend(dark_sibling_candidates(request.src))
+        catalog.prefetch(sources)
         return StoredRenditionImageBuilder(pipeline, catalog)
 
     def _fragment(self, text: str, depth: int, *, transform=None) -> str:

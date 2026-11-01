@@ -9,6 +9,7 @@ import type { createSemanticGraphSnapshot } from "../lib/semantic-graph";
 import {
   conceptEditedAt, conceptId, conceptTitle, conceptWikiPath, conceptsByTitle, recentlyEditedConcepts, resolveConceptLink,
 } from "../lib/wiki";
+import { LinkedByEditors } from "./related-section";
 import { MarkusIrPreview } from "./markus-ir-preview";
 import { createWikiIndexPage, loadWikiIndexPage, type WikiIndexPage } from "./wiki-index-client";
 
@@ -93,6 +94,7 @@ function ConceptPageView({ demo, graph, node, nodes, onOpen }: { demo: boolean; 
         </ul>
       </div>) : <p className="wiki-empty">No connections recorded.</p>}
     </section>
+    <LinkedByEditors conceptLineageId={lineage} hrefForReference={referenceLineage => getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(referenceLineage)}`, demo)} />
     <section data-wiki-section="references">
       <h2>References</h2>
       {references.length ? <ul className="wiki-concept-list">

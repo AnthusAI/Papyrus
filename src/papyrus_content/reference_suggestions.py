@@ -90,7 +90,8 @@ def _concept_node(client, lineage_id: str) -> dict[str, Any]:
 
 def _kept(candidate: dict[str, Any], outcome: str, calibration: Any | None, kind: str) -> dict[str, Any]:
     entry = {"lineageId": candidate["lineageId"], "similarity": candidate["similarity"], "outcome": outcome}
-    label = calibration.label(kind, candidate["similarity"]) if calibration is not None else None
+    mark = getattr(calibration, "label_candidate", None)
+    label = (mark(kind, candidate) if mark else calibration.label(kind, candidate["similarity"])) if calibration is not None else None
     if label is not None:
         entry["label"] = label
     return entry

@@ -155,21 +155,38 @@ def reference_view(handle: str, entry: dict[str, Any]) -> dict[str, Any]:
 def build_input(digest: dict[str, Any], context: dict[str, Any], feedback: list[dict[str, Any]], maximum: int) -> dict[str, Any]:
     handles = handles_for(digest)
     by_id = {entry["id"]: entry for entry in digest["references"]}
-    return {
+    model_input = {
         "publication": digest["publication"],
         "mission": context.get("mission"),
         "policy": context.get("policy"),
         "allowed_sections": [section["title"] for section in context.get("sections", [])],
         "maximum_ideas": maximum,
         "references": [reference_view(handle, by_id[identifier]) for handle, identifier in handles.items()],
-        "recent_and_in_flight_stories": [
-            {key: story.get(key) for key in ("title", "section", "state", "date", "summary") if story.get(key)} for story in context.get("stories", [])
-        ],
         "earlier_drafts": [
             {key: draft.get(key) for key in ("title", "state", "angle") if draft.get(key)} for draft in context.get("drafts", [])
         ],
         "reviewer_feedback": feedback,
     }
+    model_input["recent_and_in_flight_stories"] = fit_stories(model_input, context)
+    return model_input
+
+
+STORY_VIEW_FIELDS = ("title", "section", "state", "date", "summary")
+
+
+def fit_stories(model_input: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
+    """The stories for a prompt, newest first, as many as fit ``MAXIMUM_INPUT_CHARACTERS`` after everything else in ``model_input`` (source text first).
+    Dedupe still compares against every story; only the prompt is bounded. The smallest count any prompt got is kept in ``context['promptStories']``."""
+    remaining = MAXIMUM_INPUT_CHARACTERS - len(json.dumps(model_input, ensure_ascii=False, separators=(",", ":")))
+    fitted: list[dict[str, Any]] = []
+    for story in context.get("stories", []):
+        view = {key: story.get(key) for key in STORY_VIEW_FIELDS if story.get(key)}
+        remaining -= len(json.dumps(view, ensure_ascii=False, separators=(",", ":"))) + 1
+        if remaining < 0:
+            break
+        fitted.append(view)
+    context["promptStories"] = min(len(fitted), context.get("promptStories", len(fitted)))
+    return fitted
 
 
 def request_payload(model: str, model_input: dict[str, Any]) -> dict[str, Any]:

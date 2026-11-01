@@ -1,4 +1,4 @@
-"""Context packs: the conversation and acceptance signals, ranking, trimming and anchor-based repeat suppression (epic PPY-2e9064, design
+"""Context packs: the conversation, acceptance and resurfaced signals, ranking, trimming and anchor-based repeat suppression (epic PPY-2e9064, design
 sections 4 and 5.1, tickets PPY-4f5cd3 and PPY-1c3cf9).
 
 This module is a pure layer over ``SignalInputs``: it makes no client call. What the inputs do not hold (concept names and descriptions,
@@ -11,6 +11,15 @@ Reference summaries, the publication's mission, policy and sections) arrives in 
   corrected p-value is within ``config.significance``; there is no fixed window, count or cap.
 * Pending References appear in a pack only as context: status ``pending``, a ``P#`` handle and the note "not yet accepted". Only ``R#`` References
   (accepted) can be cited as evidence.
+* ``resurfaced`` signal: entity = an accepted Reference a person recently attended to (a human accept, or human Messages in a thread anchored on it)
+  whose publication-to-ingestion gap is large. Both facts are read against the site's own distributions, never against a threshold: ``pGap`` is the
+  share of the site's References (with both dates) whose gap is at least this one, ``pRecent`` the share of attended References whose latest attention
+  is at least as recent. The corrected p-value is ``pGap * pRecent`` times the number of attended candidates (Bonferroni), and a pack is reported only
+  within ``config.significance``. The pack says what pointed attention at the Reference (the accept, which Messages). New edges are not loaded by
+  ``SignalInputs`` and are not part of the attention yet.
+* Date bases (design 2.3): the newsroom's own stream is on ingestion (``acceptance``), what the model may say about the world is on publication
+  (``published``, ``resurfaced``, the order of References inside a pack: ``sourcePublishedAt``, falling back to the added date with ``orderedBy: "added"``
+  on the row). An unknown publication date stays ``None`` in ``published`` and is never filled from the added date.
 * ``rank_packs`` interleaves packs round-robin by signal, in order of surprise inside each signal.
 * ``trim_pack(pack, limit)`` drops the lowest-ranked members of a pack until it fits ``synthesis.MAXIMUM_INPUT_CHARACTERS`` (the only bound).
 * ``evidence_of(pack)`` is what an idea records in ``generated.evidence``; ``suppress_repeats(packs, ideas)`` offers an anchor that an idea already
@@ -27,12 +36,14 @@ from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from ..knowledge_snapshot.trends import TrendConfig, exceeds_report, scan_window
+from ..knowledge_snapshot.trends import TrendConfig, exceeds_report, scan_window, significance_z
 from . import synthesis
 from .signal_inputs import HumanVote, PendingReference, SignalInputs, SignalMessage, StoryRecord
 
 CONVERSATION = "conversation"
 ACCEPTANCE = "acceptance"
+RESURFACED = "resurfaced"
+PUBLICATION_BASIS = "publication"
 MESSAGE_BASIS = "message"
 INGESTION_BASIS = "ingestion"
 DAY = 1
@@ -119,6 +130,11 @@ def day_of(moment: str | None) -> date | None:
         return datetime.fromisoformat(str(moment).replace("Z", "+00:00")).date()
     except ValueError:
         return None
+
+
+def ordering_day(published: str | None, added: str | None) -> date:
+    """The day a Reference is ordered by inside a pack: its publication date, else the day it was added (the fallback is flagged on the row)."""
+    return day_of(published) or day_of(added) or date.min
 
 
 def iso_day(moment: str | None) -> str | None:
@@ -226,6 +242,7 @@ def reference_row(context: Context, handle: str, vote: HumanVote | None, pending
     row = {
         "handle": handle, "title": source.title, "url": source.url, "published": iso_day(source.source_published_at),
         "added": iso_day(source.created_at), "publishedBasis": "source" if source.source_published_at else None,
+        "orderedBy": "published" if day_of(source.source_published_at) else "added",
         "summary": context.lookups.summaries.get(source.lineage_id, ""), "concepts": concepts,
     }
     if vote is not None:
@@ -324,12 +341,8 @@ def related_by_concept(context: Context, lineage: str | None, anchor: HumanVote 
         if shared:
             weight = sum(1 / frequency[concept] ** 0.5 for concept in shared)
             found.append((weight, vote, "shared concept " + ", ".join(concept_info(context, concept).hashtag or concept for concept in shared)))
-    found.sort(key=lambda row: (-row[0], _negated(row[1].voted_at), row[1].lineage_id))
+    found.sort(key=lambda row: (-row[0], -ordering_day(row[1].source_published_at, row[1].created_at).toordinal(), row[1].lineage_id))
     return [(vote, text) for _, vote, text in found]
-
-
-def _negated(moment: str | None) -> tuple[int, ...]:
-    return tuple(-ord(char) for char in str(moment or ""))
 
 
 def acceptance_packs(context: Context) -> list[Pack]:
@@ -355,7 +368,7 @@ def acceptance_packs(context: Context) -> list[Pack]:
 def acceptance_pack(context: Context, axis: Axis, window: Mapping[str, Any], concept: str, rows: list[tuple[date, HumanVote]]) -> Pack:
     inside = sorted(
         ((day, vote) for day, vote in rows if axis.in_window(day, window["windowBuckets"])),
-        key=lambda row: (row[0], row[1].lineage_id), reverse=True,
+        key=lambda row: (ordering_day(row[1].source_published_at, row[1].created_at), row[0], row[1].lineage_id), reverse=True,
     )
     accepted = [vote for _, vote in inside]
     related = {concept}
@@ -370,6 +383,71 @@ def acceptance_pack(context: Context, axis: Axis, window: Mapping[str, Any], con
     ]
     messages.sort(key=lambda row: (row[0].created_at, row[0].message_id))
     return finish_pack(context, ACCEPTANCE, concept, window, INGESTION_BASIS, concepts, accepted, messages, pending_for(context, {concept}))
+
+
+def gap_days(source_published_at: str | None, created_at: str | None) -> int | None:
+    """Days from the source's publication to its arrival on the site (never negative); ``None`` when either date is unknown."""
+    published, added = day_of(source_published_at), day_of(created_at)
+    return max((added - published).days, 0) if published and added else None
+
+
+def attention_of(context: Context) -> dict[str, list[tuple[date, str, SignalMessage | None]]]:
+    """Human attention by Reference lineage: its human accept and the human Messages in threads anchored on it, each with its day."""
+    found: dict[str, list[tuple[date, str, SignalMessage | None]]] = defaultdict(list)
+    for vote in context.accepted:
+        found[vote.lineage_id].append((day_of(vote.voted_at), "accept", None))
+    for anchor, messages in context.messages_by_anchor.items():
+        if anchor.startswith(REFERENCE_ANCHOR_PREFIX):
+            for message in messages:
+                if day_of(message.created_at):
+                    found[anchor.removeprefix(REFERENCE_ANCHOR_PREFIX)].append((day_of(message.created_at), "message", message))
+    return found
+
+
+def resurfaced_packs(context: Context) -> list[Pack]:
+    gaps = {row.lineage_id: gap for row in [*context.inputs.votes, *context.inputs.pending_context] if (gap := gap_days(row.source_published_at, row.created_at)) is not None}
+    attention = attention_of(context)
+    latest_age = {lineage: min((context.today - day).days for day, _, _ in events) for lineage, events in attention.items()}
+    candidates = sorted(vote.lineage_id for vote in context.accepted if vote.lineage_id in gaps and vote.lineage_id in latest_age)
+    candidates = list(dict.fromkeys(candidates))
+    if not candidates:
+        return []
+    first_attention = min(day for events in attention.values() for day, _, _ in events)
+    packs = []
+    for lineage in candidates:
+        gap_share = sum(other >= gaps[lineage] for other in gaps.values()) / len(gaps)
+        recent_share = sum(age <= latest_age[lineage] for age in latest_age.values()) / len(latest_age)
+        corrected = min(1.0, gap_share * recent_share * len(candidates))
+        if corrected > context.config.significance:
+            continue
+        window_days = latest_age[lineage] + 1
+        count = sum((context.today - day).days < window_days for day, _, _ in attention[lineage])
+        window = {
+            "windowDays": window_days, "baselineDays": max((context.today - first_attention).days - window_days, 0), "count": count,
+            "expected": round(len(candidates) * gap_share * recent_share, 3), "tested": len(candidates), "correctedPValue": float(f"{corrected:.3g}"),
+            "surprise": significance_z(corrected),
+        }
+        packs.append(resurfaced_pack(context, lineage, window, gaps[lineage], sum(other < gaps[lineage] for other in gaps.values()) / len(gaps), recent_share))
+    return packs
+
+
+def resurfaced_pack(context: Context, lineage: str, window: Mapping[str, Any], gap: int, gap_percentile: float, recent_share: float) -> Pack:
+    vote = next(row for row in context.accepted if row.lineage_id == lineage)
+    concept_ids = set(context.concepts_of_lineage.get(lineage, vote.concept_ids))
+    axis = Axis(context.today, context.today - timedelta(days=window["baselineDays"] + window["windowDays"]), DAY)
+    concepts = concept_rows(context, axis, window["windowDays"], sorted(concept_ids), None)
+    related = related_by_concept(context, lineage, vote, concept_ids)
+    thread = sorted(context.messages_by_anchor.get(REFERENCE_ANCHOR_PREFIX + lineage, ()), key=lambda message: (message.created_at, message.message_id))
+    pack = finish_pack(
+        context, RESURFACED, REFERENCE_ANCHOR_PREFIX + lineage, window, PUBLICATION_BASIS, concepts, [vote] + [row for row, _ in related],
+        [(message, lineage) for message in thread], pending_for(context, concept_ids),
+    )
+    pointed = [{"kind": "human accept", "date": iso_day(vote.voted_at)}] + [{"kind": "message", "handle": row["handle"], "date": row["date"]} for row in pack.messages]
+    signal = {
+        **pack.signal, "publicationGapDays": gap, "gapPercentile": round(gap_percentile, 3),
+        "recentAttentionShare": round(recent_share, 3), "pointedAttentionAt": pointed,
+    }
+    return replace(pack, signal=signal)
 
 
 def rank_packs(packs: Iterable[Pack]) -> list[Pack]:
@@ -389,9 +467,9 @@ def rank_packs(packs: Iterable[Pack]) -> list[Pack]:
 
 
 def build_packs(inputs: SignalInputs, lookups: PackLookups, *, now: datetime, config: TrendConfig | None = None) -> list[Pack]:
-    """Every pack the conversation and acceptance signals find in ``inputs``, ordered by ``rank_packs``."""
+    """Every pack the conversation, acceptance and resurfaced signals find in ``inputs``, ordered by ``rank_packs``."""
     context = context_of(inputs, lookups, now, config or TrendConfig())
-    return rank_packs([*conversation_packs(context), *acceptance_packs(context)])
+    return rank_packs([*conversation_packs(context), *acceptance_packs(context), *resurfaced_packs(context)])
 
 
 TRIM_ORDER = ("pending", "recent_published_stories", "messages", "references", "concepts")

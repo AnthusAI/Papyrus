@@ -41,7 +41,7 @@ import {
   loadStoragePathText,
   loadEditorReferencesData,
   loadEditorProcedureData,
-  loadEditorSemanticRelationsData,
+  loadEditorReferencePredictions,
   loadEditorReferenceReviewDetails,
   loadEditionForumThreads,
   loadNewsroomAssignmentPage,
@@ -92,13 +92,16 @@ import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { correctReferenceCapture } from "../lib/content-actions-client";
-import { loadMessagesWithHeadStart, loadReferencesWithHeadStart, loadRelationsWithHeadStart } from "./references-prefetch";
+import { loadMessagesWithHeadStart, loadReferencesWithHeadStart } from "./references-prefetch";
+import { useReferencePredictions } from "../lib/use-reference-predictions";
+import { buildFeedItems, feedWindow } from "../lib/reference-feed-ranking";
 import { loadFeedSnapshot, saveFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
 import { referencePreviewsByLineage } from "../lib/reference-preview";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
 import { ConversationProvider } from "./conversation-provider";
+import { ReferenceLinksProvider } from "./reference-links-provider";
 import { ConversationsPage } from "./conversations-page";
 import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
 import { NewsroomTopicsView } from "./newsroom-topics-view";
@@ -1319,11 +1322,37 @@ function NewsDeskDashboard({
   const selectedReviewLineageId = pathname ? pathnameReferenceLineageId ?? "" : initialSelection.reference ?? "";
   const referenceReviewData = useReferenceReviewData({
     enabled: canLoadPrivateCorpus && needsReferenceReviewData && !(activeTab === "references" && selectedReviewLineageId),
-    loadRelations: loadRelationsWithHeadStart,
     loadMessages: loadMessagesWithHeadStart,
-    onRelations: setSemanticRelations,
     onMessages: setMessages,
   });
+  // Predictions are read per Reference, only for the ones a page shows: the References feed asks for its visible page (and each page
+  // after it as it scrolls); the home page asks for the newest page. The newsroom's whole relation feed is never read for this.
+  const [shownPredictionIds, setShownPredictionIds] = useState<string[]>([]);
+  const requestPredictions = useCallback((ids: string[]) => {
+    setShownPredictionIds((current) => (ids.every((id) => current.includes(id)) ? current : [...new Set([...current, ...ids])]));
+  }, []);
+  const mergeReferencePredictions = useCallback((lineageId: string, relations: SemanticRelationRecord[]) => {
+    setSemanticRelations((current) => [
+      ...current.filter((relation) => relation.subjectKind !== "reference" || relation.subjectLineageId !== lineageId),
+      ...relations,
+    ]);
+  }, []);
+  const readsPredictions = canLoadPrivateCorpus && !dashboard.isDemo && (activeTab === "references" || activeTab === "overview");
+  const referencePredictions = useReferencePredictions({
+    enabled: readsPredictions,
+    ids: shownPredictionIds,
+    load: loadEditorReferencePredictions,
+    onRelations: mergeReferencePredictions,
+  });
+  useEffect(() => {
+    if (activeTab !== "overview" || !readsPredictions || !hasHydratedReferences) return;
+    requestPredictions(feedWindow(buildFeedItems(selectCanonicalReferenceRecords(references), undefined), 1).map((item) => item.lineageId));
+  }, [activeTab, readsPredictions, hasHydratedReferences, references, requestPredictions]);
+  useEffect(() => {
+    if (referenceReviewData.state === "error" && referenceReviewData.error) {
+      setActionState({ id: "review-history-load", message: referenceReviewData.error, tone: "error" });
+    }
+  }, [referenceReviewData.state, referenceReviewData.error]);
 
   useEffect(() => {
     if (!canLoadPrivateCorpus || activeTab !== "references" || !selectedReviewLineageId) return;
@@ -1341,8 +1370,8 @@ function NewsDeskDashboard({
   const selectedReviewIsCurrent = selectedReviewLineageId && !dashboard.isDemo;
   const predictionState = selectedReviewIsCurrent
     ? selectedReviewRead.lineageId === selectedReviewLineageId ? selectedReviewRead.state : "loading"
-    : referenceReviewData.state;
-  const predictionError = selectedReviewIsCurrent ? selectedReviewRead.error : referenceReviewData.error;
+    : "ready";
+  const predictionError = selectedReviewIsCurrent ? selectedReviewRead.error : null;
   useEffect(() => {
     // Keep a display copy for the next visit once everything the feed shows has been read.
     if (dashboard.isDemo || (activeTab !== "references" && activeTab !== "overview") || !hasHydratedReferences || predictionState !== "ready" || !references.length) return;
@@ -1355,7 +1384,7 @@ function NewsDeskDashboard({
     }, 800);
     return () => window.clearTimeout(timer);
   }, [activeTab, dashboard.isDemo, hasHydratedReferences, predictionState, referenceAttachments, references, relevanceDecisions]);
-  const retryReferenceReviewData = () => { referenceReviewData.retry(); setSelectedReviewAttempt((current) => current + 1); };
+  const retryReferenceReviewData = () => { setSelectedReviewAttempt((current) => current + 1); };
 
   const applyReferenceRecord = useCallback((nextReference: ReferenceRecord) => {
     const { nextRecords, nextRecord, previousRecord } = upsertReferenceRecords(referencesRef.current, nextReference);
@@ -2995,6 +3024,7 @@ function NewsDeskDashboard({
 
   return (
     <ConversationProvider authorLabel={authState.label} demo={Boolean(dashboard.isDemo)}>
+    <ReferenceLinksProvider demo={Boolean(dashboard.isDemo) || isLocalPreviewEnabled()}>
       <NewsroomOpsShell
         activeTab={activeTab}
         appTitle={SITE_BRAND.appTitle}
@@ -3052,7 +3082,7 @@ function NewsDeskDashboard({
             onCorrectCapture={dashboard.isDemo ? undefined : (input) => correctReferenceCapture(input)}
             onReview={(reference, action, options) => runReferenceCurationAction(reference, action, options?.note, options?.reasonCode,
               options?.decisionRelationId ? { decisionRelationId: options.decisionRelationId, shareable: options.shareable === true } : undefined)}
-            predictionState={referenceReviewData.state}
+            predictionState="ready"
             referenceAttachments={referenceAttachments}
             references={references}
             savedCopy={savedFeedCopy}
@@ -3147,6 +3177,9 @@ function NewsDeskDashboard({
             predictionState={predictionState}
             predictionError={predictionError}
             onRetryPredictions={retryReferenceReviewData}
+            predictionStatuses={readsPredictions ? referencePredictions.statuses : undefined}
+            onRequestPredictions={readsPredictions ? requestPredictions : undefined}
+            onRetryPrediction={referencePredictions.retry}
             reviewReasons={reviewReasons}
             reviewSectionIds={reviewSectionIds}
             onReview={(reference, action, options) => runReferenceCurationAction(reference, action, options?.note, options?.reasonCode,
@@ -3222,6 +3255,7 @@ function NewsDeskDashboard({
         </div>
       </NewsroomOpsShell>
       {topBarSearchControl.dialog}
+    </ReferenceLinksProvider>
     </ConversationProvider>
   );
 }

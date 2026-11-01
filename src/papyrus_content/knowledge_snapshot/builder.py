@@ -79,6 +79,9 @@ class _Entity:
     href: str | None
 
 
+DATE_BASIS = "publication"  # items count in the week of their publication date (a published story's date, a record's sourcePublishedAt); an undated one is left out, never dated by ingestion
+
+
 def _dated_items(items: tuple[PublishedItem, ...], as_of_week: int) -> dict[str, tuple[int, PublishedItem]]:
     dated: dict[str, tuple[int, PublishedItem]] = {}
     for item in items:
@@ -279,6 +282,7 @@ def _index_entity(entity: _Entity) -> dict:
         "weeksOfHistory": entity.history,
         "series8": entity.values8,
         "series26": entity.values26,
+        "dateBasis": DATE_BASIS,
         "change": entity.change.to_dict(),
         "isNew": entity.new,
     }
@@ -304,6 +308,7 @@ def _entity_file(entity: _Entity, neighbours: list[dict], related: list[dict], r
         "weeksOfHistory": entity.history,
         "series8": entity.values8,
         "series26": entity.values26,
+        "dateBasis": DATE_BASIS,
         "change": entity.change.to_dict(),
         "neighbours": neighbours,
         "relatedItems": related,

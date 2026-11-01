@@ -15,6 +15,8 @@ from typing import Any, Mapping, Sequence
 
 from .ids import safe_id
 from .relevance_cyclotron import FIELD as RELEVANCE_FIELD
+from .learning_classifiers import (LINK_CLASSIFIER_ID, LINK_LABELS, LINK_POSITIVE_LABEL, LINK_QUESTION, PACK_CLASSIFIER_ID, PACK_LABELS,
+                                   PACK_POSITIVE_LABEL, PACK_QUESTION, learning_seed_rubrics)
 from .relevance_cyclotron import RelevanceCyclotronPlan, _refuse_secrets, _string
 
 FIELD = "siteCyclotron"
@@ -132,7 +134,19 @@ def selector_seed_rubric(sections: Sequence[Mapping[str, Any]]) -> str:
     return "Choose the one Section whose mission fits best:\n" + "\n".join(descriptions)
 
 
-def site_classifier_specs(sections: Sequence[Mapping[str, Any]]) -> list[Any]:
+def learning_classifier_specs() -> list[Any]:
+    """The two learning classifiers, derived like the Section classifiers: nothing to configure. They learn only from decisions people made."""
+    from decision_flywheel import ClassifierSpec
+
+    return [ClassifierSpec(LINK_CLASSIFIER_ID, LINK_LABELS, LINK_QUESTION, positive_label=LINK_POSITIVE_LABEL),
+            ClassifierSpec(PACK_CLASSIFIER_ID, PACK_LABELS, PACK_QUESTION, positive_label=PACK_POSITIVE_LABEL)]
+
+
+def site_classifier_specs(sections: Sequence[Mapping[str, Any]], include_learning: bool = False) -> list[Any]:
+    """The Section classifiers and selector; with ``include_learning`` also ``reference-link-fit`` and ``idea-pack-fit``.
+
+    The sweep decides every classifier of the definition on each pending Reference, so it keeps the Section-only set until it can skip the
+    learning classifiers."""
     from decision_flywheel import ClassifierSpec
 
     ordered = enabled_sections_in_order(sections)
@@ -144,10 +158,11 @@ def site_classifier_specs(sections: Sequence[Mapping[str, Any]]) -> list[Any]:
         selector_labels = tuple(sorted(str(section["id"]) for section in ordered))
         specs.append(ClassifierSpec(section_selector_classifier_id(selector_labels), selector_labels,
                                     SECTION_SELECTOR_QUESTION))
-    return specs
+    return specs + learning_classifier_specs() if include_learning else specs
 
 
-def build_site_cyclotron(steering_config: Mapping[str, Any], sections: Sequence[Mapping[str, Any]]) -> RelevanceCyclotronPlan:
+def build_site_cyclotron(steering_config: Mapping[str, Any], sections: Sequence[Mapping[str, Any]],
+                         include_learning: bool = False) -> RelevanceCyclotronPlan:
     """Build the site cyclotron's plan from the steering config and the current Section list. No model call."""
     from decision_flywheel import CyclotronDefinition, ReviewProgram
 
@@ -160,10 +175,12 @@ def build_site_cyclotron(steering_config: Mapping[str, Any], sections: Sequence[
     if not relevance_block:
         raise ValueError(f"This publication's steering config has no {RELEVANCE_FIELD} block.")
     ordered = enabled_sections_in_order(sections)
-    specs = site_classifier_specs(sections)
+    specs = site_classifier_specs(sections, include_learning)
     seed_rubrics = {section_fit_classifier_id(section["id"]): section_seed_rubric(section) for section in ordered}
     if len(ordered) >= 2:
         seed_rubrics[section_selector_classifier_id([str(section["id"]) for section in ordered])] = selector_seed_rubric(ordered)
+    if include_learning:
+        seed_rubrics.update(learning_seed_rubrics())
     definition = CyclotronDefinition(site_block["cyclotronId"], tuple(specs), seed=f"{site_block['cyclotronId']}-v1")
     program = ReviewProgram(**{REVIEW_PROGRAM_FIELDS[key]: (tuple(value) if key == "rates" else value)
                                for key, value in relevance_block["reviewProgram"].items()})

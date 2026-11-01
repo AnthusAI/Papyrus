@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { CheckIcon, Loader2Icon, XIcon } from "lucide-react";
+import { CheckIcon, Loader2Icon, RotateCcwIcon, XIcon } from "lucide-react";
 import { UNRECORDED_CONFIDENCE } from "../lib/reference-feed-ranking";
 import { cn } from "@/lib/utils";
 import { AutoGrowTextarea } from "./ui/auto-grow-textarea";
@@ -63,6 +63,7 @@ export function DecisionControl({
   onChoose,
   onReasonChange,
   onReasonCommit,
+  onRetryPrediction,
   prediction,
   reason = "",
   reasonRequiredFor = null,
@@ -87,6 +88,8 @@ export function DecisionControl({
   onReasonChange?: (text: string) => void;
   /** Save the reason on its own (on blur, or from the status row). */
   onReasonCommit?: () => void;
+  /** Offered beside "Prediction unavailable": read this item's prediction again. */
+  onRetryPrediction?: (() => void) | undefined;
   prediction: CardPrediction;
   /** The written reason, owned by the caller. */
   reason?: string;
@@ -130,7 +133,14 @@ export function DecisionControl({
     <div className="@container/decision grid gap-y-2" data-decision-control data-rating-grid>
       {showPrediction ? (
         <div className="grid gap-y-0.5" data-prediction>
-          <span className={cn(LABEL, "text-muted-foreground")} data-prediction-caption>{caption}</span>
+          <span className={cn(LABEL, "flex items-center gap-2 text-muted-foreground")} data-prediction-caption>
+            {caption}
+            {prediction.state === "error" && onRetryPrediction ? (
+              <button className="inline-flex items-center gap-1 rounded-full bg-[var(--feed-control)] px-2 py-0.5 text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring" data-retry-prediction onClick={onRetryPrediction} type="button">
+                <RotateCcwIcon aria-hidden="true" className="size-3" />Retry
+              </button>
+            ) : null}
+          </span>
           <div
             aria-label={ready ? `Prediction: ${WORD[ready.choice]}, ${confidenceText} confident` : caption}
             className="relative h-4 w-full overflow-hidden rounded-full bg-[var(--feed-control)]"

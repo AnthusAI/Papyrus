@@ -97,6 +97,7 @@ def test_the_index_carries_every_entitys_full_weekly_history_from_its_first_week
     assert row["seriesWeekly"] == [1, 1, 2, 2, 3, 3, 3, 3] and len(row["seriesWeekly"]) == row["weeksOfHistory"] == 8
     assert row["seriesWeekly"][-8:] == row["series8"] and sum(row["seriesWeekly"]) == row["itemCount"]
     assert row["seriesWeeklyStart"] < files[INDEX_FILE]["asOf"]
+    assert row["dateBasis"] == "publication"
 
 
 def test_weekly_series_and_change_for_an_entity():
@@ -418,13 +419,13 @@ def test_public_safe_output_has_no_email_or_private_text():
 INDEX_FIELDS = {"schemaVersion", "asOf", "entityCount", "topicCount", "kinds", "beats", "entities", "trending", "conceptOfTheWeek"}
 KIND_FIELDS = {"key", "label", "count"}
 BEAT_FIELDS = {"key", "name", "href", "itemCount", "series8", "topEntities"}
-INDEX_ENTITY_FIELDS = {"key", "kind", "name", "aliases", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "series26", "seriesWeekly", "seriesWeeklyStart", "change", "isNew"}
+INDEX_ENTITY_FIELDS = {"key", "kind", "name", "aliases", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "series26", "dateBasis", "seriesWeekly", "seriesWeeklyStart", "change", "isNew"}
 CHANGE_FIELDS = {"last4", "prior4", "percent"}
 CONCEPT_FIELDS = {"key", "name", "href", "lede", "editedBy", "itemCount", "makerCount"}
 ACTOR_FIELDS = {"actor", "name", "on"}
 ENTITY_FIELDS = {
     "schemaVersion", "key", "kind", "name", "aliases", "acceptedBy", "description", "href", "itemCount", "weeksOfHistory",
-    "series8", "series26", "change", "neighbours", "relatedItems",
+    "series8", "series26", "dateBasis", "change", "neighbours", "relatedItems",
 }
 DESCRIPTION_FIELDS = {"state", "editedBy"}
 NEIGHBOUR_FIELDS = {"relation", "key", "name", "kind", "weight"}
@@ -619,3 +620,14 @@ def test_a_snapshot_without_records_has_none_of_the_record_fields():
     files = build_files(data, OPTIONS)
     text = json.dumps(files)
     assert "recordCount" not in text and "relatedRecords" not in text
+
+
+def test_a_concept_series_counts_each_item_in_its_publication_week_and_declares_that_basis():
+    voice = node("task", "Voice cloning", accepted_by=AI)
+    items = [item("early", offset=6), item("middle", offset=3), item("latest", offset=0)]
+    data = KnowledgeData(items=tuple(items), nodes=(voice,), links=tuple(link(each.key.removeprefix("lineage-"), voice) for each in items))
+    files = build_files(data, OPTIONS)
+    entity = files[entity_file("task--voice-cloning")]
+    assert entity["series8"] == [0, 1, 0, 0, 1, 0, 0, 1]
+    assert entity["dateBasis"] == "publication"
+    assert next(row for row in files[INDEX_FILE]["entities"] if row["key"] == "task--voice-cloning")["dateBasis"] == "publication"

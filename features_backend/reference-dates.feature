@@ -53,3 +53,34 @@ Feature: Every Reference carries the date its source was published, when the sou
     When curation reads the page
     Then the Reference's publication date is "2026-10-01"
     And the publication date was resolved from "monitor" with "day" precision
+
+  Scenario: A pack states the basis of its dates and never writes a publication date for an unknown one
+    Given References accepted in a burst, one with no publication date
+    When the context packs are built from them
+    Then the acceptance pack states that its dates are ingestion dates
+    And the Reference with no publication date shows no publication date and is ordered by its added date
+
+  Scenario: Inside a pack References are ordered by their publication date
+    Given References accepted in a burst, with publication dates far apart
+    When the context packs are built from them
+    Then the Reference published most recently comes first in the acceptance pack
+
+  Scenario: The concept trend series counts by publication date
+    Given a concept linked to items published in three different weeks
+    When the concept snapshot files are built
+    Then each item is counted in the week it was published
+    And the concept series states that its dates are publication dates
+
+  Scenario: An old source that people suddenly attend to yields a resurfaced pack
+    Given a site where sources usually reach it days after publication
+    And a source published long before it reached the site that people accepted and discussed today
+    When the context packs are built from them
+    Then a resurfaced pack exists for that source
+    And the pack states that its dates are publication dates
+    And the pack says the accept and the Message that pointed attention at it
+
+  Scenario: An old source that nobody attends to yields no resurfaced pack
+    Given a site where sources usually reach it days after publication
+    And a source published long before it reached the site that nobody has attended to for months
+    When the context packs are built from them
+    Then no resurfaced pack exists

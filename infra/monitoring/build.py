@@ -40,8 +40,8 @@ ROUTER_ROOTS = ("monitoring_router", "monitoring_intake", "editorial_context", "
 # It is standard-library only; its command line and Lambda handler are not needed.
 KNOWLEDGE_QUERY_PACKAGE = ROOT / "src" / "papyrus_knowledge_query"
 KNOWLEDGE_QUERY_EXCLUDED = frozenset({"cli.py", "lambda_handler.py"})
-# Imported lazily on paths the router never runs; they need packages the Lambda does not have.
-ROUTER_EXCLUDED = frozenset({"web_structured_metadata", "biblicus_runner"})
+# Imported only inside functions on paths the router never runs; they need packages the Lambda does not have.
+ROUTER_EXCLUDED = frozenset({"biblicus_runner"})
 # Pure-Python packages copied into the worker zips (the Lambda runtime has boto3/botocore only): PyYAML, then youtube-transcript-api and
 # everything it imports. Compiled extensions are left out; each package runs in its pure-Python mode.
 VENDORED = ("yaml", "youtube_transcript_api", "defusedxml", "requests", "urllib3", "idna", "certifi", "charset_normalizer")

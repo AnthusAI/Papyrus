@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { createReferenceLink, decideReferenceLink, referenceLinkRelationId, type ReferenceLinkRow, type ReferenceLinkStore } from "../amplify/functions/category-action/reference-links";
+import { publishedAddedText, referenceDatesText } from "../lib/reference-links";
 
 type Vectors = {
   references: string[];
@@ -81,4 +82,11 @@ test("only editors can call the three mutations", () => {
   const suggest = resource.slice(resource.indexOf("  suggestReferenceLinks: a"), resource.indexOf("handler(", resource.indexOf("  suggestReferenceLinks: a")));
   assert.match(suggest, /allow\.groups\(contentWriteGroups\)/);
   assert.match(readFileSync("amplify/data/resource.ts", "utf8"), /const contentWriteGroups = \["editor", "admin"\]/);
+});
+
+test("publication precision shows as a month or a year, and createdAt is never the publication date", () => {
+  assert.equal(publishedAddedText("2026-10-01T00:00:00Z", "2026-10-28T08:00:00Z", "month"), "published Oct 2026 · added 2026-10-28");
+  assert.equal(publishedAddedText("2026-01-01T00:00:00Z", "2026-10-28T08:00:00Z", "year"), "published 2026 · added 2026-10-28");
+  assert.equal(referenceDatesText({ sourcePublishedAt: null, createdAt: "2026-10-28T08:00:00Z" }), "published unknown · added 2026-10-28");
+  assert.equal(referenceDatesText({ sourcePublishedAt: "2026-10-01T00:00:00Z", createdAt: "2026-10-28T08:00:00Z", metadata: JSON.stringify({ publicationDateResolution: { precision: "month" } }) }), "published Oct 2026 · added 2026-10-28");
 });

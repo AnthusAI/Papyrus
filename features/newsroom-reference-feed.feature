@@ -219,3 +219,35 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then the feed reads page after page until the backend says there are no more
     And each Reference appears once even when two pages overlap
     And a page token that repeats stops the read with a message instead of looping
+
+  # Predictions are read for the References the feed shows, one indexed read each, never from the newsroom's whole relation feed. A
+  # Shipped-sized newsroom holds about 16,000 relations and more arrive every time a monitor runs, so any fixed number of pages would
+  # one day be too few and the feed would fail. The cost follows what is on screen, so the feed keeps working however much the newsroom holds.
+  Scenario: A newsroom with more relations than any page budget still shows predictions for the visible References
+    Given a newsroom with 60 References and 20,000 relation records, more than any fixed page budget could read
+    When the editor opens the feed
+    Then predictions are read for the 24 References on the first page, one read each, and for no other Reference
+    And every one of those cards shows its prediction and confidence
+    And nothing says that predictions are unavailable or that the activity feed is incomplete
+    And scrolling to the end reads the next page's predictions only, and its cards join after the first page without moving it
+
+  Scenario: One Reference's prediction failing shows on that card alone
+    Given a feed where the prediction read for one Reference is refused
+    When the feed has loaded
+    Then that card says Prediction unavailable and offers Retry, in words and an icon
+    And every other card shows its prediction, and no message about predictions appears for the page
+    And choosing Retry reads that one prediction again and the card shows it
+
+  Scenario: The cards render without predictions when every prediction read fails
+    Given a feed where every prediction read is refused
+    When the feed has loaded
+    Then every Reference still shows its title, source, age and its Accept and Reject buttons
+    And each card says Prediction unavailable with Retry, and the feed is never left as grey skeletons
+    And the order is the server's own, newest first, because nothing can rank them yet
+
+  Scenario: The unit rules behind the paged predictions
+    Given a newsroom with about 16,000 relations held by subject
+    When the feed windows its References and reads their predictions
+    Then only the shown References are read, at most a few reads are in flight at once, and one failing read fails only its own Reference
+    And the window is the newest pages of unanswered items plus the answered ones that arrived since, and it only ever grows
+    And a later page is ranked after everything already placed, while a new arrival waits behind the new-items pill

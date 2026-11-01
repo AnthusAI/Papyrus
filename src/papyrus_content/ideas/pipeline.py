@@ -6,7 +6,7 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
-from . import dedupe, synthesis
+from . import dedupe, duplicate_cut, synthesis
 from .digest import ACCEPTED, PENDING, iso
 from .review import mark_steering_applied, merge_feedback, read_steering, request_human_review
 from .items import IdeaRefused
@@ -109,13 +109,16 @@ def synthesize(
     feedback: list[dict[str, Any]] | None = None,
     model: str = synthesis.DEFAULT_MODEL,
     maximum: int = synthesis.DEFAULT_MAXIMUM_IDEAS,
-    threshold: float = dedupe.DEFAULT_THRESHOLD,
+    threshold: float | None = None,
     maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Runs synthesis and returns the run ledger (also saved); the ideas are in ``run['ideas']`` and saved one file each."""
     moment = now or datetime.now(timezone.utc)
+    cut = duplicate_cut.resolve_threshold(review_client, threshold)
+    threshold = cut.threshold
     run: dict[str, Any] = {
+        "duplicateCut": cut.record(),
         "runId": run_id_for(digest["digestId"], moment),
         "kind": "ideas-run",
         "publication": digest["publication"],
@@ -164,6 +167,7 @@ def synthesize(
             run["ideas"].append(idea)
     run["ideasCreated"] = len(run["ideas"])
     request_human_review(review_client, run, run["ideas"])
+    run["storiesInPrompts"] = context.get("promptStories")
     run["finishedAt"] = iso(datetime.now(timezone.utc))
     json_store.save_run(run)
     return run
