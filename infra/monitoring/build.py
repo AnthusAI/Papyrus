@@ -50,7 +50,9 @@ VENDORED_DATA = frozenset({".py", ".pem"})
 # dependency closure comes from poetry.lock at the locked versions, as binary wheels for the Lambda (arm64, CPython 3.13), unpacked into the zip.
 # Packages VENDORED already covers (idna, PyYAML) are left to that path, and the Lambda runtime brings boto3 and botocore.
 LOCK = ROOT / "poetry.lock"
-ROUTER_WHEEL_ROOTS = ("humanus", "typesafe-sdk")
+# anthus-markus renders the Markus body of every filed idea (publishing.derive_body); it turns on markdown-it-py's linkify extra, which the
+# closure leaves out with the other extras, so linkify-it-py is named too.
+ROUTER_WHEEL_ROOTS = ("humanus", "typesafe-sdk", "anthus-markus", "linkify-it-py")
 LAMBDA_PLATFORMS = ("manylinux_2_28_aarch64", "manylinux_2_17_aarch64", "manylinux2014_aarch64")
 LAMBDA_PYTHON = "3.13"
 ROUTER_DATA = ("corpora/papyrus-semantic-relation-types.yml", "corpora/papyrus-publication-doctrine.yml")
