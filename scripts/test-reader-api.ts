@@ -184,6 +184,35 @@ async function json(response: Response) {
     assert.equal(noFunction.body.error, "reader_actions_unavailable");
   }
 
+  // Extraction: a reader-scoped read (GET, no Origin needed) and a write (POST, Origin and JSON checked). Identity only travels to the function.
+  {
+    const subject = "sub-0123456789abcdef01234567";
+    const { calls, options } = harness({ statusCode: 200, body: { subject, extraction: { state: "pending" }, confirmation: null } });
+    const read = await json(await handleReaderRequest(request("GET", `/api/reader/extraction?subject=${subject}`, { cookies: cookieFor(signedIn()) }), "extraction", options));
+    assert.equal(read.status, 200);
+    assert.equal(read.headers.get("cache-control"), "no-store");
+    assert.deepEqual(calls.map((call) => [call.event.action, call.event.siteSubject, call.event.payload]), [["extraction", siteSubject, { subject }]]);
+    assert.equal(JSON.stringify(read.body).includes(siteSubject), false);
+    for (const query of ["", "?subject=item-one", "?subject=sub-XYZ", `?subject=${subject}x`, "?subject=sub-0123456789abcdef01234567,sub-0123456789abcdef01234568"]) {
+      const bad = await json(await handleReaderRequest(request("GET", `/api/reader/extraction${query}`, { cookies: cookieFor(signedIn()) }), "extraction", options));
+      assert.equal(bad.status, 400, `extraction${query}`);
+      assert.equal(bad.body.error, "invalid_subject");
+    }
+    assert.equal(calls.length, 1, "a malformed subject never reaches the function");
+    const signedOut = await json(await handleReaderRequest(request("GET", `/api/reader/extraction?subject=${subject}`), "extraction", options));
+    assert.equal(signedOut.status, 401);
+    const noSubject = await json(await handleReaderRequest(request("GET", `/api/reader/extraction?subject=${subject}`, { cookies: cookieFor(signedIn({ siteSubject: undefined })) }), "extraction", options));
+    assert.equal(noSubject.status, 503, "no siteSubject, no reading");
+    const body = JSON.stringify({ subject, decision: "correct", maker: "Some Lab", readerId: "someone-else" });
+    const crossSite = await json(await handleReaderRequest(request("POST", "/api/reader/extraction/confirm", { cookies: cookieFor(signedIn()), origin: "https://evil.example", body }), "extraction-confirm", options));
+    assert.equal(crossSite.status, 403);
+    const written = await json(await handleReaderRequest(request("POST", "/api/reader/extraction/confirm", { cookies: cookieFor(signedIn()), body }), "extraction-confirm", options));
+    assert.equal(written.status, 200);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].event.action, "extraction-confirm");
+    assert.deepEqual(calls[1].event.payload, JSON.parse(body), "the function, not the route, decides what is allowed in the body");
+  }
+
   // An unconfigured site origin fails closed.
   {
     const { options } = harness();

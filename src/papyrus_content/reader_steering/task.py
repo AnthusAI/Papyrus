@@ -25,6 +25,7 @@ from .retirement import (
     RetirementReport,
     run_retirement_poll,
 )
+from .extraction import ExtractionReport, ExtractionSetup, extraction_from_environment, run_extraction
 from .proposals import FROZEN_STATES, VoteCounts, build_proposal_files
 from .review import ReviewReport, review_comments, review_submissions
 from .signals import submission_signals
@@ -77,6 +78,7 @@ class ReaderSnapshotReport:
     purge_error: str | None
     retirement_poll: RetirementReport
     review: ReviewReport
+    extraction: ExtractionReport
 
     def to_dict(self) -> dict:
         return {
@@ -91,6 +93,7 @@ class ReaderSnapshotReport:
             "purgeError": self.purge_error,
             "retirementPoll": self.retirement_poll.to_dict(),
             "review": self.review.to_dict(),
+            "extraction": self.extraction.to_dict(),
         }
 
 
@@ -297,6 +300,7 @@ def run_reader_snapshot(
     submitter_of: Callable[[str], str | None] | None = None,
     review_signals: Callable[..., list[dict]] | None = None,
     comment_signals: Callable[[str], list[dict]] | None = None,
+    extraction: ExtractionSetup | None = None,
 ) -> ReaderSnapshotReport:
     environment = os.environ if environment is None else environment
     settings = snapshot_settings_from_environment(environment)
@@ -380,6 +384,15 @@ def run_reader_snapshot(
             purged = context.invalidate(keys)
         except Exception as error:  # noqa: BLE001 - the files are written; a purge that fails only delays them by the cache lifetime
             purge_error = type(error).__name__
+    extraction_report = ExtractionReport()
+    if submissions:
+        # Last, after the public files are written and purged: the extraction is private and can take as long as the budget allows.
+        try:
+            setup = extraction or extraction_from_environment(environment, client)
+            if setup is not None:
+                extraction_report = run_extraction(resource, environment[SUBMISSION_TABLE_ENV], submissions, setup, now_iso=snapshot_iso(now))
+        except Exception as error:  # noqa: BLE001 - extraction is advice for the reader; a failure must not fail the run
+            extraction_report = ExtractionReport(enabled=True, error=type(error).__name__)
     return ReaderSnapshotReport(
         written=keys,
         subjects=len(snapshot.items["items"]),
@@ -391,4 +404,5 @@ def run_reader_snapshot(
         purge_error=purge_error,
         retirement_poll=retirement,
         review=review,
+        extraction=extraction_report,
     )
