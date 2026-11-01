@@ -30,6 +30,11 @@ module.exports = {
     tags: "",
     format: ["progress", "summary"],
   },
+  bootstrapFirstDeploy: {
+    paths: ["features/bootstrap-first-deploy.feature"],
+    require: ["features/step_definitions/bootstrap-first-deploy.steps.js"],
+    format: ["summary"],
+  },
   adminEditorRights: {
     paths: ["features/newsroom-admin-editor-rights.feature"],
     require: ["features/step_definitions/admin-editor-rights.steps.js"],

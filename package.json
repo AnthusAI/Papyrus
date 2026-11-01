@@ -127,6 +127,7 @@
     "test:redirect-and-index-function": "node scripts/test-redirect-and-index-function.mjs",
     "test:resolver-waves": "tsx scripts/test-resolver-waves.ts",
     "test:model-groups": "tsx scripts/test-model-groups.ts",
+    "test:bootstrap-stage": "tsx scripts/test-model-groups.ts && cucumber-js --profile bootstrapFirstDeploy",
     "test:function-directive-stack": "tsx scripts/test-function-directive-stack.ts",
     "test:plugins": "tsx scripts/test-plugins.ts",
     "test:alexa": "node --import tsx --test \"scripts/test-alexa-*.ts\" && cucumber-js --profile alexa",
