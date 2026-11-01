@@ -46,7 +46,7 @@ const behaviours: Record<string, () => void> = {
       CLI_LOOPBACK_CALLBACK,
       "https://newsroom.example.test/cli/callback",
     ]);
-    assert.deepEqual(properties.LogoutURLs, ["http://localhost:3000/", "https://newsroom.example.test/", "http://127.0.0.1:38947/"]);
+    assert.deepEqual(properties.LogoutURLs, ["http://localhost:3000/", "https://newsroom.example.test/"], "the loopback is a sign-in return only, never a logout URL");
     assert.throws(() => cliFederationClientCallbackUrls(true, {}), /PAPYRUS_SITE_ORIGIN/);
     assert.throws(() => cliFederationClientCallbackUrls(true, { PAPYRUS_SITE_ORIGIN: "http://insecure.example.test" }), /plain https origin/);
   },

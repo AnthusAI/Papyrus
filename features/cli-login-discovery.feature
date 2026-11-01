@@ -51,6 +51,7 @@ Feature: Sites publish their public CLI login values
   Scenario: The federation client's callback list contains exactly the Prospectus callback, the loopback and the console callback
     When the federation client is synthesized with the CLI moved onto it
     Then its callbacks are each site origin's Prospectus callback, the fixed loopback and the console's cli callback
+    And its logout URLs are the site origins only, never the CLI's loopback
 
   Scenario: Sign-in on the federation client is Google-only
     When the federation client is synthesized with the CLI moved onto it
