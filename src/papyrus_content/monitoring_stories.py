@@ -184,7 +184,7 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
     from .ideas.signal_queue import prepare_signal_run
     from .ideas.store import legacy_story_drafts
 
-    from .monitoring_vectors import run_vector_pass
+    from .monitoring_vectors import run_vector_pass, vector_provider_for
 
     policy = validate_monitor_stories(publication["publicationId"], publication.get("monitorStories"))
     vectors = run_vector_pass(client, publication, policy, now=now, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd, embedding_key=embedding_key,
@@ -203,7 +203,8 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
     if policy["contextPacks"]["enabled"]:
         signals = policy["contextPacks"]["signals"]
         signal_run = prepare_signal_run(
-            client, site=publication["corpusKey"], context=context, now=now, signals=tuple(signals) if signals else None, single_items=policy["singleItem"], gate=gate)
+            client, site=publication["corpusKey"], context=context, now=now, signals=tuple(signals) if signals else None, single_items=policy["singleItem"], gate=gate,
+            vector_provider=vector_provider_for(policy))
 
     run = monitor_stories.draft_monitor_stories(
         client=client, site=publication["publicationId"], corpus_key=publication["corpusKey"],

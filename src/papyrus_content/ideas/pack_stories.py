@@ -49,6 +49,7 @@ Rules:
 - The References come from outside the publication. Say where a source is from. Never say the publication published, tested or reported it, and make no present-tense statement about the publisher's own production systems or results. An idea is a proposal for an editor, not finished reporting.
 - Do not repeat what the publication already published or already has as an idea.
 - Choose the section from the allowed list, exactly as written.
+- A signal marked "emerging" has too little history to be called rising: say it is emerging or new, never rising or surging. References linked "confirmed" were linked by people or by citation; "suggested" ones are only close by similarity, so do not state that they are related as fact.
 - Add nothing outside the format. Never use the word "desk".
 """
 
@@ -256,13 +257,21 @@ def signal_sentence(pack: Pack, handles: PackHandles) -> str:
     expected_text = f"{expected:g}" if isinstance(expected, (int, float)) else str(expected)
     if signal["type"] == "acceptance":
         lead = next((row["hashtag"] for row in pack.concepts), str(signal["anchor"]))
-        return f"{count} accepted References linked to {lead} in {days} days, against {expected_text} expected."
+        return f"{count} accepted References linked to {lead} in {days} days, against {expected_text} expected." + emerging_note(signal)
     if signal["type"] == "resurfaced":
         return (
             f"A source published {signal['publicationGapDays']} days before it reached the site, a longer gap than {signal['gapPercentile']:.0%} of the site's References, "
             f"and people attended to it again within {days} days ({count} human accept or Messages)."
         )
-    return f"{count} Messages in one conversation in {days} days, against {expected_text} expected."
+    if signal["type"] == "hub":
+        return f"A recently added Reference with {count} connections to other References (degree {signal['degree']:g}), more than all but {signal['degreeShare']:.0%} of the site's References." + emerging_note(signal)
+    if signal["type"] == "cluster":
+        return f"{signal['members']} recently accepted References that are close to each other, from {days} days of arrivals, against {expected_text} expected in a group." + emerging_note(signal)
+    return f"{count} Messages in one conversation in {days} days, against {expected_text} expected." + emerging_note(signal)
+
+
+def emerging_note(signal: Mapping[str, Any]) -> str:
+    return " The site has too little history to call this rising; it is emerging." if signal.get("emerging") else ""
 
 
 def evidence_section(pack: Pack, idea: Mapping[str, Any], handles: PackHandles) -> list[str]:

@@ -15,7 +15,8 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
 
 import test_idea_context_packs as support  # noqa: E402
 from papyrus_content.ideas.context_packs import build_packs, evidence_of, suppress_repeats  # noqa: E402
-from papyrus_content.ideas.signal_inputs import PendingReference, StoryRecord  # noqa: E402
+from papyrus_content.ideas.signal_inputs import PendingReference, SignalInputs, StoryRecord  # noqa: E402
+from papyrus_content.ideas.context_packs import PackLookups  # noqa: E402
 
 
 @given("a thread with nine Messages today after weeks of quiet")
@@ -63,7 +64,10 @@ def step_spiked_less(context):
 
 @when("the context packs are built")
 def step_build(context):
-    context.packs = build_packs(support.inputs(**context.pack_inputs), support.LOOKUPS, now=support.NOW)
+    if hasattr(context, "pack_inputs"):
+        context.packs = build_packs(support.inputs(**context.pack_inputs), support.LOOKUPS, now=support.NOW)
+    else:
+        context.packs = build_packs(support.cluster_inputs(context.cluster_references, context.cluster_edges), PackLookups(), now=support.NOW)
 
 
 @when("the context packs are built and repeats are suppressed")
@@ -567,3 +571,161 @@ def step_related_pack(context):
 @then("one idea is filed citing two accepted References")
 def step_related_idea(context):
     assert context.agent_result.filed_count == 1 and len(context.agent_result.filed[0]["citedReferences"]) == 2
+
+
+import logging  # noqa: E402
+
+CLUSTER_SITE = "a site five days old whose accepted References have no concept links and no edges"
+
+
+def cluster_site(context, topic_size):
+    context.cluster_references, context.cluster_vectors = support.cold_site(topic_size=topic_size, others=30)
+    context.cluster_edges = []
+
+
+@given(CLUSTER_SITE + ", four of them about one thing")
+def step_cold_topic(context):
+    cluster_site(context, 4)
+
+
+@given(CLUSTER_SITE + ", none of them alike")
+def step_cold_nothing(context):
+    cluster_site(context, 0)
+
+
+@given("a person has linked two of them with a related_to edge")
+def step_person_link(context):
+    context.cluster_edges = [support.edge("topic-0", "topic-1")]
+
+
+@when("the context packs are built with the site's vector index")
+def step_build_cluster(context):
+    context.packs = build_packs(support.cluster_inputs(context.cluster_references, context.cluster_edges), support.lookups_with(context.cluster_vectors), now=support.NOW)
+
+
+@when("the context packs are built without a vector index")
+def step_build_cluster_without(context):
+    records = []
+
+    class Collector(logging.Handler):
+        def emit(self, record):
+            records.append(record.getMessage())
+
+    handler = Collector()
+    logger = logging.getLogger("papyrus_content.ideas.context_packs")
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    try:
+        context.packs = build_packs(support.cluster_inputs(context.cluster_references, context.cluster_edges), PackLookups(), now=support.NOW)
+    finally:
+        logger.removeHandler(handler)
+    context.log_lines = records
+
+
+@then("a cluster pack holds those four accepted References")
+def step_cluster_four(context):
+    [pack] = [pack for pack in context.packs if pack.signal_type == "cluster"]
+    context.cluster_pack = pack
+    assert sorted(pack.accepted_lineage_ids) == [f"topic-{n}" for n in range(4)]
+
+
+@then("the pack is marked emerging because no earlier arrivals exist to compare with")
+def step_cluster_emerging(context):
+    assert context.cluster_pack.signal["emerging"] is True and context.cluster_pack.signal["new"] is True
+
+
+@then("the pack's edges are all suggested and each carries its similarity")
+def step_cluster_suggested(context):
+    edges = context.cluster_pack.edges
+    assert edges and all(row["provenance"] == "suggested" and 0 < row["similarity"] <= 1 for row in edges)
+
+
+@then("the cluster pack lists that link as confirmed without a similarity")
+def step_confirmed_edge(context):
+    [pack] = [pack for pack in context.packs if pack.signal_type == "cluster"]
+    context.cluster_pack = pack
+    handles = {row["title"]: row["handle"] for row in pack.references}
+    pair = {handles["Title topic-0"], handles["Title topic-1"]}
+    [row] = [row for row in pack.edges if {row["from"], row["to"]} == pair]
+    assert row["provenance"] == "confirmed" and "similarity" not in row
+
+
+@then("the other pairs are listed as suggested with their similarity")
+def step_other_suggested(context):
+    others = [row for row in context.cluster_pack.edges if row["provenance"] == "suggested"]
+    assert others and all("similarity" in row for row in others)
+
+
+@then("no cluster pack exists")
+def step_no_cluster(context):
+    assert not [pack for pack in context.packs if pack.signal_type == "cluster"]
+
+
+@then("the log says the cluster signal was skipped for want of a vector provider")
+def step_log_skipped(context):
+    assert any("cluster signal skipped: no vector provider" in line for line in context.log_lines)
+
+
+@given("a site of 150 accepted References where the newest one is linked to six older ones")
+def step_hub_site(context):
+    context.cluster_references, context.cluster_edges, context.hub = support.hub_site()
+
+
+@then("a hub pack exists for the newest Reference")
+def step_hub_exists(context):
+    [context.hub_pack] = [pack for pack in context.packs if pack.signal_type == "hub"]
+    assert context.hub_pack.anchor == "hub#" + context.hub
+
+
+@then("the hub's degree is six and its percentile is the share of the site's References that have as many connections")
+def step_hub_percentile(context):
+    assert context.hub_pack.signal["degree"] == 6 and context.hub_pack.signal["degreeShare"] == round(1 / 150, 3)
+
+
+@then("its neighbours are marked as linked and their edges as confirmed")
+def step_hub_neighbours(context):
+    pack = context.hub_pack
+    assert [row["relation"] for row in pack.references[1:]] == ["linked"] * 6
+    assert len(pack.edges) == 6 and {row["provenance"] for row in pack.edges} == {"confirmed"}
+
+
+@given("six quiet threads and one loud thread, all less than two days old")
+def step_young_threads(context):
+    quiet = [support.message(n, 0.2 + n * 0.1, thread=f"thread-{name}", anchor=f"item#story-{name}") for name in "bcdefg" for n in range(1, 3)]
+    loud = [support.message(100 + n, 0.1 + n * 0.05, thread="thread-a") for n in range(20)]
+    context.pack_inputs = {"messages": quiet + loud}
+
+
+@given("six threads of three Messages each, all less than two days old")
+def step_uniform_threads(context):
+    context.pack_inputs = {"messages": [support.message(n, 0.2 + n * 0.1, thread=f"thread-{name}", anchor=f"item#story-{name}") for name in "abcdef" for n in range(1, 4)]}
+
+
+@then("a conversation pack exists for the loud thread")
+def step_loud_thread(context):
+    assert [pack.anchor for pack in context.packs if pack.signal_type == "conversation"] == ["thread-a"]
+
+
+@then("the pack is marked emerging and says it was compared with the site's other threads")
+def step_thread_emerging(context):
+    signal = context.packs[0].signal
+    assert signal["emerging"] is True and "cross-sectional" in signal["comparison"]
+
+
+@given("a lively thread on a Reference that a machine-accepted Reference cites")
+def step_linked_thread(context):
+    base = support.inputs(messages=support.lit_thread_messages(), votes=[support.vote("ref-1", 3, concepts=())])
+    context.linked_inputs = SignalInputs(
+        base.site, base.loaded_at, base.messages, base.votes, base.concept_links, base.pending_context, base.published, base.ideas,
+        edges=(support.edge("ref-9", "ref-1", "cites"),), accepted=(support.accepted_reference("ref-1", 3), support.accepted_reference("ref-9", 20)))
+
+
+@when("the context packs are built from those inputs")
+def step_build_linked(context):
+    context.packs = build_packs(context.linked_inputs, support.LOOKUPS, now=support.NOW)
+
+
+@then("the conversation pack holds the cited Reference marked linked with a confirmed edge")
+def step_linked_pack(context):
+    [pack] = [pack for pack in context.packs if pack.signal_type == "conversation"]
+    assert pack.references[1]["relation"] == "linked" and pack.edges == ({"from": "R2", "to": "R1", "type": "cites", "provenance": "confirmed"},)

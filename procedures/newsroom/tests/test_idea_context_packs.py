@@ -190,3 +190,205 @@ def test_references_in_an_acceptance_pack_are_ordered_by_publication_date_with_t
     assert rows["Title published-late"][0] < rows["Title published-early"][0]
     assert rows["Title no-date"][1]["published"] is None and rows["Title no-date"][1]["orderedBy"] == "added"
     assert rows["Title published-late"][1]["orderedBy"] == "published"
+
+
+import logging
+import math
+import random
+
+from papyrus_content.ideas.signal_inputs import AcceptedReference, ReferenceEdge
+from papyrus_knowledge_query.vector_index import reference_summary_vector_key
+
+DIMENSIONS = 48
+
+
+def accepted_reference(lineage: str, days_ago: float, concepts=(), by="machine") -> AcceptedReference:
+    return AcceptedReference(f"{lineage}-v1", lineage, f"Title {lineage}", f"https://example.org/{lineage}", moment(days_ago + 1), moment(days_ago + 3), moment(days_ago), by, tuple(concepts))
+
+
+def edge(subject: str, other: str, predicate: str = "related_to", days_ago: float = 1) -> ReferenceEdge:
+    return ReferenceEdge(subject, other, predicate, moment(days_ago))
+
+
+def noisy_unit(rng: random.Random, base=None, noise: float = 1.0) -> list[float]:
+    vector = [rng.gauss(0, 1) * noise + (base[index] if base else 0.0) for index in range(DIMENSIONS)]
+    norm = math.sqrt(sum(value * value for value in vector))
+    return [value / norm for value in vector]
+
+
+class FakeVectors:
+    """A stand-in for the S3 Vectors provider: stored vectors by key, brute-force cosine, the filter ignored but recorded."""
+
+    def __init__(self, vectors: dict[str, list[float]], accepted: set[str] | None = None) -> None:
+        self.by_lineage = vectors
+        self.accepted = accepted if accepted is not None else set(vectors)
+        self.keys = {reference_summary_vector_key(lineage): lineage for lineage in vectors}
+        self.filters: list[dict] = []
+
+    def get_vector(self, key: str):
+        lineage = self.keys.get(key)
+        return list(self.by_lineage[lineage]) if lineage else None
+
+    def query_by_vector(self, vector, top_k, metadata_filter):
+        self.filters.append(metadata_filter)
+        scored = [(1 - sum(a * b for a, b in zip(vector, other)), lineage) for lineage, other in self.by_lineage.items() if lineage in self.accepted]
+        scored.sort()
+        return [{"key": reference_summary_vector_key(lineage), "distance": distance, "metadata": {"referenceLineageId": lineage}} for distance, lineage in scored[:top_k]]
+
+
+def cold_site(topic_size: int = 4, others: int = 30, seed: int = 7, noise: float = 0.04):
+    """A site five days old: References with no concept links and no edges, ``topic_size`` of them about one thing."""
+    rng = random.Random(seed)
+    topic = noisy_unit(rng)
+    vectors, references = {}, []
+    for number in range(topic_size):
+        vectors[f"topic-{number}"] = noisy_unit(rng, topic, noise)
+        references.append(accepted_reference(f"topic-{number}", 0.5 + number * 0.3))
+    for number in range(others):
+        vectors[f"other-{number:02d}"] = noisy_unit(rng)
+        references.append(accepted_reference(f"other-{number:02d}", 0.2 + number * 0.12))
+    return references, vectors
+
+
+def cluster_inputs(references, edges=()):
+    return SignalInputs("example", moment(0), (), (), (), (), (), (), edges=tuple(edges), accepted=tuple(references))
+
+
+def lookups_with(vectors, accepted=None) -> PackLookups:
+    return PackLookups(vector_provider=FakeVectors(vectors, accepted))
+
+
+def test_cluster_forms_from_vectors_alone_on_a_cold_site_and_says_it_is_emerging():
+    references, vectors = cold_site()
+    provider_lookups = lookups_with(vectors)
+    packs = [pack for pack in build_packs(cluster_inputs(references), provider_lookups, now=NOW) if pack.signal_type == "cluster"]
+    assert len(packs) == 1
+    shown = packs[0].as_json()
+    assert sorted(packs[0].accepted_lineage_ids) == ["topic-0", "topic-1", "topic-2", "topic-3"]
+    assert len([row for row in shown["references"] if row["status"] == "accepted"]) == 4
+    assert shown["signal"]["emerging"] is True and shown["signal"]["new"] is True and shown["signal"]["correctedPValue"] <= 0.01
+    assert shown["signal"]["anchor"].startswith("cluster#") and shown["signal"]["dateBasis"] == "ingestion"
+    assert shown["signal"]["score"] > 0 and shown["edges"] and {row["provenance"] for row in shown["edges"]} == {"suggested"}
+    assert all(0 < row["similarity"] <= 1 for row in shown["edges"])
+    assert provider_lookups.vector_provider.filters[0]["$and"][1] == {"curationStatus": {"$eq": "accepted"}}
+
+
+def test_pack_edges_tell_confirmed_from_suggested():
+    references, vectors = cold_site()
+    packs = build_packs(cluster_inputs(references, [edge("topic-0", "topic-1")]), lookups_with(vectors), now=NOW)
+    shown = [pack for pack in packs if pack.signal_type == "cluster"][0].as_json()
+    by_pair = {(row["from"], row["to"]): row for row in shown["edges"]}
+    handle = {row["title"]: row["handle"] for row in shown["references"]}
+    confirmed = by_pair[(handle["Title topic-0"], handle["Title topic-1"])]
+    assert confirmed["provenance"] == "confirmed" and confirmed["type"] == "related_to" and "similarity" not in confirmed
+    assert any(row["provenance"] == "suggested" and "similarity" in row for row in shown["edges"])
+    assert len([row for row in shown["edges"] if {row["from"], row["to"]} == {handle["Title topic-0"], handle["Title topic-1"]}]) == 1
+
+
+def test_a_uniform_cold_site_yields_no_cluster_and_no_hub_and_no_cold_start_pack():
+    references, vectors = cold_site(topic_size=0, others=30)
+    assert build_packs(cluster_inputs(references), lookups_with(vectors), now=NOW) == []
+    threads = [message(number, 0.2 + number * 0.1, thread=f"thread-{name}", anchor=f"item#story-{name}") for name in "abcdef" for number in range(1, 4)]
+    assert build_packs(inputs(messages=threads), LOOKUPS, now=NOW) == []
+
+
+def test_cold_start_compares_a_young_thread_with_the_other_threads_and_marks_it_emerging():
+    quiet = [message(number, 0.2 + number * 0.1, thread=f"thread-{name}", anchor=f"item#story-{name}") for name in "bcdefg" for number in range(1, 3)]
+    loud = [message(100 + number, 0.1 + number * 0.05, thread="thread-a") for number in range(20)]
+    packs = build_packs(inputs(messages=quiet + loud), LOOKUPS, now=NOW)
+    conversation = [pack for pack in packs if pack.signal_type == "conversation"]
+    assert [pack.anchor for pack in conversation] == ["thread-a"]
+    signal = conversation[0].as_json()["signal"]
+    assert signal["emerging"] is True and "cross-sectional" in signal["comparison"] and signal["correctedPValue"] <= 0.01
+    assert conversation[0].scan["tested"] == 7
+
+
+def test_cold_start_compares_a_young_concept_with_the_other_concepts():
+    votes = [vote(f"ref-{n}", 0.1 + n * 0.1) for n in range(12)]
+    votes += [vote(f"other-{c}-{n}", 0.2 + n * 0.1, concepts=(f"concept-{c}",)) for c in range(5) for n in range(2)]
+    packs = build_packs(inputs(votes=votes), LOOKUPS, now=NOW)
+    assert [(pack.signal_type, pack.anchor, pack.signal["emerging"]) for pack in packs] == [("acceptance", "concept-voice", True)]
+
+
+def test_cluster_is_skipped_without_a_vector_provider_and_says_why(caplog):
+    references, _ = cold_site()
+    with caplog.at_level(logging.INFO):
+        assert build_packs(cluster_inputs(references), PackLookups(), now=NOW) == []
+    assert any("cluster signal skipped: no vector provider" in record.message for record in caplog.records)
+
+
+def test_a_vector_failure_skips_the_cluster_signal_and_not_the_run(caplog):
+    class Broken:
+        def get_vector(self, key):
+            raise RuntimeError("no s3vectors client")
+
+    references, _ = cold_site()
+    with caplog.at_level(logging.INFO):
+        assert build_packs(cluster_inputs(references), PackLookups(vector_provider=Broken()), now=NOW) == []
+    assert any("reading the vector index failed" in record.message for record in caplog.records)
+
+
+def hub_site(neighbours: int = 6, population: int = 150):
+    references = [accepted_reference(f"ref-{number:03d}", population - number + 0.5) for number in range(population)]
+    hub = references[-1].lineage_id
+    edges = [edge(hub, references[number].lineage_id) for number in range(neighbours)]
+    return references, edges, hub
+
+
+def test_a_recent_reference_with_far_more_connections_than_the_site_is_a_hub_with_its_percentile():
+    references, edges, hub = hub_site()
+    packs = [pack for pack in build_packs(cluster_inputs(references, edges), PackLookups(), now=NOW) if pack.signal_type == "hub"]
+    assert [pack.anchor for pack in packs] == ["hub#" + hub]
+    signal = packs[0].as_json()["signal"]
+    assert signal["degree"] == 6 and signal["degreeShare"] == round(1 / 150, 3) and signal["count"] == 6
+    assert signal["correctedPValue"] == float(f"{1 / 150:.3g}") and "emerging" not in signal
+    shown = packs[0].as_json()
+    assert shown["references"][0]["title"] == f"Title {hub}" and len(shown["references"]) == 7
+    assert [row["relation"] for row in shown["references"][1:]] == ["linked"] * 6
+    assert len(shown["edges"]) == 6 and {row["provenance"] for row in shown["edges"]} == {"confirmed"}
+
+
+def test_shared_concepts_add_weighted_degree_and_a_site_where_everyone_has_the_same_degree_has_no_hub():
+    references = [accepted_reference(f"ref-{number:03d}", 30 - number + 0.5, concepts=("concept-voice",)) for number in range(30)]
+    assert [pack for pack in build_packs(cluster_inputs(references), LOOKUPS, now=NOW) if pack.signal_type == "hub"] == []
+    sharing = [accepted_reference("ref-a", 0.5, concepts=("concept-rare",)), accepted_reference("ref-b", 40.5, concepts=("concept-rare",))] + [accepted_reference(f"ref-{n}", 1 + n) for n in range(5, 40)]
+    from papyrus_content.ideas.context_packs import context_of, degree_of, concept_frequency
+    from papyrus_content.knowledge_snapshot.trends import TrendConfig
+    context = context_of(cluster_inputs(sharing), LOOKUPS, NOW, TrendConfig())
+    degree, edge_neighbours, shared = degree_of(context, "ref-a", concept_frequency(context))
+    assert edge_neighbours == {} and shared == {"ref-b": 1 / math.sqrt(2)} and degree == 1 / math.sqrt(2)
+
+
+def test_a_conversation_pack_adds_the_references_linked_to_its_anchor_by_a_current_edge_marked_linked():
+    anchor = vote("ref-1", 3, concepts=())
+    linked = accepted_reference("ref-9", 20)
+    base = inputs(messages=lit_thread_messages(), votes=[anchor])
+    with_edge = SignalInputs(base.site, base.loaded_at, base.messages, base.votes, base.concept_links, base.pending_context, base.published, base.ideas,
+                             edges=(edge("ref-9", "ref-1", "cites"),), accepted=(accepted_reference("ref-1", 3), linked))
+    pack = [pack for pack in build_packs(with_edge, LOOKUPS, now=NOW) if pack.signal_type == "conversation"][0].as_json()
+    assert [row["title"] for row in pack["references"]] == ["Title ref-1", "Title ref-9"]
+    assert pack["references"][1]["relation"] == "linked" and pack["references"][1]["acceptedBy"] == "machine"
+    assert pack["edges"] == [{"from": "R2", "to": "R1", "type": "cites", "provenance": "confirmed"}]
+
+
+def test_a_component_with_earlier_arrivals_is_scanned_against_the_sites_arrivals_and_is_not_new():
+    rng = random.Random(11)
+    topic = noisy_unit(rng)
+    references, vectors = [], {}
+    for number in range(60):
+        references.append(accepted_reference(f"old-{number:02d}", 80 - number))
+        vectors[f"old-{number:02d}"] = noisy_unit(rng)
+    for number in range(2):
+        references.append(accepted_reference(f"early-{number}", 50 - number))
+        vectors[f"early-{number}"] = noisy_unit(rng, topic, 0.1)
+    for number in range(30):
+        references.append(accepted_reference(f"busy-{number:02d}", 0.1 + number * 0.03))
+        vectors[f"busy-{number:02d}"] = noisy_unit(rng)
+    for number in range(8):
+        references.append(accepted_reference(f"fresh-{number}", 0.2 + number * 0.05))
+        vectors[f"fresh-{number}"] = noisy_unit(rng, topic, 0.1)
+    packs = [pack for pack in build_packs(cluster_inputs(references), lookups_with(vectors), now=NOW) if pack.signal_type == "cluster"]
+    assert len(packs) == 1
+    signal = packs[0].as_json()["signal"]
+    assert "new" not in signal and "emerging" not in signal and signal["correctedPValue"] <= 0.01
+    assert {f"fresh-{n}" for n in range(8)} <= set(packs[0].accepted_lineage_ids)

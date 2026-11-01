@@ -7,6 +7,13 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
   model's input size. An idea records the pack's anchor, and the same anchor is offered again only with new evidence: materially more activity
   than the idea reported, or an accepted Reference it did not hold; the anchor of a spiked idea needs both.
 
+  Two more signals read the graph of References. A hub is a recently arrived Reference with far more connections (current edges, and shared
+  concepts weighted by how rare they are) than the rest of the site; a cluster is a group of recently accepted References joined by current edges
+  and by mutual nearest neighbours in the vector index. When an entity's own history is shorter than the minimum baseline (a young site), its
+  count is compared with its expected share among the site's comparable entities instead, and the pack is marked emerging; a group with no
+  earlier arrivals is new and also emerging. Without a vector index the cluster signal is skipped and the log says why. Pack edges tell the
+  links people confirmed from the ones only the vectors suggest.
+
   The monitoring router runs all of this once a day for each publication. It reads the publication once, builds and ranks the packs, scores the
   single-item candidates from the same signals, and walks ONE queue in which packs and single items take turns by surprise. A pack goes to the
   idea agent, which proposes between one and three ideas about the theme; a single item goes to the single-item path. Both share one cost meter and
@@ -194,3 +201,51 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
     When the context packs are built and the pack ideas are drafted
     Then the conversation pack holds the anchor first and the related accepted References marked with their shared concept
     And one idea is filed citing two accepted References
+
+  Scenario: A cold site with no concept links still yields a cluster pack from vectors alone
+    Given a site five days old whose accepted References have no concept links and no edges, four of them about one thing
+    When the context packs are built with the site's vector index
+    Then a cluster pack holds those four accepted References
+    And the pack is marked emerging because no earlier arrivals exist to compare with
+    And the pack's edges are all suggested and each carries its similarity
+
+  Scenario: A confirmed edge and a suggested one are told apart in a pack
+    Given a site five days old whose accepted References have no concept links and no edges, four of them about one thing
+    And a person has linked two of them with a related_to edge
+    When the context packs are built with the site's vector index
+    Then the cluster pack lists that link as confirmed without a similarity
+    And the other pairs are listed as suggested with their similarity
+
+  Scenario: Without a vector index the cluster signal is skipped and says why
+    Given a site five days old whose accepted References have no concept links and no edges, four of them about one thing
+    When the context packs are built without a vector index
+    Then no cluster pack exists
+    And the log says the cluster signal was skipped for want of a vector provider
+
+  Scenario: A cold site whose References are alike yields no cluster pack
+    Given a site five days old whose accepted References have no concept links and no edges, none of them alike
+    When the context packs are built with the site's vector index
+    Then no pack exists
+
+  Scenario: A Reference with far more connections than the rest of the site is a hub
+    Given a site of 150 accepted References where the newest one is linked to six older ones
+    When the context packs are built
+    Then a hub pack exists for the newest Reference
+    And the hub's degree is six and its percentile is the share of the site's References that have as many connections
+    And its neighbours are marked as linked and their edges as confirmed
+
+  Scenario: A young thread is compared with the site's other threads when its own history is too short
+    Given six quiet threads and one loud thread, all less than two days old
+    When the context packs are built
+    Then a conversation pack exists for the loud thread
+    And the pack is marked emerging and says it was compared with the site's other threads
+
+  Scenario: Threads that all speak at the same rate yield nothing even when every thread is young
+    Given six threads of three Messages each, all less than two days old
+    When the context packs are built
+    Then no pack exists
+
+  Scenario: A conversation pack holds the References linked to its anchor
+    Given a lively thread on a Reference that a machine-accepted Reference cites
+    When the context packs are built from those inputs
+    Then the conversation pack holds the cited Reference marked linked with a confirmed edge
