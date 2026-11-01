@@ -99,6 +99,8 @@ def derive_body(front_matter_yaml: str | None, body_markus: str) -> BodyDerivati
     for request in prepared.images.values():
         try:
             assert_safe_asset_src(request.src)
+            if request.src_dark is not None and request.src_dark.strip().lower() != "none":
+                assert_safe_asset_src(request.src_dark)
         except ImagePipelineError as exc:
             image_errors.append(BodyError("image-src", str(exc)))
     if image_errors:
@@ -137,6 +139,7 @@ def derive_body(front_matter_yaml: str | None, body_markus: str) -> BodyDerivati
             "images": {
                 token: {
                     "src": request.src,
+                    "srcDark": request.src_dark,
                     "alt": request.alt,
                     "layout": request.layout,
                     "caption": request.caption,

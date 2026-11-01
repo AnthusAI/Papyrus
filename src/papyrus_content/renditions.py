@@ -365,6 +365,10 @@ class StoredRenditionImageBuilder(ImageBuilder):
         self._catalog.record(src)
         return Path(src)
 
+    def _source_size(self, src: str, path: Path) -> tuple[int, int] | None:
+        size = self._catalog.record(src)["size"]
+        return tuple(size) if size else None
+
     def _passthrough_href(self, src: str, path: Path) -> str:
         return self._catalog.record(src)["href"]
 

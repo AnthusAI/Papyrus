@@ -144,6 +144,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [imageNotice, setImageNotice] = useState<string | null>(null);
 
   const frontMatterRef = useRef<HTMLTextAreaElement | null>(null);
   const bodyRef = useRef<MarkusBodyEditorHandle | null>(null);
@@ -300,12 +301,17 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     if (!editor || editor.id === null) return;
     setImageUploading(true);
     setImageError(null);
+    setImageNotice(null);
     try {
       const uploaded = await uploadArticleImage(mediaBackend, readImageDimensions, {
         itemId: editor.id,
         slug: editor.slug,
         file,
       });
+      if (uploaded.directive === null) {
+        setImageNotice(`Dark version uploaded as ${uploaded.srcPath}. It replaces the light image in dark mode wherever the light image is used.`);
+        return;
+      }
       const textarea = bodyRef.current;
       const start = textarea?.selectionStart ?? editor.bodyMarkus.length;
       const end = textarea?.selectionEnd ?? editor.bodyMarkus.length;
@@ -816,6 +822,14 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                 {editor.id === null ? (
                   <p className="text-xs font-normal text-muted-foreground" data-newsroom-article-image-hint>
                     Save the draft once to enable image upload.
+                  </p>
+                ) : null}
+                <p className="text-xs font-normal text-muted-foreground" data-newsroom-article-image-dark-hint>
+                  For a dark-mode picture, insert the light image first, then upload a file named like it with .dark before the extension (figure.png and figure.dark.png). Same proportions, please.
+                </p>
+                {imageNotice ? (
+                  <p className="text-xs font-normal text-muted-foreground" data-newsroom-article-image-notice role="status">
+                    {imageNotice}
                   </p>
                 ) : null}
                 {imageError ? (
