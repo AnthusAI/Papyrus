@@ -176,7 +176,7 @@ def idea_rows(client: Any) -> list[dict[str, Any]]:
         targets = generated.get("targets") or []
         rows.append({
             "id": item.get("lineageId") or item["id"], "kind": "story_draft", "title": item.get("title") or "", "summary": item.get("deck") or "",
-            "targets": json.dumps(targets), "state": "declined" if spiked else "draft", "createdAt": item.get("versionCreatedAt") or "", "stage": item.get("stage"),
+            "targets": json.dumps(targets), "evidence": json.dumps(generated.get("evidence") or {}), "state": "declined" if spiked else "draft", "createdAt": item.get("versionCreatedAt") or "", "stage": item.get("stage"),
         })
     return rows
 
