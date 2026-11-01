@@ -12,7 +12,7 @@ Feature: Live console agent Reference curation behavior
     And the live console agent smoke result should include tool calls in order "papyrus.reference.list" then "papyrus.reference.curation_review"
     And the live console agent smoke result should include no structured errors
     And the live console agent response should equal "reference-curation-accept-tested"
-    And the live console agent smoke result should default to model "gpt-5-nano"
+    And the live console agent smoke result should default to model "gpt-6-luna"
 
   Scenario: The console agent can run Reference reject editorial cycle
     When I run the live console agent smoke scenario "review-reference-curation-reject"
@@ -21,7 +21,7 @@ Feature: Live console agent Reference curation behavior
     And the live console agent smoke result should include tool calls in order "papyrus.reference.list" then "papyrus.reference.curation_review"
     And the live console agent smoke result should include no structured errors
     And the live console agent response should equal "reference-curation-reject-tested"
-    And the live console agent smoke result should default to model "gpt-5-nano"
+    And the live console agent smoke result should default to model "gpt-6-luna"
 
   Scenario: The console agent can run Reference archive editorial cycle
     When I run the live console agent smoke scenario "review-reference-curation-archive"
@@ -30,7 +30,7 @@ Feature: Live console agent Reference curation behavior
     And the live console agent smoke result should include tool calls in order "papyrus.reference.list" then "papyrus.reference.curation_review"
     And the live console agent smoke result should include no structured errors
     And the live console agent response should equal "reference-curation-archive-tested"
-    And the live console agent smoke result should default to model "gpt-5-nano"
+    And the live console agent smoke result should default to model "gpt-6-luna"
 
   Scenario: The console agent can run Reference reopen editorial cycle
     When I run the live console agent smoke scenario "review-reference-curation-reopen"
@@ -39,7 +39,7 @@ Feature: Live console agent Reference curation behavior
     And the live console agent smoke result should include tool calls in order "papyrus.reference.list" then "papyrus.reference.curation_review"
     And the live console agent smoke result should include no structured errors
     And the live console agent response should equal "reference-curation-reopen-tested"
-    And the live console agent smoke result should default to model "gpt-5-nano"
+    And the live console agent smoke result should default to model "gpt-6-luna"
 
   Scenario: The console agent can queue and inspect Reference re-curation
     When I run the live console agent smoke scenario "curate-reference-refresh"
@@ -55,4 +55,4 @@ Feature: Live console agent Reference curation behavior
     And the live console agent smoke result should include no tool call "papyrus.reference.quality_rate"
     And the live console agent smoke result should include no structured errors
     And the live console agent response should match regex "^assignment[-_][A-Za-z0-9_-]+$"
-    And the live console agent smoke result should default to model "gpt-5-nano"
+    And the live console agent smoke result should default to model "gpt-6-luna"
