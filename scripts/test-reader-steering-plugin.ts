@@ -387,6 +387,35 @@ assert.equal(humanRun.some((statement) => ([] as string[]).concat(statement.Acti
 assert.equal(readerSteeringPlugin.publicSettings(aiConfig).moderation && (readerSteeringPlugin.publicSettings(aiConfig).moderation as { mode: string }).mode, "ai");
 assert.equal(JSON.stringify(readerSteeringPlugin.publicSettings(aiConfig)).includes("openai-api-key"), false, "the parameter name is not published to the browser");
 
+// Submission extraction: off unless `submissions.extraction` is set. When set, the snapshot worker (content-actions) may read one SSM
+// SecureString, learns its name, and gets more time. A site that does not set it synthesizes exactly what it did before.
+assert.equal("extraction" in resolveReaderSteeringConfig(base).submissions, false, "extraction is absent from the resolved defaults");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, submissions: { extraction: {} } }), /submissions\.extraction\.apiKeyParameter/, "a key parameter is required");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, submissions: { extraction: { apiKeyParameter: "/other/key" } } }), /apiKeyParameter/, "only the site's openai-api-key parameter");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, submissions: { extraction: { apiKeyParameter: KEY_PARAMETER, model: "x" } } }), /Unknown reader-steering plugin submissions\.extraction settings/, "the model is the repository default, not a setting");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, submissions: { extraction: { apiKeyParameter: KEY_PARAMETER, seconds: 30 } } }), /seconds must be an integer from 60 to 840/);
+assert.deepEqual(resolveReaderSteeringConfig({ ...base, submissions: { extraction: { apiKeyParameter: KEY_PARAMETER } } }).submissions.extraction, { apiKeyParameter: KEY_PARAMETER, seconds: 240 });
+const extractionConfig = resolveReaderSteeringConfig({ ...base, dimensions: ["real"], submissions: { extraction: { apiKeyParameter: KEY_PARAMETER, seconds: 120 } } });
+const extractionRun = synthesize(extractionConfig, { SITE_ENV: "production" });
+const contentStatements = statementsOf(extractionRun.template, "ContentActions");
+const contentKeyReads = contentStatements.filter((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("ssm:")));
+assert.equal(contentKeyReads.length, 1, "content-actions reads exactly one parameter");
+assert.deepEqual(([] as string[]).concat(contentKeyReads[0].Action), ["ssm:GetParameter"]);
+assert.match(JSON.stringify(contentKeyReads[0].Resource), /parameter\/papyrus\/shipped\/openai-api-key"/);
+assert.equal(JSON.stringify(contentKeyReads[0].Resource).includes("*"), false);
+const contentFunction = (result: ReturnType<typeof synthesize>) => Object.entries(result.template.findResources("AWS::Lambda::Function")).find(([id]) => id.startsWith("ContentActions"))?.[1] as { Properties: { Timeout?: number; Environment?: { Variables: Record<string, string> } } };
+assert.equal(contentFunction(extractionRun).Properties.Timeout, 180, "the worker gets the extraction time plus a minute");
+assert.equal(contentFunction(extractionRun).Properties.Environment?.Variables.PAPYRUS_READER_EXTRACTION_KEY_PARAMETER, KEY_PARAMETER);
+assert.equal(contentFunction(extractionRun).Properties.Environment?.Variables.PAPYRUS_READER_EXTRACTION_SECONDS, "120");
+const withoutExtraction = synthesize(shipped, { SITE_ENV: "production" });
+assert.equal(contentFunction(withoutExtraction).Properties.Timeout, undefined, "no timeout override without extraction");
+assert.equal(Object.keys(contentFunction(withoutExtraction).Properties.Environment?.Variables ?? {}).some((name) => name.startsWith("PAPYRUS_READER_EXTRACTION")), false, "no extraction variables without it");
+assert.equal(statementsOf(withoutExtraction.template, "ContentActions").some((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("ssm:"))), false, "no key access without extraction");
+assert.equal(JSON.stringify(extractionRun.template.toJSON()).includes("sk-"), false);
+assert.equal(JSON.stringify(readerSteeringPlugin.publicSettings(extractionConfig)).includes("openai-api-key"), false, "the parameter name is not published to the browser");
+
+const withoutPlugin = schemaWithPlugins({}).transform().schema;
+for (const name of ["ReaderSubmission", "extractionConfirmation", "extraction"]) assert.equal(withoutPlugin.includes(name), false, `a site without the plugin has no ${name} in its schema`);
 const transformed = schemaWithPlugins(readerSteeringSchemaDefinitions()).transform().schema;
 const coreModels = [...readerSteeringManifest.models, "Proposal"];
 for (const model of coreModels) {

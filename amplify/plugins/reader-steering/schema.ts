@@ -91,6 +91,11 @@ export function readerSteeringSchemaDefinitions() {
         similar: a.string().array(),
         signals: a.json(),
         extractionState: a.string().required(),
+        // Private. `extraction` is what the worker pulled out (JSON string: model, maker, task, entity matches, or the typed failure);
+        // `extractionConfirmation` is the filing reader's confirmation or correction. Neither is ever in a public file.
+        extraction: a.json(),
+        extractedAt: a.datetime(),
+        extractionConfirmation: a.json(),
         itemId: a.string(),
         moderation: a.string().required(),
         reportCount: a.integer(),
