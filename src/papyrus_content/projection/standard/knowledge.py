@@ -18,6 +18,7 @@ SCHEMA_VERSION = 1
 DATA_PREFIX = "_data/knowledge/"
 INDEX_KEY = DATA_PREFIX + "index.json"
 CLUSTERS_KEY = DATA_PREFIX + "clusters.json"
+CLUSTERS_HISTORY_KEY = DATA_PREFIX + "clusters-history.json"
 ENTITY_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._~-]*$")
 
 Reader = Callable[[str], "bytes | None"]
@@ -82,16 +83,24 @@ class KnowledgeSource:
     def clusters(self) -> dict | None:
         return self._load(CLUSTERS_KEY)[1]
 
+    def history(self) -> dict | None:
+        """``clusters-history.json``: ``{schemaVersion, asOf, weeks: [{asOf, runId, clusters: [{uid, label, itemCount}], events: [...]}]}``,
+        oldest week first, or ``None`` when the snapshot has no history file."""
+        return self._load(CLUSTERS_HISTORY_KEY)[1]
+
     def entity(self, key: str) -> dict | None:
         if not ENTITY_KEY.match(key or ""):
             return None
         return self._load(entity_file_key(key))[1]
 
     def digest(self, entity_keys=()) -> str:
-        """A digest of the files a page reads: ``index.json``, ``clusters.json`` and the named entity files."""
+        """A digest of the files a page reads: ``index.json``, ``clusters.json``, ``clusters-history.json`` (only when the snapshot has one, so a site without it keeps its digest) and the named entity files."""
         parts = [self._load(INDEX_KEY)[0], self._load(CLUSTERS_KEY)[0]]
-        if not entity_keys and all(part is None for part in parts):
+        history = self._load(CLUSTERS_HISTORY_KEY)[0]
+        if not entity_keys and history is None and all(part is None for part in parts):
             return ""
+        if history is not None:
+            parts.append(history)
         parts += [self._load(entity_file_key(key))[0] if ENTITY_KEY.match(key) else None for key in sorted(set(entity_keys))]
         digest = hashlib.sha256()
         for part in parts:
