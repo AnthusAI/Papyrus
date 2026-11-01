@@ -174,3 +174,22 @@ def test_every_accepted_reference_is_listed_whoever_accepted_it():
     inputs = load_signal_inputs(FakeSignalClient(references=[human, machine, rejected]), site="example-site", now=NOW)
     assert sorted((a.lineage_id, a.accepted_by) for a in inputs.accepted) == sorted([(human["lineageId"], "human"), (machine["lineageId"], "machine")])
     assert all(a.accepted_at == "2026-10-22T09:00:00Z" for a in inputs.accepted)
+
+
+def test_a_pending_verdict_comes_from_the_rows_prediction_without_a_read():
+    likely, unlikely = {**reference(1, status="pending"), "predictedAcceptProbability": 0.83}, {**reference(2, status="pending"), "predictedAcceptProbability": 0.2}
+    client = FakeSignalClient(references=[likely, unlikely])
+    inputs = load_signal_inputs(client, site="example-site", now=NOW, out_of_time=lambda: True)
+    assert [(p.lineage_id, p.score) for p in inputs.pending_context] == [(likely["lineageId"], 0.83)]
+    assert client.relation_queries == []
+
+
+def test_pending_relations_are_read_most_likely_first_until_time_runs_out():
+    rows = [{**reference(number, status="pending"), "predictedAcceptProbability": number / 100} for number in range(1, 80)]
+    client = FakeSignalClient(references=rows)
+    checks = iter([False, True])
+    inputs = load_signal_inputs(client, site="example-site", now=NOW, workers=2, out_of_time=lambda: next(checks, True))
+    read = [key.split("#")[1] for key in client.relation_queries]
+    by_lineage = {row["lineageId"]: row["predictedAcceptProbability"] for row in rows}
+    assert len(read) == 8 and min(by_lineage[lineage] for lineage in read) > max(p for lineage, p in by_lineage.items() if lineage not in read)
+    assert len(inputs.pending_context) == len([row for row in rows if row["predictedAcceptProbability"] >= 0.5])

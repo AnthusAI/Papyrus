@@ -299,6 +299,7 @@ def test_the_router_zip_can_run_the_drafting_and_the_editorial_gate_with_nothing
     script = ("import sys; sys.path.insert(0, sys.argv[1]); import papyrus_content.monitoring_router; "
               "from papyrus_content import monitoring_stories as m; from papyrus_content.ideas import monitor_stories, context, store, synthesis, review, gate, items, signal_inputs, context_packs, item_signals, pack_stories, signal_queue; from papyrus_content.knowledge_snapshot import keys, trends; from papyrus_content import reference_links; "
               "from papyrus_content import link_exploration; from papyrus_content import monitoring_vectors, reference_suggestions, suggestion_calibration; from papyrus_knowledge_query import vector_index, services; import humanus.check, typesafe_sdk, humanus; "
+              "from papyrus_content.markus_renderer.derive import derive_body; derive_body('title: T\\n', '# T\\n\\nA link https://example.org/x.\\n'); "
               "assert all(sys.argv[1] in module.__file__ for module in (humanus, typesafe_sdk, gate)); "
               "pack = {'schemaVersion': 1, 'packId': 'test', 'version': '1', 'policies': [{'id': 'no-synergy', 'version': 1, 'title': 'No synergy', "
               "'guidance': 'Avoid it.', 'severity': 'warn', 'detectors': [{'id': 'synergy', 'lane': 'rules', 'kind': 'phrase', 'phrases': ['synergy']}]}]}; "
@@ -559,3 +560,17 @@ def test_the_router_idea_policy_grants_the_item_and_gate_fields_and_the_key_para
     assert "Roles: [!Ref RouterRole]" in policy
     assert "ssm:GetParameter" in policy and "parameter${EditorialJudgmentKeyParameter}" in policy and "kms:ViaService" in policy
     assert "EDITORIAL_JUDGMENT_KEY_PARAMETER" in text
+
+
+def test_every_managed_policy_description_fits_the_iam_limit():
+    """IAM refuses a managed policy description over 1000 characters, and the stack rolls back (context-packs change set, 2026-11-01)."""
+    import yaml
+
+    class Loader(yaml.SafeLoader):
+        pass
+
+    Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
+    template = yaml.load((Path(__file__).resolve().parents[3] / "infra" / "monitoring" / "papyrus-monitoring.yaml").read_text(), Loader=Loader)
+    lengths = {name: len(resource["Properties"].get("Description") or "") for name, resource in template["Resources"].items()
+               if resource["Type"] == "AWS::IAM::ManagedPolicy"}
+    assert lengths and all(length <= 1000 for length in lengths.values()), {name: length for name, length in lengths.items() if length > 1000}

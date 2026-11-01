@@ -463,7 +463,7 @@ Remove `--dry-run` only after reviewing the configured vector index, accepted
 reference count, existing vector count, prepared vector count, and write count.
 `sync` skips deterministic keys that already exist unless `--force` is passed.
 By default it writes both `reference_summary` source-level vectors and
-`reference_passage` extracted-text chunk vectors. Use `--no-source-vectors` or
+`reference_passage` extracted-text chunk vectors. A Reference with no extracted text gets only the `reference_summary` vector, from its curation summary, else the canonical summary, else title plus preview description (`summarySource`). Use `--no-source-vectors` or
 `--no-passage-vectors` only for a targeted repair.
 
 Use `--action rebuild` only for a derived-index rebuild where deleting existing

@@ -133,6 +133,14 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
     existing_vectors = _list_index_vectors(vector_index_arn)
     existing_keys = {str(vector.get("key")) for vector in existing_vectors if vector.get("key")}
     existing_reference_keys = _indexed_reference_keys(existing_vectors)
+    existing_summary_state = {
+        str(vector.get("key")): (
+            str((vector.get("metadata") or {}).get("summarySource") or ""),
+            str((vector.get("metadata") or {}).get("contentHash") or ""),
+        )
+        for vector in existing_vectors
+        if vector.get("key") and (vector.get("metadata") or {}).get("vectorKind") == "reference_summary"
+    }
     existing_note_keys = _indexed_note_message_keys(existing_vectors)
     stats = {
         "action": options.action,
@@ -144,6 +152,8 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "existingIndexedReferences": len(existing_reference_keys),
         "existingIndexedNoteMessages": len(existing_note_keys),
         "referencesWithExtractedText": 0,
+        "referencesSkippedNoText": 0,
+        "summarySourceCounts": {},
         "referencesPrepared": 0,
         "sourceVectorsPrepared": 0,
         "passageVectorsPrepared": 0,
@@ -215,7 +225,7 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         prepared_results = (_prepare_reference_for_indexing(services, reference, options) for reference in references)
         for result in prepared_results:
             completed += 1
-            pending_vectors = _consume_prepared_reference(result, stats, existing_keys, pending_vectors, vector_index_arn, options)
+            pending_vectors = _consume_prepared_reference(result, stats, existing_keys, pending_vectors, vector_index_arn, options, existing_summary_state)
             _maybe_report_progress(completed, len(references), stats, options)
             if _stopped(stats, options):
                 break
@@ -224,7 +234,7 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
             futures = [executor.submit(_prepare_reference_for_indexing, services, reference, options) for reference in references]
             for future in as_completed(futures):
                 completed += 1
-                pending_vectors = _consume_prepared_reference(future.result(), stats, existing_keys, pending_vectors, vector_index_arn, options)
+                pending_vectors = _consume_prepared_reference(future.result(), stats, existing_keys, pending_vectors, vector_index_arn, options, existing_summary_state)
                 _maybe_report_progress(completed, len(references), stats, options)
                 if _stopped(stats, options):
                     for pending_future in futures:
@@ -331,8 +341,13 @@ def _prepare_reference_for_indexing(
         None,
     )
     if not extracted:
-        result["status"] = "missing_extracted_text"
-        result["warnings"].append(f"missing extracted text attachment for {reference.get('id')}")
+        candidate = _prepare_summary_only_vector(services, reference, attachments, options) if options.include_source_vectors else None
+        if candidate:
+            result["candidates"] = [candidate]
+            result["status"] = "prepared"
+            return result
+        result["status"] = "no_text"
+        result["warnings"].append(f"no extracted text and no summary text to index for {reference.get('id')}")
         return result
     result["hasExtractedText"] = True
     try:
@@ -363,6 +378,75 @@ def _prepare_reference_for_indexing(
     return result
 
 
+SUMMARY_SOURCES = ("curation", "canonical", "preview")
+
+
+def _attachment_metadata(attachment: dict[str, Any]) -> dict[str, Any]:
+    raw = attachment.get("metadata")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _fallback_summary_payload(
+    services: KnowledgeQueryServices,
+    reference: dict[str, Any],
+    attachments: list[dict[str, Any]],
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    """The best summary text for a Reference with no extracted text: (source, summary payload, reference metadata payload).
+
+    Order: the curation attachment's ``metadata.summary.text``; the canonical summary in the reference metadata attachment (or the legacy summary
+    message); the preview attachment's description. The description counts only when it is real text beyond the title: a title alone embeds as the
+    title and nothing else, and would make every such Reference "similar" to any other with a similar headline, so it is not indexed."""
+    for attachment in attachments:
+        if attachment.get("role") != "curation" or attachment.get("status") == "deleted":
+            continue
+        summary = (_attachment_metadata(attachment).get("summary") or {})
+        text = _clean_text(str(summary.get("text") or "")) if isinstance(summary, dict) else ""
+        if text:
+            return "curation", {"summary": text, "promptVersion": summary.get("promptVersion"), "model": summary.get("model")}, {}
+    metadata_payload = _reference_metadata_payload_for_indexing(services, reference)
+    canonical = _reference_summary_payload_from_metadata(metadata_payload)
+    if not canonical.get("summary"):
+        canonical = _reference_summary_payload_for_indexing_legacy(services, reference)
+    if canonical.get("summary"):
+        return "canonical", canonical, metadata_payload
+    title = _reference_title(reference, metadata_payload)
+    for attachment in attachments:
+        if attachment.get("role") != "preview":
+            continue
+        description = _clean_text(str(_attachment_metadata(attachment).get("description") or ""))
+        if description and description.casefold() != title.casefold():
+            return "preview", {"summary": description}, metadata_payload
+    return "", {}, metadata_payload
+
+
+def _prepare_summary_only_vector(
+    services: KnowledgeQueryServices,
+    reference: dict[str, Any],
+    attachments: list[dict[str, Any]],
+    options: VectorIndexOptions,
+) -> dict[str, Any] | None:
+    """The ``reference_summary`` vector (same key, no passages) for a Reference that has no extracted text, or None when there is no text for it."""
+    source, summary_payload, metadata_payload = _fallback_summary_payload(services, reference, attachments)
+    if not source:
+        return None
+    candidate = _prepare_source_vector(
+        "", reference, "", options,
+        reference_metadata_payload=metadata_payload,
+        reference_summary_payload=summary_payload,
+    )
+    if not candidate:
+        return None
+    candidate["metadata"]["summarySource"] = source
+    candidate["metadata"]["contentHash"] = hashlib.sha256(candidate["text"].encode("utf-8")).hexdigest()
+    candidate["metadata"].pop("storagePath", None)
+    return candidate
+
+
 def _consume_prepared_reference(
     result: dict[str, Any],
     stats: dict[str, Any],
@@ -370,7 +454,11 @@ def _consume_prepared_reference(
     pending_vectors: list[dict[str, Any]],
     vector_index_arn: str,
     options: VectorIndexOptions,
+    existing_summary_state: dict[str, tuple[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
+    """``existing_summary_state`` maps an indexed ``reference_summary`` key to its (summarySource, contentHash); a summary-only vector is skipped only
+    when its hash is unchanged, and a full vector replaces a summary-only one that is already stored under the same key."""
+    existing_summary_state = existing_summary_state or {}
     reference_result = {
         "referenceId": result.get("referenceId"),
         "referenceLineageId": result.get("referenceLineageId"),
@@ -385,6 +473,8 @@ def _consume_prepared_reference(
     }
     stats["warnings"].extend(result.get("warnings") or [])
     stats["failures"].extend(result.get("failures") or [])
+    if result.get("status") == "no_text":
+        stats["referencesSkippedNoText"] += 1
     if result.get("hasExtractedText"):
         stats["referencesWithExtractedText"] += 1
     candidates = [candidate for candidate in result.get("candidates") or [] if isinstance(candidate, dict)]
@@ -400,7 +490,17 @@ def _consume_prepared_reference(
         elif candidate["metadata"].get("vectorKind") == "reference_passage":
             stats["passageVectorsPrepared"] += 1
             reference_result["passageVectorCount"] += 1
-        if not options.force and candidate["key"] in existing_keys:
+        summary_source = candidate["metadata"].get("summarySource")
+        if summary_source:
+            stats["summarySourceCounts"][summary_source] = stats["summarySourceCounts"].get(summary_source, 0) + 1
+        stored_source, stored_hash = existing_summary_state.get(candidate["key"], ("", ""))
+        if summary_source:
+            unchanged = candidate["key"] in existing_keys and stored_hash == candidate["metadata"].get("contentHash")
+        elif candidate["metadata"].get("vectorKind") == "reference_summary":
+            unchanged = candidate["key"] in existing_keys and not stored_source
+        else:
+            unchanged = candidate["key"] in existing_keys
+        if not options.force and unchanged:
             stats["vectorsSkippedExisting"] += 1
             reference_result["skippedExisting"] += 1
             continue
