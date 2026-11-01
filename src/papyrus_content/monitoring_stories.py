@@ -204,7 +204,7 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         signals = policy["contextPacks"]["signals"]
         signal_run = prepare_signal_run(
             client, site=publication["corpusKey"], context=context, now=now, signals=tuple(signals) if signals else None, single_items=policy["singleItem"], gate=gate,
-            vector_provider=vector_provider_for(policy))
+            vector_provider=vector_provider_for(policy), out_of_time=out_of_time)
 
     run = monitor_stories.draft_monitor_stories(
         client=client, site=publication["publicationId"], corpus_key=publication["corpusKey"],

@@ -245,19 +245,59 @@ def story_record(entry: dict[str, Any], targets: str = "[]", evidence: str = "{}
     return StoryRecord(str(entry["id"]), entry["title"], entry.get("summary") or "", entry.get("section"), entry["state"], entry.get("date"), targets, evidence)
 
 
+def pending_of(row: dict[str, Any], relations: list[dict[str, Any]], common: dict[str, Any]) -> PendingReference | None:
+    """A pending Reference with a positive verdict, as context: the row's prediction when it has one (at or above even odds), else the verdict
+    relation when its relations were read."""
+    probability = predicted_probability(row)
+    if probability is not None:
+        return PendingReference(score=probability, **common) if probability >= 0.5 else None
+    verdict = relevance_of(relations)
+    if verdict is not None and verdict["label"] == (verdict.get("positiveLabel") or POSITIVE_LABEL):
+        return PendingReference(score=verdict.get("score"), **common)
+    return None
+
+
+def predicted_probability(row: dict[str, Any]) -> float | None:
+    """The relevance Cyclotron's original verdict as the Reference row stores it (``predictedAcceptProbability``), or None."""
+    value = row.get("predictedAcceptProbability")
+    return float(value) if isinstance(value, (int, float)) else None
+
+
 def load_signal_inputs(
-    client: Any, *, site: str, now: datetime, workers: int = DEFAULT_WORKERS, client_factory: Callable[[], Any] | None = None
+    client: Any, *, site: str, now: datetime, workers: int = DEFAULT_WORKERS, client_factory: Callable[[], Any] | None = None,
+    out_of_time: Callable[[], bool] = lambda: False,
 ) -> SignalInputs:
-    """One read pass for the publication ``site``: Messages, human votes, concept links, pending verdicts, published Items and ideas."""
+    """One read pass for the publication ``site``: Messages, human votes, concept links, pending verdicts, published Items and ideas.
+
+    Relations are read for every Reference a person voted on or a thread is anchored on. A pending Reference's verdict is the prediction on its
+    row, so a large backlog needs no read for it; its relations (concept links, edges) are read highest prediction first, a chunk at a time, while
+    ``out_of_time`` allows: a site with thousands of pending References spends its time share on the most likely ones, not on all of them."""
     references = sorted(collect_references(client, [f"{CORPUS_PREFIX}{site}"], list(ACTION_FOR_STATUS), None), key=lambda entry: str(entry["id"]))
     messages, anchored = load_messages(client)
-    needed = [
-        row for row in references
-        if row.get("curationActorKind") == HUMAN or str(row.get("curationStatus") or "pending") == "pending" or str(row.get("lineageId") or row["id"]) in anchored
-    ]
-    read = map_with_clients(needed, lambda reader, row: relations_of(reader, row), client=client, client_factory=client_factory or (lambda: independent_copy(client)), workers=workers)
+    is_pending = lambda row: str(row.get("curationStatus") or "pending") == "pending"  # noqa: E731
+    core = [row for row in references if row.get("curationActorKind") == HUMAN or str(row.get("lineageId") or row["id"]) in anchored]
+    core_ids = {row["id"] for row in core}
+    backlog = sorted((row for row in references if is_pending(row) and row["id"] not in core_ids),
+                     key=lambda row: (-(predicted_probability(row) or 0.0), str(row["id"])))
+    factory = client_factory or (lambda: independent_copy(client))
+
+    def read_both(rows: list[dict[str, Any]]) -> tuple[list, list]:
+        return (map_with_clients(rows, lambda reader, row: relations_of(reader, row), client=client, client_factory=factory, workers=workers),
+                map_with_clients(rows, lambda reader, row: objects_of(reader, row), client=client, client_factory=factory, workers=workers))
+
+    needed = list(core)
+    read, incoming = read_both(core)
+    chunk = max(1, workers) * 4
+    for start in range(0, len(backlog), chunk):
+        if out_of_time():
+            break
+        rows = backlog[start:start + chunk]
+        more_read, more_incoming = read_both(rows)
+        needed.extend(rows)
+        read.extend(more_read)
+        incoming.extend(more_incoming)
+    unread_pending = backlog[len(needed) - len(core):]
     relations_by_id = {row["id"]: relations for row, relations in zip(needed, read)}
-    incoming = map_with_clients(needed, lambda reader, row: objects_of(reader, row), client=client, client_factory=client_factory or (lambda: independent_copy(client)), workers=workers)
     found_edges: dict[tuple[str, str, str], ReferenceEdge] = {}
     for row, objects in zip(needed, incoming):
         for edge in [*edges_of(relations_by_id[row["id"]]), *edges_of(objects)]:
@@ -284,9 +324,16 @@ def load_signal_inputs(
                 section_id=row.get("curationSectionId") or None, **common,
             ))
         elif status == "pending":
-            verdict = relevance_of(relations)
-            if verdict is not None and verdict["label"] == (verdict.get("positiveLabel") or POSITIVE_LABEL):
-                pending.append(PendingReference(score=verdict.get("score"), **common))
+            pending_reference = pending_of(row, relations, common)
+            if pending_reference is not None:
+                pending.append(pending_reference)
+    for row in unread_pending:
+        pending_reference = pending_of(row, [], {
+            "reference_id": str(row["id"]), "lineage_id": str(row.get("lineageId") or row["id"]), "title": str(row.get("title") or row.get("sourceUri") or "").strip(),
+            "url": str(row.get("sourceUri") or ""), "created_at": row.get("createdAt"), "source_published_at": row.get("sourcePublishedAt") or None, "concept_ids": (),
+        })
+        if pending_reference is not None:
+            pending.append(pending_reference)
     concepts_by_lineage: dict[str, set[str]] = {}
     for link in links:
         concepts_by_lineage.setdefault(link.reference_lineage_id, set()).add(link.concept_id)

@@ -140,10 +140,10 @@ class SignalRun:
 
 def prepare_signal_run(
     client: Any, *, site: str, context: Mapping[str, Any], now: datetime, signals: tuple[str, ...] | None, single_items: bool, gate: Any = None,
-    attachment_summary: AttachmentSummary | None = None, vector_provider: Any = None,
+    attachment_summary: AttachmentSummary | None = None, vector_provider: Any = None, out_of_time: Callable[[], bool] = lambda: False,
 ) -> SignalRun:
     """The one read pass and the packs of ``site``. ``signals`` is the closed set the publication asked for (None: every signal that has data)."""
-    inputs = load_signal_inputs(client, site=site, now=now)
+    inputs = load_signal_inputs(client, site=site, now=now, out_of_time=out_of_time)
     lookups, concept_nodes = load_pack_lookups(client, context, attachment_summary=attachment_summary, vector_provider=vector_provider)
     built = [pack for pack in build_packs(inputs, lookups, now=now) if signals is None or pack.signal_type in signals]
     suppression = suppress_repeats(rank_packs(built), inputs.ideas)
