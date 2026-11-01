@@ -103,10 +103,10 @@ enrichment writes a better one). The source id is a hash of the canonical URL. C
 `publicationId`, `topic` (`news`, the default, or `general`), `intervalSeconds` (default 3600), `candidateGroup` (`shared` for the six
 shared-Cyclotron monitors), optional `startDate` (`YYYY-MM-DD`, for a query's very first pass). The Tavily key is read as the
 router's is: `TAVILY_API_KEY`, or the SSM SecureString named in `PAPYRUS_TAVILY_KEY_PARAMETER`.
-**Search providers and the fallback chain.** Perplexity then OpenAI is the default chain (Perplexity is the normal search: about $5 per 1,000 requests, against $10 plus tokens for OpenAI and $14 for Gemini's grounded search), and the monitor reads its results through `papyrus_content.web_search`,
+**Search providers and the fallback chain.** Tavily, then Perplexity, then OpenAI is the default chain, cheapest first (Tavily is free while it has credits; Perplexity is about $5 per 1,000 requests, OpenAI $10 plus tokens; Gemini's grounded search, $14, is opt-in), and the monitor reads its results through `papyrus_content.web_search`,
 one interface over `tavily`, `openai` (Responses API `web_search`), `perplexity` (Search API), `gemini` (Google Search grounding) and
 `bedrock` (Web Search on Amazon Bedrock). The chain is `WEB_SEARCH_PROVIDERS`, an ordered comma list such as `openai,tavily` (the older
-`WEB_SEARCH_PROVIDER` names a chain of one; with neither set the chain is `perplexity,openai`; a deployment that has only a Tavily key must set `WebSearchProviders` to `tavily`). A monitor overrides it with `searchProviders` in its
+`WEB_SEARCH_PROVIDER` names a chain of one; with neither set the chain is `tavily,perplexity,openai`; a deployment that has only a Tavily key must set `WebSearchProviders` to `tavily`). A monitor overrides it with `searchProviders` in its
 own `CONFIG` (a list or a comma string); an unknown name is rejected when the config is stored. A provider's key is `<PROVIDER>_API_KEY`
 (`TAVILY_API_KEY`, `OPENAI_API_KEY`, `PERPLEXITY_API_KEY`, `GEMINI_API_KEY`) or the SSM SecureString named by
 `PAPYRUS_<PROVIDER>_KEY_PARAMETER`; the standard parameter names are `/papyrus/search/<provider>-api-key` (the Tavily parameter keeps its

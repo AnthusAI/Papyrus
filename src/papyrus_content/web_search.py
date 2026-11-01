@@ -13,7 +13,8 @@ Configuration (``chain_names``), first match wins:
 1. a per-call override, such as a monitor's own ``searchProviders``;
 2. ``WEB_SEARCH_PROVIDERS``, an ordered comma list such as ``openai,tavily``;
 3. ``WEB_SEARCH_PROVIDER``, the single name that always worked;
-4. ``perplexity,openai`` (``DEFAULT_CHAIN``): Perplexity Search first (about $5 per 1,000 requests), OpenAI web search when it cannot answer.
+4. ``tavily,perplexity,openai`` (``DEFAULT_CHAIN``): cheapest first. Tavily while it has free credits, Perplexity Search
+   (about $5 per 1,000 requests) when Tavily's plan is used up, OpenAI web search ($10 per 1,000 plus tokens) last.
 
 Keys (``Provider.api_key``): ``<PROVIDER>_API_KEY`` (``TAVILY_API_KEY``, ``OPENAI_API_KEY``, ``PERPLEXITY_API_KEY``,
 ``GEMINI_API_KEY``), or the SSM SecureString named by ``PAPYRUS_<PROVIDER>_KEY_PARAMETER``; the standard parameter names are
@@ -47,7 +48,7 @@ RETRY_WAIT_SECONDS = 2.0          # the pause before the one retry of a 429 that
 RETRY_WAIT_LIMIT_SECONDS = 10.0   # the longest idle inside one request; a longer Retry-After is left to the caller's own pacing
 CHAIN_ENV = "WEB_SEARCH_PROVIDERS"
 SINGLE_ENV = "WEB_SEARCH_PROVIDER"
-DEFAULT_CHAIN = ("perplexity", "openai")   # Perplexity first (the normal search, cheapest), OpenAI as its fallback; Gemini and Tavily are opt-in by configuration
+DEFAULT_CHAIN = ("tavily", "perplexity", "openai")   # cheapest first: Tavily (free credits), then Perplexity, then OpenAI; Gemini is opt-in by configuration
 
 
 class SearchUnavailable(RuntimeError):
