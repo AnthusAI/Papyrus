@@ -48,3 +48,32 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
     And a spiked idea that was drafted from that pack without its last accepted Reference
     When the context packs are built and repeats are suppressed
     Then no pack is offered and one pack is counted as skipped for no new evidence
+
+  Scenario: A pack yields up to three ideas that each cite at least two accepted References
+    Given an acceptance pack and a model that proposes an idea citing two accepted References and a concept
+    When the pack ideas are drafted
+    Then one idea is filed at the idea stage with a based_on link for each cited Reference
+    And the idea records the context-pack origin and the pack evidence
+    And the idea is linked to the concept with a derived related_to edge
+    And the idea body ends with an Evidence section
+
+  Scenario: An idea that cites one Reference is dropped and the pack goes on
+    Given an acceptance pack and a model that proposes one idea citing a single Reference and one citing two
+    When the pack ideas are drafted
+    Then one idea is filed and one idea is dropped for failing the citation check
+
+  Scenario: An idea that cites a pending Reference is dropped
+    Given an acceptance pack and a model that proposes an idea citing a pending Reference
+    When the pack ideas are drafted
+    Then no idea is filed and the idea is dropped for citing a pending Reference
+
+  Scenario: An idea the editorial gate refuses is not filed
+    Given an acceptance pack and a model that proposes an idea citing two accepted References
+    And an editorial gate that finds an error in the idea
+    When the pack ideas are drafted
+    Then no idea is filed and one idea is refused
+
+  Scenario: A dry run writes nothing
+    Given an acceptance pack and a model that proposes an idea citing two accepted References
+    When the pack ideas are drafted as a dry run
+    Then no idea is filed and nothing is written
