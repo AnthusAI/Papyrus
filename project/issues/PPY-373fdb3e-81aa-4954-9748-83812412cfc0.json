@@ -3,17 +3,25 @@
   "title": "Humanus gate when a Proposed Story is filed",
   "description": "Check every story_draft Proposal with the site's editorial policies at filing: error-severity violations refuse filing; warn/review findings are attached to the Proposal and used in ranking. Add supersedes: a trend Proposal lists the single-Reference Proposals it replaces.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "338dbab4-f038-4375-b7fc-cfe2e206b0ab",
+      "author": "home",
+      "text": "Merged #932: Humanus check at filing, error refuses, findings stored, supersedes as Item lineages. Released in 5.66.0.",
+      "created_at": "2026-11-01T11:58:33.687155Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:07:27.161145Z",
-  "updated_at": "2026-10-31T14:07:27.161206Z",
-  "closed_at": null,
+  "updated_at": "2026-11-01T11:58:33.802186Z",
+  "closed_at": "2026-11-01T11:58:33.802153Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

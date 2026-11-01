@@ -3,17 +3,25 @@
   "title": "Copy-edit gate: apply mechanical fixes, offer the rest",
   "description": "After copywriting, apply only mechanical fixes (contractions, stale product names via policy) automatically and attach rewrite options for the rest; never publish.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6cd9ce63-cf12-48a0-91fd-e981597ccea3",
+      "author": "home",
+      "text": "Merged #935: papyrus editorial copy-edit (mechanical replacements only, suggest options stored, hold on errors). Released in 5.66.0.",
+      "created_at": "2026-11-01T11:58:34.126237Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:07:27.625242Z",
-  "updated_at": "2026-10-31T14:07:27.625288Z",
-  "closed_at": null,
+  "updated_at": "2026-11-01T11:58:34.242623Z",
+  "closed_at": "2026-11-01T11:58:34.242592Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

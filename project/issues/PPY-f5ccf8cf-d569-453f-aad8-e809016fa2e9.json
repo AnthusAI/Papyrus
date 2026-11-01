@@ -3,17 +3,25 @@
   "title": "Copy-edit and copywriting skills: newsroom batch passes, judgment lane, publish; .claude/skills links .agents/skills",
   "description": "Fold the 2026-10-31 Anth.us copy-edit pass into .agents/skills/editorial-copyedit-cycle and copywriting: articles live in the newsroom (not git); connecting by login or the IAM operator lane; batch pass over published articles; report a missing judgment lane and propose judgment policies to the CMS; triage rule noise; exact-match apply and re-check; save-version then authorized ops content publish; verify live. Link .claude/skills -> .agents/skills so Claude sessions load the same skills as other agents.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "83a7bf08-3cb2-4a4e-aad8-10ea44d19606",
+      "author": "home",
+      "text": "Merged #928: editorial-copyedit-cycle, copywriting contract, reporting without machine Messages; .claude/skills -> .agents/skills. Released in 5.66.0.",
+      "created_at": "2026-11-01T11:58:33.084011Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T13:43:27.570963Z",
-  "updated_at": "2026-10-31T14:09:59.968919Z",
-  "closed_at": null,
+  "updated_at": "2026-11-01T11:58:33.158556Z",
+  "closed_at": "2026-11-01T11:58:33.158287Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

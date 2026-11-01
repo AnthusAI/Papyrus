@@ -3,17 +3,25 @@
   "title": "Cross-story boilerplate editorial check",
   "description": "Warn when a passage of 12+ words appears in other current stories of the same site (policy cross-story-boilerplate). Ryan approved 2026-10-31.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "78d95e40-e7cf-4297-8541-109ba8b24e6f",
+      "author": "home",
+      "text": "Merged #938: cross-story boilerplate check (12-word runs vs other stories' current versions). Needs a backend deploy per site (listItemsByVersionStateAndUpdatedAt). Next release.",
+      "created_at": "2026-11-01T11:58:34.577094Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T15:02:27.979906Z",
-  "updated_at": "2026-10-31T15:02:27.979965Z",
-  "closed_at": null,
+  "updated_at": "2026-11-01T11:58:34.705727Z",
+  "closed_at": "2026-11-01T11:58:34.705700Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

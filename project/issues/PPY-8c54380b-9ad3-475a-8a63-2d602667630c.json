@@ -3,17 +3,25 @@
   "title": "Configurable publish gate per site",
   "description": "A site setting decides whether publishing needs a person's approval (hard gate review request) or may publish on its own. Anth.us: approval required.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "17328647-2ac2-4084-806b-9f4e6dc9eb1c",
+      "author": "home",
+      "text": "Merged #934: per-site publish approval (required / not_required, default not_required) enforced in publish_item; console Publish counts as a person; approver kind recorded. Next release.",
+      "created_at": "2026-11-01T11:58:34.349744Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:07:27.416274Z",
-  "updated_at": "2026-10-31T14:07:27.416314Z",
-  "closed_at": null,
+  "updated_at": "2026-11-01T11:58:34.478188Z",
+  "closed_at": "2026-11-01T11:58:34.478165Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
