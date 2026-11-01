@@ -41,8 +41,12 @@ idea → assignment → reporting → copywriting → illustration → typesetti
 ```
 
 `held` (a finished story kept for later) and `spiked` (a killed story) sit
-after `published`. Idea and assignment are work that has not become a story
-yet, so they appear on the assignments board and not on the stories board.
+after `published`. The stories board
+shows **Idea** as its first column, before Reporting: stories that a machine
+generated and stories that a person started share the stage, and each Idea card
+carries a labelled marker ("Generated" or "Started by a person") so an editor
+can tell them apart. Assignment-stage work appears on the assignments board and
+not on the stories board.
 Spiked is a collapsed column that loads its cards only when it is opened.
 Items still carrying the retired `research`, `report` or `editor_select`
 stages are read as `reporting`; `papyrus assignments migrate-content-item-stages`

@@ -7,7 +7,7 @@ Feature: The newsroom board and Proposed Stories read the way an editor expects
   Scenario: What AI proposes is called a Proposed Story wherever an editor reads it
     Given an isolated newsroom with synthetic stories
     When the editor looks for the stories AI has proposed
-    Then the sidebar, the Needs me filter, the counts and the kind label all say Proposed Stories
+    Then the Needs me filter, the counts and the kind label all say Proposed Stories
     And no editor-facing line calls a proposed story a draft
 
   Scenario: Every column of the Stories board lists its stories newest first
@@ -16,6 +16,13 @@ Feature: The newsroom board and Proposed Stories read the way an editor expects
     Then each column lists its stories from the most recently updated to the oldest
     And a story with no date sits at the bottom of its column
     And without that rule a column is ordered by id, which is the order the editor saw before
+
+  Scenario: The Stories board shows where new stories wait
+    Given an isolated newsroom with synthetic stories
+    When the editor opens the Stories board
+    Then the first column is Idea, ahead of Reporting
+    And each Idea card is marked Generated or Started by a person
+    And a story at the assignment stage is not on the Stories board
 
   Scenario: Opening a story shows a solid detail view that does not jump
     Given an isolated newsroom with synthetic stories

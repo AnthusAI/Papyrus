@@ -10,10 +10,12 @@ Given("an isolated newsroom with synthetic stories", function () {
 
 const behaviors = [
   ["proposed_stories", "the editor looks for the stories AI has proposed",
-    ["the sidebar, the Needs me filter, the counts and the kind label all say Proposed Stories", "no editor-facing line calls a proposed story a draft"]],
+    ["the Needs me filter, the counts and the kind label all say Proposed Stories", "no editor-facing line calls a proposed story a draft"]],
   ["board_order", "the editor opens the Stories board at 1440 and 375 pixels",
     ["each column lists its stories from the most recently updated to the oldest", "a story with no date sits at the bottom of its column",
       "without that rule a column is ordered by id, which is the order the editor saw before"]],
+  ["board_stage_columns", "the editor opens the Stories board",
+    ["the first column is Idea, ahead of Reporting", "each Idea card is marked Generated or Started by a person", "a story at the assignment stage is not on the Stories board"]],
   ["detail_stable", "the editor opens a story at 1440, 834 and 375 pixels and every animation frame is recorded",
     ["the detail view's background is opaque and not fading from its very first frame", "the detail view stays in one place at one size while the story loads",
       "the loading shape is the loaded editor's size, so nothing below it moves when the story arrives"]],
