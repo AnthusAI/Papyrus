@@ -7,7 +7,7 @@ from papyrus_newsroom import web_search_providers
 
 
 class WebSearchProvidersTests(unittest.TestCase):
-    def test_normalize_defaults_to_tavily(self):
+    def test_normalize_defaults_to_the_first_provider_of_the_default_chain(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(web_search_providers.normalize_web_search_provider(None), "tavily")
 

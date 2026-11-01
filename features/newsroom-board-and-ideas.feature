@@ -1,14 +1,14 @@
 @brand-agnostic @newsroom-ux-fixtures
-Feature: The newsroom board and Proposed Stories read the way an editor expects
-  An editor reads the Stories board newest first, opens a story without the page jumping around, and finds the stories that AI
-  proposes under one plain name: Proposed Stories. These scenarios use synthetic stories in an isolated browser and never touch
+Feature: The newsroom board and generated ideas read the way an editor expects
+  An editor reads the Stories board newest first, opens a story without the page jumping around, and finds the story ideas that AI
+  generates in one place under one plain name: ideas, in the Idea column of the Stories board. These scenarios use synthetic stories in an isolated browser and never touch
   production.
 
-  Scenario: What AI proposes is called a Proposed Story wherever an editor reads it
+  Scenario: What AI generates is an idea, in the Idea column, wherever an editor reads it
     Given an isolated newsroom with synthetic stories
-    When the editor looks for the stories AI has proposed
-    Then the Needs me filter, the counts and the kind label all say Proposed Stories
-    And no editor-facing line calls a proposed story a draft
+    When the editor looks for the story ideas AI has generated
+    Then the Needs me filter, the counts and the card all say ideas, and the sidebar and the Stories board have no Proposed Stories page, link or count
+    And no editor-facing line calls an idea a Proposed Story or a draft
 
   Scenario: Every column of the Stories board lists its stories newest first
     Given an isolated newsroom with synthetic stories

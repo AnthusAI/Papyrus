@@ -5,7 +5,8 @@ Feature: Web search runs on whichever provider configuration names, and falls ba
   WEB_SEARCH_PROVIDERS is an ordered list, a fallback chain, and a monitor may carry a chain of its own. When a provider cannot
   answer because its plan is used up, its key is refused or it is rate limited, the next one answers, and the result says who
   answered and why the others were passed over, in words an operator can read in the monitor log. A provider whose key was never
-  configured is simply not available; that is not a failure.
+  configured is simply not available; that is not a failure. When nothing is configured the chain runs from cheapest to dearest:
+  Tavily, then Perplexity, then OpenAI. Gemini is used only where an operator names it.
 
   Scenario: The configured provider answers
     Given web search is configured with the providers "perplexity"
@@ -18,6 +19,12 @@ Feature: Web search runs on whichever provider configuration names, and falls ba
   Scenario: The old single-provider setting still works
     Given web search is configured with the old single setting "openai"
     Then the provider chain is "openai"
+
+  Scenario: With nothing configured the cheapest provider answers first
+    Tavily is free while it has credits, Perplexity costs about $5 per 1,000 searches and OpenAI about $10 plus tokens, so the chain
+    runs from cheapest to dearest. Gemini's grounded search, about $14 per 1,000, is used only where an operator names it.
+    Given web search has no provider configuration at all
+    Then the provider chain is "tavily,perplexity,openai"
 
   Scenario: Tavily's exhausted plan falls through to the next provider
     Given web search is configured with the providers "tavily,openai"

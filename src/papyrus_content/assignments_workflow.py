@@ -130,6 +130,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     now = _utc_now()
     assignment_type_key = normalize_string(options.get("type")) or "research.candidate"
     tavily_deep = assignment_type_key == "research.tavily-deep"
+    multi_search = assignment_type_key == "research.multi"   # opt-in: an editor picks it per assignment, never automatic
     status = normalize_string(options.get("status")) or "open"
     priority = normalize_non_negative_integer(options.get("priority"), "--priority") or 50
     queue_key = normalize_string(options.get("queue")) or f"research:{section_key or 'unsectioned'}:exploratory"
@@ -188,6 +189,8 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
                         "tavilyModel": normalize_string(options.get("tavily-model")) or "auto",
                     }
                     if tavily_deep
+                    else {"researchBackend": "multi_search"}
+                    if multi_search
                     else {}
                 ),
             }
@@ -241,6 +244,8 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
                 f"poetry run papyrus assignments run-tavily-deep-research --assignment {assignment_id} "
                 f"--corpus-key {corpus_key} --wait"
                 if tavily_deep
+                else f"poetry run papyrus assignments research-multi {assignment_id}"
+                if multi_search
                 else f"poetry run papyrus assignments run-research --assignment {assignment_id} "
                 f"--corpus-key {corpus_key} --research-mode {research_mode}"
             )
@@ -1610,6 +1615,8 @@ def normalize_research_packet_bundle(
             "coverageGaps": coverage_gaps,
         },
         "researchTrace": trace,
+        # multi-search (research.multi) fields: claims with their sources, disagreements, per-provider provenance and contribution
+        **{key: research[key] for key in ("claims", "disagreements", "multiSearch") if research.get(key)},
         "openQuestions": open_questions,
         "coverageGaps": coverage_gaps,
         "recommendedAngle": recommended_angle,
@@ -1805,7 +1812,22 @@ def research_packet_body(packet: dict[str, Any]) -> str:
     ):
         if value:
             lines.append(f"{label}: {value}")
-    return "\n".join(line for line in lines if line)
+    lines = [line for line in lines if line]
+    claims = [c for c in _parse_array(packet.get("claims")) if isinstance(c, dict)]
+    if claims:
+        lines.extend(["", "Claims:"])
+        lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}]" for c in claims)
+    disagreements = [d for d in _parse_array(packet.get("disagreements")) if isinstance(d, dict)]
+    if disagreements:
+        lines.extend(["", "Where sources disagree:"])
+        for item in disagreements:
+            lines.append(f"- {item.get('topic')}")
+            lines.extend(f"  - {p.get('position')} [{', '.join(str(i) for i in _parse_array(p.get('sources')))}]"
+                         for p in _parse_array(item.get("positions")) if isinstance(p, dict))
+    open_questions = [q for q in _parse_array(packet.get("openQuestions")) if q]
+    if claims and open_questions:
+        lines.extend(["", "Open questions:", *(f"- {q}" for q in open_questions)])
+    return "\n".join(lines)
 
 
 def reporting_packet_body(packet: dict[str, Any]) -> str:

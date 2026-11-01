@@ -200,6 +200,55 @@ Both packet types are private `Message` rows with
 human-readable body lives in a `ModelAttachment` with role `message_body`; the
 structured packet lives in a `ModelAttachment` with role `metadata`.
 
+## Multi-search research (`research.multi`)
+
+Most assignments are researched with the site's normal search (cheapest first: the default chain is `tavily,perplexity,openai`). Multi-search is
+a special mode an editor reserves for an assignment that deserves a wider net. It is **opt-in per assignment and never the
+default**: nothing creates a `research.multi` assignment or runs it automatically, and an assignment created without `--type` is
+still `research.candidate`.
+
+**Picking the mode.** The mode is the assignment type, chosen when the assignment is created, beside `research.tavily-deep`:
+
+```bash
+papyrus research create --type research.multi --title "Assess Fastino GLiDE's claims on reasoning benchmarks" --section ai
+papyrus assignments research-multi <assignment-id> [--dry-run]
+```
+
+`research-multi` writes by default; `--dry-run` runs the searches and the two model calls, prints the plan and the per-provider
+contribution, and writes nothing. Also accepted: `--corpus-key`, `--config`, `--model`, `--intake-proposals false`, `--json`.
+The newsroom lists no assignment types today, so the CLI (and `Assignment.create` with `type`) is where an editor picks the mode.
+
+**What it does** (`src/papyrus_content/multi_search_research.py`):
+
+1. *Plan.* One model call (`DEFAULT_LLM_MODEL`, the OpenAI Responses API) turns the brief (title, summary, notes, instructions and
+   the assignment's section, angle and topic scope) into search queries, each with a short purpose such as "independent
+   benchmarks". The number of queries comes from the brief; there is no fixed count.
+2. *Fan out.* Every query runs on every configured provider of `papyrus_content.web_search` (a key, or AWS credentials and
+   `BEDROCK_SEARCH_MODEL` for Bedrock), one thread per provider. A failure is recorded with its kind (`plan_exhausted`, `auth`,
+   `rate_limited`, ...) and never stops the others; a provider whose key is refused or plan is spent is not asked again. A provider
+   with no key is listed as unavailable, not as a failure.
+3. *Merge.* URLs are canonicalised (tracking parameters, fragment, `www.`, trailing slash) and de-duplicated. Each source keeps the
+   providers that found it, the queries, its best rank, its title and its snippets. A source only one provider found is kept.
+4. *Synthesise.* One model call over the merged sources, cited by index, writes the claims with their supporting sources, where the
+   sources disagree, and the open questions. Claims or positions citing a source that does not exist are dropped and counted.
+
+**The packet.** It is written through the same path as `research.tavily-deep` (`apply_research_packet`, then
+`intake_research_packet_proposals`), so the newsroom shows an ordinary research packet whose body also lists the claims,
+disagreements and open questions. `proposedReferences` come from the merged set and each names its providers. The packet metadata
+adds `claims`, `disagreements` and `multiSearch`: the queries, `sourceProviders` (providers and best rank per source), and
+`providers`, the per-provider contribution:
+
+| field | meaning |
+| --- | --- |
+| `queriesRun`, `hits` | queries the provider answered, and hits it returned |
+| `sources`, `uniqueSources` | merged sources it found, and those no other provider found |
+| `failures` | `{query, kind, status, message}` for each failed query |
+| `elapsedMs` | time spent in that provider's calls |
+
+**Failure.** If no provider answers (or none is configured, or the planning or synthesis call fails) no packet is written. A
+`multi_search_error` Message and a `research.multi.failed` AssignmentEvent record the reason, as `research.tavily-deep` does.
+Fetching pages is not part of this mode; snippets are the evidence, so every claim is a lead to verify, not a verified fact.
+
 ## Context Order
 
 Agents should assemble context in this order:

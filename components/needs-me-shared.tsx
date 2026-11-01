@@ -17,7 +17,6 @@ export function decidedChoiceOf(item: Pick<NeedsMeEntry, "decisionState">): Revi
 /** What was recorded when a non-Reference item was decided: its Why, and whether it was rejected as "not this kind". Shown again whenever the item is reopened. */
 export function recordedAnswer(item: NeedsMeEntry): { why: string | null; notThisKind: boolean } {
   const { payload } = item;
-  if (payload.kind === "draft") return { why: payload.item.decision?.why ?? null, notThisKind: Boolean(payload.item.decision?.notThisKind) };
   if (payload.kind === "request") return { why: payload.request.answer?.feedback ?? null, notThisKind: payload.request.answer?.steer === "not_this_kind" };
   if (payload.kind === "email") return { why: payload.summary.quarantine?.decision?.reason || null, notThisKind: false };
   return { why: null, notThisKind: false };

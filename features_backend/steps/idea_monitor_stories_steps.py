@@ -20,7 +20,8 @@ sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
 from ideas_fixtures import CORPUS, NOW, reference  # noqa: E402
 from papyrus_content.ideas import commands, monitor_stories  # noqa: E402
-from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
+from papyrus_content.ideas.store import JsonStore  # noqa: E402
+from procedures.newsroom.tests.fake_idea_store import FakeIdeaStore  # noqa: E402
 from pdf_fixtures import make_pdf  # noqa: E402
 from test_monitor_stories import PAGE, MonitorClient, StoryModel, context as site_context, decision, good_story, provenance  # noqa: E402
 
@@ -158,13 +159,13 @@ def step_same_address(context, title, other):
     row_of(context, title)["sourceUri"] = row_of(context, other)["sourceUri"]
 
 
-@given('another run files a Proposal for "{title}" after this run has read the existing ones')
+@given('another run files an idea for "{title}" after this run has read the existing ones')
 def step_concurrent(context, title):
     state(context).concurrent = title
 
 
 def with_concurrent_run(context, client):
-    """The backend as seen by a run that overlaps another: the Proposal appears after the run's first read of the story drafts."""
+    """The backend as seen by a run that overlaps another: the idea appears after the run's first read of the story drafts."""
     held = state(context)
     title = getattr(held, "concurrent", None)
     if title is None or getattr(client, "_overlap_installed", False):
@@ -205,7 +206,7 @@ def run_drafts(context, *, limit=monitor_stories.DEFAULT_LIMIT, dry_run=False, p
     with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
         run = monitor_stories.draft_monitor_stories(
             client=client, site=SITE, context=site_context(), json_store=JsonStore(Path(held.directory.name)), transport=held.model,
-            proposal_store=ProposalStore(client) if proposals else None, review_client=client, limit=limit, dry_run=dry_run, now=NOW,
+            idea_store=FakeIdeaStore(client) if proposals else None, review_client=client, limit=limit, dry_run=dry_run, now=NOW,
             fetch=fetch_for(context), **options,
         )
     held.runs.append(run)
@@ -242,7 +243,7 @@ def step_dry_limit(context, limit):
     run_drafts(context, limit=limit, dry_run=True)
 
 
-@when("the operator drafts monitor stories and files them as Proposals with a limit of {limit:d}")
+@when("the operator drafts monitor stories and files them as ideas with a limit of {limit:d}")
 def step_files(context, limit):
     run_drafts(context, limit=limit, proposals=True)
 
@@ -257,7 +258,7 @@ def step_cap(context, cap):
     run_drafts(context, maximum_cost_usd=float(cap))
 
 
-@when('an editor declines the Proposal')
+@when('an editor declines the idea')
 def step_decline(context):
     for row in client_of(context).filed:
         row["state"] = "declined"
@@ -344,7 +345,7 @@ def step_same_source(context, count):
     assert last(context)["inputs"]["sameSource"] == count, last(context)["inputs"]
 
 
-@then("no Proposal is filed by this run")
+@then("no idea is filed by this run")
 def step_no_filing(context):
     assert [row["id"] for row in client_of(context).filed if row["id"] != "prop-concurrent"] == []
     assert last(context)["drafts"] == []
@@ -389,7 +390,7 @@ def step_skipped(context, title):
     assert [(row["title"], row["reason"]) for row in last(context)["skipped"]] == [(title, "no_source_text")]
 
 
-@then("no Proposal is filed")
+@then("no idea is filed")
 def step_none_filed(context):
     assert client_of(context).filed == []
 
@@ -406,7 +407,7 @@ def step_failed(context, reason):
     assert any(problem["reason"].startswith(reason) for problem in problems), problems
 
 
-@then('the Proposals filed are for "{first}" and "{second}"')
+@then('the ideas filed are for "{first}" and "{second}"')
 def step_filed_two(context, first, second):
     assert titles_filed(context) == [first, second], titles_filed(context)
 
@@ -417,33 +418,33 @@ def titles_filed(context):
     return [by_lineage[json.loads(filed["targets"])[0]["id"].removeprefix("reference:")] for filed in client_of(context).filed]
 
 
-@then('the Proposals filed are for "{title}"')
+@then('the ideas filed are for "{title}"')
 def step_filed_for(context, title):
     assert titles_filed(context) == [title], titles_filed(context)
 
 
-@then('1 "story_draft" Proposal is filed and it is proposed by AI and still in the draft state')
+@then('1 idea is filed and it is proposed by AI and still at the idea stage')
 def step_proposal(context):
     filed = client_of(context).filed
     assert len(filed) == 1 and filed[0]["kind"] == "story_draft" and filed[0]["state"] == "draft"
     assert last(context)["drafts"][0]["proposedBy"] == "AI"
 
 
-@then("the Proposal body cites the address of the item")
+@then("the idea body cites the address of the item")
 def step_body(context):
     filed = client_of(context).filed[0]
     url = row_of(context, next(iter(state(context).numbers)))["sourceUri"]
     assert url in filed["body"] and "## Source" in filed["body"] and " [1]" in filed["body"]
 
 
-@then('the Proposal evidence names the "{monitor}" monitor and the address of the item')
+@then('the idea evidence names the "{monitor}" monitor and the address of the item')
 def step_evidence(context, monitor):
     evidence = json.loads(client_of(context).filed[0]["evidence"])
     url = row_of(context, next(iter(state(context).numbers)))["sourceUri"]
     assert evidence == {"signals": 1, "source": f"{monitor} monitor: {url}"}, evidence
 
 
-@then("the Proposal targets the Reference it is about")
+@then("the idea targets the Reference it is about")
 def step_targets(context):
     lineage = state(context).rows[0]["lineageId"]
     assert json.loads(client_of(context).filed[0]["targets"]) == [{"type": "entity", "id": f"reference:{lineage}"}]

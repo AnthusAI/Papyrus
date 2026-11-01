@@ -39,7 +39,8 @@ from .excluded_hosts import is_excluded, normalize_hosts
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, comparison_documents
 from .review import request_human_review
 from .items import IdeaRefused
-from .store import JsonStore, ProposalStore
+from .items import ItemStore
+from .store import JsonStore
 
 DEFAULT_MAXIMUM_DRAFTS = 3
 MAXIMUM_ENTITY_SIGNALS = 8
@@ -936,7 +937,7 @@ def draft_trends(
     context: dict[str, Any],
     json_store: JsonStore | None,
     transport: synthesis.Transport,
-    proposal_store: ProposalStore | None = None,
+    idea_store: ItemStore | None = None,
     review_client: Any = None,
     model: str = synthesis.DEFAULT_MODEL,
     maximum: int = DEFAULT_MAXIMUM_DRAFTS,
@@ -952,11 +953,11 @@ def draft_trends(
     moment = now or datetime.now(timezone.utc)
     run: dict[str, Any] = {
         "runId": run_id_for(snapshot["source"], moment), "kind": "trends-run", "publication": site, "startedAt": iso(moment), "model": model,
-        "store": "dry-run" if dry_run else (proposal_store.kind if proposal_store else "json"), "dryRun": dry_run, "private": True,
+        "store": "dry-run" if dry_run else (idea_store.kind if idea_store else "json"), "dryRun": dry_run, "private": True,
         "snapshot": {"source": snapshot["source"], "asOf": snapshot["asOf"]},
     }
     stored = json_store.ideas() if json_store else []
-    proposals = proposal_store.story_drafts() if proposal_store else []
+    proposals = idea_store.story_drafts() if idea_store else []
     documents = comparison_documents(context, stored, proposals, [])
     config = config or TrendConfig()
     earlier = [*proposals, *(idea for idea in stored if idea.get("origin") == "trend")]
@@ -994,9 +995,9 @@ def draft_trends(
         run["duplicates"] += same
         for record in kept:
             if not dry_run:
-                if proposal_store:
+                if idea_store:
                     try:
-                        proposal_store.mark(record, proposal_store.file_story_draft(record))
+                        idea_store.mark(record, idea_store.file_story_draft(record))
                     except IdeaRefused as refusal:   # the editorial check found an error-severity violation: not filed
                         run["invalid"].append(refusal.as_invalid(record))
                         continue

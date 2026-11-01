@@ -3,6 +3,7 @@
 
   python3 infra/monitoring/build.py                         # collector zip: print SHA256 and S3 key
   python3 infra/monitoring/build.py --router                # router zip (package closure, YAML data, pure-Python PyYAML)
+  python3 infra/monitoring/build.py --router --host         # router zip with this machine's own wheels (tests; not for the Lambda)
   python3 infra/monitoring/build.py --email                 # strict SES submission receiver
   python3 infra/monitoring/build.py --router --upload BUCKET  # also upload (needs AWS_PROFILE; asserts the account)
 
@@ -15,9 +16,13 @@ import argparse
 import ast
 import hashlib
 import importlib
+import importlib.metadata
 from pathlib import Path
+import re
 import subprocess
 import sys
+import tempfile
+import tomllib
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -35,6 +40,13 @@ ROUTER_EXCLUDED = frozenset({"web_structured_metadata", "biblicus_runner"})
 # everything it imports. Compiled extensions are left out; each package runs in its pure-Python mode.
 VENDORED = ("yaml", "youtube_transcript_api", "defusedxml", "requests", "urllib3", "idna", "certifi", "charset_normalizer")
 VENDORED_DATA = frozenset({".py", ".pem"})
+# The editorial gate (ideas/gate.py -> editorial_checks) imports Humanus, and its judgment lane imports typesafe_sdk (the `jev` extra). Their
+# dependency closure comes from poetry.lock at the locked versions, as binary wheels for the Lambda (arm64, CPython 3.13), unpacked into the zip.
+# Packages VENDORED already covers (idna, PyYAML) are left to that path, and the Lambda runtime brings boto3 and botocore.
+LOCK = ROOT / "poetry.lock"
+ROUTER_WHEEL_ROOTS = ("humanus", "typesafe-sdk")
+LAMBDA_PLATFORMS = ("manylinux_2_28_aarch64", "manylinux_2_17_aarch64", "manylinux2014_aarch64")
+LAMBDA_PYTHON = "3.13"
 ROUTER_DATA = ("corpora/papyrus-semantic-relation-types.yml", "corpora/papyrus-publication-doctrine.yml")
 
 
@@ -105,7 +117,59 @@ def _add(archive: zipfile.ZipFile, name: str, data: bytes) -> None:
     archive.writestr(info, data)
 
 
-def build_package(out: Path, roots) -> str:
+def _canonical(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def locked_wheel_packages(roots=ROUTER_WHEEL_ROOTS) -> dict[str, dict]:
+    """The poetry.lock entries (name -> package) of `roots` and everything they depend on, optional extras left out, minus the VENDORED ones."""
+    packages = {_canonical(entry["name"]): entry for entry in tomllib.loads(LOCK.read_text())["package"]}
+    vendored = {_canonical(name) for name in ("pyyaml", "idna", *VENDORED)}
+    seen, stack = {}, list(roots)
+    while stack:
+        name = _canonical(stack.pop())
+        if name in seen:
+            continue
+        seen[name] = packages[name]
+        stack.extend(dep for dep, spec in packages[name].get("dependencies", {}).items()
+                     if not (isinstance(spec, dict) and spec.get("optional")) and _canonical(dep) not in vendored)
+    return {name: seen[name] for name in sorted(seen)}
+
+
+def _lambda_wheel_entries(packages: dict[str, dict]) -> dict[str, bytes]:
+    """Download each locked package's binary wheel for the Lambda platform, check its sha256 against poetry.lock, and return its files."""
+    entries: dict[str, bytes] = {}
+    with tempfile.TemporaryDirectory() as scratch:
+        for name, entry in packages.items():
+            target = Path(scratch) / name
+            subprocess.run([sys.executable, "-m", "pip", "download", "--quiet", "--disable-pip-version-check", "--no-deps", "--only-binary=:all:", "--implementation", "cp",
+                            "--python-version", LAMBDA_PYTHON, "--abi", f"cp{LAMBDA_PYTHON.replace('.', '')}",
+                            *(arg for platform in (*LAMBDA_PLATFORMS, "any") for arg in ("--platform", platform)),
+                            "--dest", str(target), f"{name}=={entry['version']}"], check=True)
+            wheels = list(target.glob("*.whl"))
+            assert len(wheels) == 1, (name, wheels)
+            locked = {item["hash"].removeprefix("sha256:") for item in entry["files"]}
+            digest = hashlib.sha256(wheels[0].read_bytes()).hexdigest()
+            assert digest in locked, f"{wheels[0].name} is not in poetry.lock for {name} (sha256 {digest})"
+            with zipfile.ZipFile(wheels[0]) as wheel:
+                for member in wheel.namelist():
+                    if not member.endswith("/") and "__pycache__" not in member:
+                        entries[member] = wheel.read(member)
+    return entries
+
+
+def _host_wheel_entries(packages: dict[str, dict]) -> dict[str, bytes]:
+    """The same packages as installed in this interpreter (for tests that import the zip on the host platform)."""
+    entries: dict[str, bytes] = {}
+    for name in packages:
+        distribution = importlib.metadata.distribution(name)
+        for file in distribution.files or ():
+            if "__pycache__" not in file.parts and not file.name.endswith(".pyc") and file.parts[0] != "..":
+                entries[file.as_posix()] = Path(distribution.locate_file(file)).read_bytes()
+    return entries
+
+
+def build_package(out: Path, roots, wheels: str | None = None) -> str:
     """Worker zip: package modules, the two YAML data files they read, and the pure-Python VENDORED packages.
 
     The Lambda runtime has boto3/botocore only. PyYAML is copied without its C extension, so it
@@ -113,7 +177,11 @@ def build_package(out: Path, roots) -> str:
     """
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    entries = {f"papyrus_content/{name}.py": (PACKAGE / f"{name}.py").read_bytes() for name in package_modules(roots)}
+    entries = {}
+    if wheels:
+        packages = locked_wheel_packages()
+        entries.update(_host_wheel_entries(packages) if wheels == "host" else _lambda_wheel_entries(packages))
+    entries |= {f"papyrus_content/{name}.py": (PACKAGE / f"{name}.py").read_bytes() for name in package_modules(roots)}
     entries["papyrus_content/__init__.py"] = (PACKAGE / "__init__.py").read_bytes()
     for relative in ROUTER_DATA:
         entries[relative] = (ROOT / relative).read_bytes()
@@ -129,8 +197,9 @@ def build_package(out: Path, roots) -> str:
     return hashlib.sha256(out.read_bytes()).hexdigest()
 
 
-def build_router(out: Path = ROUTER_OUT) -> str:
-    return build_package(out, ROUTER_ROOTS)
+def build_router(out: Path = ROUTER_OUT, target: str = "lambda") -> str:
+    """`target` is "lambda" (wheels for the function, fetched and checked against poetry.lock) or "host" (this interpreter's installed copies)."""
+    return build_package(out, ROUTER_ROOTS, wheels=target)
 
 
 def build_email(out: Path = EMAIL_OUT) -> str:
@@ -143,9 +212,12 @@ def main() -> int:
     worker = parser.add_mutually_exclusive_group()
     worker.add_argument("--router", action="store_true", help="build the router zip instead of the collector zip")
     worker.add_argument("--email", action="store_true", help="build the strict email submission receiver zip")
+    parser.add_argument("--host", action="store_true", help="with --router: use this machine's installed packages instead of Lambda wheels (tests only)")
     args = parser.parse_args()
+    if args.host and not args.router:
+        parser.error("--host goes with --router")
     digest, out = ((build_email(), EMAIL_OUT) if args.email else
-                   (build_router(), ROUTER_OUT) if args.router else (build(), OUT))
+                   (build_router(target="host" if args.host else "lambda"), ROUTER_OUT) if args.router else (build(), OUT))
     prefix = "email-" if args.email else "router-" if args.router else ""
     key = f"papyrus-monitoring/{prefix}{digest}.zip"
     print(f"SHA256 {digest}\nCodeKey {key}\nSize {out.stat().st_size} bytes")

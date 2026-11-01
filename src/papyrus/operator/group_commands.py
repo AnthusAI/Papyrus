@@ -14,6 +14,7 @@ RESEARCH_COMMANDS = {
   "run": "run-research",
   "run-tavily-deep": "run-tavily-deep-research",
   "poll-tavily-deep": "poll-tavily-deep-research",
+  "multi": "research-multi",
   "apply": "apply-research-packet",
   "process": "process-research-now",
   "packets": "research-packets",
@@ -62,12 +63,13 @@ COMMAND_USAGE = {
   ("proposals", "needs-a-look"): "[--json]  (vote spikes, new-account surges, community vs AI; editors only, never published)",
   ("proposals", "publish"): "[--json]  (runs the reader snapshot, which writes _data/proposals/)",
   ("ideas", "digest"): "--publication KEY [--since 7d] [--status accepted[,pending]] [--max-references N] [--excerpts] [--out DIR] [--json]",
-  ("ideas", "synthesize"): "--publication KEY [--digest ID|PATH | --since 7d] [--max 5] [--store json|proposals] [--feedback FILE] [--report FILE] [--out DIR] [--json]",
+  ("ideas", "synthesize"): "--publication KEY [--digest ID|PATH | --since 7d] [--max 5] [--store items|json] [--feedback FILE] [--report FILE] [--out DIR] [--json]",
   ("publication", "init"): "--key KEY --name NAME",
   ("site", "google-secrets"): "set|check [--site PATH] [--profile NAME] [--account ID] [--region R] [--app-id ID] [--branch NAME] [--client-id ID] [--secret-stdin]",
   ("reporting", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",
   ("sections", "doctrine"): "set --kind mission|policy --file MD [--dry-run]",
   ("sections", "update"): "--id SECTION [--editorial-mission-file F] [--editorial-policy-file F] [--assignment-guidance-file F] [--kill-criteria-file F] [--enabled true|false] [--dry-run]",
+  ("research", "multi"): "ASSIGNMENT [--dry-run] [--json]   (assignment created with: research create --type research.multi)",
   ("research", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",
 }
 

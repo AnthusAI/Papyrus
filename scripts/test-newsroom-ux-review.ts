@@ -1,5 +1,5 @@
 /**
- * Newsroom review fixes, fixture-only: the Proposed Story wording, the board's newest-first columns, and a story's detail view opening
+ * Newsroom review fixes, fixture-only: the ideas wording, the board's newest-first columns, and a story's detail view opening
  * on a solid surface that does not jump. No network and no production reads. Run one scenario with `tsx scripts/test-newsroom-ux-review.ts board_order`.
  */
 import assert from "node:assert/strict";
@@ -8,7 +8,7 @@ import { chromium, type Page } from "playwright";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ORGANIZER_NAV_GROUPS } from "../lib/newsroom-organizer-nav";
-import { kindLabel, stateLabel } from "../lib/proposals-admin";
+import { kindLabel, stateLabel, withoutStoryDrafts } from "../lib/proposals-admin";
 import { summaryText } from "../lib/review-requests";
 import { waitingTextFor } from "../lib/needs-me-items";
 import { NEEDS_ME_FILTER_LABELS } from "../lib/needs-me-ranking";
@@ -144,16 +144,22 @@ async function sampleOpening(page: Page): Promise<Frame[]> {
 }
 
 const scenarios: Record<string, () => Promise<void>> = {
-  /** A story_draft Proposal is a "Proposed Story" everywhere an editor reads it. */
-  async proposed_stories() {
+  /** A generated story idea is an "idea" in the Idea column everywhere an editor reads it; there is no Proposed Stories page. */
+  async ideas_wording() {
     const navigation = ORGANIZER_NAV_GROUPS.flatMap((group) => group.items).find((item) => item.path === "/newsroom/administration/proposals");
     assert.equal(navigation, undefined, "ideas live in the Stories board Idea column, so the sidebar has no separate Proposed Stories entry");
-    assert.equal(kindLabel("story_draft"), "Proposed Story", "the kind label");
+    assert.equal(kindLabel("story_draft"), "story_draft", "a story draft has no editor-facing kind label: it is not a Proposal any more");
+    assert.deepEqual(withoutStoryDrafts([{ kind: "story_draft" }, { kind: "rename" }]), [{ kind: "rename" }], "the Proposals panel leaves old story drafts to papyrus ideas migrate-proposals");
     assert.ok(!/^draft$/i.test(stateLabel("draft", true)), "the proposal's first state is not the bare word Draft");
-    assert.equal(NEEDS_ME_FILTER_LABELS.drafts, "Proposed Stories", "the Needs me filter");
-    assert.equal(waitingTextFor({ drafts: 3, references: 1, stories: 0, email: 0, captures: 0, other: 0 } as never), "3 Proposed Stories and 1 reference waiting for you");
-    assert.match(summaryText({ waiting: 0, drafts: 1, otherReviews: 0, decidedBySystem: 0, unread: 0 }), /1 Proposed Story to review/);
-    assert.ok(!/draft/i.test(summaryText({ waiting: 0, drafts: 4, otherReviews: 0, decidedBySystem: 0, unread: 0 })));
+    assert.equal(NEEDS_ME_FILTER_LABELS.ideas, "Ideas", "the Needs me filter");
+    assert.equal(waitingTextFor({ ideas: 2, references: 1, stories: 0, email: 0, captures: 0, other: 0 } as never), "2 idea batches and 1 reference waiting for you");
+    assert.match(summaryText({ waiting: 0, ideas: 1, otherReviews: 0, decidedBySystem: 0, unread: 0 }), /1 idea to review/);
+    assert.ok(!/draft|proposed stor/i.test(summaryText({ waiting: 0, ideas: 4, otherReviews: 0, decidedBySystem: 0, unread: 0 })));
+    for (const file of ["components/newsroom-board-view.tsx", "components/needs-me-bodies.tsx", "components/needs-me-feed.tsx", "components/proposals-view.tsx", "lib/needs-me-items.ts", "lib/review-requests.ts"]) {
+      assert.ok(!/proposed stor/i.test(fs.readFileSync(`${root}${file}`, "utf8")), `${file} never says Proposed Story`);
+    }
+    const board = fs.readFileSync(`${root}components/newsroom-board-view.tsx`, "utf8");
+    assert.ok(!/loadProposals|data-newsroom-proposed-stories|older Proposed/.test(board), "the board header has no link to an older Proposed Stories page");
   },
 
   /** Each column lists its stories newest first. Kanbus sorts a column by created_at ascending unless told otherwise, and stories carry no created_at. */

@@ -830,7 +830,7 @@ function runIngestionReferenceRegisterViaCli(input: {
         "--status",
         "all",
         "--model",
-        "gpt-5.4-nano",
+        "gpt-6-luna",
         "--max-count",
         "1",
         "--apply",

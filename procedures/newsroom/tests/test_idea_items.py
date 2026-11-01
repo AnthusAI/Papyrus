@@ -214,7 +214,7 @@ def test_decisions_reach_the_next_synthesis_as_feedback(tmp_path):
     case = PipelineTests()
     client = case.client()
     model = FakeModel([idea("Safely rotating cloud keys", ["R1", "R2"], angle="Key rotation for cloud accounts."), idea("Weights and trust", ["R3", "R4"], section="News")])
-    run, _ = run_pipeline(client, model, root=tmp_path / "ideas", proposal_store=Decisions())
+    run, _ = run_pipeline(client, model, root=tmp_path / "ideas", idea_store=Decisions())
     assert run["steering"]["decisions"] == 1
     assert model.model_input["reviewer_feedback"][0]["note"] == "Too basic for our readers."
     assert [idea["title"] for idea in run["ideas"]] == ["Weights and trust"] and run["ideas"][0]["itemLineageId"] == "item-1"

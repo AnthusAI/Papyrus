@@ -22,7 +22,8 @@ from papyrus_content.ideas.context import load_context  # noqa: E402
 from papyrus_content.ideas.pipeline import RunRefused, synthesize  # noqa: E402
 from papyrus_content import review_requests  # noqa: E402
 from papyrus_content.ideas.review import load_feedback, merge_feedback, request_human_review  # noqa: E402
-from papyrus_content.ideas.store import JsonStore, ProposalStore, StoreRefused  # noqa: E402
+from papyrus_content.ideas.store import JsonStore, StoreRefused, legacy_story_drafts  # noqa: E402
+from fake_idea_store import FakeIdeaStore  # noqa: E402
 
 
 def make_digest(references, relations=None, **options):
@@ -279,12 +280,13 @@ class PipelineTests(unittest.TestCase):
         request_human_review(client, run, run["ideas"])
         self.assertEqual(len(client.reviews), 1)
 
-    def test_proposal_ideas_are_linked_by_proposal_id(self) -> None:
+    def test_ideas_filed_as_items_are_linked_as_stories(self) -> None:
         client = self.client()
-        run, _ = run_pipeline(client, FakeModel([idea("A", ["R1", "R2"])]), root=self.root, review_client=client, proposal_store=ProposalStore(client))
+        run, _ = run_pipeline(client, FakeModel([idea("A", ["R1", "R2"])]), root=self.root, review_client=client, idea_store=FakeIdeaStore(client))
         (request,) = client.reviews.values()
-        self.assertEqual([link["id"] for link in review_requests.read_review(request)["links"]], [run["ideas"][0]["proposalId"]])
-        self.assertEqual(run["review"]["linkedAs"], "proposal")
+        self.assertEqual([link["id"] for link in review_requests.read_review(request)["links"]], [run["ideas"][0]["itemLineageId"]])
+        self.assertEqual(run["review"]["linkedAs"], "story")
+        self.assertEqual([link["type"] for link in review_requests.read_review(request)["links"]], ["story"])
 
     def test_no_ideas_raise_no_review(self) -> None:
         client = self.client()
@@ -378,14 +380,14 @@ class PrivacyTests(unittest.TestCase):
         self.assertNotIn("mutation FileProposal", kinds)
         self.assertFalse([call for call in client.calls if "publish" in str(call).lower()])
 
-    def test_a_proposal_run_files_each_idea_as_a_draft_story_proposal_and_publishes_nothing(self) -> None:
+    def test_an_items_run_files_each_idea_through_the_idea_store_and_publishes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             client = FakeClient(references=five_references(), sections=("Analysis",))
-            run, _ = run_pipeline(client, FakeModel([idea("Cloud key rotation", ["R1", "R2"], angle="Rotating access keys after an incident."), idea("Model checkpoint signing", ["R3", "R4"], angle="What a signature on a model file proves.")]), root=Path(directory) / "ideas", proposal_store=ProposalStore(client))
+            run, _ = run_pipeline(client, FakeModel([idea("Cloud key rotation", ["R1", "R2"], angle="Rotating access keys after an incident."), idea("Model checkpoint signing", ["R3", "R4"], angle="What a signature on a model file proves.")]), root=Path(directory) / "ideas", idea_store=FakeIdeaStore(client))
         filed = [row for row in client.proposals if "kind" in row]
         self.assertEqual([row["kind"] for row in filed], ["story_draft", "story_draft"])
-        self.assertEqual(run["store"], "proposals")
-        self.assertTrue(all(idea_["proposalId"].startswith("prop-") for idea_ in run["ideas"]))
+        self.assertEqual(run["store"], "items")
+        self.assertTrue(all(idea_["itemLineageId"].startswith("prop-") for idea_ in run["ideas"]))
         self.assertNotIn("publish", json.dumps(client.calls))
         evidence = json.loads(filed[0]["evidence"])
         self.assertEqual(evidence["signals"], 2)
@@ -406,16 +408,16 @@ class PrivacyTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory, mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
             client = OperatorOnly(references=five_references(), sections=("Analysis",))
-            store = ProposalStore(client)
+            store = FakeIdeaStore(client)
             run, _ = run_pipeline(client, FakeModel([
                 idea("Cloud key rotation", ["R1", "R2"], angle="Rotating access keys after an incident."),
                 idea("Model checkpoint signing", ["R3", "R4"], angle="What a signature on a model file proves."),
-            ]), root=Path(directory) / "ideas", proposal_store=store)
+            ]), root=Path(directory) / "ideas", idea_store=store)
         self.assertEqual([row["title"] for row in client.proposals if "kind" in row], ["Model checkpoint signing"])
         self.assertEqual([entry["reason"] for entry in run["duplicates"]], ["near_duplicate"])
         self.assertIn(("operator-read", "listStoryDrafts"), client.calls)
         with mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "user"}), self.assertRaises(RuntimeError):
-            ProposalStore(OperatorOnly()).story_drafts()
+            FakeIdeaStore(OperatorOnly()).story_drafts()
 
 
 class CommandTests(unittest.TestCase):
@@ -423,6 +425,7 @@ class CommandTests(unittest.TestCase):
         out, err = io.StringIO(), io.StringIO()
         environment = {"OPENAI_API_KEY": "test-key"}
         with mock.patch.object(commands, "create_authoring_client", return_value=(client, {})), \
+             mock.patch.object(commands, "_idea_store", side_effect=lambda name, held: FakeIdeaStore(held) if name == "items" else None), \
              mock.patch.object(commands.synthesis, "openai_transport", return_value=model), \
              mock.patch("papyrus_content.cli.load_dotenv"), mock.patch.dict(os.environ, environment), \
              redirect_stdout(out), redirect_stderr(err):
@@ -459,6 +462,32 @@ class CommandTests(unittest.TestCase):
         code, output = self.run_cli(["digest", "--publication", "example-site", "--out", "/tmp/site/_data/ideas"], FakeClient())
         self.assertEqual(code, 2)
         self.assertIn("private", output)
+
+    def test_items_is_the_default_store_and_proposals_is_no_longer_one(self) -> None:
+        from papyrus_content.ideas.store import ITEMS, JSON, STORES
+
+        self.assertEqual((STORES, ITEMS, JSON), (("items", "json"), "items", "json"))
+        for command in (["synthesize", "--publication", "example-site"], ["trends", "--site", "example-site", "--snapshot", "x.json"], ["monitor-stories", "--site", "example-site"]):
+            with tempfile.TemporaryDirectory() as directory:
+                code, output = self.run_cli([*command, "--store", "proposals", "--out", directory], FakeClient(), model=FakeModel([]))
+            self.assertEqual(code, 2, command)
+            self.assertIn("--store must be items or json", output)
+
+    def test_a_site_that_has_not_migrated_still_dedupes_against_its_story_draft_proposals(self) -> None:
+        earlier = {"id": "prop-" + "c" * 32, "kind": "story_draft", "title": "Cloud key rotation", "summary": "Rotating access keys after an incident.", "state": "draft",
+                   "targets": "[]", "createdAt": "2026-10-20T00:00:00Z"}
+        client = FakeClient(references=five_references(), sections=("Analysis",))
+        client.listed = [earlier, {"id": "prop-other", "kind": "new_concept", "title": "A rename", "state": "draft", "createdAt": "2026-10-21T00:00:00Z"}]
+        original = client.graphql
+
+        def graphql(query, variables=None):
+            if "listProposals" in query:
+                return {"listProposals": {"items": client.listed, "nextToken": None}}
+            return original(query, variables)
+
+        client.graphql = graphql
+        with mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "user"}):
+            self.assertEqual([row["id"] for row in legacy_story_drafts(client)], [earlier["id"]], "only story drafts, never the other kinds of Proposal")
 
 
 if __name__ == "__main__":

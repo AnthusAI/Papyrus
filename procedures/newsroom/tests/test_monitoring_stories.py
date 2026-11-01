@@ -16,6 +16,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import test_monitoring_router as tr  # noqa: E402
+from fake_idea_store import FakeIdeaStore  # noqa: E402
 from ideas_fixtures import NOW  # noqa: E402
 from test_monitor_stories import StoryModel, pages, provenance, world  # noqa: E402
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient  # noqa: E402
@@ -29,6 +30,23 @@ PUBLICATION = "example-site"   # the fixtures' corpus is knowledge-corpus-exampl
 @pytest.fixture(autouse=True)
 def iam_auth(monkeypatch):
     monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")   # the router Lambda's setting: earlier drafts are read through listStoryDrafts
+
+
+@pytest.fixture(autouse=True)
+def fake_idea_sink(monkeypatch):
+    """The router files ideas through ``ItemStore``; these tests read what was filed from the fake backend, so the sink is its recording double (ItemStore itself: test_idea_items.py)."""
+    monkeypatch.setattr("papyrus_content.ideas.items.ItemStore", lambda client, **options: FakeIdeaStore(client, gate=options.get("gate")))
+
+
+@pytest.fixture(autouse=True)
+def quiet_gate(monkeypatch):
+    """Unless a test passes its own gate, the router's editorial gate finds nothing (the real one reads the site's policies; test_idea_items.py covers it)."""
+    from test_idea_items import FakeGate
+
+    from papyrus_content.ideas import gate as gate_module
+
+    gate_module._REAL_FOR_CLIENT = gate_module.__dict__.get("_REAL_FOR_CLIENT") or gate_module.HumanusGate.__dict__["for_client"]
+    monkeypatch.setattr("papyrus_content.ideas.gate.HumanusGate.for_client", classmethod(lambda cls, client, **options: FakeGate()))
 
 
 def router(publications=(PUBLICATION,), settings=None):
@@ -45,14 +63,14 @@ def router(publications=(PUBLICATION,), settings=None):
     return table, store
 
 
-def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_table=None):
+def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_table=None, gate=None):
     """Runs the monitor-stories task; `clients` maps a publication id to its backend. Returns (result, log lines by publication)."""
     endpoints = {tr.ENDPOINT.replace("abc123", f"api{n}"): client for n, client in enumerate(clients.values())}
     out = io.StringIO()
     with redirect_stdout(out):
         result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint],
                             deliver=tr.Delivery(), time_left=time_left, story_transport=model,
-                            story_drafter=partial(run_publication, fetch=fetch or pages(*range(1, 60)), explorer=None))
+                            story_drafter=partial(run_publication, fetch=fetch or pages(*range(1, 60)), explorer=None, **({"gate": gate} if gate else {})))
     lines = {line["publicationId"]: line for line in map(json.loads, (l for l in out.getvalue().splitlines() if l.startswith('{"monitorStories"')))}
     return result, lines
 
@@ -259,23 +277,46 @@ def test_the_task_does_not_route_collect_or_give_feedback():
 # --- packaging ---------------------------------------------------------------------------------------------------------------
 
 
-def test_the_router_zip_can_run_the_drafting_with_nothing_but_the_standard_library(tmp_path):
-    """The Lambda has boto3 and the zip's own pure-Python packages, nothing else: import everything the task uses from the built zip alone."""
+def test_the_router_zip_can_run_the_drafting_and_the_editorial_gate_with_nothing_but_the_zip(tmp_path):
+    """The Lambda has boto3 and the zip's own packages, nothing else: unpack the zip as the Lambda does (compiled modules cannot load from inside
+    a zip file), build it for this machine, and import and run everything the task uses with an isolated interpreter (PPY-e5aef3)."""
     import importlib.util
     import subprocess
+    import zipfile
     root = Path(__file__).resolve().parents[3]
     spec = importlib.util.spec_from_file_location("monitoring_build", root / "infra/monitoring/build.py")
     build = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(build)
     archive = tmp_path / "router.zip"
-    build.build_router(archive)
-    assert archive.stat().st_size < 2_000_000   # a sensible size: the drafting adds a handful of small modules
+    build.build_router(archive, target="host")
+    # The Lambda zip holds the drafting, the gate, Humanus and the Jev client's wheels: a few MB, far below the 50 MB direct-upload limit.
+    assert archive.stat().st_size < 12_000_000
+    unpacked = tmp_path / "task"
+    zipfile.ZipFile(archive).extractall(unpacked)
     script = ("import sys; sys.path.insert(0, sys.argv[1]); import papyrus_content.monitoring_router; "
-              "from papyrus_content import monitoring_stories as m; from papyrus_content.ideas import monitor_stories, context, store, synthesis, review; "
-              "from papyrus_content import link_exploration; print('imported')")
-    done = subprocess.run([sys.executable, "-I", "-S", "-c", script, str(archive)], capture_output=True, text=True, cwd=tmp_path,
-                          env={"PAPYRUS_ROOT": str(tmp_path)})
-    assert done.stdout.strip() == "imported", done.stderr[-800:]
+              "from papyrus_content import monitoring_stories as m; from papyrus_content.ideas import monitor_stories, context, store, synthesis, review, gate, items; "
+              "from papyrus_content import link_exploration; import humanus.check, typesafe_sdk, humanus; "
+              "assert all(sys.argv[1] in module.__file__ for module in (humanus, typesafe_sdk, gate)); "
+              "pack = {'schemaVersion': 1, 'packId': 'test', 'version': '1', 'policies': [{'id': 'no-synergy', 'version': 1, 'title': 'No synergy', "
+              "'guidance': 'Avoid it.', 'severity': 'warn', 'detectors': [{'id': 'synergy', 'lane': 'rules', 'kind': 'phrase', 'phrases': ['synergy']}]}]}; "
+              "result = humanus.check({'schemaVersion': 1, 'content': {'format': 'markus', 'text': 'Pure synergy.'}, 'pack': pack, "
+              "'options': {'lanes': {'rules': True, 'classifier': False}}}); "
+              "print('imported', len(result['findings']))")
+    done = subprocess.run([sys.executable, "-I", "-S", "-c", script, str(unpacked)], capture_output=True, text=True, cwd=tmp_path,
+                          env={"PAPYRUS_ROOT": str(unpacked)})
+    assert done.stdout.strip() == "imported 1", done.stderr[-800:]
+
+
+def test_the_lambda_wheels_are_the_locked_closure_of_humanus_and_the_jev_client_without_what_is_already_vendored():
+    import importlib.util
+    root = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location("monitoring_build", root / "infra/monitoring/build.py")
+    build = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    packages = build.locked_wheel_packages()
+    assert {"humanus", "typesafe-sdk", "pydantic-core", "rpds-py", "httpx2", "anyio", "tenacity", "truststore", "packaging", "typing-extensions"} <= set(packages)
+    assert not {"pyyaml", "idna", "boto3", "botocore"} & set(packages)   # PyYAML and idna come through VENDORED; the runtime brings boto3
+    assert all(entry["files"] for entry in packages.values())   # every one is pinned with hashes the download is checked against
 
 
 # --- reading many References at a time ---------------------------------------------------------------------------------------
@@ -302,10 +343,11 @@ def test_a_read_that_runs_out_of_time_leaves_the_rest_unread_and_says_so():
 
 
 def test_monitor_stories_is_on_by_default_and_the_setting_is_validated():
-    assert validate_monitor_stories("p", None) == {"enabled": True, "store": "proposals"}
-    assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "proposals"}
-    assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "proposals"}
+    assert validate_monitor_stories("p", None) == {"enabled": True, "store": "items"}   # ideas are Items at the idea stage by default
+    assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "items"}
+    assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "items"}
     assert validate_monitor_stories("p", {"store": "items"}) == {"enabled": True, "store": "items"}
+    assert validate_monitor_stories("p", {"store": "proposals"}) == {"enabled": True, "store": "items"}   # a router entry written before ideas became Items still validates
     for bad in ({"enabled": "no"}, {"limit": 3}, {"store": "files"}, "off", []):
         with pytest.raises(ValueError):
             validate_monitor_stories("p", bad)
@@ -453,3 +495,63 @@ def test_distinctive_has_its_own_daily_monitor_stories_schedule():
     assert json.loads(distinctive["Target"]["Input"]) == {"task": "monitor-stories", "monitorId": "web-distinctive"}
     assert distinctive["ScheduleExpression"] == hn["ScheduleExpression"]
     assert distinctive["Target"]["RetryPolicy"] == hn["Target"]["RetryPolicy"] == {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 0}
+
+
+# --- the editorial gate the router runs on each idea ---------------------------------------------------------------------
+
+
+def test_the_judgment_key_is_read_from_the_shared_parameter_and_a_missing_one_is_not_an_error():
+    from papyrus_content.monitoring_stories import lambda_judgment_key
+
+    class Ssm:
+        def __init__(self, fail=False):
+            self.fail, self.asked = fail, []
+
+        def get_parameter(self, Name, WithDecryption):
+            self.asked.append((Name, WithDecryption))
+            if self.fail:
+                raise RuntimeError("ParameterNotFound")
+            return {"Parameter": {"Value": " key-1 "}}
+
+    ssm = Ssm()
+    assert lambda_judgment_key({"EDITORIAL_JUDGMENT_KEY_PARAMETER": "/papyrus/shared/typesafe-api-key"}, ssm=ssm) == "key-1"
+    assert ssm.asked == [("/papyrus/shared/typesafe-api-key", True)]
+    assert lambda_judgment_key({}, ssm=ssm) is None and len(ssm.asked) == 1   # no parameter: no read at all
+    assert lambda_judgment_key({"EDITORIAL_JUDGMENT_KEY_PARAMETER": "/x"}, ssm=Ssm(fail=True)) is None
+
+
+def test_the_gate_reads_through_the_publications_own_client_and_sets_the_key_only_when_it_has_one(monkeypatch):
+    from papyrus_content.ideas import gate as gate_module
+
+    real_for_client = gate_module._REAL_FOR_CLIENT
+    HumanusGate = type("RealGate", (), {"for_client": staticmethod(lambda client, **options: real_for_client.__func__(gate_module.HumanusGate, client, **options))})
+    monkeypatch.delenv("TYPESAFE_API_KEY", raising=False)
+    calls = []
+
+    class Client:
+        def graphql(self, query, variables=None):
+            calls.append(query)
+            return {}
+
+    gate = HumanusGate.for_client(Client(), judgment_key=None)
+    assert "TYPESAFE_API_KEY" not in os.environ
+    gate.services.store._execute("query { x }", {})
+    assert calls == ["query { x }"], "the gate's reads go through the client of the publication being filed"
+    HumanusGate.for_client(Client(), judgment_key="key-2")
+    assert os.environ["TYPESAFE_API_KEY"] == "key-2"
+    monkeypatch.delenv("TYPESAFE_API_KEY")
+
+
+def test_the_router_idea_policy_grants_the_item_and_gate_fields_and_the_key_parameter():
+    text = (Path(__file__).resolve().parents[3] / "infra" / "monitoring" / "papyrus-monitoring.yaml").read_text()
+    needed = ("Query/fields/getItem", "Query/fields/getPublishedItem", "Query/fields/listReferencesByLineageAndVersion", "Mutation/fields/createItem",
+              "Mutation/fields/updateItem", "Query/fields/getEditorialCheckSettings", "Query/fields/getEditorialContext", "Query/fields/getEditorialCheckRun",
+              "Query/fields/listEditorialFeedbacks", "Query/fields/listEditorialPolicies", "Query/fields/listItemsByVersionStateAndUpdatedAt",
+              "Mutation/fields/createEditorialCheckRun", "Mutation/fields/updateEditorialCheckRun")
+    start = text.index("  RouterIdeaPolicy:")
+    policy = text[start:text.index("\n\n  ", start)]
+    for field in needed:
+        assert f"apis/*/types/{field}\"" in policy, field
+    assert "Roles: [!Ref RouterRole]" in policy
+    assert "ssm:GetParameter" in policy and "parameter${EditorialJudgmentKeyParameter}" in policy and "kms:ViaService" in policy
+    assert "EDITORIAL_JUDGMENT_KEY_PARAMETER" in text

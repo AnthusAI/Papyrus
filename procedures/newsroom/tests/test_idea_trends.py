@@ -22,7 +22,8 @@ from papyrus import cli as papyrus_cli  # noqa: E402
 from papyrus_content import proposals_commands, review_requests  # noqa: E402
 from papyrus_content.ideas import commands, trends  # noqa: E402
 from papyrus_content.knowledge_snapshot.trends import TrendConfig  # noqa: E402
-from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
+from papyrus_content.ideas.store import JsonStore  # noqa: E402
+from fake_idea_store import FakeIdeaStore  # noqa: E402
 
 PUBLISHED = "Open licences spread through model hubs"
 
@@ -327,7 +328,7 @@ class ItemTests(unittest.TestCase):
         model = FakeTrendModel([release_draft()])
         run = trends.draft_trends(
             snapshot=self.snapshot, site="example-site", context={"sections": [{"title": "Analysis"}, {"title": "News"}], "stories": [], "mission": "Explain.", "policy": "Be careful."},
-            json_store=None, transport=model, proposal_store=ProposalStore(client), review_client=client, dry_run=False, now=NOW, fetch_text=read_item_page)
+            json_store=None, transport=model, idea_store=FakeIdeaStore(client), review_client=client, dry_run=False, now=NOW, fetch_text=read_item_page)
         self.assertEqual((run["inputs"]["items"], run["inputs"]["itemsWithSummary"], run["ideasCreated"]), (2, 2, 1))
         sent = json.loads(model.requests[0]["input"]) if isinstance(model.requests[0]["input"], str) else model.requests[0]["input"]
         self.assertIn("A 7B coding model with 32k context", json.dumps(sent))
@@ -354,7 +355,7 @@ class RunTests(unittest.TestCase):
         model = FakeTrendModel(drafts)
         run = trends.draft_trends(
             snapshot=self.snapshot, site="example-site", context={"sections": [{"title": "Analysis"}, {"title": "News"}], "stories": options.pop("stories", []), "mission": "Explain.", "policy": "Be careful."},
-            json_store=JsonStore(self.root), transport=model, proposal_store=ProposalStore(client) if proposals else None, review_client=client, dry_run=dry_run, now=NOW, **options)
+            json_store=JsonStore(self.root), transport=model, idea_store=FakeIdeaStore(client) if proposals else None, review_client=client, dry_run=dry_run, now=NOW, **options)
         return run, client, model
 
     def filed(self, client):
@@ -362,7 +363,7 @@ class RunTests(unittest.TestCase):
 
     def test_a_passing_draft_is_filed_as_an_ai_story_draft_proposal_with_targets_and_a_figure_spec(self) -> None:
         run, client, model = self.run_trends([trend_draft()])
-        self.assertEqual((run["ideasCreated"], run["invalid"], run["store"]), (1, [], "proposals"))
+        self.assertEqual((run["ideasCreated"], run["invalid"], run["store"]), (1, [], "items"))
         (row,) = self.filed(client)
         self.assertEqual(row["kind"], "story_draft")
         self.assertEqual(row["title"], "Hugging Face and Zed climb together")
@@ -417,7 +418,7 @@ class RunTests(unittest.TestCase):
         (request,) = review_requests.list_reviews(client, sweep=False)
         self.assertEqual((request["mode"], request["subject"]), ("soft_review", {"type": "batch", "id": run["runId"]}))
         self.assertIn("2 new trend story drafts", request["reason"])
-        self.assertEqual(run["review"]["linkedAs"], "proposal")
+        self.assertEqual(run["review"]["linkedAs"], "story")
 
     def test_a_dry_run_writes_files_stores_and_requests_nothing_but_still_shows_the_check(self) -> None:
         bad = trend_draft("Unsupported")
@@ -534,6 +535,7 @@ class CommandTests(unittest.TestCase):
     def run_cli(self, argv, client, model, environment=None):
         out, err = io.StringIO(), io.StringIO()
         with mock.patch.object(commands, "create_authoring_client", return_value=(client, {})), \
+             mock.patch.object(commands, "_idea_store", side_effect=lambda name, held: FakeIdeaStore(held) if name == "items" else None), \
              mock.patch.object(commands.synthesis, "openai_transport", return_value=model), \
              mock.patch("papyrus_content.cli.load_dotenv"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key", **(environment or {})}), \
              redirect_stdout(out), redirect_stderr(err):
@@ -546,7 +548,7 @@ class CommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = write(directory, "snapshot.json", history_entry())
             client = FakeClient(sections=("Analysis",))
-            code, output = self.run_cli(["--site", "example-site", "--snapshot", path, "--store", "proposals", "--dry-run", "--out", directory], client, FakeTrendModel([trend_draft(), bad]))
+            code, output = self.run_cli(["--site", "example-site", "--snapshot", path, "--store", "items", "--dry-run", "--out", directory], client, FakeTrendModel([trend_draft(), bad]))
             self.assertEqual(code, 0, output)
             self.assertFalse(Path(directory, "runs").exists())
         self.assertIn("would file 1", output)
@@ -561,7 +563,7 @@ class CommandTests(unittest.TestCase):
             path = write(directory, "snapshot.json", history_entry())
             report = Path(directory) / "report.md"
             client = FakeClient(sections=("Analysis",))
-            code, output = self.run_cli(["--site", "example-site", "--snapshot", path, "--store", "proposals", "--max", "2", "--out", directory, "--report", str(report)], client, FakeTrendModel([trend_draft()]))
+            code, output = self.run_cli(["--site", "example-site", "--snapshot", path, "--store", "items", "--max", "2", "--out", directory, "--report", str(report)], client, FakeTrendModel([trend_draft()]))
             self.assertEqual(code, 0, output)
             self.assertTrue(report.read_text().startswith("# Trend story drafts"))
         self.assertIn("filed 1", output)
@@ -747,7 +749,7 @@ class ExcludedHostTests(unittest.TestCase):
         client = FakeClient(sections=("Analysis", "News"), stories=[])
         run = trends.draft_trends(
             snapshot=self.snapshot, site="example-site", context={"sections": [{"title": "Analysis"}, {"title": "News"}], "stories": [], "mission": "m", "policy": "p"},
-            json_store=None, transport=FakeTrendModel([release_draft()]), proposal_store=ProposalStore(client), review_client=client, now=NOW,
+            json_store=None, transport=FakeTrendModel([release_draft()]), idea_store=FakeIdeaStore(client), review_client=client, now=NOW,
             fetch_text=read_item_page, excluded_hosts=["site.example"])
         self.assertEqual(run["drafts"], [])
         self.assertEqual(run["excludedSourceHosts"], ["site.example"])

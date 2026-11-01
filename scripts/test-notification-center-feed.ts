@@ -1,4 +1,4 @@
-/** Fixture-only browser acceptance for the Notification Center's AI-draft reviews and the Needs attention suggestions. No production calls. */
+/** Fixture-only browser acceptance for the Notification Center feed: idea batches that point at the Stories board, hard gates, flags, held email and References. No production calls. */
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { chromium, type Page } from "playwright";
@@ -27,7 +27,7 @@ function browserBundle(): Promise<string> {
     define: { "process.env.NODE_ENV": '"development"' }, logLevel: "silent",
     banner: { js: 'window.process = { env: { NODE_ENV: "development" } };' },
     plugins: [{ name: "fixture-boundaries", setup(builder) {
-      builder.onResolve({ filter: /(review-client|proposals-client)$/ }, () => ({ path: "network", namespace: "fixture" }));
+      builder.onResolve({ filter: /(review-client)$/ }, () => ({ path: "network", namespace: "fixture" }));
       builder.onResolve({ filter: /monitoring-client$/ }, () => ({ path: "monitoring", namespace: "fixture" }));
       builder.onResolve({ filter: /news-desk-taxonomy-client$/ }, () => ({ path: "taxonomy", namespace: "fixture" }));
       builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "fixture" }));
@@ -42,7 +42,7 @@ function browserBundle(): Promise<string> {
           : path === "link"
             ? "import {createElement} from 'react'; export default function Link({href, children, prefetch, ...rest}) { return createElement('a', {href, ...rest}, children); }"
             : path === "network"
-              ? "export const loadReviews = async () => ({ state: 'ready', requests: [], readIds: [], userKey: 'u1' }); export const loadDrafts = async () => ({ drafts: {}, missing: [], failed: [] }); export const loadStoryTitles = async () => ({ titles: {}, deleted: [] }); export const markReviewRead = async () => {};"
+              ? "export const loadReviews = async () => ({ state: 'ready', requests: [], readIds: [], userKey: 'u1' }); export const loadStoryTitles = async () => ({ titles: {}, deleted: [] }); export const markReviewRead = async () => {};"
               : "export {};",
         loader: "js", resolveDir: root,
       }));
@@ -52,9 +52,8 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { NotificationCenter } from "./components/notification-center";
 import { NewsroomOpsOverview } from "./components/newsroom-ops-overview";
-import { FIXTURE_DRAFTS, FIXTURE_EMAIL_DETAILS, FIXTURE_HELD_EMAILS, FIXTURE_REVIEW_REQUESTS } from "./lib/review-fixture";
+import { FIXTURE_IDEAS, FIXTURE_EMAIL_DETAILS, FIXTURE_HELD_EMAILS, FIXTURE_REVIEW_REQUESTS } from "./lib/review-fixture";
 import { answerUpdate, applyReviewUpdate } from "./lib/review-requests";
-import { draftDecisionUpdate, draftView } from "./lib/review-drafts";
 
 const params = new URLSearchParams(location.search);
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -63,41 +62,19 @@ if (params.has("no-deadline")) batch.deadline = null;
 const hard = clone(FIXTURE_REVIEW_REQUESTS.find((request) => request.id === "rr-hard-1"));
 const flag = clone(FIXTURE_REVIEW_REQUESTS.find((request) => request.id === "rr-flag-1"));
 let requests = params.has("only-batch") ? [batch] : params.has("flag") ? [flag] : [hard, batch];
-const rows = clone(FIXTURE_DRAFTS);
-for (const row of rows) {
-  if (params.has("decided-elsewhere")) row.state = row.id === "proposal-2" ? "declined" : "approved";
-  if (params.has("held") && row.id === "proposal-1") row.held = true;
-}
-if (params.has("missing")) batch.links = [{ type: "proposal", id: "legacy-idea-1", label: "story idea 1" }, { type: "proposal", id: "legacy-idea-2", label: "story idea 2" }];
-if (params.has("partly-missing")) batch.links = [...batch.links.slice(0, 1), { type: "proposal", id: "legacy-idea-9", label: "story idea 9" }];
+const stages = Object.fromEntries(FIXTURE_IDEAS.map((idea) => [idea.id, idea.stage]));
+if (params.has("one-left")) { stages["idea-2"] = "writing"; }
+if (params.has("all-moved")) { stages["idea-1"] = "writing"; stages["idea-2"] = "spiked"; }
+if (params.has("legacy")) batch.links = [{ type: "proposal", id: "legacy-idea-1", label: "story idea 1" }, { type: "proposal", id: "legacy-idea-2", label: "story idea 2" }];
 window.calls = [];
-let failLoads = params.has("fail-load") ? 1 : 0;
 let failReasons = params.has("fail-reason") ? 1 : 0;
 const api = {
   loadReviews: async () => ({ state: "ready", requests: clone(requests), readIds: [], userKey: "u1" }),
-  loadStoryTitles: async () => ({ titles: {}, deleted: [] }),
-  loadDrafts: async (ids) => {
-    if (failLoads > 0) { failLoads -= 1; return { drafts: {}, missing: [], failed: ids }; }
-    const known = ids.filter((id) => rows.some((row) => row.id === id));
-    return { drafts: Object.fromEntries(known.map((id) => [id, draftView(rows.find((row) => row.id === id))])), missing: ids.filter((id) => !known.includes(id)), failed: [] };
-  },
-  transitionProposalPath: async (id, path) => {
-    window.calls.push({ type: "transition", id, path });
-    if (params.has("refuse")) return { status: "refused", message: "The proposal changed under you. Open it in Proposals." };
-    rows.find((row) => row.id === id).state = path[path.length - 1];
-    return { status: "ok" };
-  },
-  saveDraftDecision: async (request, draftId, decision) => {
-    window.calls.push({ type: "decision", draftId, decision });
-    const update = draftDecisionUpdate(request, draftId, decision);
-    const saved = { ...request, links: JSON.parse(update.links), history: JSON.parse(update.history) };
-    requests = requests.map((entry) => entry.id === saved.id ? saved : entry);
-    return saved;
-  },
+  loadStoryTitles: async (ids) => ({ titles: Object.fromEntries(FIXTURE_IDEAS.filter((idea) => ids.includes(idea.id)).map((idea) => [idea.id, idea.title])), deleted: [], stages: Object.fromEntries(Object.entries(stages).filter(([id]) => ids.includes(id))) }),
   answerReviewRequest: async (request, input, by) => {
     const update = answerUpdate(request, input, by, new Date("2026-10-24T09:00:00Z"));
     window.calls.push({ type: "answer", requestId: request.id, by, answer: JSON.parse(update.answer) });
-    const saved = { ...request, state: "answered", answer: JSON.parse(update.answer), links: update.links ? JSON.parse(update.links) : request.links, updatedAt: update.updatedAt };
+    const saved = { ...request, state: "answered", answer: JSON.parse(update.answer), updatedAt: update.updatedAt };
     requests = requests.map((entry) => entry.id === saved.id ? saved : entry);
     return saved;
   },
@@ -166,10 +143,8 @@ export async function setup(options = "", width = 1440, height = 900) {
   return { browser, page, errors };
 }
 
-const draft = (page: Page, id: string) => page.locator(`[data-review-draft="${id}"]`);
 const card = (page: Page, id: string) => page.locator(`[data-feed-card="${id}"]`);
-const choice = (page: Page, id: string, which: "accept" | "reject") => draft(page, id).locator(`[data-review-choice="${which}"]`);
-const WORDS_GONE = ["Approve", "Steer with this note", "Steering note", "Agree", "Proceeds automatically", "unless you steer", "draft batches", "Mark all read"];
+const WORDS_GONE = ["Approve", "Steer with this note", "Steering note", "Agree", "Proceeds automatically", "unless you steer", "draft batches", "Mark all read", "Proposed Stor"];
 /** The detail pane for whichever item was opened: the aside on a wide screen, the sheet on a phone. */
 const detail = (page: Page) => page.locator("[data-needs-me-detail]");
 const openDetail = async (page: Page, cardLocator: ReturnType<Page["locator"]>) => {
@@ -191,159 +166,53 @@ async function run(options: string, widths: number[], body: (page: Page, width: 
 }
 
 const scenarios: Record<string, () => Promise<void>> = {
-  /** Each draft is its own card in the References feed's shape; the full draft is read in the detail pane. */
+  /** A batch of ideas is ONE card in the feed's shape, with no Accept or Reject: it links to the Idea column, where the ideas are decided. */
   async content() {
     await run("?only-batch=1", [375, 1440], async (page, width) => {
-      await draft(page, "proposal-1").waitFor();
-      const first = draft(page, "proposal-1");
-      const text = await first.innerText();
-      for (const expected of ["Proposed Story", "Sparse attention goes open", "Open-weight models are adopting sparse attention", "Closes on 2026-10-30 07:00 UTC if nobody answers", "Accept", "Reject"]) {
-        assert.ok(text.includes(expected), `draft 1 card shows: ${expected}`);
+      const batch = card(page, "rr-soft-2");
+      await batch.waitFor();
+      const text = await batch.innerText();
+      for (const expected of ["Ideas to review", "3 new story ideas to review", "They wait in the Idea column of the Stories board.", "Open the Idea column", "2 of 3 still in the Idea column", "Move an idea forward to accept it"]) {
+        assert.ok(text.includes(expected), `the batch card shows: ${expected}`);
       }
-      assert.equal(await page.locator("[data-review-draft]").count(), 3, "a request covering three drafts is three cards");
-      assert.equal(await page.locator("[data-review-drafts]").count(), 0, "no batch container");
+      assert.equal(await page.locator('[data-needs-me-card="idea_batch"]').count(), 1, "a run of three ideas is one card, not three");
+      assert.equal(await batch.locator("[data-review-choice]").count(), 0, "ideas are decided on the board, so the card has no Accept or Reject");
+      assert.equal(await batch.locator("[data-idea-batch-open]").getAttribute("href"), "/newsroom/work", "the card links to the Stories board");
       const body = await page.locator("body").innerText();
-      assert.ok(body.includes("What needs me?") && body.includes("3 Proposed Stories waiting for you"), "the header counts drafts, not batches");
+      assert.ok(body.includes("What needs me?") && body.includes("1 idea batch"), "the header counts the batch");
       for (const word of WORDS_GONE) assert.ok(!body.includes(word), `retired wording gone: ${word}`);
-      assert.equal(await page.locator("[data-review-draft] [data-review-choice]").count(), 6, "Accept and Reject on every draft");
-      assert.equal(await page.locator("[data-review-draft] [data-review-row=cyclotron]").count(), 0, "no prediction row for a draft");
-      for (const which of ["accept", "reject"] as const) {
-        assert.equal(await choice(page, "proposal-1", which).getAttribute("aria-disabled"), null, "never silently disabled");
-        assert.ok((await choice(page, "proposal-1", which).boundingBox())!.height >= 44, "large tap target");
-      }
       assert.ok((await noHorizontalScroll(page)) <= 0, `no horizontal scroll at ${width}px`);
-      assert.equal(await page.evaluate(() => [...document.querySelectorAll("[data-review-draft], [data-review-draft] *")].filter((node) => parseFloat(getComputedStyle(node).borderTopWidth) > 0 && getComputedStyle(node).borderTopStyle !== "none").length), 0, "no borders");
+      assert.equal(await page.evaluate(() => [...document.querySelectorAll('[data-needs-me-card="idea_batch"], [data-needs-me-card="idea_batch"] *')].filter((node) => parseFloat(getComputedStyle(node).borderTopWidth) > 0 && getComputedStyle(node).borderTopStyle !== "none").length), 0, "no borders");
       for (const svg of await page.locator("#root svg").all()) assert.ok(await svg.evaluate((node) => [...node.classList].some((name) => name.startsWith("lucide"))), "every icon is a Lucide icon");
       assert.equal(await page.locator("#root select").count(), 0, "no dropdowns");
 
-      // The detail pane carries the whole draft: headline, dek, section, evidence, citations, the full-draft link and the Why box.
-      const pane = await openDetail(page, card(page, "rr-soft-2#proposal-1"));
+      // The detail pane lists the ideas of the batch with the stage each is in, and links to each story and to the column.
+      const pane = await openDetail(page, batch);
       const read = await pane.innerText();
-      for (const expected of ["Sparse attention goes open", "Section: Research", "Evidence:", "32 items in the last 2 weeks", "Citations", "example.org", "from Idea pipeline"]) assert.ok(read.includes(expected), `detail shows: ${expected}`);
-      assert.equal(await pane.locator('a[href="https://example.org/sparse-attention"]').count(), 1, "a citation chip links to its address");
-      assert.equal(await pane.locator("[data-draft-open]").getAttribute("href"), "/newsroom/administration/proposals?proposal=proposal-1");
-      assert.equal(await pane.getByLabel("Why? (optional)").count(), 1, "the optional Why box is in the detail");
-      // With no prediction, Accept and Reject keep the place they have on a Reference: first, with the Why box under them.
-      const buttonsRow = pane.locator('[data-needs-me-decision] [data-review-row="you"]');
-      const whyBox = pane.locator("[data-needs-me-why]");
-      await buttonsRow.waitFor({ state: "visible" });
-      await whyBox.waitFor({ state: "visible" });
-      // Document order, not bounding boxes: the pane may still be sliding in when it is measured.
-      const buttonsFirst = await buttonsRow.evaluate((row, why) => Boolean(row.compareDocumentPosition(why as Node) & Node.DOCUMENT_POSITION_FOLLOWING), await whyBox.elementHandle());
-      assert.ok(buttonsFirst, "Accept and Reject come before the Why box, as on a Reference");
-      const monitor = await draft(page, "proposal-2").innerText();
-      assert.ok(monitor.includes("Proposed Story"), "the monitor story is a draft card too");
+      for (const expected of ["Sparse attention goes open", "A new quantisation paper challenges 4-bit defaults", "Eight new models this week", "2 of 3 still in the Idea column", "Declined: spiked", "from Idea pipeline"]) assert.ok(read.includes(expected), `detail shows: ${expected}`);
+      assert.equal(await pane.locator("[data-idea-batch-idea]").count(), 3);
+      assert.equal(await pane.locator('[data-idea-batch-idea="idea-1"] a').getAttribute("href"), "/newsroom/articles/idea-1", "each idea opens its story");
+      assert.equal(await pane.locator("[data-idea-batch-open]").getAttribute("href"), "/newsroom/work");
+      assert.equal(await pane.locator("[data-needs-me-decision]").count(), 0, "no decision panel: the board decides");
+      assert.equal(await pane.getByLabel("Why? (optional)").count(), 0, "and no Why box");
     });
   },
 
-  /** Accept approves the Proposal, Reject declines it, and the request closes itself with every decision recorded. */
-  async decide() {
-    await run("?only-batch=1", [375, 1440], async (page) => {
-      await draft(page, "proposal-1").waitFor();
-      await choice(page, "proposal-1", "accept").click();
-      await draft(page, "proposal-1").locator("[data-review-saved]").waitFor();
-      assert.deepEqual((await calls(page)).filter((call) => call.type === "transition"), [{ type: "transition", id: "proposal-1", path: ["in_steering", "editor_review", "approved"] }], "a draft is walked to approved");
-      assert.equal((await calls(page)).filter((call) => call.type === "answer").length, 0, "the request stays open while drafts wait");
-      assert.ok((await page.locator("body").innerText()).includes("2 Proposed Stories waiting for you"));
-      assert.equal(await page.locator("[data-review-draft]").count(), 3, "the decided card stays in place, showing its answer");
-      assert.equal(await draft(page, "proposal-1").getAttribute("data-needs-me-state"), "accepted");
-
-      // Reject proposal-2 with a Why and the one steering chip, typed in the detail pane first.
-      const pane = await openDetail(page, card(page, "rr-soft-2#proposal-2"));
-      await pane.getByLabel("Why? (optional)").fill("Too thin for a story.");
-      assert.equal(await pane.locator('[data-review-reason="not_this_kind"]').getAttribute("aria-pressed"), "false", "the chip starts off");
-      await pane.locator('[data-review-reason="not_this_kind"]').click();
-      await pane.locator('[data-review-choice="reject"]').click();
-      await detail(page).first().locator('[data-draft-decided="reject"]').waitFor();
-      assert.equal((await detail(page).first().innerText()).includes("What should the AI learn"), false, "Reject asks nothing more");
-      await page.keyboard.press("Escape");
-      if (await choice(page, "proposal-3", "accept").isVisible()) await choice(page, "proposal-3", "accept").click();
-      else { await page.locator("[data-review-queue-bar]").waitFor(); throw new Error("the sheet did not close"); }
-      await answered(page);
-
-      const all = await calls(page);
-      assert.deepEqual(all.filter((call) => call.type === "transition").map((call) => [call.id, call.path]), [
-        ["proposal-1", ["in_steering", "editor_review", "approved"]], ["proposal-2", ["declined"]], ["proposal-3", ["approved"]],
-      ]);
-      const answer = all.find((call) => call.type === "answer")!;
-      assert.equal(answer.by, "Ed Itor");
-      assert.equal(answer.answer!.decision, "feedback", "a mix of Accept and Reject is an answer with a note");
-      assert.equal(answer.answer!.steer, "not_this_kind", "the chip is the steering signal");
-      assert.match(String(answer.answer!.feedback), /Rejected "A new quantisation paper challenges 4-bit defaults" as not this kind of story: Too thin for a story\./);
-      assert.equal((answer.answer!.drafts as unknown[]).length, 3, "every decision is recorded");
-      const text = await page.locator("body").innerText();
-      assert.ok(text.includes("All caught up"), "nothing is left waiting");
-      assert.equal(await page.locator("[data-recent-decision]").count(), 3, "what was decided is listed under Recently decided");
-      for (const word of WORDS_GONE) assert.ok(!text.includes(word), `retired wording gone: ${word}`);
+  /** Accepting is moving an idea forward and declining is spiking it, both on the board; the batch's count follows, and a finished batch leaves the feed. */
+  async ideaBoard() {
+    await run("?only-batch=1&one-left=1", [1440], async (page) => {
+      const batch = card(page, "rr-soft-2");
+      await batch.waitFor();
+      assert.ok((await batch.innerText()).includes("1 of 3 still in the Idea column"), "one idea moved forward and one was spiked earlier, so one still waits");
+      assert.deepEqual((await calls(page)).filter((call) => ["answer", "transition"].includes(call.type)), [], "looking decides nothing");
     });
-  },
-
-  /** Accepting all is one approval; rejecting all is one rejection, neither is a steer. */
-  async uniform() {
-    await run("?only-batch=1", [1440], async (page) => {
-      for (const id of ["proposal-1", "proposal-2"]) await choice(page, id, "accept").click().then(() => draft(page, id).locator("[data-review-saved]").waitFor());
-      await choice(page, "proposal-3", "accept").click();
-      await answered(page);
-      const answer = (await calls(page)).find((call) => call.type === "answer")!.answer!;
-      assert.equal(answer.decision, "approve");
-      assert.equal(answer.steer, null);
-      assert.equal(answer.feedback, null);
+    await run("?only-batch=1&all-moved=1", [375, 1440], async (page) => {
+      await page.locator("[data-notification-caught-up]").waitFor();
+      assert.equal(await page.locator('[data-needs-me-card="idea_batch"]').count(), 0, "a batch whose ideas all left the Idea column has no card");
     });
-    await run("?only-batch=1", [1440], async (page) => {
-      for (const id of ["proposal-1", "proposal-2"]) await choice(page, id, "reject").click().then(() => draft(page, id).locator("[data-review-saved]").waitFor());
-      await choice(page, "proposal-3", "reject").click();
-      await answered(page);
-      const answer = (await calls(page)).find((call) => call.type === "answer")!.answer!;
-      assert.equal(answer.decision, "reject");
-      assert.equal(answer.steer, null, "a plain rejection is not a not-this-kind steer");
-    });
-  },
-
-  /** A refusal is said in words, the draft stays undecided and the buttons stay usable. */
-  async refusal() {
-    await run("?only-batch=1&refuse=1", [375, 1440], async (page) => {
-      await choice(page, "proposal-1", "accept").click();
-      await draft(page, "proposal-1").getByRole("alert").waitFor();
-      assert.match(await draft(page, "proposal-1").getByRole("alert").innerText(), /The proposal changed under you/);
-      assert.equal(await choice(page, "proposal-1", "accept").getAttribute("aria-disabled"), null);
-      assert.equal(await draft(page, "proposal-1").getAttribute("data-needs-me-state"), "open", "the draft stays undecided");
-      assert.equal((await calls(page)).filter((call) => call.type !== "transition").length, 0, "nothing is recorded for a refused move");
-    });
-    await run("?only-batch=1&held=1", [1440], async (page) => {
-      const text = await draft(page, "proposal-1").innerText();
-      assert.ok(text.includes("This Proposed Story is on hold in Proposals. Release the hold there before you decide it."), "a hold is named, not hidden");
-      assert.equal(await choice(page, "proposal-1", "accept").getAttribute("aria-disabled"), "true");
-      await choice(page, "proposal-1", "accept").dispatchEvent("click");
-      assert.equal((await calls(page)).length, 0, "no move while on hold");
-    });
-  },
-
-  /** Drafts decided in Proposals close the request; drafts that are not Proposals fall back to Accept or Reject on the request. */
-  async closing() {
-    await run("?only-batch=1&decided-elsewhere=1", [1440], async (page) => {
-      await answered(page);
-      const answer = (await calls(page)).find((call) => call.type === "answer")!;
-      assert.equal(answer.by, "an editor in Proposals");
-      assert.equal(answer.answer!.decision, "feedback");
-    });
-    await run("?only-batch=1&missing=1", [375, 1440], async (page) => {
-      const requestCard = page.locator('[data-needs-me-card="stage_review"]');
-      await requestCard.waitFor();
-      const text = await page.locator("body").innerText();
-      assert.ok(text.includes("2 of these Proposed Stories are not in Proposals on this site"), "unopenable drafts are said, not hidden");
-      await requestCard.locator('[data-review-choice="accept"]').click();
-      await answered(page);
-      assert.equal((await calls(page)).find((call) => call.type === "answer")!.answer!.decision, "approve");
-    });
-    await run("?only-batch=1&partly-missing=1", [1440], async (page) => {
-      await choice(page, "proposal-1", "accept").click();
-      await answered(page);
-      assert.equal((await calls(page)).find((call) => call.type === "answer")!.answer!.decision, "approve", "drafts that cannot be opened do not block the rest");
-    });
-    await run("?only-batch=1&fail-load=1", [1440], async (page) => {
-      await page.getByText("The Proposed Stories could not be loaded right now.").waitFor();
-      await page.getByRole("button", { name: "Try again" }).click();
-      await draft(page, "proposal-1").locator("[data-feed-title]").waitFor();
+    await run("?only-batch=1&legacy=1", [1440], async (page) => {
+      await page.locator("[data-notification-caught-up]").waitFor();
+      assert.equal(await page.locator('[data-needs-me-card="idea_batch"]').count(), 0, "a batch raised when ideas were Proposals names no story, so it has no card; migrate-proposals turns those into ideas");
     });
   },
 
@@ -365,9 +234,9 @@ const scenarios: Record<string, () => Promise<void>> = {
         await page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "rate"));
         assert.deepEqual((await calls(page)).filter((call) => call.type === "rate").map((call) => [call.id, (call as { action?: string }).action]), [["reference-a", "accept"]]);
       }
-      await page.locator('[data-notification-filter="drafts"]').click();
-      assert.equal(await page.locator('[data-needs-me-card="reference"]').count(), 0, "the Proposed Stories filter hides References");
-      assert.ok((await page.locator("[data-filter-empty]").innerText()).includes("Nothing in Proposed Stories"), "an empty filter says so");
+      await page.locator('[data-notification-filter="ideas"]').click();
+      assert.equal(await page.locator('[data-needs-me-card="reference"]').count(), 0, "the Ideas filter hides References");
+      assert.ok((await page.locator("[data-filter-empty]").innerText()).includes("Nothing in Ideas"), "an empty filter says so");
       await page.locator('[data-notification-filter="references"]').click();
       assert.equal(await page.locator('[data-needs-me-card="reference"]').count(), 2);
       assert.equal(await page.locator('[data-notification-filter="references"]').getAttribute("aria-pressed"), "true");
@@ -386,9 +255,9 @@ const scenarios: Record<string, () => Promise<void>> = {
       for (let index = 2; index < kinds.length; index += 1) {
         if (kinds[index] === kinds[index - 1] && kinds[index] === kinds[index - 2]) assert.ok(!kinds.slice(index).some((kind) => kind !== kinds[index]), `no third ${kinds[index]} in a row while another type waits (${kinds.join(", ")})`);
       }
-      assert.deepEqual(new Set(kinds), new Set(["stage_review", "draft", "reference", "held_email"]), "four types in one feed");
+      assert.deepEqual(new Set(kinds), new Set(["stage_review", "idea_batch", "reference", "held_email"]), "four types in one feed");
       const count = async (filter: string) => Number(await page.locator(`[data-notification-filter="${filter}"] [data-notification-filter-count]`).innerText());
-      assert.deepEqual([await count("drafts"), await count("references"), await count("email"), await count("stories"), await count("captures")], [3, 2, 1, 1, 0], "the pills count what waits");
+      assert.deepEqual([await count("ideas"), await count("references"), await count("email"), await count("stories"), await count("captures")], [1, 2, 1, 1, 0], "the pills count what waits");
       const strip = (await page.locator("[data-shaping-strip]").innerText()).replace(/\s+/g, " ");
       assert.ok(strip.includes("You\u2019re shaping this") && strip.includes("10 decisions") && strip.includes("10 agreed with the Cyclotron") && strip.includes("0 overruled it"), `the shaping strip: ${strip}`);
 
@@ -404,14 +273,14 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.locator('[data-notification-filter="email"]').click();
       assert.deepEqual(await page.locator("[data-needs-me-card]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-needs-me-card"))), ["held_email"]);
       await page.locator('[data-notification-filter="all"]').click();
-      assert.ok((await page.locator("[data-needs-me-card]").count()) >= 6);
+      assert.ok((await page.locator("[data-needs-me-card]").count()) >= 5);
 
       // The same detail pane opens for every type, with a body that fits it. Until something is selected there is no pane at all.
       const shell = page.locator("[data-needs-me-detail-shell]");
       assert.equal(await shell.isVisible(), false, `no empty Detail pane before a selection at ${width}px`);
       for (const [selector, type, expected] of [
         ['[data-needs-me-card="stage_review"]', "stage_review", ["Hard gate", "Accept this ruling summary"]],
-        ['[data-review-draft="proposal-1"]', "draft", ["Sparse attention goes open", "Citations"]],
+        ['[data-needs-me-card="idea_batch"]', "idea_batch", ["3 new story ideas to review", "Sparse attention goes open", "Open the Idea column"]],
         ['[data-needs-me-card="held_email"]', "held_email", ["inert text", "DKIM FAIL", "retrieval-augmented"]],
         ['[data-feed-card="reference-a"]', "reference", ["ReadyArt: text-generation model", "Our captured record"]],
       ] as const) {
@@ -427,7 +296,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       // Ignoring changes nothing: opening and reading decided nothing, and every card says what happens if you leave it.
       assert.deepEqual((await calls(page)).filter((call) => ["transition", "answer", "rate", "email"].includes(call.type)), [], "nothing was decided by looking");
       assert.ok((await page.locator('[data-needs-me-card="held_email"] [data-needs-me-default]').innerText()).includes("stays held privately"));
-      assert.ok((await page.locator('[data-review-draft="proposal-1"] [data-needs-me-default]').innerText()).includes("Closes on"));
+      assert.ok((await page.locator('[data-needs-me-card="idea_batch"] [data-needs-me-default]').innerText()).includes("Move an idea forward to accept it"));
       assert.ok((await noHorizontalScroll(page)) <= 0, `no horizontal scroll at ${width}px`);
     });
   },
@@ -472,72 +341,13 @@ const scenarios: Record<string, () => Promise<void>> = {
     });
   },
 
-  /** A draft's label and explanation come in either order, and the explanation can be changed whenever the draft is reopened. */
-  async reasonDraft() {
-    await run("?only-batch=1", [375, 1440], async (page) => {
-      const reasons = async () => (await calls(page)).filter((call) => call.type === "reason");
-      const linkOf = (call: Call, id: string) => (JSON.parse(String(call.update!.links)) as { id: string; decision: { why: string | null; choice: string } }[]).find((link) => link.id === id)!;
-
-      // Vote, then reason: the Why box stays open and editable after the vote, and saves onto that vote when you tap away.
-      await choice(page, "proposal-1", "accept").click();
-      await draft(page, "proposal-1").locator("[data-review-saved]").waitFor();
-      let pane = await openDetail(page, card(page, "rr-soft-2#proposal-1"));
-      let why = pane.getByLabel("Why? (optional)");
-      assert.equal(await why.isEditable(), true, "the Why box is still editable after deciding");
-      await why.fill("Clear and well sourced.");
-      await why.blur();
-      await pane.locator("[data-reason-saved]").waitFor();
-      assert.equal((await reasons()).length, 1, "one note saved");
-      assert.deepEqual([linkOf((await reasons())[0], "proposal-1").decision.why, linkOf((await reasons())[0], "proposal-1").decision.choice], ["Clear and well sourced.", "accept"], "onto the existing Accept");
-      assert.equal((await calls(page)).filter((call) => call.type === "transition").length, 1, "the Proposal was moved once, by the vote");
-
-      // Typing without leaving the box saves on its own after a short pause.
-      await why.fill("Clear, well sourced and timely.");
-      await page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.filter((call) => call.type === "reason").length === 2);
-      assert.equal(linkOf((await reasons())[1], "proposal-1").decision.why, "Clear, well sourced and timely.");
-      await pane.locator("[data-reason-saved]").waitFor();
-
-      // Reopening shows the saved reason, editable.
-      await page.keyboard.press("Escape");
-      pane = await openDetail(page, card(page, "rr-soft-2#proposal-1"));
-      assert.equal(await pane.getByLabel("Why? (optional)").inputValue(), "Clear, well sourced and timely.", "a reopened draft shows its saved reason");
-      assert.ok((await card(page, "rr-soft-2#proposal-1").innerText()).includes("Why: Clear, well sourced and timely."), "and the card shows it too");
-      await page.keyboard.press("Escape");
-
-      // Reason, then vote: the vote carries the reason.
-      pane = await openDetail(page, card(page, "rr-soft-2#proposal-2"));
-      await pane.getByLabel("Why? (optional)").fill("Too thin for a story.");
-      await pane.locator('[data-review-choice="reject"]').click();
-      await detail(page).first().locator('[data-draft-decided="reject"]').waitFor();
-      const decisions = (await calls(page)).filter((call) => call.type === "decision");
-      assert.equal(decisions.at(-1)!.decision!.why, "Too thin for a story.");
-      assert.equal(await detail(page).first().getByLabel("Why? (optional)").inputValue(), "Too thin for a story.", "the reason stays in the box after the vote");
-      await page.keyboard.press("Escape");
-
-      // The last vote closes the request; the reason can still be changed afterwards, in the answer too.
-      await choice(page, "proposal-3", "accept").click();
-      await answered(page);
-      pane = await openDetail(page, card(page, "rr-soft-2#proposal-2"));
-      await pane.getByLabel("Why? (optional)").fill("Too thin, and the sources are old.");
-      await pane.getByLabel("Why? (optional)").blur();
-      await pane.locator("[data-reason-saved]").waitFor();
-      const closed = (await reasons()).at(-1)!;
-      const answer = JSON.parse(String(closed.update!.answer)) as { feedback: string; drafts: { id: string; why: string | null }[]; decision: string };
-      assert.match(answer.feedback, /Rejected "A new quantisation paper challenges 4-bit defaults": Too thin, and the sources are old\./);
-      assert.match(answer.feedback, /Accepted "Sparse attention goes open": Clear, well sourced and timely\./);
-      assert.equal(answer.decision, "feedback", "the choices are untouched");
-      assert.equal(answer.drafts.find((entry) => entry.id === "proposal-2")!.why, "Too thin, and the sources are old.");
-      assert.equal((await calls(page)).filter((call) => call.type === "transition").length, 3, "editing a reason never moves a Proposal");
-      assert.ok((await noHorizontalScroll(page)) <= 0);
-    });
-  },
-
   /** A reason that cannot be saved is said in words and never lost; the next try saves it. */
   async reasonFailure() {
-    await run("?only-batch=1&fail-reason=1", [375, 1440], async (page) => {
-      await choice(page, "proposal-1", "accept").click();
-      await draft(page, "proposal-1").locator("[data-review-saved]").waitFor();
-      const pane = await openDetail(page, card(page, "rr-soft-2#proposal-1"));
+    await run("?fail-reason=1", [375, 1440], async (page) => {
+      const gate = page.locator('[data-needs-me-card="stage_review"]');
+      await gate.locator('[data-review-choice="accept"]').click();
+      await gate.locator("[data-review-saved]").waitFor();
+      const pane = await openDetail(page, gate);
       const why = pane.getByLabel("Why? (optional)");
       await why.fill("A reason that fails once.");
       await why.blur();
@@ -621,10 +431,10 @@ const scenarios: Record<string, () => Promise<void>> = {
       return { right: rect.right, bottom: rect.bottom, innerWidth: window.innerWidth, innerHeight: window.innerHeight, height: rect.height };
     });
     for (const [width, height] of [[1440, 900], [1440, 1300], [1024, 768]] as const) {
-      const { browser, page, errors } = await setup("?only-batch=1&tall=1", width, height);
+      const { browser, page, errors } = await setup("?tall=1", width, height);
       try {
-        await draft(page, "proposal-1").waitFor();
-        await openDetail(page, card(page, "rr-soft-2#proposal-1"));
+        await card(page, "rr-hard-1").waitFor();
+        await openDetail(page, card(page, "rr-hard-1"));
         const check = async (when: string) => {
           const now = await corner(page);
           assert.ok(Math.abs(now.right - now.innerWidth) <= 2, `${width}x${height} ${when}: bar right ${now.right} equals viewport right ${now.innerWidth}`);
@@ -640,10 +450,10 @@ const scenarios: Record<string, () => Promise<void>> = {
       } finally { await browser.close(); }
     }
     // Phone: the bar is the fixed bottom of the sheet, flush with the bottom of the viewport.
-    const { browser, page, errors } = await setup("?only-batch=1&tall=1", 390, 844);
+    const { browser, page, errors } = await setup("?tall=1", 390, 844);
     try {
-      await draft(page, "proposal-1").waitFor();
-      await openDetail(page, card(page, "rr-soft-2#proposal-1"));
+      await card(page, "rr-hard-1").waitFor();
+      await openDetail(page, card(page, "rr-hard-1"));
       const bar = () => page.evaluate(() => {
         const node = [...document.querySelectorAll("[data-review-queue-bar]")].find((entry) => entry.getBoundingClientRect().width > 0) as HTMLElement;
         const rect = node.getBoundingClientRect();

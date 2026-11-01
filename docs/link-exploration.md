@@ -67,7 +67,7 @@ of it, and a failed capture (no body) is counted under its own failure instead.
 ## Search provider
 
 `papyrus_content.link_search` defines `SearchProvider` (`search(query, limit) -> list[SearchHit]`). Its default is the configured provider
-chain of `papyrus_content.web_search` (`WEB_SEARCH_PROVIDERS`, for example `openai,tavily`; Tavily alone when nothing is set), and
+chain of `papyrus_content.web_search` (`WEB_SEARCH_PROVIDERS`, for example `openai,tavily`; `tavily,perplexity,openai` when nothing is set), and
 `TavilySearch` remains as Tavily on its own. Tavily's key is `TAVILY_API_KEY`; where an environment variable cannot hold a key (the
 deployed Lambdas), `PAPYRUS_TAVILY_KEY_PARAMETER` (and `PAPYRUS_<PROVIDER>_KEY_PARAMETER` for the other providers, standard names
 `/papyrus/search/<provider>-api-key`) names an SSM SecureString (for example `/papyrus/shared/tavily-api-key`) that is read once with

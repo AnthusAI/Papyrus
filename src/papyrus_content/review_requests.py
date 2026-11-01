@@ -377,22 +377,24 @@ def review_gate(client, *, wait: bool = True, poll_seconds: float = 30.0, max_wa
 # --- the idea pipeline hook ---------------------------------------------------------------------------------------
 
 
-def raise_batch_review(client, *, raised_by: str, batch_id: str, proposal_ids: list[str], noun: str = "story idea",
-                       deadline_days: float | None = None, links: Any = None, now: datetime | None = None, link_type: str = "proposal") -> dict[str, Any]:
-    """ONE soft review for a run that produced a batch of proposals (or, with ``link_type="story"``, of generated story ideas filed as Items): "N new story ideas to review".
+def raise_batch_review(client, *, raised_by: str, batch_id: str, idea_ids: list[str], noun: str = "story idea",
+                       deadline_days: float | None = None, links: Any = None, now: datetime | None = None, link_type: str = "story") -> dict[str, Any]:
+    """ONE soft review for a run that produced a batch of generated story ideas: "N new story ideas to review".
 
-    The subject is the batch; each proposal is a link. Idempotent per ``batch_id``, so a re-run of the same synthesis
-    does not raise a second request. Feedback comes back through ``steering_for(client, raised_by=raised_by)``."""
-    if not proposal_ids:
-        raise ReviewError("a batch review needs at least one proposal.")
-    count = len(proposal_ids)
+    The subject is the batch; each idea is a link (``link_type="story"``: the lineage id of the Item at the ``idea`` stage, which the console shows in
+    the Idea column of the Stories board; an idea kept only as a local JSON file is linked as ``"idea"``, which the console cannot open). Editors decide the
+    ideas on the board: moving one forward accepts it, moving it to spiked with a reason declines it. Idempotent per ``batch_id``, so a re-run of the same
+    synthesis does not raise a second request. Feedback comes back through ``steering_for(client, raised_by=raised_by)``."""
+    if not idea_ids:
+        raise ReviewError("a batch review needs at least one idea.")
+    count = len(idea_ids)
     plural = noun if count == 1 else f"{noun}s"
     safe = re.sub(r"[^a-z0-9._-]+", "-", batch_id.lower()).strip("-")[:100]
-    entries = [{"type": link_type, "id": proposal_id, "label": f"{noun} {index}"} for index, proposal_id in enumerate(proposal_ids, 1)]
+    entries = [{"type": link_type, "id": idea_id, "label": f"{noun} {index}"} for index, idea_id in enumerate(idea_ids, 1)]
     return raise_review(
         client, subject={"type": "batch", "id": batch_id}, mode="soft_review", raised_by=raised_by,
         reason=f"{count} new {plural} to review",
-        ask="Accept or reject each one. Rejecting one as not this kind of story tells the idea pipeline what you do not want.",
+        ask="Move an idea forward to accept it, or move it to Spiked with a reason to decline it. Open the Idea column of the Stories board. A reason tells the idea pipeline what you do not want.",
         deadline_days=deadline_days, links=[*entries, *(_links(links))], request_id=f"rr-batch-{safe}", now=now)
 
 

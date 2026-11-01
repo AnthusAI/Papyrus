@@ -1,8 +1,8 @@
 """``papyrus ideas digest|synthesize|trends|monitor-stories``: the first version of the idea pipeline (docs/idea-pipeline.md).
 
 Both run on this machine against the site named by PAPYRUS_GRAPHQL_ENDPOINT, with the operator's IAM credentials
-(PAPYRUS_GRAPHQL_AUTH=iam) or a `papyrus login` session. ``synthesize --store proposals`` files draft Proposals either way: an
-IAM operator role of the site's own account may file AI proposals (it cannot read earlier Proposals, so dedupe skips them).
+(PAPYRUS_GRAPHQL_AUTH=iam) or a `papyrus login` session. Generated ideas are filed as Items at the ``idea``
+stage (``--store items``, the default; ``--store json`` keeps them as local files only). An IAM operator role of the site's own account may file them.
 """
 
 from __future__ import annotations
@@ -26,24 +26,24 @@ from .digest import parse_window
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, render_report, synthesize
 from .review import load_feedback
 from .items import ItemStore
-from .store import ITEMS, JSON, PROPOSALS, STORES, JsonStore, ProposalStore, assert_private, default_root
+from .store import ITEMS, STORES, JsonStore, assert_private, default_root, legacy_story_drafts
 
 USAGE = (
     "Usage:\n"
     "  papyrus ideas digest --publication KEY [--since 7d] [--status accepted[,pending]] [--max-references N] [--excerpts]\n"
     "      [--out DIR] [--json]\n"
     "  papyrus ideas synthesize --publication KEY [--digest ID|PATH | --since 7d [--status ...] [--excerpts]] [--max 5]\n"
-    "      [--store json|items|proposals] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
+    "      [--store items|json (default items)] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
     "      [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
-    "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|items|proposals] [--dry-run] [--max 3] [--trend-config FILE] [--model gpt-6-luna]\n"
+    "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store items|json (default items)] [--dry-run] [--max 3] [--trend-config FILE] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
-    "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--status accepted[,pending] (default: accepted only)] [--store json|items|proposals] [--dry-run] [--model gpt-6-luna]\n"
+    "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--status accepted[,pending] (default: accepted only)] [--store items|json (default items)] [--dry-run] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      (drafts one cited story for each of the top --limit items the site's monitors found, ranked by the relevance Cyclotron's verdict)\n"
     "  papyrus ideas migrate-proposals [--write] [--json]   (open story_draft Proposals to Items at the idea stage; a dry run unless --write; needs an editor session)\n"
     "  papyrus ideas labels [--out FILE]   (editors' accept and decline decisions on generated ideas as JSON Lines for a Cyclotron; read-only)\n"
-    "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or Items at the idea stage with --store items (the editors accept an idea by moving it forward and decline it by spiking it with a reason). --store proposals files story_draft Proposals, the older way."
+    "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or Items at the idea stage with --store items, the default (the editors accept an idea by moving it forward and decline it by spiking it with a reason)."
 )
 
 
@@ -120,18 +120,18 @@ def digest_command(flags: list[str]) -> None:
 
 
 def _idea_store(name: str, client: Any):
-    """The store a run files into: Items at the idea stage (they also see the older story draft Proposals when readable), Proposals, or none."""
+    """The store a run files into: Items at the idea stage (they also see the older story draft Proposals when readable), or none for ``json``."""
     if name == ITEMS:
         from .gate import HumanusGate
 
-        return ItemStore(client, legacy=ProposalStore(client).story_drafts, gate=HumanusGate.for_site())
-    return ProposalStore(client) if name == PROPOSALS else None
+        return ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=HumanusGate.for_site())
+    return None
 
 
 def synthesize_command(flags: list[str]) -> None:
     options = parse_options(flags)
     publication = _publication(options)
-    store_name = normalize_string(options.get("store")) or JSON
+    store_name = normalize_string(options.get("store")) or ITEMS
     if store_name not in STORES:
         raise ValueError(f"--store must be {' or '.join(STORES)}.")
     json_store = JsonStore(_root(options, publication))
@@ -152,7 +152,7 @@ def synthesize_command(flags: list[str]) -> None:
             context=context,
             json_store=json_store,
             transport=synthesis.openai_transport(api_key),
-            proposal_store=_idea_store(store_name, client),
+            idea_store=_idea_store(store_name, client),
             review_client=client,
             feedback=load_feedback(normalize_string(options.get("feedback"))),
             model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
@@ -200,7 +200,7 @@ def trends_command(flags: list[str]) -> None:
     source = normalize_string(options.get("snapshot"))
     if not site or not source:
         raise ValueError("ideas trends needs --site KEY and --snapshot PATH|URL.")
-    store_name = normalize_string(options.get("store")) or JSON
+    store_name = normalize_string(options.get("store")) or ITEMS
     if store_name not in STORES:
         raise ValueError(f"--store must be {' or '.join(STORES)}.")
     dry_run = bool(options.get("dry-run"))
@@ -219,7 +219,7 @@ def trends_command(flags: list[str]) -> None:
             context=context,
             json_store=json_store,
             transport=synthesis.openai_transport(api_key),
-            proposal_store=_idea_store(store_name, client),
+            idea_store=_idea_store(store_name, client),
             review_client=client,
             model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
             maximum=_integer(options, "max", trends.DEFAULT_MAXIMUM_DRAFTS),
@@ -254,7 +254,7 @@ def trends_command(flags: list[str]) -> None:
     print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))
     for draft in run["drafts"]:
         check = draft["citationCheck"]
-        print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\tcitation check {check['status']} ({check['sentences']} sentences, {len(draft['citedSignalIds'])} signals, {len(draft.get('citedItemIds', []))} sources)" + (f"\t{draft['proposalId']}" if draft.get("proposalId") else ""))
+        print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\tcitation check {check['status']} ({check['sentences']} sentences, {len(draft['citedSignalIds'])} signals, {len(draft.get('citedItemIds', []))} sources)" + (f"\t{draft['itemLineageId']}" if draft.get("itemLineageId") else ""))
         if dry_run:
             print(draft["body"].rstrip() + "\n")
     for failed in run["invalid"]:
@@ -270,7 +270,7 @@ def monitor_stories_command(flags: list[str]) -> None:
     site = normalize_string(options.get("site"))
     if not site:
         raise ValueError("ideas monitor-stories needs --site KEY.")
-    store_name = normalize_string(options.get("store")) or JSON
+    store_name = normalize_string(options.get("store")) or ITEMS
     if store_name not in STORES:
         raise ValueError(f"--store must be {' or '.join(STORES)}.")
     dry_run = bool(options.get("dry-run"))
@@ -292,7 +292,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         context=context,
         json_store=json_store,
         transport=synthesis.openai_transport(api_key),
-        proposal_store=_idea_store(store_name, client),
+        idea_store=_idea_store(store_name, client),
         review_client=client,
         model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
         limit=limit,
@@ -325,7 +325,7 @@ def monitor_stories_command(flags: list[str]) -> None:
     review = run["review"]
     print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))
     for draft in run["drafts"]:
-        print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\t{draft['monitorId']}\t{draft['citedItems'][0]['url']}" + (f"\t{draft['proposalId']}" if draft.get("proposalId") else ""))
+        print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\t{draft['monitorId']}\t{draft['citedItems'][0]['url']}" + (f"\t{draft['itemLineageId']}" if draft.get("itemLineageId") else ""))
         if dry_run:
             print(draft["body"].rstrip() + "\n")
     for failed in run["invalid"]:

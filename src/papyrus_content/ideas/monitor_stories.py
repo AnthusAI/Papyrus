@@ -5,7 +5,7 @@ Hacker News, the Hugging Face Hub, an email submission. Each Reference records i
 and may carry the source's structured ``discoveryDetails``; no Message is written (Messages come only from people). This module picks the few most worth
 writing about and drafts one short story per item. Nothing in it names a source.
 
-The flow is read, rank, fetch, one model call per item, a deterministic citation check, then a ``story_draft`` Proposal in state ``draft``.
+The flow is read, rank, fetch, one model call per item, a deterministic citation check, then an Item at the ``idea`` stage (``ideas/items.py``).
 
 * **Read.** Every *accepted* Reference (accepted by an editor or automatically; ``--status accepted,pending`` adds pending ones, a rejected one is never read; ``--since`` is an optional filter, with no default) that a monitor delivered, that no
   item carries yet (promoted) and that no earlier draft cites. Pending References left out are counted as ``notAccepted``. A Reference the relevance Cyclotron judged *not* relevant is left out.
@@ -18,13 +18,13 @@ The flow is read, rank, fetch, one model call per item, a deterministic citation
 * **Draft.** One call per item, shown the mission, the policy, the allowed sections, the source and the recent stories. Every sentence
   carries ``cites: ["I1"]``, the source, and the Cited Trends citation check (``trends.check_sentence``) holds: a sentence with no handle, an unknown handle,
   a number or an ISO date that is not in the source it cites, several sentences in one entry or a banned word fails the whole draft.
-* **File.** The same operator path as a trend story (``ProposalStore.file_story_draft``, one soft review request per run). The Proposal's
+* **File.** The same operator path as a trend story (``ItemStore.file_story_draft``, one soft review request per run). The idea's
   target is ``entity:reference:<Reference lineage id>``: that is how a later run knows the Reference is drafted (the operator can read targets,
   not bodies), declined drafts included, so a Reference is never drafted twice. The same address delivered as another Reference (a second
   monitor, a repost) counts as the same Reference: ``sameSource`` in the run record. Before each filing the targets are read again, so a second run
   that overlaps this one files nothing the first run just filed.
 
-Nothing here publishes or transitions a Proposal. Approving the copy is an editor's decision.
+Nothing here publishes an idea or moves it past the ``idea`` stage. Accepting it (moving it forward) is an editor's decision.
 """
 
 from __future__ import annotations
@@ -54,7 +54,8 @@ from .source_text import SourceFetcher, fetch_source
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, comparison_documents
 from .review import request_human_review
 from .items import IdeaRefused
-from .store import JsonStore, ProposalStore
+from .items import ItemStore
+from .store import JsonStore
 from ..story_from_reference import url_key
 
 DEFAULT_LIMIT = 3
@@ -522,7 +523,7 @@ def draft_monitor_stories(
     context: dict[str, Any],
     json_store: JsonStore | None,
     transport: synthesis.Transport,
-    proposal_store: ProposalStore | None = None,
+    idea_store: ItemStore | None = None,
     review_client: Any = None,
     model: str = synthesis.DEFAULT_MODEL,
     limit: int | None = DEFAULT_LIMIT,
@@ -549,12 +550,12 @@ def draft_monitor_stories(
     moment = now or datetime.now(timezone.utc)
     run: dict[str, Any] = {
         "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model,
-        "store": "dry-run" if dry_run else (proposal_store.kind if proposal_store else "json"), "dryRun": dry_run, "private": True,
+        "store": "dry-run" if dry_run else (idea_store.kind if idea_store else "json"), "dryRun": dry_run, "private": True,
         "window": {"since": since, "until": iso(moment)}, "limit": limit, "stoppedBy": None,
         "excludedSourceHosts": list(normalize_hosts(excluded_hosts)), "statuses": list(dict.fromkeys(statuses)),
     }
     stored = [idea for idea in (json_store.ideas() if json_store else []) if idea.get("origin") == "monitor"]
-    proposals = proposal_store.story_drafts() if proposal_store else []
+    proposals = idea_store.story_drafts() if idea_store else []
     already = drafted_lineage_ids(proposals, stored)
     automated, automation_error = automated_monitor_ids(client)
     items, counts = collect_monitored_items(
@@ -639,12 +640,12 @@ def draft_monitor_stories(
         for record in similar:
             if not dry_run:
                 try:
-                    if proposal_store:
+                    if idea_store:
                         # Read the targets again: another run (an overlapping task, a laptop) may have filed this Reference since this run began.
-                        if item.lineage_id in drafted_lineage_ids(proposal_store.story_drafts(), []):
+                        if item.lineage_id in drafted_lineage_ids(idea_store.story_drafts(), []):
                             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": "already_drafted"})
                             continue
-                        proposal_store.mark(record, proposal_store.file_story_draft(record))
+                        idea_store.mark(record, idea_store.file_story_draft(record))
                     if json_store:
                         json_store.save_idea(record)
                 except IdeaRefused as refusal:   # the editorial check found an error-severity violation: not filed, the run goes on

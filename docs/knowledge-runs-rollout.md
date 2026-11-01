@@ -1,6 +1,6 @@
 # Knowledge runs on every site: rollout
 
-Goal: every Papyrus site runs a daily [knowledge run](knowledge-cloud-run.md) from its monitor feeds, configuration only: routed monitor records on the Knowledge Map (`monitorSources: ["routed"]`), a few cited story drafts a day from the top routed items (`monitorStories`), and trend drafts.
+Goal: every Papyrus site runs a daily [knowledge run](knowledge-cloud-run.md) from its monitor feeds, configuration only: routed monitor records on the Knowledge Map (`monitorSources: ["routed"]`), a few cited story ideas a day from the top routed items (`monitorStories`), and trend ideas (all filed as Items at the `idea` stage).
 
 Checked read-only against account 712236451410 (`AWS_PROFILE=papyrus-production`, us-east-1) on 2026-10-27, after the corpus key (`knowledgeRun.corpusKey`), the default vocabulary and `amplify_outputs.json` seeding, the empty-corpus success and the `infra/site.json` pin fallback landed. Nothing was created or changed in AWS. Every site's example config under `infra/amplify-app-shell/examples/` now carries its `knowledgeRun` block (`anth-us`, `distinctive` and `dataparade` have new example files mirroring their site repos' `infra/site.json`), and `npm run test:scheduled-job-synth` synthesizes all seven.
 
@@ -22,7 +22,7 @@ Every block has `monitorSources: ["routed"]`, no `monitorWeeks` (all history cou
 
 The projection stage installs `papyrus-newsroom` at the site's pin before it writes, and stops if that release lacks the projection lease. A site repo without `requirements-publication.txt` (Threat-Intelligence, Anth.us-web, Pilobol.us, p.apyr.us) is pinned to `papyrus-newsroom==<papyrusVersion>` of its `infra/site.json`. The lease is in 5.28.0 and later; it is not in 3.2.0 or 1.0.0.dev41 (checked by listing the wheels). So:
 
-- `anth-us`: `infra/site.json` says `1.0.0-next.41`. Bump `papyrusVersion` in Anth.us-web (or add `requirements-publication.txt`) to a 5.x release before the first run, or the projection stage fails before it writes and, because the story steps run after it, no drafts are filed.
+- `anth-us`: `infra/site.json` says `1.0.0-next.41`. Bump `papyrusVersion` in Anth.us-web (or add `requirements-publication.txt`) to a 5.x release before the first run, or the projection stage fails before it writes and, because the story steps run after it, no ideas are filed.
 - `distinctive`: Distinctive-web's `requirements-publication.txt` pins 3.2.0. Bump it to 5.42.1 before the first run.
 - Anth.us builds its pages with its own `web/build_via_papyrus.py`; the first manual run's projection output should be reviewed before the schedule is left on.
 
@@ -151,6 +151,6 @@ Use the `siteId` for `<site>` (`shipped`, `anth-us`, `threat-intelligence`, `dis
 ## Order
 
 1. Image: build one from develop; check the backends have `listStoryDrafts`.
-2. Shipped: deploy and watch the 05:00 run (routed records in `corpus-sync`, drafts in the `monitor-stories` log).
+2. Shipped: deploy and watch the 05:00 run (routed records in `corpus-sync`, ideas in the `monitor-stories` log).
 3. Ready sites, in schedule order: `threat-intelligence`, `p-apyr-us`, `dataparade`, `pilobol-us` (a no-op until the router delivers).
 4. After their pins are bumped: `anth-us`, then `distinctive` (and its router entry).

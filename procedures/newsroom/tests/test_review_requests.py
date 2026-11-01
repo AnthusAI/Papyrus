@@ -242,15 +242,15 @@ def test_a_rejection_counts_as_steering_and_an_open_request_cannot_be_applied():
 
 def test_one_soft_review_per_synthesis_run_with_the_count_in_the_reason_and_no_deadline():
     client = FakeAuthoringClient()
-    request = rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id="2026-W43", proposal_ids=["p1", "p2", "p3"], now=T0)
+    request = rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id="2026-W43", idea_ids=["p1", "p2", "p3"], now=T0)
     assert request["reason"] == "3 new story ideas to review" and request["mode"] == "soft_review"
     assert request["deadline"] is None and request["subject"] == {"type": "batch", "id": "2026-W43"}
     assert [link["id"] for link in request["links"]] == ["p1", "p2", "p3"]
-    again = rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id="2026-W43", proposal_ids=["p1", "p2", "p3"], now=T0)
+    again = rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id="2026-W43", idea_ids=["p1", "p2", "p3"], now=T0)
     assert again["id"] == request["id"] and len(client.list_records("ReviewRequest")) == 1
-    assert rr.raise_batch_review(client, raised_by="i", batch_id="b2", proposal_ids=["p9"], now=T0)["reason"] == "1 new story idea to review"
+    assert rr.raise_batch_review(client, raised_by="i", batch_id="b2", idea_ids=["p9"], now=T0)["reason"] == "1 new story idea to review"
     with pytest.raises(ReviewError, match="at least one"):
-        rr.raise_batch_review(client, raised_by="i", batch_id="b3", proposal_ids=[])
+        rr.raise_batch_review(client, raised_by="i", batch_id="b3", idea_ids=[])
 
 
 # --- recipients ------------------------------------------------------------------------------------------------------------------------

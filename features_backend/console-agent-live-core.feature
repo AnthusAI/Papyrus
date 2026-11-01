@@ -10,7 +10,7 @@ Feature: Live console agent core behavior
     Then the live console agent response should include "hello"
     And the live console agent smoke result should include no structured errors
     And the live console agent smoke result should include no tool calls
-    And the live console agent smoke result should default to model "gpt-5-nano"
+    And the live console agent smoke result should default to model "gpt-6-luna"
 
   Scenario: The console agent discovers resource documentation progressively
     When I run the live console agent smoke scenario "docs-progressive"
@@ -21,11 +21,11 @@ Feature: Live console agent core behavior
     And the live console agent model context should include role "system" containing "Tool responses are markdown only, never JSON."
     And the live console agent response should equal "docs-progressive-tested"
     And the live console agent smoke result should include no structured errors
-    And the live console agent smoke result should default to model "gpt-5-nano"
+    And the live console agent smoke result should default to model "gpt-6-luna"
 
   Scenario: The console agent retries after unsupported execute_tactus snippet syntax
     When I run the live console agent smoke scenario "unsupported-snippet-retry"
     Then the live console agent smoke result should include tool call "papyrus.docs.get"
     And the live console agent smoke result should include a structured error
     And the live console agent response should equal "unsupported-snippet-retry-tested"
-    And the live console agent smoke result should default to model "gpt-5-nano"
+    And the live console agent smoke result should default to model "gpt-6-luna"

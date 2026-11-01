@@ -10,7 +10,8 @@ from . import dedupe, synthesis
 from .digest import ACCEPTED, PENDING, iso
 from .review import mark_steering_applied, merge_feedback, read_steering, request_human_review
 from .items import IdeaRefused
-from .store import JsonStore, ProposalStore
+from .items import ItemStore
+from .store import JsonStore
 
 DEFAULT_MAXIMUM_COST_USD = 0.50
 
@@ -103,7 +104,7 @@ def synthesize(
     context: dict[str, Any],
     json_store: JsonStore,
     transport: synthesis.Transport,
-    proposal_store: ProposalStore | None = None,
+    idea_store: ItemStore | None = None,
     review_client: Any = None,
     feedback: list[dict[str, Any]] | None = None,
     model: str = synthesis.DEFAULT_MODEL,
@@ -121,15 +122,15 @@ def synthesize(
         "digestId": digest["digestId"],
         "startedAt": iso(moment),
         "model": model,
-        "store": proposal_store.kind if proposal_store else "json",
+        "store": idea_store.kind if idea_store else "json",
         "private": True,
     }
     stored = json_store.ideas()
     steering, steering_ids, steering_error = read_steering(review_client, json_store.batch_titles())
-    decisions = proposal_store.feedback() if hasattr(proposal_store, "feedback") else []   # Items: accepted ideas and spiked ones with their reasons
+    decisions = idea_store.feedback() if hasattr(idea_store, "feedback") else []   # Items: accepted ideas and spiked ones with their reasons
     feedback = merge_feedback([*steering, *decisions], feedback or [])
     run["steering"] = {"entries": len(steering), "decisions": len(decisions), "requestIds": steering_ids, **({"error": steering_error} if steering_error else {})}
-    drafts = proposal_store.story_drafts() if proposal_store else []
+    drafts = idea_store.story_drafts() if idea_store else []
     documents = comparison_documents(context, stored, drafts, feedback)
     run["inputs"] = count_inputs(digest, context, documents, feedback)
     handles = synthesis.handles_for(digest)
@@ -153,9 +154,9 @@ def synthesize(
         kept, run["duplicates"] = dedupe.split_duplicates(valid, documents, threshold)
         for candidate in kept:
             idea = idea_record(candidate, run=run, digest=digest, now=moment)
-            if proposal_store:
+            if idea_store:
                 try:
-                    proposal_store.mark(idea, proposal_store.file_idea(idea, idea["body"], digest["digestId"]))
+                    idea_store.mark(idea, idea_store.file_idea(idea, idea["body"], digest["digestId"]))
                 except IdeaRefused as refusal:   # the editorial check found an error-severity violation: not filed
                     run["invalid"].append(refusal.as_invalid(idea))
                     continue

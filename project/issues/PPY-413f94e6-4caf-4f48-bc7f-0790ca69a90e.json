@@ -1,0 +1,20 @@
+{
+  "id": "PPY-413f94e6-4caf-4f48-bc7f-0790ca69a90e",
+  "title": "Remove Proposed Stories; use the idea stage for generated story ideas",
+  "description": "Ryan 2026-11-01: the Proposed Stories feature duplicates the idea stage. Remove the story_draft Proposal surface from the console (page, board link, cards), make items the only store for generated ideas (ideas monitor-stories/trends/synthesize, router monitorStories.store), idea-pipeline review requests link to the Idea column, replace Proposed Story wording in console/docs/skills, keep Proposal model + reader steering + migrate-proposals. Router IAM template change written, no change set run.",
+  "type": "task",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-01T12:09:46.078972Z",
+  "updated_at": "2026-11-01T15:17:21.028642Z",
+  "closed_at": "2026-11-01T15:17:21.028275Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

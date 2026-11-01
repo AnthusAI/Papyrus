@@ -65,6 +65,21 @@ Feature: Generated story ideas are Items at the idea stage
     Given three ideas with no findings, one warning and one note
     Then the review lists them in that order: no findings, then the note, then the warning
 
+  Scenario: A morning batch of generated ideas appears in the Idea column and its review request links there
+    Given three ideas filed in one morning run
+    When the run raises its review request
+    Then all three ideas are in the Idea column of the Stories board
+    And exactly one review request is open for the run, and its links are those three ideas as stories
+    And no Proposal is filed for any of them
+    And the review request tells the editor to move an idea forward to accept it or to Spiked with a reason to decline it
+
+  Scenario: Accepting an idea is moving it forward and declining it is spiking it with a reason
+    Given three ideas filed in one morning run
+    When an editor moves the first idea forward to "reporting" and spikes the second saying "Too basic for our readers"
+    Then the first and second ideas have left the Idea column and the third is still in it
+    And the pipeline's feedback holds an accept for the first idea and a decline with the reason for the second
+    And the third idea has no decision yet
+
   Scenario: An idea can name the earlier ideas it replaces
     Given the pipeline filed an idea citing the Reference
     When a roundup idea that supersedes it is filed

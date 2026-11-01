@@ -3,7 +3,7 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
   A monitor delivers pending References into a publication. Editors accept some, and the automatic acceptance accepts the confident ones
   nobody voted on. Once a day, at a quiet hour, the monitoring router runs the task "monitor-stories": for each publication it writes a
   short cited story draft from every accepted, monitored Reference that has no draft yet, ranked by the relevance Cyclotron's verdict so the
-  best items go first. A draft is a private story_draft Proposal that cites its source, and each publication gets one soft review request
+  best items go first. A draft is a private idea (an Item at the idea stage) that cites its source, and each publication gets one soft review request
   per run; nothing is published, and an editor approves the copy. A Reference is never drafted twice. The task does not need the
   knowledge-run stack, and it is on for every publication unless the publication's router entry says "monitorStories": {"enabled": false}.
   There is no fixed number of drafts per run. The run is bounded only by real constraints: the Lambda's remaining time, shared equally by
@@ -35,6 +35,27 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
     When the router runs its daily monitor stories
     Then 2 story drafts are filed, one per Reference, each citing its source
     And the log line for "example-site" says drafted 2, candidates 2, notAccepted 2, skipped 0 and stoppedBy none
+
+  Scenario: An idea whose text has an error finding in the router's editorial check is refused and the run says so
+    Given 2 accepted References that the "hn" monitor delivered
+    And the router's editorial check finds an error violation of "production-claims" and a warning
+    When the router runs its daily monitor stories
+    Then no story draft is filed
+    And the log line for "example-site" says 2 ideas were refused by the editorial check and drafted 0
+
+  Scenario: An idea with only warnings is filed with its check result stored
+    Given 2 accepted References that the "hn" monitor delivered
+    And the router's editorial check finds only a warning
+    When the router runs its daily monitor stories
+    Then 2 story drafts are filed, one per Reference, each citing its source
+    And the editorial check ran on both and its result was stored with each idea
+
+  Scenario: A router with no TypeSafe key still runs the rules lane and records the judgment lane as not run
+    Given 1 accepted References that the "hn" monitor delivered
+    And the router has no TypeSafe key
+    When the router runs its daily monitor stories
+    Then 1 story drafts are filed, one per Reference, each citing its source
+    And the stored check says the rules lane ran and the judgment lane did not run, and why
 
   Scenario: A publication that turns monitor stories off is skipped
     Given the publication's monitorStories setting is {"enabled": false}
@@ -102,7 +123,7 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
 
   Scenario: A draft that cannot be filed stops the publication before more money is spent
     Given 4 accepted References that the "hn" monitor delivered
-    And the backend refuses to file proposals
+    And the backend refuses to file ideas
     When the router runs its daily monitor stories
     Then the model was asked exactly once
     And the log line for "example-site" says drafted 0 and stoppedBy "file_error"

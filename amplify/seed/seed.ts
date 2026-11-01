@@ -197,7 +197,7 @@ const PROCEDURE_SEED_BY_KEY: Record<string, ProcedureSeed> = {
     defaults: {
       mode: "reference_summary",
       max_tokens: 500,
-      model: "gpt-5.4-mini",
+      model: "gpt-6-luna",
     },
   },
   "ontology.relationship-explainer": {

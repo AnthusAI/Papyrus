@@ -1,11 +1,13 @@
 """Human review of a synthesis run, through review requests (docs/review-requests.md).
 
-A run that creates ideas raises ONE soft review for the batch ("N new story ideas to review", no deadline), idempotent per run.
-The next run reads what editors said (``steering_for``), shows it to the model as reviewer feedback and records that it used it
-(``mark_applied``). ``--feedback FILE`` stays as a manual override.
+A run that creates ideas raises ONE soft review for the batch ("N new story ideas to review", no deadline), idempotent per run. Its links are the
+ideas filed in that run (Items at the ``idea`` stage), so the console shows ONE card that opens the Idea column of the Stories board. Editors decide the
+ideas there: moving one forward accepts it, moving it to spiked with a reason declines it. The next run reads those stage moves as reviewer feedback
+(``ItemStore.feedback``) and what editors said on the request itself (``steering_for``), shows it to the model and records that it used the request's
+note (``mark_applied``). ``--feedback FILE`` stays as a manual override.
 
 A site that has not deployed the review models cannot take a request. That never fails a run: the ideas are already stored, and the
-run records ``review: {status: not_raised, error}``. The review's links name the Proposal ids when ideas are Proposals; ideas kept as
+run records ``review: {status: not_raised, error}``. The review's links name the idea Items; ideas kept only as
 JSON are linked by idea id (the console cannot open those), which is a known limit of the JSON store.
 """
 
@@ -34,16 +36,16 @@ def request_human_review(client: Any, run: dict[str, Any], ideas: list[dict[str,
         from .items import review_order
 
         ideas = review_order(ideas)   # clean ones first (ideas with no editorial check keep their place)
-        identifiers = [idea.get("proposalId") or idea.get("itemLineageId") or idea["ideaId"] for idea in ideas]
+        identifiers = [idea.get("itemLineageId") or idea["ideaId"] for idea in ideas]
         as_items = all(idea.get("itemLineageId") for idea in ideas)
         try:
-            request = review_requests.raise_batch_review(client, raised_by=RAISED_BY, batch_id=run["runId"], proposal_ids=identifiers, noun=noun, link_type="story" if as_items else "proposal")
+            request = review_requests.raise_batch_review(client, raised_by=RAISED_BY, batch_id=run["runId"], idea_ids=identifiers, noun=noun, link_type="story" if as_items else "idea")
         except Exception as error:  # noqa: BLE001 - the ideas are stored; a site without review requests must not fail the run
             review = {"status": "not_raised", "requested": False, "ideas": len(ideas), "error": f"{type(error).__name__}: {error}"[:300]}
         else:
             review = {
                 "status": "requested", "requested": True, "ideas": len(ideas), "requestId": request["id"], "deadline": request.get("deadline"),
-                "linkedAs": "story" if as_items else ("proposal" if all(idea.get("proposalId") for idea in ideas) else "idea"),
+                "linkedAs": "story" if as_items else "idea",
             }
     review["ideaIds"] = [idea["ideaId"] for idea in ideas]
     log.info("review %s: %d new story ideas from run %s", review["status"], len(ideas), run.get("runId"))

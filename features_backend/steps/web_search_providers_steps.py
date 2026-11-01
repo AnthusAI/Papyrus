@@ -36,6 +36,11 @@ def step_providers(context, names):
     state["env"] = {f"{n.upper()}_API_KEY": "test-key" for n in state["names"]}
 
 
+@given("web search has no provider configuration at all")
+def step_no_configuration(context):
+    _state(context)["env"] = {}
+
+
 @given('web search is configured with the old single setting "{name}"')
 def step_old_setting(context, name):
     _state(context)["env"] = {"WEB_SEARCH_PROVIDER": name}
