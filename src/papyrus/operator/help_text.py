@@ -20,7 +20,7 @@ Operator groups:
   automations   Automation records: list, show, runs, run (now), create, update
   reviews       Human review points: list, show, raise, answer, withdraw, wait, steering, recipients
   analysis      Analysis and reindex tooling
-  ops           Content, corpora, categories, and messages
+  ops           Content, corpora, categories, messages, and site copy
   videos        Video pipeline commands
   reader        Reader steering exports (reader feedback export)
   proposals     File, decide and publish map proposals (proposals create|list|show|transition|approve|decline|override|pin|hold|exclude-votes|needs-a-look|publish)
