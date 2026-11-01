@@ -8,6 +8,7 @@ import sys
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -101,6 +102,8 @@ class VectorIndexOptions:
     dry_run: bool = False
     progress_every: int = 25
     worker_count: int = 8
+    skip_references: bool = False
+    stop_check: Callable[[dict[str, Any]], str | None] | None = None
 
 
 def index_reference_passages(services: KnowledgeQueryServices, options: VectorIndexOptions) -> dict[str, Any]:
@@ -124,6 +127,8 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
     ]
     if options.max_references:
         references = references[: options.max_references]
+    if options.skip_references:
+        references = []
 
     existing_vectors = _list_index_vectors(vector_index_arn)
     existing_keys = {str(vector.get("key")) for vector in existing_vectors if vector.get("key")}
@@ -212,6 +217,8 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
             completed += 1
             pending_vectors = _consume_prepared_reference(result, stats, existing_keys, pending_vectors, vector_index_arn, options)
             _maybe_report_progress(completed, len(references), stats, options)
+            if _stopped(stats, options):
+                break
     else:
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = [executor.submit(_prepare_reference_for_indexing, services, reference, options) for reference in references]
@@ -219,10 +226,14 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
                 completed += 1
                 pending_vectors = _consume_prepared_reference(future.result(), stats, existing_keys, pending_vectors, vector_index_arn, options)
                 _maybe_report_progress(completed, len(references), stats, options)
+                if _stopped(stats, options):
+                    for pending_future in futures:
+                        pending_future.cancel()
+                    break
 
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
-    if options.include_ontology_vectors:
+    if options.include_ontology_vectors and not stats.get("stoppedBy"):
         for candidate in _prepare_ontology_vectors(services):
             stats["vectorsPrepared"] += 1
             stats["ontologyVectorsPrepared"] += 1
@@ -251,7 +262,7 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
             stats["ontologyResults"].append(result)
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
-    if options.include_concept_cards:
+    if options.include_concept_cards and not stats.get("stoppedBy"):
         existing_card_hashes = {
             str(vector.get("key")): str((vector.get("metadata") or {}).get("contentHash") or "")
             for vector in existing_vectors
@@ -273,7 +284,7 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
                     pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
-    for prepared in prepared_notes:
+    for prepared in [] if stats.get("stoppedBy") else prepared_notes:
         pending_vectors = _consume_prepared_note(prepared, stats, existing_keys, pending_vectors, vector_index_arn, options)
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
@@ -284,6 +295,14 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
     stats["elapsedSeconds"] = round(time.perf_counter() - started, 3)
     stats["completedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     return stats
+
+
+def _stopped(stats: dict[str, Any], options: VectorIndexOptions) -> bool:
+    """Asks the caller's ``stop_check`` (it sees the live stats, so it can meter embedding cost) and records the reason it gives."""
+    reason = options.stop_check(stats) if options.stop_check else None
+    if reason:
+        stats["stoppedBy"] = reason
+    return bool(reason)
 
 
 def _prepare_reference_for_indexing(

@@ -9,6 +9,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from .tokens import TokenCounter
@@ -531,6 +532,7 @@ class GraphQLKnowledgeGraphProvider:
     name: str = "appsync-graphql"
     profile_stats: dict[str, Any] = field(default_factory=lambda: {"graphqlCalls": 0, "graphqlMs": 0.0, "operations": {}})
     profile_lock: threading.Lock = field(default_factory=threading.Lock)
+    header_factory: Callable[[bytes], dict[str, str]] | None = None   # signs each request body (the router's IAM access); replaces authorization_header
 
     def resolve_anchor(self, anchor: dict[str, Any]) -> dict[str, Any] | None:
         normalized = normalize_anchor(anchor)
@@ -768,7 +770,7 @@ query ResolveKnowledgeObjectByLineage($lineageId: ID!, $limit: Int, $nextToken: 
         request = urllib.request.Request(
             self.endpoint,
             data=body,
-            headers={
+            headers=self.header_factory(body) if self.header_factory else {
                 "Content-Type": "application/json",
                 "Authorization": self.authorization_header,
             },

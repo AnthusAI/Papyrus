@@ -75,7 +75,8 @@ from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_enrichment import Enricher, copy_curation, decision_inputs, enrich_item, enrich_sk, new_row
 from .reference_capture import SHORT_BODY_CHARACTERS
 from .monitoring_huggingface import hf_accepts, validate_rule
-from .monitoring_stories import lambda_story_transport, run_publication as draft_publication_stories, validate_monitor_stories
+from .monitoring_vectors import watermark_sort_key
+from .monitoring_stories import lambda_openai_key, lambda_story_transport, run_publication as draft_publication_stories, validate_monitor_stories
 
 CONTRACT_VERSION = "cyclotron-decision/v1"   # Cyclotron's neutral contract: bindings, callers and reviewers
 LEGACY_CONTRACT_VERSION = "cyclotron-publication/v1"   # a combined job posted before the switch still answers in it
@@ -1199,7 +1200,8 @@ class Router:
                  start_procedure: Callable[[dict], None] | None = None, cognito=None, rung_job_ids=(),
                  enricher: Enricher | None = None, max_decisions: int | None = None, hold_override: bool = False,
                  previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
-                 story_drafter: Callable[..., dict] = draft_publication_stories):
+                 story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None):
+        self.embedding_key = embedding_key   # the OpenAI key the vector pass embeds with (monitoring_vectors.py); held in memory only
         self.story_transport, self.story_drafter = story_transport, story_drafter   # the model transport and the per-publication drafting of the daily monitor-stories task
         self.store, self.config, self.monitor_id, self.now, self.run_id = store, config, monitor_id, now, run_id
         self.rung = {j for j in rung_job_ids if j}   # jobs a Decision Ready doorbell named: asked about despite their backoff
@@ -2444,7 +2446,8 @@ class Router:
         results: dict = {}
         if self.config["mode"] != "live":
             return results   # dry-run mode never writes to a publication
-        empty = {"drafted": 0, "candidates": 0, "notAccepted": 0, "skipped": 0, "stoppedBy": None, "packs": 0, "ideasFromPacks": 0, "packsSkippedNoNewEvidence": 0, "packDetails": []}
+        empty = {"drafted": 0, "candidates": 0, "notAccepted": 0, "skipped": 0, "stoppedBy": None, "packs": 0, "ideasFromPacks": 0, "packsSkippedNoNewEvidence": 0, "packDetails": [],
+                 "indexed": 0, "conceptCardsWritten": 0, "suggestionsWritten": 0, "suggestionsSkippedReason": None}
         queue = []
         for publication in self.publications.values():
             pid = publication["publicationId"]
@@ -2470,12 +2473,15 @@ class Router:
                     result = self.story_drafter(self.client(publication), publication, transport=self.story_transport,
                                                 now=datetime.fromtimestamp(self.now + passes, timezone.utc),   # a pass's run id (and so its review request) is its own
                                                 out_of_time=lambda stop_at=stop_at: self.time_left() < stop_at,
-                                                handled_references=self.automation_handled_references(publication))
+                                                handled_references=self.automation_handled_references(publication), embedding_key=self.embedding_key,
+                                                read_watermark=lambda pid=pid: (self.store.get_any(self.monitor_id, watermark_sort_key(pid)) or {}).get("watermark"),
+                                                write_watermark=lambda value, pid=pid: self.store.put_any(
+                                                    self.monitor_id, {"pk": pk(self.monitor_id), "sk": watermark_sort_key(pid), "watermark": value, "updatedAt": _iso(self.now)}))
                 except Exception as error:  # noqa: BLE001 - never fails the run
                     result = {"publicationId": pid, "status": "failed", "reason": short(error), **empty}
                 earlier = results.get(pid)
                 if earlier:   # a later pass: the totals add up, the candidates are those the run started with, the rest is the latest pass's
-                    for key in ("drafted", "attempted", "failedTheCheck", "duplicates", "skipped", "ideasFromPacks"):
+                    for key in ("drafted", "attempted", "failedTheCheck", "duplicates", "skipped", "ideasFromPacks", "indexed", "conceptCardsWritten", "suggestionsWritten"):
                         result[key] = result.get(key, 0) + earlier.get(key, 0)
                     result["packDetails"] = [*earlier.get("packDetails", []), *result.get("packDetails", [])]
                     result["costUsd"] = round((result.get("costUsd") or 0) + (earlier.get("costUsd") or 0), 6)
@@ -2606,7 +2612,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                start_procedure: Callable[[dict], None] | None = None, cognito=None, source_ids=None,
                rung_job_ids=(), enricher: Enricher | None = None, max_decisions: int | None = None,
                hold_override: bool = False, previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
-               story_drafter: Callable[..., dict] = draft_publication_stories) -> dict:
+               story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -2626,7 +2632,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
                         start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher,
                         max_decisions=max_decisions, hold_override=hold_override, previewer=previewer,
-                        story_transport=story_transport, story_drafter=story_drafter)
+                        story_transport=story_transport, story_drafter=story_drafter, embedding_key=embedding_key)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
                    {"status": "skipped"} if task in ("feedback", "auto-accept", "monitor-stories") else router.collect() if task == "collect" else router.sweep())
         feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept", "monitor-stories") else router.feedback()
@@ -2716,12 +2722,13 @@ def handler(event, context):
             rung_job_ids=[job_id], enricher=enricher, previewer=attach_preview))
     # The model key is read from SSM only for the daily monitor-stories task; every other invocation leaves it alone.
     story_transport = lambda_story_transport() if event.get("task") == "monitor-stories" else None
+    embedding_key = lambda_openai_key() if event.get("task") == "monitor-stories" else None
     cap = event.get("maxDecisions")
     if "maxDecisions" in event and (not isinstance(cap, int) or isinstance(cap, bool) or cap < 1):
         raise ValueError("maxDecisions must be a positive integer")
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining, source_ids=event.get("sourceIds"),
                         cognito=cognito, start_procedure=starter, enricher=enricher, previewer=attach_preview, max_decisions=cap,
-                        story_transport=story_transport,
+                        story_transport=story_transport, embedding_key=embedding_key,
                         hold_override=event.get("holdOverride") is False)   # only false lifts the hold, and only for this invocation
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "waitingForClassifier", "posted")}

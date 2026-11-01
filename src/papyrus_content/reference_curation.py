@@ -28,7 +28,7 @@ from typing import Any
 from .ids import hash_short
 from .link_exploration import explore
 from .options import normalize_string, parse_options, resolve_mutation_apply
-from .web_structured_metadata import normalize_html_date, publication_date_resolution_record
+from .publication_dates import normalize_html_date, publication_date_resolution_record
 from .reference_capture import SHORT_BODY_CHARACTERS, Capture, capture_source
 from .reference_curation_store import (
     GROBID_SORT_KEY,
