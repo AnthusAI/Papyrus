@@ -123,6 +123,37 @@ DEFAULT_FRAME_NOSCRIPT_CSS = (
 )
 
 
+#: Stock rules that swap a figure's light and dark variants. Emitted once per
+#: page by any figure that has a dark source. ``data-theme`` on the root element
+#: is the generic hook a site's theme toggle sets (``dark`` or ``light``); a
+#: ``dark`` class on the root is understood too. With neither set, the reader's
+#: OS preference decides. The hidden variant is ``display:none``, so a browser
+#: does not fetch its lazy-loaded image.
+DARK_VARIANT_CSS = (
+    ".papyrus-image-dark{display:none}"
+    "@media (prefers-color-scheme:dark){"
+    ":root:not([data-theme]):not(.dark) .papyrus-image-light{display:none}"
+    ":root:not([data-theme]):not(.dark) .papyrus-image-dark{display:revert}}"
+    ":root[data-theme=dark] .papyrus-image-light,"
+    ":root.dark:not([data-theme=light]) .papyrus-image-light{display:none}"
+    ":root[data-theme=dark] .papyrus-image-dark,"
+    ":root.dark:not([data-theme=light]) .papyrus-image-dark{display:revert}"
+)
+
+#: Aspect ratios of a light/dark pair may differ by at most this fraction
+#: (absorbs a one-pixel rounding difference between exports).
+DARK_ASPECT_TOLERANCE = 0.005
+
+
+def dark_sibling_candidates(src: str) -> list[str]:
+    """``figure.png`` -> ``figure.dark.png`` first, then the other known suffixes."""
+    rel = Path(src)
+    suffixes = [rel.suffix.lower()] + sorted(
+        (RASTER_SUFFIXES | PASSTHROUGH_SUFFIXES) - {rel.suffix.lower()}
+    )
+    return [rel.with_name(f"{rel.stem}.dark{suffix}").as_posix() for suffix in suffixes]
+
+
 def gatsby_sizes(width: int) -> str:
     """gatsby-plugin-image's ``sizes`` for a constrained layout."""
     return f"(min-width: {width}px) {width}px, 100vw"
@@ -349,6 +380,13 @@ class ImageRequest:
     #: When true the image is emitted bare (no wrapping ``<figure>``), which
     #: is what an inline Markdown image inside a sentence needs.
     bare: bool = False
+    #: Dark-mode counterpart of ``src`` (``srcDark`` on ``::image{}``). It goes
+    #: through the same renditions pipeline; the figure shows it instead of
+    #: ``src`` when the reader's theme is dark. ``None`` means no dark source.
+    src_dark: str | None = None
+    #: ``::image{}`` only: when ``src_dark`` is not given, look for the sibling
+    #: ``<stem>.dark<suffix>`` and pair it automatically if it exists.
+    pair_by_name: bool = False
 
 
 @dataclass(frozen=True)
@@ -460,6 +498,9 @@ class ImageBuilder:
         self._gatsby: dict[str, _GatsbyMeta] = {}
         self._page_images = 0
         self._page_support_emitted = False
+        self._page_dark_css_emitted = False
+        self._variant_only = False
+        self._pending_dark: str | None = None
         self._cache: dict[str, list[Rendition]] = {}
         self._intrinsic: dict[str, tuple[int, int]] = {}
         self._copied: set[str] = set()
@@ -567,6 +608,70 @@ class ImageBuilder:
         """Reset per-page state (the eager-loading count, the one-time support block)."""
         self._page_images = 0
         self._page_support_emitted = False
+        self._page_dark_css_emitted = False
+
+    # -- dark variants -----------------------------------------------------
+
+    def _exists(self, src: str) -> bool:
+        """Whether ``src`` is an image this builder can render (for ``.dark`` pairing)."""
+        try:
+            return self._locate(src) is not None
+        except ImagePipelineError:
+            return False
+
+    def _source_size(self, src: str, path: Path) -> tuple[int, int] | None:
+        return self._passthrough_dimensions(path, path.suffix.lower())
+
+    def _dark_source(self, request: ImageRequest, src: str) -> str | None:
+        """The dark counterpart of ``src``: explicit ``srcDark``, else a ``.dark`` sibling."""
+        if request.src_dark is not None:
+            if request.src_dark.strip().lower() == "none":
+                return None
+            return assert_safe_asset_src(request.src_dark)
+        return next((c for c in dark_sibling_candidates(src) if self._exists(c)), None)
+
+    def _check_dark_pair(self, src: str, path: Path, dark: str) -> None:
+        if dark.lower().startswith(("http://", "https://")):
+            raise ImagePipelineError(
+                f"Image {src!r}: srcDark {dark!r} must be a file in the content directory, not a URL."
+            )
+        try:
+            dark_path = self._locate(dark)
+        except ImagePipelineError as exc:
+            raise ImagePipelineError(f"Image {src!r}: srcDark {dark!r} is not available. {exc}") from exc
+        if dark_path is None:
+            raise ImagePipelineError(
+                f"Image {src!r}: srcDark file not found: {self.source_dir / dark} "
+                f"(referenced as {dark!r}). Upload it, or remove srcDark."
+            )
+        light_size = self._source_size(src, path)
+        dark_size = self._source_size(dark, dark_path)
+        if light_size and dark_size:
+            light_ratio = light_size[0] / light_size[1]
+            dark_ratio = dark_size[0] / dark_size[1]
+            if abs(light_ratio - dark_ratio) / light_ratio > DARK_ASPECT_TOLERANCE:
+                raise ImagePipelineError(
+                    f"Image {src!r}: srcDark {dark!r} has a different aspect ratio "
+                    f"({dark_size[0]}x{dark_size[1]} vs {light_size[0]}x{light_size[1]}). "
+                    "The light and dark files must have the same proportions so the page "
+                    "does not shift when the theme changes."
+                )
+
+    def _render_pair(self, request: ImageRequest, *, src: str, path: Path, dark: str, depth: int) -> str:
+        """Render light and dark variants into one figure, the theme CSS choosing between them."""
+        self._check_dark_pair(src, path, dark)
+        light_request = replace(request, src_dark=None, pair_by_name=False)
+        dark_request = replace(request, src=dark, src_dark=None, pair_by_name=False, loading="lazy")
+        self._variant_only = True
+        try:
+            dark_inner = self._render_one(dark_request, depth=depth)
+        finally:
+            self._variant_only = False
+        self._pending_dark = dark_inner
+        try:
+            return self._render_one(light_request, depth=depth)
+        finally:
+            self._pending_dark = None
 
     # -- gatsby parity -----------------------------------------------------
 
@@ -710,6 +815,20 @@ class ImageBuilder:
 
     def render(self, request: ImageRequest, *, depth: int = 0) -> str:
         """HTML for one image request, or ``""`` when it cannot be rendered."""
+        src = assert_safe_asset_src(request.src)
+        is_url = src.lower().startswith(("http://", "https://"))
+        if (request.src_dark is not None or request.pair_by_name) and not is_url:
+            path = self._locate(src)
+            dark = self._dark_source(request, src) if path is not None else None
+            if dark is not None:
+                return self._render_pair(request, src=src, path=path, dark=dark, depth=depth)
+        elif request.src_dark is not None and is_url:
+            raise ImagePipelineError(
+                f"Image {src!r}: srcDark needs a file in the content directory as src, not a URL."
+            )
+        return self._render_one(request, depth=depth)
+
+    def _render_one(self, request: ImageRequest, *, depth: int = 0) -> str:
         src = assert_safe_asset_src(request.src)
         layout = request.layout or self.pipeline.default_layout
         sizes = request.sizes or self.pipeline.sizes_for(layout)
@@ -887,10 +1006,10 @@ class ImageBuilder:
         framed: bool = False,
         display_width: int | None = None,
     ) -> str:
-        if request.bare:
+        if request.bare and self._pending_dark is None:
             return inner
         support = ""
-        if framed and self.pipeline.wrap is None and size:
+        if not request.bare and framed and self.pipeline.wrap is None and size:
             width, height = size
             ph = (
                 f'<img aria-hidden="true" data-placeholder-image="" alt="" '
@@ -905,13 +1024,26 @@ class ImageBuilder:
                 f'style="max-width:{box}px;aspect-ratio:{width} / {height}">'
                 f"{ph}{inner}</div>"
             )
-            if not self._page_support_emitted:
+            if not self._page_support_emitted and not self._variant_only:
                 self._page_support_emitted = True
                 support = (
                     f"<style>{DEFAULT_FRAME_CSS}</style>"
                     f"<noscript><style>{DEFAULT_FRAME_NOSCRIPT_CSS}</style></noscript>"
                     f"<script>{FADE_IN_SCRIPT}</script>"
                 )
+        if self._variant_only:
+            return inner
+        if self._pending_dark is not None:
+            tag = "span" if request.bare else "div"
+            inner = (
+                f'<{tag} class="papyrus-image-light">{inner}</{tag}>'
+                f'<{tag} class="papyrus-image-dark">{self._pending_dark}</{tag}>'
+            )
+            if not self._page_dark_css_emitted:
+                self._page_dark_css_emitted = True
+                support += f"<style>{DARK_VARIANT_CSS}</style>"
+            if request.bare:
+                return support + inner
         if self.pipeline.wrap is not None:
             width, height = size if size else (None, None)
             return self.pipeline.wrap(

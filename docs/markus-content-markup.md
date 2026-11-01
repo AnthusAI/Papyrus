@@ -119,6 +119,7 @@ On a line of its own:
 | `credit` | — | Appended to the caption in `<span class="papyrus-image-credit">`. |
 | `sizes` | — | Override the layout's `sizes` for this one image. |
 | `loading` | — | `lazy` (default) or `eager`. `eager` also sets `fetchpriority="high"`. |
+| `srcDark` | — | The dark-mode picture of `src`. See [Light and dark pictures](#light-and-dark-pictures). `srcDark="none"` turns off name pairing for this one image. |
 
 Any other attribute is a build error that names the offender.
 
@@ -140,6 +141,47 @@ multi-line JSX element produces anyway, and is more readable for a long `alt`:
 The closing `}` must end its own line. An attribute value containing a literal
 `}` is not supported. Whitespace in `alt`, `caption` and `credit` is collapsed
 to single spaces, so wrapping does not leak newlines into the HTML attribute.
+
+### Light and dark pictures
+
+A figure can carry a second picture for dark mode:
+
+```markdown
+::image{src="images/botspy-1.png" srcDark="images/botspy-1.dark.png" alt="…"}
+```
+
+You can leave `srcDark` out. When `images/botspy-1.dark.png` exists next to
+`images/botspy-1.png` (the name with `.dark` before the extension; any image
+extension), an `::image{}` pairs them automatically. `srcDark` is the explicit
+override for any other file name.
+
+- **Same pipeline.** The dark file gets its own widths, WebP/AVIF renditions and
+  intrinsic size, exactly like the light one. An `.svg` or `.gif` dark file is
+  passed through, like any `.svg` or `.gif` (vector and animated files are never
+  re-encoded).
+- **Same proportions.** The light file's `width` and `height` size the figure.
+  The dark file must have the same aspect ratio (within 0.5%, which absorbs a
+  one-pixel rounding difference), or the build fails and names the image, so a
+  theme switch never moves the page. A missing dark file, or a `srcDark` that is
+  a URL, is a build error too.
+- **Markup.** Both pictures are in the page, each in its own wrapper:
+  `<div class="papyrus-image-light">` and `<div class="papyrus-image-dark">`
+  (`<span>` for an inline image). The dark one is always `loading="lazy"` and
+  hidden with `display:none`, so a browser does not download the picture that is
+  not showing. A `<source media="(prefers-color-scheme: dark)">` cannot see a
+  site's theme toggle, which is why the swap is done with CSS on the wrappers.
+- **The theme hook.** The first figure on a page emits a small `<style>` block
+  (`DARK_VARIANT_CSS`). It follows the **site's theme setting** first:
+  `data-theme="dark"` or `data-theme="light"` on the root element (`<html>`)
+  decides, whatever the operating system prefers. A site whose toggle sets a
+  `dark` class on the root (and no `data-theme`) works too. With neither set,
+  the reader's `prefers-color-scheme` decides. **A site's toggle only has to set
+  `data-theme` on `<html>`.** There is no per-site code or configuration. Set it
+  as early as possible (a script in `<head>`) so the hidden picture is never
+  fetched.
+- **Plain Markdown cannot express a pair**, so `![alt](…)` and `:::figure{src=…}`
+  never get a dark picture, even when a `.dark` file exists. Use `::image{}`.
+- **Feeds and other readers** that ignore CSS show both pictures.
 
 ### Plain Markdown images are upgraded too
 
