@@ -1,0 +1,20 @@
+{
+  "id": "PPY-21d4c8a0-6cb8-4cc1-b9a8-f7237e170c71",
+  "title": "Require Humanus 0.34: check table cells, skip rule findings in quotations",
+  "description": "Humanus 0.34.0 (AnthusAI/Humanus#54) checks table-cell prose in both lanes and exempts rule findings inside direct quotations. Papyrus required humanus <0.34; raise to >=0.34,<0.35 and document. Trial stories re-checked with 0.34: no claims violations in tables.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T16:40:29.082506Z",
+  "updated_at": "2026-10-31T16:40:29.082584Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

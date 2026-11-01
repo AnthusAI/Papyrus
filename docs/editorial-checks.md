@@ -13,6 +13,12 @@ editorial policies and offers rewrite options, through
 editing function). Papyrus owns the policies, the settings and the editors'
 decisions; Humanus is stateless and receives a policy pack with every call.
 
+**Tables and quotations (Humanus 0.34).** Text in Markdown table cells is checked like any other
+prose, by both lanes, so claims kept in a table are no longer skipped. Rule findings that fall
+entirely inside a direct quotation (double quotes or a block quote) are not reported, because the
+words are the source's, not the publication's; tool artifacts such as placeholder leaks still are.
+A policy or detector can opt back in with `quotations: "check"`.
+
 **Always there, configured as data.** Every Papyrus site's backend and newsroom include editorial
 checks; there is nothing to enable in `papyrus.config.ts` and no per-site code. They are on by
 default. A publication turns them off, or changes how they run, in Administration → Editorial
