@@ -88,6 +88,14 @@ def _concept_node(client, lineage_id: str) -> dict[str, Any]:
     return {"id": lineage_id, "lineageId": lineage_id, "versionNumber": None}
 
 
+def _kept(candidate: dict[str, Any], outcome: str, calibration: Any | None, kind: str) -> dict[str, Any]:
+    entry = {"lineageId": candidate["lineageId"], "similarity": candidate["similarity"], "outcome": outcome}
+    label = calibration.label(kind, candidate["similarity"]) if calibration is not None else None
+    if label is not None:
+        entry["label"] = label
+    return entry
+
+
 def suggest_for(
     client,
     vector_provider: VectorProvider,
@@ -95,6 +103,7 @@ def suggest_for(
     *,
     corpus_id: str | None = None,
     cut: CutFunction | None = None,
+    calibration: Any | None = None,
     dry_run: bool = False,
     actor: str = SUGGESTION_ACTOR,
     now: str | None = None,
@@ -102,7 +111,9 @@ def suggest_for(
     """Suggests related References and concepts for one Reference, given by record id or lineage id.
 
     ``vector_provider`` reads the Reference's stored summary vector and queries by vector; no embedding call is made.
-    ``cut`` takes the descending similarities and returns how many to keep; it defaults to the knee. With ``dry_run``
+    ``cut`` takes the descending similarities and returns how many to keep; it defaults to the learned cut of ``calibration``
+    (a ``suggestion_calibration.SuggestionCalibration``) for a kind that has one, else the knee. With a cut, each kept neighbour
+    also carries a ``label`` of ``likely`` or ``possible``; without one it carries none. With ``dry_run``
     nothing is written. Returns ``{"referenceId", "lineageId", "dryRun", "skipped", "references", "concepts"}``, where each
     kept neighbour is ``{"lineageId", "similarity", "outcome"}`` and ``outcome`` is ``created``, ``updated``, ``kept`` (a
     person's decision stands) or ``would_write`` for a dry run."""
@@ -111,11 +122,12 @@ def suggest_for(
         raise ValueError(f"Reference not found: {reference_id}")
     lineage_id = reference.get("lineageId") or reference_id
     result: dict[str, Any] = {"referenceId": reference["id"], "lineageId": lineage_id, "dryRun": dry_run, "skipped": None, "references": [], "concepts": []}
+    if calibration is not None:
+        result["calibration"] = calibration.record()
     query_vector = vector_provider.get_vector(reference_summary_vector_key(lineage_id))
     if not query_vector:
         result["skipped"] = "no reference_summary vector is indexed for this Reference"
         return result
-    choose_count = cut or knee_cut_count
     excluded = _already_decided_or_linked(client, lineage_id) | {lineage_id}
     corpus = corpus_id or reference.get("corpusId")
 
@@ -127,6 +139,7 @@ def suggest_for(
         reference_clauses.append({"corpusId": {"$eq": corpus}})
     reference_matches = vector_provider.query_by_vector(query_vector, S3_VECTORS_MAX_TOP_K, {"$and": reference_clauses})
     related = _best_by_lineage(reference_matches, _reference_lineage, excluded)
+    choose_count = cut or (calibration.cut("reference", knee_cut_count) if calibration is not None else None) or knee_cut_count
     for candidate in related[: choose_count([c["similarity"] for c in related])]:
         outcome = "would_write"
         if not dry_run:
@@ -134,10 +147,11 @@ def suggest_for(
                 client, reference["id"], candidate["lineageId"], RELATED_TO, "suggested", actor=actor,
                 score=candidate["similarity"], classifier_id=SUGGESTION_CLASSIFIER_ID, now=now,
             )["outcome"]
-        result["references"].append({"lineageId": candidate["lineageId"], "similarity": candidate["similarity"], "outcome": outcome})
+        result["references"].append(_kept(candidate, outcome, calibration, "reference"))
 
     concept_matches = vector_provider.query_by_vector(query_vector, S3_VECTORS_MAX_TOP_K, {"vectorKind": {"$in": list(CONCEPT_VECTOR_KINDS)}})
     concepts = _best_by_lineage(concept_matches, _concept_lineage, excluded)
+    choose_count = cut or (calibration.cut("concept", knee_cut_count) if calibration is not None else None) or knee_cut_count
     for candidate in concepts[: choose_count([c["similarity"] for c in concepts])]:
         outcome = "would_write"
         if not dry_run:
@@ -145,5 +159,5 @@ def suggest_for(
                 client, reference["id"], _concept_node(client, candidate["lineageId"]), "suggested", actor=actor,
                 score=candidate["similarity"], classifier_id=SUGGESTION_CLASSIFIER_ID, now=now,
             )["outcome"]
-        result["concepts"].append({"lineageId": candidate["lineageId"], "similarity": candidate["similarity"], "outcome": outcome})
+        result["concepts"].append(_kept(candidate, outcome, calibration, "concept"))
     return result

@@ -218,3 +218,46 @@ def step_choose_count(context):
 @then("the first {count:d} neighbours are kept")
 def step_first_kept(context, count):
     assert context.rl_kept == count
+
+
+@given("people decided {rejected:d} suggestions scored {low:f} as rejected and {accepted:d} suggestions scored {high:f} as accepted")
+def step_given_decided_both(context, rejected, low, accepted, high):
+    context.rl_decisions = [_decided_row(low, False)] * rejected + [_decided_row(high, True)] * accepted
+
+
+@given("people decided {count:d} suggestions scored {score:f} as accepted")
+def step_given_decided_accepted(context, count, score):
+    context.rl_decisions = [_decided_row(score, True)] * count
+
+
+def _decided_row(score, accepted):
+    return {"objectKind": "reference", "score": score,
+            "metadata": json.dumps({"provenance": "suggested", "decision": "accepted" if accepted else "rejected", "decidedBy": "user:sub-1"})}
+
+
+@when("the suggestion cut is learned")
+def step_learn_cut(context):
+    from papyrus_content.suggestion_calibration import calibrate
+
+    context.rl_calibration = calibrate(context.rl_decisions)
+
+
+@then("the cut is {value:f}")
+def step_cut_is(context, value):
+    assert context.rl_calibration.reference.threshold == value
+
+
+@then('a suggestion scored {score:f} is marked "{label}"')
+def step_marked(context, score, label):
+    assert context.rl_calibration.label("reference", score) == label
+
+
+@then("there is no cut and the reason is \"{reason}\"")
+def step_no_cut(context, reason):
+    assert context.rl_calibration.reference.threshold is None
+    assert context.rl_calibration.reference.reason == reason
+
+
+@then("a suggestion scored {score:f} is not marked")
+def step_not_marked(context, score):
+    assert context.rl_calibration.label("reference", score) is None
