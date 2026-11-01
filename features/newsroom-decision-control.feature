@@ -24,6 +24,11 @@ Feature: One Accept and Reject control, with an optional reason, everywhere a pe
     Then it sits at generated.decision and the rest of the front matter is unchanged
     And a story started by a person never gets one
 
+  Scenario: Accept moves the idea forward and Reject spikes it
+    Given an isolated page with a synthetic Reference and a synthetic generated idea
+    When the stage for each decision is chosen from the board's stage list
+    Then Accept names the stage after Idea and Reject names Spiked with the reason passed along
+
   Scenario: A failed save is said in words
     Given an isolated page with a synthetic Reference and a synthetic generated idea
     When the idea's save fails

@@ -50,3 +50,13 @@ export function writeIdeaDecision(frontMatterYaml: string, record: IdeaDecisionR
   }));
   return document.toString();
 }
+
+export const IDEA_STAGE_KEY = "idea";
+export const SPIKED_STAGE_KEY = "spiked";
+
+/** Where a decision sends the idea: Accept to the column after Idea on the board's own stage list, Reject to Spiked. */
+export function stageForIdeaDecision(decision: IdeaDecisionChoice, stageKeys: readonly string[]): string | null {
+  if (decision === "reject") return SPIKED_STAGE_KEY;
+  const index = stageKeys.indexOf(IDEA_STAGE_KEY);
+  return index < 0 ? null : stageKeys[index + 1] ?? null;
+}

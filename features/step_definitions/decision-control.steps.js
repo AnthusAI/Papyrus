@@ -8,6 +8,8 @@ Given('an isolated page with a synthetic Reference and a synthetic generated ide
 When('the editor looks at the control on each of them', function () { runOnce(this); });
 When('the editor types a reason on the idea and chooses Reject', function () { runOnce(this); });
 When("a decision is written to the idea's front matter", function () { runOnce(this); });
+When("the stage for each decision is chosen from the board's stage list", function () { runOnce(this); });
+Then('Accept names the stage after Idea and Reject names Spiked with the reason passed along', function () { assert.match(this.decisionControlOutput, /PASS: Accept moves the idea to the stage after Idea and Reject to Spiked/); });
 When("the idea's save fails", function () { runOnce(this); });
 Then('Accept and Reject each show an icon and a word', function () { assert.match(this.decisionControlOutput, /PASS: Accept and Reject carry a mark and a word/); });
 Then('the reason is a textarea, not a dropdown or a popover', function () { assert.match(this.decisionControlOutput, /PASS: Accept and Reject carry a mark and a word/); });

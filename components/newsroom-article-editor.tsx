@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { isGeneratedIdeaFrontMatter, writeIdeaDecision, type IdeaDecisionRecord } from "../lib/idea-decision";
+import { isGeneratedIdeaFrontMatter, stageForIdeaDecision, writeIdeaDecision, type IdeaDecisionRecord } from "../lib/idea-decision";
 import { IdeaDecision } from "./idea-decision";
 import { FRONT_MATTER_BLURB_KEY, FRONT_MATTER_SUBTITLE_KEY, FRONT_MATTER_TITLE_KEY, readFrontMatterText, writeFrontMatterText } from "../lib/front-matter-fields";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -48,7 +48,7 @@ import {
   uploadArticleImage,
 } from "../lib/newsroom-media";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { SITE_BRAND } from "../lib/site-brand";
+import { getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
 import { cn } from "../lib/utils";
 import { applyReplacement, inlineFindings, visibleFindings } from "../lib/editorial-checks";
 import { graphqlEditorialBackend } from "../lib/editorial-checks-client";
@@ -375,7 +375,15 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
       expectedContentHash: editor.contentHash,
     });
     setEditor((current) => (current ? { ...current, frontMatterYaml, contentHash: result.item.contentHash, versionNumber: result.item.versionNumber } : current));
-  }, [aliases, backend, editor]);
+    if (!lineageId) return;
+    const stage = stageForIdeaDecision(record.decision, getContentItemStageDefinitions().map(definition => definition.key));
+    if (!stage) return;
+    try {
+      await backend.actions.moveStoryStage({ lineageId, stage, reason: record.note || null });
+    } catch (error) {
+      throw new Error(`The decision is recorded, but the idea could not be moved: ${failureMessage(error)}`);
+    }
+  }, [aliases, backend, editor, lineageId]);
 
   const saveDraft = useCallback(async (): Promise<string | null> => {
     if (!editor) return null;

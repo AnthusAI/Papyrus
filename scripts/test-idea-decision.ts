@@ -4,7 +4,7 @@ import { build } from "esbuild";
 import { chromium } from "playwright";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { isGeneratedIdeaFrontMatter, readIdeaDecision, writeIdeaDecision } from "../lib/idea-decision";
+import { stageForIdeaDecision, isGeneratedIdeaFrontMatter, readIdeaDecision, writeIdeaDecision } from "../lib/idea-decision";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const origin = "http://idea-decision.test";
@@ -21,6 +21,11 @@ function roundTripOfFrontMatter() {
   assert.match(written, /# kept as written/);
   assert.deepEqual(readIdeaDecision(written), stamp);
   assert.equal(writeIdeaDecision("title: A person's story\n", stamp), "title: A person's story\n");
+  const stages = ["idea", "reporting", "copywriting", "spiked", "published"];
+  assert.equal(stageForIdeaDecision("accept", stages), "reporting");
+  assert.equal(stageForIdeaDecision("reject", stages), "spiked");
+  assert.equal(stageForIdeaDecision("accept", ["a", "b"]), null);
+  console.log("PASS: Accept moves the idea to the stage after Idea and Reject to Spiked");
   console.log("PASS: front matter keeps the decision at generated.decision");
 }
 

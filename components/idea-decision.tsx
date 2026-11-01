@@ -6,7 +6,7 @@ import { DecisionControl, type RatingFeedback } from "./decision-control";
 
 /**
  * Accept or Reject on a generated idea, with an optional written reason, through the same control References use.
- * It records the decision and nothing else: the idea is not moved, approved or published by answering.
+ * Answering records the decision; the caller then moves the idea. Nothing is approved or published.
  */
 export function IdeaDecision({
   decidedBy,

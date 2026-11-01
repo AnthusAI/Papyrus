@@ -7,6 +7,8 @@ import type {
   SaveItemDraftInput,
   SaveItemDraftResult,
   UnpublishItemResult,
+  MoveStoryStageInput,
+  MoveStoryStageResult,
 } from "./content-actions-client";
 import {
   createDemoArticleRecords,
@@ -184,6 +186,9 @@ export function createDemoArticlesBackend(): ArticlesBackend {
           updatedAt: new Date().toISOString(),
         });
         return { ok: true, changed, publishedId: `published-${id}`, versionNumber };
+      },
+      async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
+        return { ok: true, changed: true, stage: input.stage };
       },
       async unpublishItem(id: string): Promise<UnpublishItemResult> {
         const record = requireRecord(id);
