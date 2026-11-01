@@ -2,10 +2,9 @@
 
 import { generateClient } from "aws-amplify/data";
 import { getCurrentUser } from "aws-amplify/auth";
-import { draftDecisionUpdate, draftView, type DraftRow, type DraftView } from "./review-drafts";
 import {
   answerUpdate, isDue, normalizeReviewRow, timeoutUpdate,
-  type AnswerInput, type DraftDecision, type ReviewRequest,
+  type AnswerInput, type ReviewRequest,
 } from "./review-requests";
 
 /**
@@ -99,7 +98,7 @@ export async function markReviewRead(userKey: string, requestId: string, now: Da
   }
 }
 
-const MAX_TITLE_LOOKUPS = 40;
+const LOOKUPS_AT_A_TIME = 8;
 /** The opening of a story, for a reviewer who has not opened it: the deck, then the first paragraphs of the body. */
 const EXCERPT_CHARACTERS = 900;
 
@@ -111,46 +110,37 @@ export function storyExcerpt(deck: string | null | undefined, body: readonly (st
   return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), EXCERPT_CHARACTERS - 80))}…`;
 }
 
-/** Titles of the stories that review requests are about, by lineage id, and the ids of stories that no longer exist (no version of the lineage remains). A story that cannot be read simply has no entry (the card falls back to the id). */
-export async function loadStoryTitles(ids: string[]): Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string> }> {
+/**
+ * Titles of the stories that review requests are about (and of the ideas a batch names), by lineage id, their current stage, and the ids of stories
+ * that no longer exist (no version of the lineage remains). A story that cannot be read simply has no entry (the card falls back to the id).
+ * One read per story, a few at a time: a batch can name any number of ideas.
+ */
+export async function loadStoryTitles(ids: string[]): Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string>; stages?: Record<string, string> }> {
   const titles: Record<string, string> = {};
   const excerpts: Record<string, string> = {};
+  const stages: Record<string, string> = {};
   const deleted: string[] = [];
-  await Promise.all([...new Set(ids)].slice(0, MAX_TITLE_LOOKUPS).map(async (id) => {
+  const unique = [...new Set(ids)];
+  for (let start = 0; start < unique.length; start += LOOKUPS_AT_A_TIME) await Promise.all(unique.slice(start, start + LOOKUPS_AT_A_TIME).map(async (id) => {
     const result = await run(
-      `query StoryTitle($lineageId: ID!) { listItemsByLineageAndVersion(lineageId: $lineageId, limit: 50) { items { versionNumber headline title deck body } } }`,
+      `query StoryTitle($lineageId: ID!) { listItemsByLineageAndVersion(lineageId: $lineageId, limit: 50) { items { versionNumber headline title deck body stage } } }`,
       { lineageId: id },
     );
     // Only a clean, empty answer means the story is gone; a failed lookup says nothing.
     if (!result.errors?.length && result.data?.listItemsByLineageAndVersion && !(result.data.listItemsByLineageAndVersion.items ?? []).filter(Boolean).length) deleted.push(id);
-    const items = (result.data?.listItemsByLineageAndVersion?.items ?? []).filter(Boolean) as { versionNumber?: number; headline?: string; title?: string; deck?: string | null; body?: (string | null)[] | null }[];
+    const items = (result.data?.listItemsByLineageAndVersion?.items ?? []).filter(Boolean) as { versionNumber?: number; headline?: string; title?: string; deck?: string | null; body?: (string | null)[] | null; stage?: string | null }[];
     const newest = items.sort((a, b) => (b.versionNumber ?? 0) - (a.versionNumber ?? 0))[0];
     const title = newest?.headline || newest?.title;
     if (title) titles[id] = title;
     const excerpt = storyExcerpt(newest?.deck, newest?.body);
     if (excerpt) excerpts[id] = excerpt;
+    if (newest?.stage) stages[id] = newest.stage;
   }));
-  return { titles, deleted, excerpts };
-}
-
-const MAX_DRAFT_LOOKUPS = 60;
-const DRAFT_FIELDS = "id kind title summary body state held evidence history override createdAt";
-
-/** Records one draft's decision on the request while it stays open. Same condition as an answer: state = open. */
-export async function saveDraftDecision(request: ReviewRequest, draftId: string, decision: DraftDecision): Promise<ReviewRequest> {
-  const result = await run(
-    `mutation Decide($input: UpdateReviewRequestInput!, $condition: ModelReviewRequestConditionInput) { updateReviewRequest(input: $input, condition: $condition) { ${FIELDS} } }`,
-    { input: draftDecisionUpdate(request, draftId, decision), condition: { state: { eq: "open" } } },
-  );
-  if (result.errors?.some((entry) => /conditional/i.test(`${entry.errorType ?? ""} ${entry.message ?? ""}`))) {
-    throw new Error("Someone else answered this, or it closed at its deadline. Refresh to see the result.");
-  }
-  if (result.errors?.length || !result.data?.updateReviewRequest) throw new Error("The draft was decided, but the request could not record it. Try again.");
-  return normalizeReviewRow(result.data.updateReviewRequest);
+  return { titles, deleted, excerpts, stages };
 }
 
 /**
- * Changes only the Why of an already decided draft or answered request (see `draftReasonUpdate` and `answerReasonUpdate`). The condition is that the
+ * Changes only the note of an answered request (see `answerReasonUpdate`). The condition is that the
  * request is still in the state it was read in, so a change cannot overwrite a request that closed or timed out meanwhile.
  */
 export async function saveReviewReason(request: ReviewRequest, update: Record<string, unknown>): Promise<ReviewRequest> {
@@ -163,24 +153,4 @@ export async function saveReviewReason(request: ReviewRequest, update: Record<st
   }
   if (result.errors?.length || !result.data?.updateReviewRequest) throw new Error("Your note could not be saved. It is kept here; keep typing or tap away to try again.");
   return normalizeReviewRow(result.data.updateReviewRequest);
-}
-
-export type DraftLoad = { drafts: Record<string, DraftView>; missing: string[]; failed: string[] };
-
-/**
- * The Proposals that review requests are about, by id (editors and admins may read them). `missing` ids have no proposal (an idea kept
- * only as JSON has no proposal to open); `failed` ids could not be read right now, which says nothing about whether they exist.
- */
-export async function loadDrafts(ids: string[], demo = false): Promise<DraftLoad> {
-  const drafts: Record<string, DraftView> = {};
-  const missing: string[] = [];
-  const failed: string[] = [];
-  await Promise.all([...new Set(ids)].slice(0, MAX_DRAFT_LOOKUPS).map(async (id) => {
-    const result = await run(`query Draft($id: ID!) { getProposal(id: $id) { ${DRAFT_FIELDS} } }`, { id });
-    const row = result.data?.getProposal as DraftRow | null | undefined;
-    if (row) drafts[id] = draftView(row, demo);
-    else if (result.errors?.length || !result.data) failed.push(id);
-    else missing.push(id);
-  }));
-  return { drafts, missing, failed };
 }

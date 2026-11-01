@@ -53,7 +53,7 @@
     "test:newsroom-articles": "tsx scripts/test-newsroom-articles.ts",
     "test:newsroom-media": "tsx scripts/test-newsroom-media.ts",
     "test:media-route": "tsx scripts/test-media-route-response.ts",
-    "test:notification-center": "tsx scripts/test-needs-me-ranking.ts && tsx scripts/test-notification-center.ts && tsx scripts/test-notification-center-drafts.ts && tsx scripts/test-newsroom-organizer-nav.ts && cucumber-js --profile notificationCenter",
+    "test:notification-center": "tsx scripts/test-needs-me-ranking.ts && tsx scripts/test-notification-center.ts && tsx scripts/test-notification-center-feed.ts && tsx scripts/test-newsroom-organizer-nav.ts && cucumber-js --profile notificationCenter",
     "test:newsroom-nav": "tsx scripts/test-newsroom-nav.ts",
     "test:relevance-decisions": "tsx scripts/test-relevance-decisions.ts",
     "test:reference-reason-code": "tsx scripts/test-reference-reason-code.ts",

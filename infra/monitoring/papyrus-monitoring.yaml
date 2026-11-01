@@ -99,6 +99,15 @@ Parameters:
     Description: >-
       Name of the SSM SecureString holding the Tavily key for link-exploration search (environment variable
       PAPYRUS_TAVILY_KEY_PARAMETER). The role may read only this parameter and decrypt through SSM. Empty disables search.
+  EditorialJudgmentKeyParameter:
+    Type: String
+    Default: /papyrus/shared/typesafe-api-key
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the TypeSafe key (TYPESAFE_API_KEY, the decision model) for the judgment lane of the Humanus editorial
+      gate that checks each generated idea before the router files it (environment variable EDITORIAL_JUDGMENT_KEY_PARAMETER). One shared key for every
+      routed site. The role may read only this parameter and decrypt through SSM. Empty, or a parameter that does not exist, leaves the judgment lane
+      recorded as not run on the idea (the rules lane still runs).
   WebSearchProviders:
     Type: String
     Default: ""
@@ -155,6 +164,7 @@ Conditions:
   HasEditorUserPools: !Not [!Equals [!Join ["", !Ref EditorUserPoolArns], ""]]
   HasEnrichmentKey: !Not [!Equals [!Ref EnrichmentOpenAiKeyParameter, ""]]
   HasTavilyKey: !Not [!Equals [!Ref TavilyKeyParameter, ""]]
+  HasEditorialJudgmentKey: !Not [!Equals [!Ref EditorialJudgmentKeyParameter, ""]]
   HasWebSearchChain: !Not [!Equals [!Ref WebSearchProviders, ""]]
   HasOpenAiSearchKey: !Not [!Equals [!Ref OpenAiSearchKeyParameter, ""]]
   HasPerplexityKey: !Not [!Equals [!Ref PerplexityKeyParameter, ""]]
@@ -537,6 +547,7 @@ Resources:
           PROCEDURE_RUNNER_FUNCTION: !If [HasProcedureRunner, !Ref ProcedureRunnerFunctionName, !Ref AWS::NoValue]
           ENRICHMENT_BUCKET: !Ref EnrichmentBucket
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
+          EDITORIAL_JUDGMENT_KEY_PARAMETER: !If [HasEditorialJudgmentKey, !Ref EditorialJudgmentKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
           WEB_SEARCH_PROVIDERS: !If [HasWebSearchChain, !Ref WebSearchProviders, !Ref AWS::NoValue]
           PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
@@ -1270,6 +1281,48 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listStoryDrafts"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createReviewRequest"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/fileProposal"
+
+  RouterIdeaPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Lets the router's daily monitor-stories task file generated story ideas as Items at the idea stage (src/papyrus_content/ideas/items.py) and run
+        the Humanus editorial gate on each one first (src/papyrus_content/ideas/gate.py). One policy, not one per API, because RouterRole is near the
+        20-managed-policy limit: the fields are named exactly and the API is a wildcard, which in this account is the seven routed publication APIs.
+        The SSM statement reads the TypeSafe key for the gate's judgment lane. Hand-run with a change set.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: IdeaItemsAndGate
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getPublishedItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByLineageAndVersion"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialCheckSettings"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialContext"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialFeedbacks"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialPolicies"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateEditorialCheckRun"
+          # With EditorialJudgmentKeyParameter empty this ARN names no parameter, so the grant reads nothing.
+          - Sid: ReadEditorialJudgmentKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${EditorialJudgmentKeyParameter}"
+          - Sid: DecryptEditorialJudgmentKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
 
   RouterMonitorStoriesDistinctivePolicy:
     Type: AWS::IAM::ManagedPolicy

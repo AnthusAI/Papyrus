@@ -672,8 +672,8 @@ export type CategorySteeringDashboard = {
   isDemo?: boolean;
   /** Local preview only: the demo newsroom is showing a real export (scripts/export-reference-feed-fixture.py), so it must not say "synthetic". */
   realDataPreview?: boolean;
-  /** Local preview only: review requests and their drafts from scripts/export-notification-center-fixture.py. */
-  notificationFixture?: { requests: import("./review-requests").ReviewRequest[]; drafts: import("./review-drafts").DraftRow[] } | null;
+  /** Local preview only: review requests from scripts/export-notification-center-fixture.py. */
+  notificationFixture?: { requests: import("./review-requests").ReviewRequest[] } | null;
   isPublicSkeleton?: boolean;
   summaryStatus?: "loading" | "missing" | "ready";
   summary?: NewsroomSummaryRecord | null;

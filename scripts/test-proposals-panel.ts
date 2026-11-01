@@ -19,7 +19,7 @@ import { ProposalsView } from "../components/proposals-view";
 (globalThis as { React?: unknown }).React = React;
 
 const row = (id: string, changes: Partial<ProposalRow> = {}): ProposalRow => ({
-  id: `prop-${id.padStart(32, "0")}`, kind: "story_draft", title: `Story ${id}`, summary: "Why it matters.", body: "The draft.", state: "draft", proposer: "ai",
+  id: `prop-${id.padStart(32, "0")}`, kind: "new_concept", title: `Story ${id}`, summary: "Why it matters.", body: "The draft.", state: "draft", proposer: "ai",
   createdAt: `2026-10-2${id}T10:00:00.000Z`, ...changes,
 });
 
@@ -58,20 +58,27 @@ test("labels say AI for AI and never show a reader's id", () => {
   assert.equal(proposerLabel("ai"), "AI");
   assert.equal(proposerLabel("ss1_secretsubject"), "Reader");
   assert.equal(stateLabel("overridden_by_editor"), "Decided by an editor");
-  assert.equal(kindLabel("story_draft"), "Proposed Story");
+  assert.equal(kindLabel("new_concept"), "New concept");
+  assert.equal(kindLabel("story_draft"), "story_draft", "a story draft is not a kind the panel knows: generated ideas are stories at the idea stage");
   assert.equal(proposalReceiptMessage({ status: "ok" }), "Done.");
   assert.equal(proposalReceiptMessage({ status: "refused", message: "Someone else changed that proposal first." }), "Someone else changed that proposal first.");
 });
 
-test("the panel shows a story draft with its body and the move buttons, and no reader controls", () => {
+test("the panel shows a proposal with its body and the move buttons, and no reader controls", () => {
   const html = renderToStaticMarkup(
     createElement(ProposalsView, { rows: [row("1")], readers: true, filter: "open", busy: false, status: "", reason: "", onFilter() {}, onReason() {}, onMove() {}, onRefresh() {} }),
   );
-  assert.match(html, /Proposed Story/);
+  assert.match(html, /New concept/);
+  assert.doesNotMatch(html, /Proposed Stor/);
   assert.match(html, /Story 1/);
   assert.match(html, /from AI/);
   assert.match(html, /Send to steering/);
   assert.match(html, /Decline/);
   assert.match(html, /The draft\./);
   assert.equal(/vote|reader-steering|moderat/i.test(html), false);
+});
+
+test("a story draft filed before ideas became stories is left out of the panel", async () => {
+  const { withoutStoryDrafts } = await import("../lib/proposals-admin");
+  assert.deepEqual(withoutStoryDrafts([row("1"), row("2", { kind: "story_draft" }), row("3", { kind: "rename" })]).map((entry) => entry.title), ["Story 1", "Story 3"]);
 });

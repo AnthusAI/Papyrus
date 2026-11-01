@@ -82,7 +82,7 @@ def test_a_fresh_snapshot_runs_the_command_once_with_iam_and_the_key_only_in_the
     outcome = trend_drafts.run(BASE, fetch=lambda url: "2026-10-26", read_key=lambda name: "sk-test", execute=lambda args, env: calls.append((args, env)) or 0)
     assert "2026-10-26" in outcome
     [(args, env)] = calls
-    assert args == ["papyrus", "ideas", "trends", "--site", "shipped", "--snapshot", URL, "--store", "proposals", "--max", "2"]
+    assert args == ["papyrus", "ideas", "trends", "--site", "shipped", "--snapshot", URL, "--store", "items", "--max", "2"]
     assert env["PAPYRUS_GRAPHQL_AUTH"] == "iam" and env["PAPYRUS_GRAPHQL_ENDPOINT"] == ENDPOINT and env["OPENAI_API_KEY"] == "sk-test"
     assert "sk-test" not in " ".join(args)
 

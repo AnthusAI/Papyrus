@@ -659,14 +659,13 @@ rendered as text and links only if they are `http` or `https`. The plugin manife
 
 ## Proposals
 
-A proposal is a change to the map written down where readers can see it: a story draft, a new concept, a rename, a merge, a
+A proposal is a change to the map written down where readers can see it: a new concept, a rename, a merge, a
 split, a new column or an element symbol. AI files it, readers steer it with votes, an editor decides.
 
 **The queue is core; the plugin adds readers.** Every site's backend has the `Proposal` model, the `fileProposal`,
 `transitionProposal` and `editProposal` mutations, the operator query `listStoryDrafts`, the `proposal-actions` function behind
 them (`amplify/functions/proposal-actions/`) and the Proposals panel in Administration, with or without this plugin. A site
-that never enabled `reader-steering` therefore receives AI story drafts (monitor stories, Cited Trends, `papyrus ideas --store
-proposals`) and its editors decide them, by configuration alone. The plugin builds on that table: reader votes on `proposal`
+that never enabled `reader-steering` therefore still has the queue for AI and reader proposals (concepts, renames, merges), which its editors decide by configuration alone. Generated story ideas (monitor stories, Cited Trends, `papyrus ideas synthesize`) are not Proposals: they are Items at the `idea` stage. The plugin builds on that table: reader votes on `proposal`
 subjects, the snapshot that freezes the community result and the optional public `_data/proposals/` files
 (`proposals.publish`). The plugin defines none of the queue's schema and its `reader-actions` function no longer handles it. The
 record and its rules are one stdlib module, `amplify/functions/proposal-actions/proposals.py`; the public files come from
@@ -737,7 +736,7 @@ change. The page reconcile never reports them as orphans.
 ```
 
 `_data/proposals/<id>.json` is `{generatedAt, proposal}` where `proposal` is the entry above plus `body` (the Markus as filed) and `history`
-(`{from, to, by, reason, at, result?}` with `by` of `AI`, `Staff` or `Editor`). `group` is `stories` (story drafts), `concepts` (new
+(`{from, to, by, reason, at, result?}` with `by` of `AI`, `Staff` or `Editor`). `group` is `stories` (old `story_draft` rows, which the Administration panel hides), `concepts` (new
 concepts) or `map_changes` (everything else), the tabs a site shows. `label` is `<State> · Proposed by AI` (`Reader` for a reader proposer).
 `communityResult` is `null` before editor review, live until the snapshot has fixed it, then frozen; `decision` is `null` until an editor
 decides. The editor-tier fields are always present: `override` is `null` unless the editor overrode the community (then `decision` holds the same
@@ -829,9 +828,9 @@ and send a draft on its way. The rule is deliberately narrow.
   `features_backend/proposals_operator.feature`; tests: `procedures/newsroom/tests/test_proposals.py` (`OperatorTests`).
 * **What an operator may read.** One query, `listStoryDrafts`, read only, with the same caller check as `fileProposal` (an editor or
   admin, or an IAM principal of the function's own account; an identity-pool user and any other account get `not_staff` and an empty
-  list). It answers the `story_draft` Proposals, newest first (at most 500), and **only** `id`, `title`, `summary`, `targets`, `state` and
+  list). It answers the `story_draft` Proposals (filed before ideas became Items), newest first (at most 500), and **only** `id`, `title`, `summary`, `targets`, `state` and
   `createdAt` of each: never the body, evidence, history (which names the operator), proposer, votes, exclusions or editor log. It is what
-  lets an unattended run dedupe against earlier drafts and cool down an entity that already anchored one
+  lets an unattended run on a site that has not run `papyrus ideas migrate-proposals` dedupe against its old story drafts and cool down an entity that already anchored one
   ([idea pipeline](idea-pipeline.md#trend-stories)). Specs: `features_backend/proposals_operator.feature`; tests:
   `procedures/newsroom/tests/test_proposals.py` (`OperatorStoryDraftReadTests`).
 * **What a site must deploy.** The `proposal-actions` function and the custom query `listStoryDrafts` (a function resolver open to the `editor`
@@ -847,7 +846,7 @@ papyrus proposals transition prop-... --to in_steering
 papyrus proposals publish        # invokes the content-actions function with the operator's AWS credentials
 ```
 
-The idea pipeline files its drafts this way: [`papyrus ideas synthesize --store proposals`](idea-pipeline.md#storage-and-privacy) and [`papyrus ideas trends --store proposals`](idea-pipeline.md#trend-stories).
+The idea pipeline no longer files Proposals: it files ideas as Items ([idea pipeline](idea-pipeline.md#storage-and-privacy)), and `papyrus ideas migrate-proposals` converts old `story_draft` Proposals into idea Items.
 
 ## The page components
 

@@ -4,8 +4,7 @@ import type { ReferenceRecord } from "../lib/category-repository";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import type { MonitoringEmailSummary } from "../lib/monitoring-overview";
 import type { CaptureStatus } from "../lib/reference-capture";
-import { FIXTURE_DRAFTS, FIXTURE_HELD_EMAILS, FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
-import { draftView } from "../lib/review-drafts";
+import { FIXTURE_HELD_EMAILS, FIXTURE_IDEAS, FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
 import {
   applyNeedsMeSnapshot, countNeedsMe, interleaveByType, interimAttention, isConfident, learnConfidenceThreshold, matchesFilter, rankNeedsMe, shapingThisWeek,
   takeNeedsMeSnapshot, uncertaintyOf, weekStartUtc, type AttentionModel, type NeedsMeItem, type NeedsMeType,
@@ -32,8 +31,8 @@ assert.ok(Math.abs(uncertaintyOf(0.9) - 0.2) < 1e-9 && Math.abs(uncertaintyOf(0.
 assert.equal(uncertaintyOf(undefined), 0.5);
 
 // The interim score is uncertainty x importance. Age does not change it: the Cyclotron's recorded confidence is used as it was.
-assert.equal(interimAttention.value(item("a", "draft", { uncertainty: 0.8, importance: 2 })), 1.6);
-assert.equal(interimAttention.value(item("b", "draft", { uncertainty: 1, createdAt: NOW - 400 * DAY })), 1, "a year-old item scores the same as a fresh one");
+assert.equal(interimAttention.value(item("a", "idea_batch", { uncertainty: 0.8, importance: 2 })), 1.6);
+assert.equal(interimAttention.value(item("b", "idea_batch", { uncertainty: 1, createdAt: NOW - 400 * DAY })), 1, "a year-old item scores the same as a fresh one");
 
 // Hard gates first (oldest first), then the highest value of input, whatever the type.
 const ranked = rankNeedsMe([
@@ -42,21 +41,21 @@ const ranked = rankNeedsMe([
   item("gate-old", "stage_review", { hardGate: true, createdAt: NOW - 3 * DAY }),
   predicted("coin-toss", "reference", 0.5, { importance: 3 }),
   predicted("lean", "reference", 0.8),
-  item("draft", "draft"),
+  item("idea_batch", "idea_batch"),
 ], { threshold: NO_THRESHOLD });
 assert.deepEqual(ids(ranked.feed).slice(0, 2), ["gate-old", "gate-new"], "hard gates lead, oldest first");
 assert.equal(ranked.feed[2].id, "coin-toss", "then the highest value: a coin toss that matters most");
 assert.ok(ranked.scores.get("coin-toss")! > ranked.scores.get("lean")!, "a lean is worth less than a coin toss");
 
 // Interleaving: never three of a type in a row while another type waits; order otherwise kept.
-const run = interleaveByType([item("r1", "reference"), item("r2", "reference"), item("r3", "reference"), item("r4", "reference"), item("d1", "draft"), item("e1", "held_email")]);
+const run = interleaveByType([item("r1", "reference"), item("r2", "reference"), item("r3", "reference"), item("r4", "reference"), item("d1", "idea_batch"), item("e1", "held_email")]);
 assert.deepEqual(ids(run), ["r1", "r2", "d1", "r3", "r4", "e1"], "the best of another type fills the third slot");
 const only = interleaveByType([item("r1", "reference"), item("r2", "reference"), item("r3", "reference")]);
 assert.deepEqual(ids(only), ["r1", "r2", "r3"], "with no alternative the run stays");
-assert.deepEqual(ids(interleaveByType([item("r1", "reference"), item("d1", "draft")], 2, ["reference", "reference"])), ["d1", "r1"], "a run already in front counts");
+assert.deepEqual(ids(interleaveByType([item("r1", "reference"), item("d1", "idea_batch")], 2, ["reference", "reference"])), ["d1", "r1"], "a run already in front counts");
 const mixed = rankNeedsMe([
   ...Array.from({ length: 5 }, (_, index) => predicted(`ref-${index}`, "reference", 0.5, { createdAt: NOW - index * 60_000 })),
-  item("draft-1", "draft", { uncertainty: 0.1 }), item("mail-1", "held_email", { uncertainty: 0.1 }),
+  item("draft-1", "idea_batch", { uncertainty: 0.1 }), item("mail-1", "held_email", { uncertainty: 0.1 }),
 ], { threshold: NO_THRESHOLD });
 const types = mixed.feed.map((entry) => entry.type);
 for (let index = 2; index < types.length; index += 1) {
@@ -89,9 +88,9 @@ const split = rankNeedsMe([sure, predicted("unsure", "reference", 0.55)], { thre
 assert.deepEqual([ids(split.feed), ids(split.auto)], [["unsure"], ["sure"]]);
 
 // One order per visit: the snapshot keeps places while content changes; later arrivals wait behind the pill.
-const first = rankNeedsMe([predicted("a", "reference", 0.5), predicted("b", "reference", 0.6), item("d", "draft")], { threshold: NO_THRESHOLD });
+const first = rankNeedsMe([predicted("a", "reference", 0.5), predicted("b", "reference", 0.6), item("d", "idea_batch")], { threshold: NO_THRESHOLD });
 const snapshot = takeNeedsMeSnapshot(first);
-const later = rankNeedsMe([predicted("b", "reference", 0.5), predicted("a", "reference", 0.9, { decisionState: "accepted" }), item("d", "draft"), predicted("new", "reference", 0.5)], { threshold: NO_THRESHOLD });
+const later = rankNeedsMe([predicted("b", "reference", 0.5), predicted("a", "reference", 0.9, { decisionState: "accepted" }), item("d", "idea_batch"), predicted("new", "reference", 0.5)], { threshold: NO_THRESHOLD });
 const placed = applyNeedsMeSnapshot(snapshot, later);
 assert.deepEqual(ids(placed.feed), ids(first.feed), "deciding and re-scoring never re-rank");
 assert.equal(placed.newCount, 1, "the arrival is counted, not placed");
@@ -104,11 +103,11 @@ assert.deepEqual(ids(swapped.feed), ["b", "a"]);
 
 // Filters and counts: only what waits is counted; decided items stay on the page but not in the numbers.
 const everything: NeedsMeItem[] = [
-  item("1", "reference"), item("2", "reference", { decisionState: "accepted" }), item("3", "draft"), item("4", "stage_review"), item("5", "held_email"), item("6", "incomplete_capture"), item("7", "flag"), item("8", "concept_proposal"),
+  item("1", "reference"), item("2", "reference", { decisionState: "accepted" }), item("3", "idea_batch"), item("4", "stage_review"), item("5", "held_email"), item("6", "incomplete_capture"), item("7", "flag"), item("8", "concept_proposal"),
 ];
-assert.deepEqual(countNeedsMe(everything), { all: 7, references: 1, drafts: 1, stories: 1, email: 1, captures: 1, other: 2 });
+assert.deepEqual(countNeedsMe(everything), { all: 7, references: 1, ideas: 1, stories: 1, email: 1, captures: 1, other: 2 });
 assert.deepEqual(everything.filter((entry) => matchesFilter(entry, "other")).map((entry) => entry.id), ["7", "8"]);
-assert.equal(waitingTextFor(countNeedsMe(everything)), "1 Proposed Story, 1 reference, 1 story review, 1 held email, 1 capture to check and 2 other items waiting for you");
+assert.equal(waitingTextFor(countNeedsMe(everything)), "1 idea batch, 1 reference, 1 story review, 1 held email, 1 capture to check and 2 other items waiting for you");
 assert.equal(waitingTextFor(countNeedsMe([])), "All caught up");
 
 // This week is a calendar week (Monday, UTC), and agreement counts only References that had a prediction.
@@ -127,12 +126,12 @@ assert.equal(captureIsIncomplete(capture("none")), true, "a curation card that r
 assert.equal(captureIsIncomplete(capture("none", { source: "none" })), false, "nothing was attempted, so nothing is incomplete");
 assert.equal(captureIsIncomplete(capture("thin", { assessment: "complete" })), false, "an editor's verdict settles it");
 assert.equal(captureIsIncomplete(capture("full")), false);
-const drafts = Object.fromEntries(FIXTURE_DRAFTS.map((row) => [row.id, draftView(row)]));
+const ideaStages = Object.fromEntries(FIXTURE_IDEAS.map((idea) => [idea.id, idea.stage]));
 const email: MonitoringEmailSummary = FIXTURE_HELD_EMAILS[0];
 const built = buildNeedsMeItems({
   references: [reference("ref-p", "pending", { createdAt: "2026-10-26T10:00:00Z", sourceUri: "https://example.org/p" }), reference("ref-cut", "pending"), reference("ref-done", "accepted"), reference("ref-archived", "archived")],
   decisions: new Map([["ref-p", decision("include", 0.7, true)]]), previews: new Map(), captures: new Map([["ref-cut", capture("thin")]]), visitRated: new Set(),
-  requests: FIXTURE_REVIEW_REQUESTS, drafts, missingDrafts: new Set(["proposal-9"]), draftsState: "ready", stay: new Set(), bySource: new Map(),
+  requests: FIXTURE_REVIEW_REQUESTS, ideaStages, stay: new Set(),
   storyTitles: { "story-ruling-1": "Board refuses registration" }, storyExcerpts: { "story-ruling-1": "The Board refused." }, deletedStories: new Set(), emails: [email], emailsDecided: new Map(),
 });
 const byId = new Map(built.map((entry) => [entry.id, entry] as const));
@@ -140,7 +139,8 @@ const type = (id: string) => byId.get(id)?.type;
 assert.equal(type("ref-p"), "reference");
 assert.equal(type("ref-cut"), "incomplete_capture", "a cut-off capture asks a different question of the same Reference");
 assert.equal(byId.has("ref-done") || byId.has("ref-archived"), false, "only pending References");
-assert.deepEqual(["rr-soft-2#proposal-1", "rr-soft-2#proposal-2", "rr-soft-2#proposal-3"].map(type), ["draft", "draft", "draft"]);
+assert.deepEqual(["rr-soft-2"].map(type), ["idea_batch"], "a run of three ideas is one item, not three");
+assert.equal(byId.get("rr-soft-2")!.decisionState, "open");
 assert.equal(type("rr-hard-1"), "stage_review");
 assert.equal(byId.get("rr-hard-1")!.hardGate, true);
 assert.equal(byId.get("rr-hard-1")!.payload && (byId.get("rr-hard-1")!.payload as { excerpt: string }).excerpt, "The Board refused.");
@@ -150,13 +150,14 @@ const ref = byId.get("ref-p")!;
 assert.deepEqual([ref.prediction?.label, ref.prediction?.pAccept, ref.askedForReview, Math.round(ref.uncertainty * 100) / 100], ["accept", 0.7, true, 0.6]);
 assert.ok(ref.defaultOutcome.includes("Accept 70%"), "the default is the Cyclotron's suggestion, said in words");
 assert.equal(byId.get("ref-cut")!.uncertainty, 0.5, "no prediction is 0.5");
-assert.match(byId.get("rr-soft-2#proposal-1")!.defaultOutcome, /^Closes on 2026-10-30/);
+assert.match(byId.get("rr-soft-2")!.defaultOutcome, /^Move an idea forward to accept it/);
 assert.match(byId.get("email#receipt-held-1")!.defaultOutcome, /stays held privately/);
-assert.equal(byId.get("rr-soft-2#proposal-1")!.title, "Sparse attention goes open");
+assert.equal(byId.get("rr-soft-2")!.title, "3 new story ideas to review");
+assert.deepEqual((byId.get("rr-soft-2")!.payload as { ideas: { title: string; stage: string | null }[] }).ideas.map((idea) => [idea.title, idea.stage]), [["story idea 1", "idea"], ["story idea 2", "idea"], ["story idea 3", "spiked"]], "the batch lists its ideas with their stages");
 for (const entry of built) assert.ok(entry.defaultOutcome.length > 0 && entry.importance === 1, `${entry.id} says what happens if ignored`);
 assert.deepEqual(conceptProposalItems([{ id: "c", title: "t", summary: null, proposedBy: "reader", createdAt: null }]), [] as NeedsMeEntry[], "the concept and reader proposal adapters are typed stubs");
 // A decided held email stays in place for the visit, showing its answer; a decided one from before does not return.
-const decidedMail = buildNeedsMeItems({ ...{ references: [], decisions: undefined, previews: new Map(), captures: undefined, visitRated: new Set(), requests: [], drafts: {}, missingDrafts: new Set(), draftsState: "ready" as const, stay: new Set<string>(), bySource: new Map(), storyTitles: {}, storyExcerpts: {}, deletedStories: new Set<string>() }, emails: [email], emailsDecided: new Map([["receipt-held-1", "reject" as const]]) });
+const decidedMail = buildNeedsMeItems({ ...{ references: [], decisions: undefined, previews: new Map(), captures: undefined, visitRated: new Set(), requests: [], stay: new Set<string>(), storyTitles: {}, storyExcerpts: {}, deletedStories: new Set<string>() }, emails: [email], emailsDecided: new Map([["receipt-held-1", "reject" as const]]) });
 assert.equal(decidedMail[0].decisionState, "rejected");
 
 console.log("needs me ranking: ok");

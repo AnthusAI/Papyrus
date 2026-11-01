@@ -1,7 +1,6 @@
 """Optional step of the scheduled knowledge run, after trend-drafts: write up the items the site's monitors found (docs/knowledge-cloud-run.md).
 
-Runs `papyrus ideas monitor-stories --site <publication> --store proposals --limit <N> --json` once. It files private `story_draft`
-Proposals (one per chosen item, each citing its source and naming the monitor) and raises one soft review request; nothing is published. The
+Runs `papyrus ideas monitor-stories --site <publication> --store items --limit <N> --json` once. It files private ideas (Items at the `idea` stage, one per chosen item, each citing its source and naming the monitor) and raises one soft review request; nothing is published. The
 command picks the items itself, from the References the site's monitors delivered, ranked by the relevance Cyclotron's verdict, and never
 drafts the same Reference twice, so the step can run on every execution.
 
@@ -54,7 +53,7 @@ def exclude_flags(environment: Mapping[str, str]) -> list[str]:
 def command_for(publication: str, limit: int, corpus_key: str = "", excluded_hosts: list[str] | None = None) -> list[str]:
     """``corpus_key`` is the knowledge corpus the site's References live in; empty means the corpus named like the publication."""
     corpus = ["--corpus-key", corpus_key] if corpus_key and corpus_key != publication else []
-    return ["papyrus", "ideas", "monitor-stories", "--site", publication, *corpus, "--store", "proposals", "--limit", str(limit), *(excluded_hosts or []), "--json"]
+    return ["papyrus", "ideas", "monitor-stories", "--site", publication, *corpus, "--store", "items", "--limit", str(limit), *(excluded_hosts or []), "--json"]
 
 
 def read_openai_key(parameter: str) -> str:

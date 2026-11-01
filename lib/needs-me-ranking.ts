@@ -1,7 +1,7 @@
 /**
  * How the "What needs me" feed is ordered, and which items the Cyclotron is confident enough about to decide on its own.
  *
- * The feed holds several kinds of item (a Reference, an AI draft, a story review, a held email, a capture that may be cut off, a flag).
+ * The feed holds several kinds of item (a Reference, a batch of story ideas, a story review, a held email, a capture that may be cut off, a flag).
  * What they share is one question: where would a person's answer change the most? In plain words, as the page says them:
  *   1. Hard gates first. Nothing continues until a person decides one, so it leads, oldest first.
  *   2. Then the interim "value of your input" score:
@@ -10,7 +10,7 @@
  *        certainty is 0. An item with no prediction is 0.5: we do not know how unsure we are.
  *      - importance is the item's own priority (a relevance score, or a story or section priority). It is 1 until a source gives one.
  *   3. Types are interleaved, never more than two of one type in a row while another type is waiting, so a long run of References
- *      does not bury the drafts and emails behind it.
+ *      does not bury the ideas and emails behind it.
  *   4. Confident items do not ask for you. An item whose uncertainty is below the threshold goes to "Decided automatically", where it
  *      can be overruled. The threshold is the median uncertainty of the predictions you have historically confirmed; with fewer than
  *      10 such examples there is no threshold and nothing is skipped. A hard gate, an item the Cyclotron itself sent to review, and
@@ -25,19 +25,19 @@ import { normalizeReferenceCurationStatus } from "./reference-policy";
 import type { RelevanceDecisionView } from "./relevance-decisions";
 import { acceptProbability } from "./reference-feed-ranking";
 
-export type NeedsMeType = "reference" | "draft" | "stage_review" | "held_email" | "incomplete_capture" | "concept_proposal" | "flag";
+export type NeedsMeType = "reference" | "idea_batch" | "stage_review" | "held_email" | "incomplete_capture" | "concept_proposal" | "flag";
 
-export const NEEDS_ME_TYPES: readonly NeedsMeType[] = ["reference", "draft", "stage_review", "held_email", "incomplete_capture", "concept_proposal", "flag"];
+export const NEEDS_ME_TYPES: readonly NeedsMeType[] = ["reference", "idea_batch", "stage_review", "held_email", "incomplete_capture", "concept_proposal", "flag"];
 
 /** The pills above the feed. */
-export type NeedsMeFilter = "all" | "references" | "drafts" | "stories" | "email" | "captures" | "other";
-export const NEEDS_ME_FILTERS: readonly NeedsMeFilter[] = ["all", "references", "drafts", "stories", "email", "captures", "other"];
+export type NeedsMeFilter = "all" | "references" | "ideas" | "stories" | "email" | "captures" | "other";
+export const NEEDS_ME_FILTERS: readonly NeedsMeFilter[] = ["all", "references", "ideas", "stories", "email", "captures", "other"];
 export const NEEDS_ME_FILTER_LABELS: Record<NeedsMeFilter, string> = {
-  all: "All", references: "References", drafts: "Proposed Stories", stories: "Stories", email: "Email", captures: "Captures", other: "Other",
+  all: "All", references: "References", ideas: "Ideas", stories: "Stories", email: "Email", captures: "Captures", other: "Other",
 };
 
 const FILTER_OF: Record<NeedsMeType, Exclude<NeedsMeFilter, "all">> = {
-  reference: "references", draft: "drafts", stage_review: "stories", held_email: "email", incomplete_capture: "captures", concept_proposal: "other", flag: "other",
+  reference: "references", idea_batch: "ideas", stage_review: "stories", held_email: "email", incomplete_capture: "captures", concept_proposal: "other", flag: "other",
 };
 
 export function filterOfType(type: NeedsMeType): Exclude<NeedsMeFilter, "all"> {
@@ -50,7 +50,7 @@ export function matchesFilter(item: Pick<NeedsMeItem, "type">, filter: NeedsMeFi
 
 /** The words for a type, used on the card and in the detail pane. */
 export const NEEDS_ME_TYPE_LABELS: Record<NeedsMeType, string> = {
-  reference: "Reference", draft: "Proposed Story", stage_review: "Story review", held_email: "Held email", incomplete_capture: "Capture check", concept_proposal: "Concept proposal", flag: "For your information",
+  reference: "Reference", idea_batch: "Ideas to review", stage_review: "Story review", held_email: "Held email", incomplete_capture: "Capture check", concept_proposal: "Concept proposal", flag: "For your information",
 };
 
 export type NeedsMePrediction = {
@@ -251,7 +251,7 @@ export type NeedsMeCounts = Record<NeedsMeFilter, number>;
 
 /** What waits for a person, by pill: only open items count. */
 export function countNeedsMe(items: readonly Pick<NeedsMeItem, "type" | "decisionState">[]): NeedsMeCounts {
-  const counts: NeedsMeCounts = { all: 0, references: 0, drafts: 0, stories: 0, email: 0, captures: 0, other: 0 };
+  const counts: NeedsMeCounts = { all: 0, references: 0, ideas: 0, stories: 0, email: 0, captures: 0, other: 0 };
   for (const item of items) {
     if (item.decisionState !== "open") continue;
     counts.all += 1;

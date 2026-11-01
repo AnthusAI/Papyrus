@@ -24,6 +24,15 @@ from test_monitor_stories import MonitorClient, decision  # noqa: E402
 
 def before_scenario_environment():
     os.environ["PAPYRUS_GRAPHQL_AUTH"] = "iam"   # the router Lambda's setting
+    # The router files ideas through ItemStore; these scenarios read what was filed from the fake backend, so the sink is its recording double.
+    from unittest import mock
+
+    from fake_idea_store import FakeIdeaStore
+
+    from procedures.newsroom.tests.test_idea_items import FakeGate
+
+    mock.patch("papyrus_content.ideas.gate.HumanusGate.for_client", classmethod(lambda cls, client, **options: FakeGate())).start()
+    mock.patch("papyrus_content.ideas.items.ItemStore", lambda client, **options: FakeIdeaStore(client, gate=options.get("gate"))).start()
 
 
 def state(context):
@@ -126,7 +135,7 @@ def step_slow(context, seconds, total):
     held.left = lambda: held.slow.left
 
 
-@given("the backend refuses to file proposals")
+@given("the backend refuses to file ideas")
 def step_refuse(context):
     client = state(context).clients[state(context).publications[0]]
     original = client.graphql
@@ -141,7 +150,7 @@ def step_refuse(context):
 
 def run(context):
     held = state(context)
-    result, lines = tms.run_task(held.store, held.clients, held.slow or held.model, time_left=held.left)
+    result, lines = tms.run_task(held.store, held.clients, held.slow or held.model, time_left=held.left, gate=getattr(held, "gate", None))
     held.result, held.lines = result, lines
 
 
@@ -243,3 +252,54 @@ def step_line_drafted_none(context, publication, drafted):
 @then('the log line for "{publication}" says stoppedBy "{stopped}"')
 def step_line_stopped_only(context, publication, stopped):
     check(context, publication, {"stoppedBy": stopped})
+
+
+def _gate(context, gate):
+    state(context).gate = gate
+
+
+@given('the router\'s editorial check finds an error violation of "{policy}" and a warning')
+def step_gate_error(context, policy):
+    from procedures.newsroom.tests import test_idea_items as support
+
+    _gate(context, support.FakeGate([support.finding("error", policy=policy), support.finding("warn")]))
+
+
+@given("the router's editorial check finds only a warning")
+def step_gate_warning(context):
+    from procedures.newsroom.tests import test_idea_items as support
+
+    _gate(context, support.FakeGate([support.finding("warn")]))
+
+
+@given("the router has no TypeSafe key")
+def step_no_key(context):
+    from papyrus_content.monitoring_stories import lambda_judgment_key
+    from procedures.newsroom.tests import test_idea_items as support
+
+    assert lambda_judgment_key({}) is None   # no parameter configured: the lane is recorded as not run, never an error
+    _gate(context, support.FakeGate(classifier={"status": "unavailable", "reason": "no decision model is configured (set TYPESAFE_API_KEY)"}))
+
+
+@then('the log line for "{publication}" says {count:d} ideas were refused by the editorial check and drafted {drafted:d}')
+def step_refused(context, publication, count, drafted):
+    line = state(context).lines[publication]
+    assert (line["refusedByEditorialCheck"], line["drafted"]) == (count, drafted), line
+
+
+@then("the editorial check ran on both and its result was stored with each idea")
+def step_check_stored(context):
+    held = state(context)
+    assert len(held.gate.seen) == 2 and len(held.gate.recorded) == 2, (held.gate.seen, held.gate.recorded)
+
+
+@then("the stored check says the rules lane ran and the judgment lane did not run, and why")
+def step_lanes(context):
+    [(_, result)] = state(context).gate.recorded
+    assert result["lanes"]["rules"]["status"] == "ran" and result["lanes"]["classifier"]["status"] == "unavailable"
+    assert "TYPESAFE_API_KEY" in result["lanes"]["classifier"]["reason"]
+
+
+@then("no story draft is filed")
+def step_none_filed(context):
+    assert not filed(context), filed(context)
