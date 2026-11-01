@@ -26,6 +26,7 @@ async function main() {
     mutations: {
       saveItemDraft: respond("saveItemDraft", { ok: true, item: { id: "i", contentHash: "sha256:x", status: "draft", slug: "s", versionNumber: 1 } }),
       publishItem: respond("publishItem", JSON.stringify({ ok: true, changed: true, publishedId: "published-i", versionNumber: 2 })),
+      moveStoryStage: respond("moveStoryStage", JSON.stringify({ ok: true, changed: true, stage: "spiked" })),
       unpublishItem: respond("unpublishItem", JSON.stringify({ ok: true, changed: true })),
     },
   } as unknown as ContentActionsTransport;
@@ -53,6 +54,9 @@ async function main() {
 
   const unpublished = await client.unpublishItem("i");
   assert.equal(unpublished.changed, true);
+  const moved = await client.moveStoryStage({ lineageId: "l", stage: "spiked", reason: "why" });
+  assert.equal(moved.stage, "spiked");
+  assert.deepEqual(JSON.parse(seen.find((call) => call.name === "moveStoryStage")!.input), { lineageId: "l", stage: "spiked", reason: "why" });
   console.log("content-actions-client: ok");
 }
 

@@ -45,6 +45,11 @@ module.exports = {
     require: ["features/step_definitions/newsroom-ux-review.steps.js"],
     format: ["summary"],
   },
+  decisionControl: {
+    paths: ["features/newsroom-decision-control.feature"],
+    require: ["features/step_definitions/decision-control.steps.js"],
+    format: ["summary"],
+  },
   notificationCenter: {
     paths: ["features/newsroom-notification-center.feature"],
     require: ["features/step_definitions/notification-center.steps.js"],

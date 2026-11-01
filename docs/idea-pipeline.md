@@ -366,6 +366,8 @@ With `--store items` every idea is checked against the site's editorial policies
 
 ### Decisions are labels
 
+In the console, a generated idea open in the story editor carries the same Accept and Reject control as a Reference, with an optional written reason. The answer is recorded at `generated.decision` in the idea's front matter (`decision`, `reasonCode`, `note`, `decidedBy`, `decidedAt`); answering then moves the idea with `moveStoryStage`: Accept to the stage after Idea on the board's stage list, Reject to `spiked` with the reason. If the move fails, the decision stays recorded and the error is shown. Executable spec: `features/newsroom-decision-control.feature`.
+
 An editor decides a generated idea by moving it: forward (accept) or to `spiked` with a reason (decline). The move is already recorded on the Item (`stageMoves`), so the labels are read from the Items, never copied and never written as Messages. The first move out of the `idea` stage is the decision; a story spiked later, after it was accepted, is still an accepted idea.
 
 - **Next synthesis.** `ItemStore.feedback()` turns the decisions into the reviewer feedback `ideas synthesize` already takes (accept or decline, with the reason as the note, addresses removed). A declined angle is not proposed again, and the model sees the reasons. `--feedback FILE` still overrides it for the same title. A spiked idea also counts as drafted for the dedupe of every path.

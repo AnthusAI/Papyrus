@@ -22,6 +22,8 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { isGeneratedIdeaFrontMatter, stageForIdeaDecision, writeIdeaDecision, type IdeaDecisionRecord } from "../lib/idea-decision";
+import { IdeaDecision } from "./idea-decision";
 import { FRONT_MATTER_BLURB_KEY, FRONT_MATTER_SUBTITLE_KEY, FRONT_MATTER_TITLE_KEY, readFrontMatterText, writeFrontMatterText } from "../lib/front-matter-fields";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContentActionFailure, type ContentActionError } from "../lib/content-actions-client";
@@ -46,7 +48,7 @@ import {
   uploadArticleImage,
 } from "../lib/newsroom-media";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { SITE_BRAND } from "../lib/site-brand";
+import { getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
 import { cn } from "../lib/utils";
 import { applyReplacement, inlineFindings, visibleFindings } from "../lib/editorial-checks";
 import { graphqlEditorialBackend } from "../lib/editorial-checks-client";
@@ -358,6 +360,30 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
       setBusy(null);
     }
   }, [aliases, backend, changeReason, editor, afterEditorialSave]);
+
+  const decideGeneratedIdea = useCallback(async (record: IdeaDecisionRecord) => {
+    if (!editor || editor.id === null) return;
+    const frontMatterYaml = writeIdeaDecision(editor.frontMatterYaml, record);
+    const result = await backend.actions.saveItemDraft({
+      id: editor.id,
+      type: editor.type,
+      slug: editor.slug,
+      section: editor.section.trim() ? editor.section.trim() : null,
+      frontMatterYaml,
+      bodyMarkus: editor.bodyMarkus,
+      aliases,
+      expectedContentHash: editor.contentHash,
+    });
+    setEditor((current) => (current ? { ...current, frontMatterYaml, contentHash: result.item.contentHash, versionNumber: result.item.versionNumber } : current));
+    if (!lineageId) return;
+    const stage = stageForIdeaDecision(record.decision, getContentItemStageDefinitions().map(definition => definition.key));
+    if (!stage) return;
+    try {
+      await backend.actions.moveStoryStage({ lineageId, stage, reason: record.note || null });
+    } catch (error) {
+      throw new Error(`The decision is recorded, but the idea could not be moved: ${failureMessage(error)}`);
+    }
+  }, [aliases, backend, editor, lineageId]);
 
   const saveDraft = useCallback(async (): Promise<string | null> => {
     if (!editor) return null;
@@ -721,6 +747,14 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                 {isOlderVersion ? <p className="newsroom-article-older-version" data-newsroom-article-older-version role="status">
                 This is version {editor.versionNumber} of {latestVersionNumber}, shown read-only. <button className="newsroom-article-link-button" onClick={() => setActiveArticleId(latestVersion?.id ?? activeArticleId)} type="button">Open the latest version</button>
               </p> : null}
+              {!isNew && editor.id && !isOlderVersion && isGeneratedIdeaFrontMatter(editor.frontMatterYaml) ? (
+                <IdeaDecision
+                  decidedBy={session?.shell.auth.status === "signedIn" ? session.shell.auth.label : "editor"}
+                  frontMatterYaml={editor.frontMatterYaml}
+                  key={editor.id}
+                  onDecide={decideGeneratedIdea}
+                />
+              ) : null}
               <div aria-label="Story view" className="newsroom-article-view-toggle" role="group">
               <button aria-pressed={mobileTab === "preview"} className="organizer-header-button" data-newsroom-article-view="preview" onClick={() => setMobileTab("preview")} type="button">Preview</button>
               <button aria-pressed={mobileTab === "edit"} className="organizer-header-button" data-newsroom-article-view="edit" onClick={() => setMobileTab("edit")} type="button">Edit</button>
