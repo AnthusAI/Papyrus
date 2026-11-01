@@ -102,6 +102,7 @@ def in_decision_contract(body):
     return result
 ROUTER_CONFIG_SK = "CONFIG#router"
 ROUTER_LOCK_SK = "LOCK#router"
+MONITOR_STORIES_LOCK_PREFIX = "LOCK#monitor-stories#"   # one lock per publication for a monitor-stories run that names one
 LEASE_SECONDS = 660                    # longer than the 600 s Lambda timeout
 RECEIPT_TTL_SECONDS = 30 * 86400
 STALE_FINAL_REASON = "job pending longer than the allowed time; reconcile manually"   # an old limit's finals, reopened by hand
@@ -979,18 +980,18 @@ class RouterStore(DynamoStore):
     def put_any(self, monitor_id, record):
         self.table.put_item(Item=decimalize(record))
 
-    def acquire_router_lock(self, monitor_id, owner, now, lease=LEASE_SECONDS) -> bool:
+    def acquire_router_lock(self, monitor_id, owner, now, lease=LEASE_SECONDS, sk=ROUTER_LOCK_SK) -> bool:
         try:
-            self._conditional_put({"pk": pk(monitor_id), "sk": ROUTER_LOCK_SK, "owner": owner,
+            self._conditional_put({"pk": pk(monitor_id), "sk": sk, "owner": owner,
                                    "acquiredAt": _iso(now), "expiresAt": int(now + lease)},
                                   "attribute_not_exists(pk) OR expiresAt < :now", {":now": int(now)})
             return True
         except ConditionFailed:
             return False
 
-    def release_router_lock(self, monitor_id, owner):
+    def release_router_lock(self, monitor_id, owner, sk=ROUTER_LOCK_SK):
         try:
-            self.table.delete_item(Key={"pk": pk(monitor_id), "sk": ROUTER_LOCK_SK},
+            self.table.delete_item(Key={"pk": pk(monitor_id), "sk": sk},
                                    ConditionExpression="#o = :owner", ExpressionAttributeNames={"#o": "owner"},
                                    ExpressionAttributeValues={":owner": owner})
         except Exception as error:
@@ -2438,11 +2439,12 @@ class Router:
                 continue
         return handled
 
-    def monitor_stories(self) -> dict:
+    def monitor_stories(self, publication_id: str | None = None) -> dict:
         """Daily, per publication: a cited story draft for every accepted, monitored, not yet drafted Reference (src/papyrus_content/monitoring_stories.py).
         On unless the publication's `monitorStories` says `enabled: false`; live mode only. Bounded only by the Lambda's remaining time (shared
         equally by the publications still to run, so none starves another; a publication the time stopped gets another turn while time is
-        left), a model-spend backstop and a filing error. One JSON log line per publication, after the last pass."""
+        left), a model-spend backstop and a filing error. One JSON log line per publication, after the last pass.
+        With `publication_id` only that publication runs, and it has the whole time budget to itself."""
         results: dict = {}
         if self.config["mode"] != "live":
             return results   # dry-run mode never writes to a publication
@@ -2451,6 +2453,8 @@ class Router:
         queue = []
         for publication in self.publications.values():
             pid = publication["publicationId"]
+            if publication_id is not None and pid != publication_id:
+                continue
             if not (publication.get("monitorStories") or {}).get("enabled", True):
                 results[pid] = {"publicationId": pid, "status": "disabled", **empty}
             elif self.story_transport is None:
@@ -2612,7 +2616,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                start_procedure: Callable[[dict], None] | None = None, cognito=None, source_ids=None,
                rung_job_ids=(), enricher: Enricher | None = None, max_decisions: int | None = None,
                hold_override: bool = False, previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
-               story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None) -> dict:
+               story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None,
+               publication_id: str | None = None) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -2621,7 +2626,16 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
     config = validate_router_config(raw)
     if not config["enabled"]:
         return {"monitorId": monitor_id, "runId": run_id, "status": "disabled"}
-    if not store.acquire_router_lock(monitor_id, owner, now):
+    lock_sk = ROUTER_LOCK_SK
+    if publication_id is not None:
+        # One publication of the daily monitor-stories task: validated against the monitor's config, and locked per publication so the runs
+        # of one monitor's publications (each up to the Lambda's 10 minutes) neither wait for each other nor hold up the monitor's route pass.
+        if task != "monitor-stories":
+            return {"monitorId": monitor_id, "runId": run_id, "status": "error", "reason": "publicationId is only for the monitor-stories task"}
+        if publication_id not in {p["publicationId"] for p in config["publications"]}:
+            return {"monitorId": monitor_id, "runId": run_id, "status": "error", "reason": f"unknown publicationId {publication_id!r} for monitor {monitor_id}"}
+        lock_sk = f"{MONITOR_STORIES_LOCK_PREFIX}{publication_id}"
+    if not store.acquire_router_lock(monitor_id, owner, now, sk=lock_sk):
         return {"monitorId": monitor_id, "runId": run_id, "status": "locked"}
     try:
         if task == "reopen-stale-finals":
@@ -2637,7 +2651,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                    {"status": "skipped"} if task in ("feedback", "auto-accept", "monitor-stories") else router.collect() if task == "collect" else router.sweep())
         feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept", "monitor-stories") else router.feedback()
         auto_accepted = {} if task in ("route", "collect", "email-references", "feedback", "monitor-stories") else router.auto_accept()
-        monitor_stories = router.monitor_stories() if task == "monitor-stories" else {}
+        monitor_stories = router.monitor_stories(publication_id) if task == "monitor-stories" else {}
         paused_until = router.settle_lab_backoff()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
@@ -2652,7 +2666,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
             **({"labBackoffUntil": _iso(paused_until)} if paused_until else {}), "ttl": int(now + RECEIPT_TTL_SECONDS)})
         return result
     finally:
-        store.release_router_lock(monitor_id, owner)
+        store.release_router_lock(monitor_id, owner, sk=lock_sk)
 
 
 DOORBELL_MONITORS = ("hn", "huggingface", "ttab")   # monitors that may carry a CONFIG#router item
@@ -2706,7 +2720,8 @@ def handle_decision_ready(store, event, collect: Callable[..., dict]) -> dict:
 
 
 def handler(event, context):
-    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"|"monitor-stories"}` limits the pass (operator debugging)."""
+    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"|"monitor-stories"}` limits the pass (operator debugging).
+    `{"task": "monitor-stories", "monitorId": "hn", "publicationId": "anth-us"}` runs only that publication, with the whole time budget and its own lock."""
     import boto3  # provided by the Lambda runtime
 
     event = event if isinstance(event, dict) else {}
@@ -2729,6 +2744,7 @@ def handler(event, context):
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining, source_ids=event.get("sourceIds"),
                         cognito=cognito, start_procedure=starter, enricher=enricher, previewer=attach_preview, max_decisions=cap,
                         story_transport=story_transport, embedding_key=embedding_key,
-                        hold_override=event.get("holdOverride") is False)   # only false lifts the hold, and only for this invocation
+                        hold_override=event.get("holdOverride") is False,
+                        publication_id=event.get("publicationId"))   # only false lifts the hold, and only for this invocation
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
-    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "waitingForClassifier", "posted")}
+    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "waitingForClassifier", "posted", "reason")}

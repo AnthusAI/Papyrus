@@ -176,7 +176,7 @@ def _sync_index(publication: dict[str, Any], policy: dict[str, Any], newly: list
         with process_environment(PAPYRUS_S3_VECTOR_INDEX_ARN=policy["vectorIndexArn"], OPENAI_API_KEY=embedding_key):
             stats = (indexer or vector_index.index_reference_passages)(services_for(publication, policy.get("storageBucketName")), options)
     except Exception as error:  # noqa: BLE001
-        result["indexSkippedReason"] = f"index sync failed ({type(error).__name__}: {str(error)[:160]})"
+        result["indexSkippedReason"] = f"index sync failed ({type(error).__name__}: {str(error)[:400]})"
         return False
     result["conceptCardsWritten"] = int(stats.get("conceptCardsToWrite") or 0)
     result["indexed"] = max(int(stats.get("vectorsWritten") or 0) - result["conceptCardsWritten"], 0)

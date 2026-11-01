@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import time
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Callable
@@ -164,6 +165,8 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "vectorsToWrite": 0,
         "vectorsWritten": 0,
         "embeddingRequests": 0,
+        "embeddingInputsEmpty": 0,
+        "embeddingInputsTruncated": 0,
         "embeddingInputCharacters": 0,
         "dryRun": options.dry_run,
         "vectorIndexArn": vector_index_arn,
@@ -510,9 +513,7 @@ def _consume_prepared_reference(
         wrote_any = True
         pending_vectors.append(candidate)
         if len(pending_vectors) >= options.batch_size:
-            stats["vectorsWritten"] += _embed_and_put_vectors(vector_index_arn, pending_vectors)
-            stats["embeddingRequests"] += 1
-            stats["embeddingInputCharacters"] += sum(len(vector["text"]) for vector in pending_vectors)
+            _write_pending_vectors(stats, vector_index_arn, pending_vectors)
             pending_vectors = []
     if candidates:
         if wrote_any:
@@ -532,10 +533,18 @@ def _flush_pending_vectors(
 ) -> list[dict[str, Any]]:
     if not pending_vectors:
         return pending_vectors
-    stats["vectorsWritten"] += _embed_and_put_vectors(vector_index_arn, pending_vectors)
-    stats["embeddingRequests"] += 1
-    stats["embeddingInputCharacters"] += sum(len(vector["text"]) for vector in pending_vectors)
+    _write_pending_vectors(stats, vector_index_arn, pending_vectors)
     return []
+
+
+def _write_pending_vectors(stats: dict[str, Any], vector_index_arn: str, pending_vectors: list[dict[str, Any]]) -> None:
+    """Embeds and writes one batch after making every text acceptable to the embeddings endpoint (see `_embeddable`)."""
+    candidates = _embeddable(stats, pending_vectors)
+    if not candidates:
+        return
+    stats["vectorsWritten"] += _embed_and_put_vectors(vector_index_arn, candidates)
+    stats["embeddingRequests"] += 1
+    stats["embeddingInputCharacters"] += sum(len(vector["text"]) for vector in candidates)
 
 
 def _prepare_note_messages(
@@ -1468,7 +1477,57 @@ def _list_index_vectors(index_arn: str) -> list[dict[str, Any]]:
             return vectors
 
 
+# OpenAI's documented limits for text-embedding-3-small: 8191 tokens per input, 300,000 tokens summed over one request, 2048 inputs per request,
+# and no empty input (HTTP 400). The Lambda zip carries no tokenizer, so the bounds below are in UTF-8 bytes: a token always covers at least one
+# byte of the text, so tokens <= bytes for any text in any language, and a text of at most 8191 bytes can never exceed 8191 tokens. For English
+# (about 4 bytes a token) that keeps roughly the first 2000 tokens of a text, which is far more than a passage or summary vector holds; the cost
+# of the safe bound is paid only by the rare overlong text, and each truncation is counted in `embeddingInputsTruncated`.
+EMBEDDING_MAX_INPUT_BYTES = 8191
+EMBEDDING_MAX_REQUEST_BYTES = 300_000   # tokens <= bytes, so this keeps a request under the 300,000-token total
+EMBEDDING_MAX_REQUEST_INPUTS = 2048
+
+
+def _truncate_to_bytes(text: str, limit: int) -> str:
+    return text.encode("utf-8")[:limit].decode("utf-8", errors="ignore")   # a cut inside a character is dropped, never sent as a broken one
+
+
+def _embeddable(stats: dict[str, Any], candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Candidates the endpoint will accept: empty or whitespace-only texts are dropped (`embeddingInputsEmpty`), overlong ones are cut (`embeddingInputsTruncated`)."""
+    kept = []
+    for candidate in candidates:
+        text = candidate.get("text")
+        if not isinstance(text, str) or not text.strip():
+            stats["embeddingInputsEmpty"] = stats.get("embeddingInputsEmpty", 0) + 1
+            continue
+        if len(text.encode("utf-8")) > EMBEDDING_MAX_INPUT_BYTES:
+            stats["embeddingInputsTruncated"] = stats.get("embeddingInputsTruncated", 0) + 1
+            text = _truncate_to_bytes(text, EMBEDDING_MAX_INPUT_BYTES)
+            if not text.strip():
+                stats["embeddingInputsEmpty"] = stats.get("embeddingInputsEmpty", 0) + 1
+                continue
+            candidate = {**candidate, "text": text}
+        kept.append(candidate)
+    return kept
+
+
 def _embed(texts: list[str]) -> list[list[float]]:
+    """Embeds `texts` in as many requests as the per-request limits need, in order."""
+    embeddings: list[list[float]] = []
+    group: list[str] = []
+    size = 0
+    for text in texts:
+        weight = len(text.encode("utf-8"))
+        if group and (size + weight > EMBEDDING_MAX_REQUEST_BYTES or len(group) >= EMBEDDING_MAX_REQUEST_INPUTS):
+            embeddings.extend(_embed_request(group))
+            group, size = [], 0
+        group.append(text)
+        size += weight
+    if group:
+        embeddings.extend(_embed_request(group))
+    return embeddings
+
+
+def _embed_request(texts: list[str]) -> list[list[float]]:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is required to embed vectors")
@@ -1482,9 +1541,25 @@ def _embed(texts: list[str]) -> list[list[float]]:
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=60) as response:  # nosec B310 - fixed OpenAI endpoint
-        payload = json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:  # nosec B310 - fixed OpenAI endpoint
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        raise RuntimeError(f"embeddings request failed: HTTP {error.code}: {_error_message(error)}") from error
     return [item["embedding"] for item in sorted(payload["data"], key=lambda entry: entry["index"])]
+
+
+def _error_message(error: "urllib.error.HTTPError") -> str:
+    """The `error.message` OpenAI sent with a failure (never the request, so never the key); falls back to the first 300 characters of the body."""
+    try:
+        raw = error.read().decode("utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        return str(error.reason or "no response body")
+    try:
+        message = (json.loads(raw).get("error") or {}).get("message")
+    except (ValueError, AttributeError):
+        message = None
+    return str(message or raw or "empty response body")[:300]
 
 
 def _sanitize_vector_metadata(metadata: dict[str, Any]) -> dict[str, Any]:

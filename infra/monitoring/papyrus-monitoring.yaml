@@ -1495,21 +1495,126 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt RouterDeadLetterQueue.Arn
 
-  MonitorStoriesSchedule:
+  MonitorStoriesAnthUsSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:
-      Name: papyrus-monitoring-hn-monitor-stories
+      Name: papyrus-monitoring-hn-monitor-stories-anth-us
       Description: >-
-        Once a day at 07:30 UTC (03:30 US Eastern), draft a cited story for every accepted, not yet drafted, monitored Reference of each
-        publication the hn router lists (task monitor-stories; docs/monitoring-cloud.md#monitor-stories). Bounded by the Lambda's time, not a count.
-        No retry: a second attempt would only repeat the same ranking.
+        Once a day at 07:30 UTC (03:30 US Eastern), draft a cited story for every accepted, not yet drafted, monitored Reference of anth-us, one
+        of the publications the hn router lists. One schedule per publication (event publicationId), so each run has the Lambda's whole time
+        budget and its own lock (task monitor-stories; docs/monitoring-cloud.md#monitor-stories). No retry: a second attempt would only repeat the same ranking.
       ScheduleExpression: cron(30 7 * * ? *)
       FlexibleTimeWindow: { Mode: "OFF" }
       State: !Ref ScheduleState
       Target:
         Arn: !GetAtt RouterFunction.Arn
         RoleArn: !GetAtt RouterScheduleRole.Arn
-        Input: '{"task":"monitor-stories","monitorId":"hn"}'
+        Input: '{"task":"monitor-stories","monitorId":"hn","publicationId":"anth-us"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  MonitorStoriesPApyrUsSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-monitor-stories-p-apyr-us
+      Description: >-
+        Once a day at 07:30 UTC (03:30 US Eastern), draft a cited story for every accepted, not yet drafted, monitored Reference of p-apyr-us, one
+        of the publications the hn router lists. One schedule per publication (event publicationId), so each run has the Lambda's whole time
+        budget and its own lock (task monitor-stories; docs/monitoring-cloud.md#monitor-stories). No retry: a second attempt would only repeat the same ranking.
+      ScheduleExpression: cron(30 7 * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"monitor-stories","monitorId":"hn","publicationId":"p-apyr-us"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  MonitorStoriesThreatIntelligenceSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-monitor-stories-threat-intelligence
+      Description: >-
+        Once a day at 07:30 UTC (03:30 US Eastern), draft a cited story for every accepted, not yet drafted, monitored Reference of threat-intelligence, one
+        of the publications the hn router lists. One schedule per publication (event publicationId), so each run has the Lambda's whole time
+        budget and its own lock (task monitor-stories; docs/monitoring-cloud.md#monitor-stories). No retry: a second attempt would only repeat the same ranking.
+      ScheduleExpression: cron(30 7 * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"monitor-stories","monitorId":"hn","publicationId":"threat-intelligence"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  MonitorStoriesDataParadeSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-monitor-stories-data-parade
+      Description: >-
+        Once a day at 07:30 UTC (03:30 US Eastern), draft a cited story for every accepted, not yet drafted, monitored Reference of data-parade, one
+        of the publications the hn router lists. One schedule per publication (event publicationId), so each run has the Lambda's whole time
+        budget and its own lock (task monitor-stories; docs/monitoring-cloud.md#monitor-stories). No retry: a second attempt would only repeat the same ranking.
+      ScheduleExpression: cron(30 7 * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"monitor-stories","monitorId":"hn","publicationId":"data-parade"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  MonitorStoriesPilobolUsSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-monitor-stories-pilobol-us
+      Description: >-
+        Once a day at 07:30 UTC (03:30 US Eastern), draft a cited story for every accepted, not yet drafted, monitored Reference of pilobol-us, one
+        of the publications the hn router lists. One schedule per publication (event publicationId), so each run has the Lambda's whole time
+        budget and its own lock (task monitor-stories; docs/monitoring-cloud.md#monitor-stories). No retry: a second attempt would only repeat the same ranking.
+      ScheduleExpression: cron(30 7 * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"monitor-stories","monitorId":"hn","publicationId":"pilobol-us"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  MonitorStoriesShippedSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-monitor-stories-shipped
+      Description: >-
+        Once a day at 07:30 UTC (03:30 US Eastern), draft a cited story for every accepted, not yet drafted, monitored Reference of shipped, one
+        of the publications the hn router lists. One schedule per publication (event publicationId), so each run has the Lambda's whole time
+        budget and its own lock (task monitor-stories; docs/monitoring-cloud.md#monitor-stories). No retry: a second attempt would only repeat the same ranking.
+      ScheduleExpression: cron(30 7 * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"monitor-stories","monitorId":"hn","publicationId":"shipped"}'
         RetryPolicy:
           MaximumEventAgeInSeconds: 3600
           MaximumRetryAttempts: 0

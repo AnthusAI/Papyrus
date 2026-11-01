@@ -1,6 +1,7 @@
 """The router's daily vector pass (features_backend/monitoring-vector-pass.feature). The index, the embeddings and the backends are fakes."""
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -268,3 +269,63 @@ def step_package_modules_include(context):
 def step_package_files(context):
     names = set(context.package.files)
     assert "papyrus_knowledge_query/vector_index.py" in names and "papyrus_knowledge_query/cli.py" not in names, names
+
+
+@given("a batch of texts to embed with one empty text, one whitespace-only text and one longer than the input limit")
+def step_embed_batch(context):
+    from papyrus_knowledge_query import vector_index
+
+    context.embed = SimpleNamespace(candidates=[{"key": "a", "text": "hello", "metadata": {}}, {"key": "b", "text": ""}, {"key": "c", "text": "  \n"},
+                                                {"key": "d", "text": "x" * (vector_index.EMBEDDING_MAX_INPUT_BYTES + 500), "metadata": {}}],
+                                    sent=[], stats={"vectorsWritten": 0, "embeddingRequests": 0, "embeddingInputCharacters": 0})
+
+
+@when("the batch is embedded")
+def step_embed(context):
+    import json
+    from unittest import mock
+
+    import test_vector_index_embed as te
+    from papyrus_knowledge_query import vector_index
+
+    held = context.embed
+    os.environ["OPENAI_API_KEY"] = "sk-secret"
+    with mock.patch("urllib.request.urlopen", te.ok_urlopen(held.sent)), mock.patch.object(vector_index, "_put_vectors", lambda arn, vectors: None):
+        vector_index._write_pending_vectors(held.stats, "arn", held.candidates)
+    del json
+
+
+@then("the empty and whitespace-only texts are dropped and counted")
+def step_dropped(context):
+    held = context.embed
+    assert held.stats["embeddingInputsEmpty"] == 2 and len(held.sent[0]) == 2
+
+
+@then("the long text is cut to a safe length and counted")
+def step_cut(context):
+    from papyrus_knowledge_query import vector_index
+
+    held = context.embed
+    assert held.stats["embeddingInputsTruncated"] == 1 and len(held.sent[0][1].encode()) <= vector_index.EMBEDDING_MAX_INPUT_BYTES
+
+
+@then("a request the endpoint refuses with 400 fails with the endpoint's own message and never the key")
+def step_refused(context):
+    import io
+    import json
+    import urllib.error
+    from unittest import mock
+
+    from papyrus_knowledge_query import vector_index
+
+    body = json.dumps({"error": {"message": "input is invalid"}}).encode()
+
+    def urlopen(request, timeout=None):
+        raise urllib.error.HTTPError(request.full_url, 400, "Bad Request", {}, io.BytesIO(body))
+    with mock.patch("urllib.request.urlopen", urlopen):
+        try:
+            vector_index._embed(["hello"])
+        except RuntimeError as error:
+            assert "HTTP 400" in str(error) and "input is invalid" in str(error) and "sk-secret" not in str(error)
+        else:
+            raise AssertionError("no error")

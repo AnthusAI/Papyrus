@@ -127,3 +127,15 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
     When the router runs its daily monitor stories
     Then the model was asked exactly once
     And the log line for "example-site" says drafted 0 and stoppedBy "file_error"
+
+  Scenario: A run that names one publication drafts only that publication, under its own lock
+    Given 2 accepted References that the "hn" monitor delivered
+    And a second publication "other-site" with 2 accepted References that the "hn" monitor delivered
+    When the router runs its daily monitor stories for the publication "other-site"
+    Then 2 story drafts are filed for "other-site" and none for "example-site"
+    And the run took the lock of "other-site", not the router lock, and released it
+
+  Scenario: A run that names an unknown publication reports an error and drafts nothing
+    Given 2 accepted References that the "hn" monitor delivered
+    When the router runs its daily monitor stories for the publication "nope"
+    Then the result is an error that names "nope", nothing is drafted and nothing stays locked

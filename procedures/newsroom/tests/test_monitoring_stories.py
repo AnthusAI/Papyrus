@@ -66,13 +66,13 @@ def router(publications=(PUBLICATION,), settings=None):
     return table, store
 
 
-def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_table=None, gate=None):
+def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_table=None, gate=None, publication_id=None):
     """Runs the monitor-stories task; `clients` maps a publication id to its backend. Returns (result, log lines by publication)."""
     endpoints = {tr.ENDPOINT.replace("abc123", f"api{n}"): client for n, client in enumerate(clients.values())}
     out = io.StringIO()
     with redirect_stdout(out):
         result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint],
-                            deliver=tr.Delivery(), time_left=time_left, story_transport=model,
+                            deliver=tr.Delivery(), time_left=time_left, publication_id=publication_id, story_transport=model,
                             story_drafter=partial(run_publication, fetch=fetch or pages(*range(1, 60)), explorer=None, **({"gate": gate} if gate else {})))
     lines = {line["publicationId"]: line for line in map(json.loads, (l for l in out.getvalue().splitlines() if l.startswith('{"monitorStories"')))}
     return result, lines
@@ -493,13 +493,69 @@ def test_every_managed_policy_of_the_router_fits_the_6144_character_limit():
             assert len(re.sub(r"\s", "", document)) <= 6144, (name, len(document))
 
 
+HN_PUBLICATIONS = ("anth-us", "p-apyr-us", "threat-intelligence", "data-parade", "pilobol-us", "shipped")
+
+
+def test_each_hn_publication_has_its_own_daily_monitor_stories_schedule():
+    resources = _template()["Resources"]
+    assert "MonitorStoriesSchedule" not in resources
+    inputs = {}
+    for name, resource in resources.items():
+        if resource["Type"] == "AWS::Scheduler::Schedule" and name.startswith("MonitorStories") and name != "MonitorStoriesPolicy":
+            props = resource["Properties"]
+            inputs[json.loads(props["Target"]["Input"])["publicationId"]] = (name, props)
+    assert set(inputs) == set(HN_PUBLICATIONS)
+    for pid, (name, props) in inputs.items():
+        assert json.loads(props["Target"]["Input"]) == {"task": "monitor-stories", "monitorId": "hn", "publicationId": pid}
+        assert props["ScheduleExpression"] == "cron(30 7 * * ? *)"
+        assert props["State"] == resources["TtabRouteSchedule"]["Properties"]["State"]   # the same ScheduleState wiring
+        assert props["Target"]["RoleArn"] == resources["MonitorStoriesAnthUsSchedule"]["Properties"]["Target"]["RoleArn"]
+        assert props["Target"]["Arn"] == resources["MonitorStoriesAnthUsSchedule"]["Properties"]["Target"]["Arn"]
+        assert props["Target"]["RetryPolicy"] == {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 0}
+
+
 def test_distinctive_has_its_own_daily_monitor_stories_schedule():
     # The hn router does not list Distinctive Mark, so its web monitor runs the same task on its own schedule, at the same hour.
     resources = _template()["Resources"]
-    hn, distinctive = resources["MonitorStoriesSchedule"]["Properties"], resources["DistinctiveMonitorStoriesSchedule"]["Properties"]
+    hn, distinctive = resources["MonitorStoriesAnthUsSchedule"]["Properties"], resources["DistinctiveMonitorStoriesSchedule"]["Properties"]
     assert json.loads(distinctive["Target"]["Input"]) == {"task": "monitor-stories", "monitorId": "web-distinctive"}
     assert distinctive["ScheduleExpression"] == hn["ScheduleExpression"]
     assert distinctive["Target"]["RetryPolicy"] == hn["Target"]["RetryPolicy"] == {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 0}
+
+
+def test_a_run_naming_one_publication_drafts_only_that_one_and_takes_its_own_lock():
+    table, store = router(("example-site", "other-site"))
+    _, first = world(2)
+    _, second = world(2)
+    seen = []
+    original = store.acquire_router_lock
+    store.acquire_router_lock = lambda *a, **k: (seen.append(k.get("sk")), original(*a, **k))[1]
+    endpoints = {tr.ENDPOINT.replace("abc123", f"api{n}"): c for n, c in enumerate((first, second))}
+    result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", publication_id="other-site", appsync=lambda e: endpoints[e],
+                        deliver=tr.Delivery(), story_transport=StoryModel(), story_drafter=partial(run_publication, fetch=pages(*range(1, 60)), explorer=None))
+    assert list(result["monitorStories"]) == ["other-site"] and len(second.filed) == 2 and not first.filed
+    assert seen == ["LOCK#monitor-stories#other-site"]
+    assert ("MONITOR#hn", "LOCK#router") not in table.items and ("MONITOR#hn", "LOCK#monitor-stories#other-site") not in table.items   # released
+
+
+def test_runs_of_different_publications_do_not_block_each_other_or_the_route_lock():
+    table, store = router(("example-site", "other-site"))
+    assert store.acquire_router_lock("hn", "a", 2000, sk="LOCK#monitor-stories#example-site")
+    assert store.acquire_router_lock("hn", "b", 2000, sk="LOCK#monitor-stories#other-site")
+    assert store.acquire_router_lock("hn", "route", 2000)
+    assert not store.acquire_router_lock("hn", "c", 2001, sk="LOCK#monitor-stories#example-site")
+    _, client = world(1)
+    result = run_router(store, "hn", now=2001, task="monitor-stories", publication_id="example-site", story_transport=StoryModel())
+    assert result["status"] == "locked"
+
+
+def test_an_unknown_publication_id_is_an_error_result_and_runs_nothing():
+    table, store = router()
+    result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", publication_id="nope", story_transport=StoryModel())
+    assert result["status"] == "error" and "nope" in result["reason"]
+    assert not [k for k in table.items if str(k[1]).startswith("LOCK#") or str(k[1]).startswith("ROUTERUN#")]
+    other = run_router(store, "hn", now=NOW.timestamp(), task="route", publication_id=PUBLICATION)
+    assert other["status"] == "error"
 
 
 # --- the editorial gate the router runs on each idea ---------------------------------------------------------------------
