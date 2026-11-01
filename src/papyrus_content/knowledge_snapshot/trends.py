@@ -196,7 +196,7 @@ def rank_trending(rows: Iterable[tuple[str, str | None, Sequence[int | float]]],
 
 
 def window_lengths(history: int, minimum_baseline: int = 4) -> list[int]:
-    """The window lengths in weeks to try: 1, 2, 4, 8, ... while at least ``minimum_baseline`` weeks of baseline remain before the window."""
+    """The window lengths in buckets to try: 1, 2, 4, 8, ... while at least ``minimum_baseline`` buckets of baseline remain before the window."""
     lengths, length = [], 1
     while history - length >= minimum_baseline:
         lengths.append(length)
@@ -234,18 +234,23 @@ def _round_p(p_value: float) -> float:
     return float(f"{p_value:.3g}")
 
 
-def scan_window(values: Sequence[int | float], volume: Sequence[float], config: TrendConfig | None = None) -> dict | None:
-    """The most surprising recent window of one weekly series (oldest first, ending with the as-of week), or ``None`` when the history is
-    too short for any window.
+def scan_window(values: Sequence[int | float], volume: Sequence[float], config: TrendConfig | None = None, bucket_days: int = DAYS_PER_WEEK) -> dict | None:
+    """The most surprising recent window of one bucketed series (oldest first, ending with the as-of bucket), or ``None`` when the history is
+    too short for any window. A bucket is ``bucket_days`` days long (a week by default; pass 1 for daily counts). The baseline the window
+    must leave is the config's minimum number of weeks, expressed in buckets.
 
-    For each length ``L`` from ``window_lengths``: ``count`` mentions in the last ``L`` weeks against ``baselineCount`` in every earlier week.
+    For each length ``L`` from ``window_lengths``: ``count`` mentions in the last ``L`` buckets against ``baselineCount`` in every earlier bucket.
     ``pValue`` is the upper tail of the conditional test described above and ``expected`` the count it would expect in the window. The window
     with the smallest p-value wins (the shorter on a tie); its p-value is multiplied by the number of windows tried and capped at one
-    (Bonferroni) as ``correctedPValue``. ``surprise`` is the z-score of the corrected p-value."""
+    (Bonferroni) as ``correctedPValue``. ``surprise`` is the z-score of the corrected p-value. The window is reported in buckets
+    (``windowBuckets``) and in days (``windowDays``); ``windowWeeks`` is the same window in weeks and equals ``windowBuckets`` for weekly buckets."""
+    if bucket_days < 1:
+        raise ValueError(f"A bucket must be at least one day, not {bucket_days}.")
     config = config or TrendConfig()
     history = len(volume)
     series = [0] * (history - len(values)) + list(values)[-history:]
-    lengths = window_lengths(history, config.minimum_baseline_weeks)
+    minimum_baseline = -(-config.minimum_baseline_weeks * DAYS_PER_WEEK // bucket_days)
+    lengths = window_lengths(history, minimum_baseline)
     best: dict | None = None
     for length in lengths:
         count, baseline = int(sum(series[-length:])), int(sum(series[:-length]))
@@ -255,13 +260,18 @@ def scan_window(values: Sequence[int | float], volume: Sequence[float], config: 
         p_value = binomial_upper_tail(count, trials, share)
         if best is None or p_value < best["pValue"]:
             best = {
-                "windowWeeks": length, "count": count, "baselineWeeks": history - length, "baselineCount": baseline,
+                "windowWeeks": length if bucket_days == DAYS_PER_WEEK else round(length * bucket_days / DAYS_PER_WEEK, 3),
+                "windowBuckets": length, "windowDays": length * bucket_days, "bucketDays": bucket_days, "count": count, "baselineWeeks": (history - length) if bucket_days == DAYS_PER_WEEK else round((history - length) * bucket_days / DAYS_PER_WEEK, 3), "baselineBuckets": history - length, "baselineDays": (history - length) * bucket_days, "baselineCount": baseline,
                 "expected": round(trials * share, 3), "pValue": p_value,
             }
     if best is None:
         return None
     corrected = min(1.0, best["pValue"] * len(lengths))
     return {**best, "pValue": _round_p(best["pValue"]), "tested": len(lengths), "correctedPValue": _round_p(corrected), "surprise": significance_z(corrected)}
+
+
+def _window_days(window: dict) -> float:
+    return window["windowDays"] if "windowDays" in window else window["windowWeeks"] * DAYS_PER_WEEK
 
 
 def exceeds_report(window: dict, report: dict, config: TrendConfig | None = None) -> tuple[bool, float]:
@@ -273,6 +283,7 @@ def exceeds_report(window: dict, report: dict, config: TrendConfig | None = None
     needs. The same count over a longer window, or a few more than reported, is therefore not new evidence."""
     config = config or TrendConfig()
     trials = window["count"] + report["count"]
-    share = window["windowWeeks"] / (window["windowWeeks"] + report["windowWeeks"])
+    window_days, report_days = _window_days(window), _window_days(report)
+    share = window_days / (window_days + report_days)
     p_value = min(1.0, binomial_upper_tail(window["count"], trials, share) * window["tested"])
     return p_value <= config.significance, _round_p(p_value)

@@ -269,3 +269,42 @@ def step_reports(context, count, weeks):
 @then("the retired seven-day cooldown is not in the run record")
 def step_no_cooldown(context):
     assert "cooldown" not in context.surge_selection and "cooldownDays" not in context.surge_selection["thresholds"]
+
+
+# --- day buckets -------------------------------------------------------------------------------------------------------------
+
+
+@given("a daily series that is mentioned once a day for {days:d} days and {burst:d} times on each of the last {burst_days:d} days")
+def step_daily_burst(context, days, burst, burst_days):
+    context.daily_series = [1] * days + [burst] * burst_days
+
+
+@given("a daily series that is mentioned once a day for {days:d} days")
+def step_daily_even(context, days):
+    context.daily_series = [1] * days
+
+
+@when("the trend windows are scanned in day buckets")
+def step_scan_days(context):
+    context.daily_window = scan_window(context.daily_series, [10.0] * len(context.daily_series), bucket_days=1)
+
+
+@then("the window is {days:d} days, which is {buckets:d} buckets")
+def step_daily_window(context, days, buckets):
+    assert (context.daily_window["windowDays"], context.daily_window["windowBuckets"]) == (days, buckets), context.daily_window
+
+
+@then("the corrected p-value is within 0.01")
+def step_daily_significant(context):
+    assert context.daily_window["correctedPValue"] <= TrendConfig().significance, context.daily_window
+
+
+@then("the corrected p-value is not within 0.01")
+def step_daily_not_significant(context):
+    assert context.daily_window["correctedPValue"] > TrendConfig().significance, context.daily_window
+
+
+@then("the window is {buckets:d} bucket of {days:d} days")
+def step_weekly_default(context, buckets, days):
+    window = scan_window(context.adaptive_series, [10.0] * len(context.adaptive_series))
+    assert (window["windowBuckets"], window["windowDays"]) == (buckets, days), window

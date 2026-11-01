@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "761312fd-fac8-4b36-9261-663a6c01a51e",
+  "issue_id": "PPY-4f5cd3d4-798a-4261-a53b-1aa33876d7e6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:38.587Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Context pack builder and the conversation + acceptance signals",
+    "description": "New module src/papyrus_content/ideas/context_packs.py.\n- Pack dataclass and JSON shape exactly as design section 5.1: packId (sha256 of site|signal|anchor|window, 12 chars), signal {type, anchor, windowDays, count, expected, correctedPValue, surprise, dateBasis}, concepts (handle C#, hashtag, name, kind, description, recentCount, baselineCount), references (handle R#, title, url, published, added, publishedBasis, summary, acceptedBy, acceptedOn, concepts, status), edges, messages (handle M#, about, author label, date, text), recent_published_stories, existing_ideas, mission, policy, allowed_sections.\n- Pending References appear with status \"pending\" and a note \"not yet accepted\"; they get handles P# so the citation check can refuse them as evidence.\n- conversation signal: entity = a Reference or Story with a Message thread; series = Messages per day in the thread; baseline = the thread's own earlier days vs all Messages on the site (scan_window, day buckets, S1.1).\n- acceptance signal: entity = a concept; series = human accepts per week of References linked to it (mentions or related_to); baseline = the concept's own earlier weeks vs all human accepts; ingestion basis.\n- Ranking: every pack carries correctedPValue and surprise; packs from different signals interleave by surprise, round-robin by signal.\n- Summaries from the reference_summary_200_tokens Message or the metadata attachment summary; no page fetch.\n- recent_published_stories = stories published since the anchor's baseline began (replaces STORY_DAYS = 90 in ideas/context.py for this path).\n- A pack is trimmed only to synthesis.MAXIMUM_INPUT_CHARACTERS, lowest-ranked members first.\nUnit tests per signal with fixtures: a lit-up thread yields a pack; a concept at its own baseline yields none; a site with no Messages still yields acceptance packs; every pack states dateBasis.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0b40ca61-d357-47cc-9d81-6627b05f6303",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

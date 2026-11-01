@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "1e52d789-18e8-47a8-a0f5-a2a7127689ee",
+  "issue_id": "PPY-c22e15e6-8f10-4a87-9b14-e1d099863960",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:50.939Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Ship slice 2: batch site deploy and router change set",
+    "description": "Release; bump all seven sites in one batch (one deploy per site; bundle any config); router change set for S3 Vectors IAM + config (Ryan executes). Verify on Anth.us: 'Suggest more' returns neighbours without an embedding call; accepting a concept suggestion shows on the concept page; hub/cluster packs appear in a dry run.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

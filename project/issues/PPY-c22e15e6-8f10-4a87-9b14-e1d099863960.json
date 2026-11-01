@@ -1,0 +1,42 @@
+{
+  "id": "PPY-c22e15e6-8f10-4a87-9b14-e1d099863960",
+  "title": "Ship slice 2: batch site deploy and router change set",
+  "description": "Release; bump all seven sites in one batch (one deploy per site; bundle any config); router change set for S3 Vectors IAM + config (Ryan executes). Verify on Anth.us: 'Suggest more' returns neighbours without an embedding call; accepting a concept suggestion shows on the concept page; hub/cluster packs appear in a dry run.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-15843e06-fc3b-493e-9c88-37ff98bba48b",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3b99c1a0-7183-4516-9710-8f6072b6603c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1822f2e2-2cd5-48d8-a8b1-c71b6f0bde8a",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1f1da0f7-77a1-4683-b7f8-21318b470725",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-01T18:16:50.939410Z",
+  "updated_at": "2026-11-01T18:16:57.286669Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "main-session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
