@@ -357,6 +357,7 @@ def history_of(entity: dict[str, Any]) -> list[int | float]:
 
 
 def _filed_date(row: dict[str, Any]) -> date | None:
+    """The day an idea was filed (ingestion basis: the newsroom's own stream, not the world's publication dates)."""
     try:
         return datetime.fromisoformat(str(row.get("createdAt")).replace("Z", "+00:00")).date()
     except ValueError:
@@ -517,7 +518,7 @@ def build_signals(
     for cluster in clusters[:MAXIMUM_CLUSTER_SIGNALS]:
         series = _series(cluster.get("series8"))
         signal = {
-            "id": f"cluster:{cluster['uid']}", "asOf": as_of, "kind": "cluster", "name": cluster["name"], "targetType": "cluster", "targetId": cluster["uid"],
+            "id": f"cluster:{cluster['uid']}", "asOf": as_of, "dateBasis": "publication", "kind": "cluster", "name": cluster["name"], "targetType": "cluster", "targetId": cluster["uid"],
             "state": cluster.get("state"), "itemCount": cluster["itemCount"], "weeksOfData": cluster.get("weeksOfData"),
             "topTerms": (cluster.get("topTerms") or [])[:6], "series": series, "weeks": week_labels(as_of, len(series)), "href": cluster.get("href"),
         }
@@ -535,7 +536,7 @@ def build_signals(
         series = _series(entity.get("series8")) or history[-SERIES_SHORT:]  # the chart shows the last eight weeks, as every signal's does
         window = row["window"]
         signal = {
-            "id": f"entity:{key}", "asOf": as_of, "kind": "entity", "name": entity["name"], "entityKind": entity.get("kind"), "targetType": "entity", "targetId": key,
+            "id": f"entity:{key}", "asOf": as_of, "dateBasis": "publication", "kind": "entity", "name": entity["name"], "entityKind": entity.get("kind"), "targetType": "entity", "targetId": key,
             "itemCount": entity.get("itemCount"), "weeksOfHistory": entity.get("weeksOfHistory"), "isNew": bool(entity.get("isNew")),
             "windowWeeks": window["windowWeeks"], "windowCount": window["count"], "baselineWeeks": window["baselineWeeks"], "baselineCount": window["baselineCount"],
             "window": window, "history": history, "historyWeeks": week_labels(as_of, len(history)),

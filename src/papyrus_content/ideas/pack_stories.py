@@ -257,6 +257,11 @@ def signal_sentence(pack: Pack, handles: PackHandles) -> str:
     if signal["type"] == "acceptance":
         lead = next((row["hashtag"] for row in pack.concepts), str(signal["anchor"]))
         return f"{count} accepted References linked to {lead} in {days} days, against {expected_text} expected."
+    if signal["type"] == "resurfaced":
+        return (
+            f"A source published {signal['publicationGapDays']} days before it reached the site, a longer gap than {signal['gapPercentile']:.0%} of the site's References, "
+            f"and people attended to it again within {days} days ({count} human accept or Messages)."
+        )
     return f"{count} Messages in one conversation in {days} days, against {expected_text} expected."
 
 
