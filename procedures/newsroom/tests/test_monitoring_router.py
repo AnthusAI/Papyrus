@@ -930,7 +930,7 @@ def test_collector_zip_imports_everything_it_needs(tmp_path):
     result = subprocess.run([sys.executable, "-I", "-c", "import papyrus_content.monitoring_cloud"],
                             cwd=tmp_path / "unzipped", capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    assert "web_structured_metadata" not in build.router_modules() and "monitoring_router" in build.router_modules()
+    assert "web_structured_metadata" in build.router_modules() and "biblicus_runner" not in build.router_modules() and "monitoring_router" in build.router_modules()
 
 
 def _template():

@@ -34,8 +34,8 @@ ROUTER_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring-rout
 EMAIL_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-email-submissions.zip"
 PACKAGE = ROOT / "src" / "papyrus_content"
 ROUTER_ROOTS = ("monitoring_router", "monitoring_intake", "editorial_context", "graphql_authoring", "graphql_http")
-# Imported lazily on paths the router never runs; they need packages the Lambda does not have.
-ROUTER_EXCLUDED = frozenset({"web_structured_metadata", "biblicus_runner"})
+# Imported only inside functions on paths the router never runs; they need packages the Lambda does not have.
+ROUTER_EXCLUDED = frozenset({"biblicus_runner"})
 # Pure-Python packages copied into the worker zips (the Lambda runtime has boto3/botocore only): PyYAML, then youtube-transcript-api and
 # everything it imports. Compiled extensions are left out; each package runs in its pure-Python mode.
 VENDORED = ("yaml", "youtube_transcript_api", "defusedxml", "requests", "urllib3", "idna", "certifi", "charset_normalizer")
