@@ -325,11 +325,11 @@ def test_the_lambda_wheels_are_the_locked_closure_of_humanus_and_the_jev_client_
 def test_reading_with_several_workers_gives_the_same_items_and_counts_as_reading_one_by_one():
     from papyrus_content.ideas import monitor_stories as library
     rows, client = world(12, verdicts={3: ("exclude", 0.1)})
-    del rows[4]["discoveredByMonitorId"]   # not monitored
+    del rows[4]["sourceUri"]   # nothing to fetch
     one = library.collect_monitored_items(client, site=PUBLICATION, now=NOW)
     many = library.collect_monitored_items(client, site=PUBLICATION, now=NOW, workers=4)
     assert [i.lineage_id for i in many[0]] == [i.lineage_id for i in one[0]] and many[1] == one[1]
-    assert one[1]["notMonitored"] == 1 and one[1]["judgedNotRelevant"] == 1
+    assert one[1]["noSourceUri"] == 1 and one[1]["judgedNotRelevant"] == 1
 
 
 def test_a_read_that_runs_out_of_time_leaves_the_rest_unread_and_says_so():

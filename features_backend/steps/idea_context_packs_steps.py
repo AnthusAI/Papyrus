@@ -116,3 +116,63 @@ def step_skipped(context):
 @then("the pack is offered again")
 def step_offered(context):
     assert len(context.suppression.kept) == 1
+
+
+from papyrus_content.ideas.context_packs import rank_packs  # noqa: E402
+from papyrus_content.ideas.item_signals import ordered_queue, score_items  # noqa: E402
+import test_item_signals as item_support  # noqa: E402
+
+
+@given("a site whose accepted References are mostly quiet")
+def step_quiet_site(context):
+    context.item_inputs = {"votes": item_support.background(), "messages": []}
+    context.item_candidates = []
+
+
+@given("an accepted Reference no monitor delivered, with a lively thread of Messages")
+def step_lively_unmonitored(context):
+    context.item_inputs["messages"] += item_support.lively_thread("lively")
+    context.item_candidates.append(item_support.candidate("lively"))
+
+
+@given("an accepted Reference no monitor delivered, whose thread lights up after weeks of quiet")
+def step_lit_unmonitored(context):
+    context.item_inputs["messages"] += support.lit_thread_messages()
+    context.item_inputs["votes"] = [*context.item_inputs["votes"], support.vote("ref-1", 3)]
+    context.item_candidates.append(item_support.candidate("ref-1"))
+
+
+@given("an accepted Reference a monitor delivered, with no activity")
+def step_quiet_monitored(context):
+    context.item_candidates.append(item_support.candidate("quiet", "hn"))
+
+
+@when("the single-item candidates are scored")
+def step_score_items(context):
+    context.scored_items = score_items(support.inputs(**context.item_inputs), context.item_candidates)
+
+
+@then("the Reference with the lively thread is the first candidate")
+def step_lively_first(context):
+    assert context.scored_items[0].item.lineage_id == "lively", context.scored_items
+
+
+@then("the quiet monitored Reference is not a candidate")
+def step_quiet_not_candidate(context):
+    assert "quiet" not in [row.item.lineage_id for row in context.scored_items]
+
+
+@then("there are no single-item candidates")
+def step_no_candidates(context):
+    assert context.scored_items == []
+
+
+@when("the packs and the single-item candidates are queued together")
+def step_queue(context):
+    signals = support.inputs(**context.item_inputs)
+    context.queue = ordered_queue(rank_packs(build_packs(signals, support.LOOKUPS, now=support.NOW)), score_items(signals, context.item_candidates))
+
+
+@then("the queue holds both a pack and a single item")
+def step_queue_both(context):
+    assert {entry.kind for entry in context.queue} == {"pack", "item"}, context.queue

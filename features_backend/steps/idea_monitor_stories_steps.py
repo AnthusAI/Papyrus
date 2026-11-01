@@ -318,10 +318,10 @@ def step_one_title(context, title):
     assert titles_of(last(context)) == [title], titles_of(last(context))
 
 
-@then("the run record counts 1 item judged not relevant and 1 that no monitor delivered")
+@then("the run record counts 1 item judged not relevant")
 def step_counts(context):
     inputs = last(context)["inputs"]
-    assert (inputs["judgedNotRelevant"], inputs["notMonitored"]) == (1, 1), inputs
+    assert inputs["judgedNotRelevant"] == 1, inputs
 
 
 @then("the run record has no window")
