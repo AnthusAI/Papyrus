@@ -19,6 +19,13 @@ Fields of ``SignalInputs``:
 * ``concept_links``: ``ConceptLink`` tuple, one per current SemanticRelation from a Reference to a semanticNode with predicate ``mentions`` or
   ``related_to`` (``related_to`` is the human "relates to this concept" link): ``reference_lineage_id``, ``concept_id``, ``predicate``.
   Links of every Reference the pass read, so a signal can use them for votes, for pending context and for Messages anchored on a Reference.
+* ``edges``: ``ReferenceEdge`` tuple, one per current SemanticRelation between two References (predicate ``related_to``, ``cites``, ``supports`` or
+  ``contradicts``) that touches a Reference the pass read: the relations are read by subject state key and by object state key (the concurrent reads
+  of the other relations), so an edge is found from whichever end was read. Each has ``subject_lineage_id``, ``object_lineage_id``, ``predicate`` and
+  ``created_at``. Suggested and rejected edges are not read (their state key is not ``current``).
+* ``accepted``: ``AcceptedReference`` tuple, every accepted Reference of the publication whoever accepted it (a person or a machine rule), with the
+  day it was accepted (``accepted_at``, falling back to the time it arrived), so the hub and cluster signals can compare recent arrivals with the
+  site's own history. Their concept ids are those of the pass's concept links (a Reference the pass did not read has none).
 * ``pending_context``: ``PendingReference`` tuple, pending References whose relevance verdict (``relevance_decision_is``) is positive, context
   only (never a vote). Each has ``reference_id``, ``lineage_id``, ``title``, ``url``, ``created_at``, ``source_published_at``, ``score`` and
   ``concept_ids``.
@@ -43,6 +50,8 @@ from .items import idea_rows
 from .monitor_stories import POSITIVE_LABEL
 
 CONCEPT_PREDICATES = ("mentions", "related_to")
+EDGE_PREDICATES = ("related_to", "cites", "supports", "contradicts")
+REFERENCE_KIND = "reference"
 REFERENCE_ANCHOR_PREFIX = "reference#"
 HUMAN_ROLES = ("human", "user")
 MESSAGE_FIELDS = "id threadId sequenceNumber messageKind status role authorKind authorLabel content createdAt editedAt deletedAt"
@@ -72,6 +81,31 @@ class ConceptLink:
     reference_lineage_id: str
     concept_id: str
     predicate: str
+
+
+@dataclass(frozen=True)
+class ReferenceEdge:
+    subject_lineage_id: str
+    object_lineage_id: str
+    predicate: str
+    created_at: str | None
+
+
+@dataclass(frozen=True)
+class AcceptedReference:
+    reference_id: str
+    lineage_id: str
+    title: str
+    url: str
+    created_at: str | None
+    source_published_at: str | None
+    accepted_at: str | None
+    accepted_by: str
+    concept_ids: tuple[str, ...]
+
+    @property
+    def voted_at(self) -> str | None:
+        return self.accepted_at or self.created_at
 
 
 @dataclass(frozen=True)
@@ -125,6 +159,8 @@ class SignalInputs:
     pending_context: tuple[PendingReference, ...]
     published: tuple[StoryRecord, ...]
     ideas: tuple[StoryRecord, ...]
+    edges: tuple[ReferenceEdge, ...] = ()
+    accepted: tuple[AcceptedReference, ...] = ()
 
 
 def independent_copy(client: Any) -> Any:
@@ -189,6 +225,22 @@ def concept_links_of(lineage: str, relations: list[dict[str, Any]]) -> list[Conc
     return [found[key] for key in sorted(found)]
 
 
+def edges_of(relations: list[dict[str, Any]]) -> list[ReferenceEdge]:
+    """The current Reference-to-Reference edges among ``relations`` (read from either end of the edge)."""
+    return [
+        ReferenceEdge(str(relation["subjectLineageId"]), str(relation["objectLineageId"]), str(relation["predicate"]), relation.get("createdAt"))
+        for relation in relations
+        if relation.get("relationState", "current") == "current" and relation.get("predicate") in EDGE_PREDICATES
+        and relation.get("subjectKind") == REFERENCE_KIND and relation.get("objectKind") == REFERENCE_KIND
+        and relation.get("subjectLineageId") and relation.get("objectLineageId")
+    ]
+
+
+def objects_of(reader: Any, row: dict[str, Any]) -> list[dict[str, Any]]:
+    lineage = row.get("lineageId")
+    return list(reader.list_semantic_relations_by_object_state(f"{REFERENCE_ANCHOR_PREFIX}{lineage}#current")) if lineage else []
+
+
 def story_record(entry: dict[str, Any], targets: str = "[]", evidence: str = "{}") -> StoryRecord:
     return StoryRecord(str(entry["id"]), entry["title"], entry.get("summary") or "", entry.get("section"), entry["state"], entry.get("date"), targets, evidence)
 
@@ -205,6 +257,11 @@ def load_signal_inputs(
     ]
     read = map_with_clients(needed, lambda reader, row: relations_of(reader, row), client=client, client_factory=client_factory or (lambda: independent_copy(client)), workers=workers)
     relations_by_id = {row["id"]: relations for row, relations in zip(needed, read)}
+    incoming = map_with_clients(needed, lambda reader, row: objects_of(reader, row), client=client, client_factory=client_factory or (lambda: independent_copy(client)), workers=workers)
+    found_edges: dict[tuple[str, str, str], ReferenceEdge] = {}
+    for row, objects in zip(needed, incoming):
+        for edge in [*edges_of(relations_by_id[row["id"]]), *edges_of(objects)]:
+            found_edges.setdefault((edge.subject_lineage_id, edge.object_lineage_id, edge.predicate), edge)
     links: list[ConceptLink] = []
     votes: list[HumanVote] = []
     pending: list[PendingReference] = []
@@ -230,6 +287,18 @@ def load_signal_inputs(
             verdict = relevance_of(relations)
             if verdict is not None and verdict["label"] == (verdict.get("positiveLabel") or POSITIVE_LABEL):
                 pending.append(PendingReference(score=verdict.get("score"), **common))
+    concepts_by_lineage: dict[str, set[str]] = {}
+    for link in links:
+        concepts_by_lineage.setdefault(link.reference_lineage_id, set()).add(link.concept_id)
+    accepted = [
+        AcceptedReference(
+            reference_id=str(row["id"]), lineage_id=str(row.get("lineageId") or row["id"]), title=str(row.get("title") or row.get("sourceUri") or "").strip(),
+            url=str(row.get("sourceUri") or ""), created_at=row.get("createdAt"), source_published_at=row.get("sourcePublishedAt") or None,
+            accepted_at=row.get("curationStatusUpdatedAt") or row.get("createdAt"), accepted_by="human" if row.get("curationActorKind") == HUMAN else "machine",
+            concept_ids=tuple(sorted(concepts_by_lineage.get(str(row.get("lineageId") or row["id"]), ()))),
+        )
+        for row in references if str(row.get("curationStatus") or "pending") == "accepted"
+    ]
     stories = [story_entry(row) for row in list_stories(client) if row.get("versionState") == "current" and row.get("status") == "published"]
     ideas = [
         story_record({"id": row["id"], "title": row["title"], "summary": row["summary"], "state": row["state"], "date": (row.get("createdAt") or "")[:10] or None}, row["targets"], row.get("evidence") or "{}")
@@ -238,5 +307,6 @@ def load_signal_inputs(
     return SignalInputs(
         site=site, loaded_at=iso(now), messages=messages, votes=tuple(votes), concept_links=tuple(links),
         pending_context=tuple(pending), published=tuple(story_record(entry) for entry in stories), ideas=tuple(ideas),
+        edges=tuple(sorted(found_edges.values(), key=lambda edge: (edge.subject_lineage_id, edge.object_lineage_id, edge.predicate))), accepted=tuple(accepted),
     )
 

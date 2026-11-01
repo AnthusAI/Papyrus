@@ -14,6 +14,8 @@ The lookups:
 * ``summaries``: a Reference's summary, read only for the References a pack shows. It is the text of the ``reference_summary_<N>_tokens`` Message
   linked to the Reference (the highest token budget, the newest), else ``attachment_summary(lineage)`` when the caller can read the metadata
   attachment (the router has no storage grant, so it passes none and a Reference without a summary Message has an empty summary).
+* ``vector_provider``: the vector index provider the router run holds when the publication has a ``vectorIndexArn`` (``monitoring_vectors.vector_provider_for``);
+  without one the hub signal still runs on edges and concepts and the cluster signal is skipped with a logged reason.
 * ``mission``, ``policy`` and ``allowed_sections``: from the same context ``load_context`` gives the single-item path.
 """
 
@@ -99,12 +101,15 @@ def concept_catalogue(client: Any) -> tuple[dict[str, ConceptInfo], dict[str, di
     return concepts, by_hashtag
 
 
-def load_pack_lookups(client: Any, context: Mapping[str, Any], *, attachment_summary: AttachmentSummary | None = None) -> tuple[PackLookups, dict[str, dict[str, Any]]]:
-    """(the lookups the pack builders are given, the concept nodes by hashtag). ``context`` is ``ideas.context.load_context``'s result."""
+def load_pack_lookups(client: Any, context: Mapping[str, Any], *, attachment_summary: AttachmentSummary | None = None,
+                      vector_provider: Any = None) -> tuple[PackLookups, dict[str, dict[str, Any]]]:
+    """(the lookups the pack builders are given, the concept nodes by hashtag). ``context`` is ``ideas.context.load_context``'s result.
+    ``vector_provider`` (``get_vector`` / ``query_by_vector``) is what the cluster signal reads; None skips that signal."""
     concepts, concept_nodes = concept_catalogue(client)
     lookups = PackLookups(
         concepts=concepts, summaries=ReferenceSummaries(client, attachment_summary), mission=str(context.get("mission") or ""),
         policy=str(context.get("policy") or ""), allowed_sections=tuple(str(section["title"]) for section in context.get("sections") or ()),
+        vector_provider=vector_provider,
     )
     return lookups, concept_nodes
 
@@ -135,11 +140,11 @@ class SignalRun:
 
 def prepare_signal_run(
     client: Any, *, site: str, context: Mapping[str, Any], now: datetime, signals: tuple[str, ...] | None, single_items: bool, gate: Any = None,
-    attachment_summary: AttachmentSummary | None = None,
+    attachment_summary: AttachmentSummary | None = None, vector_provider: Any = None,
 ) -> SignalRun:
     """The one read pass and the packs of ``site``. ``signals`` is the closed set the publication asked for (None: every signal that has data)."""
     inputs = load_signal_inputs(client, site=site, now=now)
-    lookups, concept_nodes = load_pack_lookups(client, context, attachment_summary=attachment_summary)
+    lookups, concept_nodes = load_pack_lookups(client, context, attachment_summary=attachment_summary, vector_provider=vector_provider)
     built = [pack for pack in build_packs(inputs, lookups, now=now) if signals is None or pack.signal_type in signals]
     suppression = suppress_repeats(rank_packs(built), inputs.ideas)
     return SignalRun(

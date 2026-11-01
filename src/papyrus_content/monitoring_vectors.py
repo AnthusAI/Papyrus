@@ -82,6 +82,22 @@ def build_services(publication: dict[str, Any], bucket_name: str | None) -> Any:
     return KnowledgeQueryServices(graph=graph, corpus_text=S3CorpusTextProvider(bucket_name=bucket_name, region_name=region) if bucket_name else None)
 
 
+def vector_provider_for(policy: dict[str, Any], provider_for: Callable[..., Any] | None = None) -> Any:
+    """The S3 Vectors provider for the publication's index (the one the suggestions use), or None when it has no ``vectorIndexArn`` or the runtime
+    cannot build one; the signal packs then run without the cluster signal."""
+    arn = policy.get("vectorIndexArn")
+    if not arn:
+        return None
+    try:
+        if provider_for:
+            return provider_for(arn)
+        from papyrus_knowledge_query.services import S3VectorsProvider
+
+        return S3VectorsProvider(vector_index_arn=arn, region_name=os.environ.get("AWS_REGION"))
+    except Exception:  # noqa: BLE001 - no provider means no cluster signal, not a failed run
+        return None
+
+
 def accepted_since(client: Any, publication: dict[str, Any], watermark: str | None) -> list[dict[str, Any]]:
     """The publication's accepted References whose acceptance is newer than the watermark (all of them when there is none), oldest first."""
     rows = client.list_by_index(ACCEPTED_INDEX, f"{publication['corpusId']}#accepted")

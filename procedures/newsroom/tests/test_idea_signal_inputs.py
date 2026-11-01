@@ -32,9 +32,11 @@ def message(number: int, thread: str, role: str = "human", **more: Any) -> dict[
 class FakeSignalClient:
     tenant_id = None
 
-    def __init__(self, references=(), relations=None, threads=(), messages=None, stories=(), items=(), page_size=2) -> None:
+    def __init__(self, references=(), relations=None, threads=(), messages=None, stories=(), items=(), page_size=2, incoming=None) -> None:
         self.references = list(references)
         self.relations = relations or {}
+        self.incoming = incoming or {}
+        self.incoming_queries: list[str] = []
         self.threads = list(threads)
         self.messages = messages or {}
         self.stories = list(stories)
@@ -53,6 +55,10 @@ class FakeSignalClient:
     def list_semantic_relations_by_subject_state(self, key: str) -> list[dict[str, Any]]:
         self.relation_queries.append(key)
         return self.relations.get(key.split("#")[1], [])
+
+    def list_semantic_relations_by_object_state(self, key: str) -> list[dict[str, Any]]:
+        self.incoming_queries.append(key)
+        return self.incoming.get(key.split("#")[1], [])
 
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         variables = variables or {}
@@ -141,3 +147,30 @@ def test_relations_are_read_only_for_votes_pending_and_thread_anchors():
     )
     load_signal_inputs(client, site="example-site", now=NOW)
     assert sorted(client.relation_queries) == sorted(f"reference#{row['lineageId']}#current" for row in (anchored, human, pending))
+
+
+def edge(subject: dict[str, Any], other: dict[str, Any], predicate: str = "related_to", **more: Any) -> dict[str, Any]:
+    return {"subjectKind": "reference", "subjectLineageId": subject["lineageId"], "objectKind": "reference", "objectLineageId": other["lineageId"],
+            "predicate": predicate, "relationState": "current", "createdAt": "2026-10-30T00:00:00Z", **more}
+
+
+def test_current_reference_edges_are_read_from_both_ends_with_their_dates_and_only_for_references_already_read():
+    first, second, outside = voted(1, "accepted"), voted(2, "accepted"), voted(3, "accepted", actor=None)
+    relations = {first["lineageId"]: [edge(first, second), edge(first, outside, "cites"), edge(first, second, "mentions"), edge(first, second, relationState="suggested")]}
+    incoming = {second["lineageId"]: [edge(first, second), edge(outside, second, "supports")]}
+    client = FakeSignalClient(references=[first, second, outside], relations=relations, incoming=incoming)
+    inputs = load_signal_inputs(client, site="example-site", now=NOW)
+    pairs = [(e.subject_lineage_id, e.object_lineage_id, e.predicate, e.created_at) for e in inputs.edges]
+    assert pairs == sorted([
+        (first["lineageId"], second["lineageId"], "related_to", "2026-10-30T00:00:00Z"),
+        (first["lineageId"], outside["lineageId"], "cites", "2026-10-30T00:00:00Z"),
+        (outside["lineageId"], second["lineageId"], "supports", "2026-10-30T00:00:00Z"),
+    ])
+    assert sorted(client.incoming_queries) == sorted(f"reference#{row['lineageId']}#current" for row in (first, second))
+
+
+def test_every_accepted_reference_is_listed_whoever_accepted_it():
+    human, machine, rejected = voted(1, "accepted"), voted(2, "accepted", actor="cyclotron"), voted(3, "rejected")
+    inputs = load_signal_inputs(FakeSignalClient(references=[human, machine, rejected]), site="example-site", now=NOW)
+    assert sorted((a.lineage_id, a.accepted_by) for a in inputs.accepted) == sorted([(human["lineageId"], "human"), (machine["lineageId"], "machine")])
+    assert all(a.accepted_at == "2026-10-22T09:00:00Z" for a in inputs.accepted)
