@@ -1,5 +1,5 @@
 Feature: Multi-search asks several search providers about one assignment and merges what they find
-  Most assignments are researched with the site's normal search, which is Google. Multi-search is a special mode that an editor
+  Most assignments are researched with the site's normal search, which is Perplexity. Multi-search is a special mode that an editor
   reserves for the assignments that deserve a wider net: it is chosen per assignment as the type research.multi, beside
   research.tavily-deep, and it is never the default and never runs on its own. When an editor runs it, one model call plans a
   handful of search queries from the assignment's brief, each with a short purpose. Every query then goes to every search provider
