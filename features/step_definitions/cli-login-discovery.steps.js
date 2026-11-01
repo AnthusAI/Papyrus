@@ -81,6 +81,8 @@ When("the federation client is synthesized with the CLI moved onto it", { timeou
 
 Then("its callbacks are each site origin's Prospectus callback, the fixed loopback and the console's cli callback", function () {});
 
+Then("its logout URLs are the site origins only, never the CLI's loopback", function () {});
+
 Then("only Google is admitted through the code flow and no password flow is reachable", function () {});
 
 When("the federation client is synthesized with and without the CLI moved onto it", { timeout: 120_000 }, async function () {
