@@ -70,6 +70,20 @@ for (const file of SCHEMA_FILES) {
     }
   }
 }
+// Custom queries and mutations: the deployed schema (schema.ts) must carry every one the typed schema (resource.ts) declares, or the client
+// calls a field the site's API does not have (createReferenceLink and three more shipped only in resource.ts in 5.69.0). The four below
+// were already only in resource.ts before this check existed; deciding whether to deploy or delete them is its own change.
+const KNOWN_TYPED_ONLY_OPERATIONS = new Set(["createReferenceNote", "getReferenceCurationStatus", "moveReferenceCorpus", "startReferenceCuration"]);
+function operationNames(source: string): Set<string> {
+  return new Set([...source.matchAll(/^  (\w+): a\s*\n\s*\.(?:mutation|query)\(\)/gm)].map((match) => match[1]));
+}
+const [deployedOperations, typedOperations] = SCHEMA_FILES.map((file) => operationNames(readFileSync(join(process.cwd(), file), "utf8")));
+const missingOperations = [...typedOperations].filter((name) => !deployedOperations.has(name) && !KNOWN_TYPED_ONLY_OPERATIONS.has(name));
+if (missingOperations.length) {
+  failed = true;
+  console.error(`operations declared in ${SCHEMA_FILES[1]} but not deployed by ${SCHEMA_FILES[0]}: ${missingOperations.join(", ")}`);
+}
+console.log(`operations: ${deployedOperations.size} in schema.ts, ${typedOperations.size} in resource.ts`);
 if (failed) {
   process.exit(1);
 }
