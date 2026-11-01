@@ -537,3 +537,33 @@ def step_command_pack_only_asked(context):
 def step_command_single_only_asked(context):
     state = context.router
     assert state.model.order and set(state.model.order) == {"item"} and "packs\t" not in state.output
+
+
+from papyrus_content.ideas.signal_inputs import ConceptLink  # noqa: E402
+
+
+@given("a lively thread on one Reference whose concept has other accepted References")
+def step_lively_related(context):
+    others = [support.vote(f"other-{n}", 10 + n) for n in range(1, 4)]
+    context.related_inputs = support.inputs(
+        messages=support.lit_thread_messages(), votes=[support.vote("ref-1", 3), *others],
+        links=[ConceptLink(lineage, "concept-voice", "mentions") for lineage in ("ref-1", "other-1", "other-2", "other-3")])
+
+
+@when("the context packs are built and the pack ideas are drafted")
+def step_related_build_and_draft(context):
+    [context.related_pack] = [p for p in build_packs(context.related_inputs, support.LOOKUPS, now=support.NOW) if p.signal_type == "conversation"]
+    client = pack_support.backend(context.related_pack)
+    context.agent_result = pack_support.run(context.related_pack, client, pack_support.transport_of(pack_support.idea("Editors keep returning to one voice story", ["R1", "R2"])))
+
+
+@then("the conversation pack holds the anchor first and the related accepted References marked with their shared concept")
+def step_related_pack(context):
+    pack = context.related_pack
+    assert pack.accepted_lineage_ids[0] == "ref-1" and len(pack.accepted_lineage_ids) == 4
+    assert pack.references[0].get("relation") is None and all(row["relation"].startswith("shared concept") for row in pack.references[1:])
+
+
+@then("one idea is filed citing two accepted References")
+def step_related_idea(context):
+    assert context.agent_result.filed_count == 1 and len(context.agent_result.filed[0]["citedReferences"]) == 2

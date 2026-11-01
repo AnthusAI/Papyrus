@@ -188,3 +188,9 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
     Then the model is asked only about the pack
     When the monitor-stories command runs as a dry run with single items only
     Then the model is asked only about single items and no pack is listed
+
+  Scenario: A lively thread on one Reference yields a pack with the related accepted References and an idea
+    Given a lively thread on one Reference whose concept has other accepted References
+    When the context packs are built and the pack ideas are drafted
+    Then the conversation pack holds the anchor first and the related accepted References marked with their shared concept
+    And one idea is filed citing two accepted References

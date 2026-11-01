@@ -295,10 +295,41 @@ def conversation_pack(context: Context, axis: Axis, window: Mapping[str, Any], t
     held_back = next((row for row in context.inputs.pending_context if row.lineage_id == lineage), None) if lineage else None
     concept_ids = set(context.concepts_of_lineage.get(lineage, ())) if lineage else set()
     concepts = concept_rows(context, axis, window["windowBuckets"], sorted(concept_ids), None)
-    accepted = [vote] if vote else []
+    related = related_by_concept(context, lineage, vote, concept_ids)
+    accepted = ([vote] if vote else []) + [row for row, _ in related]
     pending = [held_back] if held_back else []
     pending += [row for row in pending_for(context, concept_ids) if row not in pending]
-    return finish_pack(context, CONVERSATION, thread_id, window, MESSAGE_BASIS, concepts, accepted, [(message, lineage or anchor_key) for message in thread], pending)
+    pack = finish_pack(context, CONVERSATION, thread_id, window, MESSAGE_BASIS, concepts, accepted, [(message, lineage or anchor_key) for message in thread], pending)
+    why = {row.lineage_id: text for row, text in related}
+    marked = tuple(
+        {**row, "relation": why[pack.accepted_lineage_ids[int(row["handle"][1:]) - 1]]}
+        if row["status"] == ACCEPTED and pack.accepted_lineage_ids[int(row["handle"][1:]) - 1] in why else row
+        for row in pack.references
+    )
+    return replace(pack, references=marked)
+
+
+def related_by_concept(context: Context, lineage: str | None, anchor: HumanVote | None, concept_ids: set[str]) -> list[tuple[HumanVote, str]]:
+    """Accepted References that share a concept with the anchor, most related first: by the summed weight 1/sqrt(frequency) of the shared concepts
+    (a concept few References carry says more), then the most recently accepted. There is no cap; ``trim_pack`` bounds the pack."""
+    frequency: dict[str, int] = defaultdict(int)
+    for vote in context.accepted:
+        for concept in context.concepts_of_lineage.get(vote.lineage_id, vote.concept_ids):
+            frequency[concept] += 1
+    found = []
+    for vote in context.accepted:
+        if vote.lineage_id == lineage:
+            continue
+        shared = sorted(concept_ids & set(context.concepts_of_lineage.get(vote.lineage_id, vote.concept_ids)))
+        if shared:
+            weight = sum(1 / frequency[concept] ** 0.5 for concept in shared)
+            found.append((weight, vote, "shared concept " + ", ".join(concept_info(context, concept).hashtag or concept for concept in shared)))
+    found.sort(key=lambda row: (-row[0], _negated(row[1].voted_at), row[1].lineage_id))
+    return [(vote, text) for _, vote, text in found]
+
+
+def _negated(moment: str | None) -> tuple[int, ...]:
+    return tuple(-ord(char) for char in str(moment or ""))
 
 
 def acceptance_packs(context: Context) -> list[Pack]:

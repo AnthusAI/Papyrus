@@ -505,3 +505,20 @@ def test_the_router_zip_closure_carries_the_pack_modules_and_they_import_with_on
               "assert not any(m in sys.modules for m in ('pydantic', 'biblicus', 'httpx', 'tiktoken'))\n")
     done = subprocess.run([sys.executable, "-I", "-S", "-c", script, str(task)], capture_output=True, text=True, cwd=tmp_path, env={"PAPYRUS_ROOT": str(task)})
     assert done.returncode == 0, done.stderr[-800:]
+
+
+def test_a_lively_thread_on_one_reference_yields_a_pack_with_related_accepted_references_and_the_agent_files_an_idea():
+    import test_idea_pack_stories as pack_support
+    from papyrus_content.ideas.context_packs import build_packs
+    from papyrus_content.ideas.signal_inputs import ConceptLink
+    from test_idea_context_packs import LOOKUPS, inputs, lit_thread_messages, vote
+
+    others = [vote(f"other-{n}", 10 + n) for n in range(1, 4)]
+    signals = inputs(messages=lit_thread_messages(), votes=[vote("ref-1", 3), *others],
+                     links=[ConceptLink(lineage, "concept-voice", "mentions") for lineage in ("ref-1", "other-1", "other-2", "other-3")])
+    [pack] = [p for p in build_packs(signals, LOOKUPS, now=NOW) if p.signal_type == "conversation"]
+    assert pack.accepted_lineage_ids[0] == "ref-1" and len(pack.accepted_lineage_ids) == 4
+    assert [row.get("relation") for row in pack.references] == [None, "shared concept #voice-cloning", "shared concept #voice-cloning", "shared concept #voice-cloning"]
+    client = pack_support.backend(pack)
+    result = pack_support.run(pack, client, pack_support.transport_of(pack_support.idea("Editors keep returning to one voice story", ["R1", "R2"])))
+    assert result.filed_count == 1
