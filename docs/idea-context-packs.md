@@ -259,7 +259,7 @@ Everything is data already read by the router (`validate_monitor_stories`, `moni
 
 ### Slice 4 — learning (M, mostly Cyclotron-side configuration)
 
-* `reference-link-fit` and `idea-pack-fit` classifiers derived in `siteCyclotron`; decided suggestions and idea forward/spike as labels; promotion only when a version beats the statistical rule on held-out decisions (PPY-c6aced's gate); vector de-duplication replaces the fixed `0.5`; hashtags typed in Message bodies become message → concept `mentions` edges.
+* `reference-link-fit` and `idea-pack-fit` classifiers derived in `siteCyclotron`; decided suggestions and idea forward/spike as labels; promotion only when a version beats the statistical rule on held-out decisions (PPY-c6aced's gate); vector de-duplication replaces the fixed `0.5`; hashtags typed in Message bodies become message → concept `related_to` edges (human provenance, written by the `linkMessageHashtags` mutation in the category-action Lambda from the stored Message).
 
 ## Decisions (settled, Ryan, 2026-11-01)
 

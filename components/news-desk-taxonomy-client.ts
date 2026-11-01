@@ -63,7 +63,7 @@ import {
   type ConversationMessage,
   type ConversationViewer,
 } from "../lib/conversation";
-import { postMessageArguments, postMessageMutation } from "../lib/post-message";
+import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments, postMessageMutation } from "../lib/post-message";
 import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
@@ -1415,6 +1415,9 @@ async function appendMessageToThread(thread: MessageThreadRecord, build: (sequen
     },
   });
   const createdMessage = normalizeMessageRecord(created.postMessage ?? built!);
+  if (messageHasHashtag(createdMessage.content ?? (built as MessageRecord | null)?.content)) {
+    void runGraphql(LINK_MESSAGE_HASHTAGS_MUTATION, { messageId: createdMessage.id }).catch(() => undefined);
+  }
   const updated = await runGraphql<{ updateMessageThread?: MessageThreadRecord | null }>(
     UPDATE_MESSAGE_THREAD_MUTATION,
     {

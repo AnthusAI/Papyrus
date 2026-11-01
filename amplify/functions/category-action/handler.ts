@@ -27,6 +27,7 @@ import {
 import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
 import { referenceFeedKeys, referenceFeedStateKey } from "../../../lib/reference-feed-keys";
 import { claimGroups } from "../../../lib/staff-groups";
+import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
@@ -50,7 +51,9 @@ type CreateDraftCategoryHandler = Schema["createDraftCategory"]["functionHandler
 type UpdateDraftCategoryHandler = Schema["updateDraftCategory"]["functionHandler"];
 type ArchiveDraftCategoryHandler = Schema["archiveDraftCategory"]["functionHandler"];
 type ReviewReferenceTopicLabelHandler = Schema["reviewReferenceTopicLabel"]["functionHandler"];
+type LinkMessageHashtagsHandler = Schema["linkMessageHashtags"]["functionHandler"];
 type CategoryActionEvent =
+  | Parameters<LinkMessageHashtagsHandler>[0]
   | Parameters<ReviewHandler>[0]
   | Parameters<ReferenceCurationHandler>[0]
   | Parameters<CreateCurationDelegationHandler>[0]
@@ -124,6 +127,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (!fieldName) {
     throw new Error("Unsupported steering action: missing GraphQL field name.");
   }
+  if (fieldName === "linkMessageHashtags") return linkMessageHashtagsAction(event as Parameters<LinkMessageHashtagsHandler>[0]);
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
   if (fieldName === "createCurationDelegation") return createCurationDelegation(event as Parameters<CreateCurationDelegationHandler>[0]);
@@ -582,6 +586,44 @@ async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandl
     status: nextStatus,
     relationId,
   };
+}
+
+async function linkMessageHashtagsAction(event: Parameters<LinkMessageHashtagsHandler>[0]) {
+  const client = await getDataClient();
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to link a message's hashtags.");
+  const messageId = normalizeRequiredString(event.arguments.messageId, "messageId");
+  const store: MessageHashtagStore = {
+    getMessage: async (id) => {
+      const response = await client.models.Message.get({ id });
+      assertNoDataErrors(response.errors, "get Message");
+      return response.data ?? null;
+    },
+    listAcceptedConceptNodes: async () => {
+      const nodes: Array<{ id: string; lineageId?: string | null; versionNumber?: number | null; nodeKey: string }> = [];
+      let nextToken: string | null | undefined;
+      do {
+        const page = await (client.models.SemanticNode as any).listSemanticNodesByVersionStateAndUpdatedAt({ versionState: "current" }, { limit: 500, nextToken });
+        assertNoDataErrors(page.errors, "list SemanticNodes");
+        for (const node of page.data ?? []) if (node.status === "accepted") nodes.push(node);
+        nextToken = page.nextToken;
+      } while (nextToken);
+      return nodes;
+    },
+    getRelation: async (id) => {
+      const response = await client.models.SemanticRelation.get({ id });
+      assertNoDataErrors(response.errors, "get SemanticRelation");
+      return response.data ?? null;
+    },
+    putRelation: async (relation, existing) => {
+      const write = existing ? client.models.SemanticRelation.update(relation as any) : client.models.SemanticRelation.create({ ...relation, createdAt: relation.updatedAt } as any);
+      await requireDataResult(write, "write message concept SemanticRelation");
+    },
+    setMessageMetadata: async (id, metadata) => {
+      await requireDataResult(client.models.Message.update({ id, metadata: JSON.stringify(metadata) }), "update Message metadata");
+    },
+  };
+  return linkMessageHashtags(store, { messageId, callerSub, now: new Date().toISOString() });
 }
 
 async function createReferenceNote(event: Parameters<ReferenceNoteHandler>[0]) {
