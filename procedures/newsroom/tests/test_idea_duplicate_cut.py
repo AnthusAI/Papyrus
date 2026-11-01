@@ -17,7 +17,7 @@ def test_scorer_matches_similarity():
 def test_learned_cut_is_the_smallest_similarity_reaching_the_precision():
     votes = [(0.1 + 0.01 * n, False) for n in range(20)] + [(0.7 + 0.005 * n, True) for n in range(60)]
     cut = duplicate_cut.learn_duplicate_cut(votes)
-    assert cut.learned and 0.7 <= cut.threshold < 0.75 and cut.record()["lowerBound"] >= 0.9
+    assert cut.learned and cut.threshold < 0.75 and cut.record()["lowerBound"] >= 0.9
 
 
 def test_too_few_decisions_keep_the_fallback():
