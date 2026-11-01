@@ -10,7 +10,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from papyrus_content.reference_links import decide, link_concept, link_references  # noqa: E402
+from papyrus_content.reference_links import decide, link_concept, link_references, reference_link_relation_id  # noqa: E402
 
 NOW = "2026-11-01T12:00:00Z"
 LATER = "2026-11-02T12:00:00Z"
@@ -114,6 +114,29 @@ class ReferenceLinkTests(unittest.TestCase):
             link_references(client, "reference-a", "reference-b", "mentions", "human", actor="x")
         with self.assertRaises(ValueError):
             link_references(client, "reference-a", "reference-a", "related_to", "human", actor="x")
+
+
+class SharedRowVectorTests(unittest.TestCase):
+    """The TypeScript resolvers (scripts/test-reference-links.ts) read the same file and must produce the same rows."""
+
+    def test_the_python_writer_produces_every_row_in_the_shared_vectors(self):
+        vectors = json.loads((REPO_ROOT / "scripts" / "fixtures" / "reference-link-row-vectors.json").read_text())
+        for case in vectors["cases"]:
+            with self.subTest(case["name"]):
+                client = FakeClient()
+                for step in case["steps"]:
+                    if step["op"] == "link":
+                        link_references(client, step["a"], step["b"], step["predicate"], "human", actor=step["actor"], note=step.get("note"), now=step["now"])
+                    elif step["op"] == "concept":
+                        link_concept(client, step["reference"], vectors["node"], "human", actor=step["actor"], now=step["now"])
+                    elif step["op"] == "suggest":
+                        link_references(client, step["a"], step["b"], "related_to", "suggested", actor="auto:vector", score=step["score"], classifier_id="vector:text-embedding-3-small", now=step["now"])
+                    else:
+                        predicate, *ends = step["relation"]
+                        ends = sorted(ends) if predicate == "related_to" else ends
+                        decide(client, reference_link_relation_id(predicate, *ends), step["decision"], step["reasonCode"], step["note"], step["actor"], now=step["now"])
+                rows = {key: {**row, "metadata": json.loads(row["metadata"])} for key, row in client.tables["SemanticRelation"].items()}
+                self.assertEqual(rows, case["expectedRows"])
 
 
 if __name__ == "__main__":

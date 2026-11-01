@@ -739,6 +739,14 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       resources: [knowledgeVectorIndex.attrIndexArn],
     }),
   );
+  // suggestReferenceLinks runs in content-actions and reads the Reference's stored summary vector, so it needs the index and no OpenAI key.
+  contentActionsLambda.addEnvironment("PAPYRUS_S3_VECTOR_INDEX_ARN", knowledgeVectorIndex.attrIndexArn);
+  contentActionsLambda.addToRolePolicy(
+    new PolicyStatement({
+      actions: ["s3vectors:GetVectors", "s3vectors:QueryVectors"],
+      resources: [knowledgeVectorIndex.attrIndexArn],
+    }),
+  );
   knowledgeQueryLambda.addToRolePolicy(
     new PolicyStatement({
       actions: ["ssm:GetParameter"],
