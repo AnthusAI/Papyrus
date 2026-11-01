@@ -202,7 +202,7 @@ structured packet lives in a `ModelAttachment` with role `metadata`.
 
 ## Multi-search research (`research.multi`)
 
-Most assignments are researched with the site's normal search (Google first: the default chain is `gemini,openai`). Multi-search is
+Most assignments are researched with the site's normal search (cheapest first: the default chain is `tavily,perplexity,openai`). Multi-search is
 a special mode an editor reserves for an assignment that deserves a wider net. It is **opt-in per assignment and never the
 default**: nothing creates a `research.multi` assignment or runs it automatically, and an assignment created without `--type` is
 still `research.candidate`.
