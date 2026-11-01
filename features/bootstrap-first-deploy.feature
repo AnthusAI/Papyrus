@@ -23,3 +23,4 @@ Feature: A brand-new site can create its backend in two deploys
     Given the site backend is synthesized in the bootstrap stage
     Then the whole backend has fewer than 2000 resources
     And no deferred model has a stack
+    And the first deploy creates no post-deploy render, because the render reads models the second deploy adds

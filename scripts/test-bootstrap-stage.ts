@@ -40,6 +40,8 @@ try {
   for (const core of ["UserProfile", "Item", "Reference", "Message"]) {
     assert.ok(modelStacks.includes(core), `${core} is created by the first deploy`);
   }
+  const templates = readdirSync(outputDirectory).filter((name) => name.endsWith(".template.json"));
+  assert.ok(!templates.some((name) => /reprojectondeploy/i.test(name)), "the bootstrap stage creates no post-deploy render");
   console.log(`bootstrap stage: ${resources} resources, ${modelStacks.length} model stacks`);
   console.log("bootstrap stage tests passed");
 } finally {

@@ -31,7 +31,7 @@ import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
-import { resolveExcludedModelGroups } from "./data/schema";
+import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
 import { editorialChecks } from "./functions/editorial-checks/resource";
 import { automationView } from "./functions/automation-view/resource";
 import { wireAutomationView } from "./functions/automation-view/wire";
@@ -497,7 +497,11 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     (contentActionsLambda.node.defaultChild as CfnFunction).memorySize = publicationPlan.contentActionsMemorySize;
     if (publication.reprojectOnDeploy === true) {
       (contentActionsLambda.node.defaultChild as CfnFunction).timeout = REPROJECT_ON_DEPLOY_TIMEOUT_SECONDS;
-      addReprojectOnDeploy(backend.createStack("reproject-on-deploy"), contentActionsLambda, reprojectDeployToken(process.env));
+      // The bootstrap stage leaves out the knowledge models the render reads, so the first deploy of a new site
+      // skips the post-deploy render; the second deploy (variable removed) renders as usual.
+      if (!isBootstrapStage(process.env)) {
+        addReprojectOnDeploy(backend.createStack("reproject-on-deploy"), contentActionsLambda, reprojectDeployToken(process.env));
+      }
     }
   }
   if (s3ProjectionPublication !== undefined) {

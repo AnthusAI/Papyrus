@@ -62,12 +62,17 @@ export type OptionalModelGroup = keyof typeof OPTIONAL_MODEL_GROUPS;
  * The groups to leave out of this synth: the site's `excludeModelGroups` plus, when the Amplify branch variable
  * `PAPYRUS_BOOTSTRAP_STAGE` is `1`, every deferred group. Unset (or any other value), nothing is added.
  */
+/** True when the Amplify branch variable `PAPYRUS_BOOTSTRAP_STAGE` is exactly `1`: the first deploy of a new site. */
+export function isBootstrapStage(environment: Record<string, string | undefined>): boolean {
+  return (environment.PAPYRUS_BOOTSTRAP_STAGE ?? "").trim() === "1";
+}
+
 export function resolveExcludedModelGroups(
   configured: readonly string[] | undefined,
   environment: Record<string, string | undefined>,
 ): string[] {
   const groups = [...(configured ?? [])];
-  if ((environment.PAPYRUS_BOOTSTRAP_STAGE ?? "").trim() === "1") {
+  if (isBootstrapStage(environment)) {
     for (const group of BOOTSTRAP_DEFERRED_GROUPS) if (!groups.includes(group)) groups.push(group);
   }
   return groups;
