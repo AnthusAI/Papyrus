@@ -54,3 +54,42 @@ export function resolveConceptLink(href: string, nodes: readonly SemanticNodeRec
 export function conceptWikiPath(node: SemanticNodeRecord): string {
   return `/newsroom/concepts/${encodeURIComponent(conceptId(node))}`;
 }
+
+const CONCEPT_KEY_SEPARATOR = "--";
+
+/** The name part of an entity key: `concept--voice-cloning` gives `voice-cloning`; "" when there is none. */
+export function conceptNamePart(nodeKey: string): string {
+  const separatorAt = nodeKey.indexOf(CONCEPT_KEY_SEPARATOR);
+  return separatorAt > 0 ? nodeKey.slice(separatorAt + CONCEPT_KEY_SEPARATOR.length) : "";
+}
+
+/** `#voice-cloning` for `concept--voice-cloning`; "" when the key has no name part. */
+export function conceptHashtag(nodeKey: string): string {
+  const name = conceptNamePart(nodeKey);
+  return name ? `#${name}` : "";
+}
+
+/** The hashtag as shown: `#translation`, or `#translation (task)` when another kind shares the name. */
+export function conceptHashtagLabel(nodeKey: string, allNodeKeys: readonly string[]): string {
+  const hashtag = conceptHashtag(nodeKey);
+  if (!hashtag) return "";
+  const name = conceptNamePart(nodeKey);
+  const shared = allNodeKeys.some(key => key !== nodeKey && conceptNamePart(key) === name);
+  return shared ? `${hashtag} (${nodeKey.slice(0, nodeKey.indexOf(CONCEPT_KEY_SEPARATOR))})` : hashtag;
+}
+
+/** The node keys a typed hashtag can mean: an exact key match first, then every key with that name, sorted by key. */
+export function conceptKeysForHashtag(text: string, allNodeKeys: readonly string[]): string[] {
+  let typed = text.trim().replace(/^#+/, "").trim().toLowerCase();
+  let kindFilter: string | null = null;
+  const kindSuffix = typed.match(/^(.*) \(([^()]*)\)$/);
+  if (kindSuffix) {
+    typed = kindSuffix[1];
+    kindFilter = kindSuffix[2].trim();
+  }
+  if (!typed) return [];
+  const exact = allNodeKeys.find(key => key.toLowerCase() === typed);
+  if (exact) return [exact];
+  const named = allNodeKeys.filter(key => conceptNamePart(key).toLowerCase() === typed).sort();
+  return kindFilter === null ? named : named.filter(key => key.slice(0, key.indexOf(CONCEPT_KEY_SEPARATOR)).toLowerCase() === kindFilter);
+}

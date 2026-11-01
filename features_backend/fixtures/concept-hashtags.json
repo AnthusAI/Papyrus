@@ -1,0 +1,23 @@
+{
+  "nodeKeys": ["concept--voice-cloning", "maker--anthropic", "task--translation", "concept--translation", "concept--agents"],
+  "hashtags": [
+    {"nodeKey": "concept--voice-cloning", "hashtag": "#voice-cloning"},
+    {"nodeKey": "maker--anthropic", "hashtag": "#anthropic"},
+    {"nodeKey": "broken", "hashtag": ""},
+    {"nodeKey": "concept--", "hashtag": ""}
+  ],
+  "labels": [
+    {"nodeKey": "concept--voice-cloning", "label": "#voice-cloning"},
+    {"nodeKey": "task--translation", "label": "#translation (task)"},
+    {"nodeKey": "concept--translation", "label": "#translation (concept)"}
+  ],
+  "parse": [
+    {"text": "#voice-cloning", "candidates": ["concept--voice-cloning"]},
+    {"text": "#Voice-Cloning", "candidates": ["concept--voice-cloning"]},
+    {"text": "#concept--translation", "candidates": ["concept--translation"]},
+    {"text": "#translation", "candidates": ["concept--translation", "task--translation"]},
+    {"text": "#translation (task)", "candidates": ["task--translation"]},
+    {"text": "#nothing-here", "candidates": []},
+    {"text": "#", "candidates": []}
+  ]
+}

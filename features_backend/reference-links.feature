@@ -1,0 +1,37 @@
+Feature: References are linked to each other and tagged with concepts, and a suggestion stays out of the graph until a person accepts it
+  A Reference can relate to another Reference, and can be tagged with a concept, which is a node in the knowledge graph.
+  Both are stored as one relation row. A link a person makes, or a rule derives, is current and the graph, the knowledge
+  query and the wiki see it. A link a machine suggests is only a suggestion: it is stored with the state suggested, so
+  every reader that asks for current links skips it, until a person accepts it. A person can also reject it, and the
+  rejection is kept so the same suggestion is not offered again. Whoever decided, when, and why are recorded on the row.
+  Writing the same link twice updates the one row. Tagging a Reference with a concept uses the "related to" relation;
+  the "mentions" relation stays for concepts the enrichment found in the text.
+
+  Background:
+    Given the References "reference-a", "reference-b" and the concept "node-voice"
+
+  Scenario: Linking two References twice leaves one link
+    When an editor links "reference-a" and "reference-b" as related
+    And an editor links "reference-b" and "reference-a" as related
+    Then there is exactly one link between them
+    And the link is current
+
+  Scenario: A suggestion is invisible to current queries until a person accepts it
+    When the newsroom suggests "reference-a" and "reference-b" as related with a similarity of 0.83
+    Then the link is a suggestion
+    And "reference-a" has no current links
+    When an editor accepts the link with the reason "same-topic"
+    Then "reference-a" has one current link
+    And the link records who decided and the reason "same-topic"
+
+  Scenario: A rejected suggestion is not offered again
+    Given the newsroom suggested "reference-a" and "reference-b" as related
+    When an editor rejects the link with the reason "off-topic"
+    And the newsroom suggests "reference-a" and "reference-b" as related with a similarity of 0.9
+    Then the link is rejected
+    And "reference-a" has no current links
+
+  Scenario: Tagging a Reference with a concept is a related-to link, not a mention
+    When an editor tags "reference-a" with the concept "node-voice"
+    Then the link goes from the Reference to the concept
+    And the link uses the "related_to" relation

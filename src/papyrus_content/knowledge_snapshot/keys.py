@@ -56,3 +56,50 @@ def contains_email(text: str | None) -> bool:
 
 def kind_label(kind: str) -> str:
     return kind.replace("-", " ").replace("_", " ").title()
+
+
+def concept_name_part(node_key: str) -> str:
+    """The name part of an entity key: ``concept--voice-cloning`` gives ``voice-cloning``. ``""`` when there is none."""
+    kind_part, separator, name_part = str(node_key or "").partition(KEY_SEPARATOR)
+    return name_part if kind_part and separator else ""
+
+
+def concept_hashtag(node_key: str) -> str:
+    """``#voice-cloning`` for ``concept--voice-cloning``. ``""`` when the key has no name part."""
+    name = concept_name_part(node_key)
+    return f"#{name}" if name else ""
+
+
+def concept_hashtag_label(node_key: str, all_node_keys: list[str]) -> str:
+    """The hashtag as shown: ``#translation``, or ``#translation (task)`` when another kind shares the name."""
+    hashtag = concept_hashtag(node_key)
+    if not hashtag:
+        return ""
+    name = concept_name_part(node_key)
+    sharing_kinds = {key for key in all_node_keys if key != node_key and concept_name_part(key) == name}
+    if not sharing_kinds:
+        return hashtag
+    kind_part = node_key.partition(KEY_SEPARATOR)[0]
+    return f"{hashtag} ({kind_part})"
+
+
+def concept_keys_for_hashtag(text: str, all_node_keys: list[str]) -> list[str]:
+    """The node keys a typed hashtag can mean: an exact key match first, then every key with that name.
+
+    ``#concept--voice-cloning`` names one key. ``#translation`` names every kind's ``translation``, sorted by key, and
+    ``#translation (task)`` narrows that to one kind.
+    """
+    typed = str(text or "").strip().lstrip("#").strip().casefold()
+    kind_filter = None
+    if typed.endswith(")") and " (" in typed:
+        typed, _, kind_text = typed[:-1].rpartition(" (")
+        kind_filter = kind_text.strip()
+    if not typed:
+        return []
+    exact = [key for key in all_node_keys if key.casefold() == typed]
+    if exact:
+        return exact[:1]
+    named = sorted(key for key in all_node_keys if concept_name_part(key).casefold() == typed)
+    if kind_filter is not None:
+        named = [key for key in named if key.partition(KEY_SEPARATOR)[0].casefold() == kind_filter]
+    return named
