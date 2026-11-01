@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "event_id": "8ae06ef9-e0e8-4c93-b43e-f9db0befffd6",
+  "issue_id": "PPY-4f5cd3d4-798a-4261-a53b-1aa33876d7e6",
+  "event_type": "dependency_added",
+  "occurred_at": "2026-11-01T18:16:54.201Z",
+  "actor_id": "home",
+  "payload": {
+    "dependency_type": "blocked-by",
+    "target_id": "PPY-06e2e8d1-5ab4-4347-8827-e51617f588b0"
+  }
+}

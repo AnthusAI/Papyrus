@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "b29f58e3-d5d0-45e6-920d-732bd074e6f7",
+  "issue_id": "PPY-ed0e7db0-55f3-407b-bfc9-6e6c096af86a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:37.353Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Add the design to docs/idea-context-packs.md",
+    "description": "Copy the design (comment on PPY-2e9064) into docs/idea-context-packs.md, with Ryan's four decisions in place of the open questions, and the decision that concept links use related_to (not mentions). Link it from docs/idea-pipeline.md and AGENTS.md's docs index. Ship in the first S1 PR.\nAcceptance: the doc renders; no \"open questions\" left that Ryan answered.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0b40ca61-d357-47cc-9d81-6627b05f6303",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

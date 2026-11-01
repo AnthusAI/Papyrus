@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "b331e4f7-9872-44a9-967d-f59577697897",
+  "issue_id": "PPY-2e906437-368b-49fa-b003-1369f1f7cae7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:13:38.202Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Ideas from context packs: themes, links, concepts and two dates",
+    "description": "placeholder",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}
