@@ -9,6 +9,7 @@ import {
   LIST_PROPOSALS,
   filterProposals,
   proposalReceiptMessage,
+  withoutStoryDrafts,
   type ProposalFilter,
   type ProposalMove,
   type ProposalRow,
@@ -30,7 +31,7 @@ export async function loadProposals(): Promise<ProposalRow[]> {
     nextToken = connection?.nextToken;
     if (!nextToken) break;
   }
-  return rows;
+  return withoutStoryDrafts(rows);
 }
 
 /** Core to every site: it does not depend on the reader-steering plugin. */

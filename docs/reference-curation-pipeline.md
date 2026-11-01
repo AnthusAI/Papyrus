@@ -341,7 +341,7 @@ Code: `src/papyrus_content/story_from_reference.py`.
    `consulted` and `cited` stay the roles for References read during reporting and cited in the text; a later link never weakens
    `based_on`. The newsroom story view (References) lists each Reference with its title, site, preview image, a link that opens it
    and a link to the original page, marked "Based on" in words and with an icon. The Reference view lists the stories based on it.
-2. **The story has its own content.** The body is seeded from our words: the cited body of the story draft, or a brief for the
+2. **The story has its own content.** The body is seeded from our words: the cited body of the generated idea (or of an older `story_draft` Proposal), or a brief for the
    copywriter. It is never the Reference's captured or extracted text, and it goes through the copywriting and copy-editing stages.
    **The copy guard** refuses to save a seeded body that shares `COPIED_RUN_WORDS` (12) or more consecutive words, ignoring case,
    punctuation and web addresses, with any captured text (`extracted_text` attachment) of a Reference it is based on
@@ -360,7 +360,7 @@ Paths that make a story from a Reference, and what each writes:
 | Path | Body | Image | Link |
 | --- | --- | --- | --- |
 | `papyrus references promote` (monitor record to a draft article) | a stub of the record's own facts | none (article) | `based_on` |
-| `story_from_story_draft` (an approved `story_draft` Proposal) | the draft's own cited body | post only | `based_on` for each `reference:` target |
+| `story_from_story_draft` (an approved `story_draft` Proposal filed before ideas became Items; new ideas are Items that move through the stages) | the draft's own cited body | post only | `based_on` for each `reference:` target |
 | `papyrus stories create --reference ID` and the Tactus `papyrus_create_story(based_on_references=...)` | the story's summary, as before | none | `based_on` |
 | `papyrus assignments run-copywriting` (reporting packet to draft) | the packet's own facts, copy-checked | none | `based_on` for the packet's accepted References |
 

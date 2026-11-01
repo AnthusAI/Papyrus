@@ -5,36 +5,41 @@
  *   reference          a pending Reference                          reads the Reference, the Cyclotron's decision on it, its preview
  *   incomplete_capture a pending Reference whose captured text is   reads the same, plus the Reference's capture status (the
  *                      missing or cut off                            `curation` card, else the extracted-text attachments)
- *   draft              one AI draft in an open draft review          reads the review request and the Proposal (headline, dek, sources)
+ *   idea_batch         one batch of generated story ideas            reads the review request and the titles of the ideas it names;
+ *                      with an idea still in the Idea column         the ideas are decided on the Stories board, not here
  *   stage_review       an open hard gate or soft review that is      reads the review request (reason, ask, deadline, subject) and the
- *                      not about drafts                              subject story's title and excerpt
+ *                      not about ideas                               subject story's title and excerpt
  *   flag               an open flag                                  reads the review request
  *   held_email         an email submission held for review           reads the monitoring email summary (subject, sender, verdicts)
  *   concept_proposal   a proposed taxonomy concept or reader         STUB: typed, returns nothing until those sources reach the page
  *                      proposal
  */
 import type { ReferenceRecord } from "./category-repository";
+import { getNewsroomNavHref } from "./newsroom-nav";
 import type { MonitoringEmailSummary } from "./monitoring-overview";
-import { buildNotificationItems, draftPicture, requestSource, type DraftItem, type RequestItem } from "./notification-feed";
+import { buildNotificationItems, requestSource, type RequestItem } from "./notification-feed";
 import { referenceDisplayTitle, referenceLineageId } from "./newsroom-references";
 import { normalizeReferenceCurationStatus } from "./reference-policy";
 import { dekAddsInformation, referenceDek, referenceSourceHost, type ReferencePreview } from "./reference-preview";
 import { referenceArrivalTime, referenceDisplayTime } from "./reference-feed-ranking";
 import type { CaptureStatus } from "./reference-capture";
 import type { RelevanceDecisionView } from "./relevance-decisions";
-import type { DraftView } from "./review-drafts";
-import { nextText, type ReviewRequest } from "./review-requests";
+import { ideaIdsOf, ideasBoardHref, nextText, type ReviewRequest } from "./review-requests";
 import { predictionOf, uncertaintyOf, type NeedsMeCounts, type NeedsMeDecisionState, type NeedsMeItem } from "./needs-me-ranking";
 
 export type NeedsMePayload =
   | { kind: "reference"; reference: ReferenceRecord; lineageId: string; decision: RelevanceDecisionView | undefined; preview: ReferencePreview | undefined; capture: CaptureStatus | undefined; displayTime: number | null }
-  | { kind: "draft"; item: DraftItem; loading: boolean }
+  | { kind: "ideas"; request: ReviewRequest; ideas: IdeaListing[]; boardHref: string }
   | { kind: "request"; request: ReviewRequest; storyTitle: string | null; excerpt: string | null; storyDeleted: boolean }
   | { kind: "email"; summary: MonitoringEmailSummary }
   | { kind: "concept"; row: ConceptProposalRow };
 
+/** One idea of a batch, as the card lists it: its title (the id until the title is read) and the stage it is in. */
+export type IdeaListing = { id: string; title: string; stage: string | null; href: string };
+
 export type NeedsMeEntry = NeedsMeItem<NeedsMePayload>;
 
+const IDEA_BATCH_DEK = "They wait in the Idea column of the Stories board.";
 const ACCEPT_WORD = { accept: "Accept", reject: "Reject" } as const;
 
 function timeOf(value: string | null | undefined): number | null {
@@ -113,32 +118,35 @@ export function referenceItems(input: ReferenceSources): NeedsMeEntry[] {
   return items;
 }
 
-// --- drafts, stories, flags -------------------------------------------------------------------------------------
+// --- idea batches, stories, flags -------------------------------------------------------------------------------------
 
 function choiceState(choice: "accept" | "reject" | null | undefined): NeedsMeDecisionState {
   return choice === "accept" ? "accepted" : choice === "reject" ? "rejected" : "open";
 }
 
-export function draftItem(item: DraftItem, bySource: ReadonlyMap<string, ReferencePreview>): NeedsMeEntry {
-  const { view, request } = item;
-  const picture = draftPicture(view, bySource);
-  const link = request.links.find((entry) => entry.id === item.draftId);
+/** A batch of generated story ideas: one item that points at the Idea column. It is never decided here, so it has no Accept or Reject. */
+export function ideaBatchItem(item: RequestItem, context: { titles: Readonly<Record<string, string>>; stages: Readonly<Record<string, string>>; demo: boolean }): NeedsMeEntry {
+  const { request } = item;
+  const ideas = ideaIdsOf(request).map((id) => ({
+    id, title: context.titles[id] ?? request.links.find((link) => link.id === id)?.label ?? id, stage: context.stages[id] ?? null,
+    href: getNewsroomNavHref(`/newsroom/articles/${encodeURIComponent(id)}`, context.demo),
+  }));
   return {
-    type: "draft",
-    id: item.key,
-    title: view?.headline ?? link?.label ?? "Draft",
-    dek: view ? view.dek : "Loading the Proposed Story…",
-    image: picture.imageUrl,
-    source: picture.siteName ?? picture.host ?? (view ? `AI ${view.kindLabel.toLowerCase()}` : "Proposed Story"),
-    host: picture.host,
+    type: "idea_batch",
+    id: request.id,
+    title: request.reason,
+    dek: IDEA_BATCH_DEK,
+    image: null,
+    source: requestSource(request),
+    host: null,
     createdAt: timeOf(request.raisedAt),
     importance: 1,
     uncertainty: uncertaintyOf(undefined),
-    decisionState: choiceState(item.decision?.choice),
+    decisionState: "open",
     defaultOutcome: nextText(request),
-    hardGate: request.mode === "hard_gate",
+    hardGate: false,
     askedForReview: true,
-    payload: { kind: "draft", item, loading: !view },
+    payload: { kind: "ideas", request, ideas, boardHref: ideasBoardHref(context.demo) },
   };
 }
 
@@ -239,12 +247,11 @@ export function conceptProposalItems(_rows: readonly ConceptProposalRow[]): Need
 
 export type NeedsMeSources = ReferenceSources & {
   requests: ReviewRequest[];
-  drafts: Readonly<Record<string, DraftView | undefined>>;
-  missingDrafts: ReadonlySet<string>;
-  draftsState: "loading" | "ready" | "failed";
-  /** Draft keys and request ids decided in this visit. */
+  /** Request ids kept on screen in this visit. */
   stay: ReadonlySet<string>;
-  bySource: ReadonlyMap<string, ReferencePreview>;
+  demo?: boolean;
+  /** The stage of each idea named by an open batch, by lineage id, once read. */
+  ideaStages?: Readonly<Record<string, string>>;
   storyTitles: Readonly<Record<string, string>>;
   storyExcerpts: Readonly<Record<string, string>>;
   deletedStories: ReadonlySet<string>;
@@ -255,13 +262,12 @@ export type NeedsMeSources = ReferenceSources & {
 
 /** Every source, as one list of items (unordered: `rankNeedsMe` orders it). */
 export function buildNeedsMeItems(sources: NeedsMeSources): NeedsMeEntry[] {
-  const fromRequests = buildNotificationItems({
-    requests: sources.requests, drafts: sources.drafts, missingDrafts: sources.missingDrafts, draftsState: sources.draftsState, stay: sources.stay,
-  });
+  const fromRequests = buildNotificationItems({ requests: sources.requests, ideaStages: sources.ideaStages, stay: sources.stay });
   const context = { titles: sources.storyTitles, excerpts: sources.storyExcerpts, deleted: sources.deletedStories };
+  const ideaContext = { titles: sources.storyTitles, stages: sources.ideaStages ?? {}, demo: Boolean(sources.demo) };
   return [
     ...referenceItems(sources),
-    ...fromRequests.drafts.map((item) => draftItem(item, sources.bySource)),
+    ...fromRequests.ideas.map((item) => ideaBatchItem(item, ideaContext)),
     ...fromRequests.reviews.map((item) => requestItem(item, context)),
     ...fromRequests.flags.map((item) => requestItem(item, context)),
     ...heldEmailItems(sources.emails, sources.emailsDecided),
@@ -273,10 +279,10 @@ function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** "3 Proposed Stories and 12 references waiting for you"; "All caught up" when nothing waits. */
+/** "2 idea batches and 12 references waiting for you"; "All caught up" when nothing waits. */
 export function waitingTextFor(counts: NeedsMeCounts): string {
   const parts = [
-    counts.drafts ? plural(counts.drafts, "Proposed Story", "Proposed Stories") : null,
+    counts.ideas ? plural(counts.ideas, "idea batch", "idea batches") : null,
     counts.references ? plural(counts.references, "reference") : null,
     counts.stories ? plural(counts.stories, "story review") : null,
     counts.email ? plural(counts.email, "held email", "held emails") : null,

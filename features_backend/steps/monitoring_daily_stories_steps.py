@@ -24,6 +24,12 @@ from test_monitor_stories import MonitorClient, decision  # noqa: E402
 
 def before_scenario_environment():
     os.environ["PAPYRUS_GRAPHQL_AUTH"] = "iam"   # the router Lambda's setting
+    # The router files ideas through ItemStore; these scenarios read what was filed from the fake backend, so the sink is its recording double.
+    from unittest import mock
+
+    from fake_idea_store import FakeIdeaStore
+
+    mock.patch("papyrus_content.ideas.items.ItemStore", lambda client, **options: FakeIdeaStore(client)).start()
 
 
 def state(context):
@@ -126,7 +132,7 @@ def step_slow(context, seconds, total):
     held.left = lambda: held.slow.left
 
 
-@given("the backend refuses to file proposals")
+@given("the backend refuses to file ideas")
 def step_refuse(context):
     client = state(context).clients[state(context).publications[0]]
     original = client.graphql

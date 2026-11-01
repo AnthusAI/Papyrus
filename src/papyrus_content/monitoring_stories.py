@@ -2,8 +2,8 @@
 
 The router task ``{"task": "monitor-stories"}`` writes a short cited story draft for every accepted, monitored Reference of each publication
 that has none yet: the library behind ``papyrus ideas monitor-stories`` (``ideas/monitor_stories.py``), run in process with
-``limit=None``, so nothing but a real constraint stops it. A draft is a private ``story_draft`` Proposal; one soft review request per
-publication and run asks the editors to look. Nothing is published, and a Reference is never drafted twice.
+``limit=None``, so nothing but a real constraint stops it. A draft is a private Item at the ``idea`` stage; one soft review request per
+publication and run asks the editors to look, and links the Idea column of the Stories board. Nothing is published, and a Reference is never drafted twice.
 
 It is on for every publication. A publication's router entry turns it off with ``"monitorStories": {"enabled": false}``.
 
@@ -29,7 +29,7 @@ from typing import Any
 # monitor-stories task needs them.
 
 POLICY_KEYS = ("enabled", "store")
-STORES = ("proposals", "items")   # where a draft is filed: a story_draft Proposal (default, until the router role may write Items) or an Item at the idea stage
+STORES = ("items",)   # where a draft is filed: an Item at the idea stage. "proposals" (a story_draft Proposal) was removed; a router entry that still says it is read as "items".
 MAXIMUM_COST_USD = 0.50   # per publication and run; see the module docstring
 READ_WORKERS = 8   # References of one publication read at a time: the API's throughput, not a limit on the work (a site with thousands of accepted
 #                    References needs two queries each, and read one by one that alone would take most of the Lambda's time)
@@ -39,7 +39,7 @@ REAL_EXPLORER = object()   # `explorer` default: follow the item's link and, fai
 def validate_monitor_stories(publication_id: str, raw: Any) -> dict[str, Any]:
     """The normalized ``monitorStories`` setting of a router publication. Absent means ON; ``{"enabled": false}`` turns it off."""
     if raw is None:
-        return {"enabled": True, "store": "proposals"}
+        return {"enabled": True, "store": "items"}
     if not isinstance(raw, dict):
         raise ValueError(f"router publication {publication_id} has an invalid monitorStories (an object is needed)")
     unknown = sorted(set(raw) - set(POLICY_KEYS))
@@ -48,7 +48,9 @@ def validate_monitor_stories(publication_id: str, raw: Any) -> dict[str, Any]:
     enabled = raw.get("enabled", True)
     if not isinstance(enabled, bool):
         raise ValueError(f"router publication {publication_id} monitorStories.enabled must be true or false")
-    store = raw.get("store", "proposals")
+    store = raw.get("store", "items")
+    if store == "proposals":   # the removed store: the entry was written before ideas became Items
+        store = "items"
     if store not in STORES:
         raise ValueError(f"router publication {publication_id} monitorStories.store must be {' or '.join(STORES)}")
     return {"enabled": enabled, "store": store}
@@ -83,11 +85,11 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
     from .ideas import monitor_stories
     from .ideas.context import load_context
     from .ideas.items import ItemStore
-    from .ideas.store import ProposalStore
+    from .ideas.store import legacy_story_drafts
 
     run = monitor_stories.draft_monitor_stories(
         client=client, site=publication["publicationId"], corpus_key=publication["corpusKey"],
-        context=load_context(client, now=now), json_store=None, proposal_store=ItemStore(client, legacy=ProposalStore(client).story_drafts) if (publication.get("monitorStories") or {}).get("store") == "items" else ProposalStore(client), review_client=client,
+        context=load_context(client, now=now), json_store=None, idea_store=ItemStore(client, legacy=lambda: legacy_story_drafts(client)), review_client=client,
         transport=transport, limit=None, dry_run=False, now=now, fetch=fetch or monitor_stories.fetch_source,
         explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer, out_of_time=out_of_time,
         maximum_cost_usd=maximum_cost_usd, read_workers=READ_WORKERS, automation_handled=handled_references)

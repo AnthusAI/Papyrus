@@ -1,6 +1,6 @@
 ---
 name: copywriting
-description: Turn Papyrus reporting and References into reader-facing story copy for a publication — evidence-first, in the publication's voice, attributed to AI, checked against the site's editorial policies before every save, saved as a new version, never published. Use when writing or rewriting a story, a Proposed Story's body, or a trend story drawn from several References.
+description: Turn Papyrus reporting and References into reader-facing story copy for a publication — evidence-first, in the publication's voice, attributed to AI, checked against the site's editorial policies before every save, saved as a new version, never published. Use when writing or rewriting a story, the body of a story that started as an idea, or a trend story drawn from several References.
 ---
 
 # Copywriting

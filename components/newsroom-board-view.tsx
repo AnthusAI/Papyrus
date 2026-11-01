@@ -35,8 +35,6 @@ import { NewsroomBoardSkeleton } from "./newsroom-board-skeleton";
 import { NewsroomArticleEditor } from "./newsroom-article-editor";
 import { NewsroomAssignmentDetail } from "./newsroom-assignment-detail";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
-import { loadProposals } from "./proposals-panel";
-import { filterProposals } from "../lib/proposals-admin";
 import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
 
 /** A board with a story or assignment open lives at `?open=<id>`, distinct from the standalone page for that record. */
@@ -66,7 +64,6 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const [assignmentBoardIssues, setAssignmentBoardIssues] = useState<NativeBoardIssue[]>([]);
   const [publishedVersions, setPublishedVersions] = useState<ContentItemVersionRecord[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRecord[]>([]);
-  const [openProposedStoryCount, setOpenProposedStoryCount] = useState(0);
   const [view, setView] = useState<"board" | "list">("board");
   const router = useRouter();
   const pathname = usePathname();
@@ -96,15 +93,6 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
     .filter(definition => definition.collapsedUntilOpened && !columnState.collapsedColumns.has(`${contentItemColumnKeyPrefix}${definition.key}`))
     .map(definition => definition.key), [contentItemColumnKeyPrefix, columnState.collapsedColumns, showsContentItems]);
   const pagedContentItems = usePagedContentItemVersions({ enabled: allowed && showsContentItems, openedCollapsedUntilOpenedStages });
-  // The older Proposed Stories page stays reachable only while story_draft Proposals still wait for a decision.
-  useEffect(() => {
-    if (!allowed || subject !== "contentItem" || isLocalPreviewEnabled()) return;
-    let cancelled = false;
-    loadProposals().then(rows => {
-      if (!cancelled) setOpenProposedStoryCount(filterProposals(rows.filter(row => row.kind === "story_draft"), "open").length);
-    }).catch(() => { if (!cancelled) setOpenProposedStoryCount(0); });
-    return () => { cancelled = true; };
-  }, [allowed, subject]);
   useEffect(() => {
     setLowMotion(readLocalReaderSettings().motion === "low");
     return subscribeReaderSettingsChanges(settings => setLowMotion(settings.motion === "low"));
@@ -175,11 +163,6 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
     headerActions={<>
       {!loading ? <span role="status" className="organizer-board-note">{issues.length} records loaded.</span> : null}
       <div role="group" aria-label="Record presentation" className="organizer-board-view-toggle"><button type="button" className="organizer-header-button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" className="organizer-header-button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
-      {subject === "contentItem" && openProposedStoryCount > 0 && (
-        <Link className="organizer-header-button" data-newsroom-proposed-stories href={getNewsroomNavHref("/newsroom/administration/proposals")}>
-          {`${openProposedStoryCount} older Proposed ${openProposedStoryCount === 1 ? "Story" : "Stories"}`}
-        </Link>
-      )}
       {showsContentItems && (
         <Link className="organizer-header-button" data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
           <PlusIcon size={14} aria-hidden="true" />

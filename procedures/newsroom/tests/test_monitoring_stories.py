@@ -16,6 +16,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import test_monitoring_router as tr  # noqa: E402
+from fake_idea_store import FakeIdeaStore  # noqa: E402
 from ideas_fixtures import NOW  # noqa: E402
 from test_monitor_stories import StoryModel, pages, provenance, world  # noqa: E402
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient  # noqa: E402
@@ -29,6 +30,12 @@ PUBLICATION = "example-site"   # the fixtures' corpus is knowledge-corpus-exampl
 @pytest.fixture(autouse=True)
 def iam_auth(monkeypatch):
     monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")   # the router Lambda's setting: earlier drafts are read through listStoryDrafts
+
+
+@pytest.fixture(autouse=True)
+def fake_idea_sink(monkeypatch):
+    """The router files ideas through ``ItemStore``; these tests read what was filed from the fake backend, so the sink is its recording double (ItemStore itself: test_idea_items.py)."""
+    monkeypatch.setattr("papyrus_content.ideas.items.ItemStore", lambda client, **options: FakeIdeaStore(client))
 
 
 def router(publications=(PUBLICATION,), settings=None):
@@ -302,10 +309,11 @@ def test_a_read_that_runs_out_of_time_leaves_the_rest_unread_and_says_so():
 
 
 def test_monitor_stories_is_on_by_default_and_the_setting_is_validated():
-    assert validate_monitor_stories("p", None) == {"enabled": True, "store": "proposals"}
-    assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "proposals"}
-    assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "proposals"}
+    assert validate_monitor_stories("p", None) == {"enabled": True, "store": "items"}   # ideas are Items at the idea stage by default
+    assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "items"}
+    assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "items"}
     assert validate_monitor_stories("p", {"store": "items"}) == {"enabled": True, "store": "items"}
+    assert validate_monitor_stories("p", {"store": "proposals"}) == {"enabled": True, "store": "items"}   # a router entry written before ideas became Items still validates
     for bad in ({"enabled": "no"}, {"limit": 3}, {"store": "files"}, "off", []):
         with pytest.raises(ValueError):
             validate_monitor_stories("p", bad)

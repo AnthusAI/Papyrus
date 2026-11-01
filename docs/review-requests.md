@@ -26,7 +26,7 @@ An answer is `approve`, `acknowledge` (a flag only: nothing was approved, the ed
 | `deadline` | Soft reviews only, and only when the caller passes one. Empty means no expiry. |
 | `state` | `open`, `answered`, `timed_out`, `withdrawn`. |
 | `answer` | `{decision, feedback, steer, by, at}`. |
-| `links` | Items in the request (for a batch, each proposal) or URLs. |
+| `links` | Items in the request or URLs. For a batch these are the ideas filed in that run, as `story` links by lineage id (older batches linked Proposals). |
 | `history` | The audit trail of this request: raised, answered, timed_out ("proceeded without review"), applied, withdrawn. |
 | `appliedIn` | `{runId, by, at}`: the run that used the steering. |
 
@@ -82,13 +82,15 @@ for note in rr.steering_for(client, raised_by="idea-pipeline"):    # answered wi
 Synthesis raises ONE soft review per run:
 
 ```python
-rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id=run_id, proposal_ids=[p["id"] for p in proposals])
-# reason: "3 new story ideas to review"; subject {type: batch, id: run_id}; each proposal is a link;
+rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id=run_id, idea_ids=[idea["itemLineageId"] for idea in ideas])
+# reason: "3 new story ideas to review"; subject {type: batch, id: run_id}; each idea is a `story` link;
 # no deadline unless deadline_days=... is passed; idempotent per batch_id.
 ```
 
+The batch is decided on the Stories board, not on the request: an editor accepts an idea by moving it forward and declines it by moving it to `spiked` with a reason. In the Notification Center the batch is one card with a link to the Idea column and no Accept or Reject ([notification-center.md](notification-center.md)). The next run reads those stage moves as feedback.
+
 At the start of the next synthesis (and digest) run, call `steering_for(client, raised_by="idea-pipeline")` and feed the feedback in as input,
-then `mark_applied`. A rejected batch comes back as a steering entry with `decision: "reject"`.
+then `mark_applied`. A batch that was answered on the request itself comes back as a steering entry (for example with `decision: "reject"`).
 
 ## CLI
 

@@ -19,7 +19,8 @@ from papyrus_content import review_requests  # noqa: E402
 from papyrus_content.ideas import digest as digest_module  # noqa: E402
 from papyrus_content.ideas.context import load_context  # noqa: E402
 from papyrus_content.ideas.pipeline import RunRefused, synthesize  # noqa: E402
-from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
+from papyrus_content.ideas.store import JsonStore  # noqa: E402
+from procedures.newsroom.tests.fake_idea_store import FakeIdeaStore  # noqa: E402
 
 PUBLISHED = "Prompt injection breaks AI agents"
 DECK = "A study shows agents obey instructions hidden in web pages."
@@ -158,11 +159,11 @@ def run(context, **options):
         context.digest_for_run = build_digest(context)
     context.model = FakeModel(context.model_ideas, *context.tokens)
     store = JsonStore(directory_of(context) / "ideas")
-    proposal_store = ProposalStore(client_of(context)) if options.pop("proposals", False) else None
+    idea_store = FakeIdeaStore(client_of(context)) if options.pop("proposals", False) else None
     try:
         context.run = synthesize(
             digest=context.digest_for_run, context=load_context(client_of(context), now=NOW), json_store=store, transport=context.model,
-            proposal_store=proposal_store, review_client=client_of(context) if options.get("reviews") else None, feedback=context.feedback, now=options.get("now", NOW), maximum_cost_usd=options.get("cost_cap", context.cost_cap),
+            idea_store=idea_store, review_client=client_of(context) if options.get("reviews") else None, feedback=context.feedback, now=options.get("now", NOW), maximum_cost_usd=options.get("cost_cap", context.cost_cap),
         )
         context.refused = None
     except RunRefused as error:
@@ -210,7 +211,7 @@ def step_synthesize_feedback(context):
     run(context)
 
 
-@when("the operator synthesizes ideas from the digest into the site's proposals")
+@when("the operator synthesizes ideas from the digest into the site's ideas")
 def step_synthesize_proposals(context):
     context.digest_for_run = None
     run(context, proposals=True)
@@ -265,20 +266,20 @@ def step_feedback_shown(context):
     assert context.model.model_input["reviewer_feedback"] == context.feedback
 
 
-@then("{count:d} draft story proposals are filed")
+@then("{count:d} ideas are filed")
 def step_filed(context, count):
     filed = [row for row in client_of(context).proposals if "kind" in row]
     assert len(filed) == count and all(row["kind"] == "story_draft" for row in filed), filed
 
 
-@then("the draft story proposal targets the first two references")
+@then("the idea targets the first two references")
 def step_targets(context):
     filed = [row for row in client_of(context).proposals if "kind" in row]
     wanted = [{"type": "entity", "id": f"reference:{entry['lineageId'] or entry['id']}"} for entry in context.digest_for_run["references"][:2]]
     assert len(filed) == 1 and json.loads(filed[0]["targets"]) == wanted, filed
 
 
-@then("no request to publish proposals is made")
+@then("no request to publish ideas is made")
 def step_no_publish(context):
     assert "publish" not in json.dumps(client_of(context).calls).lower()
 

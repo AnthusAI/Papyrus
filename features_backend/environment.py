@@ -46,7 +46,11 @@ def before_scenario(context, scenario):
 
 
 def after_scenario(context, scenario):
+    from unittest import mock
+
     from papyrus_content import cli_user_auth
+
+    mock.patch.stopall()   # patches a scenario started and did not stop (the router's idea sink double)
 
     cli_user_auth.site_enrolls = context.real_site_enrolls
     if OPERATOR_TAG in scenario.effective_tags:

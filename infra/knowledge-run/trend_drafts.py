@@ -1,7 +1,7 @@
 """Optional last step of the scheduled knowledge run: draft trend stories from the fresh snapshot (docs/knowledge-cloud-run.md).
 
-Runs `papyrus ideas trends --site <publication> --snapshot <published index.json> --store proposals --max 2` once, after the
-run's projection has published the snapshot. It files private `story_draft` Proposals and raises one soft review request;
+Runs `papyrus ideas trends --site <publication> --snapshot <published index.json> --store items --max 2` once, after the
+run's projection has published the snapshot. It files private ideas (Items at the `idea` stage) and raises one soft review request;
 nothing is published.
 
 This script never fails the run: every problem is logged as `trend-drafts: skipped: <reason>` or `trend-drafts: failed: <reason>`
@@ -108,7 +108,7 @@ def exclude_flags(environment: Mapping[str, str]) -> list[str]:
 
 
 def trends_command(publication: str, snapshot_url: str, maximum: int, excluded_hosts: list[str] | None = None) -> list[str]:
-    return ["papyrus", "ideas", "trends", "--site", publication, "--snapshot", snapshot_url, "--store", "proposals", "--max", str(maximum), *(excluded_hosts or [])]
+    return ["papyrus", "ideas", "trends", "--site", publication, "--snapshot", snapshot_url, "--store", "items", "--max", str(maximum), *(excluded_hosts or [])]
 
 
 def run(environment: Mapping[str, str], *, fetch: Callable[[str], str | None] = fetch_as_of, sleep: Callable[[float], None] = time.sleep,

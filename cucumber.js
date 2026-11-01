@@ -41,7 +41,7 @@ module.exports = {
     format: ["summary"],
   },
   newsroomUxReview: {
-    paths: ["features/newsroom-board-and-proposals.feature"],
+    paths: ["features/newsroom-board-and-ideas.feature"],
     require: ["features/step_definitions/newsroom-ux-review.steps.js"],
     format: ["summary"],
   },

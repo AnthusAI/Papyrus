@@ -3,7 +3,7 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
   A monitor delivers pending References into a publication. Editors accept some, and the automatic acceptance accepts the confident ones
   nobody voted on. Once a day, at a quiet hour, the monitoring router runs the task "monitor-stories": for each publication it writes a
   short cited story draft from every accepted, monitored Reference that has no draft yet, ranked by the relevance Cyclotron's verdict so the
-  best items go first. A draft is a private story_draft Proposal that cites its source, and each publication gets one soft review request
+  best items go first. A draft is a private idea (an Item at the idea stage) that cites its source, and each publication gets one soft review request
   per run; nothing is published, and an editor approves the copy. A Reference is never drafted twice. The task does not need the
   knowledge-run stack, and it is on for every publication unless the publication's router entry says "monitorStories": {"enabled": false}.
   There is no fixed number of drafts per run. The run is bounded only by real constraints: the Lambda's remaining time, shared equally by
@@ -102,7 +102,7 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
 
   Scenario: A draft that cannot be filed stops the publication before more money is spent
     Given 4 accepted References that the "hn" monitor delivered
-    And the backend refuses to file proposals
+    And the backend refuses to file ideas
     When the router runs its daily monitor stories
     Then the model was asked exactly once
     And the log line for "example-site" says drafted 0 and stoppedBy "file_error"

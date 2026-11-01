@@ -15,8 +15,7 @@ async function main() {
   const { buildNeedsMeItems } = await import("../lib/needs-me-items");
   const { RequestBody } = await import("../components/needs-me-bodies");
   const [item] = buildNeedsMeItems({
-    references: [], decisions: undefined, previews: new Map(), captures: undefined, visitRated: new Set(), requests: [input.request], drafts: {}, missingDrafts: new Set(),
-    draftsState: "ready", stay: new Set([input.request.id]), bySource: new Map(), storyTitles: input.storyTitles ?? {}, storyExcerpts: {},
+    references: [], decisions: undefined, previews: new Map(), captures: undefined, visitRated: new Set(), requests: [input.request], stay: new Set([input.request.id]), storyTitles: input.storyTitles ?? {}, storyExcerpts: {},
     deletedStories: new Set(input.deletedStories ?? []), emails: [], emailsDecided: new Map(),
   });
   const html = renderToStaticMarkup(createElement(RequestBody, {

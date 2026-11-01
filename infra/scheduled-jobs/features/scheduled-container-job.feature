@@ -40,7 +40,7 @@ Feature: Scheduled container jobs
     Then one more task, trend-drafts, runs after projection and runs the job script baked into the image
     And the script waits briefly for the published index.json to show the run week's Monday as its asOf
     And a snapshot that is still stale after those attempts is skipped with the reason in the log, and nothing is drafted
-    And a fresh snapshot is read once by "papyrus ideas trends --store proposals --max 2" with IAM authentication against the endpoint
+    And a fresh snapshot is read once by "papyrus ideas trends --store items --max 2" with IAM authentication against the endpoint
     And the OpenAI key is read from the SSM SecureString by the task role at run time and is only in the environment of that command
     And the run files private story_draft Proposals, raises one soft review request and publishes nothing
 
@@ -62,7 +62,7 @@ Feature: Scheduled container jobs
     And trend-drafts continues into the Run-monitor-stories choice, also when trend-drafts is switched off
     And when MonitorStoriesEnabled is "true", one more task, monitor-stories, runs the job script baked into the image with the AppSync endpoint of trend-drafts
     And the task gets MONITOR_STORIES_LIMIT 2, and 3 when the block gives no limit
-    And the script calls "papyrus ideas monitor-stories --store proposals" with IAM authentication and writes its own ledger row with its cost
+    And the script calls "papyrus ideas monitor-stories --store items" with IAM authentication and writes its own ledger row with its cost
     And it publishes nothing, it files private story_draft Proposals and raises one soft review request
 
   Scenario: monitor stories are off until switched on and never fail the run

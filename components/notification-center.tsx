@@ -3,11 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category-repository";
 import type { EmailDecisionResult, MonitoringEmailDetails, MonitoringEmailSummary } from "../lib/monitoring-overview";
-import { proposalReceiptMessage, stateLabel, type ProposalReceipt } from "../lib/proposals-admin";
-import type { DraftLoad, ReviewLoad } from "../lib/review-client";
-import { acceptPath, batchAnswer, draftDecisionOf, draftReasonUpdate, draftView, rejectPath, undecidedDraftIds, withDecision, draftDecisionUpdate, type DraftChoice, type DraftView } from "../lib/review-drafts";
-import { previewsBySourceAddress, recentDecisions } from "../lib/notification-feed";
-import { answerReasonUpdate, answerUpdate, applyReviewUpdate, cyclotronAutoDecided, draftIdsOf, isDraftReview, sectionReviews, type AnswerInput, type DraftDecision, type ReviewRequest } from "../lib/review-requests";
+import type { ReviewLoad } from "../lib/review-client";
+import { recentDecisions } from "../lib/notification-feed";
+import { answerReasonUpdate, answerUpdate, applyReviewUpdate, cyclotronAutoDecided, ideaIdsOf, isIdeaBatch, type AnswerInput, type ReviewRequest } from "../lib/review-requests";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { learnConfidenceThreshold, shapingThisWeek } from "../lib/needs-me-ranking";
 import { buildNeedsMeItems } from "../lib/needs-me-items";
@@ -18,17 +16,16 @@ import { referenceLineageId } from "../lib/newsroom-references";
 import { loadNotificationSnapshot, saveNotificationSnapshot } from "../lib/reference-feed-cache";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { SITE_BRAND } from "../lib/site-brand";
-import { FIXTURE_DRAFTS, FIXTURE_EMAIL_DETAILS, FIXTURE_HELD_EMAILS, FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
+import { FIXTURE_IDEAS, FIXTURE_EMAIL_DETAILS, FIXTURE_HELD_EMAILS, FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
 import { NeedsMeView, type NeedsMeDecision } from "./needs-me-feed";
 import type { NeedsMeEntry } from "../lib/needs-me-items";
 import type { CorrectCaptureAction } from "./reference-capture-client";
 import type { ReviewChoice } from "./reference-review-card";
 
 export type NotificationLoadState = "loading" | "ready" | "forbidden" | "unavailable";
-export type DraftsLoadState = "loading" | "ready" | "failed";
 
 /** What a real-data preview shows instead of the invented sample (scripts/export-notification-center-fixture.py). */
-export type NotificationFixture = { requests: ReviewRequest[]; drafts: Parameters<typeof draftView>[0][]; emails?: MonitoringEmailSummary[] };
+export type NotificationFixture = { requests: ReviewRequest[]; emails?: MonitoringEmailSummary[] };
 
 const NO_VISIT: ReadonlySet<string> = new Set();
 const NO_PREVIEWS: ReadonlyMap<string, ReferencePreview> = new Map();
@@ -37,14 +34,12 @@ const NO_ATTACHMENTS: ReferenceAttachmentRecord[] = [];
 /** Everything the container reads and writes. The live one talks to the site's data API; tests pass a fake. */
 export type NotificationApi = {
   loadReviews: () => Promise<ReviewLoad>;
-  loadDrafts: (ids: string[]) => Promise<DraftLoad>;
-  loadStoryTitles: (ids: string[]) => Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string> }>;
+  /** Titles and current stages of the stories and ideas the requests name, by lineage id. */
+  loadStoryTitles: (ids: string[]) => Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string>; stages?: Record<string, string> }>;
   answerReviewRequest: (request: ReviewRequest, input: AnswerInput, by: string) => Promise<ReviewRequest>;
-  saveDraftDecision: (request: ReviewRequest, draftId: string, decision: DraftDecision) => Promise<ReviewRequest>;
-  /** Changes only the Why of a draft or request that is already decided (`draftReasonUpdate`, `answerReasonUpdate`). Returns the saved request. */
+  /** Changes only the note of a request that is already answered (`answerReasonUpdate`). Returns the saved request. */
   saveReviewReason: (request: ReviewRequest, update: Record<string, unknown>) => Promise<ReviewRequest>;
   markReviewRead: (userKey: string, requestId: string) => Promise<void>;
-  transitionProposalPath: (proposalId: string, path: readonly string[]) => Promise<ProposalReceipt>;
   /** Email submissions held for review (Monitoring's own read). Optional: a site without monitoring has none. */
   loadHeldEmails?: () => Promise<MonitoringEmailSummary[]>;
   loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
@@ -53,13 +48,10 @@ export type NotificationApi = {
 
 const liveApi: NotificationApi = {
   loadReviews: async () => (await import("../lib/review-client")).loadReviews(),
-  loadDrafts: async (ids) => (await import("../lib/review-client")).loadDrafts(ids),
   loadStoryTitles: async (ids) => (await import("../lib/review-client")).loadStoryTitles(ids),
   answerReviewRequest: async (request, input, by) => (await import("../lib/review-client")).answerReviewRequest(request, input, by),
-  saveDraftDecision: async (request, draftId, decision) => (await import("../lib/review-client")).saveDraftDecision(request, draftId, decision),
   saveReviewReason: async (request, update) => (await import("../lib/review-client")).saveReviewReason(request, update),
   markReviewRead: async (userKey, requestId) => (await import("../lib/review-client")).markReviewRead(userKey, requestId),
-  transitionProposalPath: async (proposalId, path) => (await import("../lib/proposals-client")).transitionProposalPath(proposalId, path),
   loadHeldEmails: async () => {
     const { loadMonitoringPage } = await import("../lib/monitoring-client");
     const rows: MonitoringEmailSummary[] = [];
@@ -79,19 +71,16 @@ const liveApi: NotificationApi = {
 /** The demo and the real-data preview answer in memory with the same rules as the live data API; nothing leaves the page. */
 const demoApi: NotificationApi = {
   loadReviews: async () => ({ state: "unavailable" }),
-  loadDrafts: async () => ({ drafts: {}, missing: [], failed: [] }),
-  loadStoryTitles: async () => ({ titles: {}, deleted: [] }),
+  loadStoryTitles: async (ids) => ({
+    titles: Object.fromEntries(FIXTURE_IDEAS.filter((idea) => ids.includes(idea.id)).map((idea) => [idea.id, idea.title])), deleted: [],
+    stages: Object.fromEntries(FIXTURE_IDEAS.filter((idea) => ids.includes(idea.id)).map((idea) => [idea.id, idea.stage])),
+  }),
   answerReviewRequest: async (request, input, by) => {
     const update = answerUpdate(request, input, by, new Date());
-    return { ...request, state: "answered", answer: JSON.parse(String(update.answer)), links: update.links ? JSON.parse(String(update.links)) : request.links, history: JSON.parse(String(update.history)), updatedAt: String(update.updatedAt) };
-  },
-  saveDraftDecision: async (request, draftId, decision) => {
-    const update = draftDecisionUpdate(request, draftId, decision);
-    return { ...request, links: JSON.parse(String(update.links)), history: JSON.parse(String(update.history)), updatedAt: String(update.updatedAt) };
+    return { ...request, state: "answered", answer: JSON.parse(String(update.answer)), history: JSON.parse(String(update.history)), updatedAt: String(update.updatedAt) };
   },
   saveReviewReason: async (request, update) => applyReviewUpdate(request, update),
   markReviewRead: async () => undefined,
-  transitionProposalPath: async () => ({ status: "ok" }),
   loadHeldEmails: async () => FIXTURE_HELD_EMAILS,
   loadEmail: async (receiptId) => FIXTURE_EMAIL_DETAILS[receiptId] ?? { state: "unavailable" },
   decideEmail: async (_receiptId, decision) => ({ ok: true, already: false, quarantine: { state: decision === "accept" ? "released" : "discarded", decision: null, failure: null } }),
@@ -150,51 +139,25 @@ export function NotificationCenter({
   const [storyTitles, setStoryTitles] = useState<Record<string, string>>({});
   const [storyExcerpts, setStoryExcerpts] = useState<Record<string, string>>({});
   const [deletedStories, setDeletedStories] = useState<ReadonlySet<string>>(new Set());
-  const [drafts, setDrafts] = useState<Record<string, DraftView>>({});
-  const [missingDrafts, setMissingDrafts] = useState<ReadonlySet<string>>(new Set());
-  const [draftsState, setDraftsState] = useState<DraftsLoadState>("loading");
+  const [ideaStages, setIdeaStages] = useState<Record<string, string>>({});
   const [emails, setEmails] = useState<MonitoringEmailSummary[]>([]);
   const [emailsState, setEmailsState] = useState<"loading" | "ready">("loading");
   const [emailsDecided, setEmailsDecided] = useState<ReadonlyMap<string, "accept" | "reject">>(new Map());
   const [stay, setStay] = useState<ReadonlySet<string>>(new Set());
   const [visitRated, setVisitRated] = useState<ReadonlySet<string>>(new Set());
   const [now] = useState(() => Date.now());
-  const resolving = useRef(new Set<string>());
   const demoStarted = useRef(false);
   const preview = useMemo(() => previewState(), []);
   const sample = useMemo(() => {
-    if (preview === "sample" || !fixture) return { requests: FIXTURE_REVIEW_REQUESTS, drafts: FIXTURE_DRAFTS };
+    if (preview === "sample" || !fixture) return { requests: FIXTURE_REVIEW_REQUESTS };
     if (preview === "mixed") {
       const invented = FIXTURE_REVIEW_REQUESTS.filter((request) => request.id === "rr-hard-1" || request.id === "rr-flag-1");
-      return { requests: [...invented, ...fixture.requests], drafts: fixture.drafts };
+      return { requests: [...invented, ...fixture.requests] };
     }
-    return { requests: preview === "caught-up" ? [] : fixture.requests, drafts: fixture.drafts };
+    return { requests: preview === "caught-up" ? [] : fixture.requests };
   }, [fixture, preview]);
 
   const keep = useCallback((key: string) => setStay((current) => (current.has(key) ? current : new Set(current).add(key))), []);
-
-  const loadDraftsFor = useCallback(async (list: ReviewRequest[]) => {
-    const ids = list.filter((request) => request.state === "open" && isDraftReview(request)).flatMap(draftIdsOf);
-    if (!ids.length) {
-      setDraftsState("ready");
-      return;
-    }
-    if (demo) {
-      const known = sample.drafts.filter((row) => ids.includes(row.id));
-      setDrafts((current) => ({ ...current, ...Object.fromEntries(known.map((row) => [row.id, draftView(row, true)])) }));
-      setMissingDrafts(new Set(ids.filter((id) => !known.some((row) => row.id === id))));
-      setDraftsState("ready");
-      return;
-    }
-    try {
-      const loaded = await api.loadDrafts(ids);
-      setDrafts((current) => ({ ...current, ...loaded.drafts }));
-      setMissingDrafts(new Set(loaded.missing));
-      setDraftsState(loaded.failed.length ? "failed" : "ready");
-    } catch {
-      setDraftsState("failed");
-    }
-  }, [api, demo, sample]);
 
   // Email held for review is read on its own: a site without monitoring, or an editor who may not read it, simply has none.
   const loadEmailsNow = useCallback(async () => {
@@ -215,12 +178,20 @@ export function NotificationCenter({
     const snapshot = loadNotificationSnapshot(SITE_BRAND.id);
     if (!snapshot) return;
     setRequests(snapshot.requests);
-    setDrafts(snapshot.drafts);
-    setMissingDrafts(new Set(snapshot.missing));
-    setDraftsState("ready");
     setStale(true);
     setLoadState((current) => (current === "loading" ? "ready" : current));
   }, [demo]);
+
+  /** The titles and stages of the stories that open requests are about, and of the ideas the open batches name. */
+  const loadStoriesFor = useCallback(async (list: ReviewRequest[]) => {
+    const open = list.filter((request) => request.state === "open");
+    const ids = [...open.filter((request) => request.subject.type === "story").map((request) => request.subject.id), ...open.filter(isIdeaBatch).flatMap(ideaIdsOf)];
+    const stories = await api.loadStoryTitles(ids).catch(() => ({ titles: {}, deleted: [] as string[], excerpts: {}, stages: {} }));
+    setStoryTitles(stories.titles);
+    setStoryExcerpts(stories.excerpts ?? {});
+    setIdeaStages(stories.stages ?? {});
+    setDeletedStories(new Set(stories.deleted));
+  }, [api]);
 
   const refresh = useCallback(async () => {
     if (demo) {
@@ -229,8 +200,8 @@ export function NotificationCenter({
       demoStarted.current = true;
       setRequests(sample.requests);
       setLoadState("ready");
-      void loadDraftsFor(sample.requests);
       void loadEmailsNow();
+      void loadStoriesFor(sample.requests);
       return;
     }
     try {
@@ -244,17 +215,13 @@ export function NotificationCenter({
       setUserKey(loaded.userKey);
       setStale(false);
       setLoadState("ready");
-      void loadDraftsFor(loaded.requests);
       void loadEmailsNow();
-      const stories = await api.loadStoryTitles(loaded.requests.filter((request) => request.subject.type === "story").map((request) => request.subject.id)).catch(() => ({ titles: {}, deleted: [] as string[], excerpts: {} }));
-      setStoryTitles(stories.titles);
-      setStoryExcerpts(stories.excerpts ?? {});
-      setDeletedStories(new Set(stories.deleted));
+      await loadStoriesFor(loaded.requests);
     } catch {
       setStale(false);
       setLoadState("unavailable");
     }
-  }, [api, demo, loadDraftsFor, loadEmailsNow, sample]);
+  }, [api, demo, loadEmailsNow, loadStoriesFor, sample]);
 
   useEffect(() => {
     void refresh();
@@ -262,12 +229,12 @@ export function NotificationCenter({
     return () => window.clearInterval(timer);
   }, [refresh]);
 
-  // Keep a display copy for the next visit once the live read and its drafts have arrived.
+  // Keep a display copy for the next visit once the live read has arrived.
   useEffect(() => {
-    if (demo || stale || loadState !== "ready" || draftsState !== "ready") return;
-    const timer = window.setTimeout(() => saveNotificationSnapshot(SITE_BRAND.id, { requests, drafts, missing: missingDrafts }), 800);
+    if (demo || stale || loadState !== "ready") return;
+    const timer = window.setTimeout(() => saveNotificationSnapshot(SITE_BRAND.id, { requests }), 800);
     return () => window.clearTimeout(timer);
-  }, [demo, draftsState, drafts, loadState, missingDrafts, requests, stale]);
+  }, [demo, loadState, requests, stale]);
 
   const markRead = useCallback(async (requestId: string) => {
     if (demo || !userKey) return;
@@ -282,61 +249,6 @@ export function NotificationCenter({
     setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
     await markRead(request.id);
   }, [actorLabel, api, keep, markRead]);
-
-  /** Accept or Reject one draft: the Proposal moves to approved or declined, the decision is recorded on the request, and the request closes once every draft is decided. */
-  const decideDraft = useCallback(async (request: ReviewRequest, draftId: string, choice: DraftChoice, extras: { why: string; notThisKind: boolean }) => {
-    setError(null);
-    resolving.current.add(request.id);
-    try {
-      const view = drafts[draftId];
-      if (!view) throw new Error("This Proposed Story has not loaded yet.");
-      const path = choice === "accept" ? acceptPath(view.state) : rejectPath(view.state);
-      if (!path) throw new Error(`This Proposed Story is ${stateLabel(view.state, false).toLowerCase()} and cannot be ${choice === "accept" ? "accepted" : "rejected"} from here. Open it in Proposals.`);
-      const receipt = await api.transitionProposalPath(draftId, path);
-      if (receipt.status !== "ok") throw new Error(proposalReceiptMessage(receipt));
-      const decided: DraftView = { ...view, state: choice === "accept" ? "approved" : "declined", decided: choice };
-      const nextDrafts = { ...drafts, [draftId]: decided };
-      setDrafts(nextDrafts);
-      keep(`${request.id}#${draftId}`);
-      const decision: DraftDecision = { choice, title: view.headline, why: extras.why || null, notThisKind: choice === "reject" && extras.notThisKind, by: actorLabel, at: new Date().toISOString() };
-      const withDecisionRequest = { ...request, links: withDecision(request, draftId, decision) };
-      const closing = batchAnswer(withDecisionRequest, nextDrafts, { by: actorLabel, at: decision.at });
-      try {
-        const saved = closing ? await api.answerReviewRequest(request, closing, actorLabel) : await api.saveDraftDecision(request, draftId, decision);
-        setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
-        if (closing) await markRead(request.id);
-      } catch (failure) {
-        throw new Error(`The Proposed Story was ${choice === "accept" ? "accepted" : "rejected"} in Proposals, but this request could not record it. ${failure instanceof Error ? failure.message : ""}`.trim());
-      }
-    } catch (failure) {
-      if (!demo) void loadDraftsFor([request]);
-      throw failure;
-    } finally {
-      resolving.current.delete(request.id);
-    }
-  }, [actorLabel, api, demo, drafts, keep, loadDraftsFor, markRead]);
-
-  // Drafts decided in Proposals (not here) still close their request.
-  useEffect(() => {
-    if (demo || draftsState !== "ready" || stale) return;
-    for (const request of requests) {
-      if (request.state !== "open" || !isDraftReview(request) || resolving.current.has(request.id)) continue;
-      if (undecidedDraftIds(request, drafts).length) continue;
-      const closing = batchAnswer(request, drafts, { by: "an editor in Proposals", at: new Date().toISOString() });
-      if (!closing) continue;
-      resolving.current.add(request.id);
-      void (async () => {
-        try {
-          const saved = await api.answerReviewRequest(request, closing, "an editor in Proposals");
-          setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
-        } catch {
-          // The next refresh shows what became of it.
-        } finally {
-          resolving.current.delete(request.id);
-        }
-      })();
-    }
-  }, [api, demo, drafts, draftsState, requests, stale]);
 
   /** Accept or Reject a held email, or (the same choice again) correct the reason it was given. The reason shown is what the server recorded. */
   const sendEmailDecision = useCallback(async (summary: MonitoringEmailSummary, choice: "accept" | "reject", why: string, editing = false) => {
@@ -356,13 +268,11 @@ export function NotificationCenter({
 
   /**
    * Changes only the Why of an item that is already decided, onto the decision that exists:
-   *   AI draft          the request's link for the draft (and, once the request has closed, its answer's drafts and feedback)
    *   review request    the request's answer note (a hard gate, a stage review, an acknowledged flag)
    *   held email        the same decision again with the new reason, so the Monitoring view updates the recorded reason
-   * A Proposal's own transitions carry only public reasons, so a private note is never written there.
    */
-  const latest = useRef({ requests, drafts, emails, emailsDecided });
-  latest.current = { requests, drafts, emails, emailsDecided };
+  const latest = useRef({ requests, emails, emailsDecided });
+  latest.current = { requests, emails, emailsDecided };
   const editReason = useCallback(async (item: NeedsMeEntry, why: string) => {
     const { payload } = item;
     const now = new Date();
@@ -370,13 +280,7 @@ export function NotificationCenter({
       latest.current.requests = latest.current.requests.map((entry) => (entry.id === saved.id ? saved : entry));
       setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
     };
-    if (payload.kind === "draft") {
-      const request = latest.current.requests.find((entry) => entry.id === payload.item.request.id) ?? payload.item.request;
-      const view = latest.current.drafts[payload.item.draftId];
-      const decision = draftDecisionOf(request.links.find((link) => link.id === payload.item.draftId), view, { by: actorLabel, at: now.toISOString() });
-      if (!decision) throw new Error("This Proposed Story has not been decided yet.");
-      store(await api.saveReviewReason(request, draftReasonUpdate(request, payload.item.draftId, { ...decision, title: decision.title ?? view?.headline, why }, actorLabel, now)));
-    } else if (payload.kind === "request") {
+    if (payload.kind === "request") {
       const request = latest.current.requests.find((entry) => entry.id === payload.request.id) ?? payload.request;
       store(await api.saveReviewReason(request, answerReasonUpdate(request, why, actorLabel, now)));
     } else if (payload.kind === "email") {
@@ -392,8 +296,6 @@ export function NotificationCenter({
     if (payload.kind === "reference") {
       setVisitRated((current) => (current.has(payload.lineageId) ? current : new Set(current).add(payload.lineageId)));
       await onRateReference?.(payload.reference, decision.choice, decision.choice === "reject" ? decision.reasonCode : null, decision.why || undefined);
-    } else if (payload.kind === "draft") {
-      await decideDraft(payload.item.request, payload.item.draftId, decision.choice, { why: decision.why, notThisKind: decision.notThisKind });
     } else if (payload.kind === "request") {
       const { request } = payload;
       if (request.mode === "flag") await answer(request, { decision: "acknowledge", feedback: decision.why || null });
@@ -402,19 +304,18 @@ export function NotificationCenter({
     } else if (payload.kind === "email") {
       await sendEmailDecision(payload.summary, decision.choice, decision.why);
     }
-  }, [answer, decideDraft, onRateReference, sendEmailDecision]);
+  }, [answer, onRateReference, sendEmailDecision]);
 
   const shownReferences = preview === "caught-up" ? references.filter((reference) => normalizeReferenceCurationStatus(reference.curationStatus) !== "pending") : references;
-  const bySource = useMemo(() => previewsBySourceAddress(shownReferences, previews), [shownReferences, previews]);
   const lineageIds = useMemo(() => shownReferences.map(referenceLineageId), [shownReferences]);
   const { statuses: captures, teaserLine } = useMemo(() => captureStatusesByLineage(referenceAttachments, lineageIds), [lineageIds, referenceAttachments]);
 
   const entries = useMemo(
     () => buildNeedsMeItems({
-      references: shownReferences, decisions, previews, captures, visitRated, requests, drafts, missingDrafts, draftsState, stay, bySource,
+      references: shownReferences, decisions, previews, captures, visitRated, requests, stay, demo, ideaStages,
       storyTitles, storyExcerpts, deletedStories, emails, emailsDecided,
     }),
-    [shownReferences, decisions, previews, captures, visitRated, requests, drafts, missingDrafts, draftsState, stay, bySource, storyTitles, storyExcerpts, deletedStories, emails, emailsDecided],
+    [shownReferences, decisions, previews, captures, visitRated, requests, stay, demo, ideaStages, storyTitles, storyExcerpts, deletedStories, emails, emailsDecided],
   );
   const threshold = useMemo(() => learnConfidenceThreshold(shownReferences, decisions, visitRated), [shownReferences, decisions, visitRated]);
   const recent = useMemo(() => recentDecisions(requests, references, demo), [requests, references, demo]);
@@ -427,15 +328,13 @@ export function NotificationCenter({
     () => cyclotronAutoDecided(shownReferences, decisions, humanCuratedReferenceLineageIds, demo).filter((entry) => !shownIds.has(entry.lineageId)),
     [shownReferences, decisions, humanCuratedReferenceLineageIds, demo, shownIds],
   );
-  const openDraftRequests = useMemo(() => sectionReviews(requests).draftBatches, [requests]);
-  const missingCount = openDraftRequests.reduce((total, request) => total + draftIdsOf(request).filter((id) => missingDrafts.has(id)).length, 0);
-  const settled = !stale && loadState === "ready" && draftsState !== "loading" && emailsState === "ready" && !referencesLoading && !predictionLoading;
+  const settled = !stale && loadState === "ready" && emailsState === "ready" && !referencesLoading && !predictionLoading;
 
   return (
     <NeedsMeView
-      below={below} captureTeaserLine={teaserLine} demo={demo} draftsFailed={draftsState === "failed"} entries={entries} error={error} legacyAuto={legacyAuto}
-      loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} missingDraftCount={missingCount} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason}
-      onRetryDrafts={() => void loadDraftsFor(requests)} predictionLoading={predictionLoading} recent={recent} referenceAttachments={referenceAttachments}
+      below={below} captureTeaserLine={teaserLine} demo={demo} entries={entries} error={error} legacyAuto={legacyAuto}
+      loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason}
+      predictionLoading={predictionLoading} recent={recent} referenceAttachments={referenceAttachments}
       referenceDisabledReason={referenceDisabledReason} referencesLoading={referencesLoading} settled={settled} shaping={shaping} stale={stale} threshold={threshold}
     />
   );

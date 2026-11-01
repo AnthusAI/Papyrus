@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -234,3 +235,79 @@ def step_export(context):
 @then("no Message was written")
 def step_no_messages(context):
     assert not state(context).client.tables.get("Message")
+
+
+@given("three ideas filed in one morning run")
+def step_morning(context):
+    held = state(context)
+    held.client = support.backend()
+    held.run = {"runId": "monitor-stories-run-20261101T070000Z-abc123"}
+    held.morning = [
+        file_idea_item(held.client, support.draft(ideaId=f"idea-{n}", title=f"Morning idea {n}", targets=[{"type": "entity", "id": f"topic-{n}"}]), now=NOW)
+        for n in (1, 2, 3)
+    ]
+    held.run_ideas = [{"ideaId": f"idea-{n}", "itemLineageId": result["lineageId"]} for n, result in enumerate(held.morning, 1)]
+
+
+@when("the run raises its review request")
+def step_raise(context):
+    from papyrus_content.ideas.review import request_human_review
+
+    held = state(context)
+    held.review = request_human_review(held.client, held.run, held.run_ideas)
+
+
+@then("all three ideas are in the Idea column of the Stories board")
+def step_column(context):
+    assert [item["stage"] for item in items(context)] == ["idea", "idea", "idea"]
+
+
+@then("exactly one review request is open for the run, and its links are those three ideas as stories")
+def step_request(context):
+    held = state(context)
+    requests = [row for row in held.client.list_records("ReviewRequest") if row["state"] == "open"]
+    assert len(requests) == 1 and held.review["linkedAs"] == "story", held.review
+    links = json.loads(requests[0]["links"])
+    assert [(link["type"], link["id"]) for link in links] == [("story", result["lineageId"]) for result in held.morning]
+    assert json.loads(requests[0]["subject"]) == {"type": "batch", "id": held.run["runId"]}
+
+
+@then("no Proposal is filed for any of them")
+def step_no_proposal(context):
+    assert not state(context).client.tables.get("Proposal")
+
+
+@then("the review request tells the editor to move an idea forward to accept it or to Spiked with a reason to decline it")
+def step_ask(context):
+    [request] = state(context).client.list_records("ReviewRequest")
+    assert "forward to accept it" in request["ask"] and "Spiked with a reason to decline it" in request["ask"], request["ask"]
+
+
+@when('an editor moves the first idea forward to "{stage}" and spikes the second saying "{reason}"')
+def step_decide(context, stage, reason):
+    held = state(context)
+    move_story_stage(held.client, held.morning[0]["lineageId"], stage, actor="editor", reason="good angle", now="2026-11-01T10:00:00Z")
+    move_story_stage(held.client, held.morning[1]["lineageId"], "spiked", actor="editor", reason=reason, now="2026-11-01T10:30:00Z")
+
+
+@then("the first and second ideas have left the Idea column and the third is still in it")
+def step_left(context):
+    held = state(context)
+    stages = {row["lineageId"]: row["stage"] for row in held.client.list_records("Item")}
+    assert [stages[result["lineageId"]] for result in held.morning] == ["reporting", "spiked", "idea"], stages
+
+
+@then("the pipeline's feedback holds an accept for the first idea and a decline with the reason for the second")
+def step_morning_feedback(context):
+    from papyrus_content.ideas.labels import feedback_entries
+
+    entries = feedback_entries(state(context).client)
+    assert [(entry["title"], entry["verdict"]) for entry in entries] == [("Morning idea 1", "accept"), ("Morning idea 2", "decline")], entries
+    assert "Too basic" in entries[1]["note"]
+
+
+@then("the third idea has no decision yet")
+def step_third(context):
+    from papyrus_content.ideas.labels import feedback_entries
+
+    assert "Morning idea 3" not in [entry["title"] for entry in feedback_entries(state(context).client)]
