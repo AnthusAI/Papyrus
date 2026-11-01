@@ -29,3 +29,11 @@ Feature: Every accepted concept has a concept card vector
     And the description of "Voice Cloning" changes
     When the vector index is synced
     Then exactly 1 concept card is written
+
+  Scenario: An accepted Reference with no extracted text is indexed from its curation summary and skipped when unchanged
+    Given a vector index with no vectors
+    And an accepted Reference delivered by a monitor, with a curation summary and no extracted text
+    When the Reference summary vectors are synced
+    Then exactly 1 Reference summary vector is written, with the summary source "curation" and no passage vectors
+    When the Reference summary vectors are synced
+    Then no Reference summary vector is written
