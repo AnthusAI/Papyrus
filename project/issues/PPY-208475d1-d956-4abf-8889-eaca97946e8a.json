@@ -3,7 +3,7 @@
   "title": "Reader submissions: extraction step (model, maker, task) and a read API for the Submit page",
   "description": "Requested by the Shipped session for Ryan (\"Yes, do both\", 2026-10-31). Planning, no rush ahead of the Shipped console move.\n\nGoal: after a reader submits a link (reader-steering submit-a-link), an extraction step pulls out the model, maker and task the submission is about, matches it to References and entities, and exposes the result through a read API so the Submit page can show \"Confirm what the map pulled out\" for the reader to confirm.\n\ndocs/reader-steering.md: \"a later extraction step is where a submission meets References and entities\". Build that step and its read API (reader-scoped: a reader reads only their own submission's extraction; no identity in public output).\n\nConsumer: Shipped-web Submit page (currently a placeholder).\n\nAcceptance: Gherkin for submit, then extraction, then the reader reads and confirms; moderation and privacy rules as in reader-steering; docs.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -12,10 +12,18 @@
     "shipped"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0324dfd5-1dbe-48a7-89df-4d1c313b4cad",
+      "author": "home",
+      "text": "Done: #964 and #967 in 5.67.0. The Shipped Submit page is wired (Shipped-web #127). Extraction stays off on Shipped until Ryan enables it.",
+      "created_at": "2026-11-01T17:15:05.793792Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T20:08:12.567088Z",
-  "updated_at": "2026-10-31T20:08:12.567124Z",
-  "closed_at": null,
+  "updated_at": "2026-11-01T17:15:05.860962Z",
+  "closed_at": "2026-11-01T17:15:05.860932Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
