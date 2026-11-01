@@ -1,0 +1,20 @@
+{
+  "id": "PPY-af6525c3-1f00-40ad-8647-a57ec32915bd",
+  "title": "Multi-search: deep research for a reporting assignment across several search and research providers",
+  "description": "Ryan, 2026-11-01: \"We should start thinking in terms of a new feature called 'multi-search' that leverages multiple different search providers to do deep research into a reporting assignment.\"\n\nToday: one assignment runs one provider. research.tavily-deep (src/papyrus_content/tavily_deep_research.py) submits a Tavily research task, polls it, and turns the report into a research packet Message plus proposedReferences (assignments_workflow.apply_research_packet, intake_research_packet_proposals). Web search now has a provider layer (src/papyrus_content/web_search.py, #963) with Tavily, OpenAI, Perplexity, Gemini and Bedrock, but only as a fallback chain for monitors.\n\nShape (proposal, to confirm with Ryan):\n1. Fan out. One assignment asks several providers in parallel: deep-research APIs (Tavily research, OpenAI deep research, Perplexity sonar-deep-research, Gemini deep research) and/or plain searches on queries planned from the assignment brief.\n2. Merge. Canonicalise and de-duplicate sources across providers; keep per-source provenance (which providers found it, rank, snippet). Agreement across providers is a signal; a source only one provider found is not discarded.\n3. Synthesise. One research packet: the claims with the sources that support each, where providers disagree, and what nobody found. Proposed References come from the merged set, each naming its providers.\n4. Judge. Show per-provider contribution (unique useful sources, cost, time) on the packet so the site learns which providers earn their cost. No fixed caps: budget per assignment is a site setting.\n5. Run it as a long-running job (submit, poll, finalize), resumable, with failures per provider recorded and never fatal while any provider answers.\n\nSeam (from #963): a ResearchProvider base beside Provider with research(request) -> ResearchResult, a RESEARCH_PROVIDERS map and a WEB_RESEARCH_PROVIDERS list, reusing Provider.api_key, the failure classification and SearchChain's skip records. tavily_research.py is the first adapter to move behind it.\n\nOpen questions for Ryan:\n- Which providers by default, and is cost per assignment capped by a budget or only reported?\n- Deep-research APIs only, or also a planned fan-out of plain searches (cheaper, more controllable)?\n- Does the packet show disagreements between providers to the editor, or only the merged view?\n- Automatic on every assignment, or a mode the editor picks (research.multi)?\n\nPhases: (1) ResearchProvider seam plus Tavily adapter moved, no behaviour change; (2) OpenAI, Perplexity and Gemini deep-research adapters; (3) multi-search runner: fan-out, merge, provenance, packet; (4) per-provider contribution report and newsroom view; (5) p.apyr.us docs page.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-01T13:04:07.824411Z",
+  "updated_at": "2026-11-01T13:04:07.824505Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
