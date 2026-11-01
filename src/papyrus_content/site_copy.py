@@ -45,7 +45,7 @@ KEY_REWRITE_FIELDS: dict[str, tuple[str, ...]] = {
     "ModelAttachment": ("id", "ownerId", "ownerLineageId", "storagePath"),
     "NewsroomSection": ("id", "tenantId"),
     "Reference": ("curationStatusReason", "discoveredByMonitorId"),
-    "SemanticRelation": ("classifierId", "metadata"),
+    "SemanticRelation": ("classifierId",),
 }
 ID_LIKE_FIELD = re.compile(r"^(id|storedId|.*Ids?|.*LineageIds?|.*Key|.*Keys)$")
 OWNER_FIELD = re.compile(r"(Sub|Subs|By)$|^(owner|actor|responseOwner|responseLockOwner)$")
@@ -74,6 +74,27 @@ def map_strings(value: TypedItem, transform: Callable[[str], str]) -> TypedItem:
     if "L" in value:
         return {"L": [map_strings(item, transform) for item in value["L"]]}
     return value
+
+
+# Cyclotron response echoes (provenance inside SemanticRelation metadata and similar) keep these values exactly.
+CYCLOTRON_PROTECTED_KEYS = frozenset({"accountId", "runId", "bindingId", "binding", "bindingRevision"})
+DEFAULT_SKIP_MEDIA_PREFIXES = ("cyclotrons/",)
+PRIME_PREFIX = "prime-"  # the Cyclotron priming list id (prime-<key>) is never rewritten
+PUBLICATION_ID_FIELD = "publicationId"  # Papyrus's own publication id, rewritten on every model
+
+
+def map_strings_protected(value: TypedItem, transform: Callable[[str], str], protected: frozenset[str]) -> TypedItem:
+    """Like map_strings, but a map entry whose name is protected is left exactly as it is, at any depth."""
+    if "M" in value:
+        return {
+            "M": {
+                key: item if key in protected else map_strings_protected(item, transform, protected)
+                for key, item in value["M"].items()
+            }
+        }
+    if "L" in value:
+        return {"L": [map_strings_protected(item, transform, protected) for item in value["L"]]}
+    return map_strings(value, transform)
 
 
 def iterate_strings(value: TypedItem) -> Iterator[str]:
@@ -129,6 +150,7 @@ class CopyConfig:
     to_bucket: str | None = None
     models: list[str] | None = None
     media_prefixes: list[str] | None = None
+    skip_media_prefixes: tuple[str, ...] = DEFAULT_SKIP_MEDIA_PREFIXES
     owner_map: dict[str, str] = field(default_factory=dict)
     keep_unmapped_owners: bool = False
 
@@ -137,7 +159,7 @@ class CopyConfig:
             return None
         olds = sorted(self.key_map, key=len, reverse=True)
         alternatives = "|".join(re.escape(old) for old in olds)
-        return re.compile(rf"(?<![A-Za-z0-9])({alternatives})(?![A-Za-z0-9])")
+        return re.compile(rf"(?<![A-Za-z0-9])(?<!{PRIME_PREFIX})({alternatives})(?![A-Za-z0-9])")
 
     def app_ids(self) -> tuple[str, str] | None:
         if not (self.from_bucket and self.to_bucket):
@@ -225,7 +247,7 @@ class Rewriter:
         refusals: list[Refusal] = []
         record = item_id(source)
         result: TypedItem = {}
-        key_fields = set(KEY_REWRITE_FIELDS.get(model, ()))
+        key_fields = set(KEY_REWRITE_FIELDS.get(model, ())) | {PUBLICATION_ID_FIELD}
         for name, value in source.items():
             updated = value
             if name in key_fields and self.key_pattern:
@@ -253,7 +275,7 @@ class Rewriter:
             count += changes
             return rewritten
 
-        updated = map_strings(value, replace)
+        updated = map_strings_protected(value, replace, CYCLOTRON_PROTECTED_KEYS)
         if count:
             bump(report.rewrites, RULE_CORPUS_KEY, count)
             bump(report.rewritten_fields, f"{model}.{name}", 1)
@@ -406,6 +428,9 @@ class MediaReport:
     to_copy_bytes: int = 0
     already_present: int = 0
     copied: int = 0
+    skipped_objects: int = 0
+    skipped_bytes: int = 0
+    skipped_prefixes: list[str] = field(default_factory=list)
     samples: list[dict[str, str]] = field(default_factory=list)
     dangling_storage_paths: int = 0
     dangling_samples: list[str] = field(default_factory=list)
@@ -578,9 +603,12 @@ class SiteCopier:
                     objects[entry["Key"]] = {"size": entry["Size"], "etag": entry["ETag"].strip('"')}
         return objects
 
+    def is_skipped(self, key: str) -> bool:
+        return any(key.startswith(prefix) for prefix in self.config.skip_media_prefixes)
+
     def plan_media(self, write: bool) -> MediaReport:
         config = self.config
-        report = MediaReport(config.media_prefixes)
+        report = MediaReport(config.media_prefixes, skipped_prefixes=list(config.skip_media_prefixes))
         if self.source_s3 is None or not config.from_bucket:
             report.refusals.append(Refusal("media", "-", "no source bucket client"))
             return report
@@ -591,8 +619,14 @@ class SiteCopier:
             report.target_read = True
         copies: list[tuple[str, str]] = []
         seen: dict[str, str] = {}
+        skipped_known: set[str] = set()
         for key, info in sorted(source_objects.items()):
             new_key = self.rewriter.rewrite_s3_key(key)
+            if self.is_skipped(key):
+                report.skipped_objects += 1
+                report.skipped_bytes += info["size"]
+                skipped_known.add(new_key)
+                continue
             report.source_objects += 1
             report.source_bytes += info["size"]
             if new_key in seen and seen[new_key] != key:
@@ -611,7 +645,7 @@ class SiteCopier:
                 report.to_copy += 1
                 report.to_copy_bytes += info["size"]
                 copies.append((key, new_key))
-        self.check_storage_paths(report, seen)
+        self.check_storage_paths(report, seen | dict.fromkeys(skipped_known, ""))
         if write and self.target_s3 is not None and config.to_bucket and not report.refusals:
             report.copied = self.copy_objects(copies)
         return report
@@ -701,7 +735,9 @@ class SiteCopier:
     def verify_media(self) -> dict[str, Any]:
         source = self.list_objects(self.source_s3, self.config.from_bucket, self.config.media_prefixes)
         target = self.list_objects(self.target_s3, self.config.to_bucket, None)
-        expected = {self.rewriter.rewrite_s3_key(key): info["size"] for key, info in source.items()}
+        expected = {
+            self.rewriter.rewrite_s3_key(key): info["size"] for key, info in source.items() if not self.is_skipped(key)
+        }
         actual = {key: info["size"] for key, info in target.items() if key in expected}
         missing = sorted(set(expected) - set(actual))
         different = sorted(key for key in actual if actual[key] != expected[key])
@@ -792,6 +828,12 @@ def render_plan(plan: CopyPlan) -> str:
                 else "; target bucket not read"
             )
             + (f"; copied {media.copied}" if media.copied else "")
+            + (
+                f"; skipped {media.skipped_objects} objects ({human_bytes(media.skipped_bytes)}) under "
+                + ", ".join(media.skipped_prefixes)
+                if media.skipped_prefixes
+                else ""
+            )
         )
         for sample in media.samples:
             lines.append(f"  sample key: {sample['before']}  ->  {sample['after']}")

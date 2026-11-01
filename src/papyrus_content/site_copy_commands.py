@@ -10,12 +10,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .options import normalize_string, parse_options
-from .site_copy import CopyConfig, SiteCopier, SiteCopyError, parse_key_map, render_plan
+from .site_copy import DEFAULT_SKIP_MEDIA_PREFIXES, CopyConfig, SiteCopier, SiteCopyError, parse_key_map, render_plan
 
 DEFAULT_REGION = "us-east-1"
 USAGE = (
     "papyrus ops site copy --from-api ID --corpus-key-map OLD=NEW [--to-api ID] "
-    "[--from-media-bucket B] [--to-media-bucket B] [--models A,B] [--media-prefixes P,Q] "
+    "[--from-media-bucket B] [--to-media-bucket B] [--models A,B] [--media-prefixes P,Q] [--skip-media-prefix P ...] "
     "[--owner-map FILE] [--keep-unmapped-owners] [--region R] [--from-profile P] [--to-profile P] "
     "[--apply | --dry-run] [--verify] [--json]"
 )
@@ -41,7 +41,22 @@ def load_owner_map(path: str | None) -> dict[str, str]:
     return parsed
 
 
-def build_config(options: dict[str, Any]) -> tuple[CopyConfig, bool, bool]:
+def take_repeated_flag(flags: list[str], name: str) -> tuple[list[str], list[str]]:
+    """Remove every ``--name VALUE`` pair from the flags (parse_options keeps only the last) and return the values."""
+    kept: list[str] = []
+    values: list[str] = []
+    index = 0
+    while index < len(flags):
+        if flags[index] == f"--{name}" and index + 1 < len(flags) and not flags[index + 1].startswith("--"):
+            values.append(flags[index + 1])
+            index += 2
+            continue
+        kept.append(flags[index])
+        index += 1
+    return kept, values
+
+
+def build_config(options: dict[str, Any], skip_prefixes: list[str] | None = None) -> tuple[CopyConfig, bool, bool]:
     from_api = normalize_string(options.get("from-api"))
     if not from_api:
         raise SiteCopyError(f"--from-api is required. Usage: {USAGE}")
@@ -68,6 +83,11 @@ def build_config(options: dict[str, Any]) -> tuple[CopyConfig, bool, bool]:
         media_prefixes=split_list(normalize_string(options.get("media-prefixes"))),
         owner_map=load_owner_map(normalize_string(options.get("owner-map"))),
         keep_unmapped_owners=bool(options.get("keep-unmapped-owners")),
+        skip_media_prefixes=(
+            tuple(prefix for prefix in skip_prefixes if prefix != "none")
+            if skip_prefixes
+            else DEFAULT_SKIP_MEDIA_PREFIXES
+        ),
     )
     if config.to_api and config.to_api == config.from_api and normalize_string(options.get("from-profile")) == normalize_string(options.get("to-profile")):
         raise SiteCopyError("The source and the target are the same API.")
@@ -75,8 +95,9 @@ def build_config(options: dict[str, Any]) -> tuple[CopyConfig, bool, bool]:
 
 
 def site_copy(flags: list[str], session_factory: Callable[[str | None, str], Any] = make_session) -> int:
+    flags, skip_prefixes = take_repeated_flag(flags, "skip-media-prefix")
     options = parse_options(flags)
-    config, apply, verify = build_config(options)
+    config, apply, verify = build_config(options, skip_prefixes)
     region = normalize_string(options.get("region")) or DEFAULT_REGION
     from_session = session_factory(normalize_string(options.get("from-profile")), region)
     to_session = session_factory(normalize_string(options.get("to-profile")), region)

@@ -33,12 +33,19 @@ def put(client, model, api, **attrs):
     client.put_item(TableName=f"{model}-{api}-NONE", Item=item)
 
 
+METADATA = {"M": {
+    "classifier": {"S": f"{OLD}-relevance"}, "cyclotronId": {"S": "shared-source-relevance-r2"},
+    "provenance": {"M": {"accountId": {"S": "acct-1"}, "runId": {"S": "run-1"}, "bindingId": {"S": f"bind-{OLD}"},
+                         "bindingRevision": {"S": "4"}, "output": {"S": f"{OLD}-relevance"},
+                         "publicationId": {"S": OLD}}}}}
+
+
 @pytest.fixture
 def world():
     with mock_aws():
         dynamodb = boto3.client("dynamodb", region_name="us-east-1")
         s3 = boto3.client("s3", region_name="us-east-1")
-        for model in ("Reference", "Item", "NewsroomSection", "Assignment", "ModelAttachment"):
+        for model in ("Reference", "Item", "NewsroomSection", "Assignment", "ModelAttachment", "SemanticRelation"):
             make_table(dynamodb, model, SOURCE_API)
             make_table(dynamodb, model, TARGET_API)
         for bucket in (SOURCE_BUCKET, TARGET_BUCKET):
@@ -54,6 +61,11 @@ def world():
             storagePath=f"newsroom/payloads/assignmentevent/{OLD}-relevance/metadata.json")
         s3.put_object(Bucket=SOURCE_BUCKET, Key=f"newsroom/payloads/assignmentevent/{OLD}-relevance/metadata.json", Body=b"{}")
         s3.put_object(Bucket=SOURCE_BUCKET, Key="corpora/shared/a.pdf", Body=b"pdf")
+        s3.put_object(Bucket=SOURCE_BUCKET, Key=f"cyclotrons/{OLD}-relevance-v2/state.tar.gz", Body=b"state")
+        dynamodb.put_item(TableName=f"SemanticRelation-{SOURCE_API}-NONE", Item={
+            "id": {"S": "semantic-relation-1"}, "__typename": {"S": "SemanticRelation"},
+            "classifierId": {"S": f"{OLD}-relevance/{OLD}-relevance"}, "publicationId": {"S": OLD},
+            "primeId": {"S": f"prime-{OLD}"}, "metadata": METADATA})
         yield dynamodb, s3
 
 
@@ -86,6 +98,7 @@ def test_apply_rewrites_key_and_keeps_reference_ids(world):
     assert reference["discoveredByMonitorId"]["S"] == f"web-{NEW}"
     assert reference["createdAt"]["S"] == "2026-01-01T00:00:00Z" and reference["__typename"]["S"] == "Reference"
     keys = {o["Key"] for o in world[1].list_objects_v2(Bucket=TARGET_BUCKET)["Contents"]}
+    assert not any(key.startswith("cyclotrons/") for key in keys)
     assert keys == {f"newsroom/payloads/assignmentevent/{NEW}-relevance/metadata.json", "corpora/shared/a.pdf"}
 
 
@@ -176,3 +189,57 @@ def test_cli_defaults_to_dry_run_and_requires_apply(world, capsys, monkeypatch):
 
 def test_tables_by_model_finds_suffix(world):
     assert tables_by_model(world[0], SOURCE_API)["Item"] == f"Item-{SOURCE_API}-NONE"
+
+
+def relation(dynamodb, api):
+    return dynamodb.get_item(TableName=f"SemanticRelation-{api}-NONE", Key={"id": {"S": "semantic-relation-1"}})["Item"]
+
+
+def test_classifier_field_is_rewritten_and_metadata_blob_is_byte_identical(world):
+    copier(world, keep_unmapped_owners=True).run(apply=True)
+    copied = relation(world[0], TARGET_API)
+    assert copied["classifierId"]["S"] == f"{NEW}-relevance/{NEW}-relevance"
+    assert copied["metadata"] == METADATA
+    assert copied["publicationId"]["S"] == NEW
+
+
+def test_cyclotron_provenance_ids_are_never_rewritten_even_in_rewritten_fields(world):
+    from .site_copy import CYCLOTRON_PROTECTED_KEYS, map_strings_protected
+
+    echoed = {"M": {"outer": {"S": f"{OLD}-x"}, "provenance": {"M": {
+        "accountId": {"S": f"{OLD}-acct"}, "runId": {"S": f"{OLD}-run"}, "bindingId": {"S": f"{OLD}-b"},
+        "bindingRevision": {"S": f"{OLD}-4"}}}}}
+    result = map_strings_protected(echoed, lambda text: text.replace(OLD, NEW), CYCLOTRON_PROTECTED_KEYS)
+    assert result["M"]["outer"]["S"] == f"{NEW}-x"
+    assert result["M"]["provenance"] == echoed["M"]["provenance"]
+
+
+def test_prime_list_id_is_untouched(world):
+    copier(world, keep_unmapped_owners=True).run(apply=True)
+    assert relation(world[0], TARGET_API)["primeId"]["S"] == f"prime-{OLD}"
+    assert copier(world).rewriter.rewrite_key(f"prime-{OLD} and {OLD}-relevance") == f"prime-{OLD} and {NEW}-relevance"
+
+
+def test_cyclotrons_prefix_is_skipped_by_default_and_counted(world):
+    plan = copier(world, keep_unmapped_owners=True).run()
+    assert plan.media.skipped_objects == 1 and plan.media.skipped_prefixes == ["cyclotrons/"]
+    copier(world, keep_unmapped_owners=True).run(apply=True)
+    assert c_verify_ok(world)
+
+
+def c_verify_ok(world):
+    c = copier(world, keep_unmapped_owners=True)
+    return c.verify().verify_media["match"]
+
+
+def test_skip_media_prefix_flag_is_repeatable_and_replaces_the_default(world, capsys):
+    factory = lambda profile, region: boto3.Session(region_name=region)
+    base = ["--from-api", SOURCE_API, "--to-api", TARGET_API, "--corpus-key-map", f"{OLD}={NEW}",
+            "--from-media-bucket", SOURCE_BUCKET, "--to-media-bucket", TARGET_BUCKET, "--keep-unmapped-owners", "--json"]
+    site_copy(base, factory)
+    assert json.loads(capsys.readouterr().out)["media"]["skipped_prefixes"] == ["cyclotrons/"]
+    site_copy(base + ["--skip-media-prefix", "corpora/", "--skip-media-prefix", "newsroom/"], factory)
+    media = json.loads(capsys.readouterr().out)["media"]
+    assert media["skipped_prefixes"] == ["corpora/", "newsroom/"] and media["skipped_objects"] == 2
+    site_copy(base + ["--skip-media-prefix", "none"], factory)
+    assert json.loads(capsys.readouterr().out)["media"]["skipped_objects"] == 0

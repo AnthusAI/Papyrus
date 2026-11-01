@@ -69,3 +69,20 @@ Feature: Copying one Papyrus site's backend data into another site's backend
     When a copied record is deleted from the target
     And I run the site copy with --verify
     Then the verification reports it as missing and fails
+
+  Scenario: Cyclotron provenance is recorded history and is not rewritten
+    Cyclotron is renaming its classifier id to match the new site, and the decisions in the copied relations
+    still came from the p-apyr-us cyclotron, so the provenance blob stays exactly as it was.
+    When I run the site copy with --apply
+    Then the relation's own classifier field names machines-on-machines-relevance
+    And the relation's provenance metadata blob is identical to the source
+    And the priming list id prime-p-apyr-us is unchanged
+
+  Scenario: Cyclotron state objects are skipped by default
+    The new site does not use embedded mode, so state.tar.gz is not copied.
+    When I run the site copy with --apply
+    Then the cyclotrons/ prefix is skipped and the skipped objects are counted
+
+  Scenario: --skip-media-prefix replaces the default
+    When I run the site copy skipping the corpora/ prefix instead
+    Then the corpora/ objects are skipped and the cyclotrons/ state is copied
