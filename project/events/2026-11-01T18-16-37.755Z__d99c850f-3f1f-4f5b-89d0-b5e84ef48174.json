@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "d99c850f-3f1f-4f5b-89d0-b5e84ef48174",
+  "issue_id": "PPY-d2e39bce-ecf8-408c-af3b-919bfc9e29b3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:37.755Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Generalise scan_window to any bucket length (days or weeks)",
+    "description": "File: src/papyrus_content/knowledge_snapshot/trends.py (scan_window, DAYS_PER_WEEK and anything that assumes weeks; exceeds_report).\nChange: take the bucket length as a parameter (default stays a week so ideas/trends.py and the knowledge snapshot are unchanged). Windows stay 1, 2, 4, 8 ... buckets, binomial tail against the corpus's own volume of the same event kind, Bonferroni-corrected. Return the window in buckets and in days.\nTests: existing trend tests unchanged and passing; new unit tests for day buckets (a burst in the last 2 days against a flat 60-day baseline is significant; the same counts spread evenly are not).\nGherkin: extend the existing trend feature with a day-bucket scenario.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0b40ca61-d357-47cc-9d81-6627b05f6303",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

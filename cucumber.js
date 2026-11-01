@@ -45,6 +45,11 @@ module.exports = {
     require: ["features/step_definitions/newsroom-ux-review.steps.js"],
     format: ["summary"],
   },
+  decisionControl: {
+    paths: ["features/newsroom-decision-control.feature"],
+    require: ["features/step_definitions/decision-control.steps.js"],
+    format: ["summary"],
+  },
   notificationCenter: {
     paths: ["features/newsroom-notification-center.feature"],
     require: ["features/step_definitions/notification-center.steps.js"],
@@ -63,6 +68,11 @@ module.exports = {
   referenceVoteSaved: {
     paths: ["features/newsroom-reference-vote-saved.feature"],
     require: ["features/step_definitions/reference-vote-saved.steps.js"],
+    format: ["summary"],
+  },
+  messageHashtags: {
+    paths: ["features/message-hashtags.feature"],
+    require: ["features/step_definitions/message-hashtags.steps.js"],
     format: ["summary"],
   },
   messageAuthorEnforced: {

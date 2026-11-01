@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "f4681989-d114-4b87-84fc-45d200a93ba0",
+  "issue_id": "PPY-ab6e318a-f98d-44cf-8c59-11ccdc83be2c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:47.630Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Edge writer: reference_links.py",
+    "description": "New src/papyrus_content/reference_links.py, modelled on story_reporting.link_reference_to_story:\n- link_references(client, a, b, predicate, provenance) for reference<->reference (related_to symmetric: one row, lower lineage id as subject; cites/supports/contradicts directional).\n- link_concept(client, reference, node, provenance) = related_to reference -> semanticNode.\n- id = reference-link-{predicate}-{hash(a,b)} (idempotent); relationState current|suggested|rejected with state keys via semantic_state_key(kind, lineage, state); score (cosine), confidence (calibrated P(accept) or null), classifierId (vector:text-embedding-3-small | rule:... | null), modelVersion.\n- metadata {kind: reference.link | reference.concept, provenance: human|suggested|derived, suggestedBy, addedBy, addedAt, decidedBy, decidedAt, decision, reasonCode, note}.\n- decide(client, relation_id, decision, reason_code, note, actor).\nUnit tests: second write updates, never duplicates; a suggestion is not returned by any #current query; deciding records who and why.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

@@ -7,6 +7,8 @@ version of PPY-8ffc18: a digest and a synthesis, run by hand against the cloud C
 ([below](#trend-stories)). Scheduling comes later. Executable specs: `features_backend/idea-pipeline.feature`,
 `features_backend/idea-trend-stories.feature`, `features_backend/idea-monitor-stories.feature`; unit tests: `procedures/newsroom/tests/test_ideas.py`, `test_idea_trends.py`, `test_monitor_stories.py`, `test_excluded_hosts.py`; excluded source hosts: `features_backend/idea-excluded-source-hosts.feature`.
 
+The design for ideas built from context packs (themes, links, concepts and two dates) is in [idea-context-packs.md](idea-context-packs.md).
+
 ## Running it
 
 Both commands run on your machine against one site's CMS. Point them at the site's AppSync endpoint and sign with your AWS
@@ -363,6 +365,8 @@ With `--store items` every idea is checked against the site's editorial policies
 - The router's ideas pass the same gate: it reads the site's policies through the publication's own API and takes the judgment lane's key from one shared SSM parameter (both granted by `RouterIdeaPolicy`). With no key the rules lane still runs and the Item records the judgment lane as not run ([monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily)).
 
 ### Decisions are labels
+
+In the console, a generated idea open in the story editor carries the same Accept and Reject control as a Reference, with an optional written reason. The answer is recorded at `generated.decision` in the idea's front matter (`decision`, `reasonCode`, `note`, `decidedBy`, `decidedAt`); answering then moves the idea with `moveStoryStage`: Accept to the stage after Idea on the board's stage list, Reject to `spiked` with the reason. If the move fails, the decision stays recorded and the error is shown. Executable spec: `features/newsroom-decision-control.feature`.
 
 An editor decides a generated idea by moving it: forward (accept) or to `spiked` with a reason (decline). The move is already recorded on the Item (`stageMoves`), so the labels are read from the Items, never copied and never written as Messages. The first move out of the `idea` stage is the decision; a story spiked later, after it was accepted, is still an accepted idea.
 

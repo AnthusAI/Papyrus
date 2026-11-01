@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "7a70de15-e964-4ea8-b333-1b1c35014f96",
+  "issue_id": "PPY-7edb982c-ce20-4b55-b289-3433fa47daa2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:53.426Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "idea-pack-fit classifier: which packs deserve an idea",
+    "description": "Labels: editors' forward/spike on generated ideas, with reasons (S2.8), joined to generated.evidence.packId. Features: signal type, surprise, pack size, share of human-confirmed edges, Message count, time since the last idea on the anchor. Orders the S1 queue only once it beats surprise ordering on held-out decisions.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-b322345d-523c-45e9-8888-5d0c6a2f9391",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

@@ -58,3 +58,19 @@ Feature: Cited Trends choose how far back to look from the data
     When the trend windows are scanned
     Then the concept is a trend over a window of 1 week
     And the baseline is the 7 weeks before the window
+
+  Scenario: A burst in the last two days is found when the counts are daily
+    Given a daily series that is mentioned once a day for 58 days and 8 times on each of the last 2 days
+    When the trend windows are scanned in day buckets
+    Then the window is 2 days, which is 2 buckets
+    And the corrected p-value is within 0.01
+
+  Scenario: The same counts spread evenly over the days are not a trend
+    Given a daily series that is mentioned once a day for 60 days
+    When the trend windows are scanned in day buckets
+    Then the corrected p-value is not within 0.01
+
+  Scenario: Weekly buckets stay the default and report their days
+    Given a quiet concept that is mentioned 9 times in the latest week
+    When the trend windows are scanned
+    Then the window is 1 bucket of 7 days

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "edce495f-8e66-4115-ad98-ff98e2734dd6",
+  "issue_id": "PPY-9b3efa22-0a3d-4d05-845a-2b025473e6f7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:48.431Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "concept_card vectors for every accepted concept",
+    "description": "src/papyrus_knowledge_query/vector_index.py: add vectorKind concept_card for every accepted SemanticNode (text from knowledge_wiki/pages.py entity_body: displayName, aliases, kind label, description). Metadata kind=semanticNode, vectorKind, nodeKey, nodeKind, lineageId, hashtag. Today only concepts with an AI profile are findable.\nCost (real constraint): text-embedding-3-small, ~$0.02 per million tokens. Sync is idempotent (skip unchanged by content hash).\nTests: sync writes one card per accepted concept and skips unchanged ones.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

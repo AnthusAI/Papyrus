@@ -43,7 +43,7 @@ Feature: A site writes about the items its monitors find
     When the operator drafts monitor stories with the default limit
     Then 0 stories are drafted
 
-  Scenario: Only monitored, current, accepted items are candidates
+  Scenario: Only current, accepted items are candidates, monitored or not
     Given the monitors of the site delivered these items:
       | monitor | title                  | verdict       | days ago | status   |
       | hn      | Pending and recent     | include 0.80  | 1        | pending  |
@@ -54,8 +54,8 @@ Feature: A site writes about the items its monitors find
     And a Reference that no monitor delivered arrived 1 day ago
     And every linked page can be read
     When the operator drafts monitor stories with the default limit
-    Then the stories drafted are "Old but still wanted" and "Accepted and recent"
-    And the run record counts 1 item judged not relevant and 1 that no monitor delivered
+    Then the three stories drafted are "Old but still wanted", "Accepted and recent" and "Added by hand"
+    And the run record counts 1 item judged not relevant
     And the run record counts 1 pending item that was not read because it was not accepted
 
   Scenario: Pending items are not written about by default, however confident the Cyclotron is
@@ -76,7 +76,7 @@ Feature: A site writes about the items its monitors find
     When the operator drafts monitor stories with the default limit
     Then the stories drafted are "Accepted by the system"
 
-  Scenario: The status option brings pending items back in
+  Scenario: Pending items are never candidates, even when the status option names them
     Given the monitors of the site delivered these items:
       | monitor | title                  | verdict      | days ago | status   |
       | hn      | Pending and recent     | include 0.80 | 1        | pending  |
@@ -84,7 +84,7 @@ Feature: A site writes about the items its monitors find
       | hn      | Rejected by an editor  | include 0.99 | 1        | rejected |
     And every linked page can be read
     When the operator drafts monitor stories reading the statuses "accepted,pending"
-    Then the stories drafted are "Pending and recent" and "Accepted and recent"
+    Then the stories drafted are "Accepted and recent"
     And the run record counts 0 pending items that were not read because they were not accepted
 
   Scenario: There is no default window, so an old, highly relevant item is still considered

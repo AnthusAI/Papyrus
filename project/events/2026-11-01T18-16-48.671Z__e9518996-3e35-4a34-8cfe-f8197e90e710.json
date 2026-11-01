@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "e9518996-3e35-4a34-8cfe-f8197e90e710",
+  "issue_id": "PPY-5036bab6-0859-4c9c-b3bf-44f08bab101f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:48.671Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Router keeps each site's vector index current and can query it",
+    "description": "- seed_router_config.py reads custom.knowledgeQuery.s3VectorIndexArn from each site's amplify_outputs.json into monitorStories.vectorIndexArn (never typed by hand).\n- The router's daily pass runs index_reference_passages(action=\"sync\") for References accepted since the last sync, plus concept_card sync, before suggestions and packs. Indexing stops being a manual CLI step.\n- infra/monitoring/papyrus-monitoring.yaml: s3vectors:GetVectors/QueryVectors/PutVectors on the seven index ARNs, folded into RouterIdeaPolicy (no new policy; role at 18/20). Change set for Ryan.\n- Without an ARN: packs run without vectors; suggestions off with a logged reason.\nTests: config seeding; policy test; a run without an ARN logs the reason.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

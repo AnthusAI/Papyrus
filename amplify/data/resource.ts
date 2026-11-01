@@ -473,6 +473,19 @@ const schema = a.schema({
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 
+  MessageHashtagLinks: a.customType({
+    ok: a.boolean().required(),
+    linkedNodeKeys: a.string().array().required(),
+    unmatchedHashtags: a.string().array().required(),
+  }),
+
+  linkMessageHashtags: a
+    .mutation()
+    .arguments({ messageId: a.id().required() })
+    .returns(a.ref("MessageHashtagLinks"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
   createReferenceNote: a
     .mutation()
     .arguments({

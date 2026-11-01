@@ -94,7 +94,10 @@ def generated_of(item: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def item_id_for_idea(draft: dict[str, Any]) -> str:
-    """One id per idea: the Reference lineages it cites, else the idea's own id. Filing the same Reference twice is one Item."""
+    """One id per idea: the Reference lineages it cites, else the idea's own id. Filing the same Reference twice is one Item. A context-pack
+    idea is a theme, and several distinct ideas from one pack may cite the same References, so it is keyed by its own id (pack and headline)."""
+    if draft.get("origin") == "context-pack":
+        return "item-idea-" + hash_short(["idea", draft["ideaId"]])
     lineages = sorted(reference_lineages_of_targets(draft.get("targets")))
     return "item-idea-" + hash_short(["idea", lineages or draft["ideaId"]])
 
@@ -176,7 +179,7 @@ def idea_rows(client: Any) -> list[dict[str, Any]]:
         targets = generated.get("targets") or []
         rows.append({
             "id": item.get("lineageId") or item["id"], "kind": "story_draft", "title": item.get("title") or "", "summary": item.get("deck") or "",
-            "targets": json.dumps(targets), "state": "declined" if spiked else "draft", "createdAt": item.get("versionCreatedAt") or "", "stage": item.get("stage"),
+            "targets": json.dumps(targets), "evidence": json.dumps(generated.get("evidence") or {}), "state": "declined" if spiked else "draft", "createdAt": item.get("versionCreatedAt") or "", "stage": item.get("stage"),
         })
     return rows
 

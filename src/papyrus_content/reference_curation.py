@@ -28,6 +28,7 @@ from typing import Any
 from .ids import hash_short
 from .link_exploration import explore
 from .options import normalize_string, parse_options, resolve_mutation_apply
+from .web_structured_metadata import normalize_html_date, publication_date_resolution_record
 from .reference_capture import SHORT_BODY_CHARACTERS, Capture, capture_source
 from .reference_curation_store import (
     GROBID_SORT_KEY,
@@ -242,6 +243,7 @@ def curate_reference(client: Any, reference: dict[str, Any], *, services: Servic
                         if source_uri else Capture(False, "no_source_uri"))
         if plan["capture"] and captured is not None:
             _record_capture(card, captured, reference, store, services.now())
+            _publication_date_stage(client, reference, captured, services.now())
         if plan["summary"]:
             _summary_stage(card, reference, store, services, captured, force)
         if plan["grobid"]:
@@ -254,6 +256,35 @@ def curate_reference(client: Any, reference: dict[str, Any], *, services: Servic
     result.update(outcome="curated", status=card["status"], bodyCharacters=(card.get("signals") or {}).get("characterCount"), stages={name: (card.get(name) or {}).get("status")
                                                                     for name in ("capture", "summary", "grobid")})
     return result
+
+
+def _publication_date_stage(client: Any, reference: dict[str, Any], captured: Capture, now: datetime) -> None:
+    """Resolve the source's own publication date once, onto ``Reference.sourcePublishedAt``, with its provenance in
+    ``metadata.publicationDateResolution``. A date already on the Reference (a monitor supplied it) is kept, and an unknown date stays null:
+    the ingestion date is never copied into it."""
+    raw_metadata = reference.get("metadata")
+    try:
+        metadata = json.loads(raw_metadata) if isinstance(raw_metadata, str) and raw_metadata.strip() else dict(raw_metadata or {})
+    except ValueError:
+        metadata = {}
+    if not isinstance(metadata, dict) or metadata.get("publicationDateResolution"):
+        return
+    existing = normalize_string(reference.get("sourcePublishedAt"))
+    stamp = iso(now)
+    if existing:
+        kept = normalize_html_date(existing)
+        resolution = publication_date_resolution_record(source="monitor", precision=(kept or {}).get("precision", "day"), resolved_at=stamp)
+        fields: dict[str, Any] = {}
+    elif captured.publication_date:
+        found = captured.publication_date
+        resolution = publication_date_resolution_record(source=found["source"], precision=found["precision"], resolved_at=stamp)
+        fields = {"sourcePublishedAt": found["value"]}
+    else:
+        return
+    metadata["publicationDateResolution"] = resolution
+    fields["metadata"] = json.dumps(metadata, sort_keys=True)
+    client.update_record("Reference", {"id": reference["id"], **fields})
+    reference.update(fields)
 
 
 def _record_capture(card: dict[str, Any], captured: Capture, reference: dict[str, Any], store: AttachmentStore, now: datetime) -> None:

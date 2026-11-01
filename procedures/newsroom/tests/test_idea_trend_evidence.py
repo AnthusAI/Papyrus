@@ -59,6 +59,35 @@ def test_a_spike_is_found_over_a_short_window():
     assert window["correctedPValue"] < 1e-6 and window["surprise"] > 4
 
 
+DAILY_FLAT = [10.0] * 60
+
+
+def test_a_burst_in_the_last_two_days_is_significant_against_a_flat_sixty_day_baseline():
+    window = scan_window([1] * 58 + [8, 8], DAILY_FLAT, bucket_days=1)
+    assert (window["windowBuckets"], window["windowDays"], window["count"], window["baselineBuckets"], window["baselineCount"]) == (2, 2, 16, 58, 58)
+    assert window["correctedPValue"] <= TrendConfig().significance
+
+
+def test_the_same_counts_spread_evenly_over_the_days_are_not_significant():
+    window = scan_window([1] * 60, DAILY_FLAT, bucket_days=1)
+    assert window["correctedPValue"] > TrendConfig().significance
+
+
+def test_day_buckets_leave_the_configured_weeks_of_baseline_in_days():
+    assert window_lengths(60, 28) == [1, 2, 4, 8, 16, 32]
+    assert scan_window([0] * 60, DAILY_FLAT, bucket_days=1)["baselineDays"] >= 28
+
+
+def test_weekly_buckets_are_the_default_and_report_their_days():
+    window = scan_window([0] * 25 + [9], FLAT)
+    assert (window["windowBuckets"], window["windowDays"], window["bucketDays"]) == (1, 7, 7)
+
+
+def test_a_bucket_shorter_than_a_day_is_refused():
+    with pytest.raises(ValueError):
+        scan_window([0] * 30, [10.0] * 30, bucket_days=0)
+
+
 def test_an_entity_is_scanned_over_its_full_history_when_the_snapshot_has_it():
     full = [0] * 70 + [1] * 30 + [3] * 20  # 120 weeks; a window of 26 weeks cannot see the whole build
     row = {"key": "concept--slow", "series26": full[-26:], "series8": full[-8:], "seriesWeekly": full}

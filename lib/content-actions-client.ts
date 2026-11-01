@@ -29,6 +29,8 @@ export type SavedItemSummary = {
 export type SaveItemDraftResult = { ok: true; item: SavedItemSummary };
 export type PublishItemResult = { ok: true; changed: boolean; publishedId: string; versionNumber: number | null };
 export type UnpublishItemResult = { ok: true; changed: boolean };
+export type MoveStoryStageInput = { lineageId: string; stage: string; reason?: string | null };
+export type MoveStoryStageResult = { ok: true; changed: boolean; stage: string };
 
 export type CaptureAssessment = "complete" | "incomplete" | "incorrect";
 export type CorrectReferenceCaptureInput = {
@@ -62,6 +64,7 @@ export type ContentActionsTransport = {
     saveItemDraft: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     publishItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     unpublishItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
+    moveStoryStage: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     correctReferenceCapture: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
   };
 };
@@ -98,6 +101,9 @@ export function createContentActionsClient(transport: ContentActionsTransport) {
     async correctReferenceCapture(input: CorrectReferenceCaptureInput): Promise<CorrectReferenceCaptureResult> {
       return parseActionResponse(await transport.mutations.correctReferenceCapture({ input: JSON.stringify(input) }, USER_POOL));
     },
+    async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
+      return parseActionResponse(await transport.mutations.moveStoryStage({ input: JSON.stringify(input) }, USER_POOL));
+    },
     async unpublishItem(id: string): Promise<UnpublishItemResult> {
       return parseActionResponse(await transport.mutations.unpublishItem({ input: JSON.stringify({ id }) }, USER_POOL));
     },
@@ -116,6 +122,7 @@ function contentActionsClient() {
 export const deriveMarkus = (input: DeriveMarkusInput) => contentActionsClient().deriveMarkus(input);
 export const saveItemDraft = (input: SaveItemDraftInput) => contentActionsClient().saveItemDraft(input);
 export const publishItem = (id: string) => contentActionsClient().publishItem(id);
+export const moveStoryStage = (input: MoveStoryStageInput) => contentActionsClient().moveStoryStage(input);
 export const unpublishItem = (id: string) => contentActionsClient().unpublishItem(id);
 
 export const correctReferenceCapture = (input: CorrectReferenceCaptureInput) => contentActionsClient().correctReferenceCapture(input);

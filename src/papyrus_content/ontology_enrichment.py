@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .concept_link_predicates import MENTIONS, is_reference_concept_link
 from .env import PAPYRUS_ROOT
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from .ids import hash_short, hash_stable, safe_id
@@ -499,13 +500,15 @@ def rank_concepts(
         graph_nodes.add(subject_ref)
         graph_nodes.add(object_ref)
         weight = relation_weight(relation_key)
+        if is_reference_concept_link(relation_key, subject_kind, object_kind):
+            weight = max(weight, RELATION_WEIGHTS[MENTIONS])
         weighted_edges[subject_ref][object_ref] += weight
         if relation_key in {"related_to", "same_as"}:
             weighted_edges[object_ref][subject_ref] += weight
         if object_kind == "semanticNode" and object_lineage in node_lineages:
             relation_count_by_node[object_lineage] += 1
             source_kinds_by_node[object_lineage].add(subject_kind)
-            if relation_key == "mentions" and subject_kind == "reference":
+            if is_reference_concept_link(relation_key, subject_kind, object_kind):
                 mentions_by_node[object_lineage].add(subject_lineage)
         if subject_kind == "semanticNode" and subject_lineage in node_lineages:
             relation_count_by_node[subject_lineage] += 1

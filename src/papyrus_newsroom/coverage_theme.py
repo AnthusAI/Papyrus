@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from papyrus_content.concept_link_predicates import is_reference_concept_link
 from papyrus_content.graphql_http import execute_graphql
 from papyrus_content.content_item_lifecycle import (
     build_new_content_item_version,
@@ -5642,13 +5643,9 @@ def _concept_report_context(
     for raw_relation in semantic_relations:
         relation = _decode_record(raw_relation)
         relation_type = relation.get("relationTypeKey") or relation.get("predicate")
-        if _normalize_relation_key(relation_type) != "mentions":
+        if not is_reference_concept_link(_normalize_relation_key(relation_type), relation.get("subjectKind"), relation.get("objectKind")):
             continue
         if relation.get("relationState") not in {None, "current"}:
-            continue
-        if str(relation.get("subjectKind") or "") != "reference":
-            continue
-        if str(relation.get("objectKind") or "") != "semanticNode":
             continue
         reference = references_by_key.get(str(relation.get("subjectLineageId") or "")) or references_by_key.get(str(relation.get("subjectId") or ""))
         node = nodes_by_key.get(str(relation.get("objectLineageId") or "")) or nodes_by_key.get(str(relation.get("objectId") or ""))
