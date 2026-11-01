@@ -58,6 +58,11 @@ Then("the whole backend has fewer than {int} resources", function (limit) {
   assert.ok(this.bootstrapResources < limit, String(this.bootstrapResources));
 });
 
+Then("the first deploy creates no post-deploy render, because the render reads models the second deploy adds", function () {
+  // scripts/test-bootstrap-stage.ts asserts there is no reproject-on-deploy stack and exits non-zero otherwise.
+  assert.ok(this.bootstrapResources > 0);
+});
+
 Then("no deferred model has a stack", function () {
   // scripts/test-bootstrap-stage.ts asserts this and exits non-zero otherwise.
   assert.ok(this.bootstrapResources > 0);
