@@ -50,7 +50,9 @@ import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import { ReferenceConversation } from "./reference-conversation";
 import { useReferenceMessageCounts } from "./use-conversation";
 import { captureStatusesByLineage } from "../lib/reference-capture";
-import { applyFeedOrderSnapshot, buildFeedItems, feedLeadId, takeFeedOrderSnapshot, visibleFeedItems, type FeedOrderSnapshot } from "../lib/reference-feed-ranking";
+import { buildFeedItems } from "../lib/reference-feed-ranking";
+import type { PredictionStatuses } from "../lib/reference-predictions";
+import { useFeedWindow } from "./use-feed-window";
 import { referenceDek, referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { chooseSyntheticRejects, withSyntheticRejects } from "../lib/local-preview-synthetic-rejects";
@@ -124,6 +126,13 @@ type NewsroomReferencesViewProps = {
   predictionState?: PredictionState;
   predictionError?: string | null;
   onRetryPredictions?: () => void;
+  /**
+   * Each shown Reference's own prediction read. Present when the page reads predictions per Reference as the feed shows them: the feed
+   * then asks for the ids on screen (`onRequestPredictions`), a failure appears on that card alone, and `onRetryPrediction` reads it again.
+   */
+  predictionStatuses?: PredictionStatuses;
+  onRequestPredictions?: (lineageIds: string[]) => void;
+  onRetryPrediction?: (lineageId: string) => void;
   onRelevanceReview?: (reference: ReferenceRecord, curation: RelevanceCuration) => Promise<void> | void;
   initialReferenceLineageId?: string | null;
   onReview: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: ReferenceReviewOptions) => Promise<void> | void;
@@ -388,6 +397,9 @@ export function NewsroomReferencesView({
   reviewReasons,
   reviewSectionIds,
   onRetryPredictions,
+  predictionStatuses,
+  onRequestPredictions,
+  onRetryPrediction,
   sections = [],
   sectionSuggestions,
   sectionAgreement = null,
@@ -454,20 +466,21 @@ export function NewsroomReferencesView({
   );
 
   const canonicalReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
-  const liveItems = useMemo(() => buildFeedItems(canonicalReferences, decisions), [canonicalReferences, decisions]);
-  // The feed's order is taken ONCE per visit, when the feed has loaded (References and predictions), and then left alone. Selecting an
-  // item, rating one, a background refresh or a cache revalidation changes cards' content, never their places. Items that arrive later
-  // wait behind a "N new items: show" pill. The same holds for both sorts and for Include rated.
-  const orderSnapshot = useRef<FeedOrderSnapshot | null>(null);
-  const [, bumpOrder] = useState(0);
-  const orderReady = !loading && !showingSavedCopy && !previewSkeleton && predictionState !== "loading" && canonicalReferences.length > 0;
-  if (!orderSnapshot.current && orderReady) orderSnapshot.current = takeFeedOrderSnapshot(liveItems);
-  const stable = orderSnapshot.current ? applyFeedOrderSnapshot(orderSnapshot.current, liveItems, feedSort, feedShow) : null;
-  const liveVisible = useMemo(() => visibleFeedItems(liveItems, feedSort, feedShow, visitRated), [liveItems, feedSort, feedShow, visitRated]);
-  const feedItems = stable?.items ?? liveVisible;
-  const feedLead = stable ? stable.leadId : feedLeadId(feedItems);
-  const ratedCount = useMemo(() => liveItems.filter((item) => item.rated).length, [liveItems]);
-  const showNewItems = () => { orderSnapshot.current = takeFeedOrderSnapshot(liveItems); bumpOrder((count) => count + 1); };
+  const allItems = useMemo(() => buildFeedItems(canonicalReferences, decisions), [canonicalReferences, decisions]);
+  const managedPredictions = Boolean(predictionStatuses);
+  const feedWindowState = useFeedWindow({
+    allItems,
+    blocked: loading || showingSavedCopy || previewSkeleton,
+    predictionStatuses,
+    predictionsPending: predictionState === "loading",
+    onRequestPredictions,
+    sort: feedSort,
+    show: feedShow,
+    visitRated,
+  });
+  const { items: feedItems, leadId: feedLead, hasMore: hasMoreItems, loadingMore: loadingMoreItems, loadMore: loadMoreItems, showNewItems } = feedWindowState;
+  const newItemCount = feedWindowState.newCount;
+  const ratedCount = useMemo(() => allItems.filter((item) => item.rated).length, [allItems]);
   const [scrollTarget, setScrollTarget] = useState<{ id: string; nonce: number } | null>(null);
   const feedOrderIds = useMemo(
     () => feedItems.map((item) => item.lineageId),
@@ -753,7 +766,7 @@ export function NewsroomReferencesView({
 
         {view === "feed" ? (
           <div className="relative flex min-h-0 flex-1 flex-col" {...FEED_SURFACE_PROPS}>
-          {stable && stable.newCount > 0 ? (
+          {newItemCount > 0 ? (
             // Floats over the top of the grid, outside the scrolling content: announcing new items never moves a card.
             <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
               <button
@@ -762,7 +775,7 @@ export function NewsroomReferencesView({
                 onClick={showNewItems}
                 type="button"
               >
-                {stable.newCount} new {stable.newCount === 1 ? "item" : "items"}: show
+                {newItemCount} new {newItemCount === 1 ? "item" : "items"}: show
               </button>
             </div>
           ) : null}
@@ -781,7 +794,12 @@ export function NewsroomReferencesView({
                 onVisitRated={markVisitRated}
                 items={feedItems}
                 ratedCount={ratedCount}
-                predictionLoading={predictionState === "loading"}
+                predictionLoading={!managedPredictions && predictionState === "loading"}
+                predictionStatuses={predictionStatuses}
+                onRetryPrediction={onRetryPrediction}
+                hasMore={hasMoreItems}
+                loadingMore={loadingMoreItems}
+                onLoadMore={loadMoreItems}
                 previews={previews}
                 captures={showCaptures ? captureStatuses : undefined}
                 leadId={feedLead}

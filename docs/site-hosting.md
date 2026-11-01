@@ -719,16 +719,45 @@ model nested stacks in waves: each wave of `backend.resolverWaveSize` stacks
 between nested stacks; no resource, schema or API changes. Set
 `backend: { resolverWaveSize: 0 }` in `papyrus.config.ts` to turn it off.
 
-## Fresh deploy exceeds the CloudFormation per-operation cap (staged first deploy)
+## Start a new Papyrus site: the two-deploy first backend
 
-CloudFormation creates at most 2,500 resources in one stack operation, nested stacks included. The full model set is
-about 2,560 resources, so the first deploy of a brand-new site fails with "Limit on the number of resources in a single
-stack operation exceeded" and rolls back. Existing sites passed it through incremental updates. `resolverWaveSize` does
-not help: every wave runs inside the same root operation.
+CloudFormation creates at most 2,500 resources in one stack operation, nested stacks included, and the limit cannot be
+raised. The full Papyrus backend is about 2,700 resources for a minimal site and more with plugins (the Shipped site's
+is 3,100), so the first `ampx pipeline-deploy` of a brand-new site fails with "Limit on the number of resources in a
+single stack operation exceeded" and rolls back. Existing sites passed it one release at a time; an update only counts
+the resources it creates or changes. `resolverWaveSize` does not help: every wave runs inside the same root operation.
 
-Stage the first deploy: set `backend.excludeModelGroups: ["editions"]` in `papyrus.config.ts` (the four edition models;
-editions are off by default), deploy, then remove the line and deploy again. The second deploy is an ordinary update
-that adds the models. Known groups are in `OPTIONAL_MODEL_GROUPS` (`amplify/data/schema.ts`); an unknown name fails the build.
+A new site therefore deploys its backend twice:
+
+1. **First deploy, bootstrap stage.** Set the Amplify branch variable `PAPYRUS_BOOTSTRAP_STAGE=1`. The data API then
+   leaves out the optional model groups in `OPTIONAL_MODEL_GROUPS` (`amplify/data/schema.ts`): editions, knowledge,
+   semantic, review, procedures, editorial checks and steering. Nothing else depends on those models, so the schema
+   stays valid. A minimal site synthesizes to about 1,700 resources (a site with the `home-page` plugin: 1,678), well
+   under the limit. `scripts/test-bootstrap-stage.ts` holds the figure under 2,000. Plugins add their own models (reader-steering plus signup: 2,030), so a site with many plugins has less headroom; check it with `npx tsx scripts/synth-site-backend.mts <dir> '<backend json>'` under `PAPYRUS_BOOTSTRAP_STAGE=1`.
+2. **Second deploy, normal.** Remove the variable and deploy again. This is an ordinary update that adds the deferred
+   models (about 1,000 resources, created in the one update).
+
+```bash
+# Before the first build (the site's Amplify app id and branch):
+aws amplify update-branch --app-id <appId> --branch-name main \
+  --environment-variables "$(aws amplify get-branch --app-id <appId> --branch-name main \
+      --query 'branch.environmentVariables' --output json | jq -c '. + {PAPYRUS_BOOTSTRAP_STAGE:"1"}')"
+# Run the build (push to main, or aws amplify start-job). When the backend deploy succeeds, remove the variable:
+aws amplify update-branch --app-id <appId> --branch-name main \
+  --environment-variables "$(aws amplify get-branch --app-id <appId> --branch-name main \
+      --query 'branch.environmentVariables' --output json | jq -c 'del(.PAPYRUS_BOOTSTRAP_STAGE)')"
+# Run the build again.
+```
+
+`update-branch --environment-variables` replaces the whole map, so merge into the existing variables as above.
+
+With the variable unset the synthesized templates are byte-for-byte what they were before the switch existed (apart from
+asset hashes, deploy tokens and the API key expiry that change on every synth), so it cannot affect a live site. Between
+the two deploys the newsroom lacks the deferred models; do not point users at it yet. A failed first create can leave the
+root stack `amplify-<appId>-<branch>-branch-<hash>` in `ROLLBACK_COMPLETE`; CloudFormation cannot update such a stack,
+so delete it (`aws cloudformation delete-stack`) before the first bootstrap build. Sites that cannot set a branch
+variable can set `backend.excludeModelGroups: [...]` in `papyrus.config.ts` instead, then remove it for the second deploy.
+Known groups: `OPTIONAL_MODEL_GROUPS`; an unknown name fails the build.
 
 ## Data API Lambda resolvers and the 500-resource stack limit
 

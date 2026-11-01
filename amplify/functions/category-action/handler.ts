@@ -27,6 +27,8 @@ import {
 import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
 import { referenceFeedKeys, referenceFeedStateKey } from "../../../lib/reference-feed-keys";
 import { claimGroups } from "../../../lib/staff-groups";
+import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
+import { createReferenceLink, decideReferenceLink, type ReferenceLinkStore } from "./reference-links";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
@@ -50,7 +52,13 @@ type CreateDraftCategoryHandler = Schema["createDraftCategory"]["functionHandler
 type UpdateDraftCategoryHandler = Schema["updateDraftCategory"]["functionHandler"];
 type ArchiveDraftCategoryHandler = Schema["archiveDraftCategory"]["functionHandler"];
 type ReviewReferenceTopicLabelHandler = Schema["reviewReferenceTopicLabel"]["functionHandler"];
+type LinkMessageHashtagsHandler = Schema["linkMessageHashtags"]["functionHandler"];
+type CreateReferenceLinkHandler = Schema["createReferenceLink"]["functionHandler"];
+type DecideReferenceLinkHandler = Schema["decideReferenceLink"]["functionHandler"];
 type CategoryActionEvent =
+  | Parameters<LinkMessageHashtagsHandler>[0]
+  | Parameters<CreateReferenceLinkHandler>[0]
+  | Parameters<DecideReferenceLinkHandler>[0]
   | Parameters<ReviewHandler>[0]
   | Parameters<ReferenceCurationHandler>[0]
   | Parameters<CreateCurationDelegationHandler>[0]
@@ -124,6 +132,9 @@ export const handler = async (event: CategoryActionEvent) => {
   if (!fieldName) {
     throw new Error("Unsupported steering action: missing GraphQL field name.");
   }
+  if (fieldName === "createReferenceLink") return createReferenceLinkAction(event as Parameters<CreateReferenceLinkHandler>[0]);
+  if (fieldName === "decideReferenceLink") return decideReferenceLinkAction(event as Parameters<DecideReferenceLinkHandler>[0]);
+  if (fieldName === "linkMessageHashtags") return linkMessageHashtagsAction(event as Parameters<LinkMessageHashtagsHandler>[0]);
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
   if (fieldName === "createCurationDelegation") return createCurationDelegation(event as Parameters<CreateCurationDelegationHandler>[0]);
@@ -582,6 +593,113 @@ async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandl
     status: nextStatus,
     relationId,
   };
+}
+
+async function linkMessageHashtagsAction(event: Parameters<LinkMessageHashtagsHandler>[0]) {
+  const client = await getDataClient();
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to link a message's hashtags.");
+  const messageId = normalizeRequiredString(event.arguments.messageId, "messageId");
+  const store: MessageHashtagStore = {
+    getMessage: async (id) => {
+      const response = await client.models.Message.get({ id });
+      assertNoDataErrors(response.errors, "get Message");
+      return response.data ?? null;
+    },
+    listAcceptedConceptNodes: async () => {
+      const nodes: Array<{ id: string; lineageId?: string | null; versionNumber?: number | null; nodeKey: string }> = [];
+      let nextToken: string | null | undefined;
+      do {
+        const page = await (client.models.SemanticNode as any).listSemanticNodesByVersionStateAndUpdatedAt({ versionState: "current" }, { limit: 500, nextToken });
+        assertNoDataErrors(page.errors, "list SemanticNodes");
+        for (const node of page.data ?? []) if (node.status === "accepted") nodes.push(node);
+        nextToken = page.nextToken;
+      } while (nextToken);
+      return nodes;
+    },
+    getRelation: async (id) => {
+      const response = await client.models.SemanticRelation.get({ id });
+      assertNoDataErrors(response.errors, "get SemanticRelation");
+      return response.data ?? null;
+    },
+    putRelation: async (relation, existing) => {
+      const write = existing ? client.models.SemanticRelation.update(relation as any) : client.models.SemanticRelation.create({ ...relation, createdAt: relation.updatedAt } as any);
+      await requireDataResult(write, "write message concept SemanticRelation");
+    },
+    setMessageMetadata: async (id, metadata) => {
+      await requireDataResult(client.models.Message.update({ id, metadata: JSON.stringify(metadata) }), "update Message metadata");
+    },
+  };
+  return linkMessageHashtags(store, { messageId, callerSub, now: new Date().toISOString() });
+}
+
+async function referenceLinkStore(): Promise<ReferenceLinkStore> {
+  const client = await getDataClient();
+  return {
+    getCurrentReference: async (idOrLineageId) => {
+      const direct = await client.models.Reference.get({ id: idOrLineageId });
+      assertNoDataErrors(direct.errors, "get Reference");
+      if (direct.data) return direct.data;
+      const versions: Array<{ id: string; lineageId?: string | null; versionNumber?: number | null; versionState?: string | null }> = [];
+      let nextToken: string | null | undefined;
+      do {
+        const page = await (client.models.Reference as any).listReferencesByLineageAndVersion({ lineageId: idOrLineageId }, { limit: 100, nextToken });
+        assertNoDataErrors(page.errors, "list Reference versions");
+        versions.push(...(page.data ?? []));
+        nextToken = page.nextToken;
+      } while (nextToken);
+      const current = versions.filter((version) => version.versionState === "current");
+      const candidates = current.length ? current : versions;
+      return candidates.reduce<(typeof versions)[number] | null>((best, version) => (best === null || (version.versionNumber ?? 0) > (best.versionNumber ?? 0) ? version : best), null);
+    },
+    getSemanticNode: async (lineageId) => {
+      const direct = await client.models.SemanticNode.get({ id: lineageId });
+      assertNoDataErrors(direct.errors, "get SemanticNode");
+      if (direct.data) return direct.data;
+      const page = await (client.models.SemanticNode as any).listSemanticNodesByLineageAndVersion({ lineageId }, { limit: 100 });
+      assertNoDataErrors(page.errors, "list SemanticNode versions");
+      const versions: Array<{ id: string; lineageId?: string | null; versionNumber?: number | null; versionState?: string | null }> = page.data ?? [];
+      const current = versions.filter((version) => version.versionState === "current");
+      const candidates = current.length ? current : versions;
+      return candidates.reduce<(typeof versions)[number] | null>((best, version) => (best === null || (version.versionNumber ?? 0) > (best.versionNumber ?? 0) ? version : best), null);
+    },
+    getRelation: async (id) => {
+      const response = await client.models.SemanticRelation.get({ id });
+      assertNoDataErrors(response.errors, "get SemanticRelation");
+      return response.data ?? null;
+    },
+    putRelation: async (relation, existing) => {
+      const write = existing ? client.models.SemanticRelation.update(relation as any) : client.models.SemanticRelation.create({ ...relation, createdAt: relation.updatedAt } as any);
+      await requireDataResult(write, "write reference link SemanticRelation");
+    },
+  };
+}
+
+async function createReferenceLinkAction(event: Parameters<CreateReferenceLinkHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to link References.");
+  return createReferenceLink(await referenceLinkStore(), {
+    subjectLineageId: normalizeRequiredString(event.arguments.subjectLineageId, "subjectLineageId"),
+    objectKind: normalizeRequiredString(event.arguments.objectKind, "objectKind"),
+    objectLineageId: normalizeRequiredString(event.arguments.objectLineageId, "objectLineageId"),
+    predicate: normalizeRequiredString(event.arguments.predicate, "predicate"),
+    note: normalizeOptionalString(event.arguments.note),
+    callerSub,
+    now: new Date().toISOString(),
+  });
+}
+
+async function decideReferenceLinkAction(event: Parameters<DecideReferenceLinkHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to decide on a link.");
+  return decideReferenceLink(await referenceLinkStore(), {
+    relationId: normalizeRequiredString(event.arguments.relationId, "relationId"),
+    decision: normalizeRequiredString(event.arguments.decision, "decision"),
+    reasonCode: normalizeOptionalString(event.arguments.reasonCode),
+    note: normalizeOptionalString(event.arguments.note),
+    callerSub,
+    now: new Date().toISOString(),
+  });
 }
 
 async function createReferenceNote(event: Parameters<ReferenceNoteHandler>[0]) {

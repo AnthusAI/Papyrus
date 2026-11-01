@@ -284,6 +284,31 @@ def references_auto_accept(flags: list[str]) -> None:
     print(json.dumps({"autoAccept": "rule-backfill", **backfill}))
 
 
+def references_suggest_links(flags: list[str]) -> None:
+    """``papyrus references suggest-links --corpus-id ID --reference-id ID [--dry-run]``.
+
+    Suggests related References and concepts for one Reference from the vector index (src/papyrus_content/reference_suggestions.py)
+    and writes them as ``suggested`` links; ``--dry-run`` prints what would be written. The index is the one named by
+    ``PAPYRUS_S3_VECTOR_INDEX_ARN`` or ``amplify_outputs.json``."""
+    from papyrus_knowledge_query.services import S3VectorsProvider
+    from papyrus_knowledge_query.vector_index import _vector_index_from_outputs
+
+    from .reference_suggestions import suggest_for
+    options = parse_options(flags)
+    corpus_id = normalize_string(options.get("corpus-id"))
+    reference_id = normalize_string(options.get("reference-id"))
+    if not corpus_id or not reference_id:
+        raise ValueError("references suggest-links needs --corpus-id ID and --reference-id ID.")
+    apply = resolve_mutation_apply(options, "references suggest-links")
+    index_arn = os.environ.get("PAPYRUS_S3_VECTOR_INDEX_ARN") or _vector_index_from_outputs()
+    if not index_arn:
+        raise RuntimeError("Missing PAPYRUS_S3_VECTOR_INDEX_ARN and custom.knowledgeQuery.s3VectorIndexArn")
+    client, _ = create_authoring_client()
+    provider = S3VectorsProvider(vector_index_arn=index_arn, region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"))
+    from .suggestion_calibration import load_calibration
+    print(json.dumps(suggest_for(client, provider, reference_id, corpus_id=corpus_id, calibration=load_calibration(client), dry_run=not apply), indent=2))
+
+
 def references_backfill_feed_keys(flags: list[str]) -> None:
     """``papyrus references backfill-feed-keys --site KEY [--corpus-key KEY] [--positive-label LABEL] [--dry-run]``.
 

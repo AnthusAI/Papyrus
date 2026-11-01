@@ -1,0 +1,30 @@
+{
+  "id": "PPY-1b5923b3-45c9-4fb0-b257-c0e409a82d87",
+  "title": "Backfill publication dates on all seven sites",
+  "description": "Per site: papyrus references curate --corpus-id ... --force (idempotent, leased), bounded by the curation budget, not a count. Dry run first; report filled / still unknown per site. Ask Ryan before the Anth.us write.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e74e6fd5-2b79-4615-ae69-47c466e0619b",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-31054c30-9205-4bf9-9c26-21bf5a446f9e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-01T18:16:51.926350Z",
+  "updated_at": "2026-11-01T18:16:57.497348Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "main-session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

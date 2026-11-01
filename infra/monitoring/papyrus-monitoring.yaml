@@ -65,6 +65,76 @@ Parameters:
     Type: String
     Default: xcobakwl4jagvhdq54qc55flii
     Description: AppSync API id of the Distinctive Mark backend (the TTAB decisions monitor delivers there).
+  AnthUsVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Anth.us (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  AnthUsStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Anth.us (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  PapyrusVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of the Papyrus product site (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  PapyrusStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of the Papyrus product site (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  ThreatIntelVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Threat Intelligence (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  ThreatIntelStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Threat Intelligence (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  DataParadeVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Data Parade (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  DataParadeStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Data Parade (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  PilobolusVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Pilobolus (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  PilobolusStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Pilobolus (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  ShippedVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Shipped (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  ShippedStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Shipped (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  DistinctiveVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Distinctive Mark (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  DistinctiveStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Distinctive Mark (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
   ScheduleState:
     Type: String
     Default: ENABLED
@@ -1289,7 +1359,12 @@ Resources:
         Lets the router's daily monitor-stories task file generated story ideas as Items at the idea stage (src/papyrus_content/ideas/items.py) and run
         the Humanus editorial gate on each one first (src/papyrus_content/ideas/gate.py). One policy, not one per API, because RouterRole is near the
         20-managed-policy limit: the fields are named exactly and the API is a wildcard, which in this account is the seven routed publication APIs.
-        The SSM statement reads the TypeSafe key for the gate's judgment lane. Hand-run with a change set.
+        It also carries the reads of the context-pack signals (the publication's Messages, human votes, concepts and Reference summaries:
+        src/papyrus_content/ideas/signal_inputs.py and signal_queue.py) and the writes of a pack idea (the Item, its based_on and concept edges:
+        pack_stories.py), still in this one policy. Test: test_monitoring_packs.py records every field the pack path asks for.
+        The SSM statement reads the TypeSafe key for the gate's judgment lane. The vector pass (src/papyrus_content/monitoring_vectors.py) adds the S3 Vectors
+        actions on the seven sites' indexes, the read of each site's storage bucket for the text it embeds, and the GraphQL fields that sync and suggestions ask for;
+        test_monitoring_vectors.py records every field they ask for. Hand-run with a change set; the fourteen VectorIndexArn / StorageBucketName parameters need values.
       Roles: [!Ref RouterRole]
       PolicyDocument:
         Version: "2012-10-17"
@@ -1309,8 +1384,54 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialFeedbacks"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialPolicies"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getMessage"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItems"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByLineageAndVersion"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessageThreads"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessagesByThreadAndCreatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferenceAttachmentsByReferenceLineageAndSortKey"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticNodes"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByObjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createSemanticRelation"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createEditorialCheckRun"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticNode"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listModelAttachmentsByOwnerRoleAndSortKey"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessagesByKindAndCreatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferences"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByNewsroomFeedAndCreatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateSemanticRelation"
+          # The vector pass of the daily monitor-stories task: sync (list, write) the seven sites' indexes and query them for suggestions. A parameter left at its default names no index.
+          - Sid: SiteVectorIndexes
+            Effect: Allow
+            Action:
+              - s3vectors:GetVectors
+              - s3vectors:QueryVectors
+              - s3vectors:PutVectors
+              - s3vectors:ListVectors
+            Resource:
+              - !Ref AnthUsVectorIndexArn
+              - !Ref PapyrusVectorIndexArn
+              - !Ref ThreatIntelVectorIndexArn
+              - !Ref DataParadeVectorIndexArn
+              - !Ref PilobolusVectorIndexArn
+              - !Ref ShippedVectorIndexArn
+              - !Ref DistinctiveVectorIndexArn
+          - Sid: SiteStorageExtractedText
+            Effect: Allow
+            Action: s3:GetObject
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::${AnthUsStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${PapyrusStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${ThreatIntelStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${DataParadeStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${PilobolusStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${ShippedStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${DistinctiveStorageBucketName}/*"
           # With EditorialJudgmentKeyParameter empty this ARN names no parameter, so the grant reads nothing.
           - Sid: ReadEditorialJudgmentKey
             Effect: Allow

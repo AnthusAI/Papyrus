@@ -1,0 +1,392 @@
+{
+  "cases": [
+    {
+      "expectedRows": {
+        "reference-link-related_to-1c08ef14c82f795a": {
+          "classifierId": null,
+          "confidence": null,
+          "id": "reference-link-related_to-1c08ef14c82f795a",
+          "importedAt": "2026-11-02T12:00:00Z",
+          "metadata": {
+            "addedAt": "2026-11-01T12:00:00Z",
+            "addedBy": "sub-1",
+            "decidedAt": "2026-11-01T12:00:00Z",
+            "decidedBy": "sub-1",
+            "decision": "accepted",
+            "kind": "reference.link",
+            "note": "same story",
+            "provenance": "human",
+            "reasonCode": null,
+            "suggestedBy": null
+          },
+          "modelVersion": null,
+          "newsroomFeedKey": "reference-links",
+          "objectId": "reference-b-v1",
+          "objectKind": "reference",
+          "objectLineageId": "reference-b",
+          "objectStateKey": "reference#reference-b#current",
+          "objectSubjectStateKey": "reference#reference-b#current#reference",
+          "objectVersionKey": "reference#reference-b-v1",
+          "objectVersionNumber": 1,
+          "predicate": "related_to",
+          "predicateObjectStateKey": "related_to#reference#reference-b#current",
+          "rank": 1,
+          "relationDomain": "generic",
+          "relationState": "current",
+          "relationTypeId": "semantic-relation-type-related-to",
+          "relationTypeKey": "related_to",
+          "reviewRecommended": false,
+          "score": null,
+          "subjectId": "reference-a-v1",
+          "subjectKind": "reference",
+          "subjectLineageId": "reference-a",
+          "subjectStateKey": "reference#reference-a#current",
+          "subjectVersionKey": "reference#reference-a-v1",
+          "subjectVersionNumber": 1,
+          "updatedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "name": "a person links two references as related, in either order, and the second write updates the one row",
+      "steps": [
+        {
+          "a": "reference-b",
+          "actor": "sub-1",
+          "b": "reference-a",
+          "now": "2026-11-01T12:00:00Z",
+          "op": "link",
+          "predicate": "related_to"
+        },
+        {
+          "a": "reference-a",
+          "actor": "sub-2",
+          "b": "reference-b",
+          "note": "same story",
+          "now": "2026-11-02T12:00:00Z",
+          "op": "link",
+          "predicate": "related_to"
+        }
+      ]
+    },
+    {
+      "expectedRows": {
+        "reference-link-cites-5ec72615d2e6d728": {
+          "classifierId": null,
+          "confidence": null,
+          "id": "reference-link-cites-5ec72615d2e6d728",
+          "importedAt": "2026-11-01T12:00:00Z",
+          "metadata": {
+            "addedAt": "2026-11-01T12:00:00Z",
+            "addedBy": "sub-1",
+            "decidedAt": "2026-11-01T12:00:00Z",
+            "decidedBy": "sub-1",
+            "decision": "accepted",
+            "kind": "reference.link",
+            "note": null,
+            "provenance": "human",
+            "reasonCode": null,
+            "suggestedBy": null
+          },
+          "modelVersion": null,
+          "newsroomFeedKey": "reference-links",
+          "objectId": "reference-a-v1",
+          "objectKind": "reference",
+          "objectLineageId": "reference-a",
+          "objectStateKey": "reference#reference-a#current",
+          "objectSubjectStateKey": "reference#reference-a#current#reference",
+          "objectVersionKey": "reference#reference-a-v1",
+          "objectVersionNumber": 1,
+          "predicate": "cites",
+          "predicateObjectStateKey": "cites#reference#reference-a#current",
+          "rank": 1,
+          "relationDomain": "evidence",
+          "relationState": "current",
+          "relationTypeId": "semantic-relation-type-cites",
+          "relationTypeKey": "cites",
+          "reviewRecommended": false,
+          "score": null,
+          "subjectId": "reference-b-v1",
+          "subjectKind": "reference",
+          "subjectLineageId": "reference-b",
+          "subjectStateKey": "reference#reference-b#current",
+          "subjectVersionKey": "reference#reference-b-v1",
+          "subjectVersionNumber": 1,
+          "updatedAt": "2026-11-01T12:00:00Z"
+        }
+      },
+      "name": "a directional link points from the first reference to the second",
+      "steps": [
+        {
+          "a": "reference-b",
+          "actor": "sub-1",
+          "b": "reference-a",
+          "now": "2026-11-01T12:00:00Z",
+          "op": "link",
+          "predicate": "cites"
+        }
+      ]
+    },
+    {
+      "expectedRows": {
+        "reference-link-related_to-ad05b70a14d57a07": {
+          "classifierId": null,
+          "confidence": null,
+          "id": "reference-link-related_to-ad05b70a14d57a07",
+          "importedAt": "2026-11-01T12:00:00Z",
+          "metadata": {
+            "addedAt": "2026-11-01T12:00:00Z",
+            "addedBy": "sub-1",
+            "decidedAt": "2026-11-01T12:00:00Z",
+            "decidedBy": "sub-1",
+            "decision": "accepted",
+            "kind": "reference.concept",
+            "note": null,
+            "provenance": "human",
+            "reasonCode": null,
+            "suggestedBy": null
+          },
+          "modelVersion": null,
+          "newsroomFeedKey": "reference-links",
+          "objectId": "node-voice-v1",
+          "objectKind": "semanticNode",
+          "objectLineageId": "node-voice",
+          "objectStateKey": "semanticNode#node-voice#current",
+          "objectSubjectStateKey": "semanticNode#node-voice#current#reference",
+          "objectVersionKey": "semanticNode#node-voice-v1",
+          "objectVersionNumber": 1,
+          "predicate": "related_to",
+          "predicateObjectStateKey": "related_to#semanticNode#node-voice#current",
+          "rank": 1,
+          "relationDomain": "generic",
+          "relationState": "current",
+          "relationTypeId": "semantic-relation-type-related-to",
+          "relationTypeKey": "related_to",
+          "reviewRecommended": false,
+          "score": null,
+          "subjectId": "reference-a-v1",
+          "subjectKind": "reference",
+          "subjectLineageId": "reference-a",
+          "subjectStateKey": "reference#reference-a#current",
+          "subjectVersionKey": "reference#reference-a-v1",
+          "subjectVersionNumber": 1,
+          "updatedAt": "2026-11-01T12:00:00Z"
+        }
+      },
+      "name": "a person tags a reference with a concept",
+      "steps": [
+        {
+          "actor": "sub-1",
+          "now": "2026-11-01T12:00:00Z",
+          "op": "concept",
+          "reference": "reference-a"
+        }
+      ]
+    },
+    {
+      "expectedRows": {
+        "reference-link-supports-cc3f23b35908c760": {
+          "classifierId": null,
+          "confidence": null,
+          "id": "reference-link-supports-cc3f23b35908c760",
+          "importedAt": "2026-11-01T12:00:00Z",
+          "metadata": {
+            "addedAt": "2026-11-01T12:00:00Z",
+            "addedBy": "sub-1",
+            "decidedAt": "2026-11-03T12:00:00Z",
+            "decidedBy": "sub-3",
+            "decision": "accepted",
+            "kind": "reference.link",
+            "note": null,
+            "provenance": "human",
+            "reasonCode": null,
+            "suggestedBy": null
+          },
+          "modelVersion": null,
+          "newsroomFeedKey": "reference-links",
+          "objectId": "reference-c-v1",
+          "objectKind": "reference",
+          "objectLineageId": "reference-c",
+          "objectStateKey": "reference#reference-c#current",
+          "objectSubjectStateKey": "reference#reference-c#current#reference",
+          "objectVersionKey": "reference#reference-c-v1",
+          "objectVersionNumber": 1,
+          "predicate": "supports",
+          "predicateObjectStateKey": "supports#reference#reference-c#current",
+          "rank": 1,
+          "relationDomain": "evidence",
+          "relationState": "current",
+          "relationTypeId": "semantic-relation-type-supports",
+          "relationTypeKey": "supports",
+          "reviewRecommended": false,
+          "score": null,
+          "subjectId": "reference-a-v1",
+          "subjectKind": "reference",
+          "subjectLineageId": "reference-a",
+          "subjectStateKey": "reference#reference-a#current",
+          "subjectVersionKey": "reference#reference-a-v1",
+          "subjectVersionNumber": 1,
+          "updatedAt": "2026-11-03T12:00:00Z"
+        }
+      },
+      "name": "a person rejects a link with a reason and later accepts it",
+      "steps": [
+        {
+          "a": "reference-a",
+          "actor": "sub-1",
+          "b": "reference-c",
+          "now": "2026-11-01T12:00:00Z",
+          "op": "link",
+          "predicate": "supports"
+        },
+        {
+          "actor": "sub-2",
+          "decision": "rejected",
+          "note": "wrong thread",
+          "now": "2026-11-02T12:00:00Z",
+          "op": "decide",
+          "reasonCode": "off-topic",
+          "relation": [
+            "supports",
+            "reference-a",
+            "reference-c"
+          ]
+        },
+        {
+          "actor": "sub-3",
+          "decision": "accepted",
+          "note": null,
+          "now": "2026-11-03T12:00:00Z",
+          "op": "decide",
+          "reasonCode": null,
+          "relation": [
+            "supports",
+            "reference-a",
+            "reference-c"
+          ]
+        }
+      ]
+    },
+    {
+      "expectedRows": {
+        "reference-link-related_to-1c08ef14c82f795a": {
+          "classifierId": "vector:text-embedding-3-small",
+          "confidence": null,
+          "id": "reference-link-related_to-1c08ef14c82f795a",
+          "importedAt": "2026-11-01T12:00:00Z",
+          "metadata": {
+            "addedAt": "2026-11-01T12:00:00Z",
+            "addedBy": "auto:vector",
+            "decidedAt": "2026-11-02T12:00:00Z",
+            "decidedBy": "sub-1",
+            "decision": "accepted",
+            "kind": "reference.link",
+            "note": null,
+            "provenance": "suggested",
+            "reasonCode": "same-topic",
+            "suggestedBy": "vector:text-embedding-3-small"
+          },
+          "modelVersion": null,
+          "newsroomFeedKey": "reference-links",
+          "objectId": "reference-b-v1",
+          "objectKind": "reference",
+          "objectLineageId": "reference-b",
+          "objectStateKey": "reference#reference-b#current",
+          "objectSubjectStateKey": "reference#reference-b#current#reference",
+          "objectVersionKey": "reference#reference-b-v1",
+          "objectVersionNumber": 1,
+          "predicate": "related_to",
+          "predicateObjectStateKey": "related_to#reference#reference-b#current",
+          "rank": 1,
+          "relationDomain": "generic",
+          "relationState": "current",
+          "relationTypeId": "semantic-relation-type-related-to",
+          "relationTypeKey": "related_to",
+          "reviewRecommended": false,
+          "score": 0.83,
+          "subjectId": "reference-a-v1",
+          "subjectKind": "reference",
+          "subjectLineageId": "reference-a",
+          "subjectStateKey": "reference#reference-a#current",
+          "subjectVersionKey": "reference#reference-a-v1",
+          "subjectVersionNumber": 1,
+          "updatedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "name": "a person accepts a machine suggestion",
+      "steps": [
+        {
+          "a": "reference-a",
+          "b": "reference-b",
+          "now": "2026-11-01T12:00:00Z",
+          "op": "suggest",
+          "score": 0.83,
+          "seedRow": {
+            "classifierId": "vector:text-embedding-3-small",
+            "confidence": null,
+            "id": "reference-link-related_to-1c08ef14c82f795a",
+            "importedAt": "2026-11-01T12:00:00Z",
+            "metadata": {
+              "addedAt": "2026-11-01T12:00:00Z",
+              "addedBy": "auto:vector",
+              "decidedAt": null,
+              "decidedBy": null,
+              "decision": null,
+              "kind": "reference.link",
+              "note": null,
+              "provenance": "suggested",
+              "reasonCode": null,
+              "suggestedBy": "vector:text-embedding-3-small"
+            },
+            "modelVersion": null,
+            "newsroomFeedKey": "reference-links",
+            "objectId": "reference-b-v1",
+            "objectKind": "reference",
+            "objectLineageId": "reference-b",
+            "objectStateKey": "reference#reference-b#suggested",
+            "objectSubjectStateKey": "reference#reference-b#suggested#reference",
+            "objectVersionKey": "reference#reference-b-v1",
+            "objectVersionNumber": 1,
+            "predicate": "related_to",
+            "predicateObjectStateKey": "related_to#reference#reference-b#suggested",
+            "rank": 1,
+            "relationDomain": "generic",
+            "relationState": "suggested",
+            "relationTypeId": "semantic-relation-type-related-to",
+            "relationTypeKey": "related_to",
+            "reviewRecommended": true,
+            "score": 0.83,
+            "subjectId": "reference-a-v1",
+            "subjectKind": "reference",
+            "subjectLineageId": "reference-a",
+            "subjectStateKey": "reference#reference-a#suggested",
+            "subjectVersionKey": "reference#reference-a-v1",
+            "subjectVersionNumber": 1,
+            "updatedAt": "2026-11-01T12:00:00Z"
+          }
+        },
+        {
+          "actor": "sub-1",
+          "decision": "accepted",
+          "note": null,
+          "now": "2026-11-02T12:00:00Z",
+          "op": "decide",
+          "reasonCode": "same-topic",
+          "relation": [
+            "related_to",
+            "reference-a",
+            "reference-b"
+          ]
+        }
+      ]
+    }
+  ],
+  "node": {
+    "id": "node-voice-v1",
+    "lineageId": "node-voice",
+    "versionNumber": 1
+  },
+  "references": [
+    "reference-a",
+    "reference-b",
+    "reference-c"
+  ]
+}

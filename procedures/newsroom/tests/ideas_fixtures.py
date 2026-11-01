@@ -101,6 +101,9 @@ class FakeClient:
         self.calls.append(("relations", key))
         return self.relations.get(key.split("#")[1], [])
 
+    def list_semantic_relations_by_object_state(self, key: str) -> list[dict[str, Any]]:
+        return []
+
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         self.calls.append(("graphql", query.strip().split("(")[0]))
         if "listItems" in query:

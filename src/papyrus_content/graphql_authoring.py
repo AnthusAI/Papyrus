@@ -497,6 +497,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "objectStateKey",
         "fields": SEMANTIC_RELATION_FIELDS,
     },
+    "semanticRelationsByNewsroomFeedAndCreatedAt": {
+        "field": "listSemanticRelationsByNewsroomFeedAndCreatedAt",
+        "partitionKey": "newsroomFeedKey",
+        "fields": SEMANTIC_RELATION_FIELDS,
+    },
     "semanticRelationsBySubjectState": {
         "field": "listSemanticRelationsBySubjectState",
         "partitionKey": "subjectStateKey",

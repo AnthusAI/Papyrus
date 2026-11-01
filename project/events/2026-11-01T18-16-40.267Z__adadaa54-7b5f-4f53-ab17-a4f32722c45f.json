@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "adadaa54-7b5f-4f53-ab17-a4f32722c45f",
+  "issue_id": "PPY-2e72e35e-e32e-48f2-a60b-5553ed72e0ba",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:40.267Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Choose single-item ideas by signals, not by 'every accepted monitored undrafted Reference'",
+    "description": "Ryan 11-01: single-item ideas keep running to find individual items worth a post, but they must be guided by data/signals.\nIn ideas/monitor_stories.py:\n- Candidates: any accepted Reference with a sourceUri, monitored or not (drop the notMonitored rule; keep sameSource, excluded host, promoted, judgedNotRelevant, already-cited-by-an-idea rules). Pending References are not single-item candidates (they can't be evidence).\n- Score each candidate with an item signal from S1.2 inputs: the Reference's own activity (human accept with reason, Messages on it, links to it, its concepts' acceptance surprise, Cyclotron probability) as a p-value/surprise on the same scale as packs (percentile against the site's own distribution, no thresholds).\n- Interleave single-item candidates with packs in one queue ordered by surprise (S1.3 ranking); the run stops only on time/cost/file_error.\n- Keep the single-item fetch and prompt as today.\nTests: a monitor-less accepted Reference with a lively thread outranks a quiet monitored one; a quiet site still files nothing rather than everything.\nGherkin scenarios for both.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0b40ca61-d357-47cc-9d81-6627b05f6303",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

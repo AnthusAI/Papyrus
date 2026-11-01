@@ -34,13 +34,49 @@ const realtimeModel = <Fields extends Parameters<typeof a.model>[0]>(fields: Fie
 /**
  * Model groups a site may leave out of its data API. CloudFormation creates at most 2,500 resources in one stack
  * operation, nested stacks included, and the full model set exceeds that on a fresh create. A first deploy that
- * excludes a group fits; a second deploy without the exclusion adds the models as an ordinary update.
+ * excludes groups fits; a second deploy without the exclusion adds the models as an ordinary update.
+ *
+ * A group may hold only models that no other model relates to (`hasMany`, `belongsTo`) and that no custom operation
+ * returns, because leaving them out must leave a valid schema. `editions` is the exception: `Item.editionItems` is
+ * dropped with it (see `buildBaseDefinitions`).
  */
 export const OPTIONAL_MODEL_GROUPS = {
   editions: ["Edition", "EditionItem", "PublishedEdition", "PublishedEditionItem"],
+  knowledge: ["KnowledgeArtifact", "KnowledgeCorpus", "KnowledgeImportRun", "KnowledgeRawPayload"],
+  semantic: ["SemanticNode", "SemanticRelation", "SemanticRelationType"],
+  review: ["ReviewRequest", "ReviewRecipientRule", "ReviewReadMark"],
+  procedures: ["ProcedureDefinition", "ProcedureRun", "ProcedureVersion"],
+  editorial: ["EditorialCheckRun", "EditorialFeedback", "EditorialPolicy", "EditorialCheckSettings"],
+  steering: ["SteeringProposal", "SteeringDecision", "LexicalSteeringRule"],
 } as const;
 
+/**
+ * The groups a bootstrap deploy leaves out (`PAPYRUS_BOOTSTRAP_STAGE=1`, docs/site-hosting.md). Every group is deferred,
+ * so the first create of a brand-new site stays well under the CloudFormation per-operation limit.
+ */
+export const BOOTSTRAP_DEFERRED_GROUPS = Object.keys(OPTIONAL_MODEL_GROUPS) as OptionalModelGroup[];
+
 export type OptionalModelGroup = keyof typeof OPTIONAL_MODEL_GROUPS;
+
+/**
+ * The groups to leave out of this synth: the site's `excludeModelGroups` plus, when the Amplify branch variable
+ * `PAPYRUS_BOOTSTRAP_STAGE` is `1`, every deferred group. Unset (or any other value), nothing is added.
+ */
+/** True when the Amplify branch variable `PAPYRUS_BOOTSTRAP_STAGE` is exactly `1`: the first deploy of a new site. */
+export function isBootstrapStage(environment: Record<string, string | undefined>): boolean {
+  return (environment.PAPYRUS_BOOTSTRAP_STAGE ?? "").trim() === "1";
+}
+
+export function resolveExcludedModelGroups(
+  configured: readonly string[] | undefined,
+  environment: Record<string, string | undefined>,
+): string[] {
+  const groups = [...(configured ?? [])];
+  if (isBootstrapStage(environment)) {
+    for (const group of BOOTSTRAP_DEFERRED_GROUPS) if (!groups.includes(group)) groups.push(group);
+  }
+  return groups;
+}
 
 export function assertKnownModelGroups(groups: readonly string[]): asserts groups is readonly OptionalModelGroup[] {
   for (const group of groups) {
@@ -50,7 +86,8 @@ export function assertKnownModelGroups(groups: readonly string[]): asserts group
   }
 }
 
-function buildBaseDefinitions(includeEditions: boolean) {
+function buildBaseDefinitions(excludedGroups: readonly OptionalModelGroup[] = []) {
+const includeEditions = !excludedGroups.includes("editions");
 const definitions = {
   UserProfile: modelWithoutSubscriptions({
       id: a.id().required(),
@@ -2283,18 +2320,18 @@ const definitions = {
   ...messageActionsSchemaDefinitions,
   ...profileActionsSchemaDefinitions,
 };
-if (!includeEditions) {
-  const mutableDefinitions = definitions as Record<string, unknown>;
-  for (const modelName of OPTIONAL_MODEL_GROUPS.editions) delete mutableDefinitions[modelName];
+const mutableDefinitions = definitions as Record<string, unknown>;
+for (const group of excludedGroups) {
+  for (const modelName of OPTIONAL_MODEL_GROUPS[group]) delete mutableDefinitions[modelName];
 }
 return definitions;
 }
 
 export function baseModelNames(excludedGroups: readonly OptionalModelGroup[] = []): string[] {
-  return Object.keys(buildBaseDefinitions(!excludedGroups.includes("editions")));
+  return Object.keys(buildBaseDefinitions(excludedGroups));
 }
 
-const baseDefinitions = buildBaseDefinitions(true);
+const baseDefinitions = buildBaseDefinitions();
 
 /** Schema-level function grants shared by every deployed schema, with or without plugins, so none can drop one. */
 function functionGrants(allow: any) {
@@ -2319,7 +2356,7 @@ export function schemaWithPlugins(pluginDefinitions: Record<string, any>) {
 
 /** The schema of a site that leaves optional model groups out of its first deploy. */
 export function schemaExcludingGroups(excludedGroups: readonly OptionalModelGroup[], pluginDefinitions: Record<string, any> = {}) {
-  const definitions = buildBaseDefinitions(!excludedGroups.includes("editions")) as unknown as typeof baseDefinitions;
+  const definitions = buildBaseDefinitions(excludedGroups) as unknown as typeof baseDefinitions;
   return a.schema({ ...definitions, ...pluginDefinitions } as typeof baseDefinitions).authorization(functionGrants);
 }
 

@@ -1,0 +1,30 @@
+{
+  "id": "PPY-2e2461a6-5dbb-4708-85cf-c86f6ac26294",
+  "title": "Every time analysis declares its date basis; resurfaced signal",
+  "description": "Audit trend/snapshot/signal code so each series names dateBasis (ingestion|publication) per design 2.3; concept trend reports and wiki timelines use publication date with flagged fallback. Add the resurfaced signal: References whose publication-to-ingestion gap is high against the site's own gap distribution and that got recent attention (Messages, accepts, new edges); pack says what pointed attention at it.\nTests + Gherkin.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e74e6fd5-2b79-4615-ae69-47c466e0619b",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-31054c30-9205-4bf9-9c26-21bf5a446f9e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-01T18:16:52.460288Z",
+  "updated_at": "2026-11-01T18:16:57.610789Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "main-session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

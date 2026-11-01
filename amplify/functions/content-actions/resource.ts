@@ -37,7 +37,7 @@ export const contentActions = defineFunction(
       code: pythonLambdaCode(
         {
           functionDir: "content-actions",
-          modules: ["papyrus_content"],
+          modules: ["papyrus_content", "papyrus_knowledge_query"],
           requirements: contentActionsRequirements,
           noDeps: true,
           checkoutExtras: installCheckoutRequirements,
@@ -48,9 +48,10 @@ export const contentActions = defineFunction(
           "-c",
           [
             "set -euo pipefail",
-            "mkdir -p /asset-output/papyrus_content",
+            "mkdir -p /asset-output/papyrus_content /asset-output/papyrus_knowledge_query",
             "cp amplify/functions/content-actions/handler.py /asset-output/handler.py",
             "cp -R src/papyrus_content/. /asset-output/papyrus_content/",
+            "cp -R src/papyrus_knowledge_query/. /asset-output/papyrus_knowledge_query/",
             "python3 -m pip install -r amplify/functions/content-actions/requirements.txt -t /asset-output --no-cache-dir",
           ].join(" && "),
         ],

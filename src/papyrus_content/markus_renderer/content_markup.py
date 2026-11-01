@@ -234,11 +234,12 @@ def prepare_page(
                 "credit",
                 "sizes",
                 "loading",
+                "srcDark",
             }
             if unknown:
                 raise ContentMarkupError(
                     f"::image{{...}} got unknown attribute(s) {', '.join(sorted(unknown))}. "
-                    "Allowed: src, alt, layout, caption, credit, sizes, loading."
+                    "Allowed: src, srcDark, alt, layout, caption, credit, sizes, loading."
                 )
             token = next_token()
             page.images[token] = ImageRequest(
@@ -249,6 +250,8 @@ def prepare_page(
                 credit=attrs.get("credit"),
                 sizes=attrs.get("sizes"),
                 loading=attrs.get("loading"),
+                src_dark=attrs.get("srcDark"),
+                pair_by_name=True,
             )
             return token
 

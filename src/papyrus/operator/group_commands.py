@@ -33,7 +33,7 @@ SECTIONS_COMMANDS = {
   "purge-planning": "purge-planning",
 }
 PROCEDURES_COMMANDS = ("seed-required", "register", "execute-tactus", "policy")
-OPS_GROUPS = ("content", "corpora", "categories", "relations", "messages")
+OPS_GROUPS = ("content", "corpora", "categories", "relations", "messages", "site")
 CONTENT_GROUPS_BY_PAPYRUS_GROUP = {"stories": "stories", "editions": "editions", "batch": "batch", "videos": "videos", "analysis": "analysis", "messages": "messages", "reader": "reader", "proposals": "proposals", "ideas": "ideas", "items": "items", "home-page": "home-page"}
 
 # Usage lines for commands whose flags are worth showing in group help.

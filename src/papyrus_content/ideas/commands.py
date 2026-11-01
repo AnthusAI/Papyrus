@@ -21,7 +21,6 @@ from . import digest as digest_module
 from ..knowledge_snapshot.trends import TrendConfig
 from . import monitor_stories, synthesis, trends
 from .context import corpus_ids_for, hosted_corpora, load_context
-from .dedupe import DEFAULT_THRESHOLD
 from .digest import parse_window
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, render_report, synthesize
 from .review import load_feedback
@@ -33,14 +32,16 @@ USAGE = (
     "  papyrus ideas digest --publication KEY [--since 7d] [--status accepted[,pending]] [--max-references N] [--excerpts]\n"
     "      [--out DIR] [--json]\n"
     "  papyrus ideas synthesize --publication KEY [--digest ID|PATH | --since 7d [--status ...] [--excerpts]] [--max 5]\n"
-    "      [--store items|json (default items)] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
-    "      [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
+    "      [--store items|json (default items)] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold X (default: learned from editors' duplicate decisions)] [--max-cost-usd 0.50]\n"
+    "      [--story-days N (default: every story the site has)] [--out DIR] [--report FILE] [--json]\n"
     "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store items|json (default items)] [--dry-run] [--max 3] [--trend-config FILE] [--model gpt-6-luna]\n"
-    "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
+    "      [--dedupe-threshold X (default: learned from editors' duplicate decisions)] [--max-cost-usd 0.50] [--story-days N (default: every story the site has)] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
     "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--status accepted[,pending] (default: accepted only)] [--store items|json (default items)] [--dry-run] [--model gpt-6-luna]\n"
-    "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
-    "      (drafts one cited story for each of the top --limit items the site's monitors found, ranked by the relevance Cyclotron's verdict)\n"
+    "      [--dedupe-threshold X (default: learned from editors' duplicate decisions)] [--max-cost-usd 0.50] [--story-days N (default: every story the site has)] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
+    "      [--packs-only | --single-only]\n"
+    "      (with --store items, one queue of context packs and single items ranked by the newsroom's own signals; --packs-only drafts only theme ideas from packs,\n"
+    "       --single-only is the single-item path ranked by the relevance Cyclotron's verdict, with no packs; --dry-run prints the packs and writes nothing)\n"
     "  papyrus ideas migrate-proposals [--write] [--json]   (open story_draft Proposals to Items at the idea stage; a dry run unless --write; needs an editor session)\n"
     "  papyrus ideas labels [--out FILE]   (editors' accept and decline decisions on generated ideas as JSON Lines for a Cyclotron; read-only)\n"
     "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or Items at the idea stage with --store items, the default (the editors accept an idea by moving it forward and decline it by spiking it with a reason)."
@@ -79,6 +80,14 @@ def _integer(options: dict[str, Any], key: str, default: int) -> int:
     if not value.isdigit() or int(value) < 1:
         raise ValueError(f"--{key} must be a positive whole number.")
     return int(value)
+
+
+def _optional_integer(options: dict[str, Any], key: str) -> int | None:
+    return None if normalize_string(options.get(key)) is None else _integer(options, key, 1)
+
+
+def _optional_number(options: dict[str, Any], key: str) -> float | None:
+    return None if normalize_string(options.get(key)) is None else _number(options, key, 0.0)
 
 
 def _number(options: dict[str, Any], key: str, default: float) -> float:
@@ -142,7 +151,7 @@ def synthesize_command(flags: list[str]) -> None:
         raise ValueError(f"Digest {digest['digestId']} is for {digest['publication']}, not {publication}.")
     json_store.save_digest(digest)
     now = datetime.now(timezone.utc)
-    context = load_context(client, now=now, story_days=_integer(options, "story-days", 90))
+    context = load_context(client, now=now, story_days=_optional_integer(options, "story-days"))
     api_key = resolve_openai_api_key()
     if not api_key:
         raise ValueError("Synthesis needs OPENAI_API_KEY (or openai.apiKey in the Papyrus config).")
@@ -157,7 +166,7 @@ def synthesize_command(flags: list[str]) -> None:
             feedback=load_feedback(normalize_string(options.get("feedback"))),
             model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
             maximum=_integer(options, "max", synthesis.DEFAULT_MAXIMUM_IDEAS),
-            threshold=_number(options, "dedupe-threshold", DEFAULT_THRESHOLD),
+            threshold=_optional_number(options, "dedupe-threshold"),
             maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
             now=now,
         )
@@ -208,7 +217,7 @@ def trends_command(flags: list[str]) -> None:
     json_store = JsonStore(_root(options, site))
     client, _ = create_authoring_client()
     now = datetime.now(timezone.utc)
-    context = load_context(client, now=now, story_days=_integer(options, "story-days", 90))
+    context = load_context(client, now=now, story_days=_optional_integer(options, "story-days"))
     api_key = resolve_openai_api_key()
     if not api_key:
         raise ValueError("Trend drafting needs OPENAI_API_KEY (or openai.apiKey in the Papyrus config).")
@@ -223,7 +232,7 @@ def trends_command(flags: list[str]) -> None:
             review_client=client,
             model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
             maximum=_integer(options, "max", trends.DEFAULT_MAXIMUM_DRAFTS),
-            threshold=_number(options, "dedupe-threshold", DEFAULT_THRESHOLD),
+            threshold=_optional_number(options, "dedupe-threshold"),
             maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
             dry_run=dry_run,
             now=now,
@@ -279,25 +288,38 @@ def monitor_stories_command(flags: list[str]) -> None:
     if since:
         parse_window(since)
     statuses = digest_module.parse_statuses(normalize_string(options.get("status")))
+    packs_only, single_only = bool(options.get("packs-only")), bool(options.get("single-only"))
+    if packs_only and single_only:
+        raise ValueError("--packs-only and --single-only cannot be used together.")
+    if packs_only and store_name != ITEMS:
+        raise ValueError("--packs-only needs --store items: pack ideas are filed as Items.")
     json_store = JsonStore(_root(options, site))
     client, _ = create_authoring_client()
     now = datetime.now(timezone.utc)
-    context = load_context(client, now=now, story_days=_integer(options, "story-days", 90))
+    context = load_context(client, now=now, story_days=_optional_integer(options, "story-days"))
     api_key = resolve_openai_api_key()
     if not api_key:
         raise ValueError("Monitor story drafting needs OPENAI_API_KEY (or openai.apiKey in the Papyrus config).")
+    idea_store = _idea_store(store_name, client)
+    signal_run = None
+    if store_name == ITEMS and not single_only:
+        from .signal_queue import prepare_signal_run
+
+        signal_run = prepare_signal_run(
+            client, site=normalize_string(options.get("corpus-key")) or site, context=context, now=now, signals=None, single_items=not packs_only,
+            gate=idea_store.gate)
     run = monitor_stories.draft_monitor_stories(
         client=client,
         site=site,
         context=context,
         json_store=json_store,
         transport=synthesis.openai_transport(api_key),
-        idea_store=_idea_store(store_name, client),
+        idea_store=idea_store,
         review_client=client,
         model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
         limit=limit,
         since=since,
-        threshold=_number(options, "dedupe-threshold", DEFAULT_THRESHOLD),
+        threshold=_optional_number(options, "dedupe-threshold"),
         maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
         dry_run=dry_run,
         now=now,
@@ -306,6 +328,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         corpus_key=normalize_string(options.get("corpus-key")),
         excluded_hosts=_excluded_hosts(flags),
         statuses=statuses,
+        signal_run=signal_run,
     )
     report = normalize_string(options.get("report"))
     if report:
@@ -324,7 +347,15 @@ def monitor_stories_command(flags: list[str]) -> None:
     print(f"llm\t{run['model']}\tcalls {usage.get('calls', 0)}\tin {usage.get('inputTokens', 0)}\tout {usage.get('outputTokens', 0)}\tcost ${usage.get('costUsd', 0)}")
     review = run["review"]
     print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))
+    if "packs" in run:
+        print(f"packs\toffered {len(run['packs'])}\tskipped for no new evidence {run['packsSkippedNoNewEvidence']}")
+        if dry_run:
+            for pack in run["packs"]:
+                print(f"pack\t{pack['signal']}\t{pack['anchor']}\tcorrected p {pack['correctedPValue']:.3g}\t{pack['acceptedReferences']} accepted References\tdates: {pack['dateBasis']}\t" + (f"{pack['ideas']} ideas would be filed" if pack["attempted"] else "not reached"))
     for draft in run["drafts"]:
+        if draft.get("origin") == "context-pack":
+            print(f"draft\t{draft['ideaId']}\tcontext-pack\t{draft['title']}\t{draft['packId']}\tcites {len(draft['citedReferences'])} References" + (f"\t{draft['itemLineageId']}" if draft.get("itemLineageId") else ""))
+            continue
         print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\t{draft['monitorId']}\t{draft['citedItems'][0]['url']}" + (f"\t{draft['itemLineageId']}" if draft.get("itemLineageId") else ""))
         if dry_run:
             print(draft["body"].rstrip() + "\n")

@@ -8,13 +8,28 @@ import sys
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+
+from papyrus_content.knowledge_snapshot.keys import concept_hashtag, kind_label
+from papyrus_content.knowledge_wiki.pages import entity_body
 
 from .engine import _chunk_text, _clean_text, object_title
 from .services import GraphQLKnowledgeGraphProvider, KnowledgeQueryServices
 
 SUMMARY_RELATION_RE = re.compile(r"^reference_summary_(\d+)_tokens$")
+
+CONCEPT_CARD_KEY_PREFIX = "concept_card-"
+
+LIST_SEMANTIC_NODES_QUERY = """
+query ListSemanticNodes($limit: Int, $nextToken: String) {
+  listSemanticNodes(limit: $limit, nextToken: $nextToken) {
+    items { id lineageId versionState nodeKey nodeKind displayName description aliases status }
+    nextToken
+  }
+}
+"""
 
 MAX_FILTERABLE_METADATA_CHARS = 480
 MAX_FILTERABLE_SUMMARY_CHARS = 320
@@ -82,10 +97,13 @@ class VectorIndexOptions:
     include_source_vectors: bool = True
     include_passage_vectors: bool = True
     include_ontology_vectors: bool = True
+    include_concept_cards: bool = True
     force: bool = False
     dry_run: bool = False
     progress_every: int = 25
     worker_count: int = 8
+    skip_references: bool = False
+    stop_check: Callable[[dict[str, Any]], str | None] | None = None
 
 
 def index_reference_passages(services: KnowledgeQueryServices, options: VectorIndexOptions) -> dict[str, Any]:
@@ -109,6 +127,8 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
     ]
     if options.max_references:
         references = references[: options.max_references]
+    if options.skip_references:
+        references = []
 
     existing_vectors = _list_index_vectors(vector_index_arn)
     existing_keys = {str(vector.get("key")) for vector in existing_vectors if vector.get("key")}
@@ -148,6 +168,9 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "ontologyVectorsPrepared": 0,
         "ontologyRelationExplanationVectorsPrepared": 0,
         "ontologyConceptProfileVectorsPrepared": 0,
+        "conceptCardsPrepared": 0,
+        "conceptCardsSkippedUnchanged": 0,
+        "conceptCardsToWrite": 0,
         "noteResults": [],
         "ontologyResults": [],
         "failures": [],
@@ -182,6 +205,7 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         _delete_vectors(vector_index_arn, sorted(existing_keys))
         existing_keys = set()
         existing_reference_keys = set()
+        existing_vectors = []
         stats["vectorsDeleted"] = len(existing_vectors)
 
     pending_vectors: list[dict[str, Any]] = []
@@ -193,6 +217,8 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
             completed += 1
             pending_vectors = _consume_prepared_reference(result, stats, existing_keys, pending_vectors, vector_index_arn, options)
             _maybe_report_progress(completed, len(references), stats, options)
+            if _stopped(stats, options):
+                break
     else:
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = [executor.submit(_prepare_reference_for_indexing, services, reference, options) for reference in references]
@@ -200,10 +226,14 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
                 completed += 1
                 pending_vectors = _consume_prepared_reference(future.result(), stats, existing_keys, pending_vectors, vector_index_arn, options)
                 _maybe_report_progress(completed, len(references), stats, options)
+                if _stopped(stats, options):
+                    for pending_future in futures:
+                        pending_future.cancel()
+                    break
 
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
-    if options.include_ontology_vectors:
+    if options.include_ontology_vectors and not stats.get("stoppedBy"):
         for candidate in _prepare_ontology_vectors(services):
             stats["vectorsPrepared"] += 1
             stats["ontologyVectorsPrepared"] += 1
@@ -232,7 +262,29 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
             stats["ontologyResults"].append(result)
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
-    for prepared in prepared_notes:
+    if options.include_concept_cards and not stats.get("stoppedBy"):
+        existing_card_hashes = {
+            str(vector.get("key")): str((vector.get("metadata") or {}).get("contentHash") or "")
+            for vector in existing_vectors
+            if str(vector.get("key") or "").startswith(CONCEPT_CARD_KEY_PREFIX)
+        }
+        for candidate in _prepare_concept_card_vectors(services.graph):
+            stats["vectorsPrepared"] += 1
+            stats["conceptCardsPrepared"] += 1
+            unchanged = existing_card_hashes.get(candidate["key"]) == candidate["metadata"]["contentHash"]
+            if not options.force and unchanged:
+                stats["vectorsSkippedExisting"] += 1
+                stats["conceptCardsSkippedUnchanged"] += 1
+                continue
+            stats["vectorsToWrite"] += 1
+            stats["conceptCardsToWrite"] += 1
+            if not options.dry_run:
+                pending_vectors.append(candidate)
+                if len(pending_vectors) >= options.batch_size:
+                    pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
+    if pending_vectors and not options.dry_run:
+        pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
+    for prepared in [] if stats.get("stoppedBy") else prepared_notes:
         pending_vectors = _consume_prepared_note(prepared, stats, existing_keys, pending_vectors, vector_index_arn, options)
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
@@ -243,6 +295,14 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
     stats["elapsedSeconds"] = round(time.perf_counter() - started, 3)
     stats["completedAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     return stats
+
+
+def _stopped(stats: dict[str, Any], options: VectorIndexOptions) -> bool:
+    """Asks the caller's ``stop_check`` (it sees the live stats, so it can meter embedding cost) and records the reason it gives."""
+    reason = options.stop_check(stats) if options.stop_check else None
+    if reason:
+        stats["stoppedBy"] = reason
+    return bool(reason)
 
 
 def _prepare_reference_for_indexing(
@@ -697,9 +757,8 @@ def _prepare_source_vector(
     )
     if len(source_text) < 80:
         return None
-    digest = hashlib.sha256(str(reference.get("lineageId") or reference.get("id") or title).encode("utf-8")).hexdigest()[:20]
     return {
-        "key": f"reference-summary-{digest}",
+        "key": reference_summary_vector_key(str(reference.get("lineageId") or reference.get("id") or title)),
         "text": source_text,
         "metadata": {
             **_base_reference_metadata(
@@ -715,6 +774,11 @@ def _prepare_source_vector(
             "storagePath": storage_path,
         },
     }
+
+
+def reference_summary_vector_key(reference_lineage_id: str) -> str:
+    digest = hashlib.sha256(reference_lineage_id.encode("utf-8")).hexdigest()[:20]
+    return f"reference-summary-{digest}"
 
 
 def _prepare_chunks(
@@ -1159,6 +1223,57 @@ def _prepare_ontology_vectors(services: KnowledgeQueryServices) -> list[dict[str
         candidate = _ontology_vector_from_payload(attachment, payload)
         if candidate:
             vectors.append(candidate)
+    return vectors
+
+
+def _list_accepted_semantic_nodes(graph: Any) -> list[dict[str, Any]]:
+    nodes: list[dict[str, Any]] = []
+    next_token = None
+    while True:
+        payload = graph.graphql(LIST_SEMANTIC_NODES_QUERY, {"limit": 100, "nextToken": next_token})
+        connection = payload.get("listSemanticNodes") or {}
+        for item in connection.get("items") or []:
+            if item and item.get("status") == "accepted" and item.get("versionState", "current") == "current":
+                nodes.append(item)
+        next_token = connection.get("nextToken")
+        if not next_token:
+            return nodes
+
+
+def _concept_card_text(node: dict[str, Any]) -> str:
+    name = str(node.get("displayName") or "")
+    aliases = [str(alias) for alias in node.get("aliases") or [] if alias]
+    page_body = entity_body(name, str(node.get("nodeKind") or ""), aliases, node.get("description"), str(node.get("nodeKey") or ""))
+    lead = page_body.split("::include", 1)[0].strip()
+    alias_line = f"\nAlso known as: {', '.join(aliases)}." if aliases and "Also known as" not in lead else ""
+    return f"{lead}\n\nKind: {kind_label(str(node.get('nodeKind') or ''))}.{alias_line}"
+
+
+def _prepare_concept_card_vectors(graph: Any) -> list[dict[str, Any]]:
+    if not graph or not hasattr(graph, "graphql"):
+        return []
+    vectors: list[dict[str, Any]] = []
+    for node in _list_accepted_semantic_nodes(graph):
+        node_key = str(node.get("nodeKey") or "")
+        if not node_key or not node.get("displayName"):
+            continue
+        text = _concept_card_text(node)
+        lineage_id = str(node.get("lineageId") or node.get("id") or "")
+        hashtag = concept_hashtag(node_key)
+        vectors.append({
+            "key": f"{CONCEPT_CARD_KEY_PREFIX}{lineage_id}",
+            "text": text,
+            "metadata": {
+                "kind": "semanticNode",
+                "vectorKind": "concept_card",
+                "nodeKey": node_key,
+                "nodeKind": node.get("nodeKind"),
+                "lineageId": lineage_id,
+                "hashtag": hashtag,
+                "contentHash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                "text": _truncate_filterable_metadata(text, MAX_FILTERABLE_METADATA_CHARS),
+            },
+        })
     return vectors
 
 

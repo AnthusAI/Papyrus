@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "5d78b636-5a46-42ae-8560-e67c7941703c",
+  "issue_id": "PPY-6c77b196-0645-443a-86ca-47f250dd4128",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:47.912Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Concept statistics count human related_to links",
+    "description": "Every consumer that counts reference -> concept 'mentions' must also count current related_to reference -> semanticNode: the concept report, knowledge_snapshot (trends, entity pages), knowledge_wiki pages, ontology_enrichment.RELATION_WEIGHTS (give related_to-to-concept a weight; human links at least as strong as extracted mentions), and the S1.2 signal inputs. Find all readers with grep for '\"mentions\"' and the predicate constant.\nTests: a Reference linked to a concept only by a human related_to edge counts in the concept report and the acceptance signal.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

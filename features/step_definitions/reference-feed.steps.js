@@ -201,3 +201,32 @@ for (const then of [
   "each Reference appears once even when two pages overlap",
   "a page token that repeats stops the read with a message instead of looping",
 ]) Then(then, function () { assert.match(this.pagingResult, /newsroom all-pages: ok/); });
+
+// Predictions per visible Reference: the browser scenario "predictions" (390 and 1440) and scripts/test-reference-predictions.ts.
+const predictionUnit = async () => (await promisify(execFile)(process.execPath, ["--import", "tsx", "--test", "scripts/test-reference-predictions.ts"], { cwd: root, maxBuffer: 8 * 1024 * 1024 })).stdout;
+for (const given of [
+  "a newsroom with 60 References and 20,000 relation records, more than any fixed page budget could read",
+  "a feed where the prediction read for one Reference is refused",
+  "a feed where every prediction read is refused",
+  "a newsroom with about 16,000 relations held by subject",
+]) Given(given, function () { this.predictionResult = ""; });
+When("the editor opens the feed", { timeout: 300_000 }, async function () { this.predictionResult = await browser("predictions"); });
+When("the feed has loaded", { timeout: 300_000 }, async function () { this.predictionResult = await browser("predictions"); });
+When("the feed windows its References and reads their predictions", { timeout: 120_000 }, async function () { this.predictionResult = await predictionUnit(); });
+for (const then of [
+  "predictions are read for the 24 References on the first page, one read each, and for no other Reference",
+  "every one of those cards shows its prediction and confidence",
+  "nothing says that predictions are unavailable or that the activity feed is incomplete",
+  "scrolling to the end reads the next page's predictions only, and its cards join after the first page without moving it",
+  "that card says Prediction unavailable and offers Retry, in words and an icon",
+  "every other card shows its prediction, and no message about predictions appears for the page",
+  "choosing Retry reads that one prediction again and the card shows it",
+  "every Reference still shows its title, source, age and its Accept and Reject buttons",
+  "each card says Prediction unavailable with Retry, and the feed is never left as grey skeletons",
+  "the order is the server's own, newest first, because nothing can rank them yet",
+]) Then(then, function () { assert.match(this.predictionResult, /Reference feed scenario passed: predictions/); });
+for (const then of [
+  "only the shown References are read, at most a few reads are in flight at once, and one failing read fails only its own Reference",
+  "the window is the newest pages of unanswered items plus the answered ones that arrived since, and it only ever grows",
+  "a later page is ranked after everything already placed, while a new arrival waits behind the new-items pill",
+]) Then(then, function () { assert.match(this.predictionResult, /(^|\n)ℹ fail 0/); });

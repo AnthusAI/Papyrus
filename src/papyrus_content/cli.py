@@ -273,6 +273,7 @@ PORTED_COMMANDS = frozenset(
         "references:list-predictions",
         "references:audit",
         "references:auto-accept",
+        "references:suggest-links",
         "references:review-classification",
         "references:label",
         "references:unlabel",
@@ -415,6 +416,8 @@ PORTED_COMMANDS = frozenset(
         "reader:feedback",
         "home-page:snapshot",
         "cyclotron:export-priming",
+        "cyclotron:export-examples",
+        "cyclotron:evaluate-promotion",
         "ideas:digest",
         "ideas:synthesize",
         "ideas:trends",
@@ -591,6 +594,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:auto-accept":
         from .references_commands import references_auto_accept
         references_auto_accept(flags)
+    elif route == "references:suggest-links":
+        from .references_commands import references_suggest_links
+        references_suggest_links(flags)
     elif route == "references:review-classification":
         references_review_classification(flags)
     elif route == "references:label":
@@ -905,6 +911,12 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "cyclotron:export-priming":
         from .priming_export import cyclotron_export_priming
         cyclotron_export_priming(flags)
+    elif route == "cyclotron:export-examples":
+        from .learning_classifiers_commands import cyclotron_export_examples
+        cyclotron_export_examples(flags)
+    elif route == "cyclotron:evaluate-promotion":
+        from .learning_classifiers_commands import cyclotron_evaluate_promotion
+        cyclotron_evaluate_promotion(flags)
     elif route.startswith("ideas:"):
         ideas_command(command, flags)
     elif route.startswith("proposals:"):
@@ -1765,6 +1777,8 @@ def print_usage() -> None:
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json]  (s3-projection sites also project the pages; the kind and the content-actions function come from amplify_outputs.json, PAPYRUS_PUBLICATION_KIND and PAPYRUS_CONTENT_ACTIONS_FUNCTION override; with no function it runs locally),")
     print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
     print("  cyclotron export-priming --publication ID --corpus-key KEY [--include-unlabeled] [--out FILE]  (read-only: a publication's editor labels as JSON Lines for a Cyclotron's priming import),")
+    print("  cyclotron export-examples --classifier reference-link-fit|idea-pack-fit --corpus-id ID [--split train|held-out|all] [--held-out-share 0.3] [--out FILE]  (read-only: decisions people made as labeled examples, with their reasons, for the site Cyclotron's retraining round),")
+    print("  cyclotron evaluate-promotion --classifier reference-link-fit|idea-pack-fit --corpus-id ID --predictions FILE --store DIR  (compares the trained version's held-out probabilities with the statistical rule and records the promotion flag),")
     print("  home-page snapshot [--site KEY] [--site-bucket B | --out DIR] [--static-dir DIR] [--auth user|iam] [--amplify-outputs FILE] [--dry-run] [--json]  (writes _data/home-page/references.json: the accepted and recommended References, public fields only; --dry-run prints counts, size and the exact keys it would write and rewrite; needs --static-dir with the site's projection.json),")
     print("  reader feedback export [--since ISO_TIME] [--out FILE]  (reader comments and the ratings they explain, as JSON Lines for the Cyclotron loop),")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")

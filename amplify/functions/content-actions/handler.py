@@ -360,6 +360,27 @@ def move_story_stage_action(arguments: dict, actor: str) -> dict:
     return {"ok": True, **result}
 
 
+def suggest_reference_links_action(arguments: dict) -> dict:
+    """Suggests related References and concepts for one Reference from the site's vector index and files them as suggested links.
+    The Reference's stored summary vector is the query, so no embedding is computed and no OpenAI key is needed."""
+    from papyrus_knowledge_query.services import S3VectorsProvider
+
+    from papyrus_content.reference_suggestions import suggest_for
+
+    reference_id = str(arguments.get("referenceId") or "").strip()
+    if not reference_id:
+        raise PublishError("invalid-input", "referenceId is required.")
+    index_arn = (os.environ.get("PAPYRUS_S3_VECTOR_INDEX_ARN") or "").strip()
+    if not index_arn:
+        return {"ok": False, "errors": [{"code": "knowledge-index-not-configured", "message": "Suggestions need the knowledge index.", "line": None}]}
+    client, _claims = create_authoring_client()
+    provider = S3VectorsProvider(vector_index_arn=index_arn, region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"))
+    try:
+        return {"ok": True, **suggest_for(client, provider, reference_id)}
+    except ValueError as error:
+        return {"ok": False, "errors": [{"code": "suggestion-rejected", "message": str(error), "line": None}]}
+
+
 def request_staging_build_action() -> dict:
     cms_app_id = (os.environ.get("PAPYRUS_CMS_AMPLIFY_APP_ID") or "").strip()
     if not cms_app_id:
@@ -409,6 +430,8 @@ def handler(event, context):
             return move_story_stage_action(arguments, actor)
         if field == "unpublishItem":
             return unpublish_item_action(arguments, actor)
+        if field == "suggestReferenceLinks":
+            return suggest_reference_links_action(arguments)
         if field == "requestStagingBuild":
             return request_staging_build_action()
     except PublishError as error:

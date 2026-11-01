@@ -1,0 +1,34 @@
+{
+  "id": "PPY-1822f2e2-2cd5-48d8-a8b1-c71b6f0bde8a",
+  "title": "hub and cluster signals",
+  "description": "In ideas/context_packs.py (design section 4):\n- hub: recently added Reference; degree = current reference edges + shared-concept links weighted 1/sqrt(concept frequency); p-value = 1 - empirical CDF of degree over all site References.\n- cluster: connected components of recent References over current edges plus mutual-kNN vector neighbours (k = ceil(sqrt(n)) of the recent indexed set); series = members per day; components with no earlier arrivals are \"new\", ranked by size x mean pairwise similarity, flagged so the model says \"emerging\".\n- Pack edges distinguish confirmed vs suggested. Anchors: hub lineage, component fingerprint (S1.6).\nTests + Gherkin scenarios.\nOwner rules that apply: no fixed caps, day windows or magic thresholds (derive or learn them; bound only by time, cost, context size); decisions go to decision models (Jev / the site Cyclotron), the LLM (GPT-6 Luna) only writes; Gherkin specs (narrative, complete) for every behaviour change; say \"idea(s)\", never \"draft\"/\"proposed story\".",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-ab6e318a-f98d-44cf-8c59-11ccdc83be2c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-5036bab6-0859-4c9c-b3bf-44f08bab101f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-01T18:16:50.443271Z",
+  "updated_at": "2026-11-01T18:16:56.780421Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "main-session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

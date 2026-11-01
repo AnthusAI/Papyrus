@@ -7,7 +7,7 @@ writing about and drafts one short story per item. Nothing in it names a source.
 
 The flow is read, rank, fetch, one model call per item, a deterministic citation check, then an Item at the ``idea`` stage (``ideas/items.py``).
 
-* **Read.** Every *accepted* Reference (accepted by an editor or automatically; ``--status accepted,pending`` adds pending ones, a rejected one is never read; ``--since`` is an optional filter, with no default) that a monitor delivered, that no
+* **Read.** Every *accepted* Reference with a ``sourceUri``, delivered by a monitor or not (accepted by an editor or automatically; a rejected one is never read and a pending one is never a candidate, since it cannot be evidence; ``--since`` is an optional filter, with no default), that no
   item carries yet (promoted) and that no earlier draft cites. Pending References left out are counted as ``notAccepted``. A Reference the relevance Cyclotron judged *not* relevant is left out.
 * **Rank.** The Cyclotron's verdict is the source-agnostic signal: the ``relevance_decision_is`` relation of the Reference holds the label and
   the score (the probability of the positive label). Judged relevant comes before not judged, and a higher score before a lower one, the score
@@ -46,7 +46,7 @@ from ..categories_steering import semantic_state_key
 from ..link_exploration import Context, Exploration
 from ..knowledge_snapshot.monitor_records import discovery_details, discovery_monitor_id
 from ..monitor_promotion import promoted_reference_ids
-from . import dedupe, synthesis, trends
+from . import dedupe, duplicate_cut, synthesis, trends
 from .digest import CORPUS_PREFIX, collect_references, iso, parse_time, parse_window, relations_of, relevance_of
 from .excluded_hosts import is_excluded, normalize_hosts
 from . import source_text
@@ -122,7 +122,7 @@ class MonitoredItem:
     url: str
     arrived_at: str
     published_at: str | None
-    monitor_id: str
+    monitor_id: str | None
     status: str
     details: dict[str, Any] = field(default_factory=dict)
     verdict: dict[str, Any] | None = None  # the Cyclotron's: label, score, confidence, classifier, positiveLabel
@@ -198,12 +198,15 @@ def collect_monitored_items(
 
     With ``workers`` above 1 the References are read that many at a time, each worker on its own connection (a site with thousands of accepted
     References needs two queries each: read one after the other, a daily run would spend its whole time budget reading). If ``out_of_time()``
-    turns true the rest are left unread and ``readStopped`` is set in the counts."""
+    turns true the rest are left unread and ``readStopped`` is set in the counts.
+
+    Monitored or not does not matter: ``notMonitored`` stays in the counts, always zero, for the readers of the run record that still sum it. A Reference
+    with no ``sourceUri`` is counted as ``noSourceUri`` and a pending one as ``pendingNotCandidate`` (it cannot be evidence)."""
     statuses = list(dict.fromkeys(statuses))
     window = now - parse_window(since) if since else None
     rows = collect_references(client, [f"{CORPUS_PREFIX}{site}"], statuses, window)
     not_accepted = 0 if "pending" in statuses else len(collect_references(client, [f"{CORPUS_PREFIX}{site}"], ["pending"], window))
-    counts = {"inWindow": len(rows), "notAccepted": not_accepted, "notMonitored": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0, "hasStory": 0}
+    counts = {"inWindow": len(rows), "notAccepted": not_accepted, "notMonitored": 0, "pendingNotCandidate": 0, "noSourceUri": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0, "hasStory": 0}
     automated = set(automated_monitors)
     handled = {str(identifier) for identifier in automation_handled}
     excluded_hosts = normalize_hosts(excluded_hosts)
@@ -224,12 +227,14 @@ def collect_monitored_items(
             return "readStopped", None
         if is_excluded(row.get("sourceUri"), excluded_hosts):
             return "excludedHost", None
+        if not row.get("sourceUri"):
+            return "noSourceUri", None
+        if str(row.get("curationStatus") or "pending") == "pending":
+            return "pendingNotCandidate", None
         reader = connection()
         lineage = row.get("lineageId") or row["id"]
         incoming = list(reader.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage)))
         monitor = discovery_monitor_id(row)
-        if monitor is None or not row.get("sourceUri"):
-            return "notMonitored", None
         if handled & {str(row["id"]), str(lineage)}:
             return "handledByAutomation", None
         if has_based_on_story(incoming):
@@ -393,13 +398,14 @@ def has_material(view: dict[str, Any]) -> bool:
 
 
 def build_input(item: MonitoredItem, view: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
-    return {
+    model_input = {
         "mission": context.get("mission"), "policy": context.get("policy"),
         "allowed_sections": [section["title"] for section in context.get("sections", [])],
         "source": view,
-        "recent_and_in_flight_stories": [{key: story.get(key) for key in ("title", "section", "state", "date", "summary") if story.get(key)} for story in context.get("stories", [])],
         "earlier_drafts": [{key: draft.get(key) for key in ("title", "state", "angle") if draft.get(key)} for draft in context.get("drafts", [])],
     }
+    model_input["recent_and_in_flight_stories"] = synthesis.fit_stories(model_input, context)
+    return model_input
 
 
 def call_model(transport: synthesis.Transport, model: str, model_input: dict[str, Any]) -> tuple[dict[str, Any], synthesis.Usage]:
@@ -528,7 +534,7 @@ def draft_monitor_stories(
     model: str = synthesis.DEFAULT_MODEL,
     limit: int | None = DEFAULT_LIMIT,
     since: str | None = None,
-    threshold: float = dedupe.DEFAULT_THRESHOLD,
+    threshold: float | None = None,
     maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
     dry_run: bool = False,
     now: datetime | None = None,
@@ -540,15 +546,29 @@ def draft_monitor_stories(
     out_of_time: Callable[[], bool] | None = None,
     read_workers: int = 1,
     automation_handled: Iterable[str] = (),
+    ordered_candidates: Iterable[str] | None = None,
+    signal_run: Any = None,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing.
 
     ``limit=None`` drafts every candidate (the daily router task, docs/monitoring-cloud.md#monitor-stories): the run then stops only for a real
     constraint, and ``stoppedBy`` names it: ``time`` (``out_of_time()`` turned true between two items; the rest is picked up by the next run),
     ``cost`` (``maximum_cost_usd``) or ``file_error`` (a draft could not be filed: the run stops rather than spend on drafts that cannot be kept).
-    Each draft is filed as soon as it is kept, so a run that stops early loses nothing it paid for."""
+    Each draft is filed as soon as it is kept, so a run that stops early loses nothing it paid for.
+
+    ``ordered_candidates`` (lineage ids, best first, from the signal queue of ``ideas/item_signals.py``) replaces the Cyclotron-and-freshness ranking:
+    only the candidates named there are drafted, in that order; the exclusions above still apply.
+
+    ``signal_run`` (``ideas/signal_queue.SignalRun``) turns the run into one walk over a queue of context packs and scored single items: the queue
+    orders the candidates (an item with no evidence is not in it), a pack goes to ``pack_stories.draft_pack_ideas``, an item to the path below, and
+    both share one cost meter, ``out_of_time()``, ``maximum_cost_usd`` and the filing-error stop. The ideas packs filed are in ``drafts`` (``origin``
+    ``context-pack``) and in the one review; ``run['packs']`` lists the packs offered and ``packsSkippedNoNewEvidence`` those held back."""
+    from .pack_stories import MAXIMUM_OUTPUT_TOKENS as PACK_OUTPUT_TOKENS, SYSTEM_PROMPT as PACK_PROMPT, CostMeter, draft_pack_ideas
     moment = now or datetime.now(timezone.utc)
+    cut = duplicate_cut.resolve_threshold(client, threshold)
+    threshold = cut.threshold
     run: dict[str, Any] = {
+        "duplicateCut": cut.record(),
         "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model,
         "store": "dry-run" if dry_run else (idea_store.kind if idea_store else "json"), "dryRun": dry_run, "private": True,
         "window": {"since": since, "until": iso(moment)}, "limit": limit, "stoppedBy": None,
@@ -585,6 +605,18 @@ def draft_monitor_stories(
         if address:
             seen_addresses.add(address)
         candidates.append(item)
+    if ordered_candidates is not None:
+        position = {lineage: number for number, lineage in enumerate(ordered_candidates)}
+        candidates = sorted((item for item in candidates if item.lineage_id in position), key=lambda item: position[item.lineage_id])
+    steps: list[tuple[str, Any]] = [("item", item) for item in candidates]
+    if signal_run is not None:
+        by_lineage = {item.lineage_id: item for item in candidates}
+        steps = [("pack", entry.pack) if entry.kind == "pack" else ("item", by_lineage[entry.entry_id]) for entry in signal_run.queue(candidates)]
+        counts["withoutSignal"] = len(candidates) - sum(kind == "item" for kind, _ in steps)
+        candidates = [subject for kind, subject in steps if kind == "item"]
+        run["packs"] = signal_run.pack_records()
+        run["packsSkippedNoNewEvidence"] = signal_run.packs_skipped_no_new_evidence
+        pack_records = {record["packId"]: record for record in run["packs"]}
     counts["sameSource"] = same_source
     counts["candidates"] = len(candidates)
     run["inputs"] = counts
@@ -593,14 +625,48 @@ def draft_monitor_stories(
     run.update(attempted=0, invalid=[], skipped=[], duplicates=[], drafts=[], modelCalls=[], usage=None)
     documents = comparison_documents(context, [*stored], proposals, [])
     sections = [section["title"] for section in context.get("sections", [])]
-    spent = 0.0
+    meter = CostMeter()
     kept: list[dict[str, Any]] = []
-    for item in candidates:
-        if limit is not None and (len(kept) >= limit or run["attempted"] >= attempt_cap):
+    pack_documents: list[dedupe.Document] = []
+    pack_model_calls = 0
+    for kind, subject in steps:
+        if limit is not None and (len(kept) + len(pack_documents) >= limit or run["attempted"] >= attempt_cap):
             break
         if out_of_time is not None and out_of_time():
             run["stoppedBy"] = "time"
             break
+        if kind == "pack":
+            estimate = synthesis.estimate_cost_usd(model, len(PACK_PROMPT) + subject.size(), PACK_OUTPUT_TOKENS)
+            if estimate is not None and meter.spent_usd + estimate > maximum_cost_usd:
+                run["stoppedForCost"] = f"The next call is estimated at ${estimate:.4f}; ${meter.spent_usd:.4f} is spent of --max-cost-usd ${maximum_cost_usd:.2f}."
+                run["stoppedBy"] = "cost"
+                break
+            run["attempted"] += 1
+            record = pack_records[subject.pack_id]
+            record["attempted"] = True
+            try:
+                result = draft_pack_ideas(
+                    client, subject, store=idea_store, gate=signal_run.gate, transport=transport, cost_meter=meter,
+                    existing_titles=[*(dedupe.Document("draft", d["ideaId"], d["title"], d.get("angle") or "") for d in [*kept]), *pack_documents],
+                    run_id=run["runId"], dry_run=dry_run, concept_nodes=signal_run.concept_nodes, model=model, threshold=threshold, now=moment,
+                )
+            except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; stop before paying for ideas that cannot be kept
+                run["fileError"] = f"{type(error).__name__}: {error}"[:300]
+                run["stoppedBy"] = "file_error"
+                break
+            pack_model_calls += result.model_calls
+            if result.error:
+                run["invalid"].append({"packId": subject.pack_id, "title": subject.anchor, "reason": "model_error", "message": result.error})
+            for idea in result.filed or result.would_file:
+                record["ideas"] += 1
+                pack_documents.append(dedupe.Document("draft", idea["ideaId"], idea["title"], ""))
+                run["drafts"].append({**idea, "origin": "context-pack", "packId": subject.pack_id, "itemLineageId": idea.get("lineageId"), "citedItems": []})
+            run["invalid"] += [{**row, "packId": subject.pack_id} for row in result.refused]
+            run["invalid"] += [{**row, "packId": subject.pack_id} for row in result.dropped if row["reason"] == "citation_check_failed"]
+            run["duplicates"] += [{**row, "packId": subject.pack_id} for row in result.dropped if row["reason"] == "near_duplicate"]
+            run["skipped"] += [{"packId": subject.pack_id, "title": row["title"], "reason": row["reason"]} for row in result.dropped if row["reason"] not in ("citation_check_failed", "near_duplicate")]
+            continue
+        item = subject
         exploration = explorer(item) if explorer else None
         page_text = exploration.text if exploration else read_source_text(item.url, fetch)
         view = source_view(item, page_text)
@@ -616,8 +682,8 @@ def draft_monitor_stories(
             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": "input_too_large"})
             continue
         estimate = synthesis.estimate_cost_usd(model, size, MAXIMUM_OUTPUT_TOKENS)
-        if estimate is not None and spent + estimate > maximum_cost_usd:
-            run["stoppedForCost"] = f"The next call is estimated at ${estimate:.4f}; ${spent:.4f} is spent of --max-cost-usd ${maximum_cost_usd:.2f}."
+        if estimate is not None and meter.spent_usd + estimate > maximum_cost_usd:
+            run["stoppedForCost"] = f"The next call is estimated at ${estimate:.4f}; ${meter.spent_usd:.4f} is spent of --max-cost-usd ${maximum_cost_usd:.2f}."
             run["stoppedBy"] = "cost"
             break
         run["attempted"] += 1
@@ -626,7 +692,7 @@ def draft_monitor_stories(
         except synthesis.SynthesisError as error:
             run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": "model_error", "message": str(error)[:300]})
             continue
-        spent += usage.cost_usd or 0.0
+        meter.add(usage.cost_usd)
         run["modelCalls"].append({"model": model, "promptTokens": usage.input_tokens, "completionTokens": usage.output_tokens, "cachedTokens": usage.cached_input_tokens})
         draft, record = check_story(raw, item, view, sections)
         if draft is None:
@@ -634,7 +700,7 @@ def draft_monitor_stories(
             run["invalid"].append({"referenceId": item.reference_id, "title": title or item.title, "reason": "citation_check_failed", "citationCheck": record, "draft": raw})
             continue
         built = draft_record(draft, item, view, run=run, now=moment, exploration=exploration)
-        similar, dropped = dedupe.split_duplicates([built], [*documents, *(dedupe.Document("draft", k["ideaId"], k["title"], k["angle"]) for k in kept)], threshold)
+        similar, dropped = dedupe.split_duplicates([built], [*documents, *pack_documents, *(dedupe.Document("draft", k["ideaId"], k["title"], k["angle"]) for k in kept)], threshold)
         run["duplicates"] += [{**row, "referenceId": item.reference_id} for row in dropped]
         kept += similar
         for record in similar:
@@ -659,11 +725,16 @@ def draft_monitor_stories(
         if run["stoppedBy"] == "file_error":
             break
     run["usage"] = _usage(model, run["modelCalls"])
+    if pack_model_calls:
+        run["usage"]["packModelCalls"] = pack_model_calls
+        run["usage"]["calls"] += pack_model_calls
+        run["usage"]["costUsd"] = round(meter.spent_usd, 6)
     run["ideasCreated"] = 0 if dry_run else len(run["drafts"])
     if dry_run:
         run["review"] = {"status": "skipped", "requested": False, "ideas": len(run["drafts"]), "note": "Dry run: nothing was filed, so no review was requested."}
     else:
         request_human_review(review_client, run, run["drafts"], noun="monitor story draft")
+    run["storiesInPrompts"] = context.get("promptStories")
     run["finishedAt"] = iso(datetime.now(timezone.utc))
     if json_store and not dry_run:
         json_store.save_run(run)
@@ -688,12 +759,15 @@ def render_report(run: dict[str, Any]) -> str:
         f"Run `{run['runId']}`, " + (f"items that arrived in the last {run['window']['since']}" if run["window"]["since"] else "every undrafted monitored item") + f". Proposed by AI." + (" Dry run: nothing was filed." if run["dryRun"] else " Private drafts for review; nothing here is published."),
         "",
         "- Freshness: " + (f"tau {run['freshness']['tauDays']} days from {run['freshness']['examples']} accepted items" if run["freshness"]["tauDays"] else f"none ({run['freshness']['note']})"),
-        f"- Monitored items read ({', '.join(run['statuses'])} only; pending not read: {inputs.get('notAccepted', 0)}): {inputs['inWindow'] - inputs['notMonitored'] - inputs.get('excludedHost', 0) - inputs.get('handledByAutomation', 0) - inputs.get('hasStory', 0)}; from excluded source hosts (never drafted): {inputs.get('excludedHost', 0)}; handled by an automation (a story based on it, or a procedure run recorded or in progress; never drafted here): {inputs.get('handledByAutomation', 0)}; already has a story based on it: {inputs.get('hasStory', 0)}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; the same address as a drafted or earlier candidate: {inputs.get('sameSource', 0)}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
+        f"- Monitored items read ({', '.join(run['statuses'])} only; pending not read: {inputs.get('notAccepted', 0)}): {inputs['inWindow'] - inputs.get('noSourceUri', 0) - inputs.get('pendingNotCandidate', 0) - inputs.get('excludedHost', 0) - inputs.get('handledByAutomation', 0) - inputs.get('hasStory', 0)}; from excluded source hosts (never drafted): {inputs.get('excludedHost', 0)}; handled by an automation (a story based on it, or a procedure run recorded or in progress; never drafted here): {inputs.get('handledByAutomation', 0)}; already has a story based on it: {inputs.get('hasStory', 0)}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; the same address as a drafted or earlier candidate: {inputs.get('sameSource', 0)}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
         f"- Drafts attempted: {run['attempted']} ({'no limit' if run['limit'] is None else 'limit ' + str(run['limit'])}); kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; skipped: {len(run['skipped'])}; duplicates dropped: {len(run['duplicates'])}",
         f"- Model {run['model']}: {usage.get('inputTokens', 0)} input and {usage.get('outputTokens', 0)} output tokens in {usage.get('calls', 0)} call(s), cost ${usage.get('costUsd') if usage.get('costUsd') is not None else 'unknown'}",
         "",
     ]
     for number, draft in enumerate(run["drafts"], start=1):
+        if draft.get("origin") == "context-pack":
+            lines += [f"## {number}. {draft['title']}", "", f"From context pack {draft['packId']}; cites {len(draft['citedReferences'])} accepted References. Citation check: passed.", ""]
+            continue
         lines += [f"## {number}. {draft['title']}", "", f"From the {draft['monitorId']} monitor, {draft['citedItems'][0]['url']} (source text: {draft['sourceText']}). Citation check: passed ({draft['citationCheck']['sentences']} sentences).", "", draft["body"].rstrip(), ""]
     for heading, rows, describe in (
         ("Failed the citation check or were invalid", run["invalid"], lambda r: f"{r['title'] or '(untitled)'}: {r['reason']}" + "".join(f"\n  - {p['where']}: {p['reason']}" + (f" ({p['text']})" if p["text"] else "") for p in (r.get("citationCheck") or {}).get("problems", []))),

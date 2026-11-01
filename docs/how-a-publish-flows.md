@@ -53,6 +53,10 @@ Add an image by uploading it in the newsroom. The system prepares the smaller si
 
 Image files are cached by browsers for a long time. If you replace a picture, upload it under a new file name. Re-uploading under the same name can keep showing the old picture to people who saw it before.
 
+### Dark-mode pictures
+
+To give a picture a dark version, upload it as a second image whose name is the light picture's name with `.dark` before the extension: `figure.png` and `figure.dark.png`. Insert the light image first; uploading a `.dark` file does not add anything to the story, it just sits next to the light file. The page then shows the dark picture to readers in dark mode, following the site's own light/dark switch and, if the reader has not chosen, their device setting. The two files must have the same proportions, or the page build stops with an error naming the image. For a dark file with any other name, write `srcDark="…"` on the image line. See [markus-content-markup.md](markus-content-markup.md#light-and-dark-pictures).
+
 ## Some sites work differently
 
 A Pretext site (a newspaper-style site rendered on request, such as p.apyr.us) also updates when you publish, but a page can take up to about two minutes to change for visitors.

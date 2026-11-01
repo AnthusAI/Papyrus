@@ -31,6 +31,7 @@ import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
+import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
 import { editorialChecks } from "./functions/editorial-checks/resource";
 import { automationView } from "./functions/automation-view/resource";
 import { wireAutomationView } from "./functions/automation-view/wire";
@@ -138,7 +139,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     categoryAction,
     contentActions,
     editorialChecks,
-    data: defineSiteData(pluginDefinitions, site.excludeModelGroups ?? []),
+    data: defineSiteData(pluginDefinitions, resolveExcludedModelGroups(site.excludeModelGroups, process.env)),
     knowledgeQuery,
     manageUserRole,
     monitoringView,
@@ -496,7 +497,11 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     (contentActionsLambda.node.defaultChild as CfnFunction).memorySize = publicationPlan.contentActionsMemorySize;
     if (publication.reprojectOnDeploy === true) {
       (contentActionsLambda.node.defaultChild as CfnFunction).timeout = REPROJECT_ON_DEPLOY_TIMEOUT_SECONDS;
-      addReprojectOnDeploy(backend.createStack("reproject-on-deploy"), contentActionsLambda, reprojectDeployToken(process.env));
+      // The bootstrap stage leaves out the knowledge models the render reads, so the first deploy of a new site
+      // skips the post-deploy render; the second deploy (variable removed) renders as usual.
+      if (!isBootstrapStage(process.env)) {
+        addReprojectOnDeploy(backend.createStack("reproject-on-deploy"), contentActionsLambda, reprojectDeployToken(process.env));
+      }
     }
   }
   if (s3ProjectionPublication !== undefined) {
@@ -735,6 +740,14 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         "s3vectors:ListVectors",
         "s3vectors:QueryVectors",
       ],
+      resources: [knowledgeVectorIndex.attrIndexArn],
+    }),
+  );
+  // suggestReferenceLinks runs in content-actions and reads the Reference's stored summary vector, so it needs the index and no OpenAI key.
+  contentActionsLambda.addEnvironment("PAPYRUS_S3_VECTOR_INDEX_ARN", knowledgeVectorIndex.attrIndexArn);
+  contentActionsLambda.addToRolePolicy(
+    new PolicyStatement({
+      actions: ["s3vectors:GetVectors", "s3vectors:QueryVectors"],
       resources: [knowledgeVectorIndex.attrIndexArn],
     }),
   );

@@ -63,7 +63,7 @@ import {
   type ConversationMessage,
   type ConversationViewer,
 } from "../lib/conversation";
-import { postMessageArguments, postMessageMutation } from "../lib/post-message";
+import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments, postMessageMutation } from "../lib/post-message";
 import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
@@ -337,7 +337,7 @@ const NEWSROOM_SEMANTIC_RELATION_FEED_QUERY = `
   }
 `;
 
-const LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY = `
+export const LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY = `
   query ListSemanticRelationsBySubjectState($subjectStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelSemanticRelationFilterInput) {
     listSemanticRelationsBySubjectState(subjectStateKey: $subjectStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
       items { id relationState predicate relationTypeId relationTypeKey relationDomain subjectKind subjectId subjectLineageId subjectVersionNumber objectKind objectId objectLineageId objectVersionNumber subjectStateKey objectStateKey objectSubjectStateKey predicateObjectStateKey subjectVersionKey objectVersionKey score confidence rank classifierId modelVersion reviewRecommended sourceSnapshotId importRunId importedAt createdAt updatedAt newsroomFeedKey metadata }
@@ -346,7 +346,7 @@ const LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY = `
   }
 `;
 
-const LIST_SEMANTIC_RELATIONS_BY_OBJECT_STATE_QUERY = `
+export const LIST_SEMANTIC_RELATIONS_BY_OBJECT_STATE_QUERY = `
   query ListSemanticRelationsByObjectState($objectStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelSemanticRelationFilterInput) {
     listSemanticRelationsByObjectState(objectStateKey: $objectStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
       items { id relationState predicate relationTypeId relationTypeKey relationDomain subjectKind subjectId subjectLineageId subjectVersionNumber objectKind objectId objectLineageId objectVersionNumber subjectStateKey objectStateKey objectSubjectStateKey predicateObjectStateKey subjectVersionKey objectVersionKey score confidence rank classifierId modelVersion reviewRecommended sourceSnapshotId importRunId importedAt createdAt updatedAt newsroomFeedKey metadata }
@@ -1415,6 +1415,9 @@ async function appendMessageToThread(thread: MessageThreadRecord, build: (sequen
     },
   });
   const createdMessage = normalizeMessageRecord(created.postMessage ?? built!);
+  if (messageHasHashtag(createdMessage.content ?? (built as MessageRecord | null)?.content)) {
+    void runGraphql(LINK_MESSAGE_HASHTAGS_MUTATION, { messageId: createdMessage.id }).catch(() => undefined);
+  }
   const updated = await runGraphql<{ updateMessageThread?: MessageThreadRecord | null }>(
     UPDATE_MESSAGE_THREAD_MUTATION,
     {
@@ -1984,7 +1987,7 @@ function safeForumId(value: string): string {
   return slugifyKey(value).slice(0, 120) || "thread";
 }
 
-async function runGraphql<T extends Record<string, unknown>>(
+export async function runGraphql<T extends Record<string, unknown>>(
   query: string,
   variables: Record<string, unknown>,
 ): Promise<T> {
@@ -2210,27 +2213,22 @@ async function loadReferencePageByFallbackList(options: NewsroomReferencePageOpt
   };
 }
 
-export async function loadEditorSemanticRelationsData(): Promise<SemanticRelationRecord[]> {
+/**
+ * One Reference's current relations (its prediction among them), read by the subject index. The feed calls this for the References
+ * it shows and nothing else: there is no read of the newsroom's whole relation feed, so no page budget to run out of.
+ */
+export async function loadEditorReferencePredictions(lineageId: string): Promise<SemanticRelationRecord[]> {
+  configureAmplifyClient();
   const testMock = getTestEditorNewsroomMock();
-  if (testMock?.semanticRelations) return testMock.semanticRelations;
-  const rows: SemanticRelationRecord[] = [];
-  const seenIds = new Set<string>();
-  let nextToken: string | null | undefined = null;
-  let pageCount = 0;
-
-  do {
-    const page = await loadNewsroomSemanticRelationPage({ nextToken });
-    for (const relation of page.items) {
-      if (!relation?.id || seenIds.has(relation.id)) continue;
-      seenIds.add(relation.id);
-      rows.push(relation);
-    }
-    nextToken = page.nextToken;
-    pageCount += 1;
-  } while (nextToken && pageCount < 40);
-
-  if (nextToken) throw new Error("The activity feed is incomplete. Select a reference to load its prediction directly.");
-  return rows;
+  if (testMock?.semanticRelations) {
+    return testMock.semanticRelations.filter((relation) => relation.subjectKind === "reference" && relation.subjectLineageId === lineageId);
+  }
+  return loadSemanticRelationsByState({
+    field: "listSemanticRelationsBySubjectState",
+    keyName: "subjectStateKey",
+    keyValue: `reference#${lineageId}#current`,
+    query: LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY,
+  });
 }
 
 /** Selected-reference details use indexes, not the bounded global activity feed. */
@@ -3496,7 +3494,7 @@ async function loadNewsroomFeedPage<T>({
   };
 }
 
-async function loadSemanticRelationsByState({
+export async function loadSemanticRelationsByState({
   field,
   keyName,
   keyValue,
@@ -3536,8 +3534,7 @@ async function loadSemanticRelationsByState({
       rows.push(item);
     }
     nextToken = connection.nextToken ?? null;
-  } while (nextToken && pageCount < 200);
-  if (nextToken) throw new Error("Reference details are incomplete. Try again before reviewing its prediction.");
+  } while (nextToken);
   return rows;
 }
 

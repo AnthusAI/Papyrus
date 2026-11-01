@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "f7ec42b6-86dd-43e2-b05c-af4b2848392c",
+  "issue_id": "PPY-aa19429d-d1d2-46c9-8148-78cb10119541",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-01T18:16:52.696Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Gherkin: features_backend/reference-dates.feature",
+    "description": "Unknown stays null; monitor-supplied date kept; HTML date resolved with its source; the pack states the basis; the trend series uses publication date and the acceptance series ingestion date; resurfaced pack.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e74e6fd5-2b79-4615-ae69-47c466e0619b",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-opus-5-5",
+      "name": "main-session"
+    }
+  }
+}

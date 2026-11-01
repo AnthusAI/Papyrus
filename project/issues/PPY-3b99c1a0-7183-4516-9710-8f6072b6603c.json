@@ -1,0 +1,30 @@
+{
+  "id": "PPY-3b99c1a0-7183-4516-9710-8f6072b6603c",
+  "title": "Concept page: 'Linked by editors' and add from the concept side",
+  "description": "/newsroom/concepts/<key>: list References linked by humans (related_to, provenance human) above extracted mentions, each with both dates; the same Add textarea to link a Reference from the concept side; generated ideas linked to the concept (S1.5). Screenshot review.\nUI rules: Lucide icons; buttons + textarea, no dropdowns or popovers; one Accept/Reject vocabulary; a text label beside every mark (never colour alone); no AppSync subscriptions; screenshot review by Ryan on a local dev server before merging.",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-53f5b8cc-401e-40a9-9ede-25d99efb3e79",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-15843e06-fc3b-493e-9c88-37ff98bba48b",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-01T18:16:49.945075Z",
+  "updated_at": "2026-11-01T18:16:56.422842Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-opus-5-5",
+    "name": "main-session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
