@@ -24,7 +24,7 @@ from typing import Any
 
 from papyrus_content import pdf_text, youtube_transcript
 from papyrus_content.link_exploration import Context, Exploration, Response, explore
-from papyrus_content.web_structured_metadata import publication_date_from_html
+from papyrus_content.publication_dates import publication_date_from_html
 
 # Capture failures that say the network or the server had a bad moment, not that the source is unreadable. A later run retries them.
 TRANSIENT_CAPTURE_FAILURES = frozenset({"timeout", "connection", "http_5xx", "dns"})
