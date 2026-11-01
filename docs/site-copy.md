@@ -9,7 +9,7 @@ papyrus ops site copy \
   --from-api 36xh4ckhhvfyrlxxbltoy246ea --to-api <new api id> \
   --corpus-key-map p-apyr-us=machines-on-machines \
   --from-media-bucket <source bucket> --to-media-bucket <target bucket> \
-  [--models Item,NewsroomSection] [--media-prefixes newsroom/,cyclotrons/] \
+  [--models Item,NewsroomSection] [--media-prefixes newsroom/,corpora/] [--skip-media-prefix cyclotrons/ ...] \
   [--owner-map owners.json] [--keep-unmapped-owners] \
   [--region us-east-1] [--from-profile P] [--to-profile P] \
   [--apply | --dry-run] [--verify] [--json]
@@ -31,15 +31,15 @@ The old key is matched as a whole token (not inside a longer word) and replaced 
 
 | Rule | Where |
 | --- | --- |
-| `corpus-key` | Assignment: `id`, `corpusId`, `queueKey`, `queueStatusKey`, `title`. AssignmentEvent: `id`, `assignmentId`, `queueKey`. Item: `id`, `lineageId`, `sectionStatus`, `tenantId`, `tenantSlug`, `typeStatus`. PublishedItem: `tenantId`, `tenantSlug`, `sectionStatus`, `typeStatus`. MediaAsset and PublishedMediaAsset: `tenantId`, `storagePath`. KnowledgeRawPayload: `id`, `ownerId`. ModelAttachment: `id`, `ownerId`, `ownerLineageId`, `storagePath`. NewsroomSection: `id`, `tenantId`. Reference: `curationStatusReason`, `discoveredByMonitorId`. SemanticRelation: `classifierId`, `metadata` (Cyclotron id, classifier, monitor id, `provenance.publicationId`, `provenance.output`). |
+| `corpus-key` | Assignment: `id`, `corpusId`, `queueKey`, `queueStatusKey`, `title`. AssignmentEvent: `id`, `assignmentId`, `queueKey`. Item: `id`, `lineageId`, `sectionStatus`, `tenantId`, `tenantSlug`, `typeStatus`. PublishedItem: `tenantId`, `tenantSlug`, `sectionStatus`, `typeStatus`. MediaAsset and PublishedMediaAsset: `tenantId`, `storagePath`. KnowledgeRawPayload: `id`, `ownerId`. ModelAttachment: `id`, `ownerId`, `ownerLineageId`, `storagePath`. NewsroomSection: `id`, `tenantId`. Reference: `curationStatusReason`, `discoveredByMonitorId`. SemanticRelation: `classifierId` (the key Papyrus looks relations up by). Papyrus's own `publicationId` field on any model. |
 | `bucket-name` | The source media bucket name, replaced by the target bucket name, in every string of every record. |
 | `amplify-app-id` | The Amplify app id inside the bucket name (`amplify-<appId>-...`), replaced by the target's, in every string of every record. |
-| media keys | An S3 key that contains the old key as a token is renamed the same way (for example `cyclotrons/p-apyr-us-relevance-v2/state.tar.gz`, `newsroom/payloads/assignmentevent/...-p-apyr-us-relevance-.../`). All other keys keep their name. |
+| media keys | Objects under `cyclotrons/` are skipped (see Media). An S3 key that contains the old key as a token is renamed the same way (for example `newsroom/payloads/assignmentevent/...-p-apyr-us-relevance-.../`). All other keys keep their name. |
 | `owner-map` | See below. |
 
 Anything else that mentions the old key is not rewritten. It is listed in the dry run as `mention left unchanged <Model.field>`. If the field looks like an id (`id`, `*Id`, `*Ids`, `*LineageId`, `*Key`) the run is refused instead, because the id cannot be mapped.
 
-Not rewritten on purpose: `p.apyr.us` URLs and email addresses inside Message history; the legacy email bucket named in Message metadata (a different bucket); the Prospectus `accountId` and `bindingRevision` inside Cyclotron provenance.
+Not rewritten on purpose, agreed with the Cyclotron session: the SemanticRelation `metadata` blob (classifier id, cyclotron id, `provenance` with `accountId`, `runId`, binding and `bindingRevision`, `publicationId`), which stays byte-identical because it records that the decisions came from the `p-apyr-us-relevance` classifier in the shared-source relevance cyclotron; the same ids anywhere else a Cyclotron response is echoed (those four keys are skipped at any depth in rewritten fields); and the priming list id `prime-p-apyr-us` wherever it appears. Also: `p.apyr.us` URLs and email addresses inside Message history; the legacy email bucket named in Message metadata (a different bucket); 
 
 ### Reference ids never change
 
@@ -59,10 +59,12 @@ Proposal: build the map after the editors have signed in once on the new site, b
 
 `--from-media-bucket` and `--to-media-bucket` copy every object (or only `--media-prefixes`) with a server-side copy, renaming the keys above. The credentials that run the copy need read on the source bucket and write on the target. The dry run also counts row `storagePath` values that point at no object in the source bucket; these are missing in the source too and are left as they are.
 
+`--skip-media-prefix P` (repeatable) leaves objects whose source key starts with `P` out of the copy; passing it replaces the default `cyclotrons/`, and `--skip-media-prefix none` skips nothing. The default exists because the new site does not use embedded mode, so the Cyclotron `state.tar.gz` is not copied. The dry run reports the skipped object count and bytes, and `--verify` leaves skipped keys out.
+
 ## Verify
 
 `--verify` is read only. For each model it applies the same rewrites to the source, then compares the record count and a content hash with the target (all target records), and lists missing, extra and different ids. For media it compares keys and sizes. `--apply --verify` verifies after writing. A new site's own records show as `extra`; a source that changed since the copy shows as `missing` or `different`. Exit status is 1 on any mismatch.
 
 ## Not covered
 
-S3 object contents are copied as they are (the Cyclotron `state.tar.gz` is not edited inside). Ids derived from a hash of the old key are not recomputed. Cognito, Amplify, DNS and CloudFront for the new site are separate steps ([starting a site](../README.md#start-a-new-papyrus-site)).
+S3 object contents are copied as they are. Ids derived from a hash of the old key are not recomputed. Cognito, Amplify, DNS and CloudFront for the new site are separate steps ([starting a site](../README.md#start-a-new-papyrus-site)).

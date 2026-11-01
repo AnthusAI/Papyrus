@@ -27,7 +27,11 @@ SRC_BUCKET = "amplify-srcapp-mai-papyrusmediabucket-aaaa"
 DST_BUCKET = "amplify-dstapp-mai-papyrusmediabucket-bbbb"
 SUB = "-".join(["11111111", "2222", "3333", "4444", "555555555555"])
 NEW_SUB = "-".join(["99999999", "2222", "3333", "4444", "555555555555"])
-MODELS = ("Reference", "Item", "NewsroomSection", "Assignment", "ModelAttachment")
+MODELS = ("Reference", "Item", "NewsroomSection", "Assignment", "ModelAttachment", "SemanticRelation")
+METADATA = {"M": {
+    "classifier": {"S": f"{OLD}-relevance"}, "cyclotronId": {"S": "shared-source-relevance-r2"},
+    "provenance": {"M": {"accountId": {"S": "acct-1"}, "runId": {"S": "run-1"}, "bindingId": {"S": f"bind-{OLD}"},
+                         "bindingRevision": {"S": "4"}, "output": {"S": f"{OLD}-relevance"}, "publicationId": {"S": OLD}}}}}
 PAYLOAD = f"newsroom/payloads/assignmentevent/{OLD}-relevance/metadata.json"
 
 
@@ -93,6 +97,11 @@ def step_source(context):
     put(db, "ModelAttachment", SRC, id=f"model-attachment-{OLD}-m", storagePath=PAYLOAD)
     context.s3.put_object(Bucket=SRC_BUCKET, Key=PAYLOAD, Body=b"{}")
     context.s3.put_object(Bucket=SRC_BUCKET, Key="corpora/shared/a.pdf", Body=b"pdf")
+    context.s3.put_object(Bucket=SRC_BUCKET, Key=f"cyclotrons/{OLD}-relevance-v2/state.tar.gz", Body=b"state")
+    db.put_item(TableName=f"SemanticRelation-{SRC}-NONE", Item={
+        "id": {"S": "semantic-relation-1"}, "__typename": {"S": "SemanticRelation"},
+        "classifierId": {"S": f"{OLD}-relevance/{OLD}-relevance"}, "publicationId": {"S": OLD},
+        "primeId": {"S": f"prime-{OLD}"}, "metadata": METADATA})
     context.add_cleanup(context.mock.stop)
 
 
@@ -248,7 +257,7 @@ def step_owner_classes(context):
 @then("every source object is in the target bucket")
 def step_objects(context):
     keys = {o["Key"] for o in context.s3.list_objects_v2(Bucket=DST_BUCKET)["Contents"]}
-    assert "corpora/shared/a.pdf" in keys and len(keys) == 2
+    assert "corpora/shared/a.pdf" in keys and len(keys) == 2, keys
 
 
 @then("the payload key that embedded p-apyr-us carries machines-on-machines")
@@ -282,3 +291,42 @@ def step_verify_ok(context):
 def step_verify_bad(context):
     item = next(v for v in context.report["verify"] if v["model"] == "Item")
     assert context.code == 1 and item["missing"] == 1
+
+
+def copied_relation(context):
+    return context.db.get_item(TableName=f"SemanticRelation-{DST}-NONE", Key={"id": {"S": "semantic-relation-1"}})["Item"]
+
+
+@then("the relation's own classifier field names machines-on-machines-relevance")
+def step_classifier(context):
+    assert copied_relation(context)["classifierId"]["S"] == f"{NEW}-relevance/{NEW}-relevance"
+    assert copied_relation(context)["publicationId"]["S"] == NEW
+
+
+@then("the relation's provenance metadata blob is identical to the source")
+def step_blob(context):
+    assert copied_relation(context)["metadata"] == METADATA
+
+
+@then("the priming list id prime-p-apyr-us is unchanged")
+def step_prime(context):
+    assert copied_relation(context)["primeId"]["S"] == f"prime-{OLD}"
+
+
+@then("the cyclotrons/ prefix is skipped and the skipped objects are counted")
+def step_skip(context):
+    keys = {o["Key"] for o in context.s3.list_objects_v2(Bucket=DST_BUCKET)["Contents"]}
+    assert not any(key.startswith("cyclotrons/") for key in keys)
+    assert context.report["media"]["skipped_objects"] == 1
+    assert context.report["media"]["skipped_prefixes"] == ["cyclotrons/"]
+
+
+@when("I run the site copy skipping the corpora/ prefix instead")
+def step_skip_flag(context):
+    run(context, "--skip-media-prefix", "corpora/")
+
+
+@then("the corpora/ objects are skipped and the cyclotrons/ state is copied")
+def step_skip_flag_result(context):
+    assert context.report["media"]["skipped_prefixes"] == ["corpora/"]
+    assert context.report["media"]["skipped_objects"] == 1
