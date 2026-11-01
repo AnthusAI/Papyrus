@@ -157,3 +157,64 @@ def step_page_data(context, node, reference):
 def step_not_counted(context):
     mentions = context.rl.report["mentionsByConcept"]["node-voice-v1"]
     assert {m["referenceLineageId"] for m in mentions} == {"reference-a"}, mentions
+
+
+@given('the accepted References "{first}", "{second}" and "{third}" are indexed')
+def step_given_indexed(context, first, second, third):
+    from procedures.newsroom.tests.test_reference_suggestions import FakeVectorProvider
+
+    context.rl_provider = FakeVectorProvider()
+    for lineage, angle in ((first, 0.0), (second, 0.1), (third, 1.2)):
+        context.rl_provider.add_reference(lineage, angle)
+
+
+@given('an editor rejected the link between "{first}" and "{second}"')
+def step_given_rejected(context, first, second):
+    step_given_indexed(context, "reference-a", "reference-b", "reference-c")
+    link_references(state(context).client, first, second, "related_to", "suggested", actor="auto:vector", now=NOW)
+    decide(state(context).client, only_row(context)["id"], "rejected", "off-topic", None, "editor", now=NOW)
+
+
+@given('an editor linked "{first}" and "{second}" as related')
+def step_given_linked(context, first, second):
+    step_given_indexed(context, "reference-a", "reference-b", "reference-c")
+    link_references(state(context).client, first, second, "related_to", "human", actor="editor", now=NOW)
+
+
+@when('the newsroom suggests links for "{reference}"')
+def step_suggest_for(context, reference):
+    from papyrus_content.reference_suggestions import suggest_for
+
+    context.rl_suggestions = suggest_for(state(context).client, context.rl_provider, reference, now=NOW)
+
+
+@then("no embedding is requested")
+def step_no_embedding(context):
+    assert context.rl_provider.embedding_requests == 0
+
+
+@then('"{second}" is suggested as related to "{first}"')
+def step_is_suggested(context, second, first):
+    assert second in [entry["lineageId"] for entry in context.rl_suggestions["references"]]
+
+
+@then('"{second}" is not suggested')
+def step_not_suggested(context, second):
+    assert second not in [entry["lineageId"] for entry in context.rl_suggestions["references"]]
+
+
+@given("the neighbours of a Reference have similarities {values}")
+def step_given_similarities(context, values):
+    context.rl_similarities = [float(value) for value in values.replace(" and ", ",").split(",") if value.strip()]
+
+
+@when("the number of neighbours to keep is chosen")
+def step_choose_count(context):
+    from papyrus_content.reference_suggestions import knee_cut_count
+
+    context.rl_kept = knee_cut_count(context.rl_similarities)
+
+
+@then("the first {count:d} neighbours are kept")
+def step_first_kept(context, count):
+    assert context.rl_kept == count

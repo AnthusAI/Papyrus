@@ -273,6 +273,7 @@ PORTED_COMMANDS = frozenset(
         "references:list-predictions",
         "references:audit",
         "references:auto-accept",
+        "references:suggest-links",
         "references:review-classification",
         "references:label",
         "references:unlabel",
@@ -591,6 +592,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:auto-accept":
         from .references_commands import references_auto_accept
         references_auto_accept(flags)
+    elif route == "references:suggest-links":
+        from .references_commands import references_suggest_links
+        references_suggest_links(flags)
     elif route == "references:review-classification":
         references_review_classification(flags)
     elif route == "references:label":

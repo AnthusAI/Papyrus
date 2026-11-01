@@ -738,9 +738,8 @@ def _prepare_source_vector(
     )
     if len(source_text) < 80:
         return None
-    digest = hashlib.sha256(str(reference.get("lineageId") or reference.get("id") or title).encode("utf-8")).hexdigest()[:20]
     return {
-        "key": f"reference-summary-{digest}",
+        "key": reference_summary_vector_key(str(reference.get("lineageId") or reference.get("id") or title)),
         "text": source_text,
         "metadata": {
             **_base_reference_metadata(
@@ -756,6 +755,11 @@ def _prepare_source_vector(
             "storagePath": storage_path,
         },
     }
+
+
+def reference_summary_vector_key(reference_lineage_id: str) -> str:
+    digest = hashlib.sha256(reference_lineage_id.encode("utf-8")).hexdigest()[:20]
+    return f"reference-summary-{digest}"
 
 
 def _prepare_chunks(
