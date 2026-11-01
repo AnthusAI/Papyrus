@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any
 
-from papyrus_content.knowledge_snapshot.keys import kind_label
+from papyrus_content.knowledge_snapshot.keys import concept_hashtag, kind_label
 from papyrus_content.knowledge_wiki.pages import entity_body
 
 from .engine import _chunk_text, _clean_text, object_title
@@ -1236,8 +1236,7 @@ def _prepare_concept_card_vectors(graph: Any) -> list[dict[str, Any]]:
             continue
         text = _concept_card_text(node)
         lineage_id = str(node.get("lineageId") or node.get("id") or "")
-        # Same rule as the planned shared helper: the hashtag is the part of the node key after the first "--".
-        hashtag = node_key.split("--", 1)[1] if "--" in node_key else node_key
+        hashtag = concept_hashtag(node_key)
         vectors.append({
             "key": f"{CONCEPT_CARD_KEY_PREFIX}{lineage_id}",
             "text": text,

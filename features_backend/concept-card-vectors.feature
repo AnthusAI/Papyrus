@@ -11,7 +11,7 @@ Feature: Every accepted concept has a concept card vector
     And an accepted concept "Voice Cloning" of kind "task" and a rejected concept "Spam Topic" of kind "task"
     When the vector index is synced
     Then exactly 1 concept card is written
-    And the written card has the node key "task--voice-cloning" and the hashtag "voice-cloning"
+    And the written card has the node key "task--voice-cloning" and the hashtag "#voice-cloning"
     And the written card carries the vector kind "concept_card" and the node kind "task"
 
   Scenario: A second sync skips unchanged cards
