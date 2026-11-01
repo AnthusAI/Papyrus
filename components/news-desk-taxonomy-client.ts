@@ -337,7 +337,7 @@ const NEWSROOM_SEMANTIC_RELATION_FEED_QUERY = `
   }
 `;
 
-const LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY = `
+export const LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY = `
   query ListSemanticRelationsBySubjectState($subjectStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelSemanticRelationFilterInput) {
     listSemanticRelationsBySubjectState(subjectStateKey: $subjectStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
       items { id relationState predicate relationTypeId relationTypeKey relationDomain subjectKind subjectId subjectLineageId subjectVersionNumber objectKind objectId objectLineageId objectVersionNumber subjectStateKey objectStateKey objectSubjectStateKey predicateObjectStateKey subjectVersionKey objectVersionKey score confidence rank classifierId modelVersion reviewRecommended sourceSnapshotId importRunId importedAt createdAt updatedAt newsroomFeedKey metadata }
@@ -346,7 +346,7 @@ const LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY = `
   }
 `;
 
-const LIST_SEMANTIC_RELATIONS_BY_OBJECT_STATE_QUERY = `
+export const LIST_SEMANTIC_RELATIONS_BY_OBJECT_STATE_QUERY = `
   query ListSemanticRelationsByObjectState($objectStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelSemanticRelationFilterInput) {
     listSemanticRelationsByObjectState(objectStateKey: $objectStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
       items { id relationState predicate relationTypeId relationTypeKey relationDomain subjectKind subjectId subjectLineageId subjectVersionNumber objectKind objectId objectLineageId objectVersionNumber subjectStateKey objectStateKey objectSubjectStateKey predicateObjectStateKey subjectVersionKey objectVersionKey score confidence rank classifierId modelVersion reviewRecommended sourceSnapshotId importRunId importedAt createdAt updatedAt newsroomFeedKey metadata }
@@ -1987,7 +1987,7 @@ function safeForumId(value: string): string {
   return slugifyKey(value).slice(0, 120) || "thread";
 }
 
-async function runGraphql<T extends Record<string, unknown>>(
+export async function runGraphql<T extends Record<string, unknown>>(
   query: string,
   variables: Record<string, unknown>,
 ): Promise<T> {
@@ -3499,7 +3499,7 @@ async function loadNewsroomFeedPage<T>({
   };
 }
 
-async function loadSemanticRelationsByState({
+export async function loadSemanticRelationsByState({
   field,
   keyName,
   keyValue,
