@@ -1,4 +1,4 @@
-import { AmplifyAppShellSiteConfig, hasCmsApp, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, hasCmsApp, hasReceiptGate, resolveGithubRepository, resolveGithubStatusTokenParameterName, resolveStoragePreviewPrefix } from "./site-config";
 
 export type BuildSpecAppName = "cms-production" | "cms-staging" | "reader";
 
@@ -67,6 +67,34 @@ function frontendSection(preBuildCommands: string[], buildCommands: string[], ar
   return lines;
 }
 
+// After the backend deploy (it needs the skill function's ARN from amplify_outputs.json). It skips with one log line unless the site
+// enables the alexa plugin and the shared developer credentials exist, and a failure is logged, never fatal: a site's deploy
+// does not depend on Amazon. A Papyrus pin without the command prints usage and falls through the same way.
+const ALEXA_SKILL_SYNC = "npx papyrus-app alexa-sync || echo \"alexa-sync did not complete; the site deploy continues\"";
+
+const GATE_FAILURE_MESSAGE_PREFIX = "No LeftBlock CI receipt for";
+
+/**
+ * The first commands of a private site's production build: read the GitHub status token from the SSM SecureString that
+ * the app-shell stack created, ask GitHub for the combined status of $AWS_COMMIT_ID and stop before `npm ci` unless the
+ * configured context is `success`. Empty for a site without `ci.gate: leftblock-receipt`, so its spec is unchanged.
+ */
+export function ciReceiptGateCommands(config: AmplifyAppShellSiteConfig): string[] {
+  if (!hasReceiptGate(config)) return [];
+  const { owner, repo } = resolveGithubRepository(config);
+  const context = config.ci.statusContext;
+  const region = config.aws?.region ?? "${AWS_REGION:-us-east-1}";
+  const failureCommand = `{ echo "${GATE_FAILURE_MESSAGE_PREFIX} $AWS_COMMIT_ID: run \\\`leftblock ci\\\` and push again"; exit 1; }`;
+  return [
+    `[ -n "\${AWS_COMMIT_ID:-}" ] || ${failureCommand}`,
+    `GATE_TOKEN=$(aws ssm get-parameter --name ${resolveGithubStatusTokenParameterName(config)} --with-decryption --query Parameter.Value --output text --region ${region}) || { echo "Cannot read the GitHub status token from SSM; the CI receipt gate cannot run"; exit 1; }`,
+    `GATE_BODY=$(curl -fsS -H "Authorization: Bearer $GATE_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/${owner}/${repo}/commits/$AWS_COMMIT_ID/status) || GATE_BODY=""`,
+    `if command -v jq >/dev/null 2>&1; then GATE_STATE=$(printf '%s' "$GATE_BODY" | jq -r --arg context '${context}' '[.statuses[]? | select(.context==$context) | .state][0] // empty'); else GATE_STATE=$(printf '%s' "$GATE_BODY" | tr ',' '\\n' | awk -F'"' -v context='${context}' '/"state":/{state=$4} /"context":/{if ($4==context) {print state; exit}}'); fi`,
+    `[ "\${GATE_STATE:-}" = "success" ] || ${failureCommand}`,
+    "unset GATE_TOKEN GATE_BODY GATE_STATE",
+  ];
+}
+
 const DEPLOY_STACK_IN_BUILD = "npx papyrus-infra deploy --site infra/site.json --only-branch main";
 
 export function cmsProductionBuildSpec(config: AmplifyAppShellSiteConfig): string {
@@ -79,10 +107,12 @@ export function cmsProductionBuildSpec(config: AmplifyAppShellSiteConfig): strin
     "      commands:",
     ...commandLines(
       [
+        ...ciReceiptGateCommands(config),
         NPM_CLEAN_INSTALL,
         ...deployStackCommands,
         "if [ -z \"${PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI:-}\" ]; then export PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD=true; fi",
         "npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID",
+        ALEXA_SKILL_SYNC,
       ],
       "        ",
     ),
@@ -133,6 +163,7 @@ export function readerBuildSpec(config: AmplifyAppShellSiteConfig): string {
     "version: 1",
     ...frontendSection(
       [
+        ...ciReceiptGateCommands(config),
         ...pythonProvisioningCommands(config),
         ...(readerConfig.preBuildCommands ?? []),
         ...(readerConfig.skipContentExport ? [] : ["papyrus ops content export-published --auth guest --out content-export --clean"]),

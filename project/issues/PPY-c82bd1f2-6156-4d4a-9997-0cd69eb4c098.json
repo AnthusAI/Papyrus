@@ -3,7 +3,7 @@
   "title": "Generate the skill package from site config and deploy it with the ASK CLI in CI",
   "description": "A generator writes skill-package/ (skill.json, interactionModels/custom/en-US.json) from the site config: publication name, invocation name, endpoint ARN, example phrases, icons. CI runs `ask deploy` against the skill on each main deploy. The LWA client and refresh token live as an SSM SecureString (Ryan authorises once). Nobody hand-edits it in the console. Gherkin: the generated package is deterministic and passes `ask smapi validate-skill` style checks in CI.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -15,10 +15,32 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "634d90ad-5db2-4443-877b-dbbaebb56229",
+      "author": "home",
+      "text": "PR: https://github.com/AnthusAI/Papyrus/pull/945",
+      "created_at": "2026-10-31T15:19:28.523381Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "79afc39a-3f6f-4550-91cd-f187b5ad71ab",
+      "author": "home",
+      "text": "PR: https://github.com/AnthusAI/Papyrus/pull/945",
+      "created_at": "2026-10-31T15:19:37.273300Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "6d3ee947-a7d2-4458-b8f6-1acaae97f260",
+      "author": "home",
+      "text": "Done: the skill package generator and the deploy-time sync to Amazon (SMAPI, SSM credentials, skill-scoped Lambda permission, account linking) in AnthusAI/Papyrus#945. It created the Pilobolus skill on 2026-10-31, run by hand. Two follow-up bugs are filed under M1: the sync entry points' top-level await, and the build spec that was not regenerated.",
+      "created_at": "2026-10-31T19:52:05.846654Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:06:47.213473Z",
-  "updated_at": "2026-10-31T14:25:31.113414Z",
-  "closed_at": null,
+  "updated_at": "2026-10-31T19:52:05.924226Z",
+  "closed_at": "2026-10-31T19:52:05.924195Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

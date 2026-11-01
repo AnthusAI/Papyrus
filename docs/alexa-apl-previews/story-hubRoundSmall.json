@@ -1,0 +1,294 @@
+{
+  "viewport": {
+    "profile": "hubRoundSmall",
+    "device": "Echo Spot",
+    "width": 480,
+    "height": 480,
+    "dpi": 160,
+    "shape": "ROUND"
+  },
+  "document": {
+    "type": "APL",
+    "version": "2023.3",
+    "import": [
+      {
+        "name": "alexa-viewport-profiles",
+        "version": "1.6.0"
+      }
+    ],
+    "resources": [
+      {
+        "when": "${@viewportProfile == @hubRoundSmall}",
+        "dimensions": {
+          "pad": 48,
+          "gap": 12,
+          "publicationSize": 24,
+          "headlineSize": 26,
+          "deckSize": 20,
+          "bodySize": 22,
+          "metaSize": 18,
+          "cardWidth": 384,
+          "cardImageHeight": 150,
+          "heroWidth": 384,
+          "heroHeight": 170,
+          "radius": 20
+        }
+      },
+      {
+        "when": "${@viewportProfile == @hubLandscapeSmall}",
+        "dimensions": {
+          "pad": 24,
+          "gap": 16,
+          "publicationSize": 28,
+          "headlineSize": 26,
+          "deckSize": 20,
+          "bodySize": 22,
+          "metaSize": 18,
+          "cardWidth": 360,
+          "cardImageHeight": 150,
+          "heroWidth": 340,
+          "heroHeight": 200,
+          "radius": 20
+        }
+      },
+      {
+        "when": "${@viewportProfile == @hubLandscapeMedium}",
+        "dimensions": {
+          "pad": 32,
+          "gap": 20,
+          "publicationSize": 32,
+          "headlineSize": 30,
+          "deckSize": 22,
+          "bodySize": 24,
+          "metaSize": 20,
+          "cardWidth": 400,
+          "cardImageHeight": 220,
+          "heroWidth": 400,
+          "heroHeight": 240,
+          "radius": 24
+        }
+      },
+      {
+        "when": "${@viewportProfile == @hubLandscapeLarge}",
+        "dimensions": {
+          "pad": 40,
+          "gap": 24,
+          "publicationSize": 36,
+          "headlineSize": 34,
+          "deckSize": 24,
+          "bodySize": 26,
+          "metaSize": 22,
+          "cardWidth": 520,
+          "cardImageHeight": 300,
+          "heroWidth": 520,
+          "heroHeight": 300,
+          "radius": 28
+        }
+      },
+      {
+        "when": "${@viewportProfile == @tvLandscapeXLarge}",
+        "dimensions": {
+          "pad": 56,
+          "gap": 24,
+          "publicationSize": 40,
+          "headlineSize": 36,
+          "deckSize": 28,
+          "bodySize": 30,
+          "metaSize": 26,
+          "cardWidth": 480,
+          "cardImageHeight": 220,
+          "heroWidth": 440,
+          "heroHeight": 260,
+          "radius": 28
+        }
+      },
+      {
+        "dimensions": {
+          "pad": 32,
+          "gap": 20,
+          "publicationSize": 32,
+          "headlineSize": 30,
+          "deckSize": 22,
+          "bodySize": 24,
+          "metaSize": 20,
+          "cardWidth": 400,
+          "cardImageHeight": 220,
+          "heroWidth": 400,
+          "heroHeight": 240,
+          "radius": 24
+        }
+      }
+    ],
+    "mainTemplate": {
+      "parameters": [
+        "payload"
+      ],
+      "items": [
+        {
+          "type": "Container",
+          "when": "${@viewportProfile != @hubRoundSmall}",
+          "width": "100vw",
+          "height": "100vh",
+          "direction": "row",
+          "backgroundColor": "${payload.storyData.theme.background}",
+          "padding": "@pad",
+          "items": [
+            {
+              "type": "Image",
+              "when": "${payload.storyData.imageUrl}",
+              "source": "${payload.storyData.imageUrl}",
+              "width": "@heroWidth",
+              "height": "100%",
+              "scale": "best-fill",
+              "borderRadius": "@radius",
+              "paddingRight": "@gap"
+            },
+            {
+              "type": "Container",
+              "grow": 1,
+              "shrink": 1,
+              "height": "100%",
+              "paddingLeft": "@gap",
+              "items": [
+                {
+                  "type": "Text",
+                  "text": "${payload.storyData.title}",
+                  "color": "${payload.storyData.theme.text}",
+                  "fontSize": "@headlineSize",
+                  "fontWeight": "800",
+                  "maxLines": 5
+                },
+                {
+                  "type": "Text",
+                  "when": "${payload.storyData.meta}",
+                  "text": "${payload.storyData.meta}",
+                  "color": "${payload.storyData.theme.mutedText}",
+                  "fontSize": "@metaSize",
+                  "paddingTop": 8,
+                  "paddingBottom": "@gap"
+                },
+                {
+                  "type": "ScrollView",
+                  "grow": 1,
+                  "shrink": 1,
+                  "width": "100%",
+                  "item": {
+                    "type": "Container",
+                    "width": "100%",
+                    "shrink": 0,
+                    "data": "${payload.storyData.paragraphs}",
+                    "items": [
+                      {
+                        "type": "Text",
+                        "text": "${data}",
+                        "width": "100%",
+                        "shrink": 0,
+                        "color": "${payload.storyData.theme.text}",
+                        "fontSize": "@bodySize",
+                        "lineHeight": 1.4,
+                        "paddingBottom": "@gap"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Container",
+          "when": "${@viewportProfile == @hubRoundSmall}",
+          "width": "100vw",
+          "height": "100vh",
+          "backgroundColor": "${payload.storyData.theme.background}",
+          "paddingLeft": "@pad",
+          "paddingRight": "@pad",
+          "items": [
+            {
+              "type": "ScrollView",
+              "width": "100%",
+              "height": "100%",
+              "item": {
+                "type": "Container",
+                "width": "100%",
+                "paddingTop": "@pad",
+                "paddingBottom": "@pad",
+                "items": [
+                  {
+                    "type": "Image",
+                    "when": "${payload.storyData.imageUrl}",
+                    "source": "${payload.storyData.imageUrl}",
+                    "width": "100%",
+                    "height": "@heroHeight",
+                    "scale": "best-fill",
+                    "borderRadius": "@radius",
+                    "paddingBottom": "@gap"
+                  },
+                  {
+                    "type": "Text",
+                    "text": "${payload.storyData.title}",
+                    "color": "${payload.storyData.theme.text}",
+                    "fontSize": "@headlineSize",
+                    "fontWeight": "800",
+                    "maxLines": 5
+                  },
+                  {
+                    "type": "Text",
+                    "when": "${payload.storyData.meta}",
+                    "text": "${payload.storyData.meta}",
+                    "color": "${payload.storyData.theme.mutedText}",
+                    "fontSize": "@metaSize",
+                    "paddingTop": 8,
+                    "paddingBottom": "@gap"
+                  },
+                  {
+                    "type": "Container",
+                    "width": "100%",
+                    "shrink": 0,
+                    "data": "${payload.storyData.paragraphs}",
+                    "items": [
+                      {
+                        "type": "Text",
+                        "text": "${data}",
+                        "width": "100%",
+                        "shrink": 0,
+                        "color": "${payload.storyData.theme.text}",
+                        "fontSize": "@bodySize",
+                        "lineHeight": 1.4,
+                        "paddingBottom": "@gap"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "datasources": {
+    "storyData": {
+      "title": "The spores that outrun the wind",
+      "meta": "Sample Writer · October 30, 2026",
+      "imageUrl": "https://example.com/first.jpg",
+      "paragraphs": [
+        "A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. (1)",
+        "A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. (2)",
+        "A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. (3)",
+        "A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. (4)",
+        "A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. (5)",
+        "A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. (6)",
+        "A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. (7)",
+        "A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. A fungus that shoots its spores at a target and a newsroom that reads what it finds. (8)"
+      ],
+      "theme": {
+        "background": "#14170f",
+        "surface": "#1c2117",
+        "text": "#dfded0",
+        "mutedText": "#8b9184",
+        "accent": "#b7d18a"
+      }
+    }
+  }
+}

@@ -1,11 +1,18 @@
 import { assertUniqueIds, type AplDocument } from "../contracts";
+import { feedDocument } from "./feed";
+import { referenceDocument } from "./reference";
+import { storyDocument } from "./story";
 
 /**
  * Every APL document of the skill. To add one, add a file in this folder that exports an `AplDocument` and add one line here
  * (keep the lines in alphabetical order). A test fails when a document file is not listed, an id appears twice, or a document is
  * not APL.
  */
-export const APL_DOCUMENTS: readonly AplDocument[] = [];
+export const APL_DOCUMENTS: readonly AplDocument[] = [
+  feedDocument,
+  referenceDocument,
+  storyDocument,
+];
 
 assertUniqueIds("APL document", APL_DOCUMENTS.map((document) => document.id));
 

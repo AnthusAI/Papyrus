@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ae5d3346-ae9d-432f-8c42-ea5e0da62011",
+  "title": "Cross-story boilerplate editorial check",
+  "description": "Warn when a passage of 12+ words appears in other current stories of the same site (policy cross-story-boilerplate). Ryan approved 2026-10-31.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T15:02:27.979906Z",
+  "updated_at": "2026-10-31T15:02:27.979965Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

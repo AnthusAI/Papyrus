@@ -324,7 +324,11 @@ def _load_item(client, item_id: str) -> dict:
     return item
 
 
-def publish_item(client, item_id: str, *, actor: str, now: str | None = None) -> PublishResult:
+def publish_item(
+    client, item_id: str, *, actor: str, now: str | None = None, approved_by: str | None = None
+) -> PublishResult:
+    """Publish an item. ``approved_by`` names the signed-in person whose action this is (the console editor); a site that requires
+    approval (see ``publish_gate``) refuses every publish that has neither that nor an approved review request for this version."""
     now = now or utc_now_iso()
     item = _load_item(client, item_id)
     lineage_id = item.get("lineageId") or item_id
@@ -343,6 +347,9 @@ def publish_item(client, item_id: str, *, actor: str, now: str | None = None) ->
     already_projected = existing is not None and existing_hash == item.get("contentHash")
     if already_projected and item.get("status") == "published":
         return PublishResult(False, item_id, published_id, existing.get("versionNumber"))
+    from .publish_gate import ensure_publish_approval
+
+    ensure_publish_approval(client, item, approved_by=approved_by, actor=actor)
     if already_projected:
         version_number = existing.get("versionNumber") or 1
     elif existing is not None:
@@ -436,6 +443,12 @@ class DryRunClient:
     def upsert(self, model_name: str, payload: dict) -> str:
         self.planned.append({"operation": "upsert", "model": model_name, "id": payload["id"]})
         return "planned"
+
+    def create_record(self, model_name: str, payload: dict) -> None:
+        self.planned.append({"operation": "create", "model": model_name, "id": payload["id"]})
+
+    def list_records(self, model_name: str):
+        return self._client.list_records(model_name)
 
     def update_record(self, model_name: str, payload: dict) -> None:
         self.planned.append({"operation": "update", "model": model_name, "id": payload["id"]})

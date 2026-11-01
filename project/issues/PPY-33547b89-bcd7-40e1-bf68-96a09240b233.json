@@ -1,0 +1,20 @@
+{
+  "id": "PPY-33547b89-bcd7-40e1-bf68-96a09240b233",
+  "title": "Review queue source: unrated references in best-bets and needs-my-help order with title, deck and summary",
+  "description": "`content/reference-queue.ts`, called with the user's token:\n- list unrated References for the site corpus;\n- order them by P(accept) (best bets) or by reviewRecommended then uncertainty (needs my help), sharing the rule with `lib/reference-feed-ranking.ts` and `lib/needs-me-ranking.ts` (import them, never copy);\n- give each item its display title, its dek (preview attachment) and its summary (metadata attachment, then the curation card);\n- page lazily, keep the session small (ids plus a cursor).\n\nGherkin coverage against a fake GraphQL client: ordering, a missing summary, an empty queue.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:08.065520Z",
+  "updated_at": "2026-10-31T19:52:08.065561Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

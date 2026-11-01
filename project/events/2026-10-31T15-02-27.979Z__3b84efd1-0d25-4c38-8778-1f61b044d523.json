@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "3b84efd1-0d25-4c38-8778-1f61b044d523",
+  "issue_id": "PPY-ae5d3346-ae9d-432f-8c42-ea5e0da62011",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T15:02:27.979Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cross-story boilerplate editorial check",
+    "description": "Warn when a passage of 12+ words appears in other current stories of the same site (policy cross-story-boilerplate). Ryan approved 2026-10-31.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+    "labels": []
+  }
+}

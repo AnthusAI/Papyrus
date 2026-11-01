@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "c3ced65f-b335-451a-88c8-b2b187d4aa4a",
+  "issue_id": "PPY-4fbe9663-6f14-42cd-80cb-15b4746ee39e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T18:09:36.543Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Stop rebuilding all seven sites for every Papyrus release that does not affect them",
+    "description": "Facts: each site rebuild is 10–14 min; a Papyrus version bump across seven sites ≈ 84 min ≈ $0.84; Papyrus released many times in October (check `gh release list -R AnthusAI/Papyrus --limit 50`).\nSteps:\n1. Measure (read-only): for each site, count October main builds whose commit is a dependency bump (`git log --grep \"papyrus\" --since 30.days` on main, or Renovate/Dependabot author) vs content/feature commits. Post the split on this story.\n2. Options, pick from the data: (a) batch bumps: one weekly bump PR per site (Renovate `schedule` or the bump script) instead of per release; (b) classify releases: the Papyrus release workflow (`.github/workflows/release.yml`, semantic-release) labels a release `affects-sites` only when `packages/papyrus`, build-specs or the Python newsroom runtime changed; bump bots (if any) consume that; (c) for pure backend/infra releases, sites skip the bump entirely. Recommended default: (a) + (b) together, no numeric cap.\n3. Implement the chosen option in Papyrus (release.yml, scripts) and in each site's bump mechanism; document in docs/site-hosting.md.\nAcceptance: Gherkin \"a Papyrus release that changes only the Python CLI does not trigger site rebuilds\"; the next week's site build count drops; before/after in a comment.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+    "labels": [
+      "ci",
+      "cost"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-fable-5-1",
+      "name": "plan-ci-cost"
+    }
+  }
+}

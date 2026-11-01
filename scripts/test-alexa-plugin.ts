@@ -39,7 +39,10 @@ function launchEvent(skillId: string): RequestEnvelope {
   } as RequestEnvelope;
 }
 
-const fakeStories: PublicStorySource = { listLatest: async () => [], getStory: async () => undefined };
+const fakeStories: PublicStorySource = {
+  listLatest: async () => [{ id: "1", slug: "a", title: "A headline", publishedAt: "2026-10-31T00:00:00Z" }],
+  getStory: async () => undefined,
+};
 
 function wireFake(requests: Parameters<typeof resolvePlugins>[0]) {
   const app = new App();
@@ -119,12 +122,12 @@ const behaviours: Record<string, () => Promise<void> | void> = {
     const config = resolveAlexaConfig({ ...request, skillId: SKILL_ID });
     await assert.rejects(invokeSkill(launchEvent(OTHER_SKILL_ID), config, { config, stories: fakeStories }), SkillIdMismatchError);
     const response = await invokeSkill(launchEvent(SKILL_ID), config, { config, stories: fakeStories });
-    assert.match(JSON.stringify(response.response.outputSpeech), /still being set up/);
+    assert.match(JSON.stringify(response.response.outputSpeech), /A headline/);
   },
 
   "endpoint serves nothing until a skill ID is configured": async () => {
     const config = resolveAlexaConfig(request);
-    await assert.rejects(invokeSkill(launchEvent(SKILL_ID), config, { config, stories: fakeStories }), SkillIdMismatchError);
+    await assert.rejects(invokeSkill(launchEvent(SKILL_ID), config, { config, stories: fakeStories }, INTENT_MODULES, async () => undefined), SkillIdMismatchError);
   },
 
   "registries list every module and keep ids unique": async () => {
@@ -147,7 +150,7 @@ const behaviours: Record<string, () => Promise<void> | void> = {
   },
 
   "skill package is generated deterministically": () => {
-    const config = resolveAlexaConfig(request);
+    const config = resolveAlexaConfig({ ...request, siteOrigin: "https://example.com" });
     const first = generateSkillPackage(config, { endpointArn: ARN });
     const second = generateSkillPackage(config, { endpointArn: ARN, modules: [...INTENT_MODULES].reverse() });
     assert.deepEqual(first, second);

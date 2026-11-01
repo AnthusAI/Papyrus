@@ -3,7 +3,7 @@
   "title": "APL story document with scrollable body and voice/touch sync",
   "description": "A story view (hero image, title, byline, body from Markus as APL text) that scrolls. Next and Previous work by voice and by touch. Gherkin covers it.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -15,10 +15,25 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2f10f686-df4f-490d-8174-e5b4352854bb",
+      "author": "home",
+      "text": "PR: https://github.com/AnthusAI/Papyrus/pull/944",
+      "created_at": "2026-10-31T15:16:33.296293Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "8f97d84f-d0b5-4f6b-badd-ddf38b67abd2",
+      "author": "home",
+      "text": "Done: the APL story view in AnthusAI/Papyrus#944/#950. Paragraph clipping, found by Ryan, is fixed in AnthusAI/Papyrus#958. Next/previous work by voice.",
+      "created_at": "2026-10-31T19:52:06.128060Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:06:47.901659Z",
-  "updated_at": "2026-10-31T14:25:31.288810Z",
-  "closed_at": null,
+  "updated_at": "2026-10-31T19:52:06.206124Z",
+  "closed_at": "2026-10-31T19:52:06.206095Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

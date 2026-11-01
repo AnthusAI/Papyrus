@@ -1,0 +1,20 @@
+{
+  "id": "PPY-265945d4-1464-40b8-a162-955017155af2",
+  "title": "Account linking flow for review: LinkAccount for unlinked users, editors only",
+  "description": "Unlinked + review request: `linkAccountResponse` (Echo Show shows Amazon's QR), with speech that says what linking is for. Linked but not editor/admin: say review is for editors and offer the stories. Run Ryan's end-to-end check on the device, which closes the old spike PPY-ce567f. Gherkin covers it.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:08.438178Z",
+  "updated_at": "2026-10-31T19:52:08.438230Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

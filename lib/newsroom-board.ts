@@ -58,6 +58,23 @@ export function contentItemBoardType(): string {
 
 export const ASSIGNMENT_BOARD_TYPE = "assignment";
 
+/** Where an Idea came from, shown as a labelled marker on its card (priority slot: the card prints the name and CSS adds the icon). */
+export const IDEA_ORIGIN_PRIORITIES = { generated: 3, person: 4 } as const;
+export const IDEA_ORIGIN_LABELS = { generated: "Generated", person: "Started by a person" } as const;
+const GENERATED_METADATA_ORIGINS = ["monitor", "idea_pipeline", "generated"];
+
+/** A story is generated when it was recorded by "AI" (the attribution label) or its metadata names a machine origin; otherwise a person started it. */
+export function ideaOrigin(version: Pick<ContentItemVersionRecord, "versionCreatedBy" | "metadata">): "generated" | "person" {
+  const metadata = typeof version.metadata === "string" ? safeJson(version.metadata) : version.metadata;
+  const origin = (metadata as { origin?: unknown } | null | undefined)?.origin;
+  if (typeof origin === "string" && GENERATED_METADATA_ORIGINS.includes(origin)) return "generated";
+  return (version.versionCreatedBy ?? "").trim().toLowerCase() === "ai" ? "generated" : "person";
+}
+
+function safeJson(text: string): unknown {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
 const ASSIGNMENT_STATUSES_BEFORE_OTHERS = ["open", "claimed"];
 const ASSIGNMENT_STATUSES_AFTER_OTHERS = ["completed", "canceled"];
 
@@ -83,7 +100,7 @@ export function projectContentItemBoard(records: {
     return {
       id: `contentItem:${version.lineageId}`, nativeId: version.lineageId, kind: "contentItem" as const, type: contentItemType,
       title: version.headline || version.title || version.slug, nativeStatus: stage, status: `${contentItemType}/${stage}`,
-      priority: 2, description: workCount ? `${workCount} assignment${workCount === 1 ? "" : "s"} on this ${contentItemType}.` : undefined,
+      priority: stage === "idea" ? IDEA_ORIGIN_PRIORITIES[ideaOrigin(version)] : 2, description: workCount ? `${workCount} assignment${workCount === 1 ? "" : "s"} on this ${contentItemType}.` : undefined,
       updated_at: version.updatedAt ?? undefined, href: `/newsroom/articles/${encodeURIComponent(version.id)}`,
       excerpt: contentItemExcerpt(version), displayId: contentItemDisplayId(version),
     };
@@ -129,7 +146,8 @@ function boardConfigForType(type: string, columns: readonly { key: string; name:
   const statuses = columns.map(column => ({ ...column, category: "native" }));
   return {
     hierarchy: [], types: [type], statuses,
-    categories: [{ name: "native" }], priorities: {}, type_colors: {},
+    categories: [{ name: "native" }],
+    priorities: { [IDEA_ORIGIN_PRIORITIES.generated]: { name: IDEA_ORIGIN_LABELS.generated }, [IDEA_ORIGIN_PRIORITIES.person]: { name: IDEA_ORIGIN_LABELS.person } }, type_colors: {},
     sort_order: Object.fromEntries(statuses.map(status => [status.key, [...NEWEST_FIRST]])),
     workflows: { [type]: Object.fromEntries(statuses.map(status => [status.key, []])) },
   };

@@ -5,6 +5,8 @@ import type { AlexaConfig } from "./config";
 import { createPublicStorySource } from "./content";
 import type { IntentModule, SkillDependencies } from "./contracts";
 import { INTENT_MODULES } from "./intents";
+import { createNewsroomReview, GRAPHQL_ENDPOINT_ENVIRONMENT_VARIABLE, HOSTED_UI_ORIGIN_ENVIRONMENT_VARIABLE } from "./review/newsroom";
+import { createSkillIdResolver, ssmParameterReader, type SkillIdResolver } from "./skill-identity";
 
 export class SkillIdMismatchError extends Error {}
 
@@ -13,8 +15,26 @@ export function requestSkillId(event: RequestEnvelope): string | undefined {
   return event.session?.application?.applicationId ?? event.context?.System?.application?.applicationId;
 }
 
-export function defaultDependencies(config: AlexaConfig): SkillDependencies {
-  return { config, stories: createPublicStorySource(config), tokens: createAccessTokenVerifier(config) };
+let defaultSkillIdResolver: SkillIdResolver | undefined;
+
+/** The container-wide resolver: the SSM client and the cached skill ID live as long as the Lambda container. */
+function resolveSkillId(config: AlexaConfig): Promise<string | undefined> {
+  defaultSkillIdResolver ??= createSkillIdResolver(ssmParameterReader());
+  return defaultSkillIdResolver(config);
+}
+
+export function defaultDependencies(config: AlexaConfig, environment: Record<string, string | undefined> = process.env): SkillDependencies {
+  const tokens = createAccessTokenVerifier(config);
+  const endpoint = environment[GRAPHQL_ENDPOINT_ENVIRONMENT_VARIABLE];
+  const hostedUiOrigin = environment[HOSTED_UI_ORIGIN_ENVIRONMENT_VARIABLE];
+  return {
+    config,
+    stories: createPublicStorySource(config),
+    tokens,
+    ...(tokens && endpoint
+      ? { review: (accessToken: string) => createNewsroomReview({ config, accessToken, endpoint, ...(hostedUiOrigin ? { hostedUiOrigin } : {}) }) }
+      : {}),
+  };
 }
 
 export function buildSkill(dependencies: SkillDependencies, modules: readonly IntentModule[] = INTENT_MODULES): Skill {
@@ -31,16 +51,18 @@ export function buildSkill(dependencies: SkillDependencies, modules: readonly In
 }
 
 /**
- * The endpoint's request validation. The skill ID check fails closed: until the site's config names a skill ID, no request is
- * served. (The Lambda permission's event-source condition is the first gate; this is the second.)
+ * The endpoint's request validation. The skill ID check fails closed: until a skill ID is known (the deploy sync's SSM parameter,
+ * or `skillId` in the site config), no request is served. (The Lambda permission's event-source condition is the first gate; this is the second.)
  */
 export async function invokeSkill(
   event: RequestEnvelope,
   config: AlexaConfig,
   dependencies: SkillDependencies = defaultDependencies(config),
   modules: readonly IntentModule[] = INTENT_MODULES,
+  skillIdResolver: SkillIdResolver = resolveSkillId,
 ): Promise<ResponseEnvelope> {
-  if (config.skillId === undefined) throw new SkillIdMismatchError("The alexa plugin has no skillId configured, so it serves no request.");
-  if (requestSkillId(event) !== config.skillId) throw new SkillIdMismatchError("Request skill ID does not match the configured skill.");
+  const skillId = await skillIdResolver(config);
+  if (skillId === undefined) throw new SkillIdMismatchError("The alexa plugin has no skill ID yet, so it serves no request.");
+  if (requestSkillId(event) !== skillId) throw new SkillIdMismatchError("Request skill ID does not match the configured skill.");
   return buildSkill(dependencies, modules).invoke(event);
 }

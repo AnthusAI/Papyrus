@@ -1,0 +1,20 @@
+{
+  "id": "PPY-950bd8e8-bb9f-4407-8589-fa7190c810ba",
+  "title": "Thread intents and speech: recent threads, read a thread, who posted",
+  "description": "MessagesIntent (recent threads: subject, how many messages, who posted last), ReadThreadIntent (ordinal), and reading the messages in parts with author names. Uses the M4 linked-user path. Gherkin covers it.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-22a7abce-533f-4ed8-8ae2-72126b53efa5",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:08.869494Z",
+  "updated_at": "2026-10-31T19:52:08.869520Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

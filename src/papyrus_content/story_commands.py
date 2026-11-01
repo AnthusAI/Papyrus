@@ -192,6 +192,11 @@ def stories_set_slug(flags: list[str]) -> None:
             f"{item_id} is already published; changing its address needs --force "
             "(the old address is kept as a redirect)."
         )
+    if published and apply:
+        from .publish_gate import REQUIRED, publish_approval
+
+        if publish_approval(client) == REQUIRED:
+            raise ValueError("This site needs a person's approval to publish, and a new address republishes the story: change the address in the newsroom console.")
     print(f"stories\tset-slug\t{item_id}\t{item.get('slug')} -> {slug}\t{'write' if apply else 'dry run'}")
     if not apply:
         return

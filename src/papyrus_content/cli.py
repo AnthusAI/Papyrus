@@ -244,6 +244,7 @@ PORTED_COMMANDS = frozenset(
         "content:import-markus",
         "content:adopt-tenant-data",
         "content:publish",
+        "content:publish-gate",
         "content:unpublish",
         "content:rebuild",
         "content:convert-bodies",
@@ -269,6 +270,7 @@ PORTED_COMMANDS = frozenset(
         "references:reject",
         "references:request-delegation",
         "references:list-predictions",
+        "references:audit",
         "references:auto-accept",
         "references:review-classification",
         "references:label",
@@ -525,6 +527,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_adopt_tenant_data(flags)
     elif route == "content:publish":
         content_publish(flags)
+    elif route == "content:publish-gate":
+        from .publish_gate import run_command as publish_gate_command
+        publish_gate_command(flags[0] if flags and not flags[0].startswith("--") else "", flags[1:] if flags and not flags[0].startswith("--") else flags)
     elif route == "content:unpublish":
         content_unpublish(flags)
     elif route == "content:rebuild":
@@ -578,6 +583,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_review_curation(flags)
     elif route == "references:list-predictions":
         references_list_predictions(flags)
+    elif route == "references:audit":
+        from .relevance_audit import references_audit
+        references_audit(flags)
     elif route == "references:auto-accept":
         from .references_commands import references_auto_accept
         references_auto_accept(flags)
@@ -1749,6 +1757,7 @@ def print_usage() -> None:
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
+    print("  content publish-gate show | set --approval required|not_required [--dry-run] [--json]  (the site's publish approval setting; default not_required),")
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json]  (s3-projection sites also project the pages; the kind and the content-actions function come from amplify_outputs.json, PAPYRUS_PUBLICATION_KIND and PAPYRUS_CONTENT_ACTIONS_FUNCTION override; with no function it runs locally),")
     print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
     print("  cyclotron export-priming --publication ID --corpus-key KEY [--include-unlabeled] [--out FILE]  (read-only: a publication's editor labels as JSON Lines for a Cyclotron's priming import),")

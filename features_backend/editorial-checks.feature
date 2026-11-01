@@ -264,3 +264,30 @@ Feature: Editorial checks
     And the stored check of version 1 did not finish its judgment lane
     When version 1 of the story is checked again
     Then Humanus was asked to check
+
+  # A closing section pasted into several articles goes stale in all of them at once (seven Anth.us articles did).
+  # The check compares a story with the latest version of the site's other stories; it never calls a model.
+  Scenario: A closing paragraph copied across stories is flagged, naming the other story
+    Given the site has a current story "other-article" that ends with the standard closing
+    When the saved version of the story "this-article" ends with the standard closing and is checked
+    Then the story "this-article" has a stored "cross-story-boilerplate" finding naming "other-article"
+
+  Scenario: A story's own earlier version does not count
+    Given the site has a superseded version of the story "other-article" that ends with the standard closing
+    When version 2 of the story "this-article" is saved with its own earlier closing and checked
+    Then the story "this-article" has no stored "cross-story-boilerplate" finding
+
+  Scenario: A passage the other story only quotes is not boilerplate
+    Given the site has a current story "other-article" that says "As the memo put it, \"we run this for clients at scale and we keep the source open so every client owns the whole thing\" and that is all."
+    When the saved version of the story "this-article" with "We run this for clients at scale and we keep the source open so every client owns the whole thing." is checked
+    Then the story "this-article" has no stored "cross-story-boilerplate" finding
+
+  Scenario: A passage this story quotes is not boilerplate either
+    Given the site has a current story "other-article" that says "We run this for clients at scale and we keep the source open so every client owns the whole thing."
+    When the saved version of the story "this-article" with "She said \"we run this for clients at scale and we keep the source open so every client owns the whole thing\" twice." is checked
+    Then the story "this-article" has no stored "cross-story-boilerplate" finding
+
+  Scenario: Fewer shared words than the copy guard's run are not flagged
+    Given the site has a current story "other-article" that says "We run this for clients at scale."
+    When the saved version of the story "this-article" with "We run this for clients at scale." is checked
+    Then the story "this-article" has no stored "cross-story-boilerplate" finding

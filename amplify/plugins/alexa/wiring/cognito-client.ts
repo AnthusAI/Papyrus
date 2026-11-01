@@ -1,10 +1,12 @@
 import type { Stack } from "aws-cdk-lib";
 import { CfnUserPoolClient, CfnUserPoolDomain, CfnUserPoolIdentityProvider } from "aws-cdk-lib/aws-cognito";
 import type { AlexaWiringStep } from "../contracts";
+import { HOSTED_UI_ORIGIN_ENVIRONMENT_VARIABLE } from "../review/newsroom";
 
 /** The Lambda environment contract the access token verifier reads. */
 export const ALEXA_USER_POOL_ID_ENVIRONMENT_VARIABLE = "PAPYRUS_ALEXA_USER_POOL_ID";
 export const ALEXA_CLIENT_ID_ENVIRONMENT_VARIABLE = "PAPYRUS_ALEXA_CLIENT_ID";
+
 export const ALEXA_CLIENT_TOKEN_VALIDITY_MINUTES = 60;
 export const ALEXA_CLIENT_REFRESH_VALIDITY_DAYS = 365;
 
@@ -54,6 +56,7 @@ export const alexaCognitoClientStep: AlexaWiringStep = (backend, config, _contex
 
   lambda.addEnvironment(ALEXA_USER_POOL_ID_ENVIRONMENT_VARIABLE, userPool.userPoolId);
   lambda.addEnvironment(ALEXA_CLIENT_ID_ENVIRONMENT_VARIABLE, client.ref);
+  lambda.addEnvironment(HOSTED_UI_ORIGIN_ENVIRONMENT_VARIABLE, `https://${hostedUiDomain}`);
   // Amplify merges outputs deeply, so this sits beside custom.alexa.functionArn.
   backend.addOutput({ custom: { alexa: { accountLinking: { userPoolId: userPool.userPoolId, clientId: client.ref, hostedUiDomain } } } });
 };

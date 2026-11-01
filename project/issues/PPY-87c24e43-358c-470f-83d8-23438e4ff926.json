@@ -1,0 +1,20 @@
+{
+  "id": "PPY-87c24e43-358c-470f-83d8-23438e4ff926",
+  "title": "Skill sync entry points fail: top-level await under tsx's CJS transform",
+  "description": "`papyrus-app alexa-sync` spawns `tsx amplify/plugins/alexa/sync/cli.ts`, and `scripts/alexa/ask-deploy.ts` runs the same code; both use top-level await. tsx compiles them as CJS and fails with 'Top-level await is currently not supported with the cjs output format', found running the sync by hand on 2026-10-31. Make the entry points `.mts` or wrap them in an async main, and add a test that runs the real entry point (not only runCli) against fake ports.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a541d0a9-3452-4f4c-8f08-6ff659ec3f43",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:07.254534Z",
+  "updated_at": "2026-10-31T19:52:07.254562Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

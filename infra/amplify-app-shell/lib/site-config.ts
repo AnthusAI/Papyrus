@@ -30,6 +30,20 @@ export type StagingPreviewConfig = {
   baseDirectory: string;
 };
 
+/**
+ * Opt-in deploy gate. Absent means today's build spec, unchanged.
+ * `actions`: a public repository whose GitHub Actions workflow starts the Amplify job (requires autoDeploy).
+ * `leftblock-receipt`: a private repository whose Amplify build first verifies the `statusContext` commit status
+ * (posted by `leftblock ci`) for $AWS_COMMIT_ID and stops before `npm ci` when it is missing (requires autoDeploy false).
+ */
+export type CiGateConfig = {
+  gate: "actions" | "leftblock-receipt";
+  statusContext: string;
+  requireSignature: boolean;
+};
+
+export const DEFAULT_CI_STATUS_CONTEXT = "leftblock/ci";
+
 export type CmsConfig = {
   appName?: string;
   domainName?: string;
@@ -137,6 +151,7 @@ export type AmplifyAppShellSiteConfig = {
    * private repositories get no Actions minutes, so Amplify's own repository-connected auto-build stays on.
    */
   autoDeploy: boolean;
+  ci?: CiGateConfig;
   github?: {
     owner: string;
     repo: string;
@@ -236,6 +251,14 @@ function originOfRedirectUrl(value: string): string {
 
 export function resolveProspectusSessionSealingParameterName(config: Pick<AmplifyAppShellSiteConfig, "siteId">): string {
   return `/papyrus/${config.siteId}/prospectus-session-sealing`;
+}
+
+export function resolveGithubStatusTokenParameterName(config: Pick<AmplifyAppShellSiteConfig, "siteId">): string {
+  return `/papyrus/${config.siteId}/github-status-token`;
+}
+
+export function hasReceiptGate(config: Pick<AmplifyAppShellSiteConfig, "ci">): config is { ci: CiGateConfig } {
+  return config.ci?.gate === "leftblock-receipt";
 }
 
 export function resolveReaderPollSecretParameterName(config: Pick<AmplifyAppShellSiteConfig, "siteId">): string {
@@ -610,11 +633,36 @@ function parseAws(value: unknown): SiteAwsConfig | undefined {
   };
 }
 
+const CI_STATUS_CONTEXT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._\/-]{0,99}$/;
+
+function parseCi(raw: unknown, autoDeploy: boolean): CiGateConfig | undefined {
+  if (raw === undefined) return undefined;
+  const record = requireObject(raw, "ci");
+  rejectUnknownKeys(record, ["gate", "statusContext", "requireSignature"], "ci");
+  const gate = requireString(record.gate, "ci.gate");
+  if (gate !== "actions" && gate !== "leftblock-receipt") {
+    fail("ci.gate", `must be "actions" or "leftblock-receipt", got ${JSON.stringify(gate)}`);
+  }
+  if (autoDeploy && gate !== "actions") {
+    fail("ci.gate", `must be "actions" when autoDeploy is true (the Actions workflow is the only trigger)`);
+  }
+  if (!autoDeploy && gate !== "leftblock-receipt") {
+    fail("ci.gate", `must be "leftblock-receipt" when autoDeploy is false (Amplify auto-build is on for a private repository)`);
+  }
+  const statusContext = record.statusContext === undefined
+    ? DEFAULT_CI_STATUS_CONTEXT
+    : requireString(record.statusContext, "ci.statusContext", CI_STATUS_CONTEXT_PATTERN, "a GitHub commit status context such as leftblock/ci");
+  const requireSignature = record.requireSignature ?? false;
+  if (typeof requireSignature !== "boolean") fail("ci.requireSignature", "must be a boolean");
+  if (requireSignature) fail("ci.requireSignature", "true is not supported yet: signature verification arrives with the LeftBlock verify-ci story (PPY-466bdd)");
+  return { gate: gate as CiGateConfig["gate"], statusContext, requireSignature: false };
+}
+
 export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "email", "reader", "papyrusVersion", "storagePreviewPrefix", "chat", "knowledgeRun", "autoDeploy", "github"],
+    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "email", "reader", "papyrusVersion", "storagePreviewPrefix", "chat", "knowledgeRun", "autoDeploy", "ci", "github"],
     "site",
   );
 
@@ -670,6 +718,8 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
 
   const autoDeploy = record.autoDeploy ?? true;
   if (typeof autoDeploy !== "boolean") fail("autoDeploy", "must be a boolean");
+
+  const ci = parseCi(record.ci, autoDeploy as boolean);
 
   let github: AmplifyAppShellSiteConfig["github"];
   if (record.github !== undefined) {
@@ -732,6 +782,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     storagePreviewPrefix,
     ...(chat ? { chat } : {}),
     autoDeploy: autoDeploy as boolean,
+    ...(ci ? { ci } : {}),
     github,
     ...(record.knowledgeRun !== undefined ? { knowledgeRun: record.knowledgeRun } : {}),
   };
