@@ -299,7 +299,7 @@ def evidence_record(pack: Pack, idea: Mapping[str, Any], handles: PackHandles) -
 
 def idea_record(pack: Pack, idea: Mapping[str, Any], handles: PackHandles, *, run_id: str, now: datetime) -> dict[str, Any]:
     cited_ids = [handles.ids[handle].removeprefix("reference:") for handle in idea["citedReferences"]]
-    identifier = "idea-" + hashlib.sha256(f"{run_id}|{pack.pack_id}|{idea['headline']['text']}".encode()).hexdigest()[:10]
+    identifier = "idea-" + hashlib.sha256(f"{pack.pack_id}|{idea['headline']['text']}".encode()).hexdigest()[:10]
     return {
         "ideaId": identifier, "kind": "story_draft", "origin": ORIGIN, "state": "draft", "proposer": "ai", "proposedBy": "AI", "private": True,
         "runId": run_id, "createdAt": iso(now), "title": idea["headline"]["text"][:200], "angle": idea["dek"]["text"][:300], "section": idea["section"],

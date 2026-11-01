@@ -96,6 +96,16 @@ def test_a_valid_response_files_ideas_with_based_on_links_evidence_and_concept_e
     assert json.loads(edges[0]["metadata"])["provenance"] == "derived"
 
 
+def test_two_ideas_from_one_pack_citing_the_same_references_are_two_items_and_refiling_updates_them():
+    pack = acceptance_pack()
+    client = backend(pack)
+    ideas = (idea("Synthetic voices spread through newsrooms", ["R1", "R2"]), idea("Consent rules lag behind cloning tools", ["R1", "R2"]))
+    result = run(pack, client, transport_of(*ideas))
+    assert result.filed_count == 2 and len({row["itemId"] for row in result.filed}) == 2
+    again = run(pack, client, transport_of(*ideas))
+    assert again.filed_count == 0 and {row["reason"] for row in again.dropped} <= {"already_filed", "near_duplicate"} and again.dropped_count == 2
+
+
 def test_an_idea_citing_one_reference_is_dropped_and_the_pack_goes_on():
     pack = acceptance_pack()
     result = run(pack, backend(pack), transport_of(idea("Only one source", ["R1"]), idea("Consent rules lag behind cloning tools", ["R3", "R4"])))
