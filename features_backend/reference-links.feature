@@ -35,3 +35,11 @@ Feature: References are linked to each other and tagged with concepts, and a sug
     When an editor tags "reference-a" with the concept "node-voice"
     Then the link goes from the Reference to the concept
     And the link uses the "related_to" relation
+
+  Scenario: A human concept link counts in the concept report and on the concept page data
+    Given the accepted Reference "reference-a" is linked to the concept "node-voice" only by an editor's related-to link
+    And the accepted Reference "reference-b" is linked to "reference-a" by a related-to link
+    When the concept report is built
+    Then the concept "node-voice" has 1 distinct Reference in the report
+    And the concept page data for "node-voice" lists "reference-a" as a linking Reference
+    And the Reference-to-Reference link is not counted as a concept mention
