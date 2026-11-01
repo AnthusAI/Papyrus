@@ -281,3 +281,259 @@ def step_queue(context):
 @then("the queue holds both a pack and a single item")
 def step_queue_both(context):
     assert {entry.kind for entry in context.queue} == {"pack", "item"}, context.queue
+
+
+# --- up to three ideas, the Idea stage and the editorial gate ------------------------------------------------------------------------------
+
+
+@given("an acceptance pack and a model that proposes four ideas that each cite two accepted References")
+def step_agent_four(context):
+    prepare_pack_run(context, [
+        pack_support.idea("Synthetic voices spread through newsrooms", ["R1", "R2"], dek="Editors keep accepting this material."),
+        pack_support.idea("Consent rules lag behind cloning tools", ["R3", "R4"], dek="Policies trail the tools that need them."),
+        pack_support.idea("Licensing terms for cloned voices diverge", ["R5", "R6"], dek="Contracts differ on who owns a voice."),
+        pack_support.idea("Audiobook studios test narrator clones", ["R7", "R8"], dek="Studios weigh cost against listener trust."),
+    ])
+
+
+@given("an editorial gate that finds nothing")
+def step_agent_clean_gate(context):
+    context.agent_gate = pack_support.Gate()
+
+
+@then("three ideas are filed and one idea is dropped for being the fourth")
+def step_agent_three(context):
+    result = context.agent_result
+    assert result.filed_count == 3, result.as_dict()
+    assert [row["reason"] for row in result.dropped] == ["more_than_three_ideas"]
+
+
+@then("every filed idea cites at least two accepted References")
+def step_agent_two_each(context):
+    assert all(len(row["citedReferences"]) >= 2 for row in context.agent_result.filed)
+
+
+@then("the editorial gate checked the idea before it was filed")
+def step_agent_gate_checked(context):
+    assert len(context.agent_gate.checked) == 1 and context.agent_result.filed_count == 1
+
+
+@then("the filed idea sits in the Idea stage")
+def step_agent_idea_stage(context):
+    assert context.agent_client.get_record("Item", context.agent_result.filed[0]["itemId"])["stage"] == "idea"
+
+
+# --- the router task and the command -----------------------------------------------------------------------------------------------------
+
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+from functools import partial  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+from unittest import mock  # noqa: E402
+
+import test_monitoring_packs as router_support  # noqa: E402
+from fake_idea_store import FakeIdeaStore  # noqa: E402
+from test_idea_items import FakeGate  # noqa: E402
+from papyrus_content.monitoring_stories import run_publication  # noqa: E402
+
+
+class Patching:
+    """``monkeypatch.setattr`` for the helpers of the tests, undone when the scenario ends."""
+
+    def __init__(self, context) -> None:
+        self.context = context
+
+    def setattr(self, target, name, value) -> None:
+        patcher = mock.patch.object(target, name, value)
+        patcher.start()
+        self.context.add_cleanup(patcher.stop)
+
+
+def start_patch(context, patcher):
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+
+
+@given("a publication with a concept whose accepts jump and a monitored Reference with a lively thread")
+def step_router_world(context):
+    start_patch(context, mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "iam"}))
+    start_patch(context, mock.patch("papyrus_content.ideas.items.ItemStore", lambda client, **options: FakeIdeaStore(client, gate=options.get("gate"))))
+    start_patch(context, mock.patch("papyrus_content.ideas.gate.HumanusGate.for_client", classmethod(lambda cls, client, **options: FakeGate())))
+    filing = router_support.FilingRecorder(Patching(context))
+    context.router = SimpleNamespace(client=router_support.pack_world(2, lively=(1,)), settings={"singleItem": True, "contextPacks": {"enabled": True}},
+                                     model=router_support.RouterModel(), filing=filing, drafter_options={}, stop=None, line=None, output=None)
+
+
+@given("an idea that was drafted from that pack on an earlier run")
+def step_router_earlier_idea(context):
+    context.router.client.items.append(router_support.existing_idea_from(context.router.client))
+
+
+@given("the publication sets singleItem to false")
+def step_router_pack_only(context):
+    context.router.settings["singleItem"] = False
+
+
+@given("the publication turns context packs off")
+def step_router_packs_off(context):
+    context.router.settings["contextPacks"] = {"enabled": False}
+
+
+@given("the publication names only the conversation signal")
+def step_router_signal(context):
+    context.router.settings["contextPacks"] = {"enabled": True, "signals": ["conversation"]}
+
+
+@given("the Lambda runs out of time as soon as the pack has been drafted")
+def step_router_time(context):
+    context.router.stop = lambda: bool(context.router.model.order)
+
+
+@given("filing a pack idea fails with a missing grant")
+def step_router_file_error(context):
+    context.router.filing.fail_after = 0
+
+
+@given("a model-spend backstop that the pack's call nearly uses up")
+def step_router_cost(context):
+    context.router.model = router_support.RouterModel(input_tokens=400_000, output_tokens=6_000)
+    context.router.drafter_options["maximum_cost_usd"] = 0.0435
+
+
+@when("the monitor-stories task runs")
+def step_router_run(context):
+    state = context.router
+    _, store = router_support.router(settings={router_support.PUBLICATION: state.settings})
+
+    def drafter(client, publication, **options):
+        options = {**options, **({"out_of_time": state.stop} if state.stop else {})}
+        return partial(run_publication, fetch=router_support.pages(1, 2), explorer=None, **state.drafter_options)(client, publication, **options)
+
+    _, lines = router_support.run_task_with(store, state.client, state.model, drafter)
+    state.line = lines[router_support.PUBLICATION]
+
+
+@then("the model is asked about the pack before the single item")
+def step_router_order(context):
+    assert context.router.model.order == ["pack", "item"]
+
+
+@then("the pack's ideas and the single item's idea are all filed")
+def step_router_all_filed(context):
+    state = context.router
+    assert len(state.filing.filed) == 2 and len(state.client.filed) == 1 and state.line["drafted"] == 3
+
+
+@then("one review request covers the run")
+def step_router_review(context):
+    assert len(context.router.client.reviews) == 1 and context.router.line["review"] == "requested"
+
+
+@then("the log line counts one pack and the two ideas it produced")
+def step_router_counts(context):
+    assert (context.router.line["packs"], context.router.line["ideasFromPacks"]) == (1, 2)
+
+
+@then("the log line names the pack's signal, anchor and corrected p-value")
+def step_router_pack_detail(context):
+    [detail] = context.router.line["packDetails"]
+    assert (detail["signal"], detail["anchor"], detail["ideas"]) == ("acceptance", "concept-voice", 2) and 0 < detail["correctedPValue"] < 0.01
+
+
+@then("the log line counts no pack held back for want of new evidence")
+def step_router_not_held_back(context):
+    assert context.router.line["packsSkippedNoNewEvidence"] == 0
+
+
+@then("the model is not asked about the pack")
+def step_router_no_pack_call(context):
+    assert context.router.model.pack_requests == [] and context.router.filing.filed == []
+
+
+@then("the log line counts one pack held back for want of new evidence")
+def step_router_held_back(context):
+    assert (context.router.line["packs"], context.router.line["packsSkippedNoNewEvidence"]) == (0, 1)
+
+
+@then("only the pack's ideas are filed")
+def step_router_only_pack(context):
+    state = context.router
+    assert len(state.filing.filed) == 2 and state.client.filed == [] and state.model.order == ["pack"]
+
+
+@then("no pack is built and only single items are drafted")
+def step_router_only_items(context):
+    state = context.router
+    assert state.line["packs"] == 0 and state.filing.filed == [] and state.model.pack_requests == [] and len(state.client.filed) == 2
+
+
+@then("no acceptance pack is drafted")
+def step_router_no_acceptance(context):
+    state = context.router
+    assert state.line["packs"] == 0 and state.model.pack_requests == []
+
+
+@then("the publication is stopped by time with the pack's ideas filed and no single item drafted")
+def step_router_stopped_time(context):
+    state = context.router
+    assert state.line["stoppedBy"] == "time" and len(state.filing.filed) == 2 and state.client.filed == []
+
+
+@then("the publication is stopped by the filing error and the single item is not asked for")
+def step_router_stopped_file(context):
+    state = context.router
+    assert state.line["stoppedBy"] == "file_error" and state.model.order == ["pack"]
+
+
+@then("the publication is stopped by cost after the pack and the single item is not asked for")
+def step_router_stopped_cost(context):
+    state = context.router
+    assert state.line["stoppedBy"] == "cost" and state.model.order == ["pack"] and len(state.filing.filed) == 2
+
+
+def run_command_as_dry_run(context, flags):
+    state = context.router
+    state.model = router_support.RouterModel()
+    state.client = router_support.pack_world(2, lively=(1,))
+    directory = tempfile.mkdtemp()
+    context.add_cleanup(shutil.rmtree, directory, True)
+    code, state.output = router_support.run_command(["--dry-run", "--limit", "5", *flags], state.client, state.model, None, directory)
+    assert code == 0, state.output
+
+
+@when("the monitor-stories command runs as a dry run")
+def step_command_dry(context):
+    run_command_as_dry_run(context, [])
+
+
+@when("the monitor-stories command runs as a dry run with packs only")
+def step_command_packs_only(context):
+    run_command_as_dry_run(context, ["--packs-only"])
+
+
+@when("the monitor-stories command runs as a dry run with single items only")
+def step_command_single_only(context):
+    run_command_as_dry_run(context, ["--single-only"])
+
+
+@then("the output lists the pack with its signal, anchor, corrected p-value and date basis")
+def step_command_lists_pack(context):
+    output = context.router.output
+    assert "pack\tacceptance\tconcept-voice\tcorrected p " in output and "dates: ingestion" in output
+
+
+@then("no idea is filed and no review is requested")
+def step_command_writes_nothing(context):
+    state = context.router
+    assert state.filing.filed == [] and state.client.filed == [] and state.client.reviews == {}
+
+
+@then("the model is asked only about the pack")
+def step_command_pack_only_asked(context):
+    assert context.router.model.order == ["pack"]
+
+
+@then("the model is asked only about single items and no pack is listed")
+def step_command_single_only_asked(context):
+    state = context.router
+    assert state.model.order and set(state.model.order) == {"item"} and "packs\t" not in state.output

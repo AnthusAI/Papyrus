@@ -58,8 +58,10 @@ def transport_of(*ideas):
 class Gate:
     def __init__(self, errors=()):
         self.errors = errors
+        self.checked = []   # the text of every idea the gate was asked about, in order
 
     def check(self, body, section):
+        self.checked.append(body)
         return {"findings": [{"severity": "error", "status": "violation", "policyId": "p1", "message": message} for message in self.errors]}
 
     def record(self, item, result):

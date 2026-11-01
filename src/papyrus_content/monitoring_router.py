@@ -2444,7 +2444,7 @@ class Router:
         results: dict = {}
         if self.config["mode"] != "live":
             return results   # dry-run mode never writes to a publication
-        empty = {"drafted": 0, "candidates": 0, "notAccepted": 0, "skipped": 0, "stoppedBy": None}
+        empty = {"drafted": 0, "candidates": 0, "notAccepted": 0, "skipped": 0, "stoppedBy": None, "packs": 0, "ideasFromPacks": 0, "packsSkippedNoNewEvidence": 0, "packDetails": []}
         queue = []
         for publication in self.publications.values():
             pid = publication["publicationId"]
@@ -2475,10 +2475,11 @@ class Router:
                     result = {"publicationId": pid, "status": "failed", "reason": short(error), **empty}
                 earlier = results.get(pid)
                 if earlier:   # a later pass: the totals add up, the candidates are those the run started with, the rest is the latest pass's
-                    for key in ("drafted", "attempted", "failedTheCheck", "duplicates", "skipped"):
+                    for key in ("drafted", "attempted", "failedTheCheck", "duplicates", "skipped", "ideasFromPacks"):
                         result[key] = result.get(key, 0) + earlier.get(key, 0)
+                    result["packDetails"] = [*earlier.get("packDetails", []), *result.get("packDetails", [])]
                     result["costUsd"] = round((result.get("costUsd") or 0) + (earlier.get("costUsd") or 0), 6)
-                    for key in ("candidates", "notAccepted", "notMonitored", "handledByAutomation"):
+                    for key in ("candidates", "notAccepted", "notMonitored", "handledByAutomation", "packs", "packsSkippedNoNewEvidence"):
                         if key in earlier:
                             result[key] = earlier[key]
                 results[pid] = result

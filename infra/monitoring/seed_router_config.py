@@ -11,6 +11,8 @@ validator, so a config the router would refuse is never stored. Each publication
 (fallback only, used when a criteria fingerprint is unknown: earliest binding revision whose criteria match the
 current ones; default = current revision; otherwise the criteriaFingerprint comparison decides): editor feedback
 stored under an older revision is dropped as stale, otherwise it is sent under the current revision. Asserts the AWS account.
+A publication's `monitorStories` may carry `enabled`, `singleItem` (default true) and `contextPacks` (`enabled`, default true, and `signals`, a list from
+conversation|acceptance|hub|cluster|resurfaced; omitted means every signal that has data), see docs/monitoring-cloud.md#monitor-stories-daily.
 """
 import argparse
 import json

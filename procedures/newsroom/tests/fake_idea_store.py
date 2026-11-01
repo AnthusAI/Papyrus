@@ -19,6 +19,8 @@ MAXIMUM_TARGETS = 10
 
 class FakeIdeaStore:
     kind = ITEMS
+    actor = "AI"   # what ``ItemStore`` carries and ``pack_stories.draft_pack_ideas`` reads
+    source_text_reader = None
 
     def __init__(self, client: Any, gate: Any = None) -> None:
         self.client = client

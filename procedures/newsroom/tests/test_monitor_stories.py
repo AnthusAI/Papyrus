@@ -554,7 +554,7 @@ class CommandTests(unittest.TestCase):
     def test_a_dry_run_prints_the_ranked_drafts_without_filing(self) -> None:
         _, client = world(3)
         with tempfile.TemporaryDirectory() as directory:
-            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "2", "--store", "items", "--dry-run", "--out", directory], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "2", "--store", "items", "--dry-run", "--single-only", "--out", directory], client, StoryModel())
             self.assertFalse(Path(directory, "runs").exists())
         self.assertEqual(code, 0, output)
         self.assertIn("would file 2", output)
@@ -566,7 +566,7 @@ class CommandTests(unittest.TestCase):
         _, client = world(3)
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.md"
-            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "1", "--store", "items", "--out", directory, "--report", str(report)], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "1", "--store", "items", "--single-only", "--out", directory, "--report", str(report)], client, StoryModel())
             self.assertEqual(code, 0, output)
             self.assertTrue(report.read_text().startswith("# Monitor story drafts"))
         self.assertIn("filed 1", output)
