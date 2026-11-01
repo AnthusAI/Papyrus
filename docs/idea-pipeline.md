@@ -7,6 +7,8 @@ version of PPY-8ffc18: a digest and a synthesis, run by hand against the cloud C
 ([below](#trend-stories)). Scheduling comes later. Executable specs: `features_backend/idea-pipeline.feature`,
 `features_backend/idea-trend-stories.feature`, `features_backend/idea-monitor-stories.feature`; unit tests: `procedures/newsroom/tests/test_ideas.py`, `test_idea_trends.py`, `test_monitor_stories.py`, `test_excluded_hosts.py`; excluded source hosts: `features_backend/idea-excluded-source-hosts.feature`.
 
+The design for ideas built from context packs (themes, links, concepts and two dates) is in [idea-context-packs.md](idea-context-packs.md).
+
 ## Running it
 
 Both commands run on your machine against one site's CMS. Point them at the site's AppSync endpoint and sign with your AWS
