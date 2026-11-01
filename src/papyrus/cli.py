@@ -197,6 +197,12 @@ def _map_analysis(command: str, flags: list[str]) -> int:
 
 
 def _map_ops(command: str, flags: list[str]) -> int:
+    if command == "site":
+        if not flags or flags[0] != "copy":
+            raise ValueError("papyrus ops site requires <command>: copy.")
+        from papyrus_content.site_copy_commands import site_copy
+
+        return site_copy(flags[1:])
     if command not in {"content", "corpora", "categories", "relations", "messages"}:
         raise ValueError(f"Unsupported papyrus ops group: {command}")
     if not flags:

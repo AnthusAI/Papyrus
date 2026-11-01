@@ -168,7 +168,7 @@ papyrus automations runs --id <site>.<name> --limit 20
 
 ### Start a new Papyrus site
 
-The twelve steps are in [README.md](README.md#start-a-new-papyrus-site). The traps: `infra/site.json` must have an `aws` block; the app shell is deployed from this repository's `infra/amplify-app-shell`, not from the site; the four pins must match; Google secrets are set with `papyrus site google-secrets set`; a site with CMS routes behind its own CloudFront needs the Lambda@Edge 404 handler, not `CustomErrorResponses`; and the mission doctrine is data in the backend (`papyrus sections doctrine set`), never a file in the repository.
+The twelve steps are in [README.md](README.md#start-a-new-papyrus-site). The traps: `infra/site.json` must have an `aws` block; the app shell is deployed from this repository's `infra/amplify-app-shell`, not from the site; the four pins must match; Google secrets are set with `papyrus site google-secrets set`; a site with CMS routes behind its own CloudFront needs the Lambda@Edge 404 handler, not `CustomErrorResponses`; and the mission doctrine is data in the backend (`papyrus sections doctrine set`), never a file in the repository. To seed the new site from an existing one, `papyrus ops site copy` ([docs](docs/site-copy.md)) copies the backend data and media; it is a dry run unless you pass `--apply`.
 
 ### Run the weekly knowledge run
 

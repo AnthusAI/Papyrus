@@ -8,6 +8,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - **Orient**: [../README.md](../README.md), [../AGENTS.md](../AGENTS.md), [code-map.md](code-map.md), [how-papyrus-works.md](how-papyrus-works.md).
 - **Ship a change**: [releasing.md](releasing.md), [site-hosting.md](site-hosting.md#deploy-on-merge-to-main), [verification.md](verification.md).
 - **Start a new site**: [../README.md#start-a-new-papyrus-site](../README.md#start-a-new-papyrus-site), [building-a-papyrus-static-site.md](building-a-papyrus-static-site.md), [../infra/amplify-app-shell/README.md](../infra/amplify-app-shell/README.md), [google-oauth-setup.md](google-oauth-setup.md).
+- **Copy a site's data into a new site**: [site-copy.md](site-copy.md), `papyrus ops site copy` (dry run by default; rewrite rules, owners, media, verify).
 - **Re-project or repair a site**: [site-hosting.md](site-hosting.md#operations-runbook), [site-hosting.md](site-hosting.md#projection-lease-one-projection-at-a-time).
 - **Add a site to Hacker News routing**: [monitoring-cloud.md](monitoring-cloud.md), [../AGENTS.md](../AGENTS.md#add-a-site-to-the-hacker-news-routing).
 - **Register a procedure or an automation**: [procedure-runner.md](procedure-runner.md), [automations.md](automations.md).
