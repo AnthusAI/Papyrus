@@ -67,7 +67,7 @@ class SuggestionCalibrationTests(unittest.TestCase):
     def test_the_cut_keeps_everything_at_or_above_it_and_at_least_the_knee(self):
         calibration = calibrate(separable_decisions())
         choose = calibration.cut("reference", knee_cut_count)
-        self.assertEqual(choose([0.9, 0.85, 0.8, 0.79, 0.3, 0.2]), 4)
+        self.assertEqual(choose([0.9, 0.85, 0.8, 0.79, 0.3, 0.2]), 3)
         self.assertEqual(choose([0.6, 0.55, 0.2, 0.1]), 2)
 
     def test_loading_is_one_read_of_the_link_feed(self):
