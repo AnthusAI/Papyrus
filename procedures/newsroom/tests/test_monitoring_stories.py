@@ -277,23 +277,46 @@ def test_the_task_does_not_route_collect_or_give_feedback():
 # --- packaging ---------------------------------------------------------------------------------------------------------------
 
 
-def test_the_router_zip_can_run_the_drafting_with_nothing_but_the_standard_library(tmp_path):
-    """The Lambda has boto3 and the zip's own pure-Python packages, nothing else: import everything the task uses from the built zip alone."""
+def test_the_router_zip_can_run_the_drafting_and_the_editorial_gate_with_nothing_but_the_zip(tmp_path):
+    """The Lambda has boto3 and the zip's own packages, nothing else: unpack the zip as the Lambda does (compiled modules cannot load from inside
+    a zip file), build it for this machine, and import and run everything the task uses with an isolated interpreter (PPY-e5aef3)."""
     import importlib.util
     import subprocess
+    import zipfile
     root = Path(__file__).resolve().parents[3]
     spec = importlib.util.spec_from_file_location("monitoring_build", root / "infra/monitoring/build.py")
     build = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(build)
     archive = tmp_path / "router.zip"
-    build.build_router(archive)
-    assert archive.stat().st_size < 2_000_000   # a sensible size: the drafting adds a handful of small modules
+    build.build_router(archive, target="host")
+    # The Lambda zip holds the drafting, the gate, Humanus and the Jev client's wheels: a few MB, far below the 50 MB direct-upload limit.
+    assert archive.stat().st_size < 12_000_000
+    unpacked = tmp_path / "task"
+    zipfile.ZipFile(archive).extractall(unpacked)
     script = ("import sys; sys.path.insert(0, sys.argv[1]); import papyrus_content.monitoring_router; "
-              "from papyrus_content import monitoring_stories as m; from papyrus_content.ideas import monitor_stories, context, store, synthesis, review; "
-              "from papyrus_content import link_exploration; print('imported')")
-    done = subprocess.run([sys.executable, "-I", "-S", "-c", script, str(archive)], capture_output=True, text=True, cwd=tmp_path,
-                          env={"PAPYRUS_ROOT": str(tmp_path)})
-    assert done.stdout.strip() == "imported", done.stderr[-800:]
+              "from papyrus_content import monitoring_stories as m; from papyrus_content.ideas import monitor_stories, context, store, synthesis, review, gate, items; "
+              "from papyrus_content import link_exploration; import humanus.check, typesafe_sdk, humanus; "
+              "assert all(sys.argv[1] in module.__file__ for module in (humanus, typesafe_sdk, gate)); "
+              "pack = {'schemaVersion': 1, 'packId': 'test', 'version': '1', 'policies': [{'id': 'no-synergy', 'version': 1, 'title': 'No synergy', "
+              "'guidance': 'Avoid it.', 'severity': 'warn', 'detectors': [{'id': 'synergy', 'lane': 'rules', 'kind': 'phrase', 'phrases': ['synergy']}]}]}; "
+              "result = humanus.check({'schemaVersion': 1, 'content': {'format': 'markus', 'text': 'Pure synergy.'}, 'pack': pack, "
+              "'options': {'lanes': {'rules': True, 'classifier': False}}}); "
+              "print('imported', len(result['findings']))")
+    done = subprocess.run([sys.executable, "-I", "-S", "-c", script, str(unpacked)], capture_output=True, text=True, cwd=tmp_path,
+                          env={"PAPYRUS_ROOT": str(unpacked)})
+    assert done.stdout.strip() == "imported 1", done.stderr[-800:]
+
+
+def test_the_lambda_wheels_are_the_locked_closure_of_humanus_and_the_jev_client_without_what_is_already_vendored():
+    import importlib.util
+    root = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location("monitoring_build", root / "infra/monitoring/build.py")
+    build = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    packages = build.locked_wheel_packages()
+    assert {"humanus", "typesafe-sdk", "pydantic-core", "rpds-py", "httpx2", "anyio", "tenacity", "truststore", "packaging", "typing-extensions"} <= set(packages)
+    assert not {"pyyaml", "idna", "boto3", "botocore"} & set(packages)   # PyYAML and idna come through VENDORED; the runtime brings boto3
+    assert all(entry["files"] for entry in packages.values())   # every one is pinned with hashes the download is checked against
 
 
 # --- reading many References at a time ---------------------------------------------------------------------------------------

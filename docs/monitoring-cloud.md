@@ -822,10 +822,16 @@ account quota cannot reserve any; the table lease serializes runs anyway). Alarm
 ## Packaging
 
 `python3 infra/monitoring/build.py --router [--upload BUCKET]` builds a separate deterministic zip
-(`papyrus-monitoring/router-<sha256>.zip`, about 1.1 MB with item enrichment and the monitor-stories drafting): the in-package import closure of the
+(`papyrus-monitoring/router-<sha256>.zip`, about 4.9 MB with item enrichment, the monitor-stories drafting and the editorial gate's wheels): the in-package import closure of the
 router (relative imports are resolved against the importing module's own package, `from ..x` included, and a subpackage module brings the `__init__` of each package above it), the two YAML data files the shared Reference factories read, and pure-Python PyYAML (the
 runtime has boto3/botocore only). `PAPYRUS_ROOT=/var/task` lets the factories find `corpora/`. A test
-imports the built zip with a stdlib-only interpreter, including the drafting modules. The collector zip and its hash are unchanged; the email-receiver zip grows with the same closure fix.
+imports the built zip with an isolated interpreter, including the drafting modules and the gate.
+
+The editorial gate imports Humanus, and its judgment lane imports the Jev client (`typesafe-sdk`), so the router zip also holds their dependency closure
+(pydantic and pydantic-core, rpds-py, httpx2, anyio and the rest) as binary wheels for the function (manylinux aarch64, CPython 3.13), at the versions
+`poetry.lock` pins: `build.py --router` computes the closure from the lock, downloads each wheel with `pip download --only-binary`, refuses any whose
+sha256 is not in the lock, and unpacks them in sorted order, so the same lock gives the same `CodeKey`. `--router --host` unpacks this machine's installed
+copies instead, for tests (compiled modules load from the unpacked directory the Lambda uses, not from inside a zip). The collector zip and its hash are unchanged; the email-receiver zip grows with the same closure fix.
 
 ## Decision-ready events
 

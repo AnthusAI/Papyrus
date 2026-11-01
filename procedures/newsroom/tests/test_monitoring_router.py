@@ -889,7 +889,7 @@ def test_router_zip_imports_with_only_the_standard_library(tmp_path):
         sys.path.pop(0)
     root = tmp_path / "task"
     zipfile.ZipFile(out).extractall(root)
-    assert out.stat().st_size < 1_500_000  # PyYAML plus youtube-transcript-api and its pure-Python imports (requests, urllib3, certifi ...), and the monitor-stories drafting modules
+    assert out.stat().st_size < 6_000_000  # PyYAML, youtube-transcript-api and its pure-Python imports, the drafting modules, and the editorial gate's wheels (Humanus, the Jev client, pydantic-core, rpds; about 4.9 MB)
     code = (
         "import sys; sys.path.insert(0, sys.argv[1])\n"
         "import papyrus_content.monitoring_router as r, papyrus_content.monitoring_intake as i, papyrus_content.editorial_context as e\n"
