@@ -141,8 +141,41 @@ Rules:
 - **Immutable.** An entry of a week is not rewritten by a different run of that week: the step refuses and says so, unless you pass `--replace`, which replaces that one week.
 - **Safe.** The step never deletes a file. `snapshot` removes only orphaned `entities/` files, and the projection treats `_data/knowledge/` as runtime data it never reconciles, so the archive survives both. An entry or an index that is not valid JSON is never overwritten.
 - **Projection guard.** The step does not re-project pages, so the [deletion guard of `--reproject`](#snapshot) is not involved; it rejects `--reproject`.
-- **Right week.** The latest cluster run must be dated in the week of `--as-of`; a stale run is refused so it is not filed under a later week. There is no backfill of cluster history; trend counts come from item dates and need none.
+- **Right week.** The latest cluster run must be dated in the week of `--as-of`; a stale run is refused so it is not filed under a later week. Trend counts come from item dates and need no archive. The archive entries are, however, the backfill of [`clusters-history.json`](#cluster-history).
 - The edge cache is purged for the files that changed, as `snapshot` does with `PAPYRUS_EDGE_DISTRIBUTION_ID`.
+
+## Cluster history
+
+`snapshot` writes `_data/knowledge/clusters-history.json` beside `clusters.json`: the weekly history of the clusters, for a cluster river and a "what continued, was born, merged or split" panel. Status: Beta. Code: `cluster_history.py`. Story PPY-e073fc.
+
+```json
+{
+  "schemaVersion": 1,
+  "asOf": "2026-10-26",
+  "weeks": [
+    {
+      "asOf": "2026-10-19",
+      "runId": "run-b",
+      "clusters": [{"uid": "tc-tooling", "label": "Agent tooling", "itemCount": 12}],
+      "events": [
+        {"event": "born", "uid": "tc-evals"},
+        {"event": "continued", "uid": "tc-voice", "from": "tc-voice"},
+        {"event": "merged_from", "uid": "tc-tooling", "sources": ["tc-agents", "tc-code"]},
+        {"event": "split_into", "uid": "tc-voice", "into": ["tc-cloning", "tc-synthesis"]}
+      ]
+    }
+  ]
+}
+```
+
+- `asOf` (top level): the date of the snapshot. `weeks`: one entry per ISO week, oldest first, each filed under the Monday of its week.
+- Per week: `runId`; `clusters` sorted by `uid`, each `uid` (the cluster's stable id: a continued cluster keeps it), `label` (the accepted name, `null` for an unnamed cluster, which is listed only under `--unaccepted-clusters unnamed`, the same rule as `clusters.json`) and `itemCount` (the same count as `clusters.json` for that week); and `events`, the lineage from the previous run, sorted by kind (`born`, `continued`, `merged_from`, `split_into`) then `uid`.
+- Events: `born` (`uid`: a new cluster); `continued` (`uid`, `from`: its predecessor, which is its own `uid` unless the run names another); `merged_from` (`uid`: the merged cluster, `sources`: the clusters it merged, sorted); `split_into` (`uid`: the source, `into`: the clusters it split into, sorted). Born, continued and merged events belong to a cluster listed in `clusters`; a `split_into` source and a merge's `sources` are earlier clusters that may be absent from this week's list. A cluster whose run event cannot be described (a merge with no source, a split with other than one source) is reported as `born` rather than failing the snapshot (the strict check stays in `archive`).
+- **Incremental.** Each `snapshot` reads the stored file, carries its weeks forward and puts this week's entry in place of any entry of the same week, so a run never needs the earlier runs. Taking the same week again replaces only that week. A latest cluster run dated in an earlier week than `--as-of` adds nothing (it is not filed under a later week), and no cluster run means no new entry.
+- **Backfill.** When no usable history file is stored (missing, not JSON or another schema), the weeks are rebuilt from the weekly archive entries `history/<asOf>.json`, if there are any; labels are the names the entries recorded. Weeks nobody archived have no entry: cluster identity cannot be rebuilt later.
+- **No identity data.** Cluster ids, labels, counts and run ids only: no reader id, email or handle.
+- **Task-owned.** The file sits under `_data/knowledge/`, which the page reconcile never treats as an orphan and never deletes, and which `snapshot` rewrites only when the bytes change.
+- **Reading it.** A projector reads it through `KnowledgeSource.history()` (`papyrus_content.projection.standard.knowledge`), which returns the parsed object or `None` when the snapshot has none. A site hook reaches it as `site.knowledge.history()` (`KnowledgeLookup.history()`). The digest that decides when pages are rendered again includes the file when the snapshot has one; a snapshot without it keeps its digest.
 
 ## File shapes (`schemaVersion` 1)
 
@@ -155,6 +188,8 @@ Output is deterministic: keys sorted, no timestamps, `asOf` is the given date. A
 A site that counts monitor records ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)) adds, only where a record counts: `recordCount` on an entity row and file and on a cluster row (records are part of `itemCount`, `series8` and `change`); `relatedRecords` on the entity file (`title` = model id, `url` = the source's own card, `publishedAt`, `summary`, `source`, `provenance`, `reason`), which keeps `relatedItems` to the site's own pages; and, on a `neighbours` row of a relation imported from a source fact (`built_on`), `subtype`, `evidence` and `provenance`. An entity that only records mention has `href: null`.
 
 `clusters.json`: `schemaVersion`, `asOf`, `runId`, `unacceptedClusters`, `clusters` (`uid`, `beats` (keys of the beats that share published member items with the cluster), `name`, `acceptedBy`, `state` `new|growing|cooling|null`, `itemCount`, `topTerms`, `series8`, `weeksOfData`, `href`).
+
+`clusters-history.json`: see [Cluster history](#cluster-history).
 
 `change` is `{last4, prior4, percent}`. `acceptedBy` and `editedBy` are `{actor: "ai" | "human", name: string | null, on: "YYYY-MM-DD"}`, or `null` when nothing is recorded (an unnamed cluster never claims an acceptance).
 

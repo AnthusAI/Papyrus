@@ -371,7 +371,7 @@ def test_a_page_that_names_an_unknown_attribute_fails_the_build_with_the_file_na
 
 def test_the_projector_does_not_own_the_snapshot_files(site):
     projector = site.context().projector
-    for key in ("_data/knowledge/index.json", "_data/knowledge/clusters.json", "_data/knowledge/entities/acme-loom.json"):
+    for key in ("_data/knowledge/index.json", "_data/knowledge/clusters.json", "_data/knowledge/clusters-history.json", "_data/knowledge/entities/acme-loom.json"):
         assert not projector.owns_page_key(key)
 
 

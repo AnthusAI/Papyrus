@@ -34,6 +34,11 @@ class KnowledgeLookup:
             self._built = (index, names)
         return self._built[1]
 
+    def history(self) -> dict | None:
+        """The weekly cluster history (``clusters-history.json``, see :meth:`KnowledgeSource.history`), or ``None`` when the snapshot has none.
+        A hook reads it as ``site.knowledge.history()``."""
+        return self._source.history()
+
     def entity_for(self, kind: str | None, name: str) -> dict | None:
         """The accepted entity of this ``kind`` named ``name`` (or having it as an alias), or ``None``.
 

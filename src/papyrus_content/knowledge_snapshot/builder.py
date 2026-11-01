@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 
+from .cluster_history import history_file, identity_of, valid_weeks, week_entry
 from .monitor_records import provenance_of
 from .keys import contains_email, entity_key, is_public_key, kind_label, kind_key, normalize_name, slug
 from .model import (
@@ -42,6 +43,7 @@ SCHEMA_VERSION = 1
 DATA_DIRECTORY = "_data/knowledge"
 INDEX_FILE = f"{DATA_DIRECTORY}/index.json"
 CLUSTERS_FILE = f"{DATA_DIRECTORY}/clusters.json"
+CLUSTERS_HISTORY_FILE = f"{DATA_DIRECTORY}/clusters-history.json"
 ENTITY_DIRECTORY = f"{DATA_DIRECTORY}/entities"
 CO_MENTION = "mentioned_with"
 CLUSTER_NEW = "new"
@@ -439,8 +441,29 @@ def _clusters_file(
     }
 
 
-def build_files(data: KnowledgeData, options: SnapshotOptions) -> dict[str, dict]:
-    """Every file of ``_data/knowledge/`` as ``{site key: payload}``."""
+def _clusters_history_file(data: KnowledgeData, options: SnapshotOptions, clusters_file: dict, previous: dict | None) -> dict:
+    """``clusters-history.json``: the weeks of ``previous`` carried forward and this week's entry from the latest run, which is the
+    same set of clusters ``clusters.json`` lists. A run dated in an earlier week is not filed under this one."""
+    weeks = valid_weeks(previous, SCHEMA_VERSION) or []
+    runs = sorted((cluster.run_as_of or "", cluster.run_id) for cluster in data.clusters if cluster.run_id)
+    entry = None
+    if runs:
+        run_as_of, run_id = runs[-1]
+        if not run_as_of or week_number(parse_day(run_as_of)) == week_number(options.as_of):
+            by_uid = {cluster.uid: cluster for cluster in data.clusters if cluster.run_id == run_id}
+            rows = [
+                {"uid": row["uid"], "label": row["name"], "itemCount": row["itemCount"], "identity": identity_of(by_uid[row["uid"]])}
+                for row in clusters_file["clusters"]
+            ]
+            entry = week_entry(options.as_of, run_id, rows)
+    return history_file(SCHEMA_VERSION, options.as_of, weeks, entry)
+
+
+def build_files(data: KnowledgeData, options: SnapshotOptions, previous_history: dict | None = None) -> dict[str, dict]:
+    """Every file of ``_data/knowledge/`` as ``{site key: payload}``.
+
+    ``previous_history`` is the stored ``clusters-history.json`` (or weeks rebuilt from the weekly archive); its weeks are carried
+    into the new file, which adds this week."""
     as_of_week = week_number(options.as_of)
     dated = _dated_items(data.items, as_of_week)
     entities = _entities(data, options, dated, as_of_week)
@@ -466,6 +489,7 @@ def build_files(data: KnowledgeData, options: SnapshotOptions) -> dict[str, dict
         },
         CLUSTERS_FILE: _clusters_file(data, options, set(dated), as_of_week, beat_members, {key for key, (_week, item) in dated.items() if item.is_record}),
     }
+    files[CLUSTERS_HISTORY_FILE] = _clusters_history_file(data, options, files[CLUSTERS_FILE], previous_history)
     for entity in entities:
         files[entity_file(entity.key)] = _entity_file(
             entity, neighbours[entity.key], _related_items(entity, dated, options.related_limit), _related_records(entity, dated, options.related_limit)

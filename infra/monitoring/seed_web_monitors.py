@@ -10,7 +10,8 @@ Each monitor's `CONFIG` is a web-search monitor (hourly, topic news; disabled un
 written from --queries-file (a query is searched only once it has --approved-by). Each `CONFIG#router` lists only that publication and sets `holdDecisions: true`: enrichment runs, no decide request
 is posted until `seed_router_config.py --monitor-id web-<id> --set holdDecisions=false`. The six shared-Cyclotron publications
 copy the `hn` router's cyclotron block and publication entry as stored; Distinctive Mark has `decisions: "hold"` and no
-cyclotron block. Existing items are left alone unless --replace. Every item is validated with the Lambda's own validators.
+cyclotron block. A query in the file may carry `origin` ("drafted" or "editor"), `createdBy`, `excludeDomains` and `includeDomains` (default: drafted by
+gpt-6-luna, no domain filters). Existing items are left alone unless --replace, so seeding a file adds only its new queries. Every item is validated with the Lambda's own validators.
 Asserts the AWS account.
 """
 import argparse
@@ -52,8 +53,9 @@ def main() -> int:
     for publication in WEB_PUBLICATIONS:
         queries = (proposals.get(publication) or {}).get("queries") or []
         monitor = monitor_config(publication, enabled=bool(args.enable and queries))
-        records = [query_record(monitor_id(publication), q["text"], q["rationale"], origin="drafted", created_by="gpt-6-luna",
-                                now_iso=now, approved_by=args.approved_by) for q in queries]
+        records = [query_record(monitor_id(publication), q["text"], q["rationale"], origin=q.get("origin", "drafted"),
+                                created_by=q.get("createdBy", "gpt-6-luna"), now_iso=now, approved_by=args.approved_by,
+                                exclude_domains=q.get("excludeDomains"), include_domains=q.get("includeDomains")) for q in queries]
         router = router_config(publication, hn_router)
         _validate_config(json.loads(json.dumps(monitor)))
         validate_router_config(json.loads(json.dumps(router, default=int)))

@@ -64,6 +64,7 @@ from .assignments_commands import (
     assignments_run_copywriting,
     assignments_run_reporting,
     assignments_run_research,
+    assignments_research_multi,
     assignments_run_tavily_deep_research,
     assignments_poll_tavily_deep_research,
     assignments_run_story_cycle,
@@ -317,6 +318,7 @@ PORTED_COMMANDS = frozenset(
         "assignments:create-research",
         "assignments:create-reporting",
         "assignments:run-research",
+        "assignments:research-multi",
         "assignments:run-tavily-deep-research",
         "assignments:poll-tavily-deep-research",
         "assignments:run-reporting",
@@ -702,6 +704,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         assignments_create_reporting(flags)
     elif route == "assignments:run-research":
         assignments_run_research(flags)
+    elif route == "assignments:research-multi":
+        assignments_research_multi(flags)
     elif route == "assignments:run-tavily-deep-research":
         assignments_run_tavily_deep_research(flags)
     elif route == "assignments:poll-tavily-deep-research":

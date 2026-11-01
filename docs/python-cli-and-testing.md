@@ -85,7 +85,7 @@ and excludes live-agent scenarios.
 `npm run test:bdd:agent-live` runs only the backend live-agent Gherkin smoke
 suite via Behave (Python).
 The live-agent suite is sandbox-only (a dedicated sandbox checkout, never a production workspace)
-and defaults the chat-agent model policy to `gpt-5-nano`.
+and defaults the chat-agent model policy to `gpt-6-luna`.
 Live scenarios persist tagged test records by default for dogfooding
 (`behave-live-agent-*` prefixes); set `PAPYRUS_LIVE_AGENT_CLEANUP=1` to delete
 records after each run.

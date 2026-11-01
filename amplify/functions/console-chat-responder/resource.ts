@@ -30,7 +30,7 @@ export class ConsoleChatResponderStack extends NestedStack {
       PAPYRUS_MESSAGE_THREAD_SEQUENCE_INDEX_NAME: "messagesByThreadSequence",
       PAPYRUS_GRAPHQL_ENDPOINT: props.graphqlEndpoint,
       PAPYRUS_CONSOLE_RESPONSE_TARGET: responseTarget,
-      PAPYRUS_CONSOLE_MODEL: props.model?.trim() || process.env.PAPYRUS_CONSOLE_MODEL || "gpt-5-nano",
+      PAPYRUS_CONSOLE_MODEL: props.model?.trim() || process.env.PAPYRUS_CONSOLE_MODEL || "gpt-6-luna",
       PAPYRUS_CONSOLE_CONTEXT_CACHE_ROOT: "/tmp/papyrus-console/thread-context",
       PAPYRUS_CONSOLE_STATIC_CONTEXT_TTL_SECONDS: process.env.PAPYRUS_CONSOLE_STATIC_CONTEXT_TTL_SECONDS || "900",
       PAPYRUS_EXECUTE_TACTUS_RUNNER: process.env.PAPYRUS_EXECUTE_TACTUS_RUNNER || "/opt/papyrus/execute_tactus_runner.py",

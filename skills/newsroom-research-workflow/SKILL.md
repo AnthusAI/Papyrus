@@ -530,7 +530,7 @@ local web = require("tactus.web")
 local search = web.search{
   provider = "openai",
   query = "current source about automated publication systems in newsroom workflows",
-  model = "gpt-5.4-mini",
+  model = "gpt-6-luna",
   max_results = 3,
 }
 ```

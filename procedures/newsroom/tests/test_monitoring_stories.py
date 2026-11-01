@@ -519,15 +519,16 @@ def test_the_gate_reads_through_the_publications_own_client_and_sets_the_key_onl
     monkeypatch.delenv("TYPESAFE_API_KEY")
 
 
-def test_the_router_policies_grant_the_gate_fields_on_every_routed_site_and_the_key_parameter():
+def test_the_router_idea_policy_grants_the_item_and_gate_fields_and_the_key_parameter():
     text = (Path(__file__).resolve().parents[3] / "infra" / "monitoring" / "papyrus-monitoring.yaml").read_text()
-    apis = ("AnthUsApiId", "PapyrusApiId", "ThreatIntelApiId", "DataParadeApiId", "PilobolusApiId", "ShippedApiId", "DistinctiveApiId")
-    needed = ("Query/fields/getEditorialCheckSettings", "Query/fields/getEditorialContext", "Query/fields/getEditorialCheckRun", "Query/fields/listEditorialFeedbacks",
-              "Query/fields/listEditorialPolicies", "Query/fields/listItemsByVersionStateAndUpdatedAt", "Mutation/fields/createEditorialCheckRun", "Mutation/fields/updateEditorialCheckRun")
-    gate = text[text.index("  RouterIdeaGatePolicy:"):text.index("  RouterEditorialJudgmentKeyPolicy:")]
-    for api in apis:
-        for field in needed:
-            assert f"apis/${{{api}}}/types/{field}\"" in gate, (api, field)
-    for item_field in ("getItem", "createItem", "updateItem"):
-        assert all(f"apis/${{{api}}}/types/" in text and f"${{{api}}}/types/{'Mutation' if item_field != 'getItem' else 'Query'}/fields/{item_field}\"" in text for api in apis), item_field
-    assert "EDITORIAL_JUDGMENT_KEY_PARAMETER" in text and "ssm:GetParameter" in text[text.index("  RouterEditorialJudgmentKeyPolicy:"):] and "kms:Decrypt" in text
+    needed = ("Query/fields/getItem", "Query/fields/getPublishedItem", "Query/fields/listReferencesByLineageAndVersion", "Mutation/fields/createItem",
+              "Mutation/fields/updateItem", "Query/fields/getEditorialCheckSettings", "Query/fields/getEditorialContext", "Query/fields/getEditorialCheckRun",
+              "Query/fields/listEditorialFeedbacks", "Query/fields/listEditorialPolicies", "Query/fields/listItemsByVersionStateAndUpdatedAt",
+              "Mutation/fields/createEditorialCheckRun", "Mutation/fields/updateEditorialCheckRun")
+    start = text.index("  RouterIdeaPolicy:")
+    policy = text[start:text.index("\n\n  ", start)]
+    for field in needed:
+        assert f"apis/*/types/{field}\"" in policy, field
+    assert "Roles: [!Ref RouterRole]" in policy
+    assert "ssm:GetParameter" in policy and "parameter${EditorialJudgmentKeyParameter}" in policy and "kms:ViaService" in policy
+    assert "EDITORIAL_JUDGMENT_KEY_PARAMETER" in text

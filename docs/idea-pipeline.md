@@ -328,7 +328,7 @@ Notes from running v0 by hand, for PPY-433383 (run contract) and PPY-93faf2 (loc
   app) and export `PAPYRUS_GRAPHQL_ENDPOINT`. An automation needs the site, endpoint, account and credential source as data.
 - **Credentials.** The SSO session often needs `aws configure export-credentials` before botocore signs requests. A scheduled local
   run needs a non-interactive credential source.
-- **Filing Items under IAM.** An operator role of the site's own account can file ideas as Items when it has the `createItem`/`updateItem` grants and the reads that go with them (the router's `RouterIdeaItemsPolicy`, [monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily)). The run contract still needs the role named as data.
+- **Filing Items under IAM.** An operator role of the site's own account can file ideas as Items when it has the `createItem`/`updateItem` grants and the reads that go with them (the router's `RouterIdeaPolicy`, [monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily)). The run contract still needs the role named as data.
 - **Dedupe memory.** Earlier ideas come from the site's Items (and the JSON store on one machine). A site that has not run `papyrus ideas migrate-proposals` also dedupes against its old story drafts through the read-only `listStoryDrafts`.
 - **The run ledger is a local JSON file,** not a `ProcedureRun` record, so the console cannot list these runs yet.
 - **The OpenAI key comes from the operator's environment.** Cloud runtimes read per-site SSM parameters; the local one does not.
@@ -360,7 +360,7 @@ With `--store items` every idea is checked against the site's editorial policies
 - Warnings and notes stay with the Item (`generated.check`: counts by severity, the findings, the lanes) and are stored as the Item's editorial check run. The batch review lists clean ideas first.
 - The judgment lane needs `TYPESAFE_API_KEY`. When it is missing Humanus reports the lane as unavailable and the Item records `judgment: {ran: false, reason}`; the idea is not passed off as judged. Checks turned off for the site are recorded as `{ran: false, skipped: disabled}`.
 - `supersedes`: an idea may list Item lineages it replaces (stored in `generated.supersedes`, each must be an existing Item). The editor can then spike those in the same review.
-- The router's ideas pass the same gate: it reads the site's policies through the publication's own API (`RouterIdeaGatePolicy`, `RouterIdeaGateSharedSitesPolicy`) and takes the judgment lane's key from one shared SSM parameter (`RouterEditorialJudgmentKeyPolicy`). With no key the rules lane still runs and the Item records the judgment lane as not run ([monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily)).
+- The router's ideas pass the same gate: it reads the site's policies through the publication's own API and takes the judgment lane's key from one shared SSM parameter (both granted by `RouterIdeaPolicy`). With no key the rules lane still runs and the Item records the judgment lane as not run ([monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily)).
 
 ### Decisions are labels
 

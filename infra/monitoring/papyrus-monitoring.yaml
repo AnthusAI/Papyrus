@@ -108,6 +108,49 @@ Parameters:
       gate that checks each generated idea before the router files it (environment variable EDITORIAL_JUDGMENT_KEY_PARAMETER). One shared key for every
       routed site. The role may read only this parameter and decrypt through SSM. Empty, or a parameter that does not exist, leaves the judgment lane
       recorded as not run on the idea (the rules lane still runs).
+  WebSearchProviders:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^(tavily|openai|perplexity|gemini|bedrock)(,(tavily|openai|perplexity|gemini|bedrock))*$"
+    Description: >-
+      Opt-in ordered web-search fallback chain for the collector and the router (environment variable WEB_SEARCH_PROVIDERS), for
+      example "openai,tavily". A provider whose key is not configured is skipped; a provider whose plan is used up, whose key is
+      refused or that stays rate limited falls through to the next. Empty keeps today's behaviour: Tavily alone. A monitor may
+      override the chain with searchProviders in its own CONFIG.
+  OpenAiSearchKeyParameter:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the OpenAI key for web search (environment variable PAPYRUS_OPENAI_KEY_PARAMETER);
+      the standard name is /papyrus/search/openai-api-key. Empty leaves the openai provider unavailable.
+  PerplexityKeyParameter:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the Perplexity key (PAPYRUS_PERPLEXITY_KEY_PARAMETER); the standard name is
+      /papyrus/search/perplexity-api-key. Empty leaves the perplexity provider unavailable.
+  GeminiKeyParameter:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the Gemini key (PAPYRUS_GEMINI_KEY_PARAMETER); the standard name is
+      /papyrus/search/gemini-api-key. Empty leaves the gemini provider unavailable.
+  BedrockWebSearch:
+    Type: String
+    Default: "off"
+    AllowedValues: ["off", "on"]
+    Description: >-
+      "on" lets the collector and the router sign a Bedrock token and use Web Search on Amazon Bedrock (provider "bedrock" in the
+      chain): bedrock:CallWithBearerToken, bedrock-websearch:InvokeSearch / InvokeFetch and the Bedrock Mantle inference policy.
+  BedrockSearchModel:
+    Type: String
+    Default: ""
+    Description: >-
+      The Bedrock model id used for provider "bedrock" (environment variable BEDROCK_SEARCH_MODEL). Required when BedrockWebSearch is
+      "on"; with it empty the bedrock provider is skipped as unavailable.
   EnrichmentGrobidUrl:
     Type: String
     Default: ""
@@ -122,6 +165,12 @@ Conditions:
   HasEnrichmentKey: !Not [!Equals [!Ref EnrichmentOpenAiKeyParameter, ""]]
   HasTavilyKey: !Not [!Equals [!Ref TavilyKeyParameter, ""]]
   HasEditorialJudgmentKey: !Not [!Equals [!Ref EditorialJudgmentKeyParameter, ""]]
+  HasWebSearchChain: !Not [!Equals [!Ref WebSearchProviders, ""]]
+  HasOpenAiSearchKey: !Not [!Equals [!Ref OpenAiSearchKeyParameter, ""]]
+  HasPerplexityKey: !Not [!Equals [!Ref PerplexityKeyParameter, ""]]
+  HasGeminiKey: !Not [!Equals [!Ref GeminiKeyParameter, ""]]
+  HasBedrockWebSearch: !Equals [!Ref BedrockWebSearch, "on"]
+  HasBedrockSearchModel: !Not [!Equals [!Ref BedrockSearchModel, ""]]
   HasEnrichmentGrobid: !Not [!Equals [!Ref EnrichmentGrobidUrl, ""]]
 
 Resources:
@@ -181,6 +230,10 @@ Resources:
   CollectorRole:
     Type: AWS::IAM::Role
     Properties:
+      ManagedPolicyArns: !If
+        - HasBedrockWebSearch
+        - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
+        - !Ref AWS::NoValue
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -229,6 +282,11 @@ Resources:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
+          WEB_SEARCH_PROVIDERS: !If [HasWebSearchChain, !Ref WebSearchProviders, !Ref AWS::NoValue]
+          PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
+          BEDROCK_SEARCH_MODEL: !If [HasBedrockSearchModel, !Ref BedrockSearchModel, !Ref AWS::NoValue]
 
   ScheduleDeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -365,6 +423,10 @@ Resources:
   RouterRole:
     Type: AWS::IAM::Role
     Properties:
+      ManagedPolicyArns: !If
+        - HasBedrockWebSearch
+        - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
+        - !Ref AWS::NoValue
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -487,6 +549,11 @@ Resources:
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
           EDITORIAL_JUDGMENT_KEY_PARAMETER: !If [HasEditorialJudgmentKey, !Ref EditorialJudgmentKeyParameter, !Ref AWS::NoValue]
           PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
+          WEB_SEARCH_PROVIDERS: !If [HasWebSearchChain, !Ref WebSearchProviders, !Ref AWS::NoValue]
+          PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
+          BEDROCK_SEARCH_MODEL: !If [HasBedrockSearchModel, !Ref BedrockSearchModel, !Ref AWS::NoValue]
           BIBLICUS_GROBID_URL: !If [HasEnrichmentGrobid, !Ref EnrichmentGrobidUrl, !Ref AWS::NoValue]
 
   RouterEnrichmentStoragePolicy:
@@ -570,6 +637,160 @@ Resources:
             Condition:
               StringEquals:
                 kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  RouterOpenAiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasOpenAiSearchKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the OpenAI key for web search.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadOpenAiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OpenAiSearchKeyParameter}"
+          - Sid: DecryptOpenAiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  RouterPerplexitySearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasPerplexityKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the Perplexity key for web search.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadPerplexitySearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${PerplexityKeyParameter}"
+          - Sid: DecryptPerplexitySearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  RouterGeminiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasGeminiKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the Gemini key for web search.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadGeminiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiKeyParameter}"
+          - Sid: DecryptGeminiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  RouterBedrockWebSearchPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasBedrockWebSearch
+    Properties:
+      Description: Lets the router use Web Search on Amazon Bedrock (provider "bedrock").
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: BedrockWebSearch
+            Effect: Allow
+            Action: [bedrock:CallWithBearerToken, "bedrock-websearch:InvokeSearch", "bedrock-websearch:InvokeFetch"]
+            Resource: "*"
+
+  CollectorOpenAiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasOpenAiSearchKey
+    Properties:
+      Description: Lets the collector read the one SSM parameter that holds the OpenAI key for web search.
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadOpenAiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OpenAiSearchKeyParameter}"
+          - Sid: DecryptOpenAiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  CollectorPerplexitySearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasPerplexityKey
+    Properties:
+      Description: Lets the collector read the one SSM parameter that holds the Perplexity key for web search.
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadPerplexitySearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${PerplexityKeyParameter}"
+          - Sid: DecryptPerplexitySearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  CollectorGeminiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasGeminiKey
+    Properties:
+      Description: Lets the collector read the one SSM parameter that holds the Gemini key for web search.
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadGeminiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiKeyParameter}"
+          - Sid: DecryptGeminiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  CollectorBedrockWebSearchPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasBedrockWebSearch
+    Properties:
+      Description: Lets the collector use Web Search on Amazon Bedrock (provider "bedrock").
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: BedrockWebSearch
+            Effect: Allow
+            Action: [bedrock:CallWithBearerToken, "bedrock-websearch:InvokeSearch", "bedrock-websearch:InvokeFetch"]
+            Resource: "*"
 
   RouterProcedureRunnerPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -1061,151 +1282,36 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createReviewRequest"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/fileProposal"
 
-  RouterIdeaItemsPolicy:
+  RouterIdeaPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: >-
-        Lets the router's daily monitor-stories task file generated story ideas as Items at the idea stage (src/papyrus_content/ideas/items.py) on the seven
-        routed publications: read and write the Item, read the published-item guard and the Reference by lineage. The reads and the SemanticRelation writes
-        (based_on links) are already granted by the intake, decision-relation and monitor-stories policies. The editorial gate that checks each idea has its
-        own grants (RouterIdeaGatePolicy, RouterIdeaGateSharedSitesPolicy, RouterEditorialJudgmentKeyPolicy). Hand-run with a change set.
+        Lets the router's daily monitor-stories task file generated story ideas as Items at the idea stage (src/papyrus_content/ideas/items.py) and run
+        the Humanus editorial gate on each one first (src/papyrus_content/ideas/gate.py). One policy, not one per API, because RouterRole is near the
+        20-managed-policy limit: the fields are named exactly and the API is a wildcard, which in this account is the seven routed publication APIs.
+        The SSM statement reads the TypeSafe key for the gate's judgment lane. Hand-run with a change set.
       Roles: [!Ref RouterRole]
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Sid: IdeaItems
+          - Sid: IdeaItemsAndGate
             Effect: Allow
             Action: appsync:GraphQL
             Resource:
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getPublishedItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listReferencesByLineageAndVersion"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/createItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/updateItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getPublishedItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listReferencesByLineageAndVersion"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/createItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/updateItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getPublishedItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listReferencesByLineageAndVersion"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/createItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/updateItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/getItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/getPublishedItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listReferencesByLineageAndVersion"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Mutation/fields/createItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Mutation/fields/updateItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/getItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/getPublishedItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listReferencesByLineageAndVersion"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/createItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/updateItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getPublishedItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listReferencesByLineageAndVersion"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/updateItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/getItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/getPublishedItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listReferencesByLineageAndVersion"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createItem"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateItem"
-
-  RouterIdeaGatePolicy:
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      Description: >-
-        Lets the router run the Humanus editorial gate on each generated idea before it files it (src/papyrus_content/ideas/gate.py): read the site's editorial settings, context, policies and feedback, read current and draft story versions (cross-story boilerplate check), and read and write the EditorialCheckRun stored with the idea. Split in two because one managed policy holds at most 6,144 characters; together they cover the seven routed publications. This one covers Anth.us, the Papyrus product site, Threat Intelligence and Data Parade. Hand-run with a change set.
-      Roles: [!Ref RouterRole]
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: IdeaGate
-            Effect: Allow
-            Action: appsync:GraphQL
-            Resource:
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getEditorialCheckSettings"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getEditorialContext"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listEditorialFeedbacks"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listEditorialPolicies"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/createEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/updateEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getEditorialCheckSettings"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getEditorialContext"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listEditorialFeedbacks"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listEditorialPolicies"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/createEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/updateEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getEditorialCheckSettings"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getEditorialContext"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listEditorialFeedbacks"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listEditorialPolicies"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/createEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/updateEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/getEditorialCheckSettings"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/getEditorialContext"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/getEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listEditorialFeedbacks"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listEditorialPolicies"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Mutation/fields/createEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Mutation/fields/updateEditorialCheckRun"
-
-  RouterIdeaGateSharedSitesPolicy:
-    Type: AWS::IAM::ManagedPolicy
-    Properties:
-      Description: >-
-        Lets the router run the Humanus editorial gate on each generated idea before it files it (src/papyrus_content/ideas/gate.py): read the site's editorial settings, context, policies and feedback, read current and draft story versions (cross-story boilerplate check), and read and write the EditorialCheckRun stored with the idea. Split in two because one managed policy holds at most 6,144 characters; together they cover the seven routed publications. This one covers Pilobolus, Shipped and Distinctive Mark. Hand-run with a change set.
-      Roles: [!Ref RouterRole]
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: IdeaGate
-            Effect: Allow
-            Action: appsync:GraphQL
-            Resource:
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/getEditorialCheckSettings"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/getEditorialContext"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/getEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listEditorialFeedbacks"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listEditorialPolicies"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/createEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/updateEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getEditorialCheckSettings"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getEditorialContext"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listEditorialFeedbacks"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listEditorialPolicies"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/updateEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/getEditorialCheckSettings"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/getEditorialContext"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/getEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listEditorialFeedbacks"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listEditorialPolicies"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createEditorialCheckRun"
-              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateEditorialCheckRun"
-
-  RouterEditorialJudgmentKeyPolicy:
-    Type: AWS::IAM::ManagedPolicy
-    Condition: HasEditorialJudgmentKey
-    Properties:
-      Description: Lets the router read the one SSM parameter that holds the TypeSafe key for the judgment lane of the idea gate.
-      Roles: [!Ref RouterRole]
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getPublishedItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByLineageAndVersion"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateItem"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialCheckSettings"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialContext"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialFeedbacks"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialPolicies"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createEditorialCheckRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateEditorialCheckRun"
+          # With EditorialJudgmentKeyParameter empty this ARN names no parameter, so the grant reads nothing.
           - Sid: ReadEditorialJudgmentKey
             Effect: Allow
             Action: ssm:GetParameter

@@ -32,9 +32,14 @@ export function prospectusSignInCallbackUrls(redirectUrls: readonly string[]): s
   return origins.map((origin) => `${origin}${PROSPECTUS_SIGN_IN_CALLBACK_PATH}`);
 }
 
+/**
+ * One logout URL per callback origin. The CLI's fixed loopback is a sign-in return only: no browser ever signs out to it,
+ * and the Prospectus reviews do not list it as a logout URL, so it is never added here.
+ */
 export function prospectusSignInLogoutUrls(redirectUrls: readonly string[], extraCallbackUrls: readonly string[] = []): string[] {
   const logoutUrls: string[] = [];
-  for (const callbackUrl of [...prospectusSignInCallbackUrls(redirectUrls), ...extraCallbackUrls]) {
+  const browserCallbacks = extraCallbackUrls.filter((callbackUrl) => callbackUrl !== CLI_LOOPBACK_CALLBACK);
+  for (const callbackUrl of [...prospectusSignInCallbackUrls(redirectUrls), ...browserCallbacks]) {
     const logoutUrl = `${new URL(callbackUrl).origin}/`;
     if (!logoutUrls.includes(logoutUrl)) logoutUrls.push(logoutUrl);
   }

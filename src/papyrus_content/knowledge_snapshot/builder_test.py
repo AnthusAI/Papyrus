@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from papyrus_content.reader_steering.snapshot import encoded
 
 from .actors import Actor
-from .builder import CLUSTERS_FILE, INDEX_FILE, build_files, entity_file
+from .builder import CLUSTERS_FILE, CLUSTERS_HISTORY_FILE, INDEX_FILE, build_files, entity_file
 from .model import (
     Beat,
     Cluster,
@@ -466,7 +466,11 @@ def test_guest_surface_pins_the_exact_field_set_of_every_file():
     assert set(clusters) == CLUSTERS_FIELDS
     assert clusters["clusters"] and all(set(row) == CLUSTER_FIELDS for row in clusters["clusters"])
     assert all(set(row["acceptedBy"]) == ACTOR_FIELDS for row in clusters["clusters"])
-    assert set(files) == {INDEX_FILE, CLUSTERS_FILE, *(f"_data/knowledge/entities/{key}.json" for key in ("task--voice-cloning", "task--code-completion", "maker--some-lab"))}
+    history = files[CLUSTERS_HISTORY_FILE]
+    assert set(history) == {"schemaVersion", "asOf", "weeks"} and len(history["weeks"]) == 1
+    assert set(history["weeks"][0]) == {"asOf", "runId", "clusters", "events"}
+    assert all(set(row) == {"uid", "label", "itemCount"} for row in history["weeks"][0]["clusters"])
+    assert set(files) == {INDEX_FILE, CLUSTERS_FILE, CLUSTERS_HISTORY_FILE, *(f"_data/knowledge/entities/{key}.json" for key in ("task--voice-cloning", "task--code-completion", "maker--some-lab"))}
     json.dumps(files)
 
 

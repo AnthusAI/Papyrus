@@ -67,3 +67,26 @@ def refreshed_editorial_request(context):
     assert fresh.values[CONTEXT_HASHES] != context.editorial_prepared.values[CONTEXT_HASHES]
     asyncio.run(context.editorial_model.classify_many(context.editorial_configs, fresh, {'fit-science': ()}))
     assert 'UPDATED_DATABASE_POLICY' in json.dumps(context.editorial_requests[-1])
+
+
+@when('a model request is made without choosing a model')
+def request_without_model(context):
+    from papyrus_content import model_defaults
+    context.default_models = [
+        model_defaults.DEFAULT_REFERENCE_FILTER_MODEL,
+        model_defaults.DEFAULT_REFERENCE_SUMMARY_MODEL,
+        model_defaults.DEFAULT_EDITORIAL_REWRITE_MODEL,
+        model_defaults.DEFAULT_LLM_MODEL,
+        model_defaults.DEFAULT_SMALL_LLM_MODEL,
+    ]
+
+
+@then('the model used for the reference filter, the reference summary, the editorial rewrite and the general and small roles is "{model}"')
+def default_models_are(context, model):
+    assert context.default_models == [model] * 5, context.default_models
+
+
+@then('the reader extraction setup asks "{model}"')
+def extraction_setup_model(context, model):
+    from papyrus_content.reader_steering.extraction import ExtractionSetup
+    assert ExtractionSetup.__dataclass_fields__['model_name'].default == model

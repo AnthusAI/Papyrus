@@ -27,6 +27,7 @@ from .assignments_workflow import (
     run_story_cycle,
     story_cycle_output,
 )
+from .multi_search_research import research_multi_command
 from .tavily_deep_research import poll_tavily_deep_research_command, run_tavily_deep_research
 from .automatic_assignments import (
     apply_automatic_assignment_cleanup,
@@ -89,6 +90,10 @@ def assignments_run_tavily_deep_research(flags: list[str]) -> None:
 
 def assignments_poll_tavily_deep_research(flags: list[str]) -> None:
     poll_tavily_deep_research_command(flags)
+
+
+def assignments_research_multi(flags: list[str]) -> None:
+    research_multi_command(flags)
 
 
 def assignments_run_reporting(flags: list[str]) -> None:
