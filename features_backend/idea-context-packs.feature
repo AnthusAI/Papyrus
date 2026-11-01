@@ -48,3 +48,23 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
     And a spiked idea that was drafted from that pack without its last accepted Reference
     When the context packs are built and repeats are suppressed
     Then no pack is offered and one pack is counted as skipped for no new evidence
+
+  Scenario: A Reference no monitor delivered, with a lively thread, outranks a quiet monitored one
+    Given a site whose accepted References are mostly quiet
+    And an accepted Reference no monitor delivered, with a lively thread of Messages
+    And an accepted Reference a monitor delivered, with no activity
+    When the single-item candidates are scored
+    Then the Reference with the lively thread is the first candidate
+    And the quiet monitored Reference is not a candidate
+
+  Scenario: A quiet site yields no single-item candidate
+    Given a site whose accepted References are mostly quiet
+    And an accepted Reference a monitor delivered, with no activity
+    When the single-item candidates are scored
+    Then there are no single-item candidates
+
+  Scenario: Packs and single items share one queue
+    Given a site whose accepted References are mostly quiet
+    And an accepted Reference no monitor delivered, whose thread lights up after weeks of quiet
+    When the packs and the single-item candidates are queued together
+    Then the queue holds both a pack and a single item
