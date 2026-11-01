@@ -20,6 +20,7 @@ for (const when of [
   "the editor types a hash and the start of a concept name and presses the match",
   "the editor pastes a link and then types words of a title",
   "the editor presses Suggest more and then adds a concept by its exact hashtag",
+  "the editor looks at the feed card and the Reference detail header",
   "the editor opens the concept page",
   "the editor looks at the Related section at 375 and 1440 pixels",
 ]) When(when, function () { this.relatedResult = ""; });
@@ -34,6 +35,11 @@ const outcomes = [
   ["dates", [
     "every Reference card says when it was published and when it was added",
     "a Reference with no publication date says \"published unknown\"",
+  ]],
+  ["referenceDates", [
+    "each says \"published <date> · added <date>\" as plain text with no border",
+    "a month-precision date reads \"published Oct 2026\" and a year-precision date reads \"published 2026\"",
+    "a Reference with no publication date says \"published unknown\" and never shows the added date as published",
   ]],
   ["accept", [
     "the decision is saved with the accept choice",

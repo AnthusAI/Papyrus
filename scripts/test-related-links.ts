@@ -31,6 +31,8 @@ import { createRoot } from "react-dom/client";
 import { ReviewCard } from "./components/reference-review-card";
 import { RelatedSection, LinkedByEditors } from "./components/related-section";
 import { ReferenceLinksStoreProvider, createMemoryReferenceLinksStore } from "./components/reference-links-context";
+import { ReferenceCardHeader } from "./components/reference-feed";
+import { referenceDatesText } from "./lib/reference-links";
 import { localPreviewReferenceLinkItems, localPreviewReferenceLinks } from "./lib/local-preview-reference-links";
 
 const params = new URLSearchParams(location.search);
@@ -59,7 +61,22 @@ function Detail() {
 function Concept() {
   return <article className="wiki-page max-w-xl" data-fixture-concept><h1>Voice cloning</h1><LinkedByEditors conceptLineageId="preview-concept-voice-cloning" /></article>;
 }
-createRoot(document.getElementById("root")).render(<ReferenceLinksStoreProvider store={labelled}>{params.has("concept") ? <Concept /> : <Detail />}</ReferenceLinksStoreProvider>);
+const DATE_REFERENCES = [
+  { id: "d1", lineageId: "d1", title: "Dated to the day", sourceUri: "https://records.example.org/a", sourcePublishedAt: "2026-10-27T09:00:00Z", createdAt: "2026-10-28T08:15:00Z" },
+  { id: "d2", lineageId: "d2", title: "Dated to the month", sourceUri: "https://records.example.org/b", sourcePublishedAt: "2026-10-01T00:00:00Z", createdAt: "2026-10-29T08:15:00Z", metadata: { publicationDateResolution: { precision: "month" } } },
+  { id: "d3", lineageId: "d3", title: "Dated to the year", sourceUri: "https://records.example.org/c", sourcePublishedAt: "2026-01-01T00:00:00Z", createdAt: "2026-10-29T09:15:00Z", metadata: JSON.stringify({ publicationDateResolution: { precision: "year" } }) },
+  { id: "d4", lineageId: "d4", title: "No publication date", sourceUri: "https://records.example.org/d", sourcePublishedAt: null, createdAt: "2026-10-30T08:15:00Z" },
+];
+function Dates() {
+  return <div className="max-w-xl space-y-4" data-fixture-dates>
+    {DATE_REFERENCES.map((reference) => <div key={reference.id} className="flex flex-col rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-card)]" data-fixture-feed-card={reference.id}>
+      <ReferenceCardHeader now={Date.parse("2026-10-31T00:00:00Z")} preview={undefined} reference={reference as never} />
+    </div>)}
+    <ReviewCard decided={null} itemId="d2" onDecide={async () => undefined} prediction={{ state: "none" }} title="Dated to the month" dek="Detail header."
+      meta={<span className="text-xs text-muted-foreground" data-reference-dates>{referenceDatesText(DATE_REFERENCES[1])}</span>} />
+  </div>;
+}
+createRoot(document.getElementById("root")).render(<ReferenceLinksStoreProvider store={labelled}>{params.has("dates") ? <Dates /> : params.has("concept") ? <Concept /> : <Detail />}</ReferenceLinksStoreProvider>);
 ` },
   }).then((result) => result.outputFiles[0].text);
   return bundle;
@@ -251,6 +268,20 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.deepEqual(await calls(page), [{ type: "create", subjectLineageId: "preview-reference-lineage-4", objectKind: "semanticNode", objectLineageId: "preview-concept-voice-cloning", predicate: "related_to" }]);
     });
     console.log("Related scenario passed: concept");
+  },
+
+  async referenceDates() {
+    await run("?dates=1", [375, 1440], async (page, width) => {
+      const feed = (id: string) => page.locator(`[data-fixture-feed-card="${id}"] [data-feed-dates]`).innerText();
+      assert.equal(await feed("d1"), "published 2026-10-27 · added 2026-10-28");
+      assert.equal(await feed("d2"), "published Oct 2026 · added 2026-10-29");
+      assert.equal(await feed("d3"), "published 2026 · added 2026-10-29");
+      assert.equal(await feed("d4"), "published unknown · added 2026-10-30");
+      assert.equal(await page.locator("[data-reference-dates]").innerText(), "published Oct 2026 · added 2026-10-29");
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "nothing scrolls sideways");
+      if (shots) await page.screenshot({ path: `${shots}/dates-feed-and-detail-${width}.png`, fullPage: true });
+    });
+    console.log("Related scenario passed: referenceDates");
   },
 
   async design() {

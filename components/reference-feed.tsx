@@ -21,6 +21,7 @@ import { AutoAcceptedBadge } from "./auto-accepted-badge";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import type { CaptureStatus } from "../lib/reference-capture";
 import { messageCountLabel } from "../lib/conversation";
+import { referenceDatesText } from "../lib/reference-links";
 
 /**
  * Flat surfaces, no borders: the page tone, a card tone one step away from it, a footer tone, and a control tone for chips and
@@ -238,7 +239,8 @@ export function ReferenceCardHeader({ capture, lead = false, messageCount = 0, n
             {title}
           </span>
           {showDek ? <span className={cn("text-muted-foreground", lead ? "line-clamp-3 text-base" : "line-clamp-2 text-sm")} data-feed-dek>{dek}</span> : null}
-          <span className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs text-muted-foreground">
+          <span className="mt-auto text-xs text-muted-foreground" data-feed-dates>{referenceDatesText(reference)}</span>
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
             <span>
               {age ? <time dateTime={new Date(time ?? now).toISOString()} title={new Date(time ?? now).toLocaleString()}>{age}</time> : null}
               {age && host ? <span aria-hidden="true"> · </span> : null}

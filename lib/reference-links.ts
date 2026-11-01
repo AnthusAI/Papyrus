@@ -82,11 +82,44 @@ function isoDay(value: string | null | undefined): string | null {
   return text.slice(0, 10);
 }
 
-/** "published 2026-10-27 · added 2026-10-28"; "published unknown" when the source has no date of its own. */
-export function publishedAddedText(sourcePublishedAt: string | null | undefined, addedAt: string | null | undefined): string {
-  const published = isoDay(sourcePublishedAt);
+export type PublicationPrecision = "day" | "month" | "year";
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function publishedAtPrecision(precision: string | null | undefined): PublicationPrecision {
+  return precision === "month" || precision === "year" ? precision : "day";
+}
+
+function publishedDayText(sourcePublishedAt: string | null | undefined, precision: string | null | undefined): string | null {
+  const day = isoDay(sourcePublishedAt);
+  if (!day) return null;
+  const kind = publishedAtPrecision(precision);
+  if (kind === "year") return day.slice(0, 4);
+  if (kind === "month") return `${MONTH_NAMES[Number(day.slice(5, 7)) - 1] ?? day.slice(5, 7)} ${day.slice(0, 4)}`;
+  return day;
+}
+
+/** "published 2026-10-27 · added 2026-10-28"; "published Oct 2026" or "published 2026" at coarser precision; "published unknown" when the source has no date of its own. */
+export function publishedAddedText(sourcePublishedAt: string | null | undefined, addedAt: string | null | undefined, precision?: string | null): string {
+  const published = publishedDayText(sourcePublishedAt, precision);
   const added = isoDay(addedAt);
   return `published ${published ?? "unknown"} · added ${added ?? "unknown"}`;
+}
+
+/** The precision the publication-date resolver recorded in a Reference's metadata (object or JSON string); day when absent. */
+export function publicationPrecisionOf(metadata: unknown): PublicationPrecision {
+  let record: unknown = metadata;
+  if (typeof record === "string") {
+    try { record = JSON.parse(record); } catch { return "day"; }
+  }
+  const resolution = record && typeof record === "object" ? (record as Record<string, unknown>).publicationDateResolution : null;
+  const precision = resolution && typeof resolution === "object" ? (resolution as Record<string, unknown>).precision : null;
+  return publishedAtPrecision(typeof precision === "string" ? precision : null);
+}
+
+/** Both dates of a stored Reference. The added date is createdAt and is never shown as the publication date. */
+export function referenceDatesText(reference: { sourcePublishedAt?: string | null; createdAt?: string | null; importedAt?: string | null; metadata?: unknown }): string {
+  return publishedAddedText(reference.sourcePublishedAt, reference.createdAt ?? reference.importedAt, publicationPrecisionOf(reference.metadata));
 }
 
 export function hostOf(sourceUri: string | null | undefined): string | null {
