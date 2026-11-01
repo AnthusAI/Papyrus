@@ -1289,6 +1289,9 @@ Resources:
         Lets the router's daily monitor-stories task file generated story ideas as Items at the idea stage (src/papyrus_content/ideas/items.py) and run
         the Humanus editorial gate on each one first (src/papyrus_content/ideas/gate.py). One policy, not one per API, because RouterRole is near the
         20-managed-policy limit: the fields are named exactly and the API is a wildcard, which in this account is the seven routed publication APIs.
+        It also carries the reads of the context-pack signals (the publication's Messages, human votes, concepts and Reference summaries:
+        src/papyrus_content/ideas/signal_inputs.py and signal_queue.py) and the writes of a pack idea (the Item, its based_on and concept edges:
+        pack_stories.py), still in this one policy. Test: test_monitoring_packs.py records every field the pack path asks for.
         The SSM statement reads the TypeSafe key for the gate's judgment lane. Hand-run with a change set.
       Roles: [!Ref RouterRole]
       PolicyDocument:
@@ -1309,6 +1312,19 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialFeedbacks"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialPolicies"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getMessage"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItems"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByLineageAndVersion"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessageThreads"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessagesByThreadAndCreatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferenceAttachmentsByReferenceLineageAndSortKey"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticNodes"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByObjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createSemanticRelation"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createEditorialCheckRun"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateEditorialCheckRun"
           # With EditorialJudgmentKeyParameter empty this ARN names no parameter, so the grant reads nothing.

@@ -546,6 +546,7 @@ def draft_monitor_stories(
     read_workers: int = 1,
     automation_handled: Iterable[str] = (),
     ordered_candidates: Iterable[str] | None = None,
+    signal_run: Any = None,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing.
 
@@ -555,7 +556,13 @@ def draft_monitor_stories(
     Each draft is filed as soon as it is kept, so a run that stops early loses nothing it paid for.
 
     ``ordered_candidates`` (lineage ids, best first, from the signal queue of ``ideas/item_signals.py``) replaces the Cyclotron-and-freshness ranking:
-    only the candidates named there are drafted, in that order; the exclusions above still apply."""
+    only the candidates named there are drafted, in that order; the exclusions above still apply.
+
+    ``signal_run`` (``ideas/signal_queue.SignalRun``) turns the run into one walk over a queue of context packs and scored single items: the queue
+    orders the candidates (an item with no evidence is not in it), a pack goes to ``pack_stories.draft_pack_ideas``, an item to the path below, and
+    both share one cost meter, ``out_of_time()``, ``maximum_cost_usd`` and the filing-error stop. The ideas packs filed are in ``drafts`` (``origin``
+    ``context-pack``) and in the one review; ``run['packs']`` lists the packs offered and ``packsSkippedNoNewEvidence`` those held back."""
+    from .pack_stories import MAXIMUM_OUTPUT_TOKENS as PACK_OUTPUT_TOKENS, SYSTEM_PROMPT as PACK_PROMPT, CostMeter, draft_pack_ideas
     moment = now or datetime.now(timezone.utc)
     run: dict[str, Any] = {
         "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model,
@@ -597,6 +604,15 @@ def draft_monitor_stories(
     if ordered_candidates is not None:
         position = {lineage: number for number, lineage in enumerate(ordered_candidates)}
         candidates = sorted((item for item in candidates if item.lineage_id in position), key=lambda item: position[item.lineage_id])
+    steps: list[tuple[str, Any]] = [("item", item) for item in candidates]
+    if signal_run is not None:
+        by_lineage = {item.lineage_id: item for item in candidates}
+        steps = [("pack", entry.pack) if entry.kind == "pack" else ("item", by_lineage[entry.entry_id]) for entry in signal_run.queue(candidates)]
+        counts["withoutSignal"] = len(candidates) - sum(kind == "item" for kind, _ in steps)
+        candidates = [subject for kind, subject in steps if kind == "item"]
+        run["packs"] = signal_run.pack_records()
+        run["packsSkippedNoNewEvidence"] = signal_run.packs_skipped_no_new_evidence
+        pack_records = {record["packId"]: record for record in run["packs"]}
     counts["sameSource"] = same_source
     counts["candidates"] = len(candidates)
     run["inputs"] = counts
@@ -605,14 +621,48 @@ def draft_monitor_stories(
     run.update(attempted=0, invalid=[], skipped=[], duplicates=[], drafts=[], modelCalls=[], usage=None)
     documents = comparison_documents(context, [*stored], proposals, [])
     sections = [section["title"] for section in context.get("sections", [])]
-    spent = 0.0
+    meter = CostMeter()
     kept: list[dict[str, Any]] = []
-    for item in candidates:
-        if limit is not None and (len(kept) >= limit or run["attempted"] >= attempt_cap):
+    pack_documents: list[dedupe.Document] = []
+    pack_model_calls = 0
+    for kind, subject in steps:
+        if limit is not None and (len(kept) + len(pack_documents) >= limit or run["attempted"] >= attempt_cap):
             break
         if out_of_time is not None and out_of_time():
             run["stoppedBy"] = "time"
             break
+        if kind == "pack":
+            estimate = synthesis.estimate_cost_usd(model, len(PACK_PROMPT) + subject.size(), PACK_OUTPUT_TOKENS)
+            if estimate is not None and meter.spent_usd + estimate > maximum_cost_usd:
+                run["stoppedForCost"] = f"The next call is estimated at ${estimate:.4f}; ${meter.spent_usd:.4f} is spent of --max-cost-usd ${maximum_cost_usd:.2f}."
+                run["stoppedBy"] = "cost"
+                break
+            run["attempted"] += 1
+            record = pack_records[subject.pack_id]
+            record["attempted"] = True
+            try:
+                result = draft_pack_ideas(
+                    client, subject, store=idea_store, gate=signal_run.gate, transport=transport, cost_meter=meter,
+                    existing_titles=[*(dedupe.Document("draft", d["ideaId"], d["title"], d.get("angle") or "") for d in [*kept]), *pack_documents],
+                    run_id=run["runId"], dry_run=dry_run, concept_nodes=signal_run.concept_nodes, model=model, threshold=threshold, now=moment,
+                )
+            except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; stop before paying for ideas that cannot be kept
+                run["fileError"] = f"{type(error).__name__}: {error}"[:300]
+                run["stoppedBy"] = "file_error"
+                break
+            pack_model_calls += result.model_calls
+            if result.error:
+                run["invalid"].append({"packId": subject.pack_id, "title": subject.anchor, "reason": "model_error", "message": result.error})
+            for idea in result.filed or result.would_file:
+                record["ideas"] += 1
+                pack_documents.append(dedupe.Document("draft", idea["ideaId"], idea["title"], ""))
+                run["drafts"].append({**idea, "origin": "context-pack", "packId": subject.pack_id, "itemLineageId": idea.get("lineageId"), "citedItems": []})
+            run["invalid"] += [{**row, "packId": subject.pack_id} for row in result.refused]
+            run["invalid"] += [{**row, "packId": subject.pack_id} for row in result.dropped if row["reason"] == "citation_check_failed"]
+            run["duplicates"] += [{**row, "packId": subject.pack_id} for row in result.dropped if row["reason"] == "near_duplicate"]
+            run["skipped"] += [{"packId": subject.pack_id, "title": row["title"], "reason": row["reason"]} for row in result.dropped if row["reason"] not in ("citation_check_failed", "near_duplicate")]
+            continue
+        item = subject
         exploration = explorer(item) if explorer else None
         page_text = exploration.text if exploration else read_source_text(item.url, fetch)
         view = source_view(item, page_text)
@@ -628,8 +678,8 @@ def draft_monitor_stories(
             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": "input_too_large"})
             continue
         estimate = synthesis.estimate_cost_usd(model, size, MAXIMUM_OUTPUT_TOKENS)
-        if estimate is not None and spent + estimate > maximum_cost_usd:
-            run["stoppedForCost"] = f"The next call is estimated at ${estimate:.4f}; ${spent:.4f} is spent of --max-cost-usd ${maximum_cost_usd:.2f}."
+        if estimate is not None and meter.spent_usd + estimate > maximum_cost_usd:
+            run["stoppedForCost"] = f"The next call is estimated at ${estimate:.4f}; ${meter.spent_usd:.4f} is spent of --max-cost-usd ${maximum_cost_usd:.2f}."
             run["stoppedBy"] = "cost"
             break
         run["attempted"] += 1
@@ -638,7 +688,7 @@ def draft_monitor_stories(
         except synthesis.SynthesisError as error:
             run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": "model_error", "message": str(error)[:300]})
             continue
-        spent += usage.cost_usd or 0.0
+        meter.add(usage.cost_usd)
         run["modelCalls"].append({"model": model, "promptTokens": usage.input_tokens, "completionTokens": usage.output_tokens, "cachedTokens": usage.cached_input_tokens})
         draft, record = check_story(raw, item, view, sections)
         if draft is None:
@@ -646,7 +696,7 @@ def draft_monitor_stories(
             run["invalid"].append({"referenceId": item.reference_id, "title": title or item.title, "reason": "citation_check_failed", "citationCheck": record, "draft": raw})
             continue
         built = draft_record(draft, item, view, run=run, now=moment, exploration=exploration)
-        similar, dropped = dedupe.split_duplicates([built], [*documents, *(dedupe.Document("draft", k["ideaId"], k["title"], k["angle"]) for k in kept)], threshold)
+        similar, dropped = dedupe.split_duplicates([built], [*documents, *pack_documents, *(dedupe.Document("draft", k["ideaId"], k["title"], k["angle"]) for k in kept)], threshold)
         run["duplicates"] += [{**row, "referenceId": item.reference_id} for row in dropped]
         kept += similar
         for record in similar:
@@ -671,6 +721,10 @@ def draft_monitor_stories(
         if run["stoppedBy"] == "file_error":
             break
     run["usage"] = _usage(model, run["modelCalls"])
+    if pack_model_calls:
+        run["usage"]["packModelCalls"] = pack_model_calls
+        run["usage"]["calls"] += pack_model_calls
+        run["usage"]["costUsd"] = round(meter.spent_usd, 6)
     run["ideasCreated"] = 0 if dry_run else len(run["drafts"])
     if dry_run:
         run["review"] = {"status": "skipped", "requested": False, "ideas": len(run["drafts"]), "note": "Dry run: nothing was filed, so no review was requested."}
@@ -706,6 +760,9 @@ def render_report(run: dict[str, Any]) -> str:
         "",
     ]
     for number, draft in enumerate(run["drafts"], start=1):
+        if draft.get("origin") == "context-pack":
+            lines += [f"## {number}. {draft['title']}", "", f"From context pack {draft['packId']}; cites {len(draft['citedReferences'])} accepted References. Citation check: passed.", ""]
+            continue
         lines += [f"## {number}. {draft['title']}", "", f"From the {draft['monitorId']} monitor, {draft['citedItems'][0]['url']} (source text: {draft['sourceText']}). Citation check: passed ({draft['citationCheck']['sentences']} sentences).", "", draft["body"].rstrip(), ""]
     for heading, rows, describe in (
         ("Failed the citation check or were invalid", run["invalid"], lambda r: f"{r['title'] or '(untitled)'}: {r['reason']}" + "".join(f"\n  - {p['where']}: {p['reason']}" + (f" ({p['text']})" if p["text"] else "") for p in (r.get("citationCheck") or {}).get("problems", []))),

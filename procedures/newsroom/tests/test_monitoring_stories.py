@@ -49,6 +49,9 @@ def quiet_gate(monkeypatch):
     monkeypatch.setattr("papyrus_content.ideas.gate.HumanusGate.for_client", classmethod(lambda cls, client, **options: FakeGate()))
 
 
+SINGLE_ITEM_ONLY = {"contextPacks": {"enabled": False}}   # the single-item task ranked by the Cyclotron, as it was before context packs (the pack path: test_monitoring_packs.py)
+
+
 def router(publications=(PUBLICATION,), settings=None):
     """A router store whose publications are `publications`, each with its own AppSync endpoint (`monitorStories` from `settings`)."""
     table = tr.FakeTable()
@@ -58,7 +61,7 @@ def router(publications=(PUBLICATION,), settings=None):
     config = table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"]
     config["publications"] = [{"publicationId": p, "site": f"{p}.example", "appsyncEndpoint": tr.ENDPOINT.replace("abc123", f"api{n}"),
                                "corpusId": "knowledge-corpus-example-site",   # the fixtures' References all live in this corpus
-                               **({"monitorStories": settings[p]} if settings and p in settings else {})} for n, p in enumerate(publications)]
+                               "monitorStories": settings[p] if settings and p in settings else SINGLE_ITEM_ONLY} for n, p in enumerate(publications)]
     table.put_item(config)
     return table, store
 
@@ -294,7 +297,7 @@ def test_the_router_zip_can_run_the_drafting_and_the_editorial_gate_with_nothing
     unpacked = tmp_path / "task"
     zipfile.ZipFile(archive).extractall(unpacked)
     script = ("import sys; sys.path.insert(0, sys.argv[1]); import papyrus_content.monitoring_router; "
-              "from papyrus_content import monitoring_stories as m; from papyrus_content.ideas import monitor_stories, context, store, synthesis, review, gate, items; "
+              "from papyrus_content import monitoring_stories as m; from papyrus_content.ideas import monitor_stories, context, store, synthesis, review, gate, items, signal_inputs, context_packs, item_signals, pack_stories, signal_queue; from papyrus_content.knowledge_snapshot import keys, loaders, trends; from papyrus_content import reference_links; "
               "from papyrus_content import link_exploration; import humanus.check, typesafe_sdk, humanus; "
               "assert all(sys.argv[1] in module.__file__ for module in (humanus, typesafe_sdk, gate)); "
               "pack = {'schemaVersion': 1, 'packId': 'test', 'version': '1', 'policies': [{'id': 'no-synergy', 'version': 1, 'title': 'No synergy', "
@@ -343,11 +346,12 @@ def test_a_read_that_runs_out_of_time_leaves_the_rest_unread_and_says_so():
 
 
 def test_monitor_stories_is_on_by_default_and_the_setting_is_validated():
-    assert validate_monitor_stories("p", None) == {"enabled": True, "store": "items"}   # ideas are Items at the idea stage by default
-    assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "items"}
-    assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "items"}
-    assert validate_monitor_stories("p", {"store": "items"}) == {"enabled": True, "store": "items"}
-    assert validate_monitor_stories("p", {"store": "proposals"}) == {"enabled": True, "store": "items"}   # a router entry written before ideas became Items still validates
+    on = {"singleItem": True, "contextPacks": {"enabled": True, "signals": None}}   # single items and every context-pack signal that has data
+    assert validate_monitor_stories("p", None) == {"enabled": True, "store": "items", **on}   # ideas are Items at the idea stage by default
+    assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "items", **on}
+    assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "items", **on}
+    assert validate_monitor_stories("p", {"store": "items"}) == {"enabled": True, "store": "items", **on}
+    assert validate_monitor_stories("p", {"store": "proposals"}) == {"enabled": True, "store": "items", **on}   # a router entry written before ideas became Items still validates
     for bad in ({"enabled": "no"}, {"limit": 3}, {"store": "files"}, "off", []):
         with pytest.raises(ValueError):
             validate_monitor_stories("p", bad)
@@ -422,7 +426,7 @@ def used_fields():
 
     client = PapyrusGraphQLAuthoringClient(endpoint=tr.ENDPOINT, header_factory=lambda body: {})
     client.graphql = respond
-    publication = {"publicationId": PUBLICATION, "corpusKey": PUBLICATION}
+    publication = {"publicationId": PUBLICATION, "corpusKey": PUBLICATION, "monitorStories": SINGLE_ITEM_ONLY}
     line = run_publication(client, publication, transport=StoryModel(), now=NOW, out_of_time=lambda: False, fetch=pages(1, 2), explorer=None)
     assert line["drafted"] == 2, line   # the recording covers filing and the review request too
     return set(recorded)

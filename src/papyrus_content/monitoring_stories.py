@@ -5,7 +5,18 @@ that has none yet: the library behind ``papyrus ideas monitor-stories`` (``ideas
 ``limit=None``, so nothing but a real constraint stops it. A draft is a private Item at the ``idea`` stage; one soft review request per
 publication and run asks the editors to look, and links the Idea column of the Stories board. Nothing is published, and a Reference is never drafted twice.
 
-It is on for every publication. A publication's router entry turns it off with ``"monitorStories": {"enabled": false}``.
+It is on for every publication. A publication's router entry turns it off with ``"monitorStories": {"enabled": false}``, and shapes it with two more
+keys (no numeric knob):
+
+* ``singleItem`` (default true): draft a single idea for an accepted Reference that the signals single out.
+* ``contextPacks`` (default ``{"enabled": true}``): ``enabled`` builds context packs from the newsroom's own activity (Messages, accepts) and drafts up to
+  three theme ideas from each; ``signals`` lists the signals to use, from the closed set ``conversation``, ``acceptance``, ``hub``, ``cluster``,
+  ``resurfaced``; omitted means every signal that has data. With ``contextPacks.enabled`` false the task is the single-item task as it was, ranked by the
+  relevance Cyclotron.
+
+With context packs on, the publication is read once (``ideas/signal_inputs.py``) and the run walks ONE ordered queue of packs and scored single items
+(``ideas/signal_queue.py``, ``ideas/item_signals.py``): a pack goes to ``ideas/pack_stories.py``, an item to the single-item path, and both share one cost
+meter and the stops below. A pack whose anchor already has an idea is offered again only with new evidence (``packsSkippedNoNewEvidence``).
 
 The real constraints, in the order they can stop a publication (``stoppedBy`` in its log line):
 
@@ -28,18 +39,25 @@ from typing import Any
 # The drafting modules are imported inside the functions: this module is imported by every router invocation, and only the daily
 # monitor-stories task needs them.
 
-POLICY_KEYS = ("enabled", "store")
+POLICY_KEYS = ("enabled", "store", "singleItem", "contextPacks")
+PACK_KEYS = ("enabled", "signals")
+PACK_SIGNALS = ("conversation", "acceptance", "hub", "cluster", "resurfaced")   # the closed set of pack signals; an item signal is the single-item path's own
 STORES = ("items",)   # where a draft is filed: an Item at the idea stage. "proposals" (a story_draft Proposal) was removed; a router entry that still says it is read as "items".
 MAXIMUM_COST_USD = 0.50   # per publication and run; see the module docstring
 READ_WORKERS = 8   # References of one publication read at a time: the API's throughput, not a limit on the work (a site with thousands of accepted
 #                    References needs two queries each, and read one by one that alone would take most of the Lambda's time)
+EMPTY_LINE = {"drafted": 0, "candidates": 0, "notAccepted": 0, "skipped": 0, "stoppedBy": None, "packs": 0, "ideasFromPacks": 0, "packsSkippedNoNewEvidence": 0, "packDetails": []}
 REAL_EXPLORER = object()   # `explorer` default: follow the item's link and, failing that, search for it (tests pass None for the plain page reader)
 
 
 def validate_monitor_stories(publication_id: str, raw: Any) -> dict[str, Any]:
-    """The normalized ``monitorStories`` setting of a router publication. Absent means ON; ``{"enabled": false}`` turns it off."""
+    """The normalized ``monitorStories`` setting of a router publication. Absent means ON; ``{"enabled": false}`` turns it off.
+
+    ``singleItem`` defaults to true. ``contextPacks`` defaults to ``{"enabled": true, "signals": None}``; ``signals`` is None (every signal that has
+    data) or a non-empty list from ``PACK_SIGNALS``."""
+    defaults = {"enabled": True, "store": "items", "singleItem": True, "contextPacks": {"enabled": True, "signals": None}}
     if raw is None:
-        return {"enabled": True, "store": "items"}
+        return defaults
     if not isinstance(raw, dict):
         raise ValueError(f"router publication {publication_id} has an invalid monitorStories (an object is needed)")
     unknown = sorted(set(raw) - set(POLICY_KEYS))
@@ -53,7 +71,29 @@ def validate_monitor_stories(publication_id: str, raw: Any) -> dict[str, Any]:
         store = "items"
     if store not in STORES:
         raise ValueError(f"router publication {publication_id} monitorStories.store must be {' or '.join(STORES)}")
-    return {"enabled": enabled, "store": store}
+    single_item = raw.get("singleItem", True)
+    if not isinstance(single_item, bool):
+        raise ValueError(f"router publication {publication_id} monitorStories.singleItem must be true or false")
+    return {"enabled": enabled, "store": store, "singleItem": single_item, "contextPacks": validate_context_packs(publication_id, raw.get("contextPacks"))}
+
+
+def validate_context_packs(publication_id: str, raw: Any) -> dict[str, Any]:
+    if raw is None:
+        return {"enabled": True, "signals": None}
+    if not isinstance(raw, dict):
+        raise ValueError(f"router publication {publication_id} monitorStories.contextPacks must be an object")
+    unknown = sorted(set(raw) - set(PACK_KEYS))
+    if unknown:
+        raise ValueError(f"router publication {publication_id} monitorStories.contextPacks has unknown keys: {', '.join(unknown)}")
+    enabled = raw.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise ValueError(f"router publication {publication_id} monitorStories.contextPacks.enabled must be true or false")
+    signals = raw.get("signals")
+    if signals is not None:
+        if not isinstance(signals, list) or not signals or any(signal not in PACK_SIGNALS for signal in signals) or len(set(signals)) != len(signals):
+            raise ValueError(f"router publication {publication_id} monitorStories.contextPacks.signals must be a list of distinct signals from {', '.join(PACK_SIGNALS)}")
+        signals = list(signals)
+    return {"enabled": enabled, "signals": signals}
 
 
 def lambda_story_transport(environment: dict[str, str] | None = None, *, ssm: Any = None) -> Callable | None:
@@ -104,18 +144,30 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
     from .ideas.context import load_context
     from .ideas.items import ItemStore
     from .ideas.gate import HumanusGate
+    from .ideas.signal_queue import prepare_signal_run
     from .ideas.store import legacy_story_drafts
+
+    policy = validate_monitor_stories(publication["publicationId"], publication.get("monitorStories"))
+    if not policy["contextPacks"]["enabled"] and not policy["singleItem"]:
+        return {**EMPTY_LINE, "publicationId": publication["publicationId"], "status": "complete"}
 
     # Each idea passes the same Humanus gate as `ideas monitor-stories --store items`, through this publication's own API.
     gate = gate if gate is not None else HumanusGate.for_client(client, judgment_key=lambda_judgment_key())
+    context = load_context(client, now=now)
+    signal_run = None
+    if policy["contextPacks"]["enabled"]:
+        signals = policy["contextPacks"]["signals"]
+        signal_run = prepare_signal_run(
+            client, site=publication["corpusKey"], context=context, now=now, signals=tuple(signals) if signals else None, single_items=policy["singleItem"], gate=gate)
 
     run = monitor_stories.draft_monitor_stories(
         client=client, site=publication["publicationId"], corpus_key=publication["corpusKey"],
-        context=load_context(client, now=now), json_store=None, idea_store=ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=gate), review_client=client,
+        context=context, json_store=None, idea_store=ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=gate), review_client=client,
         transport=transport, limit=None, dry_run=False, now=now, fetch=fetch or monitor_stories.fetch_source,
         explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer, out_of_time=out_of_time,
-        maximum_cost_usd=maximum_cost_usd, read_workers=READ_WORKERS, automation_handled=handled_references)
+        maximum_cost_usd=maximum_cost_usd, read_workers=READ_WORKERS, automation_handled=handled_references, signal_run=signal_run)
     inputs, usage = run["inputs"], run.get("usage") or {}
+    packs = run.get("packs") or []
     return {
         "publicationId": publication["publicationId"], "status": "stopped" if run["stoppedBy"] else "complete",
         "drafted": len(run["drafts"]), "candidates": inputs["candidates"], "notAccepted": inputs["notAccepted"],
@@ -123,5 +175,8 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         "attempted": run["attempted"], "failedTheCheck": len(run["invalid"]),
         "refusedByEditorialCheck": sum(1 for entry in run["invalid"] if entry.get("reason") == "editorial_check_failed"), "duplicates": len(run["duplicates"]),
         "handledByAutomation": inputs.get("handledByAutomation", 0), "costUsd": usage.get("costUsd"),
+        "packs": len(packs), "ideasFromPacks": sum(1 for draft in run["drafts"] if draft.get("origin") == "context-pack"),
+        "packsSkippedNoNewEvidence": run.get("packsSkippedNoNewEvidence", 0),
+        "packDetails": [{"signal": pack["signal"], "anchor": pack["anchor"], "correctedPValue": pack["correctedPValue"], "ideas": pack["ideas"]} for pack in packs if pack["attempted"]],
         "review": (run.get("review") or {}).get("status"), **({"fileError": run["fileError"]} if run.get("fileError") else {}),
     }

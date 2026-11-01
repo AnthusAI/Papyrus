@@ -4,6 +4,7 @@
     {"publicationId": "anth-us", "site": "anth.us",
      "appsyncEndpoint": "https://2m5fh2nqlnfxlfg2mxepp7tdbm.appsync-api.us-east-1.amazonaws.com/graphql"},
     {"publicationId": "p-apyr-us", "site": "p.apyr.us", "corpusId": "knowledge-corpus-ai-ml-research",
+     "monitorStories": {"enabled": true, "singleItem": true, "contextPacks": {"enabled": true, "signals": ["conversation", "acceptance"]}},
      "appsyncEndpoint": "https://632qpvm7w5emhb2zo2vomc5rae.appsync-api.us-east-1.amazonaws.com/graphql"},
     {"publicationId": "threat-intelligence", "site": "threat-intelligence",
      "appsyncEndpoint": "https://2neu5y2cjrbnbkord2mdaetysi.appsync-api.us-east-1.amazonaws.com/graphql"}
