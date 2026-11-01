@@ -14,6 +14,7 @@ RESEARCH_COMMANDS = {
   "run": "run-research",
   "run-tavily-deep": "run-tavily-deep-research",
   "poll-tavily-deep": "poll-tavily-deep-research",
+  "multi": "research-multi",
   "apply": "apply-research-packet",
   "process": "process-research-now",
   "packets": "research-packets",
@@ -68,6 +69,7 @@ COMMAND_USAGE = {
   ("reporting", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",
   ("sections", "doctrine"): "set --kind mission|policy --file MD [--dry-run]",
   ("sections", "update"): "--id SECTION [--editorial-mission-file F] [--editorial-policy-file F] [--assignment-guidance-file F] [--kill-criteria-file F] [--enabled true|false] [--dry-run]",
+  ("research", "multi"): "ASSIGNMENT [--dry-run] [--json]   (assignment created with: research create --type research.multi)",
   ("research", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",
 }
 
