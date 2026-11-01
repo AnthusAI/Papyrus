@@ -75,6 +75,11 @@ module.exports = {
     require: ["features/step_definitions/message-hashtags.steps.js"],
     format: ["summary"],
   },
+  referenceLinkResolvers: {
+    paths: ["features/reference-link-resolvers.feature"],
+    require: ["features/step_definitions/reference-link-resolvers.steps.js"],
+    format: ["summary"],
+  },
   messageAuthorEnforced: {
     paths: ["features/message-author-enforced.feature"],
     require: ["features/step_definitions/message-author-enforced.steps.js"],
