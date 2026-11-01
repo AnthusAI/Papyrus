@@ -6,7 +6,7 @@ import {
   extendFeedOrderSnapshot,
   feedLeadId,
   feedWindow,
-  olderThanSnapshot,
+  laterPageItems,
   takeFeedOrderSnapshot,
   visibleFeedItems,
   type FeedItem,
@@ -60,13 +60,16 @@ export function useFeedWindow({
   const managed = Boolean(predictionStatuses);
   const settled = (id: string) => !predictionStatuses || predictionsSettled([id], predictionStatuses);
   const snapshot = useRef<FeedOrderSnapshot | null>(null);
+  // Every item in the newsroom when the order was last taken: an item not in it arrived since, and waits behind the new-items pill.
+  const seen = useRef<Set<string>>(new Set());
+  const take = (items: FeedItem[]) => { snapshot.current = takeFeedOrderSnapshot(items); seen.current = new Set(allItems.map((item) => item.lineageId)); };
   const [, bump] = useState(0);
   const ready = !blocked && allItems.length > 0 && (managed ? windowIds.every(settled) : !predictionsPending);
-  if (!snapshot.current && ready) snapshot.current = takeFeedOrderSnapshot(windowItems);
+  if (!snapshot.current && ready) take(windowItems);
 
   let pendingOlder: FeedItem[] = [];
   if (snapshot.current) {
-    const older = olderThanSnapshot(snapshot.current, windowItems);
+    const older = laterPageItems(snapshot.current, seen.current, windowItems);
     const arrived = older.filter((item) => settled(item.lineageId));
     if (arrived.length) snapshot.current = extendFeedOrderSnapshot(snapshot.current, arrived);
     pendingOlder = older.filter((item) => !settled(item.lineageId));
@@ -85,7 +88,7 @@ export function useFeedWindow({
     hasMore: windowItems.length < allItems.length,
     loadingMore: pendingOlder.length > 0,
     loadMore: useCallback(() => setPages((current) => current + 1), []),
-    showNewItems: () => { snapshot.current = takeFeedOrderSnapshot(live); bump((count) => count + 1); },
+    showNewItems: () => { take(live); bump((count) => count + 1); },
     windowIds,
   };
 }

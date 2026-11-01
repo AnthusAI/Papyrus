@@ -190,10 +190,10 @@ export function extendFeedOrderSnapshot(snapshot: FeedOrderSnapshot, items: Feed
   };
 }
 
-/** The items in `live` that are older than everything the snapshot knows: the next page, not new arrivals. */
-export function olderThanSnapshot(snapshot: FeedOrderSnapshot, live: FeedItem[]): FeedItem[] {
-  const known = live.filter((item) => snapshot.known.has(item.lineageId));
-  const oldest = Math.min(...known.map((item) => referenceArrivalTime(item.reference) ?? 0));
-  if (!known.length) return [];
-  return live.filter((item) => !snapshot.known.has(item.lineageId) && (referenceArrivalTime(item.reference) ?? 0) <= oldest);
+/**
+ * The items in `live` that were already in the newsroom when the snapshot was taken (`seen`) but not yet placed: the next page, as opposed to
+ * items that arrived since, which wait behind the new-items pill.
+ */
+export function laterPageItems(snapshot: FeedOrderSnapshot, seen: ReadonlySet<string>, live: FeedItem[]): FeedItem[] {
+  return live.filter((item) => seen.has(item.lineageId) && !snapshot.known.has(item.lineageId));
 }

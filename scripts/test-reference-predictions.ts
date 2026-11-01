@@ -6,7 +6,7 @@ import {
   buildFeedItems,
   extendFeedOrderSnapshot,
   feedWindow,
-  olderThanSnapshot,
+  laterPageItems,
   takeFeedOrderSnapshot,
   applyFeedOrderSnapshot,
 } from "../lib/reference-feed-ranking";
@@ -86,8 +86,9 @@ test("a later page joins after everything already placed, a new arrival does not
   const firstPage = feedWindow(items, 1);
   const snapshot = takeFeedOrderSnapshot(firstPage);
   const wider = feedWindow(items, 2);
-  const older = olderThanSnapshot(snapshot, wider);
-  assert.equal(older.length, FEED_PAGE_SIZE, "the second page is older than everything known");
+  const seen = new Set(items.map((item) => item.lineageId));
+  const older = laterPageItems(snapshot, seen, wider);
+  assert.equal(older.length, FEED_PAGE_SIZE, "the second page was already there, just not placed yet");
   const extended = extendFeedOrderSnapshot(snapshot, older);
   assert.deepEqual(extended.best.slice(0, snapshot.best.length), snapshot.best, "nothing above moves in Best bets");
   assert.deepEqual(extended.newest.slice(0, snapshot.newest.length), snapshot.newest, "nothing above moves in Newest");
@@ -96,6 +97,6 @@ test("a later page joins after everything already placed, a new arrival does not
 
   const arrival = { ...reference(0), lineageId: "just-arrived", id: "just-arrived-v1", createdAt: new Date(NOW + HOUR).toISOString() } as ReferenceRecord;
   const live = buildFeedItems([arrival, ...references.slice(0, FEED_PAGE_SIZE)], decisions);
-  assert.deepEqual(olderThanSnapshot(snapshot, live), [], "an item newer than everything known is not a page, it waits behind the pill");
+  assert.deepEqual(laterPageItems(snapshot, seen, live), [], "an item that arrived since the order was taken is not a page, it waits behind the pill");
   assert.equal(applyFeedOrderSnapshot(snapshot, live, "newest", "unrated").newCount, 1);
 });
