@@ -137,6 +137,7 @@ def build_editorial_parser() -> argparse.ArgumentParser:
   subparsers.add_parser("policies", help="List policies, import a starter pack, ensure the default packs, add policies from a policy-pack file (add), or export them (export)")
   version = subparsers.add_parser("check-version", help="Check one saved version and store the result with it")
   version.add_argument("--item", required=True)
+  version.add_argument("--json", action="store_true")
   drafts = subparsers.add_parser("check-drafts", help="Check every unpublished draft version not yet checked")
   drafts.add_argument("--limit", type=int)
   drafts.add_argument("--dry-run", action="store_true")

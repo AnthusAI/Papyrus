@@ -79,6 +79,8 @@ publication with no current mission, or more than one, checks without the missio
 skipped. Both log a warning that names the publication. Real failures (the provider or Humanus being unavailable)
 still surface as an error in the panel.
 
+**Reading a check from the command line.** `papyrus editorial check-version --item VERSION_ID` prints the summary line and then every finding, violations first and then those for review: status, severity, policy, probability, id, message and excerpt. `--json` prints the summary and the full findings. A judgment that is about the whole story has no passage to quote, so Humanus gives it an empty excerpt (and one id per detector, so the id does not change when the text does); Papyrus starts its message with "Applies to the whole story." so it never reads as a missing excerpt.
+
 **Passages copied across stories.** Each server check of a saved version (`checkItemVersion`, which `papyrus
 editorial check-version`, `papyrus stories save-version` and the article editor's save all use) also looks for
 boilerplate: a run of 12 or more consecutive words (the same `COPIED_RUN_WORDS` the reference copy guard uses) that

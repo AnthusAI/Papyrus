@@ -37,6 +37,7 @@ ENVIRONMENT = {
 }
 DEPLOYED_COMMIT = "d" * 40
 STAGE_SECONDS = 90
+APPSYNC_ENDPOINT = "https://vuagbw3fmvalta762m4zsacxce.appsync-api.us-east-1.amazonaws.com/graphql"  # the host AppSync reports; unrelated to the API id
 TASK = {"vCpu": 4.0, "memoryGiB": 16.0, "ephemeralStorageGiB": 40, "startedAt": None}  # what the ECS task metadata says in the cloud
 
 
@@ -50,6 +51,9 @@ class FakeSite:
     def read_object(self, bucket: str, key: str) -> bytes | None:
         assert bucket == SITE_BUCKET
         return self.objects.get(key)
+
+    def appsync_endpoint(self, api_id: str) -> str:
+        return APPSYNC_ENDPOINT
 
     def deployed_commit(self, app_id: str, branch: str) -> str:
         assert (app_id, branch) == ("dapp123", "main")

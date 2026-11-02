@@ -130,6 +130,7 @@ Feature: Scheduled container jobs
     And the OpenAI key is read from an SSM parameter, never Secrets Manager
     And the template mentions Secrets Manager nowhere
     And appsync:GraphQL is limited to the Query and Mutation fields of the publication's API
+    And appsync:GetGraphqlApi is limited to the publication's API, so the run can ask AppSync for its endpoint
     And the site bucket, distribution and key-value store are limited to the ARNs in config
 
   Scenario: the projection stages know the site's plugins

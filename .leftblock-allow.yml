@@ -388,3 +388,9 @@ allow:
     kind: "Bare UUID (potential session/agent identifier)"
     reason: "AWS-managed CloudFront cache and origin-request policy ids, public"
     added: 2026-10-31
+  - id: "19326163fc5051b3"
+    rule: "leftblock-session-uuid"
+    file: "infra/amplify-app-shell/examples/machines-on-machines.site.json"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "False positive: the UUID is the id inside a CloudFront KeyValueStore ARN (the site's redirects store), a public infrastructure identifier, not a session or agent id."
+    added: 2026-11-02

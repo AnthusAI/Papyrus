@@ -480,3 +480,39 @@ def _table_body_lines(context) -> list[str]:
         if "\t" in line:
             lines.append(line)
     return lines
+
+
+# --- the version the command prints --------------------------------------------------------------------------------------
+
+@given('the papyrus-newsroom distribution is installed as version "{installed}"')
+def step_distribution_installed(context, installed):
+    context.version_lookup = lambda _name: installed
+
+
+@given("the papyrus-newsroom distribution is not installed")
+def step_distribution_missing(context):
+    from importlib.metadata import PackageNotFoundError
+
+    def missing(name):
+        raise PackageNotFoundError(name)
+
+    context.version_lookup = missing
+
+
+@when("I ask for the papyrus version")
+def step_ask_version(context):
+    import papyrus
+
+    context.printed_version = papyrus.installed_version(lookup=context.version_lookup)
+
+
+@then('the printed version is "{expected}"')
+def step_printed_version(context, expected):
+    assert context.printed_version == expected, context.printed_version
+
+
+@then("the printed version is the checkout's fallback version")
+def step_fallback_version(context):
+    import papyrus
+
+    assert context.printed_version == papyrus.SOURCE_CHECKOUT_VERSION

@@ -129,7 +129,7 @@ State is per publication in the stack's S3 bucket (versioned, private), under `p
 
 | Prefix | Holds |
 | --- | --- |
-| `config/` | What an operator maintains, all optional: `vocabulary.yml` (default: a generic vocabulary), `stop-words.txt`, `review-guidance.md`, `amplify_outputs.json` (endpoint only, no secrets; default: built from `appSyncApiId`). See [Adding a knowledge run to a new site](#adding-a-knowledge-run-to-a-new-site) |
+| `config/` | What an operator maintains, all optional: `vocabulary.yml` (default: a generic vocabulary), `stop-words.txt`, `review-guidance.md`, `amplify_outputs.json` (endpoint only, no secrets; default: the endpoint AppSync reports for `appSyncApiId`). See [Adding a knowledge run to a new site](#adding-a-knowledge-run-to-a-new-site) |
 | `corpus/` | The long-lived Biblicus corpus, including `knowledge-run.json` (the previous run's identity state) |
 | `runs/<ISO week>/` | Scratch of a run: topics, trends, identity, registry, typed output, `ai-review.json`, `state.json` |
 
@@ -221,7 +221,7 @@ Add `"plugins": [...]` if the site enables any (the run refuses to project when 
 | A hand-written vocabulary | `config/vocabulary.yml` in the run state | Generic kinds `organization`, `product`, `person`, `topic` and relation types `made_by`, `built_on`, `member_of`. The first stage that finds no file writes it to `config/` (and uses it), so an editor can then edit the seeded file; a file that exists is never replaced. |
 | A Knowledge Map and `scoring.json` in the site repository | `beatsConfig` | None: the snapshot has no beats. A `beatsConfig` that names a file the checkout does not have is logged and left out; it does not fail the stage. |
 | A list of concept kinds | `conceptKinds` | None: every kind is a candidate for the concept of the week. |
-| `config/amplify_outputs.json` in the state | `appSyncApiId` (required anyway) | The first stage writes `{"data": {"url": "https://<appSyncApiId>.appsync-api.<region>.amazonaws.com/graphql"}}` when the state has none (`KNOWLEDGE_APPSYNC_API_ID` in the task). |
+| `config/amplify_outputs.json` in the state | `appSyncApiId` (required anyway) | The first stage asks AppSync for the API's GraphQL endpoint (`GetGraphqlApi`; the host is not the API id) and writes it as `{"data": {"url": ...}}` when the state has none (`KNOWLEDGE_APPSYNC_API_ID` in the task). |
 | `stop-words.txt`, `review-guidance.md` | The same files in `config/` | Not used. |
 | Its own OpenAI key and alarm mailbox | `openAiKeyParameter`, `alarmEmailParameter` | `/papyrus/<siteId>/openai-api-key` and `/papyrus/<siteId>/knowledge-run/alarm-email`. |
 

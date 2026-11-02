@@ -7,7 +7,7 @@ import pytest
 from moto import mock_aws
 
 from .config import STAGES
-from .fakes import make_run
+from .fakes import APPSYNC_ENDPOINT, make_run
 from .stages import run_stage
 
 TESTDATA = Path(__file__).parent / "testdata"
@@ -112,11 +112,11 @@ def test_a_vocabulary_the_operator_wrote_is_never_replaced(tmp_path):
     assert "organization" not in (run.config_dir / "vocabulary.yml").read_text()
 
 
-def test_the_endpoint_file_is_built_from_the_api_id_when_the_state_has_none(tmp_path):
+def test_the_endpoint_file_holds_the_address_appsync_reports_for_the_api_id_when_the_state_has_none(tmp_path):
     run, shell = make_run(tmp_path, NEW_SITE, seeded=False)
     assert run_stage("corpus-sync", run) == 0
     outputs = json.loads(run.state.read_text("config/amplify_outputs.json"))
-    assert outputs == {"data": {"url": "https://abcdefghij0123456789klmnop.appsync-api.us-east-1.amazonaws.com/graphql"}}
+    assert outputs == {"data": {"url": APPSYNC_ENDPOINT}}
     assert run.command_env()["PAPYRUS_GRAPHQL_ENDPOINT"] == outputs["data"]["url"]
 
 
@@ -197,3 +197,14 @@ def test_monitor_records_without_items_are_still_imported_and_counted_but_not_mo
     assert commands(shell, ["papyrus", "knowledge", "snapshot"]) and commands(shell, ["papyrus", "ops", "content", "project"])
     assert not (run.corpus / "knowledge-run.json").exists(), "no topic run was imported, so there is no previous run to carry"
     assert details(run, "topic-model")["details"]["status"] == "nothing to do"
+
+
+def test_the_generic_vocabulary_is_strict_yaml_with_one_label_per_kind():
+    import yaml
+
+    from .defaults import default_vocabulary
+
+    document = yaml.safe_load(default_vocabulary("newsite"))
+    for group in ("entity_kinds", "relation_types"):
+        for entry in document[group]:
+            assert set(entry) == {"key", "label"} and isinstance(entry["label"], str), entry

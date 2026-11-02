@@ -464,11 +464,11 @@ def test_monitor_stories_grant_covers_every_publication_api_the_hn_monitor_lists
         assert template[name]["Properties"]["Roles"] == [("Ref", "RouterRole")]
         assert len(template[name]["Properties"]["PolicyDocument"]["Statement"]) == 1
     resources = [r for name in halves for r in resources_of(name)]
-    assert {r.split("apis/")[1].split("/")[0] for r in resources} == {"${" + api + "}" for api in (*PUBLICATION_APIS, "DistinctiveApiId")}
+    assert {r.split("apis/")[1].split("/")[0] for r in resources} == {"${" + api + "}" for api in (*PUBLICATION_APIS, "DistinctiveApiId", "MachinesOnMachinesApiId")}
     assert "*" not in "".join(resources)
     needed = used_fields()
     assert {("Mutation", "fileProposal"), ("Query", "listStoryDrafts"), ("Mutation", "createReviewRequest"), ("Query", "getReviewRequest")} <= needed
-    for api in (*PUBLICATION_APIS, "DistinctiveApiId"):
+    for api in (*PUBLICATION_APIS, "DistinctiveApiId", "MachinesOnMachinesApiId"):
         granted_here = {tuple(r.split("types/")[1].split("/fields/")) for r in resources if f"apis/${{{api}}}/" in r}
         assert granted_here == needed, (api, sorted(needed ^ granted_here))   # explicit, complete and nothing more
         assert needed <= granted_fields(api), (api, sorted(needed - granted_fields(api)))

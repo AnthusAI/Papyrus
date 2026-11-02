@@ -26,6 +26,11 @@ Feature: Any Papyrus site can run the knowledge run from configuration alone
     And the typed extraction was given a vocabulary with the kinds "organization", "product", "person" and "topic"
     And the state in S3 holds "config/vocabulary.yml"
 
+  Scenario: The generic vocabulary is valid YAML for the entity extractor
+    Given a new site "newsite" with published items and no configuration in its run state
+    When the stages "corpus-sync", "topic-model", "typed-extraction" run
+    Then every entity kind in the vocabulary has only a key and one label, so the extractor accepts it
+
   Scenario: A vocabulary an editor wrote is never replaced by the default
     Given a site "shipped" whose editors wrote their own vocabulary
     When the stages "corpus-sync", "typed-extraction" run
@@ -46,11 +51,11 @@ Feature: Any Papyrus site can run the knowledge run from configuration alone
     Then the stage succeeded
     And the snapshot command was given no beats config
 
-  Scenario: A new site's GraphQL endpoint is built from its API id when the state has none
+  Scenario: A new site's GraphQL endpoint is the address AppSync reports for its API when the state has none
     Given a new site "newsite" with published items and no configuration in its run state
     When the stage "corpus-sync" runs
     Then the state in S3 holds "config/amplify_outputs.json"
-    And the backend endpoint of the commands is the AppSync address of the API id
+    And the backend endpoint of the commands is the address AppSync reports for the API
 
   Scenario: A site with no items and no monitor records succeeds every stage with nothing to do
     Given a new site "newsite" with no published items and no monitor records

@@ -148,6 +148,11 @@ export function knowledgeTaskStatements(config: KnowledgeRunConfig): iam.PolicyS
       resources: ["Query", "Mutation"].map((type) => `arn:aws:appsync:${config.region}:${config.account}:apis/${config.appSyncApiId}/types/${type}/fields/*`),
     }),
     new iam.PolicyStatement({
+      sid: "ReadAppSyncEndpoint",
+      actions: ["appsync:GetGraphqlApi"],
+      resources: [`arn:aws:appsync:${config.region}:${config.account}:apis/${config.appSyncApiId}`],
+    }),
+    new iam.PolicyStatement({
       sid: "SiteBucketObjects",
       actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
       resources: [`${siteBucketArn}/*`],
@@ -220,6 +225,7 @@ export class KnowledgeRunStack extends Stack {
       publication: config.publication,
       pipeline: knowledgePipeline(config, trendDrafts, monitorStories),
       imageTag,
+      reuseImageRepository: config.reuseImageRepository,
       defaultSize: { vCpu: config.vCpu, memoryMiB: config.memoryMiB, ephemeralStorageGiB: config.ephemeralStorageGiB },
       defaultStageTimeoutSeconds: DEFAULT_STAGE_TIMEOUT_SECONDS,
       schedule: { expression: config.schedule, state: config.scheduleState },
