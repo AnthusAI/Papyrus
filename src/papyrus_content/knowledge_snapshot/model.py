@@ -125,5 +125,6 @@ class SnapshotOptions:
     unaccepted_clusters: str = UNACCEPTED_HIDE
     maker_kind: str = "maker"
     concept_kinds: tuple[str, ...] | None = None
+    public_kinds: tuple[str, ...] | None = None  # the kinds that have wiki pages (see knowledge_wiki.kinds); None: every kind but the authors
     neighbour_limit: int = 12
     related_limit: int = 12

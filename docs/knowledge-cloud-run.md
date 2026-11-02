@@ -26,7 +26,7 @@ Each stage is one ECS Fargate task (ARM64, CPU, 4 vCPU and 16 GB to start) from 
 | `publish-relations` | Import again, so relations between entities accepted by the review land |
 | `snapshot` | `knowledge snapshot` to the site bucket, no `--reproject` (step 12) |
 | `archive` | `knowledge archive` for the week, never `--replace` (step 13). A week that already has an entry keeps it (entries are immutable), so a second run in the same week skips this step |
-| `wiki-sync` | `wiki sync --apply`, then `wiki publish --all-drafts --actor ai --no-trigger` (step 14) |
+| `wiki-sync` | `wiki sync --vocabulary config/vocabulary.yml --retire --apply`, then `wiki publish --all-drafts --actor ai --no-trigger` (step 14). Only the vocabulary's kinds get pages; pages of other kinds are retired and listed in `runs/<week>/retired-wiki-items.json`, and the `projection` stage removes their pages first (`project --unpublished-items`, run with the image's papyrus) ([public wiki](public-wiki.md#public-kinds)) |
 | `projection` | `ops content project --all` under the projection lease and the deletion guard, never `--allow-deletions` |
 
 Two differences from the runbook order: the AI review comes after the import, because it reviews what the import created, and `wiki publish` is told not to project, because `projection` does that once, last.

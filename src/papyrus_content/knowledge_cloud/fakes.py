@@ -79,6 +79,7 @@ class FakeShell:
         self.items = 1  # published items the fake corpus export writes (0: a new site)
         self.pin_file = True  # the site repo has a requirements-publication.txt
         self.site_json: str | None = None  # the text of the site repo's infra/site.json, when it has one
+        self.retired: list[str] = []  # the wiki lineages the fake sync takes down (written to --retired-out)
         self.records = 0  # monitor records the fake export writes when the site has monitor sources
 
     def __call__(self, args: list[str], *, cwd: Path, env: Mapping[str, str], stdout: Path | None = None) -> None:
@@ -119,6 +120,8 @@ class FakeShell:
                     for n in range(1, self.records + 1)
                 ]
                 records.write_text(json.dumps({"schemaVersion": 1, "asOf": "2026-10-26", "sources": ["huggingface"], "records": rows}))
+        elif args[:4] == ["papyrus", "knowledge", "wiki", "sync"] and "--retired-out" in args:
+            Path(args[args.index("--retired-out") + 1]).write_text(json.dumps(self.retired))
         elif args[:2] == ["biblicus", "init"]:
             (Path(args[2]) / "metadata").mkdir(parents=True, exist_ok=True)
         elif args[:3] == ["biblicus", "extract", "build"]:

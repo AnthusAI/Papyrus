@@ -10,7 +10,7 @@ puts live.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -20,9 +20,10 @@ from ..knowledge_snapshot.builder import _aliases, _public_keys
 from ..knowledge_snapshot.keys import contains_email, slug
 from ..knowledge_snapshot.model import LINK_MONITOR, Beat, KnowledgeData
 from ..knowledge_snapshot.publish_run import json_object
-from ..publishing import ItemFields, item_id_for, published_item_id_for, save_item
+from ..publishing import ItemFields, item_id_for, published_item_id_for, save_item, unpublish_item
 from ..story_reporting import save_story_version
 from ..wiki_stamp import WIKI_PAGE_ITEM_TYPE
+from .kinds import display_name, is_public_kind
 from .pages import KIND_BEAT, KIND_ENTITY, KIND_SUBTOPIC, PageSpec, comparable, entity_page, front_matter_yaml, topic_page
 
 ACCEPTED = "accepted"
@@ -31,6 +32,8 @@ CREATE = "create"
 UPDATE = "update"
 REVISE = "revise"
 UNCHANGED = "unchanged"
+RETIRE = "retire"
+RETIRED_KEY = "retired"
 DEFAULT_MINIMUM_SUBTOPIC_ITEMS = 30
 DEFAULT_ITEMS_PER_TOPIC = 20
 KEY_FIELDS = {KIND_ENTITY: "entityKey", KIND_BEAT: "topicKey", KIND_SUBTOPIC: "topicKey"}
@@ -48,15 +51,34 @@ class PagePlan:
 
 
 @dataclass(frozen=True)
+class RetirePlan:
+    """A generated page whose subject is no longer eligible: it comes down (if live) and is marked so no later publish brings it back."""
+
+    section: str
+    slug: str
+    lineage_id: str
+    item_id: str
+    live_item_id: str | None
+    front_matter_yaml: str
+
+    @property
+    def live(self) -> bool:
+        return self.live_item_id is not None
+
+
+@dataclass(frozen=True)
 class SyncPlan:
     pages: tuple[PagePlan, ...]
     warnings: tuple[str, ...] = ()
+    retired: tuple[RetirePlan, ...] = ()
 
     @property
     def counts(self) -> dict[str, int]:
         counts: dict[str, int] = defaultdict(int)
         for page in self.pages:
             counts[f"{page.spec.kind}:{page.action}"] += 1
+        if self.retired:
+            counts[RETIRE] = len(self.retired)
         return dict(sorted(counts.items()))
 
 
@@ -132,10 +154,19 @@ def data_only_lineages(data: KnowledgeData) -> set[str]:
     return {link.node_lineage_id for link in data.links if link.confirmed and link.source == LINK_MONITOR} - site
 
 
-def entity_specs(data: KnowledgeData, lineages: Mapping[str, list[dict[str, Any]]]) -> list[PageSpec]:
-    """A page per accepted entity that has a public name."""
-    neighbours = related_keys(data)
-    eligible = [node for node in data.nodes if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name)]
+def eligible_nodes(data: KnowledgeData, public_kinds: Collection[str] | None = None) -> list:
+    """The accepted entities that may have a public page: a public name and a kind the wiki publishes (see ``kinds``)."""
+    return [
+        node
+        for node in data.nodes
+        if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name) and is_public_kind(node.kind, public_kinds)
+    ]
+
+
+def entity_specs(data: KnowledgeData, lineages: Mapping[str, list[dict[str, Any]]], public_kinds: Collection[str] | None = None) -> list[PageSpec]:
+    """A page per accepted entity of a public kind that has a public name. ``public_kinds`` is the kinds of the site's vocabulary."""
+    neighbours = related_keys(data, public_kinds)
+    eligible = eligible_nodes(data, public_kinds)
     keys = _public_keys(eligible)
     items_by_node: dict[str, set[str]] = defaultdict(set)
     for link in data.links:
@@ -156,7 +187,7 @@ def entity_specs(data: KnowledgeData, lineages: Mapping[str, list[dict[str, Any]
             entity_page(
                 key=key,
                 kind=slug(node.kind) or "entity",
-                name=" ".join(node.name.split()),
+                name=display_name(node.name, node.kind),
                 aliases=_aliases(node),
                 description=node.description if usable else None,
                 related=sorted(neighbours.get(key, ())),
@@ -180,9 +211,9 @@ def _beat_of(item_keys: set[str], beats: Sequence[Beat]) -> str | None:
     return best
 
 
-def related_keys(data: KnowledgeData) -> dict[str, list[str]]:
+def related_keys(data: KnowledgeData, public_kinds: Collection[str] | None = None) -> dict[str, list[str]]:
     """Entity key -> keys of the accepted entities it is related to by a relation an editor confirmed."""
-    eligible = [node for node in data.nodes if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name)]
+    eligible = eligible_nodes(data, public_kinds)
     keys = _public_keys(eligible)
     related: dict[str, set[str]] = defaultdict(set)
     data_only = data_only_lineages(data)
@@ -240,11 +271,15 @@ def plan_sync(
     section_of: Mapping[str, str],
     item_rows: Iterable[Mapping[str, Any]],
     published_sources: Mapping[str, str],
+    *,
+    retire: bool = False,
 ) -> SyncPlan:
     """``section_of`` maps a page kind to the section it lives in; ``published_sources`` maps a lineage to the id of the
-    Item row its live PublishedItem was made from."""
+    Item row its live PublishedItem was made from. With ``retire``, a generated page nothing generates any more is
+    retired (taken down, marked); without it the sync only reports that page."""
     rows = list(item_rows)
     pages: list[PagePlan] = []
+    retired: list[RetirePlan] = []
     warnings: list[str] = [note for spec in specs for note in spec.notes]
     seen: dict[str, set[str]] = defaultdict(set)
     for section in sorted(set(section_of.values())):
@@ -259,9 +294,19 @@ def plan_sync(
         wanted_fields = {KEY_FIELDS[kind] for kind, name in section_of.items() if name == section}
         for lineage_id, lineage_rows in sorted(lineages.items()):
             front = front_matter_of(working_version(lineage_rows))
-            if lineage_id not in seen[section] and any(field in front for field in wanted_fields):
-                warnings.append(f"{section}/{working_version(lineage_rows).get('slug')}: no longer generated; left as it is (unpublish by hand if it should go)")
-    return SyncPlan(tuple(pages), tuple(warnings))
+            if lineage_id in seen[section] or not any(field in front for field in wanted_fields):
+                continue
+            working = working_version(lineage_rows)
+            label = f"{section}/{working.get('slug')}"
+            if not retire:
+                warnings.append(f"{label}: no longer generated; left as it is (pass --retire to take it down)")
+            elif front.get(RETIRED_KEY) is True and lineage_id not in published_sources:
+                continue  # retired by an earlier run and still down
+            else:
+                retired.append(
+                    RetirePlan(section, str(working.get("slug") or ""), lineage_id, working["id"], published_sources.get(lineage_id), front_matter_yaml({**front, RETIRED_KEY: True}))
+                )
+    return SyncPlan(tuple(pages), tuple(warnings), tuple(retired))
 
 
 def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = None) -> dict[str, int]:
@@ -289,6 +334,19 @@ def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = Non
                 actor=actor, now=now,
             )
         written[page.action] += 1
+    for page in plan.retired:
+        if page.live_item_id:
+            unpublish_item(client, page.live_item_id, actor=actor, now=now)
+        existing = client.get_record("Item", page.item_id) or {}
+        save_item(
+            client,
+            ItemFields(
+                type=WIKI_PAGE_ITEM_TYPE, slug=existing.get("slug") or page.slug, section=page.section, front_matter_yaml=page.front_matter_yaml,
+                body_markus=existing.get("bodyMarkus") or "", aliases=list(existing.get("aliases") or []), id=page.item_id,
+            ),
+            actor=actor, now=now,
+        )
+        written[RETIRE] += 1
     return dict(written)
 
 
