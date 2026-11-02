@@ -1,0 +1,67 @@
+{
+  "siteId": "machines-on-machines",
+  "stackName": "amplify-app-shell-machines-on-machines-cms",
+  "repository": "https://github.com/AnthusAI/Machines-on-Machines",
+  "brand": "machines-on-machines",
+  "frontend": "markus-static",
+  "papyrusVersion": "5.69.0",
+  "aws": {
+    "accountId": "712236451410",
+    "region": "us-east-1"
+  },
+  "cms": {
+    "staging": false,
+    "cognitoDomainPrefix": "papyrus-machines-on-machines-cms",
+    "applyCognitoDomainPrefix": true,
+    "buildComputeType": "STANDARD_8GB",
+    "environment": {
+      "PAPYRUS_ENABLE_CONSOLE_RESPONDER": "false",
+      "PAPYRUS_ENABLE_SLACK": "false",
+      "PAPYRUS_ENABLE_INBOUND_EMAIL": "false",
+      "PAPYRUS_ENABLE_STORAGE_BACKUPS": "false",
+      "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/,https://newsroom.machines-on-machines.anth.us/,https://machines-on-machines.anth.us/"
+    },
+    "siteOrigin": "https://machines-on-machines.anth.us",
+    "prospectusAccountsApiStageArn": "arn:aws:execute-api:us-east-1:712236451410:bnh9mctvo9/api",
+    "cliRemoteLogin": true,
+    "consoleOrigin": "https://newsroom.machines-on-machines.anth.us",
+    "cliOnFederationClient": true
+  },
+  "github": {
+    "owner": "AnthusAI",
+    "repo": "Machines-on-Machines",
+    "branches": [
+      "main"
+    ],
+    "ownerId": 152415604,
+    "repoId": 1442003636
+  },
+  "email": {
+    "mode": "managed",
+    "sendingDomain": "mail.machines-on-machines.anth.us"
+  },
+  "knowledgeRun": {
+    "schedule": "cron(0 12 * * ? *)",
+    "corpusKey": "ai-ml-research",
+    "reuseImageRepository": true,
+    "siteBucket": "amplify-d260vp72hqglnc-main-bra-sitebucket397a1860-ohsbrwmezxev",
+    "edgeDistributionId": "E1PTZ8B9ZF9GCU",
+    "redirectsKvsArn": "arn:aws:cloudfront::712236451410:key-value-store/01796a02-fca4-4097-b6e8-b322c9c8d3ee",
+    "appSyncApiId": "lxyzo2l2pjftjdha7egy73wndu",
+    "amplifyAppId": "d260vp72hqglnc",
+    "contentActionsFunction": "amplify-d260vp72hqglnc-ma-papyruscontentactionsE8B-Ri8ZqKDPLt2u",
+    "plugins": [
+      "home-page"
+    ],
+    "siteBranch": "main",
+    "staticSubdir": "web",
+    "monitorSources": [
+      "routed"
+    ],
+    "monitorStories": {
+      "limit": 3
+    },
+    "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
+    "openAiKeyParameter": "/papyrus/shipped/openai-api-key"
+  }
+}

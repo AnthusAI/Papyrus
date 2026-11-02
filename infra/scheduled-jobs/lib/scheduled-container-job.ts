@@ -61,6 +61,11 @@ export type ScheduledContainerJobProps = {
   pipeline: PipelineDefinition;
   /** ECR image tag. The repository is created by this construct, so the first deploy can use a placeholder. */
   imageTag: string;
+  /**
+   * The repository is named by `jobId`, so one account has exactly one of it. Set this on every stack after the first
+   * (the one that created it) to use the existing repository instead of failing on the name; the image tag is shared.
+   */
+  reuseImageRepository?: boolean;
   /** Default task size for stages that do not set their own. */
   defaultSize: { vCpu: number; memoryMiB: number; ephemeralStorageGiB: number };
   defaultStageTimeoutSeconds: number;
@@ -115,7 +120,7 @@ export class ScheduledContainerJob extends Construct {
   readonly vpc: ec2.Vpc;
   readonly securityGroup: ec2.SecurityGroup;
   readonly cluster: ecs.Cluster;
-  readonly repository: ecr.Repository;
+  readonly repository: ecr.IRepository;
   readonly stateBucket: s3.Bucket;
   readonly ledgerTable: dynamodb.Table;
   readonly taskRole: iam.Role;
@@ -149,13 +154,16 @@ export class ScheduledContainerJob extends Construct {
     });
     this.cluster = new ecs.Cluster(this, "Cluster", { vpc: this.vpc });
 
-    this.repository = new ecr.Repository(this, "Repository", {
-      repositoryName: `papyrus-scheduled-jobs/${props.jobId}`,
-      imageScanOnPush: true,
-      imageTagMutability: ecr.TagMutability.IMMUTABLE,
-      lifecycleRules: [{ maxImageCount: 10, description: "Keep the last 10 images" }],
-      removalPolicy: RemovalPolicy.RETAIN,
-    });
+    const repositoryName = `papyrus-scheduled-jobs/${props.jobId}`;
+    this.repository = props.reuseImageRepository
+      ? ecr.Repository.fromRepositoryName(this, "Repository", repositoryName)
+      : new ecr.Repository(this, "Repository", {
+          repositoryName,
+          imageScanOnPush: true,
+          imageTagMutability: ecr.TagMutability.IMMUTABLE,
+          lifecycleRules: [{ maxImageCount: 10, description: "Keep the last 10 images" }],
+          removalPolicy: RemovalPolicy.RETAIN,
+        });
 
     this.stateBucket = new s3.Bucket(this, "StateBucket", {
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
