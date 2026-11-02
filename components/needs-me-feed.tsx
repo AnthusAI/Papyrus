@@ -196,6 +196,7 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
             reasonRequiredFor={refLike ? "reject" : null}
             showPrediction={refLike}
             showReason={refLike}
+            stars={ratings.stars(item.id) === undefined ? undefined : { value: ratings.stars(item.id) ?? null, onChange: (tapped) => { if (!disabledReason && !locked) ratings.setStars(item.id, tapped); }, feedback: ratings.starsFeedback(item.id) }}
           />
         )}
       </div>
