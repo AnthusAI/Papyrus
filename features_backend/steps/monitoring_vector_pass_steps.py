@@ -25,7 +25,7 @@ def state(context):
 
 
 def reset(context):
-    context.vector = SimpleNamespace(policy={}, watermark=tv.Watermark(), rows=[], pending=[], pass_=tv.Pass(), out_of_time=lambda: False, result=None, line=None, order=[], table=None)
+    context.vector = SimpleNamespace(policy={}, watermark=tv.Watermark(), rows=[], pending=[], threads=[], pass_=tv.Pass(), out_of_time=lambda: False, result=None, line=None, order=[], table=None)
     tv.vectors.s3vectors_client_missing_reason = lambda region_name=None: None
 
 
@@ -67,12 +67,50 @@ def step_pending_reference(context, identifier, stamp):
     state(context).pending.append({**tv.accepted(0, stamp), "id": identifier, "lineageId": f"lineage-{identifier}", "curationStatus": "pending"})
 
 
-@given('a publication whose watermark is a cursor after "{identifier}"')
-def step_cursor_watermark(context, identifier):
+STAMPS = {1: "2026-10-30T10:00:00Z", 2: "2026-10-30T11:00:00Z", 3: "2026-10-30T12:00:00Z", 4: "2026-10-31T10:00:00Z"}
+
+
+def position(identifier):
+    number = int(identifier.removeprefix("ref-"))
+    return f"{STAMPS[number]}#{identifier}"
+
+
+def actual_position(context, identifier):
+    row = next(row for row in state(context).rows if row["id"] == identifier)
+    return f"{row['curationStatusUpdatedAt']}#{identifier}"
+
+
+@given("a publication with an index and no saved place")
+def step_no_place(context):
+    reset(context)
+
+
+@given('a publication whose saved place for accepted References runs from "{low}" to "{high}"')
+def step_saved_place(context, low, high):
     import json
 
     reset(context)
-    state(context).watermark = tv.Watermark(json.dumps({"accepted": f"2026-10-30T10:00:00Z#{identifier}", "pending": "2026-10-29T12:00:00Z"}))
+    state(context).watermark = tv.Watermark(json.dumps({"v": 2, "done": [], "accepted": {"high": position(high), "low": position(low)}, "pending": {"high": None, "low": None}}))
+
+
+@given('a Reference "{identifier}" accepted at "{stamp}" has arrived')
+def step_arrived(context, identifier, stamp):
+    state(context).rows.append(tv.accepted(int(identifier.removeprefix("ref-")), stamp))
+
+
+@given('an editor voted on "{identifier}"')
+def step_voted(context, identifier):
+    state(context).rows = [{**row, "curationActorKind": "human"} if row["id"] == identifier else row for row in state(context).rows]
+
+
+@when('an editor voted on "{identifier}"')
+def step_voted_when(context, identifier):
+    step_voted(context, identifier)
+
+
+@given('a conversation is anchored on "{identifier}"')
+def step_conversation(context, identifier):
+    state(context).threads.append({"id": f"thread-{identifier}", "primaryAnchorKey": f"reference#lineage-{identifier.removeprefix('ref-')}"})
 
 
 def time_for(context, suggestions):
@@ -93,7 +131,9 @@ def step_time_many(context, count):
 @when("the vector pass runs")
 def step_run_pass(context):
     current = state(context)
-    current.result = tv.run_pass(tv.AcceptedClient(current.rows, current.pending), current.pass_, current.watermark, policy=current.policy, out_of_time=current.out_of_time)
+    if current.pass_.order:
+        current.pass_ = tv.Pass()   # a second pass of the same scenario starts a fresh record of its steps
+    current.result = tv.run_pass(tv.AcceptedClient(current.rows, current.pending, current.threads), current.pass_, current.watermark, policy=current.policy, out_of_time=current.out_of_time)
 
 
 @then("the index is synced for the {count:d} References accepted after the watermark before any suggestion is made")
@@ -106,11 +146,6 @@ def step_synced_for(context, count):
 def step_suggested(context, count):
     current = state(context)
     assert current.pass_.order == ["index", *[f"suggest:{identifier}" for identifier in ("ref-2", "ref-3")][:count]], current.pass_.order
-
-
-@then('the watermark is now "{value}"')
-def step_watermark(context, value):
-    assert state(context).watermark.value == value, state(context).watermark.value
 
 
 @then("suggestions are made for {identifiers} only")
@@ -144,13 +179,20 @@ def step_left_none(context):
     assert state(context).result["suggestionsRemaining"] == 0, state(context).result
 
 
-@then('the watermark is a cursor after "{identifier}"')
-def step_cursor(context, identifier):
+@then('the saved place for accepted References runs from "{low}" to "{high}"')
+def step_place(context, low, high):
     import json
 
-    cursors = json.loads(state(context).watermark.value)
-    assert cursors["accepted"].endswith(f"#{identifier}"), cursors
-    assert cursors["pending"] == "2026-10-29T12:00:00Z", cursors   # the pending References were not reached: their cursor stays where it was
+    place = json.loads(state(context).watermark.value)["accepted"]
+    assert (place["low"], place["high"]) == (actual_position(context, low), actual_position(context, high)), place
+
+
+@then('the saved place for accepted References runs from nothing older to "{high}"')
+def step_place_new(context, high):
+    import json
+
+    place = json.loads(state(context).watermark.value)["accepted"]
+    assert place["high"] == actual_position(context, high) and place["low"] == "", place
 
 
 @then("the index is synced for the concept cards only")
@@ -330,7 +372,9 @@ def step_log_counts(context, indexed, cards, suggestions):
 @then("the router's table holds the watermark of the publication")
 def step_table_watermark(context):
     row = state(context).table.get_item({"pk": "MONITOR#hn", "sk": tv.vectors.watermark_sort_key(tv.tms.PUBLICATION)})["Item"]
-    assert row["watermark"] == "2026-10-30T10:00:00Z", row
+    import json
+
+    assert json.loads(row["watermark"])["accepted"]["high"] == "2026-10-30T10:00:00Z#ref-1", row
 
 
 @then("2 ideas are drafted")
@@ -459,3 +503,54 @@ def step_refused(context):
             assert "HTTP 400" in str(error) and "input is invalid" in str(error) and "sk-secret" not in str(error)
         else:
             raise AssertionError("no error")
+
+
+# --- concepts: authors and the graph's own bookkeeping are not concepts ------------------------------------------------------------------------
+
+
+CONCEPT_NODES = [
+    ("voice cloning", "task", "task--voice-cloning"), ("pitch", "concept", "concept--pitch"), ("Ada Lovelace", "personAuthor", "author.name.adalovelace"),
+    ("Coverage: AI", "coverageQuestion", "coverage.ai"), ("General comment", "commentConcept", "comment.general"),
+    ("4 star", "qualityRating", "quality.rating.4_star"), ("Include", "relevanceDecision", "relevance.include"),
+]
+
+
+@given("a site whose graph has the concepts \"voice cloning\" (task) and \"pitch\" (concept), an author, a coverage question, a comment concept, a quality rating and a relevance decision")
+def step_concept_graph(context):
+    nodes = [{"id": f"node-{number}-v1", "lineageId": f"node-{number}", "versionState": "current", "status": "accepted", "displayName": name, "nodeKind": kind, "nodeKey": key}
+             for number, (name, kind, key) in enumerate(CONCEPT_NODES)]
+
+    class Graph:
+        def graphql(self, query, variables):
+            return {"listSemanticNodes": {"items": nodes, "nextToken": None}}
+
+    context.concepts = SimpleNamespace(graph=Graph(), cards=None)
+
+
+@when("the concept cards are prepared")
+def step_prepare_cards(context):
+    from papyrus_knowledge_query import vector_index
+
+    context.concepts.cards = vector_index._prepare_concept_card_vectors(context.concepts.graph)
+
+
+@then('only "voice cloning" and "pitch" have a card')
+def step_only_real_cards(context):
+    from papyrus_knowledge_query.concept_kinds import is_concept  # noqa: F401
+
+    names = sorted(card["metadata"]["nodeKey"] for card in context.concepts.cards)
+    assert names == ["concept--pitch", "task--voice-cloning"], names
+
+
+@then("a card for an author that was written earlier is not offered as a suggested concept")
+def step_old_author_card(context):
+    from papyrus_content.reference_suggestions import suggest_for
+    from test_reference_suggestions import FakeVectorProvider, build
+
+    client, provider = build()
+    provider.entries["concept_card-node-author"] = {"vector": provider.entries["concept_card-node-voice"]["vector"],
+                                                    "metadata": {"vectorKind": "concept_card", "lineageId": "node-author", "nodeKind": "personAuthor", "nodeKey": "author.name.adalovelace"}}
+    client.tables.setdefault("SemanticNode", {})["node-voice"] = {"id": "node-voice-v1", "lineageId": "node-voice", "versionNumber": 1}
+    result = suggest_for(client, provider, "reference-a-v1", corpus_id="corpus-1", now="2026-11-01T12:00:00Z")
+    offered = [entry["lineageId"] for entry in result["concepts"]]
+    assert "node-author" not in offered, offered

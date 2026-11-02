@@ -6,11 +6,12 @@ import {
   type RelatedEntry, type RelatedItem, type RelationRow, type SuggestionLabel,
 } from "../lib/reference-links";
 import type { ReferenceRecord, SemanticNodeRecord, SemanticRelationRecord } from "../lib/category-repository";
+import { createLinkResolver } from "../lib/reference-links-resolve";
 import { conceptKeysForHashtag } from "../lib/wiki";
 import type { ReferenceLinksStore, SuggestOutcome } from "./reference-links-context";
 import {
   LIST_SEMANTIC_RELATIONS_BY_OBJECT_STATE_QUERY, LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY,
-  loadNewsroomReferencePage, loadNewsroomSemanticNodePage, loadReferenceRecordByLineageId, loadSemanticRelationsByState, runGraphql,
+  loadNewsroomReferencePage, loadNewsroomSemanticNodePage, loadReferenceRecordByLineageId, loadSemanticNodeByLineageId, loadSemanticRelationsByState, runGraphql,
 } from "./news-desk-taxonomy-client";
 
 const CREATE_REFERENCE_LINK_MUTATION =
@@ -67,17 +68,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
     if (!referencesByLineage.has(lineageId)) referencesByLineage.set(lineageId, loadReferenceRecordByLineageId(lineageId).catch(() => null));
     return referencesByLineage.get(lineageId) as Promise<ReferenceRecord | null>;
   };
-  const resolveAll = async (lineages: { concepts: string[]; references: string[] }) => {
-    const nodes = lineages.concepts.length ? await allConcepts() : [];
-    const keys = nodes.map(node => node.nodeKey);
-    const conceptMap = new Map(nodes.map(node => [node.lineageId ?? node.id, conceptItem(node, keys)]));
-    const referenceMap = new Map<string, RelatedItem>();
-    await Promise.all([...new Set(lineages.references)].map(async lineageId => {
-      const record = await referenceByLineage(lineageId);
-      if (record) referenceMap.set(lineageId, referenceItem(record));
-    }));
-    return (kind: "concept" | "reference", lineageId: string) => (kind === "concept" ? conceptMap.get(lineageId) : referenceMap.get(lineageId)) ?? null;
-  };
+  const resolveAll = createLinkResolver({ referenceByLineage, conceptByLineage: loadSemanticNodeByLineageId });
   return {
     async listSuggested(cursor) {
       const rows: SuggestionRow[] = [];

@@ -98,6 +98,11 @@ Feature: Editors see and manage what a Reference is related to
     Then the section says "Editor access is required to change links."
     And Suggest more and the add box are disabled
 
+  Scenario: A Reference opened with no links gets its suggestions once, by itself
+    Given a Reference with no links that nobody has asked suggestions for
+    When the editor opens the Related section of that Reference
+    Then the suggestions are asked for once without a press and show as soon as the answer comes
+
   Scenario: Suggest more explains an empty result in plain words
     Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
     When the editor presses Suggest more and the site reports that the Reference has no summary vector, or a reason it does not know

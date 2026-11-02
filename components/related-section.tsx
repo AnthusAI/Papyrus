@@ -20,6 +20,9 @@ function failureText(_failure: unknown, fallback: string): string {
   return fallback;
 }
 
+/** References whose suggestions were asked for on opening, in this page's life: asked once, not on every visit to the panel. */
+const triedAutomatically = new Set<string>();
+
 function useEntries(load: (() => Promise<RelatedEntry[]>) | null) {
   const [entries, setEntries] = useState<RelatedEntry[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -329,6 +332,29 @@ export function RelatedSection({ disabledReason = null, hrefForReference, lineag
   const [suggesting, setSuggesting] = useState(false);
   const [suggestNote, setSuggestNote] = useState<string | null>(null);
   const disabled = Boolean(disabledReason);
+  const suggestMore = async () => {
+    if (!store) return;
+    setSuggesting(true);
+    setSuggestNote(null);
+    try {
+      const outcome = await store.suggest(referenceId ?? lineageId);
+      setLabels(current => ({ ...current, ...outcome.labels }));
+      if (outcome.skipped) setSuggestNote(suggestSkippedText(outcome.skipped));
+      void reload();   // the spinner stops now; the new rows appear when the list has been read again
+    } catch (failure) {
+      setSuggestNote(suggestFailureText(failure));
+    } finally {
+      setSuggesting(false);
+    }
+  };
+  // A Reference that is opened with no links and has not been tried gets its suggestions once, without a click (a failure or a skip is said in the same note).
+  const suggestKey = `${referenceId ?? lineageId}`;
+  useEffect(() => {
+    if (!store || disabled || state !== "ready" || entries.length || triedAutomatically.has(suggestKey)) return;
+    triedAutomatically.add(suggestKey);
+    void suggestMore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store, disabled, state, entries.length, suggestKey]);
   if (!store) return null;
   const labelled = entries.map(entry => (entry.state === "suggested" && labels[entry.item.lineageId] ? { ...entry, label: labels[entry.item.lineageId] } : entry));
   const concepts = labelled.filter(entry => entry.item.kind === "concept");
@@ -342,20 +368,6 @@ export function RelatedSection({ disabledReason = null, hrefForReference, lineag
   const explain: SaveExplanation = async (entry, text) => {
     await store.decide({ relationId: entry.relationId, decision: "accept", note: text });
     await reload();
-  };
-  const suggestMore = async () => {
-    setSuggesting(true);
-    setSuggestNote(null);
-    try {
-      const outcome = await store.suggest(referenceId ?? lineageId);
-      setLabels(current => ({ ...current, ...outcome.labels }));
-      if (outcome.skipped) setSuggestNote(suggestSkippedText(outcome.skipped));
-      await reload();
-    } catch (failure) {
-      setSuggestNote(suggestFailureText(failure));
-    } finally {
-      setSuggesting(false);
-    }
   };
   const addLink = async (item: RelatedItem) => {
     await store.create({ subjectLineageId: lineageId, objectKind: item.kind === "concept" ? "semanticNode" : "reference", objectLineageId: item.lineageId, predicate: "related_to" });

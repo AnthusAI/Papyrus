@@ -3022,6 +3022,23 @@ function parseAttachmentJson(text: string): unknown {
   }
 }
 
+const SEMANTIC_NODE_BY_LINEAGE_QUERY = `
+  query ListSemanticNodesByLineage($lineageId: String!, $sortDirection: ModelSortDirection, $limit: Int) {
+    listSemanticNodesByLineageAndVersion(lineageId: $lineageId, sortDirection: $sortDirection, limit: $limit) {
+      items { id lineageId versionNumber versionState nodeKey nodeKind displayName status }
+    }
+  }
+`;
+
+/** One concept by lineage id: its newest version, one request (no scan of the site's nodes). */
+export async function loadSemanticNodeByLineageId(lineageId: string): Promise<SemanticNodeRecord | null> {
+  const normalized = lineageId.trim();
+  if (!normalized) return null;
+  const data = await runGraphql<{ listSemanticNodesByLineageAndVersion?: { items?: Array<SemanticNodeRecord | null> } }>(
+    SEMANTIC_NODE_BY_LINEAGE_QUERY, { lineageId: normalized, sortDirection: "DESC", limit: 1 });
+  return data.listSemanticNodesByLineageAndVersion?.items?.find((node): node is SemanticNodeRecord => Boolean(node)) ?? null;
+}
+
 export async function loadNewsroomSemanticNodePage(options: NewsroomSemanticNodePageOptions = {}): Promise<NewsroomRecordPage<SemanticNodeRecord>> {
   return loadNewsroomFeedPage<SemanticNodeRecord>({
     query: NEWSROOM_SEMANTIC_NODE_FEED_QUERY,

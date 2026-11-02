@@ -48,9 +48,9 @@ Feature: Pending References are in the vector index as context, so the Related s
   Scenario: The router's pass indexes and suggests for the pending References too
     Given a publication whose Reference "one" was accepted at "2026-10-30T10:00:00Z" and "two" is pending since "2026-10-31T10:00:00Z"
     When the router's vector pass runs
-    Then both References are indexed and suggested for, the older first
+    Then both References are indexed and suggested for, the pending one first
     And the pass reports 1 newly accepted and 1 newly pending Reference
-    And the pass records "2026-10-31T10:00:00Z" as its new watermark
+    And the pass saves a place for the pending and the accepted group
 
   Scenario: Suggestions for a pending Reference come from accepted References only
     Given a pending Reference "reference-p" with a stored vector, another pending Reference close to it and an accepted one a little further
