@@ -344,6 +344,7 @@ def monitor_stories_command(flags: list[str]) -> None:
     fresh = run["freshness"]
     print("freshness\t" + (f"tau {fresh['tauDays']} days\texamples {fresh['examples']}" if fresh["tauDays"] else f"none\texamples {fresh['examples']}"))
     print(f"drafts\tattempted {run['attempted']}\tfailed the citation check {len(run['invalid'])}\tskipped {len(run['skipped'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")
+    print(f"standard\t{run['minimumStandard']}\tnothing to add {run['nothingToAdd']}\talready rejected {run['alreadyRejected']}\tconnections used {run['connectionsUsed']}\tcuration flag {run['curationFlag']['status']}")
     print(f"llm\t{run['model']}\tcalls {usage.get('calls', 0)}\tin {usage.get('inputTokens', 0)}\tout {usage.get('outputTokens', 0)}\tcost ${usage.get('costUsd', 0)}")
     review = run["review"]
     print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))
