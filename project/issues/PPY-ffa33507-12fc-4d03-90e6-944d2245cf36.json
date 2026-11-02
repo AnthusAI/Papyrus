@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ffa33507-12fc-4d03-90e6-944d2245cf36",
+  "title": "more-than-summary check on filed ideas and joint sentences in packs",
+  "description": "",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3ccdcbfd-7420-49a5-8aef-d5b41c7e5d7b",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T07:04:34.841530Z",
+  "updated_at": "2026-11-02T07:04:34.841567Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f40b3606-62a1-463d-8902-077333c466e5",
+  "title": "Dry-run replay and blinded before/after sample for the owner",
+  "description": "",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3ccdcbfd-7420-49a5-8aef-d5b41c7e5d7b",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T07:04:35.131534Z",
+  "updated_at": "2026-11-02T07:04:35.131566Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
