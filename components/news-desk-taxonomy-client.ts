@@ -64,7 +64,8 @@ import {
   type ConversationViewer,
 } from "../lib/conversation";
 import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments, postMessageMutation } from "../lib/post-message";
-import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { isStoryItemType, legacyStageKeysToLoad, storyItemTypeFilter, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { collectFilteredPage } from "../lib/story-stage-paging";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
@@ -2364,8 +2365,8 @@ export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPage
 }
 
 const CONTENT_ITEMS_BY_STAGE_QUERY = `
-  query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
-    listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+  query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $filter: ModelItemFilterInput, $limit: Int, $nextToken: String) {
+    listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, filter: $filter, limit: $limit, nextToken: $nextToken) {
       items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy }
       nextToken
     }
@@ -2386,7 +2387,7 @@ export async function loadNewsroomContentItemStagePage(
   limit: number = CONTENT_ITEM_COLUMN_PAGE_LIMIT,
 ): Promise<ContentItemStagePage> {
   if (isLocalPreviewEnabled()) {
-    const versionsInStage = createLocalPreviewContentItemVersions().filter(version => version.stage === stage);
+    const versionsInStage = createLocalPreviewContentItemVersions().filter(version => version.stage === stage && isStoryItemType(version.type));
     const offset = nextToken ? Number(nextToken) : 0;
     const followingOffset = offset + limit;
     return {
@@ -2399,23 +2400,24 @@ export async function loadNewsroomContentItemStagePage(
     graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
   };
   const field = "listItemsByStageAndUpdatedAt";
-  const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
-    query: CONTENT_ITEMS_BY_STAGE_QUERY,
-    variables: { stage, sortDirection: "DESC", limit, nextToken },
-    authMode: USER_POOL_AUTH_MODE,
-  });
-  assertNoGraphQLErrors(response.errors);
-  const connection = response.data?.[field];
-  if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
-  return {
-    versions: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[],
-    nextToken: connection.nextToken ?? null,
-  };
+  // Only story types, filtered in the query. The filter runs after DynamoDB reads a page, so read until the column has its page.
+  const page = await collectFilteredPage<ContentItemVersionRecord>(async (token, scanLimit) => {
+    const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
+      query: CONTENT_ITEMS_BY_STAGE_QUERY,
+      variables: { stage, sortDirection: "DESC", filter: storyItemTypeFilter(), limit: Math.max(limit, scanLimit), nextToken: token },
+      authMode: USER_POOL_AUTH_MODE,
+    });
+    assertNoGraphQLErrors(response.errors);
+    const connection = response.data?.[field];
+    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+    return { items: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[], nextToken: connection.nextToken ?? null };
+  }, { nextToken, wanted: limit });
+  return { versions: page.items, nextToken: page.nextToken };
 }
 
 const PUBLISHED_ITEMS_QUERY = `
-  query ListPublishedItems($limit: Int, $nextToken: String) {
-    listPublishedItems(limit: $limit, nextToken: $nextToken) {
+  query ListPublishedItems($filter: ModelPublishedItemFilterInput, $limit: Int, $nextToken: String) {
+    listPublishedItems(filter: $filter, limit: $limit, nextToken: $nextToken) {
       items { sourceItemId itemLineageId versionNumber type status title headline slug section publishedAt }
       nextToken
     }
@@ -2446,7 +2448,7 @@ export async function loadNewsroomPublishedContentItemVersions(): Promise<Conten
   do {
     const response: GraphQLConnectionResponse<PublishedItemBoardRow> = await client.graphql({
       query: PUBLISHED_ITEMS_QUERY,
-      variables: { limit: NEWSROOM_PAGE_LIMIT, nextToken },
+      variables: { filter: storyItemTypeFilter(), limit: NEWSROOM_PAGE_LIMIT, nextToken },
       authMode: USER_POOL_AUTH_MODE,
     });
     assertNoGraphQLErrors(response.errors);
