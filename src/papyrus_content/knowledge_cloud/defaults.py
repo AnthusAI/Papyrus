@@ -33,6 +33,8 @@ def default_vocabulary(publication: str) -> str:
     return DEFAULT_VOCABULARY.format(publication=publication)
 
 
-def default_outputs(api_id: str, region: str) -> str:
-    """The only part of ``amplify_outputs.json`` the run reads: the GraphQL endpoint of the publication's AppSync API."""
-    return json.dumps({"data": {"url": f"https://{api_id}.appsync-api.{region}.amazonaws.com/graphql"}}, indent=2) + "\n"
+def default_outputs(endpoint: str) -> str:
+    """The only part of ``amplify_outputs.json`` the run reads: the GraphQL endpoint of the publication's AppSync API.
+
+    ``endpoint`` is the API's real ``uris.GRAPHQL`` address; it cannot be built from the API id, whose host is a different identifier."""
+    return json.dumps({"data": {"url": endpoint}}, indent=2) + "\n"
