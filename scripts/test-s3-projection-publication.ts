@@ -397,6 +397,17 @@ const explicitPublication = { kind: "s3-projection" as const, projector: "web/pr
 assert.equal(resolveSitePublication({ publication: explicitPublication }, "markus"), explicitPublication, "an explicit publication is used as written");
 assert.equal(resolveSitePublication({ publication: explicitPublication }, "pretext"), explicitPublication);
 assert.equal(explicitPublication.projector, "web/projector.py");
+// PAPYRUS_EDGE_DISTRIBUTION_ARN (an Amplify branch variable) supplies or replaces edgeDistributionArn, so the ARN need not be in Git.
+const exampleEdgeArn = "arn:aws:cloudfront::111122223333:distribution/EEXAMPLE12345";
+const fromEnvironment = resolveSitePublication({ publication: explicitPublication }, "markus", { PAPYRUS_EDGE_DISTRIBUTION_ARN: exampleEdgeArn });
+assert.equal(fromEnvironment?.edgeDistributionArn, exampleEdgeArn, "the variable supplies the ARN");
+assert.equal(fromEnvironment?.projector, "web/projector.py", "the rest of the publication is kept");
+assert.equal(explicitPublication.edgeDistributionArn, undefined, "the configured object is not mutated");
+assert.equal(resolveSitePublication({ publication: { ...explicitPublication, edgeDistributionArn: edgeArn } }, "markus", { PAPYRUS_EDGE_DISTRIBUTION_ARN: exampleEdgeArn })?.edgeDistributionArn, exampleEdgeArn, "the variable wins over the literal");
+assert.equal(resolveSitePublication({ publication: { ...explicitPublication, edgeDistributionArn: edgeArn } }, "markus", {})?.edgeDistributionArn, edgeArn, "the literal still works");
+assert.equal(resolveSitePublication({ publication: { ...explicitPublication, edgeDistributionArn: edgeArn } }, "markus", { PAPYRUS_EDGE_DISTRIBUTION_ARN: "  " })?.edgeDistributionArn, edgeArn, "a blank variable is ignored");
+assert.equal(resolveSitePublication({ publication: false }, "markus", { PAPYRUS_EDGE_DISTRIBUTION_ARN: exampleEdgeArn }), undefined, "publication: false stays off");
+assert.match(problemsOf({ kind: "s3-projection", edgeDistributionArn: "arn:aws:s3:::bucket" }), /CloudFront distribution ARN/, "a wrong value is still rejected");
 assert.match(problemsOf({ kind: "s3-projection", reprojectOnDeploy: "yes" }), /reprojectOnDeploy must be a boolean/);
 assert.equal(reprojectDeployToken({ AWS_JOB_ID: "17" }), "job-17");
 assert.equal(reprojectDeployToken({}, () => 5), "time-5");

@@ -26,6 +26,26 @@ assert.throws(() => resolvePlugins(["reader-steering"]), /computeRoleArn/, "the 
 assert.throws(() => resolveReaderSteeringConfig({ ...base, computeRoleArn: "arn:aws:iam::123:role/x" }), /computeRoleArn/);
 assert.throws(() => resolveReaderSteeringConfig({ ...base, computeRoleArn: "*" }), /computeRoleArn/);
 
+// PAPYRUS_COMPUTE_ROLE_ARN (set on the Amplify branch by the app-shell stack) supplies or replaces computeRoleArn, so the ARN need not be in Git.
+{
+  const exampleRole = "arn:aws:iam::111122223333:role/ExampleComputeRole";
+  const previous = process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+  try {
+    delete process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+    const { computeRoleArn: _omitted, ...withoutRole } = base;
+    assert.throws(() => resolveReaderSteeringConfig(withoutRole as never), /computeRoleArn.*PAPYRUS_COMPUTE_ROLE_ARN/, "neither the setting nor the variable: a clear error naming both");
+    assert.equal(resolveReaderSteeringConfig(base as never).computeRoleArn, computeRoleArn, "the written value still works");
+    process.env.PAPYRUS_COMPUTE_ROLE_ARN = exampleRole;
+    assert.equal(resolveReaderSteeringConfig(withoutRole as never).computeRoleArn, exampleRole, "the variable supplies the role");
+    assert.equal(resolveReaderSteeringConfig(base as never).computeRoleArn, exampleRole, "the variable wins over the written value");
+    process.env.PAPYRUS_COMPUTE_ROLE_ARN = "not-an-arn";
+    assert.throws(() => resolveReaderSteeringConfig(base as never), /computeRoleArn/, "a malformed variable is rejected");
+  } finally {
+    if (previous === undefined) delete process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+    else process.env.PAPYRUS_COMPUTE_ROLE_ARN = previous;
+  }
+}
+
 const defaults = resolvePlugins([base])[0].config;
 assert.deepEqual(defaults, {
   computeRoleArn,

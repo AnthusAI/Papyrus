@@ -520,7 +520,8 @@ rejects((block) => { block.corpusKey = "Not A Key"; }, /knowledgeRun\.corpusKey 
 rejects((block) => { block.corpusKey = ""; }, /knowledgeRun\.corpusKey must be a non-empty string/);
 rejects((block) => { block.openAiKeyParameter = "no-slash"; }, /knowledgeRun\.openAiKeyParameter is invalid/);
 assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.knowledgeRun; return raw; })())), /has no knowledgeRun block/);
-assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.aws; return raw; })())), /needs aws\.accountId and aws\.region/);
+assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.aws; return raw; })())), /needs PAPYRUS_AWS_ACCOUNT_ID \(or aws\.accountId\) and aws\.region/);
+assert.equal(resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); raw.aws = { region: "us-east-1" }; return raw; })()), { PAPYRUS_AWS_ACCOUNT_ID: "111122223333" }).account, "111122223333", "the account may come from the environment");
 
 // Any site: a corpus key of its own, shared SSM parameters, and Shipped unchanged by all of it.
 const environmentOf = (built: { template: Template }): Record<string, string> =>

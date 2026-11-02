@@ -49,6 +49,26 @@ const with_ = (changes: Record<string, unknown>) => ({ ...base, ...changes });
 const refuses = (request: Record<string, unknown>, pattern: RegExp, message?: string) =>
   assert.throws(() => resolveNewsletterConfig(request as never), pattern, message);
 
+// PAPYRUS_COMPUTE_ROLE_ARN (set on the Amplify branch by the app-shell stack) supplies or replaces computeRoleArn, so the ARN need not be in Git.
+{
+  const exampleRole = "arn:aws:iam::111122223333:role/ExampleComputeRole";
+  const previous = process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+  try {
+    delete process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+    const { computeRoleArn: _omitted, ...withoutRole } = base;
+    assert.throws(() => resolveNewsletterConfig(withoutRole as never), /computeRoleArn.*PAPYRUS_COMPUTE_ROLE_ARN/, "neither the setting nor the variable: a clear error naming both");
+    assert.equal(resolveNewsletterConfig(base as never).computeRoleArn, computeRoleArn, "the written value still works");
+    process.env.PAPYRUS_COMPUTE_ROLE_ARN = exampleRole;
+    assert.equal(resolveNewsletterConfig(withoutRole as never).computeRoleArn, exampleRole, "the variable supplies the role");
+    assert.equal(resolveNewsletterConfig(base as never).computeRoleArn, exampleRole, "the variable wins over the written value");
+    process.env.PAPYRUS_COMPUTE_ROLE_ARN = "not-an-arn";
+    assert.throws(() => resolveNewsletterConfig(base as never), /computeRoleArn/, "a malformed variable is rejected");
+  } finally {
+    if (previous === undefined) delete process.env.PAPYRUS_COMPUTE_ROLE_ARN;
+    else process.env.PAPYRUS_COMPUTE_ROLE_ARN = previous;
+  }
+}
+
 // The manifest, the registry and the schema agree; the plugin opens nothing to guests and adds no model to the content API.
 assert.equal(KNOWN_PLUGINS.newsletter, newsletterPlugin);
 assert.deepEqual(newsletterManifest.guest.mutations, [], "no guest access");

@@ -231,7 +231,7 @@ papyrus site google-secrets set      # client id (visible prompt), secret (hidde
 papyrus site google-secrets check    # after the redeploy: parameters, fingerprints, deployed client id
 ```
 
-`set` reads `infra/site.json`, asserts the AWS account with STS before it writes anything (the expected account is `--account` or `aws.accountId` in `site.json`), finds the CMS app from the stack's `CmsAppId` output (or by app name), computes the SSM path below, writes both SecureStrings and confirms by fingerprint only. It prints the Authorized JavaScript origin and redirect URI to register in Google and the redeploy step. Flags: `--site`, `--profile`, `--account`, `--region`, `--app-id`, `--branch`, `--client-id`, `--secret-stdin`. It does not enable or disable Google OAuth (`PAPYRUS_DISABLE_GOOGLE_OAUTH` is separate).
+`set` reads `infra/site.json`, asserts the AWS account with STS before it writes anything (the expected account is `--account`, else `PAPYRUS_AWS_ACCOUNT_ID`, else `aws.accountId` in `site.json`), finds the CMS app from the stack's `CmsAppId` output (or by app name), computes the SSM path below, writes both SecureStrings and confirms by fingerprint only. It prints the Authorized JavaScript origin and redirect URI to register in Google and the redeploy step. Flags: `--site`, `--profile`, `--account`, `--region`, `--app-id`, `--branch`, `--client-id`, `--secret-stdin`. It does not enable or disable Google OAuth (`PAPYRUS_DISABLE_GOOGLE_OAUTH` is separate).
 
 Console alternative: AWS Amplify, the app, **Hosting**, **Secrets**, **Manage secrets**, add both names for branch `main`, save, then run a new build. The values come from the Google OAuth client; they never go into git, `site.json` or branch environment variables.
 

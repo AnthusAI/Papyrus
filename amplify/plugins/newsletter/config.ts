@@ -1,3 +1,4 @@
+import { COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE, environmentOrConfigured } from "../../deploy-identifiers";
 import type { PluginRequest } from "../types";
 
 export const NEWSLETTER_SITE_ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
@@ -269,9 +270,9 @@ function resolveList(raw: unknown, index: number, instantAlerts: boolean): Newsl
 export function resolveNewsletterConfig(request: PluginRequest): NewsletterConfig {
   const raw = record(typeof request === "string" ? { name: request } : request, "settings", [...KNOWN_KEYS]);
   const siteId = matching(raw.siteId, "siteId", NEWSLETTER_SITE_ID, "a lowercase site id (letters, digits, hyphens), the SiteId of the sending stack");
-  const computeRoleArn = raw.computeRoleArn;
+  const computeRoleArn = environmentOrConfigured(COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE, raw.computeRoleArn);
   if (typeof computeRoleArn !== "string" || !COMPUTE_ROLE_ARN.test(computeRoleArn)) {
-    fail("computeRoleArn must be the IAM role ARN of the CMS app's compute role (the CmsComputeRoleArn output)");
+    fail(`computeRoleArn must be the IAM role ARN of the CMS app's compute role (the CmsComputeRoleArn output); set the ${COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE} branch environment variable or the plugin's computeRoleArn`);
   }
   const sendingDomain = matching(raw.sendingDomain, "sendingDomain", HOSTNAME, "a lowercase domain name such as news.example.com");
   const fromAddress = text(raw.fromAddress, "fromAddress", 254);

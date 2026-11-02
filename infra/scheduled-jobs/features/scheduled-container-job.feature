@@ -166,4 +166,4 @@ Feature: Scheduled container jobs
   Scenario: invalid knowledgeRun config is rejected with the field name
     Given a knowledgeRun block with an unknown key, a missing site bucket, a bad KVS ARN, a bad vCPU, too little memory, a bad schedule or an unknown stage timeout
     Then validation fails naming the field, such as "knowledgeRun.siteBucket"
-    And a site without a knowledgeRun block, or without aws.accountId and aws.region, is rejected
+    And a site without a knowledgeRun block, or without an account (PAPYRUS_AWS_ACCOUNT_ID or aws.accountId) and aws.region, is rejected

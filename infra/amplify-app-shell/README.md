@@ -55,7 +55,7 @@ and `https://<staging domain>/` when staging is enabled and has a domain. Withou
 a domain the stack appends the app's default `https://main.<app>.amplifyapp.com/`
 (and `https://staging.<app>.amplifyapp.com/`) to the branch variable itself.
 
-Prospectus accounts (optional): set `cms.prospectusAccountsApiStageArn` to the
+Prospectus accounts (optional): set `cms.prospectusAccountsApiStageArn` (or the `PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN` environment variable, which wins and keeps the ARN out of Git) to the
 Prospectus accounts API stage, `arn:aws:execute-api:<region>:<account>:<api id>/api`,
 once the site is registered in Prospectus `accounts/papyrus-sites.json`. The stack
 grants the compute role `execute-api:Invoke` on exactly the site routes Prospectus
@@ -119,9 +119,13 @@ Optional `stackName` (default `amplify-app-shell-<siteId>`) names the CloudForma
 stack, so a new stack for the same `siteId` can coexist with an older one until the
 older stack is deleted. Existing sites that omit it synthesize identically.
 
-Optional `aws` (`profile`, `accountId`, `region`) tells operator tooling where the site
-lives; `papyrus site google-secrets` asserts `accountId` with STS before it writes. The
-stack ignores it, so it never changes a synthesized template.
+Optional `aws` (`profile`, `region`, and the legacy `accountId`) tells operator tooling where the site
+lives. The account is better kept out of Git: set `PAPYRUS_AWS_ACCOUNT_ID` in the deploy environment
+and it wins over `aws.accountId`, which stays a working fallback. `papyrus site google-secrets` asserts the
+account with STS before it writes, and `papyrus-infra deploy` checks it against the credentials. See
+[AWS identifiers outside Git](../../docs/site-hosting.md#aws-identifiers-outside-git). The stack's template
+does not depend on it, apart from the account it deploys to. The stack sets `PAPYRUS_AMPLIFY_APP_ID` and
+`PAPYRUS_COMPUTE_ROLE_ARN` on its CMS branches for builds to read.
 
 The generated reader build runs `papyrus ops content export-published --auth guest`
 (Cognito identity pool guest, no credentials, no SSM token; boto3 comes with the

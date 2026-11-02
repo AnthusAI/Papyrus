@@ -1,3 +1,4 @@
+import { COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE, environmentOrConfigured } from "../../deploy-identifiers";
 import type { PluginRequest } from "../types";
 
 export const READER_DIMENSION_NAME = /^[a-z][a-z0-9-]{0,23}$/;
@@ -196,9 +197,9 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   const raw = typeof request === "string" ? { name: request } : request;
   const unknown = Object.keys(raw).filter((key) => !KNOWN_KEYS.has(key));
   if (unknown.length > 0) throw new Error(`Unknown reader-steering plugin settings: ${unknown.join(", ")}`);
-  const computeRoleArn = raw.computeRoleArn;
+  const computeRoleArn = environmentOrConfigured(COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE, raw.computeRoleArn);
   if (typeof computeRoleArn !== "string" || !COMPUTE_ROLE_ARN.test(computeRoleArn)) {
-    throw new Error("reader-steering plugin computeRoleArn must be the IAM role ARN of the CMS app's compute role (the CmsComputeRoleArn output)");
+    throw new Error(`reader-steering plugin computeRoleArn must be the IAM role ARN of the CMS app's compute role (the CmsComputeRoleArn output); set the ${COMPUTE_ROLE_ARN_ENVIRONMENT_VARIABLE} branch environment variable or the plugin's computeRoleArn`);
   }
   const dimensions = names(raw.dimensions, "dimensions", READER_DIMENSION_NAME);
   const reserved = dimensions.filter((dimension) => RESERVED_DIMENSIONS.includes(dimension));

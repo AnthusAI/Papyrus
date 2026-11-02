@@ -18,12 +18,12 @@ const cdk = path.join(shell, "node_modules/.bin/cdk");
 if (!fs.existsSync(cdk)) throw new Error("run `npm ci` in infra/amplify-app-shell first (the aws-cdk CLI is a devDependency)");
 
 const work = fs.mkdtempSync(path.join(os.tmpdir(), "papyrus-app-shell-account-"));
-const env = { ...process.env, TS_NODE_TRANSPILE_ONLY: "", CDK_DEFAULT_ACCOUNT: "", CDK_DEFAULT_REGION: "", CDK_DEFAULT_ENV: "" };
-const synth = (site, name) => {
+const env = { ...process.env, TS_NODE_TRANSPILE_ONLY: "", CDK_DEFAULT_ACCOUNT: "", CDK_DEFAULT_REGION: "", CDK_DEFAULT_ENV: "", PAPYRUS_AWS_ACCOUNT_ID: "", PAPYRUS_EDGE_DISTRIBUTION_ARN: "" };
+const synth = (site, name, extraEnvironment = {}) => {
   const out = path.join(work, `out-${name}`);
   const sitePath = path.join(work, `${name}.site.json`);
   fs.writeFileSync(sitePath, JSON.stringify(site));
-  const result = spawnSync(cdk, ["synth", "-c", `site=${sitePath}`, "--output", out, "--quiet"], { cwd: shell, env, encoding: "utf8" });
+  const result = spawnSync(cdk, ["synth", "-c", `site=${sitePath}`, "--output", out, "--quiet"], { cwd: shell, env: { ...env, ...extraEnvironment }, encoding: "utf8" });
   return { ...result, out };
 };
 
@@ -45,9 +45,29 @@ try {
   const withoutAccount = synth(withoutAws, "without-account");
   assert.notEqual(withoutAccount.status, 0, "synth without aws.accountId must fail");
   assert.match(withoutAccount.stderr, /does not say where it deploys/);
-  assert.match(withoutAccount.stderr, /aws\.accountId and aws\.region/);
+  assert.match(withoutAccount.stderr, /PAPYRUS_AWS_ACCOUNT_ID \(or aws\.accountId\) and aws\.region/);
   assert.equal(fs.existsSync(path.join(withoutAccount.out, "manifest.json")), false, "nothing is synthesized without an account");
   assert.equal(/335163751677/.test(withoutAccount.stderr), false, "no legacy account fallback");
+
+  // The account may come from the deploy environment, so site.json carries no account id at all.
+  const fromEnvironment = synth({ ...example, aws: { region: "us-east-1" } }, "from-environment", { PAPYRUS_AWS_ACCOUNT_ID: "111122223333" });
+  assert.equal(fromEnvironment.status, 0, `synth with PAPYRUS_AWS_ACCOUNT_ID failed:\n${fromEnvironment.stderr}`);
+  const environmentManifest = JSON.parse(fs.readFileSync(path.join(fromEnvironment.out, "manifest.json"), "utf8"));
+  assert.equal(Object.values(environmentManifest.artifacts).find((artifact) => artifact.type === "aws:cloudformation:stack").environment, "aws://111122223333/us-east-1");
+  const environmentOverLiteral = synth({ ...example, aws: { accountId: "123456789012", region: "us-east-1" } }, "environment-over-literal", { PAPYRUS_AWS_ACCOUNT_ID: "111122223333" });
+  assert.equal(environmentOverLiteral.status, 0, environmentOverLiteral.stderr);
+  const overManifest = JSON.parse(fs.readFileSync(path.join(environmentOverLiteral.out, "manifest.json"), "utf8"));
+  assert.equal(Object.values(overManifest.artifacts).find((artifact) => artifact.type === "aws:cloudformation:stack").environment, "aws://111122223333/us-east-1", "the environment wins over aws.accountId");
+  const template = JSON.parse(fs.readFileSync(path.join(fromEnvironment.out, fs.readdirSync(fromEnvironment.out).find((name) => name.endsWith(".template.json"))), "utf8"));
+  const branchVariables = Object.values(template.Resources).filter((resource) => resource.Type === "AWS::Amplify::Branch").flatMap((resource) => resource.Properties.EnvironmentVariables.map((variable) => variable.Name));
+  assert.ok(branchVariables.includes("PAPYRUS_AMPLIFY_APP_ID") && branchVariables.includes("PAPYRUS_COMPUTE_ROLE_ARN"), "the stack derives the owning app id and compute role for its branches");
+
+  const withEdge = synth({ ...example, aws: { region: "us-east-1" } }, "with-edge", { PAPYRUS_AWS_ACCOUNT_ID: "111122223333", PAPYRUS_EDGE_DISTRIBUTION_ARN: "arn:aws:cloudfront::111122223333:distribution/EEXAMPLE12345" });
+  assert.equal(withEdge.status, 0, withEdge.stderr);
+  const edgeTemplate = JSON.parse(fs.readFileSync(path.join(withEdge.out, fs.readdirSync(withEdge.out).find((name) => name.endsWith(".template.json"))), "utf8"));
+  const edgeVariables = Object.values(edgeTemplate.Resources).filter((resource) => resource.Type === "AWS::Amplify::Branch").flatMap((resource) => resource.Properties.EnvironmentVariables.map((variable) => variable.Name));
+  assert.ok(edgeVariables.includes("PAPYRUS_EDGE_DISTRIBUTION_ARN"), "a stack deploy carries the edge distribution ARN through, so the branch keeps it");
+  assert.equal(branchVariables.includes("PAPYRUS_EDGE_DISTRIBUTION_ARN"), false, "and adds nothing when the deploy environment has none");
 
   const regionless = synth({ ...example, aws: { accountId: "712236451410" } }, "regionless");
   assert.notEqual(regionless.status, 0, "synth without aws.region must fail");

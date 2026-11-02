@@ -108,6 +108,7 @@
     "test:infra-amplify-job-log": "node scripts/test-infra-amplify-job-log.mjs",
     "test:infra-cdk-environment": "node scripts/test-infra-cdk-environment.mjs",
     "test:infra-app-shell-account": "node scripts/test-infra-app-shell-account.mjs",
+    "test:infra-deploy-workflow": "node scripts/test-infra-deploy-workflow.mjs",
     "test:cognito-domain-prefix": "tsx scripts/test-cognito-domain-prefix.ts",
     "test:monitoring-receipt": "node scripts/test-monitoring-receipt.cjs",
     "test:google-email-verified-mapping": "tsx scripts/test-google-email-verified-mapping.ts",
