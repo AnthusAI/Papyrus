@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import { symmetricSubjectFirst, type RelatedEntry, type RelatedItem, type SuggestionLabel } from "../lib/reference-links";
+import { symmetricSubjectFirst, type LinkExplanation, type RelatedEntry, type RelatedItem, type SuggestionLabel } from "../lib/reference-links";
 import { compareSuggestions, type LinkSuggestion, type LinkSuggestionPage } from "../lib/link-suggestions";
 import { conceptKeysForHashtag } from "../lib/wiki";
 
@@ -17,6 +17,7 @@ export type ReferenceLinksStore = {
   searchConcepts: (text: string) => Promise<RelatedItem[]>;
   searchReferences: (text: string) => Promise<RelatedItem[]>;
   create: (input: { subjectLineageId: string; objectKind: "reference" | "semanticNode"; objectLineageId: string; predicate: string }) => Promise<{ relationId: string }>;
+  /** Accept or reject a link. `note` is the person's words: the explanation of an accepted link (it replaces the earlier words; "" clears them), the reason for a rejection. */
   decide: (input: { relationId: string; decision: "accept" | "reject"; note?: string }) => Promise<void>;
   suggest: (referenceId: string) => Promise<SuggestOutcome>;
   /** The Needs me queue: one page of open suggestions, from the cursor the last page returned (null for the first). Most likely first within the page. */
@@ -42,7 +43,15 @@ export type MemoryLink = {
   state: "current" | "suggested" | "rejected";
   provenance: string;
   similarity?: number | null;
+  /** The explanation an editor wrote when they accepted or made the link, and the ISO time they wrote it. */
+  note?: string;
+  noteAt?: string;
 };
+
+function explanationOfMemory(link: MemoryLink): LinkExplanation | null {
+  const text = link.note?.trim();
+  return link.state === "current" && text ? { text, by: "editor", at: link.noteAt ? link.noteAt.slice(0, 10) : null } : null;
+}
 
 function matchesWords(item: RelatedItem, text: string): boolean {
   const needle = text.trim().toLowerCase();
@@ -84,6 +93,7 @@ export function createMemoryReferenceLinksStore(options: {
     return {
       relationId: link.id, state: link.state, provenance: link.provenance, predicate: "related_to",
       direction: mine ? "outgoing" : "incoming", item, similarity: link.similarity ?? null, label: labels.get(otherId) ?? null,
+      explanation: explanationOfMemory(link),
     };
   };
   const suggestedPage = (cursor: string | null): LinkSuggestionPage => {
@@ -113,7 +123,7 @@ export function createMemoryReferenceLinksStore(options: {
         .filter(link => link.objectKind === "semanticNode" && link.objectLineageId === conceptLineageId && link.state === "current" && link.provenance === "human")
         .map(link => ({ link, item: itemFor("reference", link.subjectLineageId) }))
         .filter((found): found is { link: MemoryLink; item: RelatedItem } => Boolean(found.item))
-        .map(({ link, item }) => ({ relationId: link.id, state: "current" as const, provenance: link.provenance, predicate: "related_to", direction: "incoming" as const, item, similarity: null, label: null }));
+        .map(({ link, item }) => ({ relationId: link.id, state: "current" as const, provenance: link.provenance, predicate: "related_to", direction: "incoming" as const, item, similarity: null, label: null, explanation: explanationOfMemory(link) }));
     },
     async searchConcepts(text) {
       const concepts = [...items.values()].filter(item => item.kind === "concept" && item.nodeKey);
@@ -140,8 +150,15 @@ export function createMemoryReferenceLinksStore(options: {
       note({ type: "decide", ...input });
       const link = links.find(candidate => candidate.id === input.relationId);
       if (!link) throw new Error("That link is not here.");
+      const wasSuggested = link.state === "suggested";
       link.state = input.decision === "accept" ? "current" : "rejected";
-      if (input.decision === "accept") link.provenance = "suggested";
+      if (input.decision === "accept") {
+        // Like the backend, an accept replaces the earlier words; a link that was already current keeps its provenance.
+        if (wasSuggested) link.provenance = "suggested";
+        const words = input.note?.trim();
+        link.note = words || undefined;
+        link.noteAt = words ? new Date().toISOString() : undefined;
+      }
     },
     async suggest(referenceId) {
       note({ type: "suggest", referenceId });

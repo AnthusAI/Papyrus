@@ -5,6 +5,10 @@
  * A concept link is related_to from a Reference to a concept (metadata kind reference.concept); a Reference link is related_to between
  * two References, one row with the lower lineage id as subject (metadata kind reference.link). Only current and suggested rows are
  * shown; a rejected row is a person's "no" and stays out of sight.
+ *
+ * The explanation a person wrote when they accepted or made a link is `metadata.note` on the row. It is first-class: it is shown on the link
+ * (here), and it reaches the idea writer in a context pack (src/papyrus_content/ideas/context_packs.py). Only a link a person decided carries
+ * one; the note on a rejected row is a reason to learn from and is never shown as an explanation.
  */
 
 import { conceptHashtag, conceptNamePart } from "./wiki";
@@ -25,6 +29,9 @@ export type RelatedItem = {
 };
 
 export type RelatedLinkState = "current" | "suggested";
+
+/** What a person wrote about why two things are linked, and when. The author is only ever "an editor": the row holds an account id, not a name. */
+export type LinkExplanation = { text: string; by: "editor"; at: string | null };
 export type SuggestionLabel = "likely" | "possible";
 
 export type RelatedEntry = {
@@ -36,6 +43,8 @@ export type RelatedEntry = {
   item: RelatedItem;
   similarity: number | null;
   label: SuggestionLabel | null;
+  /** The editor's words on this link; absent or null when none were written, and never set on a suggestion. */
+  explanation?: LinkExplanation | null;
 };
 
 export type RelationRow = {
@@ -87,6 +96,25 @@ export function relationMetadata(row: Pick<RelationRow, "metadata">): Record<str
   } catch {
     return {};
   }
+}
+
+/**
+ * The explanation on a link row: the words in `metadata.note` of a current link that a person decided (decision accepted, or made by hand), decided by a
+ * person rather than an `auto:` rule. Anything else (a suggestion, a rejected row, a machine link, blank words) has none.
+ */
+export function linkExplanationOf(row: Pick<RelationRow, "metadata" | "relationState">): LinkExplanation | null {
+  if (row.relationState !== "current") return null;
+  const meta = relationMetadata(row);
+  const text = typeof meta.note === "string" ? meta.note.trim() : "";
+  const decidedBy = typeof meta.decidedBy === "string" ? meta.decidedBy : "";
+  const byPerson = meta.decision === "accepted" || meta.provenance === "human";
+  if (!text || !byPerson || decidedBy.startsWith("auto:")) return null;
+  return { text, by: "editor", at: isoDay(typeof meta.decidedAt === "string" ? meta.decidedAt : null) };
+}
+
+/** "Written by an editor on 2026-11-02": says who and when, in words. */
+export function explanationByline(explanation: LinkExplanation): string {
+  return `Written by an editor${explanation.at ? ` on ${explanation.at}` : ""}`;
 }
 
 export function relatedEdgeWords(predicate: string, direction: "outgoing" | "incoming"): string {
@@ -222,14 +250,15 @@ export function relatedEntriesFromRelations(input: {
       item,
       similarity: typeof row.score === "number" ? row.score : null,
       label: null,
+      explanation: linkExplanationOf(row),
     });
   }
   return entries;
 }
 
 /** References a person linked to a concept: current related_to rows from a Reference with provenance human. */
-export function editorLinkedReferenceLineages(conceptLineageId: string, relations: readonly RelationRow[]): Array<{ relationId: string; lineageId: string }> {
-  const found: Array<{ relationId: string; lineageId: string }> = [];
+export function editorLinkedReferenceLineages(conceptLineageId: string, relations: readonly RelationRow[]): Array<{ relationId: string; lineageId: string; explanation: LinkExplanation | null }> {
+  const found: Array<{ relationId: string; lineageId: string; explanation: LinkExplanation | null }> = [];
   const seen = new Set<string>();
   for (const row of relations) {
     if (seen.has(row.id)) continue;
@@ -237,7 +266,7 @@ export function editorLinkedReferenceLineages(conceptLineageId: string, relation
     if (row.subjectKind !== "reference" || row.objectKind !== "semanticNode" || row.objectLineageId !== conceptLineageId) continue;
     if (relationMetadata(row).provenance !== "human") continue;
     seen.add(row.id);
-    found.push({ relationId: row.id, lineageId: row.subjectLineageId });
+    found.push({ relationId: row.id, lineageId: row.subjectLineageId, explanation: linkExplanationOf(row) });
   }
   return found;
 }
