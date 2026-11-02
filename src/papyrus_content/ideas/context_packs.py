@@ -792,6 +792,20 @@ def similarity_p_value(similarity: float, background_mean: float, background_spr
     return min(1.0, 0.5 * math.erfc((similarity - background_mean) / (background_spread / math.sqrt(pairs)) / math.sqrt(2)))
 
 
+def typical_neighbour_pairs(mutual: Mapping[tuple[str, str], float], vectors: Mapping[str, list[float]]) -> dict[tuple[str, str], float]:
+    """The mutual-kNN pairs at least as similar as the site's typical nearest neighbour (the median, over the recent References, of each one's
+    similarity to its single nearest neighbour). Mutual kNN alone chains unrelated References into one component; a per-pair significance test
+    over all pairs leaves a small site with none. The cut is the site's own: a pair joins when its members are as close as a typical Reference is
+    to its closest one, so a real topic joins into one component and loose pairs do not. Components are then ranked by surprise, not gated."""
+    nearest = [max((dot(vector, other) for name, other in vectors.items() if name != lineage), default=None) for lineage, vector in vectors.items()]
+    nearest = sorted(value for value in nearest if value is not None)
+    if not nearest:
+        return {}
+    middle = len(nearest) // 2
+    typical = nearest[middle] if len(nearest) % 2 else (nearest[middle - 1] + nearest[middle]) / 2
+    return {pair: similarity for pair, similarity in mutual.items() if similarity >= typical}
+
+
 def distinctive_pairs(mutual: Mapping[tuple[str, str], float], background_mean: float, background_spread: float, significance: float) -> dict[tuple[str, str], float]:
     """The mutual-kNN pairs that are closer than the background pairs of the recent set at ``significance`` (Bonferroni over the mutual pairs): with
     k = ceil(sqrt(n)) mutual neighbours alone chain unrelated References into one component, so a pair joins only when its similarity stands out."""
@@ -853,7 +867,7 @@ def cluster_packs(context: Context) -> list[Pack]:
     older_pairs = {(member, other): similarity for member, row in graph.older.items() for other, similarity in row}
     kept_older = distinctive_pairs(older_pairs, mean_background, spread, context.config.significance)
     graph = replace(
-        graph, mutual=distinctive_pairs(graph.mutual, mean_background, spread, context.config.significance),
+        graph, mutual=typical_neighbour_pairs(graph.mutual, graph.vectors),
         older={member: tuple((other, similarity) for other, similarity in row if (member, other) in kept_older) for member, row in graph.older.items()},
     )
     groups = components_of(recent_lineages, [*confirmed, *graph.mutual])
@@ -905,8 +919,10 @@ def new_component_windows(context: Context, fresh: Mapping[str, list[str]], grap
             continue
         span = (context.today - min(days)).days + 1
         if pairs and background_spread > 0:
+            # Ranked, not gated: a new theme on a small site never clears a corrected test, and the design ranks new components by how much closer
+            # than the background their members are. The pack says "emerging"; the citation check, the gate and the editors judge the idea.
             corrected = min(1.0, similarity_p_value(mean, background_mean, background_spread, pairs) * tested)
-            if corrected <= context.config.significance:
+            if mean > background_mean:
                 found[key] = {
                     "windowBuckets": span, "windowDays": span, "bucketDays": DAY, "baselineBuckets": 0, "baselineDays": 0, "baselineCount": 0, "count": len(group),
                     "expected": round(len(graph.vectors) / max(total_components, 1), 3), "tested": tested, "correctedPValue": float(f"{corrected:.3g}"),
