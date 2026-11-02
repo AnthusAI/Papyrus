@@ -262,7 +262,7 @@ export function linkSuggestionItems(suggestions: readonly LinkSuggestion[], deci
       type: "link_suggestion",
       id: `link#${suggestion.relationId}`,
       title: `${linkEndName(suggestion.subject)} and ${linkEndName(suggestion.object)}`,
-      dek: `${concept ? "A Reference and a concept" : "Two References"} the vector index thinks belong together${match ? `: ${match}` : ""}.`,
+      dek: `${concept ? "A Reference and a concept" : "Two References"} that look like they belong together${match ? `: ${match}` : ""}.`,
       image: null,
       source: "Suggested link",
       host: suggestion.subject.host,

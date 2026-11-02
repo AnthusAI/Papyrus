@@ -147,7 +147,7 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
         data-needs-me-why
         onBlur={() => { if (!disabledReason) ratings.commitNote(item.id); }}
         onChange={(event) => ratings.setNote(item.id, event.target.value)}
-        placeholder={flag ? "Why? Optional. Tell the step what to do differently." : "Why? Optional. Your note teaches the AI."}
+        placeholder={flag ? "Why? Optional. Tell the step what to do differently." : item.type === "link_suggestion" ? "How are these connected, or why not? Optional. Your explanation stays with the link." : "Why? Optional. Your note teaches the AI."}
         value={note}
       />
       {locked ? <ReasonStatus feedback={rating.feedback} hasReason={Boolean(recorded.why)} unsaved={unsaved} /> : null}
@@ -299,7 +299,7 @@ export function LinkSuggestionBody(props: DetailProps & { payload: Extract<Needs
       <header className="space-y-1.5">
         <p className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><SparklesIcon aria-hidden="true" className="size-3.5" />Suggested{match ? <span data-link-close-match> · {match}</span> : null}</p>
         <h2 className="break-words text-xl font-bold leading-tight tracking-tight text-foreground">Should these be linked?</h2>
-        <p className="break-words text-sm text-muted-foreground">{object.kind === "concept" ? "A Reference and a concept the vector index thinks belong together." : "Two References the vector index thinks are about the same thing."} Your answer teaches the site.</p>
+        <p className="break-words text-sm text-muted-foreground">{object.kind === "concept" ? "This Reference and concept look like they belong together." : "These two References look like they are about the same thing."} Your answer teaches the site.</p>
       </header>
       <div className="@container"><div className="grid grid-cols-1 gap-3 @sm:grid-cols-2" data-link-suggestion-ends>
         <div className="grid content-start gap-1.5" data-link-end="subject">
