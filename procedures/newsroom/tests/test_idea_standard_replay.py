@@ -15,8 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ideas_fixtures import NOW  # noqa: E402
 from papyrus_content.ideas import standard_replay  # noqa: E402
 from papyrus_content.ideas.standard_replay import ReadOnlyClient, ReplayWriteRefused, replay_site, write_outputs  # noqa: E402
-from test_idea_more_than_summary import LinkedClient, REASON, editor_accepted, story  # noqa: E402
-from test_monitor_stories import PAGE, SUBJECTS, StoryModel, good_story, world  # noqa: E402
+from test_idea_more_than_summary import LinkedClient, REASON, editor_accepted  # noqa: E402
+from test_monitor_stories import PAGE, VERDICT_ADDS, StoryModel, is_point_check, world  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -35,22 +35,23 @@ class NoWritesClient(LinkedClient):
         return super().graphql(query, variables)
 
 
-class TwoWays(StoryModel):
-    """A summary when it is shown nothing the newsroom knows; a story resting on the editors' reason when it is. Each Reference gets its own subject, so the
-    ideas are not duplicates of one another."""
+class Writer(StoryModel):
+    """Each Reference gets its own subject, so the ideas are not duplicates of one another; the story rests on the editors' reason, and the point check says it
+    adds something unless the Reference is in ``restating``."""
+
+    def __init__(self, restating=(), **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.restating = set(restating)
+        self.last_source = None
 
     def __call__(self, url, headers, payload):
-        self.requests.append(payload)
-        model_input = json.loads(payload["input"])
-        number = int(re.search(r"example(\d+)\.org", model_input["source"]["url"]).group(1))
-        name, thing, place = SUBJECTS[(number - 1) % len(SUBJECTS)]
-        if "what_the_newsroom_knows" in model_input:
-            answer = story(
-                headline=(f"{name} checks {thing} against {place}", "I1"), dek=(f"Editors accepted {name} because checking {thing} bears on sourcing coverage.", "E1"),
-                body=[(f"{name} is an open tool that checks {thing} against their {place}.", "I1"), (f"The editors accepted {name} because claim checking matters to their sourcing coverage.", "I1", "E1")])
-        else:
-            answer = good_story(model_input["source"]["url"], number=number)
-        return {"status": "completed", "output_text": json.dumps(answer), "usage": self.usage}
+        if is_point_check(payload):
+            source = json.loads(payload["input"]).get("source") or {}
+            self.verdict = RESTATES if any(f"example{number}.org" in source.get("url", "") for number in self.restating) else VERDICT_ADDS
+        return super().__call__(url, headers, payload)
+
+
+RESTATES = {"verdict": "restates", "claim": "", "repeats_itself": False, "exposes_process": False, "reason": "It repeats the page."}
 
 
 def backend(count=4, reasoned=2):
@@ -61,7 +62,7 @@ def backend(count=4, reasoned=2):
 
 
 def run(client, model=None, **options):
-    return replay_site(client, site="example-site", corpus_key=None, transport=model or TwoWays(), max_cost_usd=options.pop("max_cost_usd", 5.0), fetch=lambda url: PAGE, now=NOW, **options)
+    return replay_site(client, site="example-site", corpus_key=None, transport=model or Writer(), max_cost_usd=options.pop("max_cost_usd", 5.0), fetch=lambda url: PAGE, now=NOW, **options)
 
 
 def test_the_read_only_client_passes_reads_and_refuses_everything_else():
@@ -82,46 +83,43 @@ def test_the_replay_writes_nothing_to_the_backend_and_raises_no_flag():
     client = backend()
     result = run(client)   # NoWritesClient fails the test on any change, even one the read-only wrapper missed
     assert client.reviews == {} and client.filed == []
-    assert result["arms"]["more-than-summary"]["nothingToAdd"] == 2
+    assert result["run"]["nothingToAdd"] == 2
 
 
-def test_both_arms_see_the_same_references_and_report_what_the_owner_asked_for():
+def test_the_replay_runs_the_standard_once_and_reports_what_the_owner_asked_for():
     result = run(backend())
-    old, new = result["arms"]["summary"], result["arms"]["more-than-summary"]
-    assert (old["candidates"], new["candidates"]) == (4, 4) and old["filed"] == 4 and new["filed"] == 2
-    assert old["nothingToAdd"] == 0 and new["nothingToAdd"] == 2
-    assert new["connectionsUsed"] == {"acceptReason": 2} and old["connectionsUsed"] == {"none": 4}
-    assert old["checkFailures"] == {} and new["checkFailures"] == {}
-    assert old["costUsd"] > 0 and new["costUsd"] > 0 and result["costUsd"] == pytest.approx(old["costUsd"] + new["costUsd"])
+    one = result["run"]
+    assert (one["candidates"], one["filed"], one["nothingToAdd"]) == (4, 2, 2) and one["minimumStandard"] == "more-than-summary"
+    assert one["connectionsUsed"] == {"acceptReason": 2} and one["checkFailures"] == {} and one["pointChecks"] == 2 and one["pointCheckFailed"] == 0
+    assert one["costUsd"] > 0 and result["costUsd"] == pytest.approx(one["costUsd"]) and "arms" not in result and "key" not in result
 
 
-def test_the_sample_pairs_the_same_reference_blind_and_the_key_says_which_was_which():
-    result = run(backend(), pairs=20)
-    assert result["pairs"] == 2   # only the two References both arms wrote
-    sample, key = result["sample"], result["key"]
-    assert "Version A" in sample and "Version B" in sample and "more-than-summary" not in sample and "summary" not in sample.split("Pair 1")[1].lower().replace("summarises", "")
-    assert "What the newsroom had on this Reference" in sample and REASON in sample and "[ source | adds | filler ]" in sample
-    for entry in key.values():
-        assert {entry["A"], entry["B"]} == {"summary", "more-than-summary"}
-    assert len({entry["A"] for entry in key.values()} | {"x"}) >= 1
+def test_the_replay_tries_every_reference_whatever_an_earlier_run_rejected():
+    result = run(backend(4, 4), model=Writer(restating=[1, 2]))
+    assert result["run"]["filed"] == 2 and result["run"]["pointCheckFailed"] == 2 and result["run"]["checkFailures"] == {"no_point_beyond_source": 2}
+    assert "## Rejected" in result["sampleText"] and "point_check_failed (no_point_beyond_source)" in result["sampleText"]
 
 
-def test_the_order_of_each_pair_is_random_but_the_same_for_the_same_seed():
-    first, second = run(backend(8, 8), seed=1), run(backend(8, 8), seed=1)
-    other = run(backend(8, 8), seed=2)
-    assert first["key"] == second["key"] and first["sample"] == second["sample"]
-    assert {entry["A"] for entry in first["key"].values()} == {"summary", "more-than-summary"}   # not always the same arm first
-    assert first["key"] != other["key"]
+def test_the_sample_shows_the_drafts_with_the_connections_and_the_point_checks_verdict():
+    result = run(backend(), sample=20)
+    assert result["sample"] == 2
+    text = result["sampleText"]
+    assert "What the newsroom had on this Reference" in text and REASON in text and "[ source | adds | filler ]" in text and "The point check said adds" in text
+    assert "Version A" not in text and "key" not in result
 
 
-def test_pairs_are_capped_at_the_number_asked_for():
-    assert run(backend(8, 8), pairs=3)["pairs"] == 3
+def test_the_sample_is_the_same_for_the_same_seed_and_capped_at_the_number_asked_for():
+    first, second = run(backend(8, 8), seed=1, sample=3), run(backend(8, 8), seed=1, sample=3)
+    other = run(backend(8, 8), seed=2, sample=3)
+    assert first["sampleText"] == second["sampleText"] and first["sample"] == 3 and first["sampleText"].count("[ source | adds | filler ]") > 0
+    assert first["sampleText"] != other["sampleText"]
+    assert run(backend(8, 8), sample=3)["sampleText"].count("\n## ") == 3
 
 
-def test_a_cost_ceiling_bounds_the_real_cost_of_both_arms_together():
+def test_a_cost_ceiling_bounds_the_real_cost():
     result = run(backend(8, 8), max_cost_usd=0.0017)
-    assert result["costUsd"] <= 0.0017 and result["arms"]["summary"]["stoppedBy"] == "cost"
-    assert result["arms"]["summary"]["modelCalls"] < 8
+    assert result["costUsd"] <= 0.0017 and result["run"]["stoppedBy"] == "cost"
+    assert result["run"]["modelCalls"] < 16
 
 
 def test_no_ceiling_no_replay():
@@ -129,14 +127,15 @@ def test_no_ceiling_no_replay():
         run(backend(), max_cost_usd=0)
 
 
-def test_the_outputs_are_local_files_and_the_sample_is_apart_from_the_key(tmp_path):
-    result = run(backend())
+def test_the_outputs_are_local_files(tmp_path):
+    result = run(backend(4, 4), model=Writer(restating=[1]))
     paths = write_outputs(result, tmp_path / "out")
-    assert json.loads(paths["key"].read_text()) == result["key"]
     summary = json.loads(paths["result"].read_text())
-    assert "sample" not in summary and "key" not in summary and summary["arms"]["summary"]["filed"] == 4
-    text = paths["sample"].read_text()
-    assert "more-than-summary" not in text and "Version A" in text and all(entry["A"] in ("summary", "more-than-summary") for entry in json.loads(paths["key"].read_text()).values())
+    assert "sampleText" not in summary and summary["run"]["filed"] == 3
+    assert "Pair" not in paths["sample"].read_text() and "## Rejected" in paths["sample"].read_text()
+    checks = json.loads(paths["pointChecks"].read_text())
+    assert len(checks) == 4 and sorted(row["failures"] != [] for row in checks) == [False, False, False, True]
+    assert set(path.name for path in (tmp_path / "out").iterdir()) == {"result.json", "sample.md", "point-checks.json"}
 
 
 def test_the_command_needs_a_ceiling_and_a_key_and_never_prints_the_key(monkeypatch, capsys, tmp_path):
@@ -151,8 +150,8 @@ def test_the_command_needs_a_ceiling_and_a_key_and_never_prints_the_key(monkeypa
     monkeypatch.setattr(script, "resolve_openai_api_key", lambda: secret)
     monkeypatch.setattr(script, "create_authoring_client", lambda: (backend(), {}))
     seen = {}
-    monkeypatch.setattr(script.synthesis, "openai_transport", lambda key: seen.setdefault("key", key) and TwoWays())
+    monkeypatch.setattr(script.synthesis, "openai_transport", lambda key: seen.setdefault("key", key) and Writer())
     monkeypatch.setattr(standard_replay.monitor_stories, "fetch_source", lambda url: PAGE)
     assert script.main(["--site", "example-site", "--max-cost-usd", "1", "--output-dir", str(tmp_path / "out")]) == 0
     printed = capsys.readouterr()
-    assert secret not in printed.out + printed.err and seen["key"] == secret and (tmp_path / "out" / "key.json").exists()
+    assert secret not in printed.out + printed.err and seen["key"] == secret and (tmp_path / "out" / "point-checks.json").exists() and not (tmp_path / "out" / "key.json").exists()

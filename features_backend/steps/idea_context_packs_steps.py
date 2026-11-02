@@ -562,6 +562,7 @@ def step_lively_related(context):
 @when("the context packs are built and the pack ideas are drafted")
 def step_related_build_and_draft(context):
     [context.related_pack] = [p for p in build_packs(context.related_inputs, support.LOOKUPS, now=support.NOW) if p.signal_type == "conversation"]
+    context.related_pack = pack_support.summarised(context.related_pack, *[row["handle"] for row in context.related_pack.references if row["status"] == "accepted"])
     client = pack_support.backend(context.related_pack)
     context.agent_result = pack_support.run(context.related_pack, client, pack_support.transport_of(pack_support.idea("Editors keep returning to one voice story", ["R1", "R2"])))
 

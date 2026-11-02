@@ -2478,6 +2478,7 @@ class Router:
                                                 now=datetime.fromtimestamp(self.now + passes, timezone.utc),   # a pass's run id (and so its review request) is its own
                                                 out_of_time=lambda stop_at=stop_at: self.time_left() < stop_at,
                                                 handled_references=self.automation_handled_references(publication), embedding_key=self.embedding_key,
+                                                retry_memory=self.retry_memory(pid),
                                                 read_watermark=lambda pid=pid: (self.store.get_any(self.monitor_id, watermark_sort_key(pid)) or {}).get("watermark"),
                                                 write_watermark=lambda value, pid=pid: self.store.put_any(
                                                     self.monitor_id, {"pk": pk(self.monitor_id), "sk": watermark_sort_key(pid), "watermark": value, "updatedAt": _iso(self.now)}))
@@ -2500,6 +2501,18 @@ class Router:
         for result in results.values():
             print(json.dumps({"monitorStories": result["status"], "monitorId": self.monitor_id, **result}))
         return results
+
+    def retry_memory(self, publication_id: str):
+        """The monitor-stories task's memory of rejected drafts (ideas/retry_memory.py), one row per Reference or pack in the router's own table."""
+        from .ideas import retry_memory as retry_rules
+
+        def recall(subject: str):
+            return self.store.get_any(self.monitor_id, retry_rules.sort_key(publication_id, subject))
+
+        def remember(subject: str, record) -> None:
+            self.store.put_any(self.monitor_id, {"pk": pk(self.monitor_id), "sk": retry_rules.sort_key(publication_id, subject), **record})
+
+        return retry_rules.CallbackMemory(recall, remember)
 
     def rotate(self, row: dict, note: str):
         """Move a checked row to the back of the queue so one stuck row cannot starve the rest."""

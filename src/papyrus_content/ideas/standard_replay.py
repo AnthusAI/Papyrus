@@ -1,19 +1,19 @@
-"""Replay of the idea minimum standard on one site's accepted References, read only (ticket PPY-f40b36; ``scripts/replay_idea_standard.py`` is the command).
+"""Replay of the idea standard on one site's accepted References, read only (ticket PPY-f40b36; ``scripts/replay_idea_standard.py`` is the command).
 
-For the accepted References that have no story yet, the single-item path runs twice on the same References in the same order: once with
-``minimumStandard`` ``summary`` (the old behaviour) and once with ``more-than-summary``. Both arms are dry runs: the model is asked and the draft checked, and
-nothing is filed, stored, marked or requested. The backend is wrapped in ``ReadOnlyClient``, which raises on anything that is not a read, and no review client is
-given, so no curation flag can be raised.
+For the accepted References that have no story yet, the single-item path runs once as a dry run: the model is asked, the draft checked and the point check
+judged, and nothing is filed, stored, marked or requested. The backend is wrapped in ``ReadOnlyClient``, which raises on anything that is not a read, no review
+client is given (so no curation flag can be raised) and no retry memory is given (so every Reference is tried, whatever an earlier run rejected).
 
 It writes (to a local directory only):
 
-* ``result.json``: per arm, the candidates, what would be filed, ``nothingToAdd``, the ``connectionsUsed`` histogram, the check failures by reason and the cost.
-* ``sample.md``: about twenty pairs for the owner to read. Each pair is the same Reference written both ways, shown as "Version A" and "Version B" in a random
-  order, with the connections the newsroom had for that Reference and every sentence numbered to mark as *from the source*, *adds something* or *filler*.
-* ``key.json``: which version was which, kept apart so the sample stays blind.
+* ``result.json``: the candidates, what would be filed, ``nothingToAdd``, the ``connectionsUsed`` histogram, the check failures by reason, the point check's
+  verdicts and the cost.
+* ``sample.md``: about twenty drafts that would be filed, for the owner to read. Each shows the connections the newsroom had for the Reference, every sentence
+  numbered to mark as *from the source*, *adds something* or *filler*, and the point check's verdict; then the drafts that were rejected, with the reasons.
+* ``point-checks.json``: every verdict, with the sentences it judged.
 
-``max_cost_usd`` is a ceiling on the real cost of both arms together (``draft_monitor_stories`` stops before a call that would pass it and meters every call from the
-usage the API returned). This module removes the summary standard's last use: delete ``connections.SUMMARY`` and ``SUMMARY_SYSTEM_PROMPT`` after the replay.
+``max_cost_usd`` is a ceiling on the real cost (``draft_monitor_stories`` stops before a call that would pass it and meters every call from the usage the API
+returned).
 """
 
 from __future__ import annotations
@@ -32,8 +32,7 @@ from .store import assert_private
 
 READS = ("list_", "get_")
 PLAIN_ATTRIBUTES = frozenset({"tenant_id", "endpoint"})
-ARMS = (connection_rules.SUMMARY, connection_rules.MORE_THAN_SUMMARY)
-DEFAULT_PAIRS = 20
+DEFAULT_SAMPLE = 20
 
 
 class ReplayWriteRefused(RuntimeError):
@@ -65,8 +64,8 @@ class ReadOnlyClient:
         return self._inner.graphql(query, variables)
 
 
-def arm_summary(run: Mapping[str, Any]) -> dict[str, Any]:
-    """What one arm did, in the shape the owner reads: candidates, filed, nothingToAdd, connectionsUsed, check failures by reason, cost."""
+def run_summary(run: Mapping[str, Any]) -> dict[str, Any]:
+    """What the run did, in the shape the owner reads: candidates, filed, nothingToAdd, connectionsUsed, check failures by reason, cost."""
     usage = run.get("usage") or {}
     return {
         "minimumStandard": run["minimumStandard"], "candidates": run["inputs"]["candidates"], "attempted": run["attempted"], "filed": len(run["drafts"]),
@@ -82,47 +81,44 @@ def sentences_of(draft: Mapping[str, Any]) -> list[str]:
     return [str(sentence["text"]) for sentence in draft["sentences"]]
 
 
-def pair_markdown(number: int, title: str, url: str, connections: connection_rules.Connections, versions: Mapping[str, Mapping[str, Any]]) -> list[str]:
-    lines = [f"## Pair {number}: {title}", "", url, "", "What the newsroom had on this Reference:", ""]
-    if connections.entries:
-        for entry in connections.entries:
-            row = entry.row
-            shown = row.get("text") or f"{row.get('title')}: {row.get('summary', '')}"
-            if entry.kind == connection_rules.EDITORS_EXPLANATION:
-                shown = row["editorsExplanation"]["text"]
-            lines.append(f"- {entry.handle} ({entry.kind}{', ' + row['link'] if row.get('link') else ''}): {shown}")
-    else:
-        lines.append("- nothing: no accept reason, comment or related Reference")
-    for name, draft in versions.items():
-        lines += ["", f"### Version {name}", ""]
-        for position, text in enumerate(sentences_of(draft), start=1):
-            lines.append(f"{position}. {text}    [ source | adds | filler ]")
-    return lines + [""]
+def connection_lines(connections: connection_rules.Connections) -> list[str]:
+    lines = ["What the newsroom had on this Reference:", ""]
+    if not connections.entries:
+        return lines + ["- nothing: no accept reason, comment or related Reference"]
+    for entry in connections.entries:
+        row = entry.row
+        shown = row.get("text") or f"{row.get('title')}: {row.get('summary', '')}"
+        if entry.kind == connection_rules.EDITORS_EXPLANATION:
+            shown = row["editorsExplanation"]["text"]
+        lines.append(f"- {entry.handle} ({entry.kind}{', ' + row['link'] if row.get('link') else ''}): {shown}")
+    return lines
 
 
-def build_pairs(
-    runs: Mapping[str, Mapping[str, Any]], knowledge: connection_rules.Knowledge, items: Mapping[str, Any], *, pairs: int, seed: int,
-) -> tuple[list[str], dict[str, dict[str, str]]]:
-    """(the sample as markdown lines, the key). A pair needs a draft from both arms for the same Reference; ``pairs`` of them are chosen at random and each is
-    shown in a random order."""
-    drafts = {arm: {draft["referenceLineageId"]: draft for draft in runs[arm]["drafts"]} for arm in ARMS}
-    both = sorted(set(drafts[connection_rules.SUMMARY]) & set(drafts[connection_rules.MORE_THAN_SUMMARY]))
-    chosen = sorted(random.Random(seed).sample(both, min(pairs, len(both))))
+def build_sample(run: Mapping[str, Any], knowledge: connection_rules.Knowledge, items: Mapping[str, Any], *, size: int, seed: int) -> list[str]:
+    """The sample as markdown lines: ``size`` of the drafts that would be filed, chosen at random, then the ones that were rejected and why."""
+    drafts = {draft["referenceLineageId"]: draft for draft in run["drafts"]}
+    chosen = sorted(random.Random(seed).sample(sorted(drafts), min(size, len(drafts))))
+    verdicts = {row["lineageId"]: row for row in run.get("pointChecks") or []}
     lines = [
-        "# Idea minimum standard: same Reference, written two ways", "",
-        f"{len(chosen)} pair(s) of {len(both)} References that both versions wrote. In each, mark every numbered sentence: **source** (it only restates the source), "
-        "**adds** (it says something the source does not) or **filler**. The versions are in random order; the key is in a separate file.", "",
+        "# Ideas under the standard: more than a summary", "",
+        f"{len(chosen)} of the {len(drafts)} drafts that would be filed. Mark every numbered sentence: **source** (it only restates the source), "
+        "**adds** (it says something the source does not) or **filler**.", "",
     ]
-    key: dict[str, dict[str, str]] = {}
-    generator = random.Random(f"{seed}-order")
     for number, lineage in enumerate(chosen, start=1):
-        order = list(ARMS)
-        generator.shuffle(order)
-        versions = {name: drafts[arm][lineage] for name, arm in zip("AB", order)}
-        key[f"pair-{number}"] = {"referenceLineageId": lineage, **{name: arm for name, arm in zip("AB", order)}}
-        item = items[lineage]
-        lines += pair_markdown(number, item.title, item.url, knowledge.connections_for(item), versions)
-    return lines, key
+        item, draft = items[lineage], drafts[lineage]
+        verdict = (verdicts.get(lineage) or {}).get("verdict") or {}
+        said = f"{verdict.get('verdict', 'not asked')}: {verdict.get('reason', '')}".rstrip(": ")
+        lines += [f"## {number}. {item.title}", "", item.url, "", *connection_lines(knowledge.connections_for(item)), "", f"The point check said {said}", ""]
+        lines += [f"{position}. {text}    [ source | adds | filler ]" for position, text in enumerate(sentences_of(draft), start=1)]
+        lines.append("")
+    rejected = [row for row in run["invalid"] if row.get("reason") in ("point_check_failed", "citation_check_failed")]
+    if rejected:
+        lines += ["## Rejected", ""]
+        for row in rejected:
+            why = ", ".join(row.get("failures") or []) or ", ".join(sorted({str(p["reason"]).split(":")[0] for p in (row.get("citationCheck") or {}).get("problems", [])}))
+            lines.append(f"- {row['title']}: {row['reason']} ({why}){' - ' + str(row['verdict'].get('reason')) if row.get('verdict') else ''}")
+        lines.append("")
+    return lines
 
 
 def replay_site(
@@ -132,7 +128,7 @@ def replay_site(
     corpus_key: str | None,
     transport: Callable,
     max_cost_usd: float,
-    pairs: int = DEFAULT_PAIRS,
+    sample: int = DEFAULT_SAMPLE,
     references: int | None = None,
     seed: int = 20261102,
     model: str | None = None,
@@ -141,7 +137,7 @@ def replay_site(
     now: datetime | None = None,
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Runs both arms and returns ``{"site", "arms", "pairs", "sample", "key", "costUsd"}``. Never writes to the backend (``ReadOnlyClient``)."""
+    """Runs the single-item path once as a dry run and returns ``{"site", "run", "sample", "sampleText", "costUsd", ...}``. Never writes to the backend (``ReadOnlyClient``)."""
     from . import synthesis
 
     if max_cost_usd <= 0:
@@ -152,34 +148,30 @@ def replay_site(
     items, _ = monitor_stories.collect_monitored_items(readonly, site=corpus_key or site, now=moment)
     by_lineage = {item.lineage_id: item for item in items if item.relevant is not False}
     order = sorted(by_lineage)
-    random.Random(seed).shuffle(order)   # a stop for cost must not favour one end of the list; both arms walk the same order
+    random.Random(seed).shuffle(order)   # a stop for cost must not favour one end of the list
     if references is not None:
         order = order[:references]
     knowledge = monitor_stories.default_knowledge(readonly)
-    runs: dict[str, dict[str, Any]] = {}
-    spent = 0.0
-    for arm in ARMS:
-        runs[arm] = monitor_stories.draft_monitor_stories(
-            client=readonly, site=site, context=held, json_store=None, transport=transport, idea_store=None, review_client=None,
-            model=model or synthesis.DEFAULT_MODEL, limit=None, dry_run=True, now=moment, fetch=fetch or monitor_stories.fetch_source, corpus_key=corpus_key,
-            explorer=explorer, ordered_candidates=order, minimum_standard=arm, knowledge=knowledge, maximum_cost_usd=max(max_cost_usd - spent, 0.0), judge_old_standard=True,
-        )
-        spent += float((runs[arm].get("usage") or {}).get("costUsd") or 0.0)
-    sample, key = build_pairs(runs, knowledge, by_lineage, pairs=pairs, seed=seed)
+    run = monitor_stories.draft_monitor_stories(
+        client=readonly, site=site, context=held, json_store=None, transport=transport, idea_store=None, review_client=None,
+        model=model or synthesis.DEFAULT_MODEL, limit=None, dry_run=True, now=moment, fetch=fetch or monitor_stories.fetch_source, corpus_key=corpus_key,
+        explorer=explorer, ordered_candidates=order, knowledge=knowledge, maximum_cost_usd=max_cost_usd,
+    )
+    spent = float((run.get("usage") or {}).get("costUsd") or 0.0)
+    lines = build_sample(run, knowledge, by_lineage, size=sample, seed=seed)
     return {
         "site": site, "corpusKey": corpus_key, "asOf": iso(moment), "seed": seed, "maxCostUsd": max_cost_usd, "costUsd": round(spent, 6), "referencesOffered": len(order),
-        "arms": {arm: arm_summary(runs[arm]) for arm in ARMS}, "pairs": len(key), "sample": "\n".join(sample) + "\n", "key": key,
-        "pointChecks": {arm: runs[arm].get("pointChecks") or [] for arm in ARMS},
+        "run": run_summary(run), "sample": min(sample, len(run["drafts"])),
+        "sampleText": "\n".join(lines) + "\n", "pointChecks": run.get("pointChecks") or [],
     }
 
 
 def write_outputs(result: Mapping[str, Any], directory: Path) -> dict[str, Path]:
-    """``result.json`` (without the sample text), ``sample.md`` and ``key.json``, in a private local directory."""
+    """``result.json`` (without the sample text), ``sample.md`` and ``point-checks.json``, in a private local directory."""
     target = assert_private(directory)
     target.mkdir(parents=True, exist_ok=True)
-    paths = {"result": target / "result.json", "sample": target / "sample.md", "key": target / "key.json", "pointChecks": target / "point-checks.json"}
-    paths["pointChecks"].write_text(json.dumps(result.get("pointChecks") or {}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    paths["result"].write_text(json.dumps({key: value for key, value in result.items() if key not in ("sample", "key", "pointChecks")}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    paths["sample"].write_text(str(result["sample"]), encoding="utf-8")
-    paths["key"].write_text(json.dumps(result["key"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths = {"result": target / "result.json", "sample": target / "sample.md", "pointChecks": target / "point-checks.json"}
+    paths["pointChecks"].write_text(json.dumps(result.get("pointChecks") or [], indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths["result"].write_text(json.dumps({key: value for key, value in result.items() if key not in ("sampleText", "pointChecks")}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths["sample"].write_text(str(result["sampleText"]), encoding="utf-8")
     return paths

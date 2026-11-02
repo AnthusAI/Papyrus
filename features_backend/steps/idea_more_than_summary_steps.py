@@ -23,12 +23,12 @@ sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
 from ideas_fixtures import NOW, reference  # noqa: E402
 from papyrus_content import monitoring_stories, review_requests  # noqa: E402
-from papyrus_content.ideas import connections as rules, monitor_stories, pack_stories, signal_inputs  # noqa: E402
+from papyrus_content.ideas import connections as rules, monitor_stories, pack_stories, retry_memory, signal_inputs  # noqa: E402
 from papyrus_content.ideas.signal_inputs import SignalMessage  # noqa: E402
 from papyrus_content.ideas.signal_queue import ReferenceSummaries  # noqa: E402
 from procedures.newsroom.tests.fake_idea_store import FakeIdeaStore  # noqa: E402
-from test_idea_more_than_summary import LinkedClient, Model, link, story  # noqa: E402
-from test_idea_pack_stories import acceptance_pack, backend as pack_backend, joined, run as run_pack, sentence, summarised, transport_of  # noqa: E402
+from test_idea_more_than_summary import ADDS, RESTATES, LinkedClient, Model, link, story, verdict  # noqa: E402
+from test_idea_pack_stories import ADDS as PACK_ADDS, acceptance_pack, backend as pack_backend, joined, run as run_pack, sentence, summarised, transport_of  # noqa: E402
 from test_monitor_stories import PAGE, context as site_context, provenance  # noqa: E402
 
 REASON = "Claim checking matters to our sourcing coverage."
@@ -38,8 +38,8 @@ UNREADABLE_DETAILS = {"likes": 5}
 def held(context) -> SimpleNamespace:
     if not hasattr(context, "mts"):
         context.mts = SimpleNamespace(
-            standard="more-than-summary", rows=[], summaries={}, comments=[], feed=[], unreadable=set(), shipped=True, model=Model(story()), client=None,
-            runs=[], only=None, connections=None, cut=None,
+            rows=[], summaries={}, comments=[], feed=[], unreadable=set(), shipped=True, model=Model(story()), client=None,
+            runs=[], only=None, connections=None, cut=None, memory=retry_memory.DictMemory(), limit=None, memory_broken=False,
         )
     return context.mts
 
@@ -64,6 +64,7 @@ def client_of(context) -> LinkedClient:
     state = held(context)
     if state.client is None:
         state.client = LinkedClient(references=state.rows, relations={}, incoming={}, sections=("Analysis", "Tools"), feed=state.feed)
+    state.client.feed[:] = state.feed   # the backend's link feed is what the scenario says it is now
     return state.client
 
 
@@ -91,11 +92,6 @@ def explanations_as_shipped(context):
 
 
 # --- the world -------------------------------------------------------------------------------------------------------------------
-
-
-@given('a site that holds its ideas to the minimum standard "{standard}"')
-def step_standard(context, standard):
-    held(context).standard = standard
 
 
 @given('the accepted Reference "{title}" with the editors\' reason "{reason}"')
@@ -138,16 +134,19 @@ def step_unreadable(context, title):
 
 
 @given('an editor commented on "{title}": "{text}"')
+@when('an editor commented on "{title}": "{text}"')
 def step_comment(context, title, text):
     held(context).comments.append((title, text))
 
 
 @given('editors linked "{first}" to "{second}"')
+@when('editors linked "{first}" to "{second}"')
 def step_linked(context, first, second):
     held(context).feed.append(link(row_of(context, first), row_of(context, second), state="current", score=None))
 
 
 @given('editors connected "{first}" to "{second}" and explained "{words}"')
+@when('editors connected "{first}" to "{second}" and explained "{words}"')
 def step_linked_explained(context, first, second, words):
     held(context).feed.append(link(row_of(context, first), row_of(context, second), state="current", score=None, note=words))
 
@@ -176,40 +175,109 @@ def step_reason_story(context):
     model_says(context, story())
 
 
-@given("the model writes a story that states the editors' reason as a fact")
-def step_fact_story(context):
+@given("the model writes a story that reports why the editors accepted the item")
+def step_process_story(context):
     model_says(context, story(dek=("Claim checking matters to sourcing coverage.", "E1"), body=[
-        ("Foo is an open tool that checks claims against their sources.", "I1"), ("Claim checking matters to sourcing coverage.", "E1", "I1")]))
+        ("Foo is an open tool that checks claims against their sources.", "I1"), ("The editors accepted it because claim checking matters to sourcing coverage.", "E1", "I1")]))
 
 
 @given("the model writes a story whose connecting sentence is about something else")
 def step_unrelated_story(context):
-    model_says(context, story(dek=("The editors liked a toaster.", "E1"), body=[("Foo is an open tool.", "I1"), ("The editors liked a toaster.", "I1", "E1")]))
+    model_says(context, story(dek=("A toaster is on sale.", "E1"), body=[("Foo is an open tool.", "I1"), ("A toaster is on sale.", "I1", "E1")]))
 
 
 @given("the model writes a story that calls claim checking a trend")
 def step_trend_story(context):
-    model_says(context, story(dek=("The editors see a trend in claim checking.", "E1")))
+    model_says(context, story(dek=("Claim checking shows a trend.", "E1")))
+
+
+@given("the model writes a story with no point")
+def step_no_point_story(context):
+    model_says(context, story(point=""))
 
 
 @given("the model writes a story that describes what the page contains")
 def step_describes_story(context):
     model_says(context, story(dek=("A commenter says claim checking is overdue.", "M1", "I1"), body=[
-        ("Foo is a tool that checks claims.", "I1"), ("A commenter says claim checking is overdue for the newsroom.", "M1", "I1")]))
+        ("Foo is a tool that checks claims.", "I1"), ("A commenter says claim checking is overdue for sourcing coverage.", "M1", "I1")]))
 
 
+@given("the model writes a story that rests on the comment and the editors' reason")
 @when("the model writes a story that rests on the comment and the editors' reason")
 def step_comment_story(context):
     model_says(context, story(dek=("A commenter says claim checking is overdue.", "M1", "I1"), body=[
-        ("A commenter says claim checking is overdue for the newsroom.", "M1", "I1"),
-        ("The editors accepted it because claim checking matters to their sourcing coverage.", "E1", "I1")]))
+        ("A commenter says claim checking is overdue for sourcing coverage.", "M1", "I1"),
+        ("Claim checking is the sourcing work this item is about.", "E1", "I1")]))
 
 
 @given("the model writes a story that rests on the related Reference")
 def step_related_story(context):
-    model_says(context, story(dek=("The editors link it to a tool that checks quotations against archives.", "E1", "R1"), body=[
+    model_says(context, story(dek=("A second tool checks quotations against archives, a form of claim checking.", "E1", "R1"), body=[
         ("A tool that checks quotations against archives is close to this item.", "R1"),
-        ("The editors accepted it because claim checking matters to their sourcing coverage.", "E1", "I1")]))
+        ("Claim checking is the sourcing work both tools do.", "E1", "I1")]))
+
+
+ANSWERS = {
+    "restates its source": RESTATES,
+    "claims something its sources do not support": verdict(verdict="unsupported", claim="Foo is faster than every rival."),
+    "repeats itself": verdict(repeats_itself=True),
+    "talks about how the story came to be": verdict(exposes_process=True),
+    "adds something": ADDS,
+}
+
+
+@given("the point check answers that the draft {answer}")
+@when("the point check answers that the draft {answer}")
+def step_check_answers(context, answer):
+    model = held(context).model
+    model.verdict = ANSWERS[answer]
+    if hasattr(model, "usable"):
+        model.usable = True   # a check that could not answer before can now
+
+
+@given("the point check gives no usable answer")
+def step_check_unusable(context):
+    state = held(context)
+    inner = state.model
+
+    class Unsure(Model):
+        def __call__(self, url, headers, payload):
+            if payload["instructions"].startswith("You are a sceptical editor") and not self.usable:
+                self.requests.append(payload)
+                return {"status": "incomplete"}
+            return super().__call__(url, headers, payload)
+
+    unsure = Unsure(inner.answer, inner.verdict)
+    unsure.usable = False
+    state.model = unsure
+
+
+@given('the run considers "{title}" only')
+def step_considers(context, title):
+    held(context).only = title
+
+
+@given('"{title}" was rejected before and nothing new is known about it')
+def step_rejected_before(context, title):
+    state = held(context)
+    knowledge = knowledge_of(context)
+    items, _ = monitor_stories.collect_monitored_items(client_of(context), site="example-site", now=NOW)
+    item = next(item for item in items if item.title == title)
+    keys = retry_memory.single_keys(knowledge.connections_for(item))
+    subject = retry_memory.single_subject(item.lineage_id)
+    state.memory.remember(subject, retry_memory.rejection(subject, run_id="earlier", at="2026-10-22T00:00:00Z", reasons=["point_check_failed"], keys=keys))
+
+
+@given("the memory of rejections is unavailable")
+def step_memory_broken(context):
+    class Broken:
+        def recall(self, subject):
+            raise RuntimeError("no table")
+
+        def remember(self, subject, record):
+            raise RuntimeError("no table")
+
+    held(context).memory = Broken()
 
 
 # --- the run -----------------------------------------------------------------------------------------------------------------------
@@ -222,8 +290,8 @@ def run_ideas(context, *, dry_run=False):
     with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}), explanations_as_shipped(context):
         run = monitor_stories.draft_monitor_stories(
             client=client, site="example-site", context=site_context(), json_store=None, transport=state.model, idea_store=FakeIdeaStore(client), review_client=client,
-            limit=None, dry_run=dry_run, now=NOW, fetch=lambda url: None if url in state.unreadable else PAGE, minimum_standard=state.standard, knowledge=knowledge_of(context),
-            ordered_candidates=[row_of(context, state.only)["lineageId"]] if state.only else None,
+            limit=state.limit, dry_run=dry_run, now=NOW, fetch=lambda url: None if url in state.unreadable else PAGE, knowledge=knowledge_of(context),
+            ordered_candidates=[row_of(context, state.only)["lineageId"]] if state.only else None, retry_memory=state.memory,
         )
     state.runs[-1] = run
     return run
@@ -245,9 +313,30 @@ def step_only(context, title):
     run_ideas(context)
 
 
+@when('the run drafts ideas with room for {attempts:d} attempt')
+def step_room(context, attempts):
+    held(context).limit = attempts
+    run_ideas(context)
+
+
 @when('an editor accepts "{title}" again and writes "{reason}"')
 def step_accepts_again(context, title, reason):
     row_of(context, title).update(curationActorKind="human", curationStatusReason=reason)
+
+
+@when('editors confirm the link between "{first}" and "{second}"')
+def step_confirm(context, first, second):
+    held(context).feed[:] = [link(row_of(context, first), row_of(context, second), state="current", score=None)]
+
+
+@when('the link between "{first}" and "{second}" goes away')
+def step_gone(context, first, second):
+    held(context).feed[:] = []
+
+
+@when('the link between "{first}" and "{second}" comes back')
+def step_back(context, first, second):
+    held(context).feed[:] = [link(row_of(context, first), row_of(context, second), state="current", score=None)]
 
 
 def last(context):
@@ -274,6 +363,23 @@ def step_asked(context, count):
     assert len(held(context).model.requests) == count
 
 
+@then("the model was asked nothing in that run")
+def step_asked_nothing(context):
+    assert last(context)["usage"]["calls"] == 0 and last(context)["attempted"] == 0, last(context)["usage"]
+
+
+@then("the point check was not asked")
+def step_check_not_asked(context):
+    assert held(context).model.checks == []
+
+
+@then("the point check was asked once about the idea and found that it adds something")
+def step_check_asked(context):
+    model = held(context).model
+    [check] = last(context)["pointChecks"]
+    assert len(model.checks) == 1 and check["failures"] == [] and check["verdict"]["verdict"] == "adds" and check["sentences"], check
+
+
 @then('"{title}" is skipped as "{reason}"')
 def step_skipped(context, title, reason):
     assert [(row["title"], row["reason"]) for row in last(context)["skipped"]] == [(title, reason)], last(context)["skipped"]
@@ -285,10 +391,10 @@ def step_failed(context, reasons):
     assert all(reason in failures for reason in re.findall(r'"([\w:]+)"', reasons)), failures
 
 
-@then("the model was shown the editors' reason marked as their view and not as a fact")
+@then("the model was shown the editors' reason marked as direction and not as a fact")
 def step_shown(context):
-    shown = json.loads(held(context).model.requests[0]["input"])["what_the_newsroom_knows"][0]
-    assert shown["handle"] == "E1" and shown["writtenBy"] == "editor" and shown["text"] == REASON and "not a fact" in shown["note"], shown
+    shown = json.loads(held(context).model.drafting[0]["input"])["what_the_newsroom_knows"][0]
+    assert shown["handle"] == "E1" and shown["writtenBy"] == "editor" and shown["text"] == REASON and "not a fact" in shown["note"] and "not to be reported" in shown["note"], shown
 
 
 @then("the idea records the connections {labels}")
@@ -348,9 +454,61 @@ def step_no_flag(context):
     assert flags(context) == []
 
 
-@then("the model was not shown what the newsroom knows")
-def step_not_shown(context):
-    assert "what_the_newsroom_knows" not in json.loads(held(context).model.requests[0]["input"])
+@then("the point check's verdict and the draft's sentences are in the run record")
+def step_verdict_recorded(context):
+    [invalid] = last(context)["invalid"]
+    [check] = last(context)["pointChecks"]
+    assert invalid["verdict"] == check["verdict"] and invalid["failures"] == check["failures"] and check["sentences"] and check["point"], (invalid, check)
+
+
+@then('nothing is remembered about "{title}"')
+def step_nothing_remembered(context, title):
+    assert held(context).memory.records == {}, held(context).memory.records
+
+
+def remembered(context, title):
+    return held(context).memory.recall(retry_memory.single_subject(row_of(context, title)["lineageId"]))
+
+
+@then('"{title}" is remembered as rejected for "{reason}"')
+def step_remembered(context, title, reason):
+    record = remembered(context, title)
+    assert record is not None and record["reasons"] == [reason] and record["runId"] == last(context)["runId"] and record["connections"], record
+
+
+@then('"{title}" is remembered as rejected for "{reason}" against the accept reason')
+def step_remembered_against(context, title, reason):
+    record = remembered(context, title)
+    assert record["reasons"] == [reason] and [key.split(":")[0] for key in record["connections"]] == ["acceptReason"], record
+
+
+KEY_OF_CONNECTION = {
+    "a new comment": ("message:",), "a new accept reason": ("acceptReason:",), "a new confirmed link": ("neighbour:", ":confirmed"),
+    "a new link and explanation": ("neighbour:", "explanation:"),
+}
+
+
+@then('the run record says "{title}" was tried again because of {connection}')
+def step_tried_again(context, title, connection):
+    retries = [row for row in last(context)["retriedWithNewConnections"] if row["subject"] == retry_memory.single_subject(row_of(context, title)["lineageId"])]
+    assert len(retries) == 1, last(context)["retriedWithNewConnections"]
+    joined_keys = " ".join(retries[0]["newConnections"])
+    assert all(part in joined_keys for part in KEY_OF_CONNECTION[connection]) and retries[0]["earlierReasons"] == ["point_check_failed"], retries
+
+
+@then('the idea targets "{title}"')
+def step_targets_one(context, title):
+    assert [json.loads(row["targets"]) for row in client_of(context).filed] == [[{"type": "entity", "id": f"reference:{row_of(context, title)['lineageId']}"}]]
+
+
+@then("the run record names the memory as unavailable")
+def step_memory_named(context):
+    assert last(context)["retryMemoryErrors"] == {"recall": "RuntimeError", "remember": "RuntimeError"} or "recall" in last(context)["retryMemoryErrors"], last(context)
+
+
+@then("the flag says a rejected idea is written again as soon as there is something new to connect it to")
+def step_flag_retry(context):
+    assert "written again as soon as there is something new to connect it to" in flags(context)[0]["ask"]
 
 
 # --- reading connections ---------------------------------------------------------------------------------------------------------
@@ -404,28 +562,30 @@ def step_cut(context, value):
     assert abs(held(context).cut - value) < 1e-9, held(context).cut
 
 
-# --- the setting -----------------------------------------------------------------------------------------------------------------
+# --- the retired setting ---------------------------------------------------------------------------------------------------------
 
 
-@then('a site that says nothing about its minimum standard has "{standard}"')
-def step_default(context, standard):
-    assert monitoring_stories.validate_monitor_stories("p", None)["minimumStandard"] == standard
-    assert monitoring_stories.validate_monitor_stories("p", {})["minimumStandard"] == standard
+@then('a stored config with the retired setting "{name}" still loads')
+def step_retired_loads(context, name):
+    context.retired = {}
+    for value in ("summary", "more-than-summary", "anything"):
+        context.retired[value] = monitoring_stories.validate_monitor_stories("p", {name: value, "singleItem": True})
+    assert all(policy["singleItem"] is True for policy in context.retired.values())
 
 
-@then('a site may say "{standard}"')
-def step_may_say(context, standard):
-    assert monitoring_stories.validate_monitor_stories("p", {"minimumStandard": standard})["minimumStandard"] == standard
+@then("its value, whatever it was, changes nothing")
+def step_retired_ignored(context):
+    plain = monitoring_stories.validate_monitor_stories("p", {"singleItem": True})
+    assert all(policy == plain and "minimumStandard" not in policy for policy in context.retired.values())
 
 
-@then("any other minimum standard is refused")
-def step_refused(context):
-    for bad in ("anything", None, 3):
-        try:
-            monitoring_stories.validate_monitor_stories("p", {"minimumStandard": bad})
-        except ValueError:
-            continue
-        raise AssertionError(f"{bad!r} was accepted")
+@then("an unknown setting is still refused")
+def step_unknown_refused(context):
+    try:
+        monitoring_stories.validate_monitor_stories("p", {"minimumStandards": "summary"})
+    except ValueError:
+        return
+    raise AssertionError("an unknown setting was accepted")
 
 
 # --- packs -----------------------------------------------------------------------------------------------------------------------
@@ -464,10 +624,31 @@ def step_joined_without(context):
     context.idea = joined("Synthetic voices spread", ("R1", "R3"))
 
 
-@when('the pack is written under the minimum standard "{standard}"')
-def step_pack_run(context, standard):
-    context.transport = transport_of(context.idea) if hasattr(context, "idea") else transport_of()
-    context.result = run_pack(context.pack, pack_backend(context.pack), context.transport, standard=standard)
+@given("the pack's point check answers that the idea {answer}")
+def step_pack_check_answers(context, answer):
+    context.pack_verdict = {**PACK_ANSWERS[answer]}
+
+
+@given("the pack's point check gives no usable answer")
+def step_pack_check_unusable(context):
+    context.pack_verdict = {"status": "incomplete"}
+
+
+PACK_ANSWERS = {
+    "lists what each source says": {**PACK_ADDS, "verdict": "restates", "claim": "", "reason": "It lists what each source says."},
+    "claims something its sources do not support": {**PACK_ADDS, "verdict": "unsupported"},
+    "repeats itself": {**PACK_ADDS, "repeats_itself": True},
+    "talks about how the idea came to be": {**PACK_ADDS, "exposes_process": True},
+    "says something no single source says": PACK_ADDS,
+}
+
+
+@when("the pack is written")
+def step_pack_run(context):
+    ideas = [context.idea] if hasattr(context, "idea") else []
+    context.transport = transport_of(*ideas, verdict=getattr(context, "pack_verdict", PACK_ADDS))
+    context.client = pack_backend(context.pack)
+    context.result = run_pack(context.pack, context.client, context.transport)
 
 
 @then("the pack's model is asked {count:d} times")
@@ -483,6 +664,28 @@ def step_pack_skipped(context, reason):
 @then("the pack files no idea")
 def step_pack_none(context):
     assert context.result.filed_count == 0
+
+
+@then("the pack's point check is asked {count:d} times")
+def step_pack_checks(context, count):
+    assert len(context.transport.checks) == count
+
+
+@then("the point check was shown each Reference the idea cites on its own")
+def step_pack_sources(context):
+    sent = json.loads(context.transport.checks[0]["input"])
+    assert "source" not in sent and len(sent["sources"]) == 2 and "none of the sources states" in context.transport.checks[0]["instructions"], sent
+
+
+@then('the idea was dropped because the point check found "{reason}"')
+def step_pack_dropped_check(context, reason):
+    [drop] = context.result.dropped
+    assert drop["reason"] == "point_check_failed" and drop["failures"] == [reason] and drop["verdict"], drop
+
+
+@then("the idea was dropped because the point check gave no usable answer")
+def step_pack_dropped_error(context):
+    assert [drop["reason"] for drop in context.result.dropped] == ["point_check_error"] and context.result.filed_count == 0
 
 
 @then("the pack files {count:d} idea")
@@ -548,9 +751,17 @@ def step_replay_site(context):
 
 @when("the replay runs with a ceiling of {ceiling} dollars")
 def step_replay(context, ceiling):
-    from test_idea_standard_replay import TwoWays, run
+    from test_idea_standard_replay import Writer, run
 
-    context.replay = run(context.replay_client, TwoWays(), max_cost_usd=float(ceiling))
+    context.replay = run(context.replay_client, Writer(restating=getattr(context, "replay_restating", ())), max_cost_usd=float(ceiling))
+
+
+@given("the point check finds that the idea for the first of them only restates its source")
+def step_replay_restates(context):
+    context.replay_restating = [1]
+    from test_idea_standard_replay import backend
+
+    context.replay_client = backend(4, 4)
 
 
 @then("the site's backend received no write")
@@ -563,42 +774,98 @@ def step_no_reviews(context):
     assert context.replay_client.reviews == {}
 
 
-@then("the old way would file {old:d} ideas and the new way {new:d}")
-def step_ways(context, old, new):
-    arms = context.replay["arms"]
-    assert (arms["summary"]["filed"], arms["more-than-summary"]["filed"]) == (old, new), arms
+@then("the replay would file {new:d} ideas")
+def step_ways(context, new):
+    assert context.replay["run"]["filed"] == new, context.replay["run"]
 
 
-@then('the new way reports {count:d} References with nothing to add, resting on "{kind}"')
+@then('the replay reports {count:d} References with nothing to add, resting on "{kind}"')
 def step_report(context, count, kind):
-    arm = context.replay["arms"]["more-than-summary"]
-    assert arm["nothingToAdd"] == count and arm["connectionsUsed"] == {kind: 2} and "checkFailures" in arm and arm["costUsd"] > 0, arm
+    one = context.replay["run"]
+    assert one["nothingToAdd"] == count and one["connectionsUsed"] == {kind: 2} and "checkFailures" in one and one["costUsd"] > 0, one
 
 
-@then("the sample has {pairs:d} pairs, each in a version A and a version B, with the connections shown and no word of which standard wrote which")
-def step_sample(context, pairs):
-    sample = context.replay["sample"]
-    assert context.replay["pairs"] == pairs and sample.count("### Version A") == pairs and sample.count("### Version B") == pairs
-    assert sample.count("What the newsroom had on this Reference") == pairs and "more-than-summary" not in sample
+@then("the replay reports the point check's verdicts and the reasons drafts failed")
+def step_reasons(context):
+    one = context.replay["run"]
+    assert one["pointChecks"] == 4 and one["pointCheckFailed"] == 1 and one["checkFailures"] == {"no_point_beyond_source": 1}, one
 
 
-@then("the key names the standard behind each version")
-def step_key(context):
-    key = context.replay["key"]
-    assert len(key) == 2 and all({entry["A"], entry["B"]} == {"summary", "more-than-summary"} for entry in key.values())
+@then("the sample has {count:d} drafts, with the connections shown and the point check's verdict beside each")
+def step_sample(context, count):
+    text = context.replay["sampleText"]
+    assert context.replay["sample"] == count and text.count("What the newsroom had on this Reference") == count and text.count("The point check said") == count, text
+
+
+@then("the sample lists the rejected draft and why")
+def step_sample_rejected(context):
+    assert "## Rejected" in context.replay["sampleText"] and "point_check_failed (no_point_beyond_source)" in context.replay["sampleText"]
 
 
 @then("the replay's cost is within {ceiling} dollars and it stopped for cost")
 def step_cost(context, ceiling):
-    assert context.replay["costUsd"] <= float(ceiling) and context.replay["arms"]["summary"]["stoppedBy"] == "cost"
+    assert context.replay["costUsd"] <= float(ceiling) and context.replay["run"]["stoppedBy"] == "cost"
 
 
 @then("a replay with no ceiling is refused")
 def step_refused_ceiling(context):
-    from test_idea_standard_replay import TwoWays, run
+    from test_idea_standard_replay import Writer, run
 
     try:
-        run(context.replay_client, TwoWays(), max_cost_usd=0)
+        run(context.replay_client, Writer(), max_cost_usd=0)
     except ValueError:
         return
     raise AssertionError("a replay without a ceiling started")
+
+
+# --- a pack whose ideas were all rejected -------------------------------------------------------------------------------------------------
+
+
+@given("a context pack run on a site whose pack ideas the point check rejects")
+def step_pack_memory_world(context):
+    import idea_context_packs_steps as router_steps
+    import test_monitoring_packs as router_support
+
+    router_steps.start_patch(context, mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "iam"}))
+    router_steps.start_patch(context, mock.patch("papyrus_content.ideas.items.ItemStore", lambda client, **options: FakeIdeaStore(client, gate=options.get("gate"))))
+    router_steps.start_patch(context, mock.patch("papyrus_content.ideas.gate.HumanusGate.for_client", classmethod(lambda cls, client, **options: router_steps.FakeGate())))
+    filing = router_support.FilingRecorder(router_steps.Patching(context))
+    table, store = router_support.router(settings={router_support.PUBLICATION: {"singleItem": False, "contextPacks": {"enabled": True}}})
+    context.pack_memory = SimpleNamespace(
+        client=router_support.pack_world(2, lively=(1,), reasoned=False), table=table, store=store, filing=filing, support=router_support,
+        model=router_support.RouterModel(verdict={"verdict": "restates", "claim": "", "repeats_itself": False, "exposes_process": False, "reason": "It lists what each says."}),
+        lines=[],
+    )
+    repeat_run(context)
+
+
+def repeat_run(context):
+    state = context.pack_memory
+    _, lines = state.support.run_task(state.store, {state.support.PUBLICATION: state.client}, state.model)
+    state.lines.append(state.support.pack_lines(lines))
+
+
+@when("the run is repeated with nothing new in the pack")
+@when("the run is repeated")
+def step_repeat(context):
+    repeat_run(context)
+
+
+@when("another accepted Reference joins the pack")
+def step_joins(context):
+    state = context.pack_memory
+    row, links = state.support.human_vote(300, 0.2, "concept-voice")
+    state.client.references.append(row)
+    state.client.relations[row["lineageId"]] = links
+
+
+@then('the pack\'s model was not asked again and the run says the pack is "already_rejected"')
+def step_pack_waits(context):
+    state = context.pack_memory
+    assert len(state.model.pack_requests) == 1 and state.lines[0]["failedTheCheck"] == 2 and state.lines[1]["alreadyRejected"] == 1 and state.filing.filed == [], state.lines
+
+
+@then("the pack's model was asked again and the run says the pack was tried again because of a new connection")
+def step_pack_retried(context):
+    state = context.pack_memory
+    assert len(state.model.pack_requests) == 2 and state.lines[2]["retriedWithNewConnections"] == 1 and state.lines[2]["alreadyRejected"] == 0, state.lines

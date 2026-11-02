@@ -104,33 +104,56 @@ SUBJECTS = [("Foo", "claims", "sources"), ("Quill", "quotations", "archives"), (
             ("Orchid", "citations", "journals"), ("Basalt", "headlines", "bulletins"), ("Cobalt", "figures", "registries"), ("Juniper", "timelines", "ledgers")]
 
 
-def good_story(url, headline=None, cites=("I1",), number=1):
-    name, thing, place = SUBJECTS[(number - 1) % len(SUBJECTS)]
+REASON = "Claim checking matters to our sourcing coverage."
+VERDICT_ADDS = {"verdict": "adds", "claim": "It joins what the tool does to what the publication needs.", "repeats_itself": False, "exposes_process": False, "reason": "It makes a claim the source does not."}
 
-    def sentence(text):
-        return {"text": text, "cites": list(cites)}
+
+def good_story(url, headline=None, cites=("I1",), number=1):
+    """A draft that passes the citation rules and the standard's rules: the dek and one body sentence rest on the accept reason (E1) as well as the source."""
+    name, thing, place = SUBJECTS[(number - 1) % len(SUBJECTS)]
+    with_reason = (*cites, "E1") if cites else ()
+
+    def sentence(text, handles=cites):
+        return {"text": text, "cites": list(handles)}
 
     return {
+        "point": f"{name} gives claim checking in sourcing a tool for {thing}.",
         "headline": sentence(headline or f"{name} checks {thing} against {place}"),
-        "dek": sentence(f"{name} links each of the {thing} in a draft to the {place} page it came from."),
+        "dek": sentence(f"{name} links each of the {thing} in a draft to the {place} page it came from, which bears on claim checking.", with_reason),
         "section": "Tools",
         "paragraphs": [{"sentences": [
-            sentence(f"{name} is an open tool that checks {thing} against their {place}."),
+            sentence(f"{name} is an open tool that checks {thing} against their {place}, work that bears on claim checking and sourcing.", with_reason),
             sentence("It was released on 2026-10-20 and has 42 contributors."),
         ]}],
     }
 
 
-class StoryModel(FakeModel):
-    """Answers each request with the story its source URL maps to (the default story otherwise) and records the requests."""
+def is_point_check(payload):
+    return payload["instructions"].startswith("You are a sceptical editor")
 
-    def __init__(self, by_url=None, default=None, **kwargs) -> None:
+
+class StoryModel(FakeModel):
+    """Answers each drafting request with the story its source URL maps to (the default story otherwise), each point check with ``verdict`` (it adds
+    something, unless the test says otherwise), and records the requests. ``drafting`` holds the drafting requests and ``checks`` the point checks."""
+
+    def __init__(self, by_url=None, default=None, verdict=None, **kwargs) -> None:
         super().__init__([], **kwargs)
         self.by_url = by_url or {}
         self.default = default
+        self.verdict = verdict or VERDICT_ADDS
+
+    @property
+    def drafting(self):
+        return [payload for payload in self.requests if not is_point_check(payload)]
+
+    @property
+    def checks(self):
+        return [payload for payload in self.requests if is_point_check(payload)]
 
     def __call__(self, url, headers, payload):
         self.requests.append(payload)
+        if is_point_check(payload):
+            return {"status": "completed", "output_text": json.dumps(self.verdict), "usage": self.usage}
         source = json.loads(payload["input"])["source"]
         number = int(re.search(r"example(\d+)\.org", source["url"]).group(1))
         story = self.by_url.get(source["url"], self.default or good_story(source["url"], number=number))
@@ -145,8 +168,15 @@ def context():
     return {"mission": "Explain how AI systems fail.", "policy": "Prefer primary sources.", "sections": [{"id": "Analysis", "title": "Analysis"}, {"id": "Tools", "title": "Tools"}], "stories": []}
 
 
+def with_editors_reasons(client):
+    """Every accepted Reference has an editor's reason for the idea to rest on (the fixtures' own reasons are not a person's)."""
+    for row in client.references:
+        if row.get("curationStatus") == "accepted" and row.get("curationActorKind") != "human":
+            row.update(curationActorKind="human", curationStatusReason=REASON)
+
+
 def draft(client, model, *, fetch=None, limit=3, dry_run=False, json_store=None, idea_store=None, **options):
-    options.setdefault("minimum_standard", "summary")   # these tests are about reading, ranking, checking and filing; the standard has its own tests (test_idea_more_than_summary.py)
+    with_editors_reasons(client)   # these tests are about reading, ranking, checking and filing; the standard has its own tests (test_idea_more_than_summary.py)
     return stories.draft_monitor_stories(
         client=client, site=SITE, context=context(), json_store=json_store, transport=model, idea_store=idea_store, review_client=client,
         limit=limit, dry_run=dry_run, now=NOW, fetch=fetch or pages(1, 2, 3, 4), **options,
@@ -298,7 +328,7 @@ class DraftingTests(unittest.TestCase):
         rows, client = world(4, verdicts={1: 0.5, 2: 0.9, 3: 0.7, 4: 0.6})
         model = StoryModel()
         run = draft(client, model, limit=2)
-        self.assertEqual(len(model.requests), 2)
+        self.assertEqual((len(model.drafting), len(model.checks)), (2, 2))   # one drafting call and one point check for each
         self.assertEqual([entry["referenceId"] for entry in run["ranking"][:2]], [rows[1]["id"], rows[2]["id"]])
         self.assertEqual(len(run["drafts"]), 2)
         for record in run["drafts"]:
@@ -346,7 +376,7 @@ class DraftingTests(unittest.TestCase):
         _, client = world(2)
         model = StoryModel()
         run = draft(client, model, fetch=pages(2))
-        self.assertEqual(len(model.requests), 1)
+        self.assertEqual(len(model.drafting), 1)
         self.assertEqual([entry["reason"] for entry in run["skipped"]], ["no_source_text"])
         self.assertEqual(len(run["drafts"]), 1)
 
@@ -382,7 +412,7 @@ class DraftingTests(unittest.TestCase):
         model = StoryModel(by_url={rows[0]["sourceUri"]: bad})
         store = FakeIdeaStore(client)
         run = draft(client, model, limit=1, idea_store=store)
-        self.assertEqual(len(model.requests), 2)
+        self.assertEqual((len(model.drafting), len(model.checks)), (2, 1))   # the point check is asked only about the draft that passed the citation rules
         self.assertEqual([entry["reason"] for entry in run["invalid"]], ["citation_check_failed"])
         self.assertEqual(run["invalid"][0]["referenceId"], rows[0]["id"])
         self.assertEqual(len(client.filed), 1)
@@ -427,8 +457,9 @@ class DraftingTests(unittest.TestCase):
     def test_a_near_duplicate_of_an_existing_story_is_dropped(self) -> None:
         _, client = world(1)
         ctx = context()
-        ctx["stories"] = [{"id": "s1", "title": "Foo checks claims against sources", "summary": "Foo links each of the claims in a draft to the sources page it came from."}]
-        run = stories.draft_monitor_stories(client=client, site=SITE, context=ctx, json_store=None, transport=StoryModel(), now=NOW, fetch=pages(1), minimum_standard="summary")
+        with_editors_reasons(client)
+        ctx["stories"] = [{"id": "s1", "title": "Foo checks claims against sources", "summary": "Foo links each of the claims in a draft to the sources page it came from, which bears on claim checking."}]
+        run = stories.draft_monitor_stories(client=client, site=SITE, context=ctx, json_store=None, transport=StoryModel(), now=NOW, fetch=pages(1))
         self.assertEqual(run["drafts"], [])
         self.assertEqual(run["duplicates"][0]["reason"], "near_duplicate")
 
@@ -458,8 +489,8 @@ class DraftingTests(unittest.TestCase):
     def test_the_usage_of_every_call_is_recorded_for_the_ledger(self) -> None:
         _, client = world(2)
         run = draft(client, StoryModel(input_tokens=2000, output_tokens=300))
-        self.assertEqual(run["modelCalls"], [{"model": "gpt-6-luna", "promptTokens": 2000, "completionTokens": 300, "cachedTokens": 0}] * 2)
-        self.assertEqual((run["usage"]["calls"], run["usage"]["inputTokens"], run["usage"]["outputTokens"]), (2, 4000, 600))
+        self.assertEqual(run["modelCalls"], [{"model": "gpt-6-luna", "promptTokens": 2000, "completionTokens": 300, "cachedTokens": 0}] * 4)   # a drafting call and a point check for each of two
+        self.assertEqual((run["usage"]["calls"], run["usage"]["inputTokens"], run["usage"]["outputTokens"]), (4, 8000, 1200))
 
 
 class FilingTests(unittest.TestCase):
@@ -470,7 +501,7 @@ class FilingTests(unittest.TestCase):
         self.assertEqual(filed["kind"], "story_draft")
         self.assertEqual(filed["title"], "Foo checks claims against sources")
         self.assertEqual(json.loads(filed["targets"]), [{"type": "entity", "id": f"reference:{rows[0]['lineageId']}"}])
-        self.assertEqual(json.loads(filed["evidence"]), {"signals": 1, "source": f"huggingface monitor: {rows[0]['sourceUri']}", "connections": [], "minimumStandard": "summary"})
+        self.assertEqual(json.loads(filed["evidence"]), {"signals": 1, "source": f"huggingface monitor: {rows[0]['sourceUri']}", "connections": ["acceptReason"], "minimumStandard": "more-than-summary"})
         self.assertIn("## Source", filed["body"])
         self.assertIn(rows[0]["sourceUri"], filed["body"])
         self.assertEqual(run["drafts"][0]["itemLineageId"], filed["id"])
@@ -514,7 +545,7 @@ class FilingTests(unittest.TestCase):
         model = StoryModel()
         run = draft(client, model)
         self.assertEqual(run["inputs"]["promoted"], 1)
-        self.assertEqual(len(model.requests), 1)
+        self.assertEqual(len(model.drafting), 1)
         self.assertNotIn(rows[0]["id"], [entry["referenceId"] for entry in run["ranking"]])
 
     def test_a_dry_run_asks_the_model_but_files_stores_and_requests_nothing(self) -> None:
@@ -524,7 +555,7 @@ class FilingTests(unittest.TestCase):
             run = draft(client, model, dry_run=True, json_store=JsonStore(Path(directory)), idea_store=FakeIdeaStore(client))
             self.assertFalse(Path(directory, "ideas").exists())
             self.assertFalse(Path(directory, "runs").exists())
-        self.assertEqual(len(model.requests), 1)
+        self.assertEqual(len(model.drafting), 1)
         self.assertEqual((len(run["drafts"]), run["ideasCreated"], run["review"]["requested"]), (1, 0, False))
         self.assertEqual((client.filed, client.reviews), ([], {}))
 
@@ -538,6 +569,7 @@ class FilingTests(unittest.TestCase):
 class CommandTests(unittest.TestCase):
     def run_cli(self, argv, client, model, environment=None):
         out, err = io.StringIO(), io.StringIO()
+        with_editors_reasons(client)
         with mock.patch.object(commands, "create_authoring_client", return_value=(client, {})), \
              mock.patch.object(commands, "_idea_store", side_effect=lambda name, held: FakeIdeaStore(held) if name == "items" else None), \
              mock.patch.object(commands.synthesis, "openai_transport", return_value=model), \
@@ -549,7 +581,7 @@ class CommandTests(unittest.TestCase):
              mock.patch.object(commands, "datetime", FixedClock), mock.patch.object(commands.monitor_stories, "datetime", FixedClock), \
              redirect_stdout(out), redirect_stderr(err):
             clock.now.return_value = NOW
-            code = papyrus_cli.main(["--allow-cross-root", "ideas", "monitor-stories", "--minimum-standard", "summary", *argv])
+            code = papyrus_cli.main(["--allow-cross-root", "ideas", "monitor-stories", *argv])
         return code, out.getvalue() + err.getvalue()
 
     def test_a_dry_run_prints_the_ranked_drafts_without_filing(self) -> None:

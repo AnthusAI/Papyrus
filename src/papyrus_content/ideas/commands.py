@@ -19,7 +19,7 @@ from .excluded_hosts import normalize_hosts
 from ..papyrus_config import resolve_openai_api_key
 from . import digest as digest_module
 from ..knowledge_snapshot.trends import TrendConfig
-from . import connections as connection_rules, monitor_stories, synthesis, trends
+from . import monitor_stories, synthesis, trends
 from .context import corpus_ids_for, hosted_corpora, load_context
 from .digest import parse_window
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, render_report, synthesize
@@ -37,7 +37,7 @@ USAGE = (
     "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store items|json (default items)] [--dry-run] [--max 3] [--trend-config FILE] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold X (default: learned from editors' duplicate decisions)] [--max-cost-usd 0.50] [--story-days N (default: every story the site has)] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
-    "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--status accepted[,pending] (default: accepted only)] [--store items|json (default items)] [--minimum-standard more-than-summary|summary (default more-than-summary)] [--dry-run] [--model gpt-6-luna]\n"
+    "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--status accepted[,pending] (default: accepted only)] [--store items|json (default items)] [--dry-run] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold X (default: learned from editors' duplicate decisions)] [--max-cost-usd 0.50] [--story-days N (default: every story the site has)] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      [--packs-only | --single-only]\n"
     "      (with --store items, one queue of context packs and single items ranked by the newsroom's own signals; --packs-only drafts only theme ideas from packs,\n"
@@ -329,7 +329,6 @@ def monitor_stories_command(flags: list[str]) -> None:
         excluded_hosts=_excluded_hosts(flags),
         statuses=statuses,
         signal_run=signal_run,
-        minimum_standard=normalize_string(options.get("minimum-standard")) or connection_rules.DEFAULT_STANDARD,
     )
     report = normalize_string(options.get("report"))
     if report:
@@ -345,7 +344,7 @@ def monitor_stories_command(flags: list[str]) -> None:
     fresh = run["freshness"]
     print("freshness\t" + (f"tau {fresh['tauDays']} days\texamples {fresh['examples']}" if fresh["tauDays"] else f"none\texamples {fresh['examples']}"))
     print(f"drafts\tattempted {run['attempted']}\tfailed the citation check {len(run['invalid'])}\tskipped {len(run['skipped'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")
-    print(f"standard\t{run['minimumStandard']}\tnothing to add {run['nothingToAdd']}\tconnections used {run['connectionsUsed']}\tcuration flag {run['curationFlag']['status']}")
+    print(f"standard\t{run['minimumStandard']}\tnothing to add {run['nothingToAdd']}\talready rejected {run['alreadyRejected']}\tconnections used {run['connectionsUsed']}\tcuration flag {run['curationFlag']['status']}")
     print(f"llm\t{run['model']}\tcalls {usage.get('calls', 0)}\tin {usage.get('inputTokens', 0)}\tout {usage.get('outputTokens', 0)}\tcost ${usage.get('costUsd', 0)}")
     review = run["review"]
     print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))

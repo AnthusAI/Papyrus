@@ -41,6 +41,11 @@ Also answer:
 
 "reason" is one plain sentence saying why, for the person checking your work."""
 
+#: Added for a pack idea, which joins several sources: no one of them is "the source", and the reader can open any.
+SEVERAL_SOURCES = """
+
+This draft joins several sources, given as "sources" instead of one "source"; the reader can open any of them. Read "the source" above as each of them on its own: the draft adds something only if it makes a claim that none of the sources states by itself, such as where they agree or disagree, or what one reports that the others leave out. Summarising each source in turn, or listing what each says side by side, is "restates"."""
+
 SCHEMA: dict[str, Any] = {
     "type": "json_schema",
     "name": "point_check",
@@ -75,11 +80,17 @@ def failures(verdict: Mapping[str, Any]) -> list[str]:
 
 
 def judge(
-    transport: synthesis.Transport, model: str, source: Mapping[str, Any], material: Sequence[Mapping[str, Any]], sentences: Sequence[str],
+    transport: synthesis.Transport, model: str, source: Mapping[str, Any] | Sequence[Mapping[str, Any]], material: Sequence[Mapping[str, Any]], sentences: Sequence[str],
 ) -> tuple[dict[str, Any], synthesis.Usage]:
-    """(the verdict, the usage). Raises ``synthesis.SynthesisError`` when the answer is not a verdict; the caller then files nothing."""
-    model_input = {"source": dict(source), "other_material": [dict(row) for row in material], "headline": sentences[0], "dek": sentences[1], "body": list(sentences[2:])}
-    payload = synthesis.request_payload(model, model_input) | {"instructions": SYSTEM_PROMPT, "text": {"format": SCHEMA}, "max_output_tokens": MAXIMUM_OUTPUT_TOKENS}
+    """(the verdict, the usage). Raises ``synthesis.SynthesisError`` when the answer is not a verdict; the caller then files nothing.
+
+    ``source`` is the one page a single-item idea is about. For a pack idea it is the list of the References the idea cites: the draft is then judged
+    against each of them on its own (``SEVERAL_SOURCES``)."""
+    several = not isinstance(source, Mapping)
+    given = {"sources": [dict(row) for row in source]} if several else {"source": dict(source)}
+    model_input = {**given, "other_material": [dict(row) for row in material], "headline": sentences[0], "dek": sentences[1], "body": list(sentences[2:])}
+    payload = synthesis.request_payload(model, model_input) | {
+        "instructions": SYSTEM_PROMPT + (SEVERAL_SOURCES if several else ""), "text": {"format": SCHEMA}, "max_output_tokens": MAXIMUM_OUTPUT_TOKENS}
     body = transport(synthesis.RESPONSES_URL, {"Content-Type": "application/json"}, payload)
     text = synthesis.response_text(body)
     if body.get("status") == "incomplete" or text is None:

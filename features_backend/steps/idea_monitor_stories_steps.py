@@ -24,7 +24,7 @@ from papyrus_content.ideas.store import JsonStore  # noqa: E402
 from procedures.newsroom.tests.fake_idea_store import FakeIdeaStore  # noqa: E402
 from pdf_fixtures import make_pdf  # noqa: E402
 from test_idea_more_than_summary import REASON, story as connected_story  # noqa: E402
-from test_monitor_stories import PAGE, MonitorClient, StoryModel, context as site_context, decision, good_story, provenance  # noqa: E402
+from test_monitor_stories import PAGE, MonitorClient, StoryModel, context as site_context, decision, good_story, provenance, with_editors_reasons  # noqa: E402
 
 SITE = "example-site"
 
@@ -203,7 +203,7 @@ def run_drafts(context, *, limit=monitor_stories.DEFAULT_LIMIT, dry_run=False, p
     if held.model is None:
         held.model = StoryModel(by_url=held.overrides)
     held.model.by_url = held.overrides
-    options.setdefault("minimum_standard", getattr(held, "standard", "summary"))   # these scenarios are about reading, ranking, checking and filing; the standard has its own feature (idea-more-than-summary.feature)
+    with_editors_reasons(client)   # these scenarios are about reading, ranking, checking and filing: each accepted Reference has an editor's reason to rest on; the standard has its own feature (idea-more-than-summary.feature)
     with_concurrent_run(context, client)
     with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
         run = monitor_stories.draft_monitor_stories(
@@ -251,12 +251,6 @@ def step_rests_on_reason(context, title):
     story = connected_story()
     story["headline"]["text"] = f"{title} bears on our sourcing coverage"
     state(context).overrides[row["sourceUri"]] = story
-
-
-@when("the operator drafts monitor stories and files them as ideas with a limit of {limit:d} under the minimum standard")
-def step_files_standard(context, limit):
-    state(context).standard = "more-than-summary"
-    run_drafts(context, limit=limit, proposals=True)
 
 
 @then('the idea evidence records the connection "{label}"')
@@ -384,12 +378,12 @@ def step_already_drafted(context, title):
 
 @then("the model was asked exactly {count:d} times")
 def step_asked(context, count):
-    assert len(state(context).model.requests if state(context).model else []) == count
+    assert len(state(context).model.drafting if state(context).model else []) == count   # drafting calls; the point check after each draft is not counted
 
 
 @then("the model was asked exactly {count:d} times in all")
 def step_asked_all(context, count):
-    assert len(state(context).model.requests) == count
+    assert len(state(context).model.drafting) == count
 
 
 @then("the model was shown the text of the PDF as the source")

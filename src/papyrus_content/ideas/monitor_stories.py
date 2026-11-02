@@ -47,7 +47,7 @@ from ..link_exploration import Context, Exploration
 from ..knowledge_snapshot.monitor_records import discovery_details, discovery_monitor_id
 from ..monitor_promotion import promoted_reference_ids
 from ..reference_vote import HUMAN
-from . import connections as connection_rules, dedupe, duplicate_cut, point_check, synthesis, trends
+from . import connections as connection_rules, dedupe, duplicate_cut, point_check, retry_memory as retry_rules, synthesis, trends
 from .digest import CORPUS_PREFIX, collect_references, iso, parse_time, parse_window, relations_of, relevance_of
 from .excluded_hosts import is_excluded, normalize_hosts
 from . import source_text
@@ -76,6 +76,7 @@ MAXIMUM_PARAGRAPHS = 3
 MAXIMUM_OUTPUT_TOKENS = 3_000
 SOURCE_HANDLE = "I1"
 SUMMARY_KEYS = ("summary", "description")
+PACK_INVALID_REASONS = ("citation_check_failed", "point_check_failed", point_check.POINT_CHECK_ERROR)   # a pack idea dropped for what it says, listed with the drafts that failed
 
 SYSTEM_PROMPT = """You draft one short story idea for a publication from one item that a monitor found: a link to a page, with the page's text where it could be read and any facts the monitor stored. You are given the publication's mission and policy, its allowed sections, the source, other material bearing on it ("what_the_newsroom_knows"), and its recent and in-flight stories.
 
@@ -97,22 +98,6 @@ Rules:
 - Skip nothing and add nothing outside the format. Never use the word "desk".
 """
 
-# The old behaviour: a story that says what the item is, from the source alone. Kept only so the replay (scripts/replay_idea_standard.py) can compare it with
-# the prompt above on the same References; remove it, and ``minimumStandard: "summary"``, after the replay.
-SUMMARY_SYSTEM_PROMPT = """You draft one short news story for a publication from one item that a monitor found: a link to a page, with the page's text where it could be read and any facts the monitor stored. You are given the publication's mission and policy, its allowed sections, the source, and its recent and in-flight stories.
-
-Write for an informed reader. Say what the item is, who made or published it, what it says or does, and why it may matter to this publication's readers, using only what the source gives you. Plain, specific prose; no hype and no filler adjectives. Write one or two short paragraphs. The headline names the concrete thing. The dek says what is new about it in one specific sentence and does not restate the headline.
-
-Rules:
-- Every headline, dek and body sentence is its own entry with the handle it rests on, in "cites": the source handle (I1). A sentence with no handle, or a handle that is not one you were given, makes the whole draft unusable.
-- One sentence per entry. Do not put the handle in the text; refer to the source by its name. Write dates as ISO dates (2026-10-19), exactly as they appear in the source.
-- Use only what the source fields say. Do not invent facts, causes, quotes, dates or names, and do not explain why someone did something. A reading of what it may mean is allowed only if it is framed with "suggests" (or "points to") and rests on the source. Do not do arithmetic: write a number only if it appears in the source fields (write digits, not number words).
-- The source is an item from outside the publication, found by a monitor. Say where it is from. Never say the publication published, tested or reported it, and make no present-tense statement about the publisher's own production systems or results. The story is a proposal for an editor, not finished reporting.
-- If "page_text" is missing, the page could not be read: say only what the title, summary and facts say.
-- Choose the section from the allowed list, exactly as written.
-- Skip nothing and add nothing outside the format. Never use the word "desk".
-"""
-
 SCHEMA: dict[str, Any] = {
     "type": "json_schema",
     "name": "monitor_story_draft",
@@ -120,6 +105,7 @@ SCHEMA: dict[str, Any] = {
     "schema": {
         "type": "object",
         "properties": {
+            "point": {"type": "string"},
             "headline": trends.SENTENCE_SCHEMA,
             "dek": trends.SENTENCE_SCHEMA,
             "section": {"type": "string"},
@@ -128,19 +114,8 @@ SCHEMA: dict[str, Any] = {
                 "items": {"type": "object", "properties": {"sentences": {"type": "array", "items": trends.SENTENCE_SCHEMA}}, "required": ["sentences"], "additionalProperties": False},
             },
         },
-        "required": ["headline", "dek", "section", "paragraphs"],
+        "required": ["point", "headline", "dek", "section", "paragraphs"],
         "additionalProperties": False,
-    },
-}
-
-
-#: The new standard's format adds the point; the old one's stays as it was for the replay.
-STANDARD_SCHEMA: dict[str, Any] = {
-    **SCHEMA,
-    "schema": {
-        **SCHEMA["schema"],
-        "properties": {"point": {"type": "string"}, **SCHEMA["schema"]["properties"]},
-        "required": ["point", *SCHEMA["schema"]["required"]],
     },
 }
 
@@ -437,20 +412,20 @@ def has_material(view: dict[str, Any]) -> bool:
     return any(key in view for key in ("page_text", "summary", "facts"))
 
 
-def build_input(item: MonitoredItem, view: dict[str, Any], context: dict[str, Any], connections: connection_rules.Connections | None = None) -> dict[str, Any]:
+def build_input(item: MonitoredItem, view: dict[str, Any], context: dict[str, Any], connections: connection_rules.Connections) -> dict[str, Any]:
     model_input = {
         "mission": context.get("mission"), "policy": context.get("policy"),
         "allowed_sections": [section["title"] for section in context.get("sections", [])],
         "source": view,
-        **({"what_the_newsroom_knows": connections.view()} if connections is not None else {}),
+        "what_the_newsroom_knows": connections.view(),
         "earlier_drafts": [{key: draft.get(key) for key in ("title", "state", "angle") if draft.get(key)} for draft in context.get("drafts", [])],
     }
     model_input["recent_and_in_flight_stories"] = synthesis.fit_stories(model_input, context)
     return model_input
 
 
-def call_model(transport: synthesis.Transport, model: str, model_input: dict[str, Any], prompt: str = SYSTEM_PROMPT, schema: dict[str, Any] = STANDARD_SCHEMA) -> tuple[dict[str, Any], synthesis.Usage]:
-    payload = synthesis.request_payload(model, model_input) | {"instructions": prompt, "text": {"format": schema}, "max_output_tokens": MAXIMUM_OUTPUT_TOKENS}
+def call_model(transport: synthesis.Transport, model: str, model_input: dict[str, Any]) -> tuple[dict[str, Any], synthesis.Usage]:
+    payload = synthesis.request_payload(model, model_input) | {"instructions": SYSTEM_PROMPT, "text": {"format": SCHEMA}, "max_output_tokens": MAXIMUM_OUTPUT_TOKENS}
     body = transport(synthesis.RESPONSES_URL, {"Content-Type": "application/json"}, payload)
     text = synthesis.response_text(body)
     if body.get("status") == "incomplete" or text is None:
@@ -468,20 +443,19 @@ def call_model(transport: synthesis.Transport, model: str, model_input: dict[str
 
 
 def check_story(
-    raw: Any, item: MonitoredItem, view: dict[str, Any], allowed_sections: list[str], connections: connection_rules.Connections | None = None,
+    raw: Any, item: MonitoredItem, view: dict[str, Any], allowed_sections: list[str], connections: connection_rules.Connections,
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """(the checked draft or None, the citation check record). The sentence rules are the trend path's (``trends.check_sentence``): every sentence cites
     a handle, and every number and date in it is in the handles it cites.
 
-    Without ``connections`` (``minimumStandard: summary``) the only handle is the source. With them the handles also include the newsroom's knowledge, and
-    ``connection_rules.standard_problems`` adds the rules that make the draft more than a summary (docs/idea-context-packs.md, "More than a summary")."""
+    The handles are the source and the newsroom's knowledge (``connections``), and ``connection_rules.standard_problems`` adds the rules that make the
+    draft more than a summary (docs/idea-context-packs.md, "More than a summary"). Whether it says anything is ``point_check``'s question."""
     source_id = f"item:{item.url}"
     handles = {SOURCE_HANDLE: source_id}
     views = {source_id: trends.facts_in({key: value for key, value in view.items() if key != "handle"})}
-    if connections is not None:
-        connection_ids, connection_views = connection_rules.citation_views(connections)
-        handles.update(connection_ids)
-        views.update(connection_views)
+    connection_ids, connection_views = connection_rules.citation_views(connections)
+    handles.update(connection_ids)
+    views.update(connection_views)
     record: dict[str, Any] = {"status": "failed", "sentences": 0, "problems": []}
     if not isinstance(raw, dict):
         record["problems"].append(trends._problem("draft", "", "not_an_object"))
@@ -523,12 +497,11 @@ def check_story(
     section = str(raw.get("section") or "").strip()
     if sections and section.lower() not in sections:
         problems.append(trends._problem("section", section, "unknown_section"))
-    if connections is not None:
-        problems += connection_rules.standard_problems(checked_entries, connections, page_readable=connection_rules.readable(view))
+    problems += connection_rules.standard_problems(checked_entries, connections, page_readable=connection_rules.readable(view))
     if problems or headline is None or dek is None:
         return None, record
     cited = list(dict.fromkeys(handle for entry in checked_entries for handle in entry["handles"]))
-    used = connections.labels_of(cited) if connections is not None else []
+    used = connections.labels_of(cited)
     record.update(status="passed", itemsCited=[source_id], connectionsCited=used)
     return {
         "headline": headline, "dek": dek, "section": sections.get(section.lower(), section), "paragraphs": paragraphs, "citationCheck": record,
@@ -543,10 +516,10 @@ def draft_sentences(draft: dict[str, Any]) -> list[str]:
 # --- the draft record ----------------------------------------------------------------------------------------------------------
 
 
-def draft_body(draft: dict[str, Any], item: MonitoredItem, connections: connection_rules.Connections | None = None) -> str:
+def draft_body(draft: dict[str, Any], item: MonitoredItem, connections: connection_rules.Connections) -> str:
     """Markus: the dek and paragraphs, each sentence marked ``[1]`` (the source) and ``[n]`` for each related Reference it cites, then the sources, and what
     the editors and commenters said where a sentence rests on it (their view, set apart from the sources)."""
-    known = connections.by_handle() if connections is not None else {}
+    known = connections.by_handle()
     cited = draft.get("citedHandles") or [SOURCE_HANDLE]
     numbers = {SOURCE_HANDLE: 1}
     for handle in cited:
@@ -590,9 +563,9 @@ def run_id_for(site: str, now: datetime) -> str:
 
 def draft_record(
     draft: dict[str, Any], item: MonitoredItem, view: dict[str, Any], *, run: dict[str, Any], now: datetime, exploration: Exploration | None = None,
-    connections: connection_rules.Connections | None = None, standard: str = connection_rules.SUMMARY,
+    connections: connection_rules.Connections,
 ) -> dict[str, Any]:
-    known = connections.by_handle() if connections is not None else {}
+    known = connections.by_handle()
     neighbours = [known[handle].reference for handle in draft.get("citedHandles") or [] if handle in known and known[handle].kind == connection_rules.NEIGHBOUR]
     found_by_search = exploration is not None and exploration.via == "search"
     record = {
@@ -602,7 +575,7 @@ def draft_record(
         "title": draft["headline"]["text"][:200], "angle": draft["dek"]["text"][:300], "section": draft["section"],
         "body": draft_body(draft, item, connections),
         "targets": [target_for(item)],   # the item only: a neighbour it cites must stay a candidate of its own
-        "evidence": {"signals": 1, "source": f"{item.monitor_id} monitor: {item.url}"[:200], "connections": draft.get("connections") or [], "minimumStandard": standard},
+        "evidence": {"signals": 1, "source": f"{item.monitor_id} monitor: {item.url}"[:200], "connections": draft.get("connections") or [], "minimumStandard": connection_rules.MORE_THAN_SUMMARY},
         "monitorId": item.monitor_id, "referenceId": item.reference_id, "referenceLineageId": item.lineage_id, "relevance": item.verdict,
         "sourceText": ("page found by search" if found_by_search else "page") if "page_text" in view else "stored details",
         "citedItems": [{"id": f"item:{item.url}", "title": item.title, "date": (item.published_at or "")[:10] or None, "url": item.url}]
@@ -646,9 +619,8 @@ def draft_monitor_stories(
     automation_handled: Iterable[str] = (),
     ordered_candidates: Iterable[str] | None = None,
     signal_run: Any = None,
-    minimum_standard: str = connection_rules.DEFAULT_STANDARD,
     knowledge: connection_rules.Knowledge | None = None,
-    judge_old_standard: bool = False,
+    retry_memory: retry_rules.RetryMemory | None = None,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing.
 
@@ -660,26 +632,30 @@ def draft_monitor_stories(
     ``ordered_candidates`` (lineage ids, best first, from the signal queue of ``ideas/item_signals.py``) replaces the Cyclotron-and-freshness ranking:
     only the candidates named there are drafted, in that order; the exclusions above still apply.
 
-    ``minimum_standard`` is the site's ``monitorStories.minimumStandard``. ``more-than-summary`` (the default) files an idea only if it rests on something the
-    newsroom already knows beyond its source (``ideas/connections.py``): a Reference with nothing to add is skipped before the model is asked
-    (``nothing_to_add``, not marked drafted, so the next run looks again), and a run that files nothing for that reason raises one curation flag
-    (``review.settle_curation_flag``). ``summary`` is the old behaviour, kept only for the replay (``scripts/replay_idea_standard.py``).
-    ``knowledge`` is what the run knows about the Reference (tests and the replay pass their own). A draft that passes the rules still has to pass
-    ``point_check.judge``, and it fails closed. ``judge_old_standard`` asks the same judge about ``summary`` drafts and only records the answer: the replay uses it to
-    see whether the judge can tell a summary from a point.
+    There is one standard: an idea is filed only if it says more than a summary of its Reference. It must rest on something the newsroom already knows beyond the
+    source (``ideas/connections.py``): a Reference with nothing to add is skipped before the model is asked (``nothing_to_add``, not marked drafted, so the next run
+    looks again), and a run that files nothing raises one curation flag (``review.settle_curation_flag``). A draft that passes the citation rules still has to pass
+    ``point_check.judge`` (a model judge that fails closed), for a pack idea as well as a single item. ``knowledge`` is what the run knows about the Reference
+    (tests and the replay pass their own).
+
+    ``retry_memory`` (``ideas/retry_memory.py``) remembers what was rejected and against which connections: a Reference or pack whose draft was rejected is
+    skipped (``already_rejected``) until the newsroom has a connection for it that the rejection was not made against, a new comment, link, explanation, related
+    Reference or accept reason, and then it is written again. Without one given, a run with a ``json_store`` keeps the memory in files beside it, and a run
+    without either remembers nothing. A dry run recalls but remembers nothing new.
 
     ``signal_run`` (``ideas/signal_queue.SignalRun``) turns the run into one walk over a queue of context packs and scored single items: the queue
     orders the candidates (an item with no evidence is not in it), a pack goes to ``pack_stories.draft_pack_ideas``, an item to the path below, and
     both share one cost meter, ``out_of_time()``, ``maximum_cost_usd`` and the filing-error stop. The ideas packs filed are in ``drafts`` (``origin``
     ``context-pack``) and in the one review; ``run['packs']`` lists the packs offered and ``packsSkippedNoNewEvidence`` those held back."""
-    from .pack_stories import MAXIMUM_OUTPUT_TOKENS as PACK_OUTPUT_TOKENS, SYSTEM_PROMPT as PACK_PROMPT, CostMeter, draft_pack_ideas
-    standard = connection_rules.validate_standard(minimum_standard)
+    from .pack_stories import MAXIMUM_IDEAS as MAXIMUM_PACK_IDEAS, MAXIMUM_OUTPUT_TOKENS as PACK_OUTPUT_TOKENS, SYSTEM_PROMPT as PACK_PROMPT, CostMeter, draft_pack_ideas, handles_of
+    memory = retry_memory if retry_memory is not None else (retry_rules.JsonMemory(json_store) if json_store is not None else None)
+    memory_errors: dict[str, str] = {}
     moment = now or datetime.now(timezone.utc)
     cut = duplicate_cut.resolve_threshold(client, threshold)
     threshold = cut.threshold
     run: dict[str, Any] = {
         "duplicateCut": cut.record(),
-        "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model, "minimumStandard": standard,
+        "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model, "minimumStandard": connection_rules.MORE_THAN_SUMMARY,
         "store": "dry-run" if dry_run else (idea_store.kind if idea_store else "json"), "dryRun": dry_run, "private": True,
         "window": {"since": since, "until": iso(moment)}, "limit": limit, "stoppedBy": None,
         "excludedSourceHosts": list(normalize_hosts(excluded_hosts)), "statuses": list(dict.fromkeys(statuses)),
@@ -732,12 +708,40 @@ def draft_monitor_stories(
     run["inputs"] = counts
     attempt_cap = None if limit is None else limit * ATTEMPT_FACTOR
     run["ranking"] = [{"rank": number, **item.as_dict()} for number, item in enumerate(candidates[:attempt_cap], start=1)]
-    run.update(attempted=0, invalid=[], skipped=[], duplicates=[], drafts=[], modelCalls=[], usage=None, pointChecks=[])
+    run.update(attempted=0, invalid=[], skipped=[], duplicates=[], drafts=[], modelCalls=[], usage=None, pointChecks=[], retriedWithNewConnections=[])
     documents = comparison_documents(context, [*stored], proposals, [])
     sections = [section["title"] for section in context.get("sections", [])]
     meter = CostMeter()
-    if knowledge is None and standard == connection_rules.MORE_THAN_SUMMARY:
-        knowledge = default_knowledge(client, signal_run)   # read only when the standard needs it: a ``summary`` run asks the backend for nothing more than it always did
+    if knowledge is None:
+        knowledge = default_knowledge(client, signal_run)
+
+    def recall(subject: str) -> Any:
+        """What was remembered about a rejection, or None. A memory that cannot be read is no memory: the subject is tried again, and the run says so."""
+        if memory is None:
+            return None
+        try:
+            return memory.recall(subject)
+        except Exception as error:  # noqa: BLE001 - a memory that fails must not stop the run
+            memory_errors["recall"] = type(error).__name__
+            return None
+
+    def remember(subject: str, reasons: list[str], keys: frozenset[str], remembered: Any) -> None:
+        if memory is None or dry_run or not reasons:
+            return
+        try:
+            memory.remember(subject, retry_rules.rejection(subject, run_id=run["runId"], at=iso(moment), reasons=reasons, keys=keys, remembered=remembered))
+        except Exception as error:  # noqa: BLE001
+            memory_errors["remember"] = type(error).__name__
+
+    def waiting(subject: str, keys: frozenset[str], remembered: Any) -> bool:
+        """True when the subject was rejected and nothing new is known; otherwise notes a retry caused by a new connection."""
+        if remembered is None:
+            return False
+        fresh = retry_rules.new_connections(keys, remembered)
+        if not fresh:
+            return True
+        run["retriedWithNewConnections"].append({"subject": subject, "newConnections": fresh, "earlierReasons": remembered.get("reasons") or []})
+        return False
     kept: list[dict[str, Any]] = []
     pack_documents: list[dedupe.Document] = []
     pack_model_calls = 0
@@ -748,7 +752,14 @@ def draft_monitor_stories(
             run["stoppedBy"] = "time"
             break
         if kind == "pack":
-            estimate = synthesis.estimate_cost_usd(model, len(PACK_PROMPT) + subject.size(), PACK_OUTPUT_TOKENS)
+            subject_key = retry_rules.pack_subject(subject.signal_type, subject.anchor)
+            pack_connections = retry_rules.pack_keys(subject, handles_of(subject).ids)
+            pack_remembered = recall(subject_key)
+            if waiting(subject_key, pack_connections, pack_remembered):
+                pack_records[subject.pack_id].update(skippedAlreadyRejected=True)
+                run["skipped"].append({"packId": subject.pack_id, "title": subject.anchor, "reason": retry_rules.ALREADY_REJECTED, "rejectedAt": pack_remembered.get("rejectedAt"), "earlierReasons": pack_remembered.get("reasons") or []})
+                continue
+            estimate = synthesis.estimate_cost_usd(model, len(PACK_PROMPT) + subject.size(), PACK_OUTPUT_TOKENS + MAXIMUM_PACK_IDEAS * point_check.MAXIMUM_OUTPUT_TOKENS)
             if estimate is not None and meter.spent_usd + estimate > maximum_cost_usd:
                 run["stoppedForCost"] = f"The next call is estimated at ${estimate:.4f}; ${meter.spent_usd:.4f} is spent of --max-cost-usd ${maximum_cost_usd:.2f}."
                 run["stoppedBy"] = "cost"
@@ -761,7 +772,6 @@ def draft_monitor_stories(
                     client, subject, store=idea_store, gate=signal_run.gate, transport=transport, cost_meter=meter,
                     existing_titles=[*(dedupe.Document("draft", d["ideaId"], d["title"], d.get("angle") or "") for d in [*kept]), *pack_documents],
                     run_id=run["runId"], dry_run=dry_run, concept_nodes=signal_run.concept_nodes, model=model, threshold=threshold, now=moment,
-                    minimum_standard=standard,
                 )
             except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; stop before paying for ideas that cannot be kept
                 run["fileError"] = f"{type(error).__name__}: {error}"[:300]
@@ -775,30 +785,43 @@ def draft_monitor_stories(
                 pack_documents.append(dedupe.Document("draft", idea["ideaId"], idea["title"], ""))
                 run["drafts"].append({**idea, "origin": "context-pack", "packId": subject.pack_id, "itemLineageId": idea.get("lineageId"), "citedItems": []})
             run["invalid"] += [{**row, "packId": subject.pack_id} for row in result.refused]
-            run["invalid"] += [{**row, "packId": subject.pack_id} for row in result.dropped if row["reason"] == "citation_check_failed"]
+            run["invalid"] += [{**row, "packId": subject.pack_id} for row in result.dropped if row["reason"] in PACK_INVALID_REASONS]
             run["duplicates"] += [{**row, "packId": subject.pack_id} for row in result.dropped if row["reason"] == "near_duplicate"]
-            run["skipped"] += [{"packId": subject.pack_id, "title": row["title"], "reason": row["reason"]} for row in result.dropped if row["reason"] not in ("citation_check_failed", "near_duplicate")]
+            run["skipped"] += [{"packId": subject.pack_id, "title": row["title"], "reason": row["reason"]} for row in result.dropped if row["reason"] not in (*PACK_INVALID_REASONS, "near_duplicate")]
+            run["pointChecks"] += result.point_checks
+            # Rejected for what it said: remembered until the pack has a new connection. Nothing filed because of a duplicate, a filing refusal or an error says nothing about the pack.
+            rejected = sorted({row["reason"] for row in result.dropped if row["reason"] in retry_rules.REMEMBERED_REASONS})
+            if rejected and not (result.filed or result.would_file or result.refused or result.error or any(row["reason"] in ("near_duplicate", "already_filed", point_check.POINT_CHECK_ERROR) for row in result.dropped)):
+                remember(subject_key, rejected, pack_connections, pack_remembered)
             continue
         item = subject
+        # What the newsroom knows is read first: a Reference rejected before, with nothing new known about it, is left alone before its page is fetched or the model asked.
+        connections = knowledge.connections_for(item)
+        subject_key = retry_rules.single_subject(item.lineage_id)
+        connection_keys = retry_rules.single_keys(connections)
+        remembered = recall(subject_key)
+        if waiting(subject_key, connection_keys, remembered):
+            run["skipped"].append({
+                "referenceId": item.reference_id, "title": item.title, "reason": retry_rules.ALREADY_REJECTED, "rejectedAt": remembered.get("rejectedAt"),
+                "earlierReasons": remembered.get("reasons") or [], "found": dict(connections.found),
+            })
+            continue
         exploration = explorer(item) if explorer else None
         page_text = exploration.text if exploration else read_source_text(item.url, fetch)
-        view = source_view(item, page_text, knowledge.summary_of(item.lineage_id) if knowledge is not None and not stored_summary(item.details) else None)
+        view = source_view(item, page_text, knowledge.summary_of(item.lineage_id) if not stored_summary(item.details) else None)
         if not has_material(view):
             skipped = {"referenceId": item.reference_id, "title": item.title, "reason": "no_source_text"}
             if exploration:
                 skipped.update(readFailure=exploration.failure or "unreadable", directFailure=exploration.direct_failure, searchFailure=exploration.search_failure)
             run["skipped"].append({key: value for key, value in skipped.items() if value})
             continue
-        connections = knowledge.connections_for(item) if knowledge is not None else connection_rules.Connections()
         page_readable = connection_rules.readable(view)
-        if standard == connection_rules.MORE_THAN_SUMMARY and not connections.clears_the_bar(page_readable):
+        if not connections.clears_the_bar(page_readable):
             # Nothing to add beyond the source: the model is not asked and the Reference is not marked drafted, so the next run looks again.
             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": connection_rules.NOTHING_TO_ADD, "pageReadable": page_readable, "found": dict(connections.found)})
             continue
-        given = connections if standard == connection_rules.MORE_THAN_SUMMARY else None
-        prompt = SYSTEM_PROMPT if given is not None else SUMMARY_SYSTEM_PROMPT
-        model_input = build_input(item, view, context, given)
-        size = len(prompt) + len(str(model_input))
+        model_input = build_input(item, view, context, connections)
+        size = len(SYSTEM_PROMPT) + len(str(model_input))
         if size > synthesis.MAXIMUM_INPUT_CHARACTERS:
             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": "input_too_large"})
             continue
@@ -809,34 +832,36 @@ def draft_monitor_stories(
             break
         run["attempted"] += 1
         try:
-            raw, usage = call_model(transport, model, model_input, prompt, STANDARD_SCHEMA if given is not None else SCHEMA)
+            raw, usage = call_model(transport, model, model_input)
         except synthesis.SynthesisError as error:
             run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": "model_error", "message": str(error)[:300]})
             continue
         meter.add(usage.cost_usd)
         run["modelCalls"].append({"model": model, "promptTokens": usage.input_tokens, "completionTokens": usage.output_tokens, "cachedTokens": usage.cached_input_tokens})
-        if given is not None and isinstance(raw, dict) and not str(raw.get("point") or "").strip():
+        if isinstance(raw, dict) and not str(raw.get("point") or "").strip():
             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": point_check.NO_POINT_OFFERED, "pageReadable": page_readable, "found": dict(connections.found)})
+            remember(subject_key, [point_check.NO_POINT_OFFERED], connection_keys, remembered)
             continue
-        draft, record = check_story(raw, item, view, sections, given)
+        draft, record = check_story(raw, item, view, sections, connections)
         if draft is None:
             title = str(((raw.get("headline") or {}).get("text")) if isinstance(raw, dict) and isinstance(raw.get("headline"), dict) else "")[:200]
             run["invalid"].append({"referenceId": item.reference_id, "title": title or item.title, "reason": "citation_check_failed", "citationCheck": record, "draft": raw})
+            remember(subject_key, ["citation_check_failed"], connection_keys, remembered)
             continue
-        if given is not None or judge_old_standard:
-            try:
-                verdict, judge_usage = point_check.judge(transport, model, view, connections.view(), draft_sentences(draft))
-            except synthesis.SynthesisError as error:
-                run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": point_check.POINT_CHECK_ERROR, "message": str(error)[:300]})
-                continue
-            meter.add(judge_usage.cost_usd)
-            run["modelCalls"].append({"model": model, "promptTokens": judge_usage.input_tokens, "completionTokens": judge_usage.output_tokens, "cachedTokens": judge_usage.cached_input_tokens})
-            failed = point_check.failures(verdict)
-            run["pointChecks"].append({"referenceId": item.reference_id, "lineageId": item.lineage_id, "title": item.title, "failures": failed, "verdict": verdict, "point": raw.get("point"), "sentences": draft_sentences(draft)})
-            if failed and given is not None:
-                run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": "point_check_failed", "failures": failed, "verdict": verdict, "draft": raw})
-                continue
-        built = draft_record(draft, item, view, run=run, now=moment, exploration=exploration, connections=given, standard=standard)
+        try:
+            verdict, judge_usage = point_check.judge(transport, model, view, connections.view(), draft_sentences(draft))
+        except synthesis.SynthesisError as error:
+            run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": point_check.POINT_CHECK_ERROR, "message": str(error)[:300]})
+            continue   # no verdict says nothing about the Reference: not remembered, so the next run asks again
+        meter.add(judge_usage.cost_usd)
+        run["modelCalls"].append({"model": model, "promptTokens": judge_usage.input_tokens, "completionTokens": judge_usage.output_tokens, "cachedTokens": judge_usage.cached_input_tokens})
+        failed = point_check.failures(verdict)
+        run["pointChecks"].append({"referenceId": item.reference_id, "lineageId": item.lineage_id, "title": item.title, "failures": failed, "verdict": verdict, "point": raw.get("point"), "sentences": draft_sentences(draft)})
+        if failed:
+            run["invalid"].append({"referenceId": item.reference_id, "title": item.title, "reason": "point_check_failed", "failures": failed, "verdict": verdict, "draft": raw})
+            remember(subject_key, ["point_check_failed"], connection_keys, remembered)
+            continue
+        built = draft_record(draft, item, view, run=run, now=moment, exploration=exploration, connections=connections)
         similar, dropped = dedupe.split_duplicates([built], [*documents, *pack_documents, *(dedupe.Document("draft", k["ideaId"], k["title"], k["angle"]) for k in kept)], threshold)
         run["duplicates"] += [{**row, "referenceId": item.reference_id} for row in dropped]
         kept += similar
@@ -862,12 +887,15 @@ def draft_monitor_stories(
         if run["stoppedBy"] == "file_error":
             break
     run["usage"] = _usage(model, run["modelCalls"])
+    if memory_errors:
+        run["retryMemoryErrors"] = dict(memory_errors)
     if pack_model_calls:
         run["usage"]["packModelCalls"] = pack_model_calls
         run["usage"]["calls"] += pack_model_calls
         run["usage"]["costUsd"] = round(meter.spent_usd, 6)
     run["ideasCreated"] = 0 if dry_run else len(run["drafts"])
     run["nothingToAdd"] = sum(row["reason"] == connection_rules.NOTHING_TO_ADD for row in run["skipped"])
+    run["alreadyRejected"] = sum(row["reason"] == retry_rules.ALREADY_REJECTED for row in run["skipped"])
     run["noPointOffered"] = sum(row["reason"] == point_check.NO_POINT_OFFERED for row in run["skipped"])
     run["connectionsUsed"] = connections_histogram(run["drafts"])
     run["checkFailures"] = check_failures(run["invalid"])
@@ -878,7 +906,7 @@ def draft_monitor_stories(
         run["curationFlag"] = {"status": "skipped", "note": "Dry run: no flag is raised."}
     else:
         request_human_review(review_client, run, run["drafts"], noun="monitor story draft")
-        run["curationFlag"] = settle_curation_flag(review_client, run, site) if standard == connection_rules.MORE_THAN_SUMMARY else {"status": "not_applicable"}
+        run["curationFlag"] = settle_curation_flag(review_client, run, site)
     run["storiesInPrompts"] = context.get("promptStories")
     run["finishedAt"] = iso(datetime.now(timezone.utc))
     if json_store and not dry_run:
@@ -964,8 +992,9 @@ def render_report(run: dict[str, Any]) -> str:
             continue
         lines += [f"## {number}. {draft['title']}", "", f"From the {draft['monitorId']} monitor, {draft['citedItems'][0]['url']} (source text: {draft['sourceText']}). Citation check: passed ({draft['citationCheck']['sentences']} sentences).", "", draft["body"].rstrip(), ""]
     for heading, rows, describe in (
-        ("Failed the citation check or were invalid", run["invalid"], lambda r: f"{r['title'] or '(untitled)'}: {r['reason']}" + "".join(f"\n  - {p['where']}: {p['reason']}" + (f" ({p['text']})" if p["text"] else "") for p in (r.get("citationCheck") or {}).get("problems", []))),
+        ("Failed the citation check or were invalid", run["invalid"], lambda r: f"{r['title'] or '(untitled)'}: {r['reason']}" + (f" ({', '.join(r['failures'])}: {r['verdict'].get('reason', '')})" if r.get("failures") else "") + "".join(f"\n  - {p['where']}: {p['reason']}" + (f" ({p['text']})" if p["text"] else "") for p in (r.get("citationCheck") or {}).get("problems", []))),
         ("Skipped", run["skipped"], lambda r: f"{r['title']}: {r['reason']}" + (f" ({r['readFailure']})" if r.get("readFailure") else "") + (
+            f" (rejected {str(r.get('rejectedAt') or '')[:10]} for {', '.join(r.get('earlierReasons') or [])}; nothing new is known about it)" if r["reason"] == "already_rejected" else "") + (
             f" (accept reason: {'yes' if r['found']['acceptReason'] else 'no'}, comments: {r['found']['messages']}, related References: {r['found']['neighbours']}, suggested links waiting: {r['found']['suggestedLinks']}"
             + ("" if r.get("pageReadable", True) else ", page could not be read") + ")" if r.get("found") else "")),
         ("Dropped as duplicates", run["duplicates"], lambda r: f"{r['title']}: {r['reason']}"),

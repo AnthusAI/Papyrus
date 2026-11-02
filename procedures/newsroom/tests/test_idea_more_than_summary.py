@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fake_idea_store import FakeIdeaStore  # noqa: E402
 from ideas_fixtures import NOW  # noqa: E402
 from papyrus_content import review_requests  # noqa: E402
-from papyrus_content.ideas import connections as rules, monitor_stories as stories, review  # noqa: E402
+from papyrus_content.ideas import connections as rules, monitor_stories as stories, point_check, retry_memory, review  # noqa: E402
 from papyrus_content.ideas.connections import Knowledge, Neighbour, build_connections  # noqa: E402
 from papyrus_content.ideas.signal_inputs import SignalMessage  # noqa: E402
 from papyrus_content.ideas.signal_queue import ReferenceSummaries  # noqa: E402
@@ -37,26 +37,45 @@ def sentence(text, *cites):
     return {"text": text, "cites": list(cites)}
 
 
-def story(*, dek=("Editors accepted it because claim checking bears on sourcing coverage.", "E1"), body=None, headline=("Foo checks claims against sources", "I1")):
+POINT = "Foo is built to check each claim against its source, which is the work claim checking in sourcing needs."
+ADDS = {"verdict": "adds", "claim": "Foo checks each claim against its source.", "repeats_itself": False, "exposes_process": False, "reason": "It states what the tool does for sourcing."}
+
+
+def story(*, dek=("Foo checks each claim against its source, the claim checking that sourcing coverage needs.", "E1"), body=None, headline=("Foo checks claims against sources", "I1"), point=POINT):
     return {
+        "point": point,
         "headline": sentence(*headline), "dek": sentence(*dek), "section": "Tools",
         "paragraphs": [{"sentences": [sentence(*entry) for entry in (body or [
             ("Foo is an open tool that checks claims against their sources.", "I1"),
-            ("The editors accepted it because claim checking matters to their sourcing coverage.", "I1", "E1"),
+            ("Foo does the claim checking that sourcing coverage needs.", "I1", "E1"),
         ])]}],
     }
 
 
 class Model:
-    """Answers every request with the same story and records the requests."""
+    """Answers each drafting request with the same story and each point check with ``verdict`` (it adds something, unless the test says otherwise), and records
+    the requests: ``drafting`` and ``checks`` tell them apart. ``verdict`` may be a function of the check's input."""
 
-    def __init__(self, answer=None) -> None:
+    def __init__(self, answer=None, verdict=None) -> None:
         self.answer = answer or story()
+        self.verdict = verdict or ADDS
         self.requests: list[dict] = []
+
+    @property
+    def drafting(self):
+        return [payload for payload in self.requests if not payload["instructions"].startswith("You are a sceptical editor")]
+
+    @property
+    def checks(self):
+        return [payload for payload in self.requests if payload["instructions"].startswith("You are a sceptical editor")]
 
     def __call__(self, url, headers, payload):
         self.requests.append(payload)
-        return {"status": "completed", "output_text": json.dumps(self.answer), "usage": {"input_tokens": 1000, "output_tokens": 300, "input_tokens_details": {"cached_tokens": 0}}}
+        if payload["instructions"].startswith("You are a sceptical editor"):
+            answer = self.verdict(json.loads(payload["input"])) if callable(self.verdict) else self.verdict
+        else:
+            answer = self.answer
+        return {"status": "completed", "output_text": json.dumps(answer), "usage": {"input_tokens": 1000, "output_tokens": 300, "input_tokens_details": {"cached_tokens": 0}}}
 
 
 class LinkedClient(MonitorClient):
@@ -87,10 +106,11 @@ def link(first, second, *, state="suggested", score=0.8, predicate="related_to",
             "score": score, "createdAt": "2026-10-20T00:00:00Z", "metadata": json.dumps(metadata)}
 
 
-def run_stories(client, model, *, standard="more-than-summary", pages=lambda url: PAGE, store=None, dry_run=False, **options):
+def run_stories(client, model, *, pages=lambda url: PAGE, store=None, dry_run=False, **options):
+    options = {"limit": None, "json_store": None, **options}
     return stories.draft_monitor_stories(
-        client=client, site="example-site", context=context(), json_store=None, transport=model, idea_store=store or FakeIdeaStore(client), review_client=client,
-        limit=None, dry_run=dry_run, now=NOW, fetch=pages, minimum_standard=standard, **options,
+        client=client, site="example-site", context=context(), transport=model, idea_store=store or FakeIdeaStore(client), review_client=client,
+        dry_run=dry_run, now=NOW, fetch=pages, **options,
     )
 
 
@@ -101,10 +121,12 @@ def reasons(run):
 # --- the pieces ------------------------------------------------------------------------------------------------------------------
 
 
-def test_the_minimum_standard_is_one_of_two_and_the_default_is_more_than_a_summary():
-    assert rules.DEFAULT_STANDARD == "more-than-summary" and rules.validate_standard("summary") == "summary"
-    with pytest.raises(ValueError):
-        rules.validate_standard("anything")
+def test_there_is_one_standard_and_no_way_back_to_summaries():
+    assert rules.MORE_THAN_SUMMARY == "more-than-summary"
+    for gone in ("SUMMARY", "MINIMUM_STANDARDS", "DEFAULT_STANDARD", "validate_standard"):
+        assert not hasattr(rules, gone), gone
+    assert not hasattr(stories, "SUMMARY_SYSTEM_PROMPT") and "minimum_standard" not in stories.draft_monitor_stories.__code__.co_varnames
+    assert "judge_old_standard" not in stories.draft_monitor_stories.__code__.co_varnames
 
 
 def test_an_address_in_the_editors_words_never_reaches_the_writer():
@@ -151,16 +173,21 @@ def test_every_sentence_resting_on_the_source_alone_is_only_a_summary():
 
 def test_a_connecting_sentence_must_share_a_content_word_with_what_it_cites():
     connections = build_connections(REASON, [], [])
-    unrelated = [entry("dek", "The editors liked a toaster.", "E1"), entry("body", "The editors liked a toaster.", "I1", "E1")]
+    unrelated = [entry("dek", "A toaster is on sale.", "E1"), entry("body", "A toaster is on sale.", "I1", "E1")]
     assert problems_of(unrelated, connections) == ["connection_ungrounded"]
-    related = [entry("dek", "The editors prize claim checking.", "E1"), entry("body", "The editors prize claim checking.", "I1", "E1")]
+    related = [entry("dek", "Claim checking is prized.", "E1"), entry("body", "Claim checking is prized.", "I1", "E1")]
     assert problems_of(related, connections) == []
 
 
-def test_the_editors_words_are_reported_only_as_the_editors_view():
+def test_how_the_story_came_to_be_is_not_the_subject():
+    """The editors' words are direction for the writer, not content: a sentence that reports them, or how the item was found or matched, fails."""
     connections = build_connections(REASON, [], [])
+    for text in ("The editors accepted it because claim checking matters.", "Claim checking, which the editors chose, is the subject.", "The newsroom has this on file for claim checking.",
+                 "A suggested link ties it to claim checking.", "It is close to a related Reference on claim checking."):
+        found = problems_of([entry("dek", text, "E1"), entry("body", text, "I1", "E1")], connections)
+        assert found.count("internal_wording") == 2, (text, found)
     plain = [entry("dek", "Claim checking matters to sourcing coverage.", "E1"), entry("body", "Claim checking matters to sourcing coverage.", "I1", "E1")]
-    assert problems_of(plain, connections) == ["editors_view_not_attributed", "editors_view_not_attributed"]
+    assert problems_of(plain, connections) == []   # the words may inform a sentence; they are not attributed to anyone
 
 
 def test_a_message_is_cited_only_with_the_source_or_a_related_reference():
@@ -173,9 +200,9 @@ def test_a_message_is_cited_only_with_the_source_or_a_related_reference():
 
 def test_no_trend_is_claimed_without_counts_but_a_name_is_not_a_claim():
     connections = build_connections(REASON, [], [])
-    claim = [entry("dek", "The editors see a trend in claim checking.", "E1"), entry("body", "The editors see claim checking rising.", "I1", "E1")]
+    claim = [entry("dek", "Claim checking shows a trend.", "E1"), entry("body", "Claim checking is rising.", "I1", "E1")]
     assert problems_of(claim, connections).count("trend_claim_without_signal") == 2
-    name = [entry("dek", "Editors accepted Trend Micro for claim checking.", "E1"), entry("body", "Editors accepted Trend Micro for claim checking.", "I1", "E1")]
+    name = [entry("dek", "Trend Micro ships claim checking.", "E1"), entry("body", "Trend Micro ships claim checking.", "I1", "E1")]
     assert problems_of(name, connections) == []
 
 
@@ -300,7 +327,7 @@ def one_reference(*, reason=True, details=None, **options):
     return rows, LinkedClient(references=rows, relations=client.relations, incoming=client.incoming, sections=("Analysis", "Tools"))
 
 
-def test_an_accepted_reference_with_the_editors_reason_is_filed_citing_it_as_their_view():
+def test_an_accepted_reference_with_the_editors_reason_is_filed_and_its_point_checked():
     rows, client = one_reference()
     model = Model()
     run = run_stories(client, model)
@@ -309,10 +336,11 @@ def test_an_accepted_reference_with_the_editors_reason_is_filed_citing_it_as_the
     assert json.loads(filed["evidence"])["connections"] == ["acceptReason"] and json.loads(filed["evidence"])["minimumStandard"] == "more-than-summary"
     assert json.loads(filed["targets"]) == [{"type": "entity", "id": f"reference:{rows[0]['lineageId']}"}]
     assert "## What editors said" in filed["body"] and REASON in filed["body"]
-    knows = json.loads(model.requests[0]["input"])["what_the_newsroom_knows"]
-    assert knows[0]["handle"] == "E1" and knows[0]["text"] == REASON and "not a fact" in knows[0]["note"]
+    knows = json.loads(model.drafting[0]["input"])["what_the_newsroom_knows"]
+    assert knows[0]["handle"] == "E1" and knows[0]["text"] == REASON and "not a fact" in knows[0]["note"] and "not to be reported" in knows[0]["note"]
     assert run["connectionsUsed"] == {"acceptReason": 1} and run["nothingToAdd"] == 0
-    assert "adds to what the newsroom already knows" in model.requests[0]["instructions"]
+    assert "what this story claims that a reader could not get from the source alone" in model.drafting[0]["instructions"]
+    assert len(model.checks) == 1 and run["pointChecks"][0]["failures"] == [] and run["pointChecks"][0]["point"] == POINT
 
 
 def test_a_summary_of_the_source_is_not_filed():
@@ -323,16 +351,6 @@ def test_a_summary_of_the_source_is_not_filed():
     assert run["drafts"] == [] and client.filed == []
     assert "dek_without_connection" in reasons(run) and "only_the_source_cited" in reasons(run)
     assert run["checkFailures"] == {"dek_without_connection": 1, "only_the_source_cited": 1}
-
-
-def test_the_old_standard_still_files_a_summary_so_the_replay_can_compare():
-    rows, client = one_reference(reason=False)
-    summary = story(dek=("Foo links each claim to its source page.", "I1"), body=[("Foo is an open tool.", "I1"), ("It was written in Rust.", "I1")])
-    model = Model(summary)
-    run = run_stories(client, model, standard="summary")
-    assert len(run["drafts"]) == 1 and run["drafts"][0]["evidence"]["connections"] == [] and run["drafts"][0]["evidence"]["minimumStandard"] == "summary"
-    assert "what_the_newsroom_knows" not in json.loads(model.requests[0]["input"]) and model.requests[0]["instructions"].startswith("You draft one short news story")
-    assert "adds to what the newsroom already knows" not in model.requests[0]["instructions"]
 
 
 def test_a_reference_with_nothing_to_connect_to_is_skipped_before_the_model_is_asked_and_looked_at_again_next_run():
@@ -366,10 +384,10 @@ def test_an_unreadable_page_proceeds_with_a_comment_and_may_say_only_what_the_co
     comment = SignalMessage("m1", "t1", "reference", f"reference#{rows[0]['lineageId']}", "2026-10-30T09:00:00Z", "staff", "Claim checking is overdue for us.")
     knowledge = Knowledge(client, summary_of=lambda lineage: "", reference_of=lambda lineage: None, inputs=SimpleNamespace(messages=[comment]))
     describing = story(dek=("A commenter says claim checking is overdue.", "M1", "I1"), body=[
-        ("Foo is a tool that checks claims.", "I1"), ("A commenter says claim checking is overdue for the newsroom.", "M1", "I1")])
+        ("Foo is a tool that checks claims.", "I1"), ("A commenter says claim checking is overdue for sourcing coverage.", "M1", "I1")])
     assert run_stories(client, Model(describing), pages=lambda url: None, knowledge=knowledge)["checkFailures"] == {"describes_unread_page": 1}
     bearing = story(dek=("A commenter says claim checking is overdue.", "M1", "I1"), body=[
-        ("A commenter says claim checking is overdue for the newsroom.", "M1", "I1"), ("The editors accepted it because claim checking matters to their sourcing coverage.", "E1", "I1")])
+        ("A commenter says claim checking is overdue for sourcing coverage.", "M1", "I1"), ("Claim checking is the sourcing work this item is about.", "E1", "I1")])
     run = run_stories(client, Model(bearing), pages=lambda url: None, knowledge=knowledge)
     assert len(run["drafts"]) == 1 and run["drafts"][0]["evidence"]["connections"] == ["acceptReason", "message:M1"]
     assert run["connectionsUsed"] == {"acceptReason+message": 1}
@@ -380,9 +398,9 @@ def test_an_unreadable_page_proceeds_with_a_real_related_reference():
     editor_accepted(rows[0])
     client = LinkedClient(references=rows, relations=base.relations, incoming=base.incoming, sections=("Analysis", "Tools"), feed=[link(rows[0], rows[1], score=0.9)])
     knowledge = knowledge_for(client, {rows[1]["lineageId"]: "Reference 2 checks quotations against archives."})
-    bearing = story(dek=("The editors link it to a tool that checks quotations against archives.", "E1", "R1"), body=[
+    bearing = story(dek=("A second tool checks quotations against archives, a form of claim checking.", "E1", "R1"), body=[
         ("Reference 2 checks quotations against archives, which is close to what this item is called.", "R1"),
-        ("The editors accepted it because claim checking matters to their sourcing coverage.", "E1", "I1")])
+        ("Claim checking is the sourcing work both tools do.", "E1", "I1")])
     run = run_stories(client, Model(bearing), pages=lambda url: None, knowledge=knowledge, ordered_candidates=[rows[0]["lineageId"]])
     assert len(run["drafts"]) == 1 and run["drafts"][0]["evidence"]["connections"] == ["acceptReason", "neighbour:R1"]
     assert [cited["title"] for cited in run["drafts"][0]["citedItems"]] == ["Reference 1", "Reference 2"]
@@ -454,11 +472,6 @@ def test_a_site_without_review_requests_is_not_failed_by_the_flag():
     assert run["curationFlag"]["status"] == "not_raised" and "RuntimeError" in run["curationFlag"]["error"]
 
 
-def test_the_old_standard_raises_no_curation_flag():
-    rows, client = one_reference(reason=False)
-    assert run_stories(client, Model(), standard="summary")["curationFlag"] == {"status": "not_applicable"} and flags(client) == []
-
-
 def test_the_reports_and_records_say_ideas_and_never_draft_or_desk():
     text = review.curation_flag_text({"inputs": {"notAccepted": 4}}, []) + review.curation_flag_text({"inputs": {}}, [{"title": "A", "found": {"acceptReason": False, "suggestedLinks": 1}}])
     assert not any(word in " ".join(text).lower() for word in (" draft", "desk"))
@@ -525,3 +538,226 @@ def wildcard_grants():
                     if match:
                         found.add((match.group(1), match.group(2)))
     return found
+
+
+# --- the point check: a draft that says nothing its sources do not is not filed, and each reason is recorded ----------------------------
+
+
+def verdict(**changes):
+    return {**ADDS, **changes}
+
+
+RESTATES = verdict(verdict="restates", claim="", reason="It repeats the page.")
+
+
+def test_the_point_check_names_each_reason_a_verdict_keeps_a_draft_out():
+    assert point_check.failures(ADDS) == []
+    assert point_check.failures(RESTATES) == ["no_point_beyond_source"]
+    assert point_check.failures(verdict(claim="  ")) == ["no_point_beyond_source"]   # "adds" with nothing claimed is no claim
+    assert point_check.failures(verdict(verdict="unsupported")) == ["point_unsupported"]
+    assert point_check.failures(verdict(repeats_itself=True)) == ["repeats_itself"]
+    assert point_check.failures(verdict(exposes_process=True)) == ["exposes_process"]
+    assert point_check.failures(verdict(verdict="restates", repeats_itself=True, exposes_process=True)) == ["no_point_beyond_source", "repeats_itself", "exposes_process"]
+    assert point_check.failures({"verdict": "maybe"}) == ["point_unsupported", "repeats_itself", "exposes_process"]   # anything but a clear answer fails closed
+    assert point_check.failures({}) != []
+
+
+@pytest.mark.parametrize("answer,expected", [
+    (RESTATES, ["no_point_beyond_source"]),
+    (verdict(verdict="unsupported", claim="Foo is faster than every rival."), ["point_unsupported"]),
+    (verdict(repeats_itself=True), ["repeats_itself"]),
+    (verdict(exposes_process=True), ["exposes_process"]),
+])
+def test_a_draft_the_point_check_fails_is_not_filed_and_the_run_records_why(answer, expected):
+    rows, client = one_reference()
+    run = run_stories(client, Model(verdict=answer))
+    assert run["drafts"] == [] and client.filed == []
+    [invalid] = run["invalid"]
+    assert (invalid["reason"], invalid["failures"], invalid["verdict"]) == ("point_check_failed", expected, answer)
+    assert run["pointChecks"][0]["failures"] == expected and run["checkFailures"] == {reason: 1 for reason in expected}
+    assert run["curationFlag"]["status"] == "raised"   # nothing was filed, so editors are asked to work on curation
+
+
+@pytest.mark.parametrize("reply", [{"status": "incomplete"}, {"status": "completed", "output_text": "not json"}, {"status": "completed", "output_text": json.dumps({"claim": "x"})}])
+def test_a_point_check_with_no_usable_answer_files_nothing_and_is_not_remembered(reply):
+    rows, client = one_reference()
+
+    class Unsure(Model):
+        def __call__(self, url, headers, payload):
+            if payload["instructions"].startswith("You are a sceptical editor"):
+                self.requests.append(payload)
+                return reply
+            return super().__call__(url, headers, payload)
+
+    memory = retry_memory.DictMemory()
+    run = run_stories(client, Unsure(), retry_memory=memory)
+    assert run["drafts"] == [] and [entry["reason"] for entry in run["invalid"]] == ["point_check_error"]
+    assert memory.records == {}   # no verdict says nothing about the Reference: the next run asks again
+
+
+def test_a_writer_with_no_point_to_make_is_not_checked_and_is_remembered():
+    rows, client = one_reference()
+    memory = retry_memory.DictMemory()
+    model = Model(story(point="  "))
+    run = run_stories(client, model, retry_memory=memory)
+    assert model.checks == [] and run["drafts"] == [] and [row["reason"] for row in run["skipped"]] == ["no_point_offered"] and run["noPointOffered"] == 1
+    assert memory.records[f"reference:{rows[0]['lineageId']}"]["reasons"] == ["no_point_offered"]
+
+
+# --- retry memory ----------------------------------------------------------------------------------------------------------------
+
+
+def comment(rows, text="Claim checking is overdue for us.", number=1):
+    return SignalMessage(f"m{number}", "t1", "reference", f"reference#{rows[0]['lineageId']}", "2026-10-30T09:00:00Z", "staff", text)
+
+
+def knowing(client, rows, *messages, summaries=None):
+    return Knowledge(client, summary_of=lambda lineage: (summaries or {}).get(lineage, ""), reference_of={row["lineageId"]: row for row in client.references}.get,
+                     inputs=SimpleNamespace(messages=list(messages)))
+
+
+def test_a_rejected_reference_is_not_written_again_until_the_newsroom_has_something_new_for_it():
+    rows, client = one_reference()
+    memory = retry_memory.DictMemory()
+    first = Model(verdict=RESTATES)
+    run = run_stories(client, first, retry_memory=memory)
+    assert len(first.drafting) == 1 and len(first.checks) == 1 and run["alreadyRejected"] == 0
+    [record] = memory.records.values()
+    assert record["subject"] == f"reference:{rows[0]['lineageId']}" and record["reasons"] == ["point_check_failed"] and record["runId"] == run["runId"]
+    assert record["connections"] and all(key.startswith("acceptReason:") for key in record["connections"])   # what it was rejected against
+
+    again = Model()
+    run = run_stories(client, again, retry_memory=memory)
+    assert again.requests == [] and run["usage"]["calls"] == 0 and run["attempted"] == 0   # no model call, and no page fetched
+    [skipped] = run["skipped"]
+    assert (skipped["reason"], skipped["earlierReasons"]) == ("already_rejected", ["point_check_failed"]) and run["alreadyRejected"] == 1 and run["retriedWithNewConnections"] == []
+
+
+@pytest.mark.parametrize("new", ["comment", "accept reason", "related Reference", "confirmed link", "editors' explanation"])
+def test_each_kind_of_new_connection_makes_a_rejected_reference_worth_another_try(new):
+    rows, base = world(2)
+    editor_accepted(rows[0])
+    summaries = {rows[1]["lineageId"]: "Reference 2 checks quotations against archives."}
+    feed = []
+    client = LinkedClient(references=rows, relations=base.relations, incoming=base.incoming, sections=("Analysis", "Tools"), feed=feed)
+    memory = retry_memory.DictMemory()
+    run_stories(client, Model(verdict=RESTATES), retry_memory=memory, knowledge=knowing(client, rows, summaries=summaries), ordered_candidates=[rows[0]["lineageId"]])
+    [before] = memory.records.values()
+
+    messages = []
+    if new == "comment":
+        messages = [comment(rows)]
+    elif new == "accept reason":
+        rows[0]["curationStatusReason"] = "A different reason: sourcing coverage needs claim checking."
+    elif new == "related Reference":
+        client.feed.append(link(rows[0], rows[1], score=0.9))
+    elif new == "confirmed link":
+        client.feed.append(link(rows[0], rows[1], state="current", score=None))
+    else:
+        client.feed.append(link(rows[0], rows[1], state="current", score=None, note="Both cover claim checking."))
+    model = Model()
+    run = run_stories(client, model, retry_memory=memory, knowledge=knowing(client, rows, *messages, summaries=summaries), ordered_candidates=[rows[0]["lineageId"]])
+    assert len(model.drafting) == 1 and len(run["drafts"]) == 1, run["skipped"]
+    [retry] = run["retriedWithNewConnections"]
+    assert retry["subject"] == before["subject"] and retry["newConnections"] and retry["earlierReasons"] == ["point_check_failed"]
+    assert not set(retry["newConnections"]) & set(before["connections"])
+
+
+def test_a_suggested_link_that_an_editor_confirms_is_a_new_connection_and_a_vanished_one_is_not():
+    rows, base = world(2)
+    editor_accepted(rows[0])
+    summaries = {rows[1]["lineageId"]: "Reference 2 checks quotations against archives."}
+    client = LinkedClient(references=rows, relations=base.relations, incoming=base.incoming, sections=("Analysis", "Tools"), feed=[link(rows[0], rows[1], score=0.9)])
+    memory = retry_memory.DictMemory()
+    run_stories(client, Model(verdict=RESTATES), retry_memory=memory, knowledge=knowing(client, rows, summaries=summaries), ordered_candidates=[rows[0]["lineageId"]])
+    client.feed[:] = [link(rows[0], rows[1], state="current", score=None)]
+    confirmed = run_stories(client, Model(verdict=RESTATES), retry_memory=memory, knowledge=knowing(client, rows, summaries=summaries), ordered_candidates=[rows[0]["lineageId"]])
+    assert [row["newConnections"] for row in confirmed["retriedWithNewConnections"]] == [[f"neighbour:{rows[1]['lineageId']}:confirmed"]]
+    client.feed[:] = []   # the link goes away: that is not news
+    gone = Model()
+    quiet = run_stories(client, gone, retry_memory=memory, knowledge=knowing(client, rows, summaries=summaries), ordered_candidates=[rows[0]["lineageId"]])
+    assert gone.requests == [] and quiet["alreadyRejected"] == 1
+    client.feed[:] = [link(rows[0], rows[1], state="current", score=None)]   # and when it comes back it is not news either
+    back = Model()
+    assert run_stories(client, back, retry_memory=memory, knowledge=knowing(client, rows, summaries=summaries), ordered_candidates=[rows[0]["lineageId"]])["alreadyRejected"] == 1 and back.requests == []
+
+
+def test_a_reference_waiting_for_something_new_does_not_use_the_run_that_others_need():
+    rows, base = world(3)
+    for row in rows:
+        editor_accepted(row)
+    client = LinkedClient(references=rows, relations=base.relations, incoming=base.incoming, sections=("Analysis", "Tools"))
+    memory = retry_memory.DictMemory()
+    memory.remember(f"reference:{rows[0]['lineageId']}", {"subject": f"reference:{rows[0]['lineageId']}", "reasons": ["point_check_failed"], "connections": [
+        f"acceptReason:{retry_memory.digest(REASON)}"]})
+    model = Model()
+    run = run_stories(client, model, retry_memory=memory, limit=1)
+    assert [row["title"] for row in run["drafts"]] == ["Foo checks claims against sources"] and run["alreadyRejected"] == 1
+    assert run["attempted"] == 1 and len(model.drafting) == 1   # the rejected one cost nothing and did not take the only attempt
+
+
+def test_a_dry_run_reads_the_memory_and_writes_nothing_to_it():
+    rows, client = one_reference()
+    memory = retry_memory.DictMemory()
+    run_stories(client, Model(verdict=RESTATES), retry_memory=memory, dry_run=True)
+    assert memory.records == {}
+    run_stories(client, Model(verdict=RESTATES), retry_memory=memory)
+    assert len(memory.records) == 1
+    model = Model()
+    assert run_stories(client, model, retry_memory=memory, dry_run=True)["alreadyRejected"] == 1 and model.requests == []
+
+
+def test_a_memory_that_cannot_be_read_or_written_never_stops_a_run():
+    rows, client = one_reference()
+
+    class Broken:
+        def recall(self, subject):
+            raise RuntimeError("no table")
+
+        def remember(self, subject, record):
+            raise RuntimeError("no table")
+
+    run = run_stories(client, Model(verdict=RESTATES), retry_memory=Broken())
+    assert run["retryMemoryErrors"] == {"recall": "RuntimeError", "remember": "RuntimeError"} and [row["reason"] for row in run["invalid"]] == ["point_check_failed"]
+
+
+def test_a_run_with_a_json_store_keeps_its_memory_in_files_beside_it(tmp_path):
+    from papyrus_content.ideas.store import JsonStore
+
+    rows, client = one_reference()
+    store = JsonStore(tmp_path)
+    run_stories(client, Model(verdict=RESTATES), json_store=store)
+    [path] = (tmp_path / "rejected").glob("*.json")
+    assert json.loads(path.read_text())["subject"] == f"reference:{rows[0]['lineageId']}"
+    model = Model()
+    assert run_stories(client, model, json_store=JsonStore(tmp_path))["alreadyRejected"] == 1 and model.requests == []
+
+
+def test_the_router_keeps_one_row_per_subject_in_its_own_table():
+    saved = {}
+    memory = retry_memory.CallbackMemory(lambda subject: saved.get(retry_memory.sort_key("pub", subject)), lambda subject, record: saved.update({retry_memory.sort_key("pub", subject): record}))
+    memory.remember("reference:l1", {"subject": "reference:l1", "connections": ["a"]})
+    assert memory.recall("reference:l1")["connections"] == ["a"] and memory.recall("reference:l2") is None
+    key = retry_memory.sort_key("pub", "pack:cluster:" + "x" * 2000)
+    assert key.startswith("IDEA_REJECTED#pub#") and len(key) < 100 and retry_memory.sort_key("other", "reference:l1") != retry_memory.sort_key("pub", "reference:l1")
+
+
+def test_a_run_whose_every_reference_waits_for_something_new_still_asks_editors_to_curate():
+    rows, client = one_reference()
+    memory = retry_memory.DictMemory()
+    run_stories(client, Model(verdict=RESTATES), retry_memory=memory)
+    [first] = flags(client)
+    assert "said no more" in first["reason"] and "Waiting: Reference 1" in first["ask"] and "written again as soon as there is something new" in first["ask"]
+    second = run_stories(client, Model(), retry_memory=memory)
+    assert second["alreadyRejected"] == 1 and second["curationFlag"]["status"] == "already_open" and len(flags(client)) == 1
+
+
+def test_the_retired_setting_of_the_old_standard_still_loads_and_is_ignored(capsys):
+    from papyrus_content.monitoring_stories import validate_monitor_stories
+
+    for old in ("summary", "more-than-summary", "anything"):
+        policy = validate_monitor_stories("p", {"minimumStandard": old, "singleItem": True})
+        assert "minimumStandard" not in policy and policy["singleItem"] is True
+    assert "ignored_retired_config" in capsys.readouterr().out
+    with pytest.raises(ValueError, match="unknown keys"):
+        validate_monitor_stories("p", {"minimumStandards": "summary"})

@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_monitoring_router as tr  # noqa: E402
 from fake_idea_store import FakeIdeaStore  # noqa: E402
 from ideas_fixtures import NOW  # noqa: E402
-from test_monitor_stories import StoryModel, pages, provenance, world  # noqa: E402
+from test_monitor_stories import MonitorClient, StoryModel, is_point_check, pages, provenance, with_editors_reasons, world  # noqa: E402
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient  # noqa: E402
 from papyrus_content.monitoring_cloud import DynamoStore, run_collection  # noqa: E402
 from papyrus_content.monitoring_router import MIN_REMAINING_SECONDS, run_router, validate_router_config  # noqa: E402
@@ -49,7 +49,7 @@ def quiet_gate(monkeypatch):
     monkeypatch.setattr("papyrus_content.ideas.gate.HumanusGate.for_client", classmethod(lambda cls, client, **options: FakeGate()))
 
 
-SINGLE_ITEM_ONLY = {"contextPacks": {"enabled": False}, "minimumStandard": "summary"}   # the single-item task ranked by the Cyclotron, as it was before context packs (the pack path: test_monitoring_packs.py)
+SINGLE_ITEM_ONLY = {"contextPacks": {"enabled": False}}   # the single-item task ranked by the Cyclotron, as it was before context packs (the pack path: test_monitoring_packs.py)
 
 
 def router(publications=(PUBLICATION,), settings=None):
@@ -61,7 +61,7 @@ def router(publications=(PUBLICATION,), settings=None):
     config = table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"]
     config["publications"] = [{"publicationId": p, "site": f"{p}.example", "appsyncEndpoint": tr.ENDPOINT.replace("abc123", f"api{n}"),
                                "corpusId": "knowledge-corpus-example-site",   # the fixtures' References all live in this corpus
-                               "monitorStories": {"minimumStandard": "summary", **settings[p]} if settings and p in settings else SINGLE_ITEM_ONLY} for n, p in enumerate(publications)]
+                               "monitorStories": settings[p] if settings and p in settings else SINGLE_ITEM_ONLY} for n, p in enumerate(publications)]
     table.put_item(config)
     return table, store
 
@@ -69,6 +69,9 @@ def router(publications=(PUBLICATION,), settings=None):
 def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_table=None, gate=None, publication_id=None):
     """Runs the monitor-stories task; `clients` maps a publication id to its backend. Returns (result, log lines by publication)."""
     endpoints = {tr.ENDPOINT.replace("abc123", f"api{n}"): client for n, client in enumerate(clients.values())}
+    for client in clients.values():
+        if isinstance(client, MonitorClient):
+            with_editors_reasons(client)   # the stories are about the task (the queue, the stops, the lock); every accepted Reference has an editor's reason to rest on
     out = io.StringIO()
     with redirect_stdout(out):
         result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint],
@@ -93,7 +96,7 @@ def test_the_daily_run_drafts_each_accepted_undrafted_monitored_reference_once()
     assert result["monitorStories"][PUBLICATION]["drafted"] == 3
     second, lines = run_task(store, {PUBLICATION: client}, model)
     assert len(stories_filed(client)) == 3 and lines[PUBLICATION]["drafted"] == 0 and lines[PUBLICATION]["candidates"] == 0
-    assert len(model.requests) == 3   # nothing was asked of the model on the second run
+    assert (len(model.drafting), len(model.checks)) == (3, 3)   # nothing was asked of the model on the second run
 
 
 def test_there_is_no_fixed_number_of_drafts_a_run_writes():
@@ -145,7 +148,7 @@ def test_running_out_of_time_stops_cleanly_and_the_next_run_continues_with_the_r
     asked = {"n": 0}
 
     def clock():   # plenty of time until two drafts have been asked for, then none
-        return 1e9 if len(model.requests) < 2 else MIN_REMAINING_SECONDS - 1
+        return 1e9 if len(model.drafting) < 2 else MIN_REMAINING_SECONDS - 1
 
     _, lines = run_task(store, {PUBLICATION: client}, model, time_left=clock)
     assert lines[PUBLICATION]["stoppedBy"] == "time" and lines[PUBLICATION]["status"] == "stopped"
@@ -159,7 +162,7 @@ def test_the_best_ranked_items_go_first_when_time_runs_out():
     table, store = router()
     _, client = world(4, verdicts={1: 0.2, 2: 0.9, 3: 0.4, 4: 0.7})
     model = StoryModel()
-    clock = lambda: 1e9 if len(model.requests) < 2 else 0   # noqa: E731
+    clock = lambda: 1e9 if len(model.drafting) < 2 else 0   # noqa: E731
     run_task(store, {PUBLICATION: client}, model, time_left=clock)
     drafted = [json.loads(row["evidence"])["source"] for row in client.filed]
     assert [re.search(r"example(\d+)", source).group(1) for source in drafted] == ["2", "4"]
@@ -172,7 +175,8 @@ class SlowModel:
         self.seconds, self.left, self.model = seconds, start, StoryModel()
 
     def __call__(self, url, headers, payload):
-        self.left -= self.seconds
+        if not is_point_check(payload):   # the time a draft takes; the quick point check after it is not what these tests are about
+            self.left -= self.seconds
         return self.model(url, headers, payload)
 
 
@@ -246,7 +250,7 @@ def test_a_filing_error_stops_the_publication_before_more_money_is_spent_and_the
     model = StoryModel()
     _, lines = run_task(store, {"example-site": broken, "other-site": fine}, model)
     assert lines["example-site"]["stoppedBy"] == "file_error" and lines["example-site"]["drafted"] == 0
-    assert len(model.requests) == 1 + 2   # one wasted call on the broken publication, then the other publication's two
+    assert len(model.drafting) == 1 + 2   # one wasted call on the broken publication, then the other publication's two
     assert lines["other-site"]["drafted"] == 2
 
 
@@ -347,14 +351,15 @@ def test_a_read_that_runs_out_of_time_leaves_the_rest_unread_and_says_so():
 
 
 def test_monitor_stories_is_on_by_default_and_the_setting_is_validated():
-    on = {"singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True}, "vectorIndexArn": None, "storageBucketName": None, "minimumStandard": "more-than-summary"}   # single items, every context-pack signal that has data, suggestions; no index until the site's outputs supply one
+    on = {"singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True}, "vectorIndexArn": None, "storageBucketName": None}   # single items, every context-pack signal that has data, suggestions; no index until the site's outputs supply one
     assert validate_monitor_stories("p", None) == {"enabled": True, "store": "items", **on}   # ideas are Items at the idea stage by default
     assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "items", **on}
     assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "items", **on}
     assert validate_monitor_stories("p", {"store": "items"}) == {"enabled": True, "store": "items", **on}
     assert validate_monitor_stories("p", {"store": "proposals"}) == {"enabled": True, "store": "items", **on}   # a router entry written before ideas became Items still validates
-    assert validate_monitor_stories("p", {"minimumStandard": "summary"})["minimumStandard"] == "summary"   # the old behaviour, kept only for the replay
-    for bad in ({"enabled": "no"}, {"limit": 3}, {"store": "files"}, {"minimumStandard": "anything"}, {"minimumStandard": None}, "off", []):
+    for old in ("summary", "more-than-summary", "anything", None):   # the retired setting of the old standard: an old stored config still loads, and the value is ignored
+        assert validate_monitor_stories("p", {"minimumStandard": old}) == {"enabled": True, "store": "items", **on}
+    for bad in ({"enabled": "no"}, {"limit": 3}, {"store": "files"}, "off", []):
         with pytest.raises(ValueError):
             validate_monitor_stories("p", bad)
 
@@ -398,6 +403,7 @@ def used_fields():
     running it on the real GraphQL client with its transport replaced."""
     assert os.environ["PAPYRUS_GRAPHQL_AUTH"] == "iam"   # the Lambda's setting: earlier drafts are read with listStoryDrafts, not listProposals
     rows, fake = world(2)
+    with_editors_reasons(fake)
     recorded: list[tuple[str, str]] = []
 
     def respond(query, variables=None):
@@ -435,7 +441,8 @@ def used_fields():
 
 
 def granted_fields(api):
-    """Every (Query|Mutation, field) the template grants the router role on `api`, from its managed policies and its inline policy."""
+    """Every (Query|Mutation, field) the template grants the router role on `api` (an API id parameter, or `\\*` for any publication API: the RouterIdeaPolicy),
+    from its managed policies and its inline policy."""
     template = _template()
     resources = template["Resources"]
     statements = []
@@ -448,7 +455,7 @@ def granted_fields(api):
     for statement in statements:
         for entry in statement["Resource"] if isinstance(statement.get("Resource"), list) else [statement.get("Resource")]:
             arn = entry[1] if isinstance(entry, tuple) else entry
-            match = re.search(r"apis/\$\{" + api + r"\}/types/(Query|Mutation)/fields/(\w+)$", str(arn))
+            match = re.search(r"apis/" + (api if api == "\\*" else r"\$\{" + api + r"\}") + r"/types/(Query|Mutation)/fields/(\w+)$", str(arn))
             if match:
                 granted.add((match.group(1), match.group(2)))
     return granted
@@ -467,7 +474,9 @@ def test_monitor_stories_grant_covers_every_publication_api_the_hn_monitor_lists
     resources = [r for name in halves for r in resources_of(name)]
     assert {r.split("apis/")[1].split("/")[0] for r in resources} == {"${" + api + "}" for api in (*PUBLICATION_APIS, "DistinctiveApiId", "MachinesOnMachinesApiId")}
     assert "*" not in "".join(resources)
-    needed = used_fields()
+    per_api = {tuple(r.split("types/")[1].split("/fields/")) for r in resources}
+    only_anywhere = granted_fields("\\*") - per_api   # the reads the standard added (Messages, the link feed, summaries, review requests) are the RouterIdeaPolicy's (apis/*), on any publication API
+    needed = used_fields() - only_anywhere
     assert {("Mutation", "fileProposal"), ("Query", "listStoryDrafts"), ("Mutation", "createReviewRequest"), ("Query", "getReviewRequest")} <= needed
     for api in (*PUBLICATION_APIS, "DistinctiveApiId", "MachinesOnMachinesApiId"):
         granted_here = {tuple(r.split("types/")[1].split("/fields/")) for r in resources if f"apis/${{{api}}}/" in r}
@@ -541,6 +550,7 @@ def test_a_run_naming_one_publication_drafts_only_that_one_and_takes_its_own_loc
     table, store = router(("example-site", "other-site"))
     _, first = world(2)
     _, second = world(2)
+    with_editors_reasons(second)
     seen = []
     original = store.acquire_router_lock
     store.acquire_router_lock = lambda *a, **k: (seen.append(k.get("sk")), original(*a, **k))[1]

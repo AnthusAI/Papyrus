@@ -19,8 +19,8 @@ be read (no page text and no real summary) a Message or a neighbour, because an 
 word with what it cites, no sentence talks about how the story came to be, no "trend" is claimed without counts. Nothing here asks a model; whether the draft says
 anything is ``point_check``'s question.
 
-``minimumStandard`` (a site's ``monitorStories`` setting) is ``more-than-summary`` or ``summary``. ``summary`` is the old behaviour, kept only so the
-replay (``scripts/replay_idea_standard.py``) can compare the two on the same References; remove it, with its prompt, after the replay.
+There is one standard, "more than a summary". A site's old ``monitorStories.minimumStandard`` setting is retired (``RETIRED_POLICY_FIELDS`` in
+``monitoring_stories.py``): a stored config that still carries it loads, and the value is ignored.
 """
 
 from __future__ import annotations
@@ -35,10 +35,7 @@ from ..reference_links import REFERENCE_LINK_FEED_KEY
 from ..reference_vote import HUMAN
 from . import dedupe
 
-MORE_THAN_SUMMARY = "more-than-summary"
-SUMMARY = "summary"   # the old behaviour; kept only for the replay comparison, to be removed after it
-MINIMUM_STANDARDS = (MORE_THAN_SUMMARY, SUMMARY)
-DEFAULT_STANDARD = MORE_THAN_SUMMARY
+MORE_THAN_SUMMARY = "more-than-summary"   # the one standard; recorded on each idea's evidence
 
 SOURCE_HANDLE = "I1"
 ACCEPT_REASON, MESSAGE, NEIGHBOUR, EDITORS_EXPLANATION = "acceptReason", "message", "neighbour", "editorsExplanation"
@@ -64,12 +61,6 @@ INTERNAL_WORDING_USED = "internal_wording"
 MESSAGE_WITHOUT_REFERENCE = "message_cited_without_reference"
 TREND_WITHOUT_SIGNAL = "trend_claim_without_signal"
 DESCRIBES_UNREAD_PAGE = "describes_unread_page"
-
-
-def validate_standard(value: Any) -> str:
-    if value not in MINIMUM_STANDARDS:
-        raise ValueError(f"minimumStandard must be one of {', '.join(MINIMUM_STANDARDS)}.")
-    return value
 
 
 def scrubbed(text: Any) -> str:
@@ -155,7 +146,7 @@ def build_connections(
     if reason:
         entries.append(Connection("E1", ACCEPT_REASON, {
             "handle": "E1", "kind": ACCEPT_REASON, "writtenBy": "editor", "text": reason,
-            "note": "The editors' reason for accepting this Reference. It is their view, not a fact about the world.",
+            "note": "The editors' reason for accepting this Reference. It tells you what to look for: it is not a fact, and it is not to be reported.",
         }, reason))
     for message in messages:
         text = scrubbed(message.get("text"))
@@ -179,7 +170,7 @@ def build_connections(
         handle = f"X{number}"
         entries.append(Connection(handle, EDITORS_EXPLANATION, {
             "handle": handle, "kind": EDITORS_EXPLANATION, "about": about, "editorsExplanation": {"writtenBy": "editor", "text": neighbour.explanation},
-            "note": "What an editor wrote on the link between the source and the related Reference. Their view, not a fact.",
+            "note": "What an editor wrote on the link between the source and the related Reference. It tells you what to look for: it is not a fact, and it is not to be reported.",
         }, str(neighbour.explanation), about=about))
     found = {
         "acceptReason": bool(reason), "messages": sum(entry.kind == MESSAGE for entry in entries), "neighbours": len(ordered),
