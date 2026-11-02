@@ -2,6 +2,7 @@
 from copy import deepcopy
 from decimal import Decimal
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -960,11 +961,13 @@ def test_router_role_is_least_privilege():
     assert all(len([r for r in resources if f"${{{p}}}" in r]) == len(fields) for p in ("AnthUsApiId", "PapyrusApiId", "ThreatIntelApiId"))
     distinctive = template["Resources"]["RouterDistinctiveIntakePolicy"]["Properties"]
     assert distinctive["Roles"] == [("Ref", "RouterRole")]
-    (statement,) = distinctive["PolicyDocument"]["Statement"]
-    assert statement["Action"] == "appsync:GraphQL"
-    distinctive_resources = [r[1] for r in statement["Resource"]]
-    assert {r.split("apis/")[1].split("/")[0] for r in distinctive_resources} == {"${DistinctiveApiId}"}
-    assert {r.rsplit("/", 1)[1] for r in distinctive_resources} == fields and "*" not in "".join(distinctive_resources)
+    # RouterRole is at IAM's 20-managed-policy limit, so Machines on Machines shares this policy in a statement of its own.
+    distinctive_statement, machines_statement = distinctive["PolicyDocument"]["Statement"]
+    for statement, api in ((distinctive_statement, "DistinctiveApiId"), (machines_statement, "MachinesOnMachinesApiId")):
+        assert statement["Action"] == "appsync:GraphQL"
+        site_resources = [r[1] for r in statement["Resource"]]
+        assert {r.split("apis/")[1].split("/")[0] for r in site_resources} == {"${" + api + "}"}
+        assert {r.rsplit("/", 1)[1] for r in site_resources} == fields and "*" not in "".join(site_resources)
     # Lab decisions are written as relevance_decision_is relations (a SemanticNode per label; the old relation is superseded).
     # Every cyclotron-decided publication gets those grants, Distinctive too: its web monitor has its own Cyclotron (the TTAB monitor stays `direct`).
     relations = _template()["Resources"]["RouterDecisionRelationPolicy"]["Properties"]
@@ -974,8 +977,8 @@ def test_router_role_is_least_privilege():
     assert relation_statement["Action"] == "appsync:GraphQL" and "*" not in "".join(relation_resources)
     assert {r.rsplit("/", 1)[1] for r in relation_resources} == {
         "getSemanticNode", "listSemanticRelationsBySubjectState", "createSemanticNode", "updateSemanticRelation"}
-    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}", "${DistinctiveApiId}"}
-    assert len(relation_resources) == 4 * 7
+    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}", "${DistinctiveApiId}", "${MachinesOnMachinesApiId}"}
+    assert len(relation_resources) == 4 * 8
     assert len(json.dumps(statements).replace(" ", "")) < 9_500    # IAM inline policy limit is 10,240 characters
     assert all(a != "dynamodb:Scan" for a in by_sid["MonitoringTable"]["Action"])
 
@@ -2599,7 +2602,43 @@ def test_auto_accept_grant_covers_every_publication_api_including_distinctive():
     assert policy["Roles"] == [("Ref", "RouterRole")]
     (statement,) = policy["PolicyDocument"]["Statement"]
     resources = [r[1] for r in statement["Resource"]]
-    apis = {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}", "${DistinctiveApiId}"}
+    apis = {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}", "${DistinctiveApiId}", "${MachinesOnMachinesApiId}"}
     assert {r.split("apis/")[1].split("/")[0] for r in resources} == apis
     assert {r.rsplit("/", 1)[1] for r in resources} == {"listReferencesByCurationStatusKeyAndUpdatedAt", "updateReference"}
     assert len(resources) == 2 * len(apis) and "*" not in "".join(resources)
+
+
+def test_router_can_deliver_to_every_configured_publication_api():
+    """Every *ApiId parameter of the stack is a routed publication: the router needs the intake, enrichment read-back, decision-relation, auto-accept
+    and monitor-stories grants on it, and the vector index and storage bucket parameters of the same site. Adding a publication means adding it to all of them."""
+    template = _template()
+    parameters = template["Parameters"]
+    apis = sorted(name for name in parameters if name.endswith("ApiId"))
+    assert "MachinesOnMachinesApiId" in apis and "PapyrusApiId" in apis          # the old backend keeps its grants until it is retired
+    assert parameters["MachinesOnMachinesApiId"]["Default"] == "lxyzo2l2pjftjdha7egy73wndu"
+    granted = {}
+    inline = template["Resources"]["RouterRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+    statements = list(inline)
+    for resource in template["Resources"].values():
+        props = resource.get("Properties") or {}
+        if resource["Type"] == "AWS::IAM::ManagedPolicy" and ("Ref", "RouterRole") in (props.get("Roles") or []):
+            statements += props["PolicyDocument"]["Statement"]
+    for statement in statements:
+        entries = statement["Resource"] if isinstance(statement.get("Resource"), list) else [statement.get("Resource")]
+        for entry in entries:
+            text = str(entry[1] if isinstance(entry, tuple) else entry)
+            match = re.search(r"apis/\$\{(\w+ApiId)\}/types/(Query|Mutation)/fields/(\w+)$", text)
+            if match:
+                granted.setdefault(match.group(1), set()).add((match.group(2), match.group(3)))
+    required = {("Mutation", "createReference"), ("Mutation", "createSemanticRelation"), ("Mutation", "createModelAttachmentDownload"),
+                ("Query", "getSemanticNode"), ("Mutation", "createSemanticNode"), ("Mutation", "updateSemanticRelation"), ("Mutation", "updateReference"),
+                ("Query", "listReferencesByCurationStatusKeyAndUpdatedAt")}
+    assert set(apis) <= set(granted), sorted(set(apis) - set(granted))
+    for api in apis:
+        assert required <= granted[api], (api, sorted(required - granted[api]))
+    text = TEMPLATE.read_text()
+    for api in apis:
+        site = api[: -len("ApiId")]
+        for suffix in ("VectorIndexArn", "StorageBucketName"):
+            if site + suffix in parameters or api == "MachinesOnMachinesApiId":
+                assert f"{site}{suffix}" in parameters and text.count(f"${{{site}{suffix}}}") + text.count(f"!Ref {site}{suffix}") >= 1, site + suffix

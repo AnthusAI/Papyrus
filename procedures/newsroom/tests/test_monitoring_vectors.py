@@ -370,7 +370,7 @@ def test_the_log_line_of_a_publication_that_was_skipped_or_disabled_carries_the_
 # --- IAM -------------------------------------------------------------------------------------------------------------------------------------
 
 
-SITES = ("AnthUs", "Papyrus", "ThreatIntel", "DataParade", "Pilobolus", "Shipped", "Distinctive")
+SITES = ("AnthUs", "Papyrus", "ThreatIntel", "DataParade", "Pilobolus", "Shipped", "Distinctive", "MachinesOnMachines")
 
 
 def idea_policy_text():
@@ -379,7 +379,7 @@ def idea_policy_text():
     return text, text[start:text.index("\n\n  ", start)]
 
 
-def test_the_idea_policy_grants_the_s3_vectors_actions_on_the_seven_indexes_and_reads_the_seven_buckets_and_no_policy_was_added():
+def test_the_idea_policy_grants_the_s3_vectors_actions_on_the_eight_indexes_and_reads_the_eight_buckets_and_no_policy_was_added():
     text, policy = idea_policy_text()
     block = policy[policy.index("Sid: SiteVectorIndexes"):policy.index("Sid: ReadEditorialJudgmentKey")]
     for action in ("s3vectors:GetVectors", "s3vectors:QueryVectors", "s3vectors:PutVectors", "s3vectors:ListVectors"):
