@@ -49,13 +49,16 @@ def accepted(number: int, at: str) -> dict:
 
 
 class AcceptedClient:
-    def __init__(self, rows):
+    """Lists the References the router asks for by status key: ``rows`` are the accepted ones, ``pending`` the pending ones."""
+
+    def __init__(self, rows, pending=()):
         self.rows = rows
+        self.pending = list(pending)
         self.asked = []
 
     def list_by_index(self, index_name, key_value, *, limit=100):
         self.asked.append((index_name, key_value))
-        return list(self.rows)
+        return list(self.pending if key_value.endswith("#pending") else self.rows)
 
 
 class Watermark:
@@ -161,7 +164,7 @@ def test_the_index_is_synced_for_the_newly_accepted_references_then_each_gets_su
     client = AcceptedClient([accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-31T10:00:00Z"), accepted(3, "2026-10-29T10:00:00Z")])
     pass_, watermark = Pass(characters=4_000_000, cards=2, written=5), Watermark("2026-10-29T12:00:00Z")
     result = run_pass(client, pass_, watermark)
-    assert client.asked == [("referencesByCurationStatusKey", "knowledge-corpus-example-site#accepted")]
+    assert client.asked == [("referencesByCurationStatusKey", "knowledge-corpus-example-site#accepted"), ("referencesByCurationStatusKey", "knowledge-corpus-example-site#pending")]
     assert pass_.options.action == "sync" and pass_.options.reference_ids == ("ref-1", "ref-2") and not pass_.options.skip_references   # ref-3 was accepted before the last pass
     assert pass_.options.include_concept_cards and not pass_.options.include_ontology_vectors
     assert pass_.order == ["index", "suggest:ref-1", "suggest:ref-2"]   # the index first; the oldest acceptance first
@@ -307,7 +310,7 @@ def router_with(settings):
 
 def run_task(store, client, order, monkeypatch, *, key="sk-test", accepted_rows=None):
     pass_ = Pass(characters=400_000, cards=1, written=3)
-    monkeypatch.setattr("papyrus_content.monitoring_vectors.accepted_since", lambda c, p, watermark: accepted_rows or [])
+    monkeypatch.setattr("papyrus_content.monitoring_vectors.references_since", lambda c, p, watermark: accepted_rows or [])
     monkeypatch.setattr("papyrus_content.monitoring_vectors.run_vector_pass", partial(
         vectors.run_vector_pass, services_for=lambda publication, bucket: object(), indexer=lambda services, options: (order.append("index"), pass_.indexer(services, options))[1],
         suggester=lambda c, provider, reference_id, **options: (order.append("suggest"), pass_.suggester(c, provider, reference_id, **options))[1],

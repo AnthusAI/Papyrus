@@ -13,7 +13,10 @@ query shape, ranking, vector indexing, and output tuning.
 ## What counts as internal research
 
 - **Semantic search** over accepted references (S3 Vectors index, derived from
-  GraphQL + extracted text).
+  GraphQL + extracted text). The index also holds the summary vector of pending
+  References, as context for link suggestions only: the search filter always
+  asks for accepted References (or vectors that are not References) and drops a
+  pending match if one comes back, whatever `curationStatus` the request names.
 - **Anchored lookup** by `papyrus://` URI or explicit anchor ids (reference,
   category, assignment, semantic node, and other supported kinds).
 - **Graph expansion** along knowledge/ontology/classification/evidence relations

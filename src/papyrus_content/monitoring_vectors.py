@@ -2,10 +2,13 @@
 
 Before packs and single items, ``monitoring_stories.run_publication`` calls ``run_vector_pass``:
 
-1. Sync the publication's vector index: the summary, source and passage vectors of the References accepted since the last pass, and the concept cards
-   (content-hash skipping, so an unchanged card costs nothing). It is ``papyrus_knowledge_query.vector_index.index_reference_passages`` with
+1. Sync the publication's vector index: the summary, source and passage vectors of the References accepted since the last pass, the summary vector of the
+   pending ones (context only: their vectors are marked ``curationStatus: pending`` and every reader-facing query filters to accepted), and the concept
+   cards (content-hash skipping, so an unchanged card costs nothing). Every pass also reconciles the status of what is already indexed: a pending Reference
+   accepted since gets its metadata rewritten (no embedding call) and its passages written, and the vectors of a rejected, archived or superseded Reference
+   are deleted (``index_reference_passages`` does this on every ``sync``, whatever References it is asked to index). It is ``papyrus_knowledge_query.vector_index.index_reference_passages`` with
    ``action="sync"``, reached through the publication's own API with the router's IAM access and the site's storage bucket for the extracted text.
-2. Suggest related References and concepts for each Reference accepted since the last pass (``reference_suggestions.suggest_for``), cut where the
+2. Suggest related References and concepts for each Reference accepted or pending since the last pass (``reference_suggestions.suggest_for``), cut where the
    site's own decided suggestions say (``suggestion_calibration.load_calibration``).
 
 The only bounds are the run's time and its cost meter: embedding cost (text-embedding-3-small, from the characters embedded) is added to the model
@@ -26,10 +29,11 @@ from typing import Any
 EMBEDDING_USD_PER_MILLION_TOKENS = 0.02   # text-embedding-3-small
 CHARACTERS_PER_TOKEN = 4   # the usual English estimate; the exact count is only known to the embedding service
 ACCEPTED_INDEX = "referencesByCurationStatusKey"
+INDEXED_STATUSES = ("accepted", "pending")
 WATERMARK_SORT_KEY_PREFIX = "STATE#vectorSync#"
 WRITTEN_OUTCOMES = ("created", "updated")
 EMPTY_RESULT = {"indexed": 0, "conceptCardsWritten": 0, "suggestionsWritten": 0, "suggestionsSkippedReason": None, "indexSkippedReason": None,
-                "costUsd": 0.0, "stoppedBy": None, "newlyAccepted": 0}
+                "costUsd": 0.0, "stoppedBy": None, "newlyAccepted": 0, "newlyPending": 0}
 
 
 def watermark_sort_key(publication_id: str) -> str:
@@ -98,15 +102,23 @@ def vector_provider_for(policy: dict[str, Any], provider_for: Callable[..., Any]
         return None
 
 
-def accepted_since(client: Any, publication: dict[str, Any], watermark: str | None) -> list[dict[str, Any]]:
-    """The publication's accepted References whose acceptance is newer than the watermark (all of them when there is none), oldest first."""
-    rows = client.list_by_index(ACCEPTED_INDEX, f"{publication['corpusId']}#accepted")
+def references_since(client: Any, publication: dict[str, Any], watermark: str | None) -> list[dict[str, Any]]:
+    """The publication's accepted and pending References whose status changed (or that arrived) after the watermark (all of them when there is none),
+    oldest first. A pending Reference accepted later changes its ``curationStatusUpdatedAt`` and so comes round again as accepted; a rejected one is not
+    listed (``index_reference_passages`` removes its vectors on every sync, from the whole Reference list, not from this one)."""
+    def changed_at(row: dict[str, Any]) -> str:
+        return str(row.get("curationStatusUpdatedAt") or row.get("updatedAt") or row.get("createdAt") or "")
 
-    def accepted_at(row: dict[str, Any]) -> str:
-        return str(row.get("curationStatusUpdatedAt") or row.get("updatedAt") or "")
+    found: dict[str, dict[str, Any]] = {}
+    for status in INDEXED_STATUSES:
+        for row in client.list_by_index(ACCEPTED_INDEX, f"{publication['corpusId']}#{status}"):
+            if row.get("id") and row.get("versionState", "current") == "current" and (not watermark or changed_at(row) > watermark):
+                found[str(row["id"])] = row
+    return sorted(found.values(), key=changed_at)
 
-    newer = [row for row in rows if row.get("id") and row.get("versionState", "current") == "current" and (not watermark or accepted_at(row) > watermark)]
-    return sorted(newer, key=accepted_at)
+
+def _changed_at(row: dict[str, Any]) -> str:
+    return str(row.get("curationStatusUpdatedAt") or row.get("updatedAt") or row.get("createdAt") or "")
 
 
 def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, Any], *, now: datetime, out_of_time: Callable[[], bool],
@@ -114,8 +126,8 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
                     services_for: Callable[..., Any] = build_services, indexer: Callable[..., dict] | None = None,
                     suggester: Callable[..., dict] | None = None, provider_for: Callable[..., Any] | None = None,
                     calibration_loader: Callable[[Any], Any] | None = None) -> dict[str, Any]:
-    """Syncs the index and suggests for the newly accepted References; returns ``{"indexed", "conceptCardsWritten", "suggestionsWritten",
-    "suggestionsSkippedReason", "indexSkippedReason", "costUsd", "stoppedBy", "newlyAccepted"}``. Never raises: a failure is reported as the reason.
+    """Syncs the index and suggests for the References accepted or pending since the watermark; returns ``{"indexed", "conceptCardsWritten", "suggestionsWritten",
+    "suggestionsSkippedReason", "indexSkippedReason", "costUsd", "stoppedBy", "newlyAccepted", "newlyPending"}``. Never raises: a failure is reported as the reason.
     The callables are the real ones unless a test passes fakes."""
     result = dict(EMPTY_RESULT)
     arn = policy.get("vectorIndexArn")
@@ -127,11 +139,12 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
         return {**result, "indexSkippedReason": missing_client, "suggestionsSkippedReason": missing_client}
     try:
         watermark = read_watermark()
-        newly = accepted_since(client, publication, watermark)
+        newly = references_since(client, publication, watermark)
     except Exception as error:  # noqa: BLE001
-        reason = f"could not read the accepted References ({type(error).__name__}: {str(error)[:160]})"
+        reason = f"could not read the accepted and pending References ({type(error).__name__}: {str(error)[:160]})"
         return {**result, "indexSkippedReason": reason, "suggestionsSkippedReason": reason}
-    result["newlyAccepted"] = len(newly)
+    result["newlyPending"] = sum(1 for row in newly if row.get("curationStatus") == "pending" or str(row.get("curationStatusKey") or "").endswith("#pending"))
+    result["newlyAccepted"] = len(newly) - result["newlyPending"]
     bucket = policy.get("storageBucketName")
     indexing_ok = False
     if not embedding_key:
@@ -150,7 +163,7 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
                  provider_for=provider_for, calibration_loader=calibration_loader)
     if newly and indexing_ok and not result["stoppedBy"] and not result.get("suggestionsError"):
         try:
-            write_watermark(max(str(row.get("curationStatusUpdatedAt") or row.get("updatedAt") or "") for row in newly))
+            write_watermark(max(_changed_at(row) for row in newly))
         except Exception as error:  # noqa: BLE001
             result["watermarkError"] = f"{type(error).__name__}: {str(error)[:160]}"
     result["costUsd"] = round(result["costUsd"], 6)
@@ -159,7 +172,7 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
 
 def _sync_index(publication: dict[str, Any], policy: dict[str, Any], newly: list[dict[str, Any]], result: dict[str, Any], *, services_for: Callable[..., Any],
                 indexer: Callable[..., dict] | None, embedding_key: str, out_of_time: Callable[[], bool], maximum_cost_usd: float) -> bool:
-    """Runs ``index_reference_passages(action="sync")`` for the newly accepted References and the concept cards. True when it completed."""
+    """Runs ``index_reference_passages(action="sync")`` for the newly accepted and pending References and the concept cards. True when it completed."""
     from papyrus_knowledge_query import vector_index
 
     def stop_check(stats: dict[str, Any]) -> str | None:

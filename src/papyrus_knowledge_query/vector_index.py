@@ -10,6 +10,7 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Callable
+import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
@@ -121,8 +122,9 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
 
     all_references = _list_references(services.graph)
     accepted_references = [reference for reference in all_references if _reference_is_accepted(reference)]
+    indexable_references = [reference for reference in all_references if _reference_is_indexable(reference)]
     references = [
-        reference for reference in accepted_references
+        reference for reference in indexable_references
         if (not options.corpus_id or reference.get("corpusId") == options.corpus_id)
         and (not options.reference_ids or _reference_matches(reference, options.reference_ids))
     ]
@@ -148,6 +150,7 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "startedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "totalReferences": len(all_references),
         "acceptedReferences": len(accepted_references),
+        "pendingReferences": len(indexable_references) - len(accepted_references),
         "referencesScanned": len(references),
         "existingVectors": len(existing_vectors),
         "existingIndexedReferences": len(existing_reference_keys),
@@ -164,6 +167,8 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "vectorsSkippedExisting": 0,
         "vectorsToWrite": 0,
         "vectorsWritten": 0,
+        "vectorsDeletedForStatus": 0,
+        "vectorsStatusRefreshed": 0,
         "embeddingRequests": 0,
         "embeddingInputsEmpty": 0,
         "embeddingInputsTruncated": 0,
@@ -212,6 +217,9 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         missing_note = sorted(selected_note_keys - existing_note_keys)
         stats["missingIndexedNoteMessages"] = len(missing_note)
         stats["missingIndexedNoteMessageSample"] = missing_note[:20]
+        stale = _stale_reference_vectors(existing_vectors, all_references)
+        stats["vectorsToDeleteForStatus"] = len(stale["delete"])
+        stats["vectorsToRefreshStatus"] = len(stale["refresh"])
         return stats
 
     if options.action == "rebuild" and existing_keys and not options.dry_run:
@@ -220,6 +228,13 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         existing_reference_keys = set()
         existing_vectors = []
         stats["vectorsDeleted"] = len(existing_vectors)
+
+    stale = _stale_reference_vectors(existing_vectors, all_references)
+    stats["vectorsToDeleteForStatus"] = len(stale["delete"])
+    stats["vectorsToRefreshStatus"] = len(stale["refresh"])
+    if not options.dry_run:
+        _apply_status_reconciliation(vector_index_arn, stale, stats)
+        existing_keys -= set(stale["delete"])
 
     pending_vectors: list[dict[str, Any]] = []
     completed = 0
@@ -323,6 +338,9 @@ def _prepare_reference_for_indexing(
     reference: dict[str, Any],
     options: VectorIndexOptions,
 ) -> dict[str, Any]:
+    if reference_curation_status(reference) != ACCEPTED_STATUS and options.include_passage_vectors:
+        # A pending Reference is context only: its summary vector is enough to find its neighbours, and its passages stay out of the index until it is accepted.
+        options = dataclasses.replace(options, include_passage_vectors=False)
     result: dict[str, Any] = {
         "referenceId": reference.get("id"),
         "referenceLineageId": reference.get("lineageId"),
@@ -956,7 +974,7 @@ def _base_reference_metadata(
         "referenceSummaryRelationTypeKey": summary_payload.get("relationTypeKey"),
         "referenceSummaryPromptVersion": summary_payload.get("promptVersion"),
         "referenceSummaryResolvedAt": summary_payload.get("resolvedAt"),
-        "curationStatus": reference.get("curationStatus"),
+        "curationStatus": reference_curation_status(reference) or reference.get("curationStatus"),
         "curationStatusKey": reference.get("curationStatusKey"),
     }
 
@@ -1197,14 +1215,111 @@ def _authors_text(reference: dict[str, Any]) -> str:
     return str(authors or "")
 
 
+ACCEPTED_STATUS = "accepted"
+PENDING_STATUS = "pending"
+INDEXABLE_STATUSES = (ACCEPTED_STATUS, PENDING_STATUS)
+
+
+def reference_curation_status(reference: dict[str, Any]) -> str:
+    """``accepted``, ``pending``, another status (``rejected``, ``archived``...) or "" when the row names none; read from ``curationStatus``, else from the
+    suffix of ``curationStatusKey`` (``<corpusId>#<status>``)."""
+    status = str(reference.get("curationStatus") or "").strip()
+    if status:
+        return status
+    key = str(reference.get("curationStatusKey") or "")
+    return key.rsplit("#", 1)[1] if "#" in key else ""
+
+
 def _reference_is_accepted(reference: dict[str, Any]) -> bool:
-    return (
-        reference.get("versionState") == "current"
-        and (
-            reference.get("curationStatus") == "accepted"
-            or str(reference.get("curationStatusKey") or "").endswith("#accepted")
-        )
-    )
+    return reference.get("versionState") == "current" and reference_curation_status(reference) == ACCEPTED_STATUS
+
+
+def _reference_is_indexable(reference: dict[str, Any]) -> bool:
+    """A current Reference that is accepted or still pending. Pending ones are indexed as context only (their vectors carry ``curationStatus`` and every
+    reader-facing query filters to accepted); rejected, archived and superseded ones are not indexed."""
+    return reference.get("versionState") == "current" and reference_curation_status(reference) in INDEXABLE_STATUSES
+
+
+def _reference_vector_lineage(vector: dict[str, Any]) -> str | None:
+    metadata = vector.get("metadata") if isinstance(vector.get("metadata"), dict) else {}
+    vector_kind = str(metadata.get("vectorKind") or "")
+    if str(metadata.get("kind") or "") != "reference" and not vector_kind.startswith("reference_"):
+        return None
+    key = metadata.get("referenceLineageId") or metadata.get("lineageId") or metadata.get("referenceId") or metadata.get("id")
+    return str(key) if key else None
+
+
+def _stale_reference_vectors(existing_vectors: list[dict[str, Any]], all_references: list[dict[str, Any]]) -> dict[str, Any]:
+    """What the index holds that no longer matches the References: ``delete`` is the keys to remove (the Reference is rejected, archived or has no
+    current version, or it is not accepted and a passage vector remains), ``refresh`` is ``{key: new curation fields}`` for vectors whose stored
+    ``curationStatus`` differs from the Reference's (a pending Reference accepted since, an accepted one sent back to pending, vectors written before the
+    field existed). A Reference the graph does not list at all is left alone."""
+    current: dict[str, dict[str, Any]] = {}
+    known: set[str] = set()
+    for reference in all_references:
+        key = str(reference.get("lineageId") or reference.get("id") or "")
+        if not key:
+            continue
+        known.add(key)
+        if reference.get("versionState") == "current":
+            current[key] = reference
+    delete: list[str] = []
+    refresh: dict[str, dict[str, Any]] = {}
+    exclude_fields: dict[str, dict[str, Any]] = {}
+    for vector in existing_vectors:
+        key = vector.get("key")
+        lineage = _reference_vector_lineage(vector)
+        if not key or not lineage:
+            continue
+        reference = current.get(lineage)
+        metadata = vector.get("metadata") if isinstance(vector.get("metadata"), dict) else {}
+        if reference is None:
+            if lineage in known:
+                delete.append(str(key))
+                if metadata.get("curationStatus") != "superseded":
+                    exclude_fields[str(key)] = {"curationStatus": "superseded", "curationStatusKey": None}
+            continue
+        status = reference_curation_status(reference)
+        if status not in INDEXABLE_STATUSES or (status != ACCEPTED_STATUS and metadata.get("vectorKind") == "reference_passage"):
+            delete.append(str(key))
+            marked = status if status not in INDEXABLE_STATUSES else "superseded"
+            if status and metadata.get("curationStatus") != marked:
+                exclude_fields[str(key)] = {"curationStatus": marked, "curationStatusKey": reference.get("curationStatusKey")}
+        elif metadata.get("curationStatus") != status:
+            refresh[str(key)] = {"curationStatus": status, "curationStatusKey": reference.get("curationStatusKey")}
+    return {"delete": sorted(delete), "refresh": refresh, "exclude_fields": exclude_fields}
+
+
+def _apply_status_reconciliation(vector_index_arn: str, stale: dict[str, Any], stats: dict[str, Any]) -> None:
+    """Deletes the vectors of rejected or superseded References and rewrites the curation fields of the rest, keeping each vector's stored data (no
+    embedding call, no cost)."""
+    refresh = dict(stale["refresh"])
+    if stale["delete"]:
+        try:
+            _delete_vectors(vector_index_arn, stale["delete"])
+            stats["vectorsDeletedForStatus"] += len(stale["delete"])
+        except Exception as error:  # noqa: BLE001
+            code = str(((getattr(error, "response", None) or {}).get("Error") or {}).get("Code") or "")
+            if "AccessDenied" not in code:
+                raise
+            # A role without s3vectors:DeleteVectors cannot remove them; marking them with the Reference's real status keeps them out of every
+            # accepted-only query until a role that may delete runs the sync.
+            stats["warnings"].append(f"s3vectors:DeleteVectors was denied for {len(stale['delete'])} vectors of non-indexable References; they were marked with their status instead")
+            refresh.update(stale["exclude_fields"])
+            stats["vectorsMarkedExcluded"] = len(stale["exclude_fields"])
+    for keys in _batched_scalar(sorted(refresh), 100):
+        rewritten = []
+        for vector in _get_vectors(vector_index_arn, keys):
+            fields = refresh.get(str(vector.get("key")))
+            if fields is None or not (vector.get("data") or {}).get("float32"):
+                continue
+            metadata = {**(vector.get("metadata") or {}), **fields}
+            if metadata.get("curationStatusKey") is None:
+                metadata.pop("curationStatusKey", None)
+            rewritten.append({"key": vector["key"], "data": vector["data"], "metadata": _sanitize_vector_metadata(metadata)})
+        if rewritten:
+            _put_vectors(vector_index_arn, rewritten)
+            stats["vectorsStatusRefreshed"] += len(rewritten)
 
 
 def _reference_matches(reference: dict[str, Any], reference_ids: tuple[str, ...]) -> bool:
@@ -1601,6 +1716,13 @@ def _embed_and_put_vectors(index_arn: str, candidates: list[dict[str, Any]]) -> 
         })
     _put_vectors(index_arn, vectors)
     return len(vectors)
+
+
+def _get_vectors(index_arn: str, keys: list[str]) -> list[dict[str, Any]]:
+    import boto3  # type: ignore
+
+    client = boto3.client("s3vectors", region_name=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"))
+    return list(client.get_vectors(indexArn=index_arn, keys=keys, returnData=True, returnMetadata=True).get("vectors") or [])
 
 
 def _put_vectors(index_arn: str, vectors: list[dict[str, Any]]) -> None:
