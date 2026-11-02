@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "921bbe62-fe3d-4d92-90d2-13d9e029207e",
+  "issue_id": "PPY-533a6c6c-ccee-44d2-b1cf-30c1d2d9570b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T05:03:09.074Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Related section on the References page detail panel",
+    "description": "",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-41134cac-0ca4-4ba0-9ad2-67a7a22aa859",
+    "labels": []
+  }
+}

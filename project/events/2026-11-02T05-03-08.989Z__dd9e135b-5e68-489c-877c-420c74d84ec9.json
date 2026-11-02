@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "dd9e135b-5e68-489c-877c-420c74d84ec9",
+  "issue_id": "PPY-8d94e0b1-cfba-43a4-96ed-d893f2fe8482",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T05:03:08.989Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Ranked link-suggestion queue in Needs me with Accept/Reject and reason",
+    "description": "",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-41134cac-0ca4-4ba0-9ad2-67a7a22aa859",
+    "labels": []
+  }
+}
