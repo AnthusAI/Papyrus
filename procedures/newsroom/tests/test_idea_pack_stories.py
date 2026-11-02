@@ -68,11 +68,11 @@ class Gate:
         return None
 
 
-def run(pack, client, transport, *, gate=None, dry_run=False, meter=None, titles=()):
+def run(pack, client, transport, *, gate=None, dry_run=False, meter=None, titles=(), standard="summary"):   # the standard has its own tests below
     store = ItemStore(client)
     return pack_stories.draft_pack_ideas(
         client, pack, store=store, gate=gate or Gate(), transport=transport, cost_meter=meter or pack_stories.CostMeter(), existing_titles=titles,
-        run_id="run-1", dry_run=dry_run, concept_nodes={"#voice-cloning": NODE}, now=support.NOW,
+        run_id="run-1", dry_run=dry_run, concept_nodes={"#voice-cloning": NODE}, now=support.NOW, minimum_standard=standard,
     )
 
 
@@ -134,11 +134,11 @@ def test_a_message_is_cited_only_together_with_a_reference():
     alone["paragraphs"][0]["sentences"][0] = sentence("Editors argued.", "M1")
     alone["headline"] = sentence("Editors argue about a source", "R1")
     alone["dek"] = sentence("Editors keep accepting this material.", "R1")
-    checked, record = pack_stories.check_idea(alone, handles, pack.allowed_sections)
+    checked, record = pack_stories.check_idea(alone, handles, pack.allowed_sections, "summary")
     assert checked is None and any(problem["reason"] == "message_cited_without_reference" for problem in record["problems"])
     together = idea("Editors argue about a source", ["R1"])
     together["paragraphs"][0]["sentences"][0] = sentence("Editors argued about it.", "M1", "R1")
-    checked, record = pack_stories.check_idea(together, handles, pack.allowed_sections)
+    checked, record = pack_stories.check_idea(together, handles, pack.allowed_sections, "summary")
     assert [problem["reason"] for problem in record["problems"]] == ["fewer_than_2_accepted_references_cited"]
 
 
@@ -200,3 +200,53 @@ def test_an_editors_explanation_reaches_the_writer_as_delimited_data_with_a_rule
 def pack_stories_scrubbed(text):
     from papyrus_content.priming_export import scrubbed
     return scrubbed(text)
+
+
+# --- more than a summary: a pack never writes from titles, and its idea joins two References in one sentence -------------------
+
+
+def summarised(pack, *handles):
+    """The pack with a summary on the References named (and none on the others)."""
+    from dataclasses import replace
+
+    rows = tuple({**row, "summary": f"A summary of {row['title']}."} if row["handle"] in handles else {**row, "summary": ""} for row in pack.references)
+    return replace(pack, references=rows)
+
+
+def joined(headline, cites=("R1", "R2")):
+    return {
+        "headline": sentence(headline, "R1"), "dek": sentence("Both sources describe voice cloning.", *cites), "section": "Analysis",
+        "paragraphs": [{"sentences": [sentence("The first source describes voice cloning.", "R1"), sentence("The second source describes voice cloning in newsrooms.", *cites)]}],
+        "cites_summary": list(cites),
+    }
+
+
+def test_a_pack_whose_references_have_only_titles_is_skipped_and_the_model_is_not_asked():
+    pack = summarised(acceptance_pack(), "R1")   # one summary is not a connection between two
+    transport = transport_of(joined("Synthetic voices spread"))
+    result = run(pack, backend(pack), transport, standard="more-than-summary")
+    assert transport.calls == [] and result.model_calls == 0 and result.cost_usd == 0 and result.filed_count == 0
+    assert result.dropped == [{"title": pack.anchor, "reason": "nothing_to_add", "found": {"referencesWithSummary": 1}}]
+
+
+def test_a_pack_with_summaries_is_written_and_an_idea_with_a_sentence_joining_two_references_is_filed():
+    pack = summarised(acceptance_pack(), "R1", "R2", "R3", "R4")
+    result = run(pack, backend(pack), transport_of(joined("Synthetic voices spread")), standard="more-than-summary")
+    assert result.filed_count == 1 and result.dropped_count == 0
+
+
+def test_an_idea_with_no_sentence_citing_two_references_is_dropped_as_two_summaries_side_by_side():
+    pack = summarised(acceptance_pack(), "R1", "R2", "R3", "R4")
+    apart = joined("Synthetic voices spread")
+    apart["dek"] = sentence("Both sources describe voice cloning.", "R1")
+    apart["paragraphs"] = [{"sentences": [sentence("The first source describes voice cloning.", "R1"), sentence("The second source describes voice cloning in newsrooms.", "R2")]}]
+    result = run(pack, backend(pack), transport_of(apart), standard="more-than-summary")
+    assert result.filed_count == 0 and result.dropped[0]["reason"] == "citation_check_failed"
+    assert [problem["reason"] for problem in result.dropped[0]["citationCheck"]["problems"]] == ["no_joint_sentence"]
+    assert run(pack, backend(pack), transport_of(apart), standard="summary").filed_count == 1   # the old standard let it through
+
+
+def test_an_idea_may_cite_only_references_that_have_a_summary():
+    pack = summarised(acceptance_pack(), "R1", "R2")
+    checked, record = pack_stories.check_idea(joined("Synthetic voices spread", ("R1", "R3")), pack_stories.handles_of(pack), pack.allowed_sections, "more-than-summary")
+    assert checked is None and [problem["reason"] for problem in record["problems"]] == ["cites_reference_without_summary"]

@@ -49,7 +49,7 @@ def quiet_gate(monkeypatch):
     monkeypatch.setattr("papyrus_content.ideas.gate.HumanusGate.for_client", classmethod(lambda cls, client, **options: FakeGate()))
 
 
-SINGLE_ITEM_ONLY = {"contextPacks": {"enabled": False}}   # the single-item task ranked by the Cyclotron, as it was before context packs (the pack path: test_monitoring_packs.py)
+SINGLE_ITEM_ONLY = {"contextPacks": {"enabled": False}, "minimumStandard": "summary"}   # the single-item task ranked by the Cyclotron, as it was before context packs (the pack path: test_monitoring_packs.py)
 
 
 def router(publications=(PUBLICATION,), settings=None):
@@ -61,7 +61,7 @@ def router(publications=(PUBLICATION,), settings=None):
     config = table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"]
     config["publications"] = [{"publicationId": p, "site": f"{p}.example", "appsyncEndpoint": tr.ENDPOINT.replace("abc123", f"api{n}"),
                                "corpusId": "knowledge-corpus-example-site",   # the fixtures' References all live in this corpus
-                               "monitorStories": settings[p] if settings and p in settings else SINGLE_ITEM_ONLY} for n, p in enumerate(publications)]
+                               "monitorStories": {"minimumStandard": "summary", **settings[p]} if settings and p in settings else SINGLE_ITEM_ONLY} for n, p in enumerate(publications)]
     table.put_item(config)
     return table, store
 
@@ -347,13 +347,14 @@ def test_a_read_that_runs_out_of_time_leaves_the_rest_unread_and_says_so():
 
 
 def test_monitor_stories_is_on_by_default_and_the_setting_is_validated():
-    on = {"singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True}, "vectorIndexArn": None, "storageBucketName": None}   # single items, every context-pack signal that has data, suggestions; no index until the site's outputs supply one
+    on = {"singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True}, "vectorIndexArn": None, "storageBucketName": None, "minimumStandard": "more-than-summary"}   # single items, every context-pack signal that has data, suggestions; no index until the site's outputs supply one
     assert validate_monitor_stories("p", None) == {"enabled": True, "store": "items", **on}   # ideas are Items at the idea stage by default
     assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "items", **on}
     assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "items", **on}
     assert validate_monitor_stories("p", {"store": "items"}) == {"enabled": True, "store": "items", **on}
     assert validate_monitor_stories("p", {"store": "proposals"}) == {"enabled": True, "store": "items", **on}   # a router entry written before ideas became Items still validates
-    for bad in ({"enabled": "no"}, {"limit": 3}, {"store": "files"}, "off", []):
+    assert validate_monitor_stories("p", {"minimumStandard": "summary"})["minimumStandard"] == "summary"   # the old behaviour, kept only for the replay
+    for bad in ({"enabled": "no"}, {"limit": 3}, {"store": "files"}, {"minimumStandard": "anything"}, {"minimumStandard": None}, "off", []):
         with pytest.raises(ValueError):
             validate_monitor_stories("p", bad)
 

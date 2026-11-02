@@ -259,15 +259,18 @@ Feature: A site writes about the items its monitors find
     When the operator drafts monitor stories and files them as ideas with a limit of 1
     Then the ideas filed are for "Passes the check"
 
-  Scenario: A passing story is filed as an idea that cites its source and names the monitor
+  Scenario: A passing story is filed as an idea that cites its source, names the monitor and rests on something the newsroom knows
     Given the monitors of the site delivered these items:
       | monitor     | title                     | verdict      | days ago |
       | huggingface | A tool that checks claims | include 0.80 | 1        |
+    And the editors accepted "A tool that checks claims" and wrote "Claim checking matters to our sourcing coverage."
+    And the model writes a story for "A tool that checks claims" that rests on the editors' reason
     And every linked page can be read
-    When the operator drafts monitor stories and files them as ideas with a limit of 1
+    When the operator drafts monitor stories and files them as ideas with a limit of 1 under the minimum standard
     Then 1 idea is filed and it is proposed by AI and still at the idea stage
     And the idea body cites the address of the item
     And the idea evidence names the "huggingface" monitor and the address of the item
+    And the idea evidence records the connection "acceptReason"
     And the idea targets the Reference it is about
     And model "gpt-6-luna" was the only model asked
     And one soft review request covers the run

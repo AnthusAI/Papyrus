@@ -130,7 +130,7 @@ PACKS_ON = {"singleItem": True, "contextPacks": {"enabled": True}}
 
 
 def run_packs(client, model, settings=None, **options):
-    table, store = router(settings={PUBLICATION: settings or PACKS_ON})
+    table, store = router(settings={PUBLICATION: {"minimumStandard": "summary", **(settings or PACKS_ON)}})   # the queue, the stops and the review; the standard has its own tests
     return run_task(store, {PUBLICATION: client}, model, **options)
 
 
@@ -389,7 +389,7 @@ def run_command(argv, client, model, monkeypatch, directory):
          mock.patch("papyrus_content.cli.load_dotenv"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}), \
          mock.patch.object(commands, "datetime", FixedClock), mock.patch.object(commands.monitor_stories, "datetime", FixedClock), \
          redirect_stdout(out), redirect_stderr(err):
-        code = papyrus_cli.main(["--allow-cross-root", "ideas", "monitor-stories", "--site", PUBLICATION, "--store", "items", "--out", str(directory), *argv])
+        code = papyrus_cli.main(["--allow-cross-root", "ideas", "monitor-stories", "--site", PUBLICATION, "--store", "items", "--minimum-standard", "summary", "--out", str(directory), *argv])
     return code, out.getvalue() + err.getvalue()
 
 
@@ -490,7 +490,7 @@ def test_the_router_zip_closure_carries_the_pack_modules_and_they_import_with_on
     build = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(build)
     modules = build.router_modules()
-    needed = ["ideas/signal_inputs", "ideas/signal_queue", "ideas/context_packs", "ideas/item_signals", "ideas/pack_stories", "monitoring_stories"]
+    needed = ["ideas/signal_inputs", "ideas/signal_queue", "ideas/context_packs", "ideas/item_signals", "ideas/pack_stories", "ideas/connections", "monitoring_stories"]
     assert set(needed) <= set(modules), sorted(set(needed) - set(modules))
     task = tmp_path / "task"
     for name in ["__init__", *modules]:
@@ -499,7 +499,7 @@ def test_the_router_zip_closure_carries_the_pack_modules_and_they_import_with_on
         shutil.copy(root / "src" / "papyrus_content" / f"{name}.py", target)
     shutil.copytree(Path(yaml.__file__).parent, task / "yaml")
     script = ("import sys; sys.path.insert(0, sys.argv[1])\n"
-              "from papyrus_content.ideas import signal_inputs, signal_queue, context_packs, item_signals, pack_stories\n"
+              "from papyrus_content.ideas import signal_inputs, signal_queue, context_packs, item_signals, pack_stories, connections, monitor_stories\n"
               "from papyrus_content import monitoring_stories\n"
               "assert monitoring_stories.validate_monitor_stories('p', None)['contextPacks']['enabled']\n"
               "assert not any(m in sys.modules for m in ('pydantic', 'biblicus', 'httpx', 'tiktoken'))\n")
@@ -522,3 +522,34 @@ def test_a_lively_thread_on_one_reference_yields_a_pack_with_related_accepted_re
     client = pack_support.backend(pack)
     result = pack_support.run(pack, client, pack_support.transport_of(pack_support.idea("Editors keep returning to one voice story", ["R1", "R2"])))
     assert result.filed_count == 1
+
+
+# --- the minimum standard on the pack path ---------------------------------------------------------------------------------------
+
+
+STANDARD_ON = {"singleItem": True, "contextPacks": {"enabled": True}, "minimumStandard": "more-than-summary"}
+
+
+def test_under_the_minimum_standard_a_pack_with_only_titles_is_skipped_and_a_single_item_needs_a_connection(monkeypatch):
+    filing = FilingRecorder(monkeypatch)
+    client = pack_world(2, lively=(1,))
+    model = RouterModel()
+    table, store = router(settings={PUBLICATION: STANDARD_ON})
+    _, lines = run_task(store, {PUBLICATION: client}, model)
+    line = pack_lines(lines)
+    assert model.pack_requests == [] and filing.filed == []   # the pack's References are known by their titles alone: the model is not asked
+    assert line["packs"] == 1 and line["ideasFromPacks"] == 0 and line["nothingToAdd"] == 1
+    assert line["failedTheCheck"] == 1 and line["drafted"] == 0   # the single item had Messages to connect to, but the stand-in model wrote a summary of the source
+    [flag] = [r for r in client.reviews.values() if r["mode"] == "flag"]   # nothing was filed and one theme had nothing to add: the flag says which
+    assert line["curationFlag"] == "raised" and flag["reason"].startswith("No ideas today: 1 theme had only titles to go on")
+
+
+def test_under_the_minimum_standard_a_run_that_only_skips_raises_one_flag_that_names_the_waiting_themes(monkeypatch):
+    FilingRecorder(monkeypatch)
+    client = pack_world(0, lively=())
+    table, store = router(settings={PUBLICATION: {**STANDARD_ON, "singleItem": False}})
+    _, lines = run_task(store, {PUBLICATION: client}, RouterModel())
+    line = pack_lines(lines)
+    flags = [r for r in client.reviews.values() if r["mode"] == "flag"]
+    assert line["nothingToAdd"] == 1 and line["curationFlag"] == "raised" and len(flags) == 1
+    assert flags[0]["reason"] == "No ideas today: 1 theme had only titles to go on, so the ideas would only have summarised them."

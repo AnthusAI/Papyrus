@@ -146,6 +146,7 @@ def context():
 
 
 def draft(client, model, *, fetch=None, limit=3, dry_run=False, json_store=None, idea_store=None, **options):
+    options.setdefault("minimum_standard", "summary")   # these tests are about reading, ranking, checking and filing; the standard has its own tests (test_idea_more_than_summary.py)
     return stories.draft_monitor_stories(
         client=client, site=SITE, context=context(), json_store=json_store, transport=model, idea_store=idea_store, review_client=client,
         limit=limit, dry_run=dry_run, now=NOW, fetch=fetch or pages(1, 2, 3, 4), **options,
@@ -427,7 +428,7 @@ class DraftingTests(unittest.TestCase):
         _, client = world(1)
         ctx = context()
         ctx["stories"] = [{"id": "s1", "title": "Foo checks claims against sources", "summary": "Foo links each of the claims in a draft to the sources page it came from."}]
-        run = stories.draft_monitor_stories(client=client, site=SITE, context=ctx, json_store=None, transport=StoryModel(), now=NOW, fetch=pages(1))
+        run = stories.draft_monitor_stories(client=client, site=SITE, context=ctx, json_store=None, transport=StoryModel(), now=NOW, fetch=pages(1), minimum_standard="summary")
         self.assertEqual(run["drafts"], [])
         self.assertEqual(run["duplicates"][0]["reason"], "near_duplicate")
 
@@ -469,7 +470,7 @@ class FilingTests(unittest.TestCase):
         self.assertEqual(filed["kind"], "story_draft")
         self.assertEqual(filed["title"], "Foo checks claims against sources")
         self.assertEqual(json.loads(filed["targets"]), [{"type": "entity", "id": f"reference:{rows[0]['lineageId']}"}])
-        self.assertEqual(json.loads(filed["evidence"]), {"signals": 1, "source": f"huggingface monitor: {rows[0]['sourceUri']}"})
+        self.assertEqual(json.loads(filed["evidence"]), {"signals": 1, "source": f"huggingface monitor: {rows[0]['sourceUri']}", "connections": [], "minimumStandard": "summary"})
         self.assertIn("## Source", filed["body"])
         self.assertIn(rows[0]["sourceUri"], filed["body"])
         self.assertEqual(run["drafts"][0]["itemLineageId"], filed["id"])
@@ -548,7 +549,7 @@ class CommandTests(unittest.TestCase):
              mock.patch.object(commands, "datetime", FixedClock), mock.patch.object(commands.monitor_stories, "datetime", FixedClock), \
              redirect_stdout(out), redirect_stderr(err):
             clock.now.return_value = NOW
-            code = papyrus_cli.main(["--allow-cross-root", "ideas", "monitor-stories", *argv])
+            code = papyrus_cli.main(["--allow-cross-root", "ideas", "monitor-stories", "--minimum-standard", "summary", *argv])
         return code, out.getvalue() + err.getvalue()
 
     def test_a_dry_run_prints_the_ranked_drafts_without_filing(self) -> None:

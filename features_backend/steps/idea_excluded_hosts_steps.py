@@ -61,7 +61,7 @@ def draft(context, hosts):
         context.eh_model = StoryModel()
         context.eh_run = monitor_stories.draft_monitor_stories(
             client=context.eh_client, site="example-site", context=site_context(), json_store=JsonStore(Path(directory)), transport=context.eh_model,
-            review_client=context.eh_client, limit=5, dry_run=True, now=NOW, fetch=lambda url: PAGE, excluded_hosts=hosts,
+            review_client=context.eh_client, limit=5, dry_run=True, now=NOW, fetch=lambda url: PAGE, excluded_hosts=hosts, minimum_standard="summary",   # these scenarios are about hosts and automations
         )
 
 
