@@ -1,5 +1,5 @@
 import { CfnOutput, type Stack } from "aws-cdk-lib";
-import { CfnUserPoolClient, CfnUserPoolIdentityProvider, type IUserPool } from "aws-cdk-lib/aws-cognito";
+import { CfnIdentityPool, CfnIdentityPoolRoleAttachment, CfnUserPoolClient, CfnUserPoolIdentityProvider, type IUserPool } from "aws-cdk-lib/aws-cognito";
 
 /**
  * The Google-only app client a Papyrus site registers with Prospectus
@@ -107,4 +107,41 @@ export function addProspectusGoogleOnlyClient(
     description: "issuer for this site's Prospectus registration (accounts/papyrus-sites.json)",
   });
   return googleOnlyClient;
+}
+
+/**
+ * Trusts the federation client on the site's identity pool, exactly as the identity pool trusts the web client: the same
+ * user pool provider, the same token check, and the same `Token` role mapping (so the `cognito:preferred_role` of the
+ * user's group, editor or admin, picks the IAM role). Without this a CLI session on the federation client cannot trade its
+ * ID token for AWS credentials ("Token is not from a supported provider of this identity pool"), so
+ * `stories save-version --images` cannot reach S3 on the signed-in user lane. Each mapping names its
+ * `<provider>:<client id>` in `identityProvider` (the map key is only a label); a client without its own entry would fall to the default authenticated role and lose the group's
+ * `media/*` write access. Only called when the CLI is on the federation client, so other sites synthesize unchanged.
+ */
+export function trustClientOnIdentityPool(
+  identityPool: CfnIdentityPool,
+  roleAttachment: CfnIdentityPoolRoleAttachment,
+  clientId: string,
+): void {
+  const providers = identityPool.cognitoIdentityProviders;
+  if (!Array.isArray(providers) || providers.length === 0) {
+    throw new Error("The identity pool lists no Cognito user pool provider to extend; cannot trust the CLI client on it.");
+  }
+  const webProvider = providers[0] as CfnIdentityPool.CognitoIdentityProviderProperty;
+  if (webProvider.providerName === undefined) throw new Error("The identity pool's Cognito provider has no provider name.");
+  identityPool.cognitoIdentityProviders = [
+    ...providers,
+    { providerName: webProvider.providerName, clientId, serverSideTokenCheck: webProvider.serverSideTokenCheck },
+  ];
+  const mappings = roleAttachment.roleMappings;
+  if (mappings === undefined || typeof mappings !== "object" || "Ref" in mappings || "Fn::If" in mappings) {
+    throw new Error("The identity pool's role mappings are not a plain map; cannot add the CLI client's mapping.");
+  }
+  const existing = Object.values(mappings as Record<string, CfnIdentityPoolRoleAttachment.RoleMappingProperty>)[0];
+  if (existing === undefined) throw new Error("The identity pool has no role mapping to copy for the CLI client.");
+  const identityProvider = `${webProvider.providerName}:${clientId}`;
+  roleAttachment.roleMappings = {
+    ...(mappings as Record<string, CfnIdentityPoolRoleAttachment.RoleMappingProperty>),
+    CliClientRoleMapping: { ...existing, identityProvider },
+  };
 }

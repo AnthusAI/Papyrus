@@ -10,7 +10,9 @@ Feature: Saving a story version with the pictures its text uses
   GIF, WebP, AVIF or SVG picture, and a dark version with the same proportions as its light version (within 0.5%).
   A rejection names the file and nothing is saved. "--dry-run" prints what would be uploaded (file, media id, stored
   path, size and dark pairing) and writes nothing at all. Running the same command again does not add media rows or
-  stored files twice. The command works for both kinds of sign-in: an operator using AWS credentials, and a signed-in
+  stored files twice: a picture already stored for the story keeps its exact path, even if the story's address has since
+  changed, and a name holding different content is numbered (-2), never overwritten. Pictures never move when the story
+  is published or given a real address; a story with only a generated draft address uses it, as the editor does. The command works for both kinds of sign-in: an operator using AWS credentials, and a signed-in
   editor or admin, whose upload uses temporary credentials from the site's identity pool instead.
 
   Background:
@@ -86,6 +88,35 @@ Feature: Saving a story version with the pictures its text uses
     And each version has exactly one media row for each of "assets/hello/chart.png" and "assets/hello/chart.dark.png"
     And the media ids are the same ones the editor and the Markus import derive from the version and the stored path
     And the stored files are still just "media/assets/hello/chart.png" and "media/assets/hello/chart.dark.png"
+
+  Scenario: A story with only a generated draft address stores its pictures under that address, as the editor does
+    Given the story's address becomes "draft-unsectioned-1a2b3c4d"
+    And the folder holds "chart.png" at 800 by 400 pixels
+    And the new text is an image line for "chart.png"
+    When the story is saved with the folder of pictures
+    Then the saved text points at "assets/draft-unsectioned-1a2b3c4d/chart.png" with no srcDark
+    And the stored files are "media/assets/draft-unsectioned-1a2b3c4d/chart.png" and "media/assets/draft-unsectioned-1a2b3c4d/chart.png"
+
+  Scenario: Giving the story a real address later does not move its pictures, and a re-run keeps the stored path
+    Given the story's address becomes "draft-unsectioned-1a2b3c4d"
+    And the folder holds "chart.png" at 800 by 400 pixels
+    And the new text is an image line for "chart.png"
+    When the story is saved with the folder of pictures
+    And the story's address becomes "a-real-title"
+    And the story is saved again with the same text and the same folder
+    Then the second save succeeds
+    And the saved text points at "assets/draft-unsectioned-1a2b3c4d/chart.png" with no srcDark
+    And the second save found the stored files already in place
+    And the stored files are "media/assets/draft-unsectioned-1a2b3c4d/chart.png" and "media/assets/draft-unsectioned-1a2b3c4d/chart.png"
+
+  Scenario: A different picture under a name already used is numbered, never overwritten
+    Given the folder holds "chart.png" at 800 by 400 pixels
+    And the new text is an image line for "chart.png"
+    When the story is saved with the folder of pictures
+    And the picture "chart.png" is replaced by a different one at 600 by 300 pixels
+    And the story is saved again with the same text and the same folder
+    Then the saved text points at "assets/hello/chart-2.png" with no srcDark
+    And the stored files are "media/assets/hello/chart.png" and "media/assets/hello/chart-2.png"
 
   Scenario: An operator using AWS credentials uploads with them
     Given the CLI uses the IAM lane

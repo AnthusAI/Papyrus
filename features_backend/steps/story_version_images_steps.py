@@ -253,6 +253,24 @@ def step_text_dark(context, src, dark):
     assert f'src="{src}"' in text and f'srcDark="{dark}"' in text, text
 
 
+@then('the saved text points at "{src}" with no srcDark')
+def step_text_no_dark(context, src):
+    text = new_version(context)["bodyMarkus"]
+    assert f'src="{src}"' in text and "srcDark" not in text, text
+
+
+@given("the story's address becomes \"{slug}\"")
+@when("the story's address becomes \"{slug}\"")
+def step_address(context, slug):
+    for row in context.client.tables["Item"].values():
+        context.client.update_record("Item", {"id": row["id"], "slug": slug})
+
+
+@when('the picture "{name}" is replaced by a different one at {width:d} by {height:d} pixels')
+def step_replace_picture(context, name, width, height):
+    write_png(context.folder / name, width, height)
+
+
 @then('the saved text has the Markdown picture "{first}" and the Markdown picture "{second}"')
 def step_text_markdown(context, first, second):
     text = new_version(context)["bodyMarkus"]
@@ -282,7 +300,7 @@ def step_row_fields(context, src, storage, name):
 
 @then('the stored files are "{first}" and "{second}"')
 def step_stored_two(context, first, second):
-    assert sorted(context.s3_objects) == sorted([first, second])
+    assert sorted(context.s3_objects) == sorted({first, second})
 
 
 @then('the stored files are still just "{first}" and "{second}"')
