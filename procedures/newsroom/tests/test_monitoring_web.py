@@ -624,45 +624,227 @@ def test_the_monitoring_template_schedules_web_collection_and_one_router_per_pub
     assert routes == {monitor_id(p) for p in WEB_PUBLICATIONS}
 
 
-# --- query drafting ----------------------------------------------------------------------------------------------------------
+# --- query drafting: one per enabled section plus one for the site ---------------------------------------------------------
 
-def drafted(n):
-    return json.dumps([{"query": f"query {i}", "rationale": f"because {i}"} for i in range(n)])
+SECTIONS = [
+    {"id": "agent-security", "title": "Agent Security", "enabled": True, "sortOrder": 1, "editorialMission": "Show how agents get attacked.",
+     "editorialPolicy": "Primary sources.", "assignmentGuidance": "Prefer incident write-ups.", "killCriteria": "Vendor hype."},
+    {"id": "evaluation", "title": "Evaluation", "enabled": True, "sortOrder": 2, "editorialMission": "How models are measured.",
+     "editorialPolicy": "Benchmarks with methods.", "assignmentGuidance": None, "killCriteria": None},
+    {"id": "old", "title": "Old Section", "enabled": False, "sortOrder": 3, "editorialMission": "Retired topic.", "editorialPolicy": "x"},
+]
+PUBLICATIONS = {"anth-us": {"publicationId": "anth-us", "site": "anth.us", "appsyncEndpoint": "https://a.example/graphql", "corpusKey": "anth-us"},
+                "machines-on-machines": {"publicationId": "machines-on-machines", "site": "machines.example",
+                                         "appsyncEndpoint": "https://m.example/graphql", "corpusKey": "ai-ml-research"}}
+PACK = {"entries": [{"scope": "publication", "kind": "mission", "text": "Show the work."},
+                    {"scope": "publication", "kind": "policy", "text": "Cite primary sources."}], "contextHash": "h"}
 
 
-def test_queries_are_drafted_from_mission_policy_and_criteria_and_retried_once_when_the_model_misbehaves(tmp_path):
+class FakeBackend:
+    def __init__(self, sections, tenants=None):
+        self.sections, self.tenants = sections, tenants if tenants is not None else []
+
+    def factory(self, endpoint, tenant=None):
+        self.tenants.append(tenant)
+        backend = self
+        return type("Client", (), {"safe_list_records": lambda self, model: backend.sections})()
+
+
+class Asker:
+    """A model that answers one query per message, naming the section it was asked about."""
+
+    def __init__(self, answers=None):
+        self.prompts, self.answers = [], list(answers or [])
+
+    def __call__(self, message):
+        self.prompts.append(message)
+        if self.answers:
+            return self.answers.pop(0)
+        subject = "site" if "whole site" in message else message.split("Section: ")[1].split("\n")[0]
+        return json.dumps({"query": f"{subject} news", "rationale": f"covers {subject}"})
+
+
+def legacy(table, *texts, monitor=MONITOR, **fields):
+    add_queries(table, monitor, *texts, **fields)
+
+
+def propose(table, ask=None, sections=SECTIONS, publication="anth-us", **kwargs):
     from papyrus_content import monitoring_web_queries as wq
 
-    (tmp_path / "anth-us-relevance.json").write_text(json.dumps({"question": "Should this source become a reference?"}))
-    answers = iter(["not json", drafted(9)])
-    prompts = []
-
-    def ask(message):
-        prompts.append(message)
-        return next(answers)
-
-    pack = {"entries": [{"scope": "publication", "kind": "mission", "text": "Show the work."},
-                        {"scope": "publication", "kind": "policy", "text": "Cite primary sources."}], "contextHash": "h"}
-    publications = wq.router_publications(hn_router())
-
-    proposal = wq.propose("anth-us", publications, ask, criteria_dir=tmp_path, client_factory=lambda endpoint: object(),
-                          resolve=lambda client, **kw: pack)
-
-    assert proposal["queries"][0] == {"text": "query 0", "rationale": "because 0"} and len(proposal["queries"]) == 9
-    assert proposal["monitorId"] == "web-anth-us"
-    assert proposal["basedOn"] == {"mission": True, "policy": True, "criteria": True, "contextHash": "h"}
-    assert len(prompts) == 2 and "Show the work." in prompts[1] and "Should this source become a reference?" in prompts[1]
+    ask = ask or Asker()
+    backend = FakeBackend(sections)
+    proposal = wq.propose(publication, PUBLICATIONS, table, ask, client_factory=backend.factory, resolve=lambda client, **kw: PACK, **kwargs)
+    return proposal, ask, backend
 
 
-@pytest.mark.parametrize("answer", [drafted(1), drafted(16), json.dumps({"a": 1}), json.dumps(["bare string"])])
-def test_a_proposal_outside_eight_to_fifteen_queries_is_refused(answer):
+def test_one_query_is_drafted_per_enabled_section_and_one_for_the_site_from_that_sections_own_text():
+    proposal, ask, _ = propose(web_table("old topic"))
+
+    assert [(q["scope"], q.get("sectionId")) for q in proposal["queries"]] == [("section", "agent-security"), ("section", "evaluation"), ("site", None)]
+    assert len(proposal["queries"]) == 2 + 1                       # enabled sections + 1; the disabled one gets none
+    first = ask.prompts[0]
+    assert all(text in first for text in ("Show how agents get attacked.", "Primary sources.",
+                                         "Prefer incident write-ups.", "Vendor hype."))
+    assert "Retired topic" not in " ".join(ask.prompts) and "Cite primary sources." in ask.prompts[2] and "Show the work." in ask.prompts[2]
+    assert proposal["queries"][0]["sectionTitle"] == "Agent Security" and proposal["queries"][0]["flags"] == []
+
+
+def test_the_old_eight_to_fifteen_rule_is_gone_and_a_reply_must_be_one_query():
     from papyrus_content import monitoring_web_queries as wq
 
-    with pytest.raises(ValueError):
-        wq.parse_queries(answer)
+    assert wq.parse_query(json.dumps({"query": " one  two ", "rationale": "why"})) == {"text": "one two", "rationale": "why"}
+    assert wq.parse_query(json.dumps([{"query": "single", "rationale": "r"}]))["text"] == "single"
+    for bad in ("not json", json.dumps([]), json.dumps([{"query": "a"}, {"query": "b"}]), json.dumps({"query": "  "}), json.dumps(["x"])):
+        with pytest.raises(ValueError):
+            wq.parse_query(bad)
+    assert not hasattr(wq, "MIN_QUERIES") and not hasattr(wq, "MAX_QUERIES")
 
 
-def test_without_local_criteria_the_proposal_says_so(tmp_path):
+def test_a_misbehaving_model_is_asked_once_more_then_the_publication_fails_naming_the_scope():
+    proposal, ask, _ = propose(web_table(), Asker(["not json", json.dumps({"query": "ok", "rationale": "r"})]))
+    assert proposal["queries"][0]["text"] == "ok" and len(ask.prompts) == 4
+
+    with pytest.raises(ValueError, match="section agent-security"):
+        propose(web_table(), Asker(["bad", "bad"]))
+
+
+def test_a_section_with_no_mission_is_drafted_from_the_rest_or_its_title_and_flagged():
+    sections = [{"id": "a", "title": "A", "enabled": True, "sortOrder": 1, "editorialMission": "", "editorialPolicy": "Policy only."},
+                {"id": "b", "title": "B", "enabled": True, "sortOrder": 2, "editorialMission": "", "editorialPolicy": ""}]
+    proposal, ask, _ = propose(web_table(), sections=sections)
+
+    assert [q["flags"] for q in proposal["queries"]] == [["no-section-mission"], ["title-only"], []]
+    assert "no written mission" in ask.prompts[0] and "no written mission or policy" in ask.prompts[1]
+
+
+def test_the_site_query_needs_a_mission_or_policy():
     from papyrus_content import monitoring_web_queries as wq
 
-    assert wq.criteria_text("distinctive", tmp_path) is None
+    with pytest.raises(ValueError, match="no mission or policy"):
+        wq.site_scope({})
+
+
+def test_machines_on_machines_sections_are_read_for_its_tenant_and_its_backend():
+    table = web_table(monitor="web-p-apyr-us")
+    backend_tenants = []
+    from papyrus_content import monitoring_web_queries as wq
+
+    backend = FakeBackend(SECTIONS, backend_tenants)
+    proposal = wq.propose("p-apyr-us", PUBLICATIONS, table, Asker(), client_factory=backend.factory, resolve=lambda c, **kw: PACK)
+
+    assert proposal["monitorId"] == "web-p-apyr-us" and backend_tenants == [None, "machines-on-machines"]
+
+
+def test_old_topic_queries_are_retired_with_history_and_new_ones_are_written_unapproved_until_approved():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic one", "old topic two")
+    set_high_water(table, "old topic one", NOW)
+    proposal, _, _ = propose(table)
+
+    done = wq.execute(table, proposal, now_iso="2026-11-02T00:00:00Z")
+
+    assert done == {"retired": 2, "added": 3, "approved": 0}
+    stored = queries_of(table)
+    old = stored["old topic one"]
+    assert old["status"] == "retired" and old["highWater"] == NOW and old["approvedBy"] == APPROVER      # nothing is deleted
+    assert [h["change"] for h in old["history"]] == ["created", "retired"] and "per section" in old["history"][-1]["reason"]
+    new = stored["Agent Security news"]
+    assert (new["origin"], new["createdBy"], new["scope"], new["sectionId"], new["status"]) == ("drafted", "gpt-6-luna", "section", "agent-security", "active")
+    assert "approvedBy" not in new and stored["site news"]["scope"] == "site" and "sectionId" not in stored["site news"]
+    assert [r["text"] for r in rows(table, "QUERY#") if searchable(r)] == []        # not searched until approved
+
+
+def test_approving_makes_the_new_queries_searchable_and_the_count_is_sections_plus_one():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic")
+    proposal, _, _ = propose(table)
+    wq.execute(table, proposal, approved_by="Ryan", now_iso="2026-11-02T00:00:00Z")
+
+    searched = [r["text"] for r in rows(table, "QUERY#") if searchable(r)]
+    assert sorted(searched) == ["Agent Security news", "Evaluation news", "site news"] and len(searched) == 2 + 1
+
+
+def test_a_second_run_proposes_nothing_and_a_new_section_gets_only_its_own_query():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic")
+    first, _, _ = propose(table)
+    wq.execute(table, first, approved_by="Ryan", now_iso="2026-11-02T00:00:00Z")
+
+    again, ask, _ = propose(table)
+    assert again["queries"] == [] and again["retire"] == [] and ask.prompts == []        # drafted once; no model call
+
+    renamed = [{**SECTIONS[0], "title": "Agent Safety"}, SECTIONS[1],
+               {"id": "labor", "title": "Labor", "enabled": True, "sortOrder": 4, "editorialMission": "Work and jobs.", "editorialPolicy": "x"}]
+    more, ask, _ = propose(table, sections=renamed)
+    assert [q["sectionId"] for q in more["queries"]] == ["labor"] and len(ask.prompts) == 1 and more["retire"] == []
+
+
+def test_a_drafted_query_of_a_section_that_is_no_longer_enabled_is_retired():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic")
+    first, _, _ = propose(table)
+    wq.execute(table, first, approved_by="Ryan", now_iso="2026-11-02T00:00:00Z")
+
+    later, _, _ = propose(table, sections=SECTIONS[:1])
+    assert [r["text"] for r in later["retire"]] == ["Evaluation news"] and later["queries"] == []
+
+
+def test_editor_queries_are_kept_unless_asked_and_a_dry_run_writes_nothing():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic")
+    add_queries(table, MONITOR, "my own query")
+    editor = queries_of(table)["my own query"]
+    table.put_item({**editor, "origin": "editor", "createdBy": "Ryan"})
+    before = {k: dict(v) for k, v in table.items.items()}
+
+    proposal, _, _ = propose(table)
+    assert [r["text"] for r in proposal["retire"]] == ["old topic"] and [r["text"] for r in proposal["keep"]] == ["my own query"]
+    assert table.items == before                                                      # proposing writes nothing
+
+    wq.execute(table, proposal, approved_by="Ryan", now_iso="2026-11-02T00:00:00Z")
+    assert queries_of(table)["my own query"]["status"] == "active" and searchable(queries_of(table)["my own query"])
+
+    everything, _, _ = propose(table, retire_editor=True)
+    assert "my own query" in [r["text"] for r in everything["retire"]]
+
+
+def test_the_plan_says_how_many_paid_searches_a_day_it_leaves():
+    from papyrus_content import monitoring_web_queries as wq
+
+    proposal, _, _ = propose(web_table("old topic"))
+    lines = wq.describe(proposal, executing=False, approved=True)
+
+    assert any("retire" in line and "old topic" in line for line in lines) and "3 active queries, about 3 paid searches a day" in lines[-1]
+    assert "none is searched until approved" in wq.describe(proposal, executing=False, approved=False)[-1]
+
+
+@pytest.mark.parametrize("status", ["retired", "paused"])
+def test_the_collector_searches_only_active_approved_queries(status):
+    table = web_table("kept query", "off query")
+    set_status = queries_of(table)["off query"]
+    table.put_item({**set_status, "status": status})
+    tavily = FakeTavily()
+
+    collect(table, tavily)
+
+    assert {c["query"] for c in tavily.calls} == {"kept query"}
+
+
+def test_a_new_drafted_query_has_no_high_water_so_its_first_search_is_one_request_in_the_default_window():
+    from papyrus_content import monitoring_web_queries as wq
+
+    table = web_table("old topic")
+    proposal, _, _ = propose(table)
+    wq.execute(table, proposal, approved_by="Ryan", now_iso="2026-10-20T00:00:00Z")
+    tavily = FakeTavily(*[article(n, day(-n % 5), query="Agent Security news") for n in range(40)])
+
+    collect(table, tavily)
+
+    asked = [c for c in tavily.calls if c["query"] == "Agent Security news"]
+    assert len(asked) == 1 and "start_date" not in asked[0] and asked[0]["max_results"] == TAVILY_PAGE_LIMIT
+    assert queries_of(table)["Agent Security news"]["highWater"] == NOW

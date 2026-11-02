@@ -172,11 +172,12 @@ sets `holdDecisions: true` and `mode: "live"`: enrichment runs, no decide reques
 `stoppedBy: decisions_held`. Release with `seed_router_config.py --monitor-id web-<id> --set holdDecisions=false` (all six
 shared monitors). Cyclotron items from a web monitor carry `values.source: "web-search"`; the Cyclotron must accept that source.
 
-**Queries (drafting).** `papyrus monitors web-queries --publication <id>` (or `--all`) drafts 8 to 15 queries, each with a
-rationale, using gpt-6-luna from the publication's mission and editorial policy (read from its backend, IAM, read-only), plus the
-reviewed relevance criteria (`<id>-relevance.json` in the Cyclotron repo's `infra/lab/criteria`, or `--criteria-dir`) when
-present. It prints them and, with `--out FILE`, saves JSON; `--write --approved-by NAME` stores them as `QUERY#` records and
-`--enable` also enables the monitor.
+**Queries (drafting).** One query per enabled newsroom section plus one for the site (see [search monitors](search-monitors.md#queries-per-section)).
+`papyrus monitors web-queries --publication <id>` (or `--all`) reads each enabled section (mission, policy, guidance, kill criteria)
+and the publication's mission and policy from its backend (IAM, read-only), drafts the missing queries with gpt-6-luna and prints,
+per site, the old queries to retire and the new ones to add; `--out FILE` also saves JSON. Nothing is written without `--execute`;
+`--execute --approved-by NAME` retires the old ones (status `retired`, history kept, never deleted), stores the new ones as `QUERY#`
+records and approves them. `--retire-editor` also retires editor-written queries, which are otherwise kept.
 
 **Operating.** Seed (plan only without `--apply`): `python3 infra/monitoring/seed_web_monitors.py --table TABLE
 --queries-file web-queries.json --approved-by "NAME" [--enable] --apply` writes the 7 configs, 7 router configs and the query
