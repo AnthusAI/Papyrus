@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 from .graphql_authoring import create_authoring_client
@@ -271,7 +272,12 @@ def stories_set_slug(flags: list[str]) -> None:
     if options.get("no-trigger"):
         print(SKIP_LINE)
     else:
-        print(f"stories\tset-slug\tprojection\t{json.dumps(trigger_projection(item_task(item_id, unpublished=False)))}")
+        from .projection_trigger import trigger_projection_as_user
+        from .user_auth_mode import user_auth_requested
+
+        task = item_task(item_id, unpublished=False)
+        outcome = trigger_projection_as_user(client, task) if user_auth_requested() else trigger_projection(task)
+        print(f"stories\tset-slug\tprojection\t{json.dumps(outcome)}")
 
 
 def stories_create(flags: list[str]) -> None:
@@ -309,8 +315,17 @@ def stories_create(flags: list[str]) -> None:
         create_reporting_assignment(client, {**options, "content-item": lineage_id, "summary": summary})
 
 
+PUBLISHED_STAGE_WARNING = (
+    "warning: moving a story to the published stage only changes its board stage. No page is published and nothing goes live. "
+    "To publish it, run: papyrus ops content publish --id <item-id>"
+)
+
+
 def stories_move(flags: list[str]) -> None:
-    """papyrus stories move --story <lineage> --stage <stage> [--reason <text>] [--author-label <name>]"""
+    """papyrus stories move --story <lineage> --stage <stage> [--reason <text>] [--author-label <name>]
+
+    Only the board stage changes. With --stage published it prints a warning on stderr: no page is published;
+    `papyrus ops content publish` does that."""
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories move")
     lineage_id = _required_option(options, "story")
@@ -319,6 +334,9 @@ def stories_move(flags: list[str]) -> None:
 
     require_content_item_stage(stage)
     print(f"stories\tmove\t{lineage_id}\t{stage}\t{'write' if apply else 'dry run'}")
+    if stage == "published":
+        # stderr, so the tab-separated lines above and below keep their format.
+        print(PUBLISHED_STAGE_WARNING, file=sys.stderr)
     if not apply:
         return
     client, _ = create_authoring_client()

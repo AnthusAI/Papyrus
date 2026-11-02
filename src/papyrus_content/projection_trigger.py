@@ -95,5 +95,47 @@ def trigger_projection(task: dict[str, Any]) -> dict[str, Any]:
         }
 
 
+def retry_command(item_id: str, *, unpublished: bool) -> str:
+    """The command that repeats an item's publish (or unpublish) and so its projection; it changes nothing that is already done."""
+    return f"papyrus ops content {'unpublish' if unpublished else 'publish'} --id {item_id}"
+
+
+def trigger_projection_as_user(client, task: dict[str, Any]) -> dict[str, Any]:
+    """The signed-in lane has no AWS credentials, so it cannot invoke the content-actions function the way the IAM lane does.
+
+    It asks the newsroom's own ``publishItem`` (or ``unpublishItem``) mutation instead, as the console's Publish button does.
+    Both are idempotent: the records are already written, so the function finds nothing to change, projects the page and
+    returns the outcome (``projected``, ``paths``, ``live``, ``url``, ``error``). A projection it could not finish is retried by the
+    function itself too. Never raises.
+    """
+    mutation = "unpublishItem" if task.get("unpublished") else "publishItem"
+    try:
+        data = client.graphql(
+            f"mutation Project($input: AWSJSON!) {{ {mutation}(input: $input) }}",
+            {"input": json.dumps({"id": task["itemId"]})},
+        )
+        response = data.get(mutation)
+        response = json.loads(response) if isinstance(response, str) else (response or {})
+        if response.get("ok") is False:
+            errors = "; ".join(str(entry.get("message") or entry) for entry in response.get("errors") or [])
+            return {"ok": False, "error": errors or f"{mutation} refused the request", "retry": retry_command(task["itemId"], unpublished=bool(task.get("unpublished")))}
+        if response.get("projected") is False:
+            return {
+                "ok": False,
+                "error": response.get("error") or "the newsroom could not project the page",
+                "retry": retry_command(task["itemId"], unpublished=bool(task.get("unpublished"))),
+            }
+        outcome: dict[str, Any] = {"ok": True, "ran": task["task"], "via": f"{mutation} mutation"}
+        if response.get("url"):
+            outcome["url"] = response["url"]
+        return outcome
+    except Exception as error:  # noqa: BLE001
+        return {
+            "ok": False,
+            "error": f"{type(error).__name__}: {error}",
+            "retry": retry_command(task["itemId"], unpublished=bool(task.get("unpublished"))),
+        }
+
+
 def skipped_projection() -> dict[str, Any]:
     return {"skipped": True, "command": PROJECT_ALL_COMMAND}
