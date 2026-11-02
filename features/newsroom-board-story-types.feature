@@ -1,7 +1,7 @@
 @brand-agnostic @board-story-types-fixtures
 Feature: The Stories board lists stories, not every kind of Item
-  A story is an Item of a story type. The story type is its own attribute, separate from the section it sits in: today the only story
-  type is an article, and posts will be added to the same single list. Wiki pages, doctrine and pages are Items too, and they stay
+  A story is an Item of a story type. The story type is its own attribute, separate from the section it sits in: the story
+  types are an article and a post, one single list. Wiki pages, doctrine and pages are Items too, and they stay
   reachable in Concepts, the wiki and Sections, but they are never cards on the Stories board and never part of a story count. The
   board asks for story types in the query itself. Because a filtered index query can return a short or empty page that still has more
   behind it, a column keeps reading until it has its page of stories. These scenarios use synthetic Items and never touch production.
@@ -33,5 +33,5 @@ Feature: The Stories board lists stories, not every kind of Item
   Scenario: The story types are defined in one place
     Given the story type list
     When the board and its queries need to know what a story is
-    Then an article is the only story type until posts are added to that one list
+    Then an article and a post are the story types, from that one list
     And wiki pages, doctrine and pages are not stories

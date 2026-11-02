@@ -77,15 +77,44 @@ place items there by hand until those agents exist.
 - **Edition placement is unchanged.** `EditionItem` still places a published
   item in an edition; it is layout, not lifecycle.
 
-## Story types
+## Story types and sections
 
 A story is an `Item` of a story type, and the type is its own attribute, separate from
-the section. `STORY_ITEM_TYPES` in `lib/content-item-lifecycle.ts` is the one list:
-`article` today, with `post` to be added there. Other Item types (`wiki_page`,
-`doctrine`, `page`) are not stories: the Stories board asks for story types in its
+the section. `STORY_ITEM_TYPES` is the one list: `["article", "post"]` in
+`lib/content-item-lifecycle.ts`, mirrored in `src/papyrus_content/content_item_lifecycle.py`
+(add a type in both; the editor's Type menu, the Stories board queries and the idea context read it).
+Other Item types (`wiki_page`, `doctrine`, `page`) are not stories: the Stories board asks for story types in its
 queries (`loadNewsroomContentItemStagePage` and `loadNewsroomPublishedContentItemVersions`)
 and never counts the rest. A stage query filters after DynamoDB reads a page, so a
 column keeps reading until it has a page of stories (`lib/story-stage-paging.ts`).
+`ideas/context.py` keeps its own `{"article", "story"}`-shaped set built from the same list plus the old `story`
+(PPY-221289 tracks the rest of that list).
+
+**A section is a topic.** `Item.section` holds the id of a `NewsroomSection` (`agent-security`) or nothing. It never holds the
+name of the type (`articles`) or a placeholder (`unsectioned`), and the type never has to match it. Where it is written:
+
+- The article editor's Section menu offers the enabled newsroom sections by id (and "No section"); an old value outside that list is shown as
+  "Old section value". The menu no longer collects the values other rows happen to have.
+- A new content item (`build_new_content_item_version`) and a copywriting draft store no section when the Assignment names none (they stored
+  `unsectioned`; the generated draft slug `draft-unsectioned-<hash>` keeps its shape).
+- The idea pipeline files an idea under the id of the section it names (`section_id_of`, the lookup the editorial checks use: id, the id's local
+  part, then title), not under the slug of its title (`Before You File` is the section `guides`, not `before-you-file`). It offers only the site's
+  newsroom sections; a site with none offers the real values its stories already have, never `articles` or `unsectioned`.
+- Editorial context resolves a story's section the same way (`section_ids.match_section`), and a story with no section simply runs without
+  section guidance.
+- Not changed here: the reader-steering plugin's `submissions.section` default (`unsectioned`) for briefs, the `--section wiki` / `topics` the
+  wiki sync files its pages under, and the newsletter archive's `roundup`. Those are folders a feature finds its Items by, on Items that are not
+  stories; `section_migration` leaves them alone.
+
+**Public URLs** key on the type (`urls.types`), on the section (`urls.sections`) or on both; see
+[building a Papyrus static site](building-a-papyrus-static-site.md#sections-and-types).
+
+**Migrating stored values.** `python -m papyrus_content.section_migration plan` classifies every stored `(type, section)` pair of a site as
+`keep` (empty, already an id, or the folder of an Item that is not a story), `map` (a section's title or short title becomes its id),
+`clear` (only the type's name, or `unsectioned`) or `decision` (anything else, left for an editor). It never writes, and a change is blocked
+until the `projection.json` it is checked against (`--static`) gives the Item the same page and listing before and after. `apply` writes
+only a saved plan with nothing blocked, with `--confirm-site` and `--yes`, one `update` per `Item` row (current and draft versions) and per
+`PublishedItem` row; superseded versions keep what they had.
 
 ## The configurable name
 

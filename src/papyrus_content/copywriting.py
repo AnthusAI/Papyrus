@@ -183,7 +183,7 @@ def _draft_item_for_copywriting(
         or assignment.get("sectionKey")
         or assignment.get("sectionId")
         or packet.get("sectionKey")
-        or "unsectioned"
+        or None
     )
     headline = (
         _clean_string(packet.get("recommendedAngle"))
@@ -218,10 +218,10 @@ def _draft_item_for_copywriting(
         "status": "draft",
         "typeStatus": f"{target_item_type}#draft",
         "stage": "copywriting",
-        "slug": f"draft-{safe_id(section)}-{hash_short([lineage_id, version_number, title])}",
+        "slug": f"draft-{safe_id(section or 'unsectioned')}-{hash_short([lineage_id, version_number, title])}",
         "shortSlug": None,
         "section": section,
-        "sectionStatus": f"{section}#draft",
+        "sectionStatus": f"{section or ''}#draft",
         "title": title,
         "headline": headline,
         "deck": deck,

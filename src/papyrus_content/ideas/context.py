@@ -6,11 +6,13 @@ import math
 from datetime import datetime, timedelta
 from typing import Any
 
+from ..content_item_lifecycle import STORY_ITEM_TYPES
 from ..newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND
+from ..section_ids import is_type_shaped
 from ..tenancy import rows_for_tenant
 from .digest import CORPUS_PREFIX, corpus_key, parse_time
 
-STORY_TYPES = {"article", "story"}
+STORY_TYPES = {*STORY_ITEM_TYPES, "story"}  # "story" is kept as it was; PPY-221289 tracks the rest of this list
 IN_FLIGHT_STATUSES = {"draft", "review", "in_review", "scheduled"}
 STORY_FIELDS = "id lineageId versionState type status stage section title deck headline publishedAt updatedAt tenantId"
 STORIES_QUERY = f"""
@@ -87,7 +89,7 @@ def sections_for(client: Any, stories: list[dict[str, Any]]) -> list[dict[str, s
     rows = [row for row in client.list_records("NewsroomSection") if row.get("enabled") is not False]
     if rows:
         return sorted(({"id": row["id"], "title": str(row.get("title") or row["id"])} for row in rows), key=lambda row: row["title"])
-    names = sorted({str(story["section"]) for story in stories if story.get("section")})
+    names = sorted({str(story["section"]) for story in stories if story.get("section") and not is_type_shaped(story["section"], "article")})
     return [{"id": name, "title": name} for name in names]
 
 

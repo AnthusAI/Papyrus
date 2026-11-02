@@ -27,5 +27,5 @@ Then("all 25 articles load even though the first requests came back with no stor
 Then("every row of the stage was read once and the column then ends", function () { passed(this, "paging"); });
 Then("a short page that still has a next token is never taken for the end of the column", function () { passed(this, "paging"); });
 Then("a stage with no stories at all ends without looping", function () { passed(this, "paging"); });
-Then("an article is the only story type until posts are added to that one list", function () { passed(this, "types"); });
+Then("an article and a post are the story types, from that one list", function () { passed(this, "types"); });
 Then("wiki pages, doctrine and pages are not stories", function () { passed(this, "types"); });
