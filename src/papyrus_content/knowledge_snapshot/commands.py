@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from ..knowledge_wiki.kinds import public_kinds_of
 from ..env import graphql_endpoint
 from ..graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from ..ids import knowledge_corpus_id
@@ -381,6 +382,7 @@ def _snapshot_options(options: dict[str, Any]) -> SnapshotOptions:
         unaccepted_clusters=unaccepted,
         maker_kind=normalize_string(options.get("maker-kind")) or "maker",
         concept_kinds=_concept_kinds(options.get("concept-kinds")),
+        public_kinds=public_kinds_of(options),
     )
 
 
@@ -742,7 +744,8 @@ def knowledge_entities_registry(flags: list[str]) -> None:
     for warning in warnings:
         print(f"knowledge\tentities\tregistry\twarning\t{warning}", file=sys.stderr)
     aliases = sum(len(entry["aliases"]) for entry in registry)
-    print(f"knowledge\tentities\tregistry\t{len(registry)} entities\t{aliases} aliases\t{len(warnings)} ambiguous\t{out}")
+    outside = sum(1 for warning in warnings if "which the vocabulary does not have" in warning)
+    print(f"knowledge\tentities\tregistry\t{len(registry)} entities\t{aliases} aliases\t{len(warnings) - outside} ambiguous\t{outside} outside the vocabulary\t{out}")
 
 
 def knowledge_topic_config(flags: list[str]) -> None:

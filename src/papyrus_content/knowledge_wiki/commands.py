@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from ..graphql_authoring import create_authoring_client
@@ -15,10 +16,12 @@ from ..options import normalize_string, parse_comma_list, parse_options
 from ..publish_commands import DEFAULT_ACTOR, run_site_triggers
 from ..publishing import ItemFields, PublishError, _parse_json_object, publish_item, published_item_id_for, save_item
 from ..wiki_stamp import ACTORS, REVIEW_KEY, UPDATED_KEY, WIKI_PAGE_ITEM_TYPE, review_mapping, stamp_problems
+from .kinds import public_kinds_of
 from .pages import KIND_BEAT, KIND_ENTITY, KIND_SUBTOPIC, front_matter_yaml
 from .sync import (
     DEFAULT_ITEMS_PER_TOPIC,
     DEFAULT_MINIMUM_SUBTOPIC_ITEMS,
+    RETIRED_KEY,
     UNCHANGED,
     TopicOptions,
     apply_plan,
@@ -91,6 +94,7 @@ def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int]) -> No
                         {"action": page.action, "section": page.section, "slug": page.spec.slug, "kind": page.spec.kind, "note": page.note}
                         for page in plan.pages
                     ],
+                    "retired": [{"section": page.section, "slug": page.slug, "live": page.live} for page in plan.retired],
                     "warnings": list(plan.warnings),
                     "written": written,
                 },
@@ -104,6 +108,8 @@ def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int]) -> No
         if page.action != UNCHANGED:
             note = f"\t{page.note}" if page.note else ""
             print(f"knowledge\twiki-sync\t{page.action}\t{page.spec.kind}\t{page.section}/{page.spec.slug}{note}")
+    for page in plan.retired:
+        print(f"knowledge\twiki-sync\tretire\t{page.section}/{page.slug}\t{'live: taken down' if page.live else 'draft: marked'}")
     for name, count in plan.counts.items():
         print(f"knowledge\twiki-sync\tplan\t{name}\t{count}")
     for warning in plan.warnings:
@@ -115,6 +121,8 @@ def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int]) -> No
 
 def knowledge_wiki_sync(flags: list[str]) -> None:
     options = parse_options(flags)
+    public_kinds = public_kinds_of(options)
+    retire = options.get("retire") is True
     apply = options.get("apply") is True
     section = normalize_string(options.get("section")) or DEFAULT_WIKI_SECTION
     topics_section = normalize_string(options.get("topics-section")) or DEFAULT_TOPICS_SECTION
@@ -130,17 +138,22 @@ def knowledge_wiki_sync(flags: list[str]) -> None:
     announce_backend()
     data = load_knowledge_data(client, _NoPages(), options)
     rows = client.list_records("Item")
-    specs = entity_specs(data, wiki_lineages(rows, section))
+    specs = entity_specs(data, wiki_lineages(rows, section), public_kinds)
     section_of = {KIND_ENTITY: section}
     if with_topics:
         _rows, descriptions, children = _category_context(client, options, data)
         specs += topic_specs(data, wiki_lineages(rows, topics_section), topic_options, descriptions=descriptions, subtopics_of=children)
         section_of |= {KIND_BEAT: topics_section, KIND_SUBTOPIC: topics_section}
     lineages = {lineage for name in set(section_of.values()) for lineage in wiki_lineages(rows, name)}
-    plan = plan_sync(specs, section_of, rows, live_sources(client, lineages))
+    plan = plan_sync(specs, section_of, rows, live_sources(client, lineages), retire=retire)
     written: dict[str, int] = {}
     if apply:
         written = apply_plan(client, plan, actor=normalize_string((claims or {}).get("sub")) or SYNC_ACTOR)
+        taken_down = normalize_string(options.get("retired-out"))
+        if taken_down:  # the pages the projection must remove: the source items that were live
+            target = Path(taken_down)  # a retry of the same run keeps what an earlier attempt took down
+            earlier = set(json.loads(target.read_text(encoding="utf-8"))) if target.exists() else set()
+            target.write_text(json.dumps(sorted(earlier | {page.live_item_id for page in plan.retired if page.live_item_id})) + "\n", encoding="utf-8")
     _print_plan(plan, apply, bool(options.get("json")), written)
 
 
@@ -196,7 +209,8 @@ def knowledge_wiki_publish(flags: list[str]) -> None:
         lineages: dict[str, list[dict]] = {}
         for row in wiki:
             lineages.setdefault(str(row.get("lineageId") or row["id"]), []).append(row)
-        targets = [working for working in (working_version(group) for _lineage, group in sorted(lineages.items())) if _needs_publishing(client, working)]
+        current = (working_version(group) for _lineage, group in sorted(lineages.items()))
+        targets = [working for working in current if front_matter_of(working).get(RETIRED_KEY) is not True and _needs_publishing(client, working)]
     outcomes: Counter = Counter()
     report: list[dict[str, Any]] = []
     failed = False

@@ -17,6 +17,7 @@ from .projection.engine import (
     project_all,
     project_item_pages,
     project_listings,
+    project_removals,
     reconcile,
 )
 from .projection.runtime import (
@@ -117,6 +118,16 @@ def _build_context(client, options: dict) -> ProjectionContext:
     return context_from_environment(client, environment)
 
 
+def _item_ids_of(path: str | None) -> list[str]:
+    """The ids in a JSON file holding a list of item ids (``--unpublished-items``)."""
+    if not path:
+        raise ValueError("--unpublished-items needs a JSON file holding a list of item ids.")
+    loaded = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(loaded, list) or not all(isinstance(entry, str) and entry for entry in loaded):
+        raise ValueError(f"{path} must hold a JSON list of item ids.")
+    return loaded
+
+
 def content_project(flags: list[str]) -> None:
     options = parse_options(flags)
     item_id = normalize_string(options.get("item"))
@@ -126,9 +137,10 @@ def content_project(flags: list[str]) -> None:
         bool(options.get("reconcile")),
         bool(options.get("item-pages")),
         bool(item_id),
+        bool(options.get("unpublished-items")),
     ]
     if sum(modes) != 1:
-        raise ValueError("Pass exactly one of --all, --listings, --reconcile, --item-pages or --item <item-id>.")
+        raise ValueError("Pass exactly one of --all, --listings, --reconcile, --item-pages, --item <item-id> or --unpublished-items FILE.")
     if options.get("from-dir"):
         if not options.get("all"):
             raise ValueError("--from-dir supports --all only.")
@@ -155,6 +167,8 @@ def content_project(flags: list[str]) -> None:
         report = project_item_pages(context)
     elif options.get("listings"):
         report = project_listings(context)
+    elif options.get("unpublished-items"):
+        report = project_removals(context, _item_ids_of(normalize_string(options.get("unpublished-items"))))
     else:
         report = project(context, item_id, unpublished=bool(options.get("unpublished")))
     payload = report.to_dict()

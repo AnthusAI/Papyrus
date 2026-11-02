@@ -1150,7 +1150,7 @@ Resources:
   RouterDistinctiveIntakePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      Description: The router's Reference intake grants for Distinctive Mark and for Machines on Machines (a Cyclotron-decided publication), outside the role's inline policy size limit. Machines on Machines shares this policy because RouterRole is at the 20-managed-policy limit. Same field list as PublicationReferenceIntake.
+      Description: The router's Reference intake grants for Distinctive Mark, outside the role's inline policy size limit.
       Roles: [!Ref RouterRole]
       PolicyDocument:
         Version: "2012-10-17"
@@ -1409,8 +1409,8 @@ Resources:
     Properties:
       Description: >-
         The router's monitor-stories task: idea Items and the Humanus gate, the context-pack signal reads and pack idea writes, the vector
-        pass (S3 Vectors on the eight sites' indexes, each site's storage bucket), and the TypeSafe key. One policy because RouterRole is near
-        the 20-managed-policy limit; the fields are named exactly and the API is a wildcard (the eight routed publication APIs).
+        pass (S3 Vectors on the seven sites' indexes, each site's storage bucket), and the TypeSafe key. One policy because RouterRole is near
+        the 20-managed-policy limit; the fields are named exactly and the API is a wildcard (the seven routed publication APIs).
       Roles: [!Ref RouterRole]
       PolicyDocument:
         Version: "2012-10-17"
@@ -1501,7 +1501,7 @@ Resources:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: >-
-        Lets the router's daily monitor-stories task draft stories on Distinctive Mark (DistinctiveApiId) and on Machines on Machines (MachinesOnMachinesApiId, which shares this policy because RouterRole is at the 20-managed-policy limit), with the same eleven fields the
+        Lets the router's daily monitor-stories task draft stories on Distinctive Mark (DistinctiveApiId), with the same eleven fields the
         other two monitor-stories policies grant on the six publications the hn monitor lists. Its own schedule runs the task for the
         web-distinctive monitor; TTAB References that Distinctive's Automation handles are still skipped (handledByAutomation).
       Roles: [!Ref RouterRole]

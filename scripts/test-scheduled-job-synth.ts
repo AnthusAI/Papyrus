@@ -343,7 +343,7 @@ const taskStatements = policyStatements(template, "JobTaskRoleDefaultPolicy");
 const allowedActions = new Set([
   "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucket", "s3:GetBucketLocation",
   "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem",
-  "ssm:GetParameter", "appsync:GraphQL", "lambda:GetFunctionConfiguration", "amplify:ListJobs", "cloudfront:CreateInvalidation", "cloudfront:DescribeKeyValueStore",
+  "ssm:GetParameter", "appsync:GraphQL", "appsync:GetGraphqlApi", "lambda:GetFunctionConfiguration", "amplify:ListJobs", "cloudfront:CreateInvalidation", "cloudfront:DescribeKeyValueStore",
   "cloudfront-keyvaluestore:DescribeKeyValueStore", "cloudfront-keyvaluestore:GetKey", "cloudfront-keyvaluestore:ListKeys",
   "cloudfront-keyvaluestore:PutKey", "cloudfront-keyvaluestore:DeleteKey", "cloudfront-keyvaluestore:UpdateKeys",
 ]);
@@ -575,6 +575,7 @@ const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: 
   "pilobol-us": { hour: 9, key: SHIPPED_KEY },
   "p-apyr-us": { hour: 10, key: "/papyrus/p-apyr-us/openai-api-key", corpusKey: "ai-ml-research", distribution: "E2EM0JLBC2W9WW" },
   dataparade: { hour: 11, key: "/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY", corpusKey: "data-parade" },
+  "machines-on-machines": { hour: 12, key: SHIPPED_KEY, corpusKey: "ai-ml-research", distribution: "E1PTZ8B9ZF9GCU" },
 };
 const exampleDirectory = path.dirname(examplePath);
 const seenHours = new Set<number>();
@@ -595,7 +596,10 @@ for (const [siteId, expected] of Object.entries(siteExpectations)) {
   if (expected.distribution) assert.equal(resolved.edgeDistributionId, expected.distribution);
   const built = new KnowledgeRunStack(new App(), `KnowledgeRun-${siteId}`, resolved, { env, imageTag: "test" });
   assert.equal(built.stackName, knowledgeRunStackName(siteId));
-  assert.equal(Object.keys(Template.fromStack(built).toJSON().Resources).length, 41, `${siteId}: the same 41 resources as Shipped (42 with the CDK metadata a synth adds)`);
+  // A stack that reuses the account's one ECR repository has 40 resources, one fewer than Shipped's 41 (42 with the CDK metadata a synth adds).
+  const builtTemplate = Template.fromStack(built);
+  assert.equal(Object.keys(builtTemplate.toJSON().Resources).length, resolved.reuseImageRepository ? 40 : 41, `${siteId}: the same resources as Shipped, less the shared repository when reused`);
+  assert.equal(Object.keys(builtTemplate.findResources("AWS::ECR::Repository")).length, resolved.reuseImageRepository ? 0 : 1);
 }
 
 console.log("scheduled job synth: ok");

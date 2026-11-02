@@ -7,7 +7,7 @@
     papyrus editorial policies list | import-starter NAME | ensure-defaults
     papyrus editorial policies add --file PACK [--dry-run] [--publication KEY] [--actor NAME]
     papyrus editorial policies export --file PACK [--pack-id ID] [--pack-version V]
-    papyrus editorial check-version --item VERSION_ID
+    papyrus editorial check-version --item VERSION_ID [--json]
     papyrus editorial check-drafts [--limit N] [--dry-run]
 
 Policies and settings come from the site (EditorialPolicy / EditorialCheckSettings,
@@ -306,6 +306,36 @@ def check_after_save(item_id: str, execute=None) -> None:
         print(f"editorial\tcheck\t{item_id}\tnot checked\t{str(error)[:200]} (run: papyrus editorial check-version --item {item_id})")
 
 
+def format_findings(findings: list[dict[str, Any]]) -> list[str]:
+    """One block per finding: violations first, then those for review, then anything else. Each carries what an editor acts on."""
+    order = {"violation": 0, "review": 1}
+    lines: list[str] = []
+    for finding in sorted(findings, key=lambda f: order.get(f.get("status"), 2)):
+        probability = finding.get("probability")
+        score = "" if probability is None else f"\tp={probability}"
+        lines.append(f"{finding.get('status')}\t{finding.get('severity')}\t{finding.get('policyId')}{score}\t{finding.get('id')}")
+        lines.append(f"  {finding.get('message')}")
+        excerpt = finding.get("excerpt")
+        lines.append(f"  excerpt: {excerpt!r}" if excerpt else "  excerpt: (none: the whole story)")
+    return lines
+
+
+def editorial_check_version(flags: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog="papyrus editorial check-version", description="Check one saved version of a story, store the result with it and print every finding.")
+    parser.add_argument("--item", required=True, help="Item version id, e.g. <lineage>-v2.")
+    parser.add_argument("--json", action="store_true", help="Print the summary and the full findings as JSON.")
+    args = parser.parse_args(flags)
+    summary = request_item_check(args.item)
+    run = read_item_check_run(args.item) or {}
+    findings = run.get("findings") or []
+    if args.json:
+        _emit({"summary": summary, "findings": findings}, None)
+        return
+    print(check_summary_line(summary))
+    for line in format_findings(findings):
+        print(line)
+
+
 def unchecked_draft_versions(items: list[dict[str, Any]], runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Unpublished draft versions with no stored check, or whose text changed since their check."""
     checked = {run["id"]: run.get("contentHash") for run in runs}
@@ -316,13 +346,6 @@ def unchecked_draft_versions(items: list[dict[str, Any]], runs: list[dict[str, A
         and item.get("status") != "published"
         and (item["id"] not in checked or checked[item["id"]] != item.get("contentHash"))
     ]
-
-
-def editorial_check_version(flags: list[str]) -> None:
-    parser = argparse.ArgumentParser(prog="papyrus editorial check-version", description="Check one saved version of a story and store the result with it.")
-    parser.add_argument("--item", required=True, help="Item version id, e.g. <lineage>-v2.")
-    args = parser.parse_args(flags)
-    print(check_summary_line(request_item_check(args.item)))
 
 
 def editorial_check_drafts(flags: list[str]) -> None:

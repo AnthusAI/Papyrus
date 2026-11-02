@@ -37,6 +37,7 @@ ENVIRONMENT = {
 }
 DEPLOYED_COMMIT = "d" * 40
 STAGE_SECONDS = 90
+APPSYNC_ENDPOINT = "https://vuagbw3fmvalta762m4zsacxce.appsync-api.us-east-1.amazonaws.com/graphql"  # the host AppSync reports; unrelated to the API id
 TASK = {"vCpu": 4.0, "memoryGiB": 16.0, "ephemeralStorageGiB": 40, "startedAt": None}  # what the ECS task metadata says in the cloud
 
 
@@ -50,6 +51,9 @@ class FakeSite:
     def read_object(self, bucket: str, key: str) -> bytes | None:
         assert bucket == SITE_BUCKET
         return self.objects.get(key)
+
+    def appsync_endpoint(self, api_id: str) -> str:
+        return APPSYNC_ENDPOINT
 
     def deployed_commit(self, app_id: str, branch: str) -> str:
         assert (app_id, branch) == ("dapp123", "main")
@@ -75,6 +79,7 @@ class FakeShell:
         self.items = 1  # published items the fake corpus export writes (0: a new site)
         self.pin_file = True  # the site repo has a requirements-publication.txt
         self.site_json: str | None = None  # the text of the site repo's infra/site.json, when it has one
+        self.retired: list[str] = []  # the wiki lineages the fake sync takes down (written to --retired-out)
         self.records = 0  # monitor records the fake export writes when the site has monitor sources
 
     def __call__(self, args: list[str], *, cwd: Path, env: Mapping[str, str], stdout: Path | None = None) -> None:
@@ -115,6 +120,8 @@ class FakeShell:
                     for n in range(1, self.records + 1)
                 ]
                 records.write_text(json.dumps({"schemaVersion": 1, "asOf": "2026-10-26", "sources": ["huggingface"], "records": rows}))
+        elif args[:4] == ["papyrus", "knowledge", "wiki", "sync"] and "--retired-out" in args:
+            Path(args[args.index("--retired-out") + 1]).write_text(json.dumps(self.retired))
         elif args[:2] == ["biblicus", "init"]:
             (Path(args[2]) / "metadata").mkdir(parents=True, exist_ok=True)
         elif args[:3] == ["biblicus", "extract", "build"]:

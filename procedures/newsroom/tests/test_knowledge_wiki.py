@@ -636,3 +636,148 @@ def test_an_entity_only_monitor_records_mention_gets_no_wiki_page_and_is_no_page
     assert sorted(spec.key for spec in specs) == ["maker--acme", "model--acme-base"]
     related = related_keys(data)
     assert all("moon" not in other for others in related.values() for other in others)  # no page links to a data-only entity
+
+
+# ------------------------------------------------------------------ public kinds and retiring
+
+AUTHOR = "personauthor--aaroncohen"
+AUTHOR_SLUG = "personauthor-aaroncohen"
+COMMENT = "commentconcept--general-comment"
+COMMENT_SLUG = "commentconcept-general-comment"
+VOCABULARY = "version: 1\npublication: t\nentity_kinds:\n  - {key: maker, label: \"company, or developer\"}\n  - {key: tool, label: tool}\n"
+
+
+@pytest.fixture
+def mixed(client):
+    """Acme Loom and Beta Spool plus a paper author and an editorial comment concept, all accepted, as a copied graph has them."""
+    publish_article(client, "delta", entities=[("personAuthor", "AaronCohen"), ("commentConcept", "General comment"), ("maker", "Acme Loom")])
+    snapshot_commands.knowledge_publish_run(["--apply"])
+    return client
+
+
+def vocabulary(tmp_path, text=VOCABULARY):
+    path = tmp_path / f"vocabulary-{abs(hash(text))}.yml"
+    path.write_text(text, encoding="utf-8")
+    return str(path)
+
+
+def live(client, slug):
+    page = pages(client)[slug]
+    return client.get_record("PublishedItem", published_item_id_for(page["lineageId"])) is not None
+
+
+def test_without_a_vocabulary_neither_bookkeeping_kinds_nor_paper_authors_get_a_page(mixed):
+    sync(mixed, "--apply")
+    assert set(pages(mixed)) == {ACME_SLUG, SPOOL_SLUG}
+
+
+def test_a_vocabulary_names_the_only_kinds_that_get_a_page(mixed, tmp_path):
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY.replace("  - {key: tool, label: tool}\n", "")))
+    assert set(pages(mixed)) == {ACME_SLUG}
+
+
+def test_bookkeeping_kinds_stay_private_even_when_a_vocabulary_names_them(mixed, tmp_path):
+    named = VOCABULARY + "  - {key: commentConcept, label: comment}\n  - {key: personAuthor, label: author}\n"
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, named))
+    assert set(pages(mixed)) == {ACME_SLUG, SPOOL_SLUG, AUTHOR_SLUG}
+
+
+def test_a_compacted_person_name_is_spaced_on_its_page_and_the_key_is_unchanged(mixed, tmp_path):
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
+    front = front_matter_of(pages(mixed)[AUTHOR_SLUG])
+    assert front["title"] == "Aaron Cohen" and front["entityKey"] == AUTHOR and pages(mixed)[AUTHOR_SLUG]["bodyMarkus"].startswith("# Aaron Cohen\n")
+
+
+def test_display_names_of_people_are_spaced_and_other_names_are_left_alone():
+    from papyrus_content.knowledge_wiki.kinds import display_name
+
+    assert display_name("AaronCohen", "personAuthor") == "Aaron Cohen"
+    assert display_name("AlexanderMRush", "personAuthor") == "Alexander M Rush"
+    assert display_name("AKrizhevsky", "personAuthor") == "A Krizhevsky"
+    assert display_name("AlexanderD'yakonov", "personAuthor") == "Alexander D'yakonov"
+    assert display_name("EmmaMcDonald", "person") == "Emma McDonald"
+    assert display_name("Aaron Cohen", "personAuthor") == "Aaron Cohen"
+    assert display_name("DeepSeek", "organization") == "DeepSeek" and display_name("OpenAI", "model") == "OpenAI"
+
+
+def test_the_kinds_of_a_vocabulary_are_read_in_one_form_and_a_file_without_kinds_is_refused(tmp_path):
+    from papyrus_content.knowledge_wiki.kinds import is_public_kind, vocabulary_kinds
+
+    assert vocabulary_kinds(VOCABULARY + "  - {key: model_family, label: family}\n") == ("maker", "tool", "model_family")
+    assert is_public_kind("model-family", ("model_family",)) and not is_public_kind("commentConcept", ("commentConcept",))
+    with pytest.raises(ValueError, match="declares no entity kinds"):
+        sync(None, "--vocabulary", vocabulary(tmp_path, "version: 1\n"))
+
+
+def test_sync_reports_but_keeps_a_page_nothing_generates_any_more_unless_asked_to_retire(mixed, tmp_path, capsys):
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    assert live(mixed, AUTHOR_SLUG)
+    out = sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path), capsys=capsys)
+    assert f"warning\twiki/{AUTHOR_SLUG}: no longer generated" in out and "pass --retire" in out
+    assert live(mixed, AUTHOR_SLUG)
+
+
+def test_a_dry_run_lists_the_pages_it_would_retire_and_changes_nothing(mixed, tmp_path, capsys):
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    before = len(mixed.write_calls())
+    out = sync(mixed, "--vocabulary", vocabulary(tmp_path), "--retire", capsys=capsys)
+    assert f"retire\twiki/{AUTHOR_SLUG}\tlive: taken down" in out and "plan\tretire\t1" in out and "mode\tdry-run" in out
+    assert len(mixed.write_calls()) == before and live(mixed, AUTHOR_SLUG)
+
+
+def test_retiring_takes_a_live_page_down_marks_it_and_a_publish_never_brings_it_back(mixed, tmp_path):
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    taken_down = tmp_path / "retired.json"
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path), "--retire", "--retired-out", str(taken_down))
+    page = pages(mixed)[AUTHOR_SLUG]
+    assert not live(mixed, AUTHOR_SLUG) and page["status"] == "draft" and front_matter_of(page)["retired"] is True
+    assert json.loads(taken_down.read_text()) == [page["id"]]
+    assert live(mixed, ACME_SLUG) and live(mixed, SPOOL_SLUG)
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    assert not live(mixed, AUTHOR_SLUG)
+
+
+def test_a_draft_that_was_never_live_is_marked_so_the_next_publish_skips_it(mixed, tmp_path):
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
+    taken_down = tmp_path / "retired.json"
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path), "--retire", "--retired-out", str(taken_down))
+    assert json.loads(taken_down.read_text()) == [] and front_matter_of(pages(mixed)[AUTHOR_SLUG])["retired"] is True
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    assert not live(mixed, AUTHOR_SLUG) and live(mixed, ACME_SLUG)
+
+
+def test_a_second_retire_run_changes_nothing_and_a_retry_keeps_what_the_first_took_down(mixed, tmp_path, capsys):
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n"))
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    taken_down = tmp_path / "retired.json"
+    flags = ("--apply", "--vocabulary", vocabulary(tmp_path), "--retire", "--retired-out", str(taken_down))
+    sync(mixed, *flags)
+    first = json.loads(taken_down.read_text())
+    capsys.readouterr()
+    before = len(mixed.write_calls())
+    out = sync(mixed, *flags, capsys=capsys)
+    assert len(mixed.write_calls()) == before and "wiki-sync\tretire" not in out and "plan\tretire" not in out
+    assert json.loads(taken_down.read_text()) == first != []
+
+
+def test_a_retired_page_whose_entity_becomes_eligible_again_comes_back_as_a_draft(mixed, tmp_path):
+    named = vocabulary(tmp_path, VOCABULARY + "  - {key: personAuthor, label: author}\n")
+    sync(mixed, "--apply", "--vocabulary", named)
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    sync(mixed, "--apply", "--vocabulary", vocabulary(tmp_path), "--retire")
+    sync(mixed, "--apply", "--vocabulary", named, "--retire")
+    assert "retired" not in front_matter_of(pages(mixed)[AUTHOR_SLUG])
+    publish(mixed, "--all-drafts", "--actor", "ai", "--apply")
+    assert live(mixed, AUTHOR_SLUG)
+
+
+def test_the_snapshot_links_only_public_kinds_and_leaves_bookkeeping_kinds_out(mixed, tmp_path):
+    out = tmp_path / "snapshot"
+    snapshot_commands.knowledge_snapshot(["--out", str(out), "--as-of", "2026-10-19", "--entity-href", "/wiki/{slug}/", "--vocabulary", vocabulary(tmp_path)])
+    index = json.loads((out / "_data" / "knowledge" / "index.json").read_text())
+    entities = {entity["key"]: entity for entity in index["entities"]}
+    assert COMMENT not in entities and entities[ACME]["href"] == f"/wiki/{ACME_SLUG}/"
+    assert entities[AUTHOR]["href"] is None
