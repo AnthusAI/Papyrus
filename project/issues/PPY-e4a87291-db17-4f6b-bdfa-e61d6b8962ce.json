@@ -10,9 +10,17 @@
   "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7058f313-274b-4592-ad41-38a80e42319d",
+      "author": "home",
+      "text": "Corrected 2026-11-02 after reading Chatticus develop. Shared channels and org-owned bots ARE built (epic chatticus-818d20): channels carry participants. A text-only turn does not start a computer. The real gaps: (1) Chatticus PR 650 must land; it waits on Ryan's chat UI review and Papyrus depends on its unmerged commit. (2) The embedded chat gives each editor a private conversation, so shared channels do not reach Papyrus. (3) No sub-agent tool; pi-durable supports task-owned children, and cost accounting chatticus-24308d should land with it. (4) One channel per Story with room for more. (5) A way for the host to give a bot its own tools: not checked yet. (6) Bot memory across channels is an open question in docs/ORGANIZATIONS.md. Ryan: do not work around these in Papyrus.",
+      "created_at": "2026-11-02T13:47:28.519986Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-02T13:41:30.947780Z",
-  "updated_at": "2026-11-02T13:41:30.947808Z",
+  "updated_at": "2026-11-02T13:47:28.520696Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -10,9 +10,17 @@
   "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ea87c2df-d9e0-4992-8620-5b780b54d2eb",
+      "author": "home",
+      "text": "Waits on the Chatticus work in PPY-e4a872. Ryan 2026-11-02: no Papyrus-only agent as a stopgap, so ignore 'Start with a spike on where it runs'. Also open: which system holds the Story conversation.",
+      "created_at": "2026-11-02T13:47:28.747365Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-02T13:41:30.855015Z",
-  "updated_at": "2026-11-02T13:41:30.855045Z",
+  "updated_at": "2026-11-02T13:47:28.747584Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

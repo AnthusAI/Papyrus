@@ -10,9 +10,17 @@
   "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "74918807-8bd4-4d98-94dd-83944074a16f",
+      "author": "home",
+      "text": "Merged to develop in PR 1043. Reaches sites at the next batch bump.",
+      "created_at": "2026-11-02T13:41:56.352747Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-02T13:41:30.553314Z",
-  "updated_at": "2026-11-02T13:41:30.553399Z",
+  "updated_at": "2026-11-02T13:41:56.353387Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
