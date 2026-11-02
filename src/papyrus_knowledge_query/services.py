@@ -365,6 +365,8 @@ class S3VectorsProvider:
         matches = []
         for index, vector_match in enumerate(response.get("vectors") or response.get("matches") or []):
             metadata = vector_match.get("metadata") or {}
+            if metadata.get("curationStatus") not in (None, "accepted"):
+                continue   # defence in depth behind the filter: a pending or rejected Reference is never a search result
             matches.append(
                 {
                     "providerRank": index + 1,
@@ -431,10 +433,16 @@ class S3VectorsProvider:
 
     def _metadata_filter(self, scope: dict[str, Any], vector_kind: str | None = None) -> dict[str, Any] | None:
         clauses: list[dict[str, Any]] = []
-        for key in ("corpusId", "categorySetId", "classifierId", "curationStatus"):
+        for key in ("corpusId", "categorySetId", "classifierId"):
             value = scope.get(key)
             if isinstance(value, str) and value:
                 clauses.append({key: {"$eq": value}})
+        # Pending References are indexed as context for suggestions and packs only; no search ever returns one, whatever the scope asks for. Vectors that
+        # carry no curationStatus (notes, concepts, ontology) are not References and stay in.
+        if scope.get("curationStatus") == "accepted":
+            clauses.append({"curationStatus": {"$eq": "accepted"}})
+        else:
+            clauses.append({"$or": [{"curationStatus": {"$exists": False}}, {"curationStatus": {"$eq": "accepted"}}]})
         if vector_kind:
             clauses.append({"vectorKind": {"$eq": vector_kind}})
         vector_kinds = scope.get("vectorKinds")
