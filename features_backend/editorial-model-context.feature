@@ -19,3 +19,14 @@ Feature: Database editorial guidance reaches model requests
     When a model request is made without choosing a model
     Then the model used for the reference filter, the reference summary, the editorial rewrite and the general and small roles is "gpt-6-luna"
     And the reader extraction setup asks "gpt-6-luna"
+
+  # The same rule holds for the paid-job gateway and the console: no OpenAI model but Luna can be chosen or named.
+  Scenario: The priming spending gateway admits only gpt-6-luna and reserves Luna's rates
+    When the priming spending gateway is read
+    Then the only model it admits is "gpt-6-luna"
+    And each request reserves its full maximum at $0.10 per million input tokens and $0.50 per million output tokens
+
+  Scenario: Product code names no OpenAI model other than Luna
+    When the product code of the repository is read for OpenAI model identifiers
+    Then the only language model it names is "gpt-6-luna"
+    And speech synthesis models are the only other model identifiers allowed

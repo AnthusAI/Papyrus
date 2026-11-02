@@ -140,7 +140,7 @@ beads_compatibility: false
 wiki_directory: null
 ai:
   provider: litellm
-  model: gpt-4o-mini
+  model: gpt-6-luna
 jira: null
 snyk: null
 realtime:

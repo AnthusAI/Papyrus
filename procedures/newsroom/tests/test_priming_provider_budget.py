@@ -79,7 +79,7 @@ def test_seven_requests_are_reserved_durably_before_transport_and_eighth_denied(
     with pytest.raises(BudgetDenied):b.complete(token,request(7))
     state=b.status('job')
     assert len(calls)==7 and state['requests']==7
-    assert state['reserved_microdollars']==126000 <= 500000
+    assert state['reserved_microdollars']==15400 <= 500000
     reopened,_=budget(tmp_path)
     with pytest.raises(BudgetDenied):reopened.complete(token,request(8))
     assert all(p['store'] is False and p['service_tier']=='default' for p in calls)
@@ -113,7 +113,7 @@ def test_uncertain_dispatch_or_cancellation_retains_reservation_and_seals_budget
     with pytest.raises(type(failure)):b.complete(token,request())
     with pytest.raises(BudgetDenied):b.complete(token,request(1))
     state=b.status('job')
-    assert len(calls)==1 and state['requests']==1 and state['reserved_microdollars']==18000
+    assert len(calls)==1 and state['requests']==1 and state['reserved_microdollars']==2200
 
 
 def test_concurrent_requests_cannot_cross_the_ceiling(tmp_path):
