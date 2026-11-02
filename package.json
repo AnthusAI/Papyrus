@@ -79,6 +79,7 @@
     "test:infra-site-config": "tsx scripts/test-infra-site-config.ts",
     "test:prospectus-site-identity": "tsx scripts/test-prospectus-site-identity.ts",
     "test:messages-page": "tsx --test scripts/test-conversation-feed.ts && tsx scripts/test-messages-page.ts && cucumber-js --profile messagesPage",
+    "test:newsroom-board-story-types": "tsx scripts/test-newsroom-board-story-types.ts && cucumber-js --profile boardStoryTypes",
     "test:newsroom-ux-review": "tsx scripts/test-newsroom-ux-review.ts && cucumber-js --profile newsroomUxReview",
     "test:needs-me-links": "tsx scripts/test-needs-me-links.ts && cucumber-js --profile needsMeLinks",
     "test:related-links": "tsx --test scripts/test-reference-links-lib.ts && tsx scripts/test-related-links.ts && cucumber-js --profile referenceRelatedUi",

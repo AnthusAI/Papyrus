@@ -77,6 +77,16 @@ place items there by hand until those agents exist.
 - **Edition placement is unchanged.** `EditionItem` still places a published
   item in an edition; it is layout, not lifecycle.
 
+## Story types
+
+A story is an `Item` of a story type, and the type is its own attribute, separate from
+the section. `STORY_ITEM_TYPES` in `lib/content-item-lifecycle.ts` is the one list:
+`article` today, with `post` to be added there. Other Item types (`wiki_page`,
+`doctrine`, `page`) are not stories: the Stories board asks for story types in its
+queries (`loadNewsroomContentItemStagePage` and `loadNewsroomPublishedContentItemVersions`)
+and never counts the rest. A stage query filters after DynamoDB reads a page, so a
+column keeps reading until it has a page of stories (`lib/story-stage-paging.ts`).
+
 ## The configurable name
 
 Editors see one noun for the content item. The default is **Story**, the word

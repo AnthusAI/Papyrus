@@ -55,6 +55,11 @@ module.exports = {
     require: ["features/step_definitions/decision-control.steps.js"],
     format: ["summary"],
   },
+  boardStoryTypes: {
+    paths: ["features/newsroom-board-story-types.feature"],
+    require: ["features/step_definitions/board-story-types.steps.js"],
+    format: ["summary"],
+  },
   notificationCenter: {
     paths: ["features/newsroom-notification-center.feature"],
     require: ["features/step_definitions/notification-center.steps.js"],
