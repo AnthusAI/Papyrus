@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyAddInput, closeMatchText, editorLinkedReferenceLineages, publishedAddedText, relatedEdgeWords, relatedEntriesFromRelations, symmetricSubjectFirst, type RelatedItem } from "../lib/reference-links";
+import { classifyAddInput, closeMatchText, editorLinkedReferenceLineages, publishedAddedText, relatedEdgeWords, relatedEntriesFromRelations, suggestFailureText, suggestSkippedText, symmetricSubjectFirst, type RelatedItem } from "../lib/reference-links";
 
 const item = (kind: "concept" | "reference", lineageId: string): RelatedItem => ({ kind, lineageId, title: lineageId, hashtag: null, nodeKey: null, nodeKind: null, host: null, sourceUri: null, sourcePublishedAt: null, addedAt: null });
 
@@ -37,4 +37,15 @@ test("Linked by editors keeps only current human related_to rows from References
   ];
   assert.deepEqual(editorLinkedReferenceLineages("c", rows), [{ relationId: "a", lineageId: "r1" }]);
   assert.deepEqual(symmetricSubjectFirst("b", "a"), ["a", "b"]);
+});
+
+test("A skip reason from the backend is shown in plain words, and an unknown one never leaks", () => {
+  assert.equal(suggestSkippedText("no reference_summary vector is indexed for this Reference"), "Suggestions appear once this Reference has a summary.");
+  assert.equal(suggestSkippedText("calibration_not_ready: kind=reference"), "No suggestions could be made for this Reference yet.");
+  assert.equal(suggestSkippedText(null), "No suggestions could be made for this Reference yet.");
+});
+
+test("A failed Suggest more is plain: the missing knowledge index has its sentence, anything else is generic", () => {
+  assert.equal(suggestFailureText(new Error("Suggestions need the knowledge index.")), "Suggestions need the knowledge index");
+  assert.equal(suggestFailureText(new Error("GraphQL: Lambda:Unhandled at resolver suggestReferenceLinks")), "Suggestions could not be made right now. Try again in a moment.");
 });

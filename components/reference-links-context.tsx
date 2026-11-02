@@ -58,6 +58,8 @@ export function createMemoryReferenceLinksStore(options: {
   links?: MemoryLink[];
   suggestions?: Array<MemoryLink & { label?: SuggestionLabel }>;
   withoutIndex?: boolean;
+  /** What Suggest more reports as skipped (the backend's raw reason), so the plain wording can be tested. */
+  skipped?: string;
   onCall?: (call: Record<string, unknown>) => void;
 }): ReferenceLinksStore {
   const items = new Map(options.items.map(item => [`${item.kind}#${item.lineageId}`, item]));
@@ -121,6 +123,7 @@ export function createMemoryReferenceLinksStore(options: {
     async suggest(referenceId) {
       note({ type: "suggest", referenceId });
       if (options.withoutIndex) throw new Error("Suggestions need the knowledge index.");
+      if (options.skipped) return { labels: {}, skipped: options.skipped };
       for (const suggestion of pending.splice(0)) links.push({ ...suggestion, state: "suggested", provenance: "suggested" });
       return { labels: Object.fromEntries(labels), skipped: null };
     },

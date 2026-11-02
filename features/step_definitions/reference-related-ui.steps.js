@@ -23,6 +23,9 @@ for (const when of [
   "the editor looks at the feed card and the Reference detail header",
   "the editor opens the concept page",
   "the editor looks at the Related section at 375 and 1440 pixels",
+  "the editor opens that Reference on the References page at 390 and 1440 pixels in the light and dark themes",
+  "a viewer without editor access opens that Reference on the References page",
+  "the editor presses Suggest more and the site reports that the Reference has no summary vector, or a reason it does not know",
 ]) When(when, function () { this.relatedResult = ""; });
 
 // Each outcome runs the named browser scenario in scripts/test-related-links.ts (every one covers 375 and 1440 pixels).
@@ -66,6 +69,19 @@ const outcomes = [
   ["concept", [
     "\"Linked by editors\" lists both References with both dates",
     "pasting a link in the box there links another Reference to the concept",
+  ]],
+  ["referencesPage", [
+    "the detail shows the Related section with its suggestions and the Accept and Reject buttons",
+    "the Related section comes before the messages and Reference cards link to their own detail",
+  ]],
+  ["referencesViewer", [
+    "the section says \"Editor access is required to change links.\"",
+    "Suggest more and the add box are disabled",
+  ]],
+  ["skipNotes", [
+    "the note says \"Suggestions appear once this Reference has a summary.\" for the first",
+    "the note says \"No suggestions could be made for this Reference yet.\" for the unknown reason",
+    "the note never contains internal wording",
   ]],
   ["design", [
     "there are no borders or outlines and no drop-downs",

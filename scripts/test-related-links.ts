@@ -25,6 +25,11 @@ function browserBundle(): Promise<string> {
   bundle ??= build({
     absWorkingDir: root, bundle: true, write: false, platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' }, logLevel: "silent",
+    plugins: [{ name: "fixture-stubs", setup(b) {
+      // The References page imports the Amplify client, which reads generated outputs; the fixture never configures it.
+      b.onResolve({ filter: /^papyrus-amplify-outputs$/ }, () => ({ path: "papyrus-amplify-outputs", namespace: "fixture-stub" }));
+      b.onLoad({ filter: /.*/, namespace: "fixture-stub" }, () => ({ contents: "export default {};", loader: "js" }));
+    } }],
     banner: { js: 'window.process = { env: { NODE_ENV: "development" } };' },
     stdin: { resolveDir: root, loader: "tsx", sourcefile: "related-fixture.tsx", contents: `
 import { createRoot } from "react-dom/client";
@@ -33,6 +38,7 @@ import { RelatedSection, LinkedByEditors } from "./components/related-section";
 import { ReferenceLinksStoreProvider, createMemoryReferenceLinksStore } from "./components/reference-links-context";
 import { ReferenceCardHeader } from "./components/reference-feed";
 import { referenceDatesText } from "./lib/reference-links";
+import { NewsroomReferencesView } from "./components/newsroom-references-view";
 import { localPreviewReferenceLinkItems, localPreviewReferenceLinks } from "./lib/local-preview-reference-links";
 
 const params = new URLSearchParams(location.search);
@@ -45,6 +51,7 @@ window.calls = [];
 const store = createMemoryReferenceLinksStore({
   items, links,
   withoutIndex: params.has("noindex"),
+  skipped: params.has("skipped") ? "no reference_summary vector is indexed for this Reference" : params.has("unknownskip") ? "calibration_not_ready: kind=reference" : undefined,
   suggestions: [{ id: "preview-link-9", subjectKind: "reference", subjectLineageId: REFERENCE.lineageId, objectKind: "reference", objectLineageId: "preview-reference-lineage-4", state: "suggested", provenance: "suggested", similarity: 0.66, label: "possible" }],
   onCall: (call) => window.calls.push(call),
 });
@@ -56,6 +63,12 @@ function Detail() {
     <ReviewCard decided={null} itemId={REFERENCE.lineageId} onDecide={async () => undefined} prediction={{ state: "none" }} title={REFERENCE.title} dek="A one line dek for the Reference.">
       <RelatedSection lineageId={REFERENCE.lineageId} referenceId={REFERENCE.id} />
     </ReviewCard>
+  </div>;
+}
+const REFERENCE_PAGE_ROW = { id: "preview-reference-0", lineageId: REFERENCE.lineageId, corpusId: "fixture", externalItemId: "fixture-0", title: REFERENCE.title, sourceUri: "https://records.example.org/council/harbour-dredging-0", sourcePublishedAt: "2026-10-26T09:00:00Z", createdAt: "2026-10-27T08:15:00Z", curationStatus: "accepted", versionState: "current", versionNumber: 1 };
+function ReferencesPage() {
+  return <div className="max-w-6xl" data-fixture-references-page>
+    <NewsroomReferencesView demo={false} disabled={params.has("viewer")} initialReferenceLineageId={REFERENCE.lineageId} loading={false} onReview={async () => undefined} references={[REFERENCE_PAGE_ROW as never]} />
   </div>;
 }
 function Concept() {
@@ -76,19 +89,20 @@ function Dates() {
       meta={<span className="text-xs text-muted-foreground" data-reference-dates>{referenceDatesText(DATE_REFERENCES[1])}</span>} />
   </div>;
 }
-createRoot(document.getElementById("root")).render(<ReferenceLinksStoreProvider store={labelled}>{params.has("dates") ? <Dates /> : params.has("concept") ? <Concept /> : <Detail />}</ReferenceLinksStoreProvider>);
+createRoot(document.getElementById("root")).render(<ReferenceLinksStoreProvider store={labelled}>{params.has("references") ? <ReferencesPage /> : params.has("dates") ? <Dates /> : params.has("concept") ? <Concept /> : <Detail />}</ReferenceLinksStoreProvider>);
 ` },
   }).then((result) => result.outputFiles[0].text);
   return bundle;
 }
 
-const fixtureCss = "body{margin:0;font:16px sans-serif;background:#f4f1ea;color:#1c1c1c;--feed-card:#fbf9f4;--feed-control:#e8e3d8;--feed-footer:#f0ece2;--feed-radius-xl:12px;--feed-radius-lg:10px;--feed-radius-md:8px;--feed-radius-pill:8px;--feed-quiet:.6;--foreground-muted:#6b6b6b;--feed-verdict-match-fill:#059669;--feed-verdict-miss-fill:#dc2626;--primary:#46560f;--primary-foreground:#fff}button,textarea{font:inherit}h1,h2{margin:.4em 0}.wiki-empty{color:#6b6b6b}";
+const darkCss = "html.dark body{background:#16150f;color:#ece8dc;--feed-card:#201e17;--feed-control:#2d2a20;--feed-footer:#26231b;--foreground-muted:#a39e8e;--primary:#c6f432;--primary-foreground:#1c1c1c;--muted-foreground:#a39e8e;--foreground:#ece8dc}html.dark .wiki-empty{color:#a39e8e}";
+const fixtureCss = "body{margin:0;font:16px sans-serif;background:#f4f1ea;color:#1c1c1c;--muted-foreground:#6b6b6b;--foreground:#1c1c1c;--feed-card:#fbf9f4;--feed-control:#e8e3d8;--feed-footer:#f0ece2;--feed-radius-xl:12px;--feed-radius-lg:10px;--feed-radius-md:8px;--feed-radius-pill:8px;--feed-quiet:.6;--foreground-muted:#6b6b6b;--feed-verdict-match-fill:#059669;--feed-verdict-miss-fill:#dc2626;--primary:#46560f;--primary-foreground:#fff}button,textarea{font:inherit}h1,h2{margin:.4em 0}.wiki-empty{color:#6b6b6b}";
 
-async function setup(options: string, width: number) {
+async function setup(options: string, width: number, height = 1000, dark = false) {
   const script = await browserBundle();
   const tailwind = await compiledTailwind();
   const browser = await chromium.launch({ args: ["--no-proxy-server"], executablePath: process.env.PAPYRUS_CHROMIUM_PATH || undefined });
-  const page = await browser.newPage({ viewport: { width, height: 1000 } });
+  const page = await browser.newPage({ viewport: { width, height } });
   page.setDefaultTimeout(4000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -96,7 +110,7 @@ async function setup(options: string, width: number) {
     const url = new URL(route.request().url());
     if (url.origin !== origin) return route.abort();
     if (url.pathname === "/fixture.js") return route.fulfill({ contentType: "text/javascript", body: script });
-    return route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width"><style>${tailwind}</style><style>${fixtureCss}</style></head><body><div id="root" class="p-4"></div><script src="/fixture.js"></script></body></html>` });
+    return route.fulfill({ contentType: "text/html", body: `<html class="${dark ? "dark" : ""}"><head><meta name="viewport" content="width=device-width"><style>${tailwind}</style><style>${fixtureCss}${darkCss}</style></head><body><div id="root" class="p-4"></div><script src="/fixture.js"></script></body></html>` });
   });
   await page.goto(`${origin}/${options}`);
   return { browser, page, errors };
@@ -282,6 +296,75 @@ const scenarios: Record<string, () => Promise<void>> = {
       if (shots) await page.screenshot({ path: `${shots}/dates-feed-and-detail-${width}.png`, fullPage: true });
     });
     console.log("Related scenario passed: referenceDates");
+  },
+
+  async referencesPage() {
+    for (const [width, height] of [[390, 844], [1440, 900]]) {
+      for (const dark of [false, true]) {
+        const { browser, page, errors } = await setup("?references=1&labels=1", width, height, dark);
+        try {
+          const detail = page.locator("[data-news-desk-reference-detail]");
+          await detail.waitFor();
+          const related = detail.locator("[data-related-section]");
+          await related.waitFor();
+          await related.locator("[data-related-suggested]").first().waitFor();
+          assert.ok((await related.locator("h3").innerText()).includes("Related"));
+          assert.ok(await related.locator("[data-related-suggestion-marks]").count() >= 2, "suggestions are visible on the References page");
+          assert.equal(await related.locator('[data-review-choice="accept"]').count() > 0, true, "Accept and Reject are offered");
+          assert.equal(await page.locator("[data-related-section]").count(), 1, "one Related section");
+          const order = await detail.evaluate((root) => {
+            const section = root.querySelector("[data-related-section]");
+            const conversation = root.querySelector("[data-reference-conversation]");
+            return section && conversation ? Boolean(section.compareDocumentPosition(conversation) & Node.DOCUMENT_POSITION_FOLLOWING) : true;
+          });
+          assert.equal(order, true, "Related comes before messages");
+          assert.equal(await related.locator("[data-related-reference-card] a").first().getAttribute("href") !== null, true, "Reference cards link to their detail");
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "nothing scrolls sideways");
+          if (shots) {
+            fs.mkdirSync(`${shots}/references`, { recursive: true });
+            await detail.scrollIntoViewIfNeeded();
+            await related.scrollIntoViewIfNeeded();
+            await page.screenshot({ path: `${shots}/references/references-related-${width}x${height}-${dark ? "dark" : "light"}.png`, fullPage: true });
+          }
+          assert.deepEqual(errors, []);
+        } finally { await browser.close(); }
+      }
+    }
+    console.log("Related scenario passed: referencesPage");
+  },
+
+  async referencesViewer() {
+    await run("?references=1&viewer=1", [390], async (page) => {
+      const related = page.locator("[data-related-section]");
+      await related.waitFor();
+      assert.ok((await related.innerText()).includes("Editor access is required to change links."));
+      assert.equal(await related.locator("[data-related-suggest-more]").isDisabled(), true);
+      assert.equal(await related.locator("[data-related-add] textarea").isDisabled(), true);
+    });
+    console.log("Related scenario passed: referencesViewer");
+  },
+
+  async skipNotes() {
+    const cases: Array<[string, string]> = [
+      ["?skipped=1", "Suggestions appear once this Reference has a summary."],
+      ["?unknownskip=1", "No suggestions could be made for this Reference yet."],
+    ];
+    for (const [options, expected] of cases) {
+      await run(options, [390, 1440], async (page, width) => {
+        await page.locator("[data-related-concept]").first().waitFor();
+        await page.locator("[data-related-suggest-more]").click();
+        const note = page.locator("[data-related-suggest-note]");
+        await note.waitFor();
+        const text = (await note.innerText()).trim();
+        assert.equal(text, expected);
+        assert.ok(!/vector|indexed|reference_summary|calibration|kind=/.test(text), "no internal wording");
+        if (shots && options === "?skipped=1") {
+          fs.mkdirSync(`${shots}/references`, { recursive: true });
+          await page.screenshot({ path: `${shots}/references/suggest-skipped-plain-${width}.png`, fullPage: true });
+        }
+      });
+    }
+    console.log("Related scenario passed: skipNotes");
   },
 
   async design() {

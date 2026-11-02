@@ -59,6 +59,24 @@ export const RELATED_PREDICATE_WORDS: Record<string, { outgoing: string; incomin
 
 export const KNOWLEDGE_INDEX_MISSING_TEXT = "Suggestions need the knowledge index";
 
+/** What "Suggest more" says when the site found nothing to suggest, keyed by the backend's skip reason. Never shown raw. */
+export const SUGGEST_SKIPPED_TEXTS: ReadonlyArray<{ match: RegExp; text: string }> = [
+  { match: /no reference_summary vector is indexed/i, text: "Suggestions appear once this Reference has a summary." },
+];
+export const SUGGEST_SKIPPED_FALLBACK_TEXT = "No suggestions could be made for this Reference yet.";
+export const SUGGEST_FAILED_TEXT = "Suggestions could not be made right now. Try again in a moment.";
+
+/** Plain wording for a backend skip reason; an unknown reason gets a generic plain sentence, never the internal string. */
+export function suggestSkippedText(skipped: string | null | undefined): string {
+  const reason = String(skipped ?? "");
+  return SUGGEST_SKIPPED_TEXTS.find(known => known.match.test(reason))?.text ?? SUGGEST_SKIPPED_FALLBACK_TEXT;
+}
+
+/** Plain wording for a failed "Suggest more": the missing knowledge index has its own sentence; everything else is generic. */
+export function suggestFailureText(failure: unknown): string {
+  return isKnowledgeIndexMissing(failure) ? KNOWLEDGE_INDEX_MISSING_TEXT : SUGGEST_FAILED_TEXT;
+}
+
 export function relationMetadata(row: Pick<RelationRow, "metadata">): Record<string, unknown> {
   const raw = row.metadata;
   if (raw && typeof raw === "object") return raw as Record<string, unknown>;
