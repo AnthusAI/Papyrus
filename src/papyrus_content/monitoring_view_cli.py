@@ -12,7 +12,8 @@ import os
 import sys
 from typing import Any
 
-from .operator_errors import GraphQLRequestError
+from . import signed_in_lane as lane
+from .signed_in_lane import SIGN_IN, Refusal
 
 LISTS = ("runs", "routerRuns", "items", "emailSubmissions")
 SCOPES = ("publication", "all")
@@ -20,13 +21,6 @@ SCOPES = ("publication", "all")
 OVERVIEW_QUERY = "query MonitoringOverview($scope: String) { monitoringOverview(scope: $scope) }"
 PAGE_QUERY = ("query MonitoringPage($list: String!, $cursor: String, $filter: String, $scope: String) "
               "{ monitoringPage(list: $list, cursor: $cursor, filter: $filter, scope: $scope) }")
-
-SIGN_IN = "Sign in with `papyrus login <site>` first."
-
-
-class Refusal(Exception):
-    """A one-line, operator-facing reason the command did not run."""
-
 
 def add_arguments(sub) -> None:
     overview = sub.add_parser("overview", help="Read-only: monitoring state through your `papyrus login` session (no AWS credentials)")
@@ -42,31 +36,9 @@ def add_arguments(sub) -> None:
     page.add_argument("--json", action="store_true", help="Print the raw response")
 
 
-def _endpoint(site: str | None = None) -> str:
-    if site:
-        from .cli_user_auth import registered_site
-        return registered_site(site).graphql_endpoint
-    from .env import graphql_endpoint
-    try:
-        return graphql_endpoint()
-    except ValueError:
-        from .cli_user_auth import resolve_config
-        return resolve_config().graphql_endpoint
-
-
 def _client(site: str | None = None):
     """The shared authoring client, held to the signed-in user's headers: a missing session is an error, never IAM."""
-    from .cli_user_auth import selected_headers
-    from .graphql_authoring import PapyrusGraphQLAuthoringClient
-    endpoint = _endpoint(site)
-
-    def headers(_payload: bytes) -> dict[str, str]:
-        found = selected_headers(endpoint)
-        if found is None:
-            raise Refusal(f"Not signed in. {SIGN_IN}")
-        return found
-
-    return PapyrusGraphQLAuthoringClient(endpoint=endpoint, header_factory=headers)
+    return lane.client(site)
 
 
 def _refusal_for(scope: str) -> Refusal:
@@ -76,26 +48,7 @@ def _refusal_for(scope: str) -> Refusal:
 
 
 def fetch(client, query: str, field: str, variables: dict[str, Any], scope: str) -> Any:
-    try:
-        data = client.graphql(query, variables)
-    except GraphQLRequestError as error:
-        text = str(error)
-        if error.status_code in (401, 403) or any(word in text.lower() for word in ("unauthorized", "not authorized", "forbidden")):
-            raise _refusal_for(scope) from None
-        raise Refusal(f"Monitoring request failed: {text.splitlines()[0][:300]}") from None
-    raw = data.get(field)
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except json.JSONDecodeError:
-            raise Refusal("Monitoring response was not valid JSON.") from None
-    if raw is None:
-        raise Refusal("Monitoring is unavailable: the site returned no data.")
-    if isinstance(raw, dict) and raw.get("error"):
-        if raw["error"] == "forbidden":
-            raise _refusal_for(scope)
-        raise Refusal(f"Monitoring refused the request: {raw['error']}.")
-    return raw
+    return lane.fetch(client, query, field, variables, noun="Monitoring", forbidden=lambda: _refusal_for(scope))
 
 
 def _clip(value: Any, width: int = 70) -> str:

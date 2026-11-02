@@ -58,7 +58,7 @@ class Env:
         self.requests = []
         self.answer = graphql_answer("monitoringOverview", OVERVIEW)
 
-    def run(self, argv, monkeypatch):
+    def run(self, argv, monkeypatch, group=("monitors",)):
         """Run through the real CLI entry point with boto3 unimportable and any IAM path failing the test."""
         from papyrus import cli
         for name in [m for m in sys.modules if m == "boto3" or m == "botocore" or m.startswith(("boto3.", "botocore."))]:
@@ -73,7 +73,10 @@ class Env:
              patch("papyrus_content.graphql_http._aws_credentials", forbidden), \
              patch("http.client.HTTPSConnection", lambda *a, **k: FakeConnection(self.answer, self.requests)), \
              redirect_stdout(out), redirect_stderr(err):
-            code = cli.main(["monitors", *argv])
+            try:
+                code = cli.main([*group, *argv])
+            except SystemExit as stop:   # a command that exits with its status
+                code = stop.code
         return code, out.getvalue(), err.getvalue()
 
 
