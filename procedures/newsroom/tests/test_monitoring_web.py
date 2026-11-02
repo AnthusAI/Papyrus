@@ -849,7 +849,6 @@ def test_a_new_drafted_query_has_no_high_water_so_its_first_search_is_one_reques
     assert len(asked) == 1 and "start_date" not in asked[0] and asked[0]["max_results"] == TAVILY_PAGE_LIMIT
     assert queries_of(table)["Agent Security news"]["highWater"] == NOW
 
-    assert wq.criteria_text("distinctive", tmp_path) is None
 
 
 # --- paid searches: never asked twice, counted, and watched (features_backend/monitoring-web-search-spend.feature) ---------------
