@@ -111,6 +111,11 @@ module.exports = {
     require: ["features/step_definitions/alexa-*.steps.js"],
     format: ["summary"],
   },
+  autoAcceptedList: {
+    paths: ["features/newsroom-auto-accepted-list.feature"],
+    require: ["features/step_definitions/auto-accepted-list.steps.js"],
+    format: ["summary"],
+  },
   messagesPage: {
     paths: ["features/newsroom-messages-page.feature"],
     require: ["features/step_definitions/messages-page.steps.js"],

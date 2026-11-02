@@ -246,3 +246,15 @@ def step_count_distinct(context, count):
 @then("the feedback task read no delivered reference one by one")
 def step_no_reads(context):
     assert context.reads == []
+
+
+@when('an editor confirms that automatic acceptance saying "{why}"')
+def step_confirms_saying(context, why):
+    # The newsroom's Accept on an automatically accepted Reference: still accepted, but the actor is now the editor, the time is the editor's
+    # and the reason is the editor's own words (the router's reason is replaced).
+    context.references["reference-anth-us-101"] = with_reason("accepted", "editor@example.test", why, at="2026-10-22T01:00:00Z")
+
+
+@when("an editor confirms that automatic acceptance without an explanation")
+def step_confirms_plain(context):
+    context.references["reference-anth-us-101"] = with_reason("accepted", "editor@example.test", None, at="2026-10-22T01:00:00Z")
