@@ -282,6 +282,7 @@ def test_the_lambda_entry_point_passes_its_own_account():
 def cli(monkeypatch, capsys):
     state = {"client": fx.site_client(), "table": WritableTable(), "invoked": []}
     import papyrus_content.graphql_authoring as ga
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")   # these test the AWS lane, whatever session the machine holds
     monkeypatch.setattr(ga, "create_authoring_client", lambda *a, **k: (state["client"], {}))
     monkeypatch.setattr(au, "monitoring_table_from_environment", lambda env=None: state["table"])
     monkeypatch.setattr(au, "lambda_invoker", lambda name=None: state["invoked"].append)

@@ -1,0 +1,23 @@
+{
+  "id": "PPY-11f81b1b-bc51-4fdd-a3c9-c1246778e606",
+  "title": "Votes and explanations reach the Cyclotron; automatic acceptance runs reliably and can be undone",
+  "description": "Feedback walked every delivery and starved the time budget; explanations were never sent as comment; auto-accept was skipped on the time budget. Feedback now starts from the editors' votes and sends the explanation; auto-accept is its own hourly task per publication. Branch fix/vote-feedback-auto-accept.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "monitoring",
+    "cyclotron"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T16:59:45.297024Z",
+  "updated_at": "2026-11-02T16:59:45.297132Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

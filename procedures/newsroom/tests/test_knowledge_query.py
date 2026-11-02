@@ -1877,6 +1877,7 @@ class KnowledgeQueryTests(unittest.TestCase):
         with mock.patch.dict(
             os.environ,
             {
+                "PAPYRUS_GRAPHQL_AUTH": "iam",   # the AWS lane, whatever `papyrus login` session the machine holds
                 "PAPYRUS_GRAPHQL_ENDPOINT": "https://example.appsync-api.us-east-1.amazonaws.com/graphql",
                 "AWS_ACCESS_KEY_ID": "AKIDEXAMPLE",
                 "AWS_SECRET_ACCESS_KEY": "secret-example",
@@ -1898,7 +1899,7 @@ class KnowledgeQueryTests(unittest.TestCase):
     def test_newsroom_cli_remote_requires_graphql_auth(self):
         from papyrus_newsroom import cli as newsroom_cli
 
-        with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_ENDPOINT": ""}, clear=False):
+        with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam", "PAPYRUS_GRAPHQL_ENDPOINT": ""}, clear=False):
             stderr = io.StringIO()
             with contextlib.redirect_stderr(stderr):
                 exit_code = newsroom_cli.main(["knowledge-query", "--query", "LLM"])

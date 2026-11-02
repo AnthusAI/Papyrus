@@ -1,0 +1,20 @@
+{
+  "id": "PPY-6bdd4c4c-82e9-4b63-89a4-8437a94abd9e",
+  "title": "Server-held model and search keys: no SSM reads from the operator machine",
+  "description": "monitoring_web_queries, web_search, amplify_ssm_secrets, papyrus_config, editorial_checks and papyrus_knowledge_query/services read OpenAI or Tavily keys from SSM on the laptop when an env var is missing. The server should make the model or search call and return the result.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T16:43:33.196750Z",
+  "updated_at": "2026-11-02T16:43:33.196779Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

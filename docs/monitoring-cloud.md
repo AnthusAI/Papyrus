@@ -447,7 +447,8 @@ failure domains apart (a Cyclotron outage never touches collection, and collecto
 code is not redeployed with the router); the cost is up to 15 minutes of latency.
 Feedback runs in the same invocation after routing (one lock, one schedule); a
 failed feedback pass never fails routing, and `{"task":"route"}`, `{"task":"collect"}` or `{"task":"feedback"}`
-limits an operator-invoked run. A second schedule runs `{"task":"collect"}` every 2 minutes to deliver jobs that
+limits an operator-invoked run. [Automatic acceptance](#automatic-acceptance) is not part of a routing run: it has its own hourly schedules
+and runs once per publication. A second schedule runs `{"task":"collect"}` every 2 minutes to deliver jobs that
 were still running when the route run ended ([post first, then collect](#post-first-then-collect)).
 
 ## Dry-run and live
@@ -600,10 +601,10 @@ Monitoring page shows it on the router run.
 | `ROUTE#<sourceId>#<rev6>` | `dryRun` (`count`, `validatedAt`, `requests.<pub>` = path, `requestId`, bytes, body; `contexts.<pub>` = `contextHash`/`reason`), `jobs.<pub>` (`requestId`, `jobId`, `checked`), `decision` (`decisionId`, `source` = id/revision/fingerprint, per-publication `output`, `label`, `fingerprint`, `version`, plus account, run, binding revision), `publications.<pub>` (`delivered`, `referenceId`, `attempts`, `lastError`), `final` |
 | `ENRICH#<sourceId>#<rev6>` | The item's enrichment before its decision ([Enrich before decide](#enrich-before-decide-item-enrichment)): `status`, `final`, `attempts`, `curation`, S3 keys |
 | `CRIT#<pub>` | The latest `criteriaFingerprint` Cyclotron reported for the publication's output (feedback compares against it) |
-| `DELIV#<pub>#<referenceId>` | A Reference this router delivered; feedback source. In `FEEDBACK#hn#pending` while feedback is outstanding |
+| `DELIV#<pub>#<referenceId>` | A Reference this router delivered; the item, output and decision a later vote on it is sent under. Feedback looks it up by the voted Reference's id. Rows written before 2026-11-02 also sit in the old `FEEDBACK#<monitor>#pending` index, which nothing reads any more |
 | `TRIGGER#<pub>#<procedureKey>#<sourceId>` | A procedure trigger for this item: `status` (`starting`, `started`, `startFailed`, `notTriggered`, `skipped`, `deferred`, then the runner's `running`, `completed`, `failed` or `notRunnable`), the runner `request`, `runId`, a `reason` for `skipped` and `deferred`, the `automationId` when an automation governed the start, errors. Written only if absent, so each item starts each procedure once (`docs/procedure-runner.md`, `docs/automations.md`) |
 | `MANUAL#<automationId>#<timestamp>` | A "Run now" of an automation, written by the CLI or the console (not by the router): who started it, the runner `request`, then the runner's `running`/`runId` and outcome, as on a `TRIGGER#` row (`docs/automations.md`) |
-| `FB#<requestId>` | Feedback receipt: outcome, label, curation status, publication |
+| `FB#<requestId>` | Feedback receipt for one vote: outcome (`sent`, `stale`, `refused`, `invalid`), label, curation status, publication, and `explained` (whether the vote carried the editor's explanation; the text stays on the Reference). A final receipt is what stops a vote being sent twice |
 | `ROUTERUN#<startedAt>#<runId>` | Run receipt: mode, status, `stoppedBy`, counts, feedback summary, errors; 30 days |
 
 Receipts contain public HN data and identifiers only; no editorial policy text
@@ -732,24 +733,43 @@ the runner.
 
 ## Feedback
 
-Always, when `mode` is `live` and the monitor's decisions come from Cyclotron (there is no feedback switch; a `feedback` field left in a stored config is ignored and logged as retired; `direct` and `hold` monitors have nothing to correct). For each `DELIV#` row still pending
-(all of them, rotated to the back as they are checked) the router reads the Reference. `pending` is ignored. `accepted` maps to
-`include` and `rejected` to `exclude` for that publication's output. The editor comes from
+Always, when `mode` is `live` and the monitor's decisions come from Cyclotron (there is no feedback switch; a `feedback` field left in a stored config is ignored and logged as retired; `direct` and `hold` monitors have nothing to correct).
+
+**The pass starts from the votes.** For each publication the router lists the current References an editor has accepted or rejected (`referencesByCurationStatusKey`, two indexed queries; a person's vote is the only thing sent, so
+the pending References, thousands of them, are never read), looks up the `DELIV#<pub>#<referenceId>` row of each, and sends the votes of the References this monitor delivered. A vote on a Reference another monitor delivered is that
+monitor's to send. Until 2026-11-02 the pass walked every delivery, read each Reference one by one and rotated the rows to the back of a queue, so it took hours to reach a new vote, used the Lambda's time up (it stopped on the time budget in about one run in ten) and
+never saw a vote again once it had been sent. The cost now follows the number of votes, not the number of deliveries, and it is bounded only by the run's remaining time.
+
+`accepted` maps to `include` and `rejected` to `exclude` for that publication's output. The editor comes from
 `curationStatusUpdatedBy`. A human curator is any of `user:<x>` (CLI), the editor's sign-in email (what the
 newsroom UI records), a Cognito username (`google_<digits>`) or a Cognito sub (UUID). A missing actor, the
 worker's own actor and every other machine actor (`ai`, `system:*`, `worker:*`, `papyrus*`, `*-import`, the
-"Papyrus newsroom" fallback) are skipped and the reason recorded on the row. The feedback is sent in the
+"Papyrus newsroom" fallback, `auto:cyclotron`, `auto:rule`) are not votes and are never candidates. The feedback is sent in the
 decision contract: `caller` is the publication's configured `site` and `reviewer` names who voted. Cyclotron stores
 the reviewer as free text, and it must never be an email address, so the reviewer sent is:
 `user:<x>` as is (when `<x>` is not an email); `cognito:<sub>` for a bare Cognito sub; otherwise
 `editor:` + the first 32 hex characters of `sha256(publicationId + ":" + lowercased actor)`.
-`requestId = sha256(referenceId \n curationStatus \n curationStatusUpdatedAt)`, so repeats are
-idempotent; the item revision and output come from the stored decision receipt.
+
+**The explanation travels with the vote.** The editor's written reason (the Reference's `curationStatusReason`, trimmed) is sent as the feedback's `comment`, which the Cyclotron stores with the label (any text, no length limit; it is
+free text for a person to read, not a code). An absent or blank explanation sends no `comment` at all. The rejection reason *code* (`other`, and so on) is not part of the feedback contract and is not sent.
+
+**Request ids and changed votes.** `requestId = sha256(referenceId \n curationStatus \n curationStatusUpdatedAt [\n explanation])`, the explanation line only when there is one. A retry of the same vote is the same request, and the Cyclotron
+answers an identical request with the label it already has. A vote that changes (another status, a new time, or only a new explanation) hashes to a new request and is recorded as a new label for that item; the Cyclotron appends
+labels (its `item_feedback` table is keyed by request id and refuses the same id with different content, 409), so an editor who accepts and later un-accepts, or who adds an explanation afterwards, sends a correction, and a vote
+that was sent before this was possible is sent once more with its explanation. A vote with no explanation keeps the id it always had, so nothing already sent is sent again. A vote with a final receipt (`FB#<requestId>`: `sent`, `stale`, `refused` or `invalid`)
+is counted as `unchanged` and costs one read; `uncertain` answers and `publication binding changed` leave no receipt and are asked again next run.
+
+The result counts `sent`, `unchanged`, `skipped` (a vote that cannot be sent: criteria changed, or the decision receipt has no item revision), `pending` (an uncertain answer, retried next run) and `failed`.
+The item revision and output come from the stored decision receipt.
 
 ## Automatic acceptance
 
-A pending Reference that nobody voted on is accepted by the router itself, per publication, on every run that does feedback (after it; the `auto-accept` task runs
-only this pass). It is **on for every publication** and runs only in `live` mode for monitors whose decisions come from Cyclotron. The publication's router entry
+A pending Reference that nobody voted on is accepted by the router itself, per publication. It runs as **its own task**, `{"task":"auto-accept"}`: every hour the schedules `papyrus-monitoring-hn-auto-accept` (minute 41) and
+`papyrus-monitoring-web-distinctive-auto-accept` (minute 11, because the hn router does not list Distinctive Mark) start the task, which only fans out one invocation per publication whose `autoAccept` is not off
+(`{"task":"auto-accept","monitorId":"hn","publicationId":"anth-us"}`), the same way [monitor stories](#monitor-stories-daily) do. Each invocation has the Lambda's whole time budget and its own lock (`LOCK#auto-accept#<publicationId>`), so a
+routing run never holds it up or is held up by it. It used to follow the sweep and the feedback pass in every routing run and was skipped (`"reason": "time budget"`) whenever they had left less than 120 seconds: in about one run in
+four in the last 48 hours of receipts (105 of 379 passes for Anth.us) and one in nine since 28 October (640 of 5,447 across the publications). The two schedules are new template resources, so they exist only after a change set for `papyrus-monitoring` is
+executed; until then nothing runs the pass (the receipts, which go back 30 days, show it has not accepted anything: every pass either hit the time budget or found no confidence that reaches the target precision). It is **on for every publication** and runs only in `live` mode for monitors whose decisions come from Cyclotron. The publication's router entry
 may carry
 
 ```json
@@ -767,7 +787,12 @@ All three keys are optional; with no block, or with `{}`, it runs with those def
 * **Write.** `curationStatus=accepted`, `curationStatusKey`, `reviewedFeedKey`, `curationStatusUpdatedAt`, `curationStatusUpdatedBy="auto:cyclotron"` and a `curationStatusReason` naming the confidence, the
   threshold, the estimated accept rate, its lower bound, the number of votes and the delay; plus the vote's details on the Reference itself (`curationActorKind` is `cyclotron`, never a human label; no Message is written). A Reference an editor
   touched (any person as the last actor) is left alone.
-* **Feedback.** `auto:cyclotron` is not a person, so [Feedback](#feedback) skips it. An editor who later Rejects or re-Accepts the Reference replaces the actor, and that vote is sent like any other.
+* **Feedback.** `auto:cyclotron` is not a person, so [Feedback](#feedback) skips it. An editor who later Rejects or re-Accepts the Reference replaces the actor, and that vote is sent like any other, with the editor's explanation.
+* **Undoing it.** An automatic acceptance is a pending Reference with a different actor, so it is reversible by the ordinary Reject. The newsroom marks it "Accepted automatically" on the card, the list row and the detail (and the reason says why), and a Reject
+  there stores the editor as the actor with the editor's reason, which then trains the threshold and reaches the Cyclotron. What an acceptance sets going and what undoing it leaves behind: the Reference joins the accepted evidence at once, so the next
+  [monitor stories](#monitor-stories-daily) run may file an idea from it (a filed idea stays in the Idea column, where a person decides; nothing in the router withdraws it when the Reference is rejected later), the next vector sync re-marks its vectors (a rejected Reference
+  is excluded again), and the weekly Knowledge Map and wiki runs count accepted References only, so they drop it at the next run. Nothing is published by an acceptance alone. The console's per-status counts are bumped by the editor's own Accept and Reject
+  but not by this pass, so they can drift by the number of automatic acceptances until the summary is next rebuilt.
 * **Monitors that deliver by a fixed rule** (`decisions: "direct"`, such as TTAB for Distinctive) have no confidence: the rule match is the acceptance. A newly delivered Reference is set to accepted on delivery with
   `curationStatusUpdatedBy="auto:rule"` and a reason naming the monitor and the rule. Same switch (`autoAccept.enabled`), same Reference fields (`curationActorKind` `rule`), never sent to Cyclotron, an editor can still Reject it.
   `papyrus references auto-accept --site KEY [--dry-run]` applies it to deliveries that already exist (the dry run lists them), and also runs the confidence pass; the monitors it treats as rule monitors are those whose `discoveryRule` says `system = "direct"`

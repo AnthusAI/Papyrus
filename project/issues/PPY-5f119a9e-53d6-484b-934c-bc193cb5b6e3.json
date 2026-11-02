@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5f119a9e-53d6-484b-934c-bc193cb5b6e3",
+  "title": "CLI fails closed: no silent AWS credential fallback",
+  "description": "graphql_request_headers (src/papyrus_content/graphql_http.py) signs with the AWS credential chain when no user session file exists and PAPYRUS_GRAPHQL_AUTH is unset. Make the signed-in user the default: with no session, refuse and say to run papyrus login. IAM only on an explicit opt-in, for workers and the listed break-glass commands. Update the error guidance in operator_errors.py and cli_user_auth.py that tells people to set AWS_PROFILE. Check every worker and scheduled job that relies on the default sets the opt-in before this ships. Gherkin required.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T16:43:32.932693Z",
+  "updated_at": "2026-11-02T16:43:32.932756Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

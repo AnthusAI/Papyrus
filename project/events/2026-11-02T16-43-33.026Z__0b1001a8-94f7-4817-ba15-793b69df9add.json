@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0b1001a8-94f7-4817-ba15-793b69df9add",
+  "issue_id": "PPY-54456435-34f9-4ba0-9116-ae1deda5e743",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T16:43:33.026Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Move automations and knowledge query onto the signed-in lane",
+    "description": "papyrus automations run/list/runs invoke Lambda and read the monitoring table although runAutomation and automationOverview exist server-side (automation_view.py): switch the CLI to them. papyrus knowledge query calls iam_signed_graphql_headers directly: use the user session. No new server API expected.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+    "labels": []
+  }
+}

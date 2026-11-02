@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,7 @@ def add_knowledge_query_parser(subparsers: argparse._SubParsersAction[argparse.A
         choices=["researcher", "reporter", "reporting", "editor", "reviewer", "chat"],
     )
     parser.add_argument("--format", default="structured", choices=["structured", "markdown", "both"])
+    parser.add_argument("--site", default="", help="Signed-in site to query remotely, such as shipped.anth.us (needed when several are signed in and no endpoint is set)")
     parser.add_argument("--max-tokens", type=int, default=0)
     parser.add_argument("--depth", type=int, default=None)
     parser.add_argument("--top-k", type=int, default=None)
@@ -105,7 +107,7 @@ def add_knowledge_vector_index_parser(subparsers: argparse._SubParsersAction[arg
 def run_knowledge_query_cli(args: argparse.Namespace) -> dict[str, Any]:
     payload = _load_input(args.input) if args.input else _input_from_args(args)
     if _should_run_remote(args):
-        result = _run_remote_knowledge_query(payload)
+        result = _run_remote_knowledge_query(payload, getattr(args, "site", "") or "")
         _annotate_cli_execution(result, "remote")
         return result
     result = run_knowledge_query(payload, build_environment_services())
@@ -146,22 +148,47 @@ def _load_input(path: str) -> dict[str, Any]:
     return payload
 
 
+def _signed_in() -> bool:
+    """True when a `papyrus login` session applies (PAPYRUS_GRAPHQL_AUTH=iam turns it off for scheduled jobs and roles)."""
+    from papyrus_content.user_auth_mode import user_auth_requested
+    return user_auth_requested()
+
+
 def _should_run_remote(args: argparse.Namespace) -> bool:
     execution = getattr(args, "execution", "auto")
     if execution == "local":
         return False
     endpoint = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").strip()
+    if _signed_in():
+        # The signed-in lane needs no AWS credentials. The endpoint may come from the environment or the signed-in site.
+        if execution == "remote" or endpoint or getattr(args, "site", ""):
+            return True
+        try:   # auto: remote when exactly one signed-in site resolves, otherwise the local engine as before
+            from papyrus_content import signed_in_lane
+            signed_in_lane.endpoint(None)
+            return True
+        except Exception:
+            return False
     if execution == "remote":
         if not endpoint or not aws_credentials_available():
             raise OperatorError(
-                "remote knowledge-query execution requires PAPYRUS_GRAPHQL_ENDPOINT and AWS credentials (set AWS_PROFILE)"
+                "remote knowledge-query execution requires PAPYRUS_GRAPHQL_ENDPOINT and either `papyrus login` or AWS credentials (set AWS_PROFILE)"
             )
         return True
     return bool(endpoint and aws_credentials_available())
 
 
-def _run_remote_knowledge_query(payload: dict[str, Any]) -> dict[str, Any]:
-    endpoint = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").strip()
+def _run_remote_knowledge_query(payload: dict[str, Any], site: str = "") -> dict[str, Any]:
+    if _signed_in():
+        from papyrus_content import signed_in_lane
+        try:
+            endpoint = signed_in_lane.endpoint(site or None)
+            headers_for = signed_in_lane.signed_in_headers
+        except ValueError as error:   # AuthError: signed out, expired or no site chosen
+            raise OperatorError(f"Not signed in or session unusable: {str(error).splitlines()[0]}") from None
+    else:
+        endpoint = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").strip()
+        headers_for = None
     input_json = json.dumps(payload, separators=(",", ":"))
     body = json.dumps(
         {
@@ -169,15 +196,23 @@ def _run_remote_knowledge_query(payload: dict[str, Any]) -> dict[str, Any]:
             "variables": {"input": input_json},
         }
     ).encode("utf-8")
-    request = urllib.request.Request(
-        endpoint,
-        data=body,
-        headers=iam_signed_graphql_headers(endpoint, body),
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=330) as response:  # nosec B310 - configured AppSync endpoint
-        response_payload = json.loads(response.read().decode("utf-8"))
+    try:
+        headers = headers_for(endpoint) if headers_for else iam_signed_graphql_headers(endpoint, body)
+    except Exception as error:
+        if headers_for is None:
+            raise
+        raise OperatorError(str(error).splitlines()[0]) from None   # a Refusal or an expired session: one line
+    request = urllib.request.Request(endpoint, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=330) as response:  # nosec B310 - configured AppSync endpoint
+            response_payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        if headers_for and error.code in (401, 403):
+            raise OperatorError("Refused: the knowledge query is for signed-in editors and admins; your signed-in account does not have that access.") from None
+        raise
     if response_payload.get("errors"):
+        if headers_for and any(word in json.dumps(response_payload["errors"]).lower() for word in ("unauthorized", "not authorized")):
+            raise OperatorError("Refused: the knowledge query is for signed-in editors and admins; your signed-in account does not have that access.")
         raise GraphQLRequestError(json.dumps(response_payload["errors"]))
     result = (response_payload.get("data") or {}).get("knowledgeQuery")
     if isinstance(result, str):
