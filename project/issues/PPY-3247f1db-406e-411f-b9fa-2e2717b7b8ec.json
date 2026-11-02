@@ -1,0 +1,23 @@
+{
+  "id": "PPY-3247f1db-406e-411f-b9fa-2e2717b7b8ec",
+  "title": "Rate a Reference one to five stars as an editorial signal the idea pipeline reads",
+  "description": "Ryan 2026-11-02: optional 1-5 stars beside Accept/Reject on every Reference surface; stars do not change the vote; latest rating wins (who, when) on the Reference; not sent to the Cyclotron. Idea pipeline: stars are among the strongest human signals with messages and the accept reason, combine, rank the queue and pack members, appear to the writer as direction, a rating change retries a rejected idea, a highly rated Reference with no idea is explained in the run record. Branch feature/reference-stars.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2e906437-368b-49fa-b003-1369f1f7cae7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T22:51:31.504268Z",
+  "updated_at": "2026-11-02T22:51:35.466824Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
