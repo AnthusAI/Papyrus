@@ -16,10 +16,11 @@ site's identity pool, exactly as the browser editor's storage client does, so th
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 from .markus_import import IMAGE_CONTENT_TYPES, media_id_for, tenant_stored_media_path
 from .markus_renderer.content_markup import _ATTR_RE, _IMAGE_DIRECTIVE_RE
@@ -57,6 +58,27 @@ def src_path_for(slug: str, filename: str, taken: set[str] | None = None) -> str
         candidate = f"assets/{directory}/{stem}-{counter}{suffix}"
         counter += 1
     return candidate
+
+
+def existing_assets(rows: Iterable[dict[str, Any]]) -> dict[str, str]:
+    """``srcPath -> sha256`` of the ``MediaAsset`` rows a story's versions already hold (rows without both are ignored)."""
+    found: dict[str, str] = {}
+    for row in rows:
+        metadata = row.get("metadata")
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except ValueError:
+                continue
+        if isinstance(metadata, dict) and isinstance(metadata.get("srcPath"), str) and isinstance(metadata.get("sha256"), str):
+            found[metadata["srcPath"]] = metadata["sha256"]
+    return found
+
+
+def _stem_key(src_path: str) -> str:
+    """``assets/<dir>/<stem>[-N].<ext>`` -> ``<stem>.<ext>`` with any ``-N`` numbering removed, to match a file by name."""
+    name = src_path.rsplit("/", 1)[-1]
+    return re.sub(r"-\d+(\.[^.]*)?$", r"\1", name)
 
 
 @dataclass
@@ -217,8 +239,16 @@ def plan_story_images(
     *,
     slug: str,
     tenant_id: str | None = None,
+    existing: dict[str, str] | None = None,
 ) -> StoryImagePlan:
-    """Plan the uploads for ``body`` and rewrite its image references. Raises ValueError naming every bad file."""
+    """Plan the uploads for ``body`` and rewrite its image references. Raises ValueError naming every bad file.
+
+    ``existing`` is ``srcPath -> sha256`` of the story's current ``MediaAsset`` rows (``existing_assets``). Like the editor
+    (which numbers a name against the item's existing ``srcPath``s) a file never takes a path that holds different content:
+    it gets ``-2``, ``-3``. Unlike the editor a re-run is idempotent: a file whose content is already stored under its name
+    keeps that exact ``srcPath`` (even if the slug has since changed), so the S3 key and the stored body reference stay put.
+    """
+    existing = existing or {}
     root = Path(images_dir)
     if not root.is_dir():
         raise ValueError(f"--images {root}: not a directory.")
@@ -228,9 +258,9 @@ def plan_story_images(
     by_path: dict[Path, PlannedStoryImage] = {}
 
     def add(reference: str, local: Path, role: str, paired_with: str | None = None) -> PlannedStoryImage | None:
-        existing = by_path.get(local)
-        if existing is not None:
-            return existing
+        planned = by_path.get(local)
+        if planned is not None:
+            return planned
         label = f"{reference} ({local.name})" if reference != local.name else reference
         content_type = IMAGE_CONTENT_TYPES.get(local.suffix.lower())
         if content_type is None:
@@ -244,7 +274,16 @@ def plan_story_images(
             problems.append(f"{label}: images can be at most 10 MB (this one is {_megabytes(len(data))}).")
             return None
         dimensions = read_dimensions(local, data)
-        src_path = src_path_for(slug, local.name, taken)
+        digest = hashlib.sha256(data).hexdigest()
+        wanted_key = _stem_key(src_path_for("x", local.name))
+        reusable = sorted(
+            path for path, stored in existing.items()
+            if stored == digest and _stem_key(path) == wanted_key and path not in taken
+        )
+        if reusable:
+            src_path = reusable[0]
+        else:
+            src_path = src_path_for(slug, local.name, taken | set(existing))
         taken.add(src_path)
         width, height = (None, None)
         if dimensions is not None and local.suffix.lower() != ".svg":
@@ -257,7 +296,7 @@ def plan_story_images(
             storage_path=tenant_stored_media_path(tenant_id, f"media/{src_path}"),
             content_type=content_type,
             size=len(data),
-            sha256=hashlib.sha256(data).hexdigest(),
+            sha256=digest,
             width=width,
             height=height,
             paired_with=paired_with,

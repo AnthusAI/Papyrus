@@ -48,7 +48,14 @@ def stories_save_version(flags: list[str]) -> None:
     MediaAsset rows and S3 objects (media/assets/<slug>/<file>), then saves the body with src (and srcDark) rewritten
     to the stored paths. Files over 10 MB, of a type other than PNG/JPEG/GIF/WebP/AVIF/SVG, or whose dark version has
     a different aspect ratio (over 0.5%) are rejected by name before anything is written; --dry-run prints the upload
-    plan and writes nothing; re-running reuses the same media ids and objects. Auth: both lanes work. With
+    plan and writes nothing. Re-running is idempotent: a file whose content is already stored for the story keeps its exact
+    srcPath, so the S3 key and the body reference do not change; a name that holds different content gets -2, -3 (never
+    overwritten). MediaAsset rows are keyed by story VERSION (media-<version id>-<hash of srcPath>, as the editor and
+    version carry-forward do), so each saved version has its own rows pointing at the same S3 objects. The path is
+    media/assets/<slug>/<file> with the slug the story has when the file is first stored (a story without a slug has
+    draft-unsectioned-<hash>, exactly what the editor uses). It does NOT move: publishing, set-slug and a later section
+    change never rewrite media keys or body references (the body keeps the stored srcPath), so the path is stable after
+    publish. Auth: both lanes work. With
     PAPYRUS_GRAPHQL_AUTH=iam the AWS credentials write to S3; with PAPYRUS_GRAPHQL_AUTH=user (editor or admin group)
     the signed-in ID token is traded for temporary credentials from the site's Cognito identity pool
     (--identity-pool-id, PAPYRUS_IDENTITY_POOL_ID or amplify_outputs.json).
@@ -73,7 +80,15 @@ def stories_save_version(flags: list[str]) -> None:
     if images_dir:
         from .story_images import plan_story_images
 
-        image_plan = plan_story_images(body, Path(images_dir), slug=latest["slug"], tenant_id=getattr(client, "tenant_id", None))
+        from .story_images import existing_assets
+
+        stored = [
+            row for version in story_versions(client, lineage_id)
+            for row in client.list_by_index("mediaAssetsByItemAndSortKey", version["id"])
+        ]
+        image_plan = plan_story_images(
+            body, Path(images_dir), slug=latest["slug"], tenant_id=getattr(client, "tenant_id", None), existing=existing_assets(stored)
+        )
         body = image_plan.body
     print(f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t{'write' if apply else 'dry run'}")
     if image_plan is not None:

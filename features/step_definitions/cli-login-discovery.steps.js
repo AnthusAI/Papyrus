@@ -98,3 +98,17 @@ When("the federation client is synthesized for a site whose console has its own 
 });
 
 Then("the CLI callback and the Prospectus web callback are on the console origin and the loopback is unchanged", function () {});
+
+When("the identity pool is synthesized with the CLI moved onto the federation client", { timeout: 120_000 }, async function () {
+  await behaviour("identity_pool_trusts_the_cli_client_like_the_web_client", "scripts/test-cli-federation-client.ts");
+});
+
+Then("the pool lists the federation client beside the web client on the same user pool with the same token check", function () {});
+
+Then("the federation client has its own Token role mapping so the editor and admin groups' roles apply to the CLI as to the browser", function () {});
+
+When("the identity pool is synthesized without the CLI on the federation client", { timeout: 120_000 }, async function () {
+  await behaviour("identity_pool_is_unchanged_without_the_cli_client", "scripts/test-cli-federation-client.ts");
+});
+
+Then("the pool lists only the web client and has one role mapping", function () {});
