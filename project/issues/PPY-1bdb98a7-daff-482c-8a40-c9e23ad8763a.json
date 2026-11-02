@@ -17,10 +17,17 @@
       "text": "Ryan 11-02 decided: a Story in a section gets the section's editor agent as responder; a Story not yet in a section gets the top-level bot. The responder changes as the Story moves. Needs chatticus-3e9444.",
       "created_at": "2026-11-02T16:54:53.747369Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e7d25972-425d-45cd-a221-46b852dfe116",
+      "author": "home",
+      "text": "Ryan 11-02 decided: every section gets its bot from the start, with no minimum Story count. The top bot reads channels without joining.",
+      "created_at": "2026-11-02T18:08:07.830738Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-02T16:32:18.495511Z",
-  "updated_at": "2026-11-02T16:54:53.747644Z",
+  "updated_at": "2026-11-02T18:08:07.831013Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
