@@ -142,6 +142,7 @@ def run_knowledge_query(input: dict[str, Any], services: KnowledgeQueryServices 
         "qualityRelations": [],
         "referenceSummaries": [],
         "noteMessages": [],
+        "linkExplanations": [],
         "rankingWarnings": [],
         "referenceTokenBudgets": {},
         "evidencePassages": [],
@@ -1204,6 +1205,13 @@ def _normalize_semantic_matches(
         if summary_reference:
             normalized = summary_reference["reference"]
             structured["referenceSummaries"].append(summary_reference["summary"])
+        if _is_link_explanation_match(normalized):
+            explanation_payload = _link_explanation_payload_from_semantic_match(normalized, request, services)
+            if explanation_payload is None:
+                continue   # a public request, or a match with no resolvable end: never a bare result
+            normalized = explanation_payload["aboutObject"]
+            structured["linkExplanations"].append(explanation_payload["explanation"])
+            note_passages.append(explanation_payload["passage"])
         note_payload = _note_payload_from_semantic_match(normalized, request, services)
         if note_payload:
             normalized = note_payload["aboutObject"]
@@ -1225,12 +1233,12 @@ def _semantic_passage_from_match(
 ) -> dict[str, Any] | None:
     if match.get("semanticHitKind") == "reference_summary":
         return None
-    if match.get("semanticHitKind") == "note_message":
+    if match.get("semanticHitKind") in {"note_message", LINK_EXPLANATION_VECTOR_KIND}:
         return None
     metadata = match.get("metadata") if isinstance(match.get("metadata"), dict) else {}
     if metadata.get("semanticHitKind") == "reference_summary":
         return None
-    if metadata.get("semanticHitKind") == "note_message":
+    if metadata.get("semanticHitKind") in {"note_message", LINK_EXPLANATION_VECTOR_KIND}:
         return None
     text = metadata.get("text") or match.get("text") or metadata.get("summary") or match.get("summary")
     storage_path = metadata.get("storagePath") or match.get("storagePath")
@@ -1402,6 +1410,117 @@ def _note_payload_from_semantic_match(
         "distance": match.get("distance"),
     }
     return {"aboutObject": about_object, "note": note, "passage": passage}
+
+
+LINK_EXPLANATION_VECTOR_KIND = "link_explanation"
+LINK_EXPLANATION_SELECTION_REASON = "link_explanation"
+EDITOR_EXPLANATION_ATTRIBUTION = "Editor's explanation"
+
+
+def _is_link_explanation_match(match: dict[str, Any]) -> bool:
+    metadata = match.get("metadata") if isinstance(match.get("metadata"), dict) else {}
+    return str(metadata.get("vectorKind") or match.get("vectorKind") or "") == LINK_EXPLANATION_VECTOR_KIND
+
+
+def _link_explanation_payload_from_semantic_match(
+    match: dict[str, Any],
+    request: dict[str, Any],
+    services: KnowledgeQueryServices,
+) -> dict[str, Any] | None:
+    """An editor's explanation of an accepted link, as an internal research result attributed to the editor, naming and linking both ends.
+
+    Returns None, and so drops the match, for a public-reader request: the explanation was written as an internal note (the provider's filter and post-filter
+    already exclude it; this is the third guard, at the point where it would become an answer)."""
+    from .services import explanations_allowed
+
+    scope = request.get("scope") if isinstance(request.get("scope"), dict) else {}
+    if not explanations_allowed(scope):
+        return None
+    metadata = match.get("metadata") if isinstance(match.get("metadata"), dict) else {}
+    graph = services.graph
+    ends: list[dict[str, Any]] = []
+    for side in ("subject", "object"):
+        kind = str(metadata.get(f"{side}Kind") or "")
+        lineage_id = str(metadata.get(f"{side}LineageId") or "")
+        if not kind or not lineage_id:
+            return None
+        stub = {"kind": kind, "id": lineage_id, "lineageId": lineage_id}
+        resolved = None
+        if graph and hasattr(graph, "resolve_anchor"):
+            try:
+                resolved = graph.resolve_anchor(stub)
+            except Exception:  # pragma: no cover - best-effort normalization
+                resolved = None
+        end = {**stub, **(resolved if isinstance(resolved, dict) else {})}
+        if not end.get("title") and not end.get("displayName"):
+            end["title"] = metadata.get(f"{side}Title")
+        _assign_object_uri(end)
+        ends.append(end)
+    explanation_text = str(metadata.get("explanation") or "").strip()
+    if not explanation_text:
+        return None
+    first_title, second_title = object_title(ends[0]) or "", object_title(ends[1]) or ""
+    predicate = str(metadata.get("predicate") or "related_to")
+    attribution = f"{EDITOR_EXPLANATION_ATTRIBUTION} ({metadata.get('decidedBy') or 'an editor'})"
+    token_budget = max(24, int(request.get("maxPassageTokens") or 220))
+    truncated = services.token_counter.count(explanation_text) > token_budget
+    body = services.token_counter.truncate(explanation_text, token_budget)
+    link_line = f"{first_title} ({predicate.replace('_', ' ')}) {second_title}"
+    passage_text = f"{attribution}, link: {link_line}. {body}"
+    reference_end = next((end for end in ends if end.get("kind") == "reference"), ends[0])
+    score = _semantic_match_score(match) + max(0.0, _passage_score(body, link_line, _keywords(request["semanticQuery"])))
+    relation_id = str(metadata.get("relationId") or match.get("id") or "")
+    passage = {
+        "id": f"link_explanation:{relation_id}",
+        "referenceId": reference_end.get("id") if reference_end.get("kind") == "reference" else None,
+        "referenceLineageId": reference_end.get("lineageId") if reference_end.get("kind") == "reference" else None,
+        "referenceTitle": f"{EDITOR_EXPLANATION_ATTRIBUTION}: {first_title} / {second_title}",
+        "objectUri": reference_end.get("objectUri"),
+        "storagePath": f"papyrus://relation/{quote(relation_id, safe='')}",
+        "rank": match.get("rank"),
+        "score": round(float(score), 3),
+        "semanticScore": match.get("score"),
+        "distance": match.get("distance"),
+        "heading": f"{EDITOR_EXPLANATION_ATTRIBUTION}: {link_line}",
+        "chunkIndex": 0,
+        "selectionReason": LINK_EXPLANATION_SELECTION_REASON,
+        "provider": "semantic_search",
+        "text": passage_text,
+        "tokens": services.token_counter.count(passage_text),
+        "truncated": truncated,
+        "relationId": relation_id,
+        "endObjectUris": [end.get("objectUri") for end in ends],
+    }
+    about_object = {
+        **reference_end,
+        "rank": match.get("rank"),
+        "providerRank": match.get("providerRank"),
+        "score": match.get("score"),
+        "distance": match.get("distance"),
+        "semanticHitKind": LINK_EXPLANATION_VECTOR_KIND,
+        "metadata": {
+            **(reference_end.get("metadata") if isinstance(reference_end.get("metadata"), dict) else {}),
+            "semanticHitKind": LINK_EXPLANATION_VECTOR_KIND,
+            "relationId": relation_id,
+        },
+    }
+    explanation = {
+        "relationId": relation_id,
+        "predicate": predicate,
+        "relationKind": metadata.get("relationKind"),
+        "attribution": attribution,
+        "audience": metadata.get("audience") or "editor",
+        "decidedBy": metadata.get("decidedBy"),
+        "decidedAt": metadata.get("decidedAt"),
+        "explanation": body,
+        "ends": [
+            {"kind": end.get("kind"), "lineageId": end.get("lineageId"), "title": object_title(end), "objectUri": end.get("objectUri")}
+            for end in ends
+        ],
+        "semanticScore": match.get("score"),
+        "distance": match.get("distance"),
+    }
+    return {"aboutObject": about_object, "explanation": explanation, "passage": passage}
 
 
 def _is_note_semantic_match(match: dict[str, Any]) -> bool:
@@ -2221,7 +2340,7 @@ def _assign_passage_ranking(passage: dict[str, Any], structured: dict[str, Any],
         passage_relevance = 0.0
     if passage.get("selectionReason") == "semantic_vector":
         passage_relevance = max(passage_relevance / 25.0, float(parent_ranking.get("relevanceScore", 0.0)))
-    elif passage.get("selectionReason") == "note_message":
+    elif passage.get("selectionReason") in {"note_message", LINK_EXPLANATION_SELECTION_REASON}:
         passage_relevance = max(0.92, float(parent_ranking.get("relevanceScore", 0.0)))
     else:
         passage_relevance = min(1.0, passage_relevance / 12.0)
@@ -3265,7 +3384,7 @@ def _dedupe_passages(passages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _passage_priority(passage: dict[str, Any]) -> float:
     score = float(passage.get("score") or 0)
-    if passage.get("selectionReason") == "note_message":
+    if passage.get("selectionReason") in {"note_message", LINK_EXPLANATION_SELECTION_REASON}:
         score += 140
     if passage.get("selectionReason") == "semantic_vector":
         score += 100

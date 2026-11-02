@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6136cc72-c644-4747-b8c3-f5d79be67903",
+  "issue_id": "PPY-e109e8e8-f172-47c6-9e0b-8d8ba99b53f1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T07:04:35.032Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Curation suggestion when a run files nothing",
+    "description": "",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-3ccdcbfd-7420-49a5-8aef-d5b41c7e5d7b",
+    "labels": []
+  }
+}
