@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0e901b57-de99-4ab2-8e55-8773c0b82081",
+  "issue_id": "PPY-a6acd285-236d-4fed-bab0-b6bc4e2f2170",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T17:39:06.735Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Story type is separate from section; URLs key on type",
+    "description": "Ryan 11-02: sections are categories of articles or posts; the type of a Story is a separate attribute. Item.type already exists (article, page, wiki_page, doctrine) but public URLs and collections key on section: Anth.us's 131 articles carry section \"articles\" and projection.json maps articles and platform as sections. Work: URLs and collections key on type, add post as a type where wanted, keep every published URL unchanged and add a test proving it, move stored section strings to real section ids (TI uses titles like \"AWS\" alongside ids like \"ai\"), and clear Anth.us's \"articles\" section string only after the projection no longer needs it. Anth.us is production: dry-run projection comparison before any deploy. Responder rule (PPY-1bdb98) reads the section, never the type. Gherkin specs and p.apyr.us docs.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+    "labels": []
+  }
+}
