@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { App, SecretValue, Stack } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
-import { UserPool, UserPoolIdentityProviderGoogle } from "aws-cdk-lib/aws-cognito";
-import { CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, CLI_LOOPBACK_CALLBACK as BACKEND_LOOPBACK, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, prospectusSignInCallbackUrls } from "../amplify/auth/prospectus-google-client";
+import { CfnIdentityPool, CfnIdentityPoolRoleAttachment, UserPool, UserPoolIdentityProviderGoogle } from "aws-cdk-lib/aws-cognito";
+import { CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, CLI_LOOPBACK_CALLBACK as BACKEND_LOOPBACK, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, prospectusSignInCallbackUrls, trustClientOnIdentityPool } from "../amplify/auth/prospectus-google-client";
 import { resolveSiteBackendFeatureFlags } from "../amplify/site-backend-names";
 import { CLI_LOOPBACK_CALLBACK } from "../lib/cli-loopback-callback";
 
@@ -20,7 +20,53 @@ function synthesize(extraCallbackUrls?: readonly string[], refreshTokenValidityD
 
 const clientOf = (template: Template) => Object.values(template.findResources("AWS::Cognito::UserPoolClient"))[0] as { Properties: Record<string, unknown> };
 
+/** An identity pool shaped as Amplify's defineAuth builds it: the web client as the one provider, one Token role mapping. */
+function identityPoolStack(trustFederationClient: boolean) {
+  const app = new App();
+  const authStack = new Stack(app, "Auth", { env: { account: "111111111111", region: "us-east-1" } });
+  const userPool = new UserPool(authStack, "UserPool");
+  const webClient = userPool.addClient("WebClient");
+  const providerName = `cognito-idp.us-east-1.amazonaws.com/${userPool.userPoolId}`;
+  const pool = new CfnIdentityPool(authStack, "IdentityPool", {
+    allowUnauthenticatedIdentities: true,
+    cognitoIdentityProviders: [{ clientId: webClient.userPoolClientId, providerName, serverSideTokenCheck: false }],
+  });
+  const attachment = new CfnIdentityPoolRoleAttachment(authStack, "RoleAttachment", {
+    identityPoolId: pool.ref,
+    roles: { authenticated: "arn:aws:iam::111111111111:role/authenticated" },
+    roleMappings: {
+      mapping: { type: "Token", ambiguousRoleResolution: "AuthenticatedRole", identityProvider: `${providerName}:${webClient.userPoolClientId}` },
+    },
+  });
+  const federationClient = addProspectusGoogleOnlyClient(authStack, userPool, redirectUrls, [CLI_LOOPBACK_CALLBACK]);
+  if (trustFederationClient) trustClientOnIdentityPool(pool, attachment, federationClient.ref);
+  return Template.fromStack(authStack);
+}
+
 const behaviours: Record<string, () => void> = {
+  identity_pool_trusts_the_cli_client_like_the_web_client() {
+    const template = identityPoolStack(true);
+    const pool = Object.values(template.findResources("AWS::Cognito::IdentityPool"))[0] as { Properties: { CognitoIdentityProviders: Record<string, unknown>[] } };
+    const providers = pool.Properties.CognitoIdentityProviders;
+    assert.equal(providers.length, 2, "the web client and the federation client");
+    assert.deepEqual(providers[1].ProviderName, providers[0].ProviderName, "same user pool");
+    assert.equal(providers[1].ServerSideTokenCheck, providers[0].ServerSideTokenCheck, "same token check as the web client");
+    assert.notDeepEqual(providers[1].ClientId, providers[0].ClientId);
+    const attachment = Object.values(template.findResources("AWS::Cognito::IdentityPoolRoleAttachment"))[0] as { Properties: { RoleMappings: Record<string, Record<string, unknown>> } };
+    const mappings = Object.values(attachment.Properties.RoleMappings);
+    assert.equal(mappings.length, 2, "each client has its own role mapping, or it would fall to the default authenticated role");
+    assert.equal(mappings[1].Type, "Token", "the group's role (editor, admin) decides the role, as for the browser");
+    assert.equal(mappings[1].AmbiguousRoleResolution, mappings[0].AmbiguousRoleResolution);
+    assert.notDeepEqual(mappings[1].IdentityProvider, mappings[0].IdentityProvider);
+  },
+  identity_pool_is_unchanged_without_the_cli_client() {
+    const template = identityPoolStack(false);
+    const pool = Object.values(template.findResources("AWS::Cognito::IdentityPool"))[0] as { Properties: { CognitoIdentityProviders: unknown[] } };
+    assert.equal(pool.Properties.CognitoIdentityProviders.length, 1);
+    const attachment = Object.values(template.findResources("AWS::Cognito::IdentityPoolRoleAttachment"))[0] as { Properties: { RoleMappings: Record<string, unknown> } };
+    assert.equal(Object.keys(attachment.Properties.RoleMappings).length, 1);
+  },
+
   loopback_constants_agree() {
     assert.equal(BACKEND_LOOPBACK, CLI_LOOPBACK_CALLBACK);
   },

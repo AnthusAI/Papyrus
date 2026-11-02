@@ -26,7 +26,7 @@ import {
 } from "./revalidate-invalidation-settings";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
-import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls } from "./auth/prospectus-google-client";
+import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, trustClientOnIdentityPool } from "./auth/prospectus-google-client";
 import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
@@ -178,6 +178,16 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const prospectusGoogleOnlyClient = authConfig.disableGoogleOAuth === true
     ? undefined
     : addProspectusGoogleOnlyClient(backend.auth.stack, backend.auth.resources.userPool, siteAuthRedirectUrls(authConfig), cliFederationCallbackUrls, featureFlags.cliOnFederationClient ? CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS : undefined);
+
+  // The CLI's signed-in editors upload story images straight to S3 with identity-pool credentials, so the pool must
+  // trust the CLI's client too (the web client already is trusted). Only when the CLI is on the federation client.
+  if (prospectusGoogleOnlyClient && featureFlags.cliOnFederationClient) {
+    trustClientOnIdentityPool(
+      backend.auth.resources.cfnResources.cfnIdentityPool,
+      backend.auth.resources.cfnResources.cfnIdentityPoolRoleAttachment,
+      prospectusGoogleOnlyClient.ref,
+    );
+  }
 
   const cliEnrollmentPlan = cliRemoteLoginPlan
     ? planCliEnrollment(process.env.PAPYRUS_ENABLE_CLI_ENROLLMENT?.trim() === "true")
