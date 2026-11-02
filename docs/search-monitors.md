@@ -15,7 +15,8 @@ the optimizer and the UI are separate PRs. Operating details of what already exi
 
 ## Monitor
 
-`web-<publicationId>` (`MONITOR#web-<id>` / `CONFIG`): `sourceType: web-search`, `publicationId`, `intervalSeconds` (the schedule),
+`web-<publicationId>` (`MONITOR#web-<id>` / `CONFIG`): `sourceType: web-search`, `publicationId`, `intervalSeconds` (the schedule), optional
+`runAt` (`{"time": "02:00", "timeZone": "America/New_York"}`: start each pass at that wall-clock time instead of an interval after the last one),
 `topic`, `enabled`, `candidateGroup`, and routing: `CONFIG#router` names a Cyclotron target (run, binding, invoker role) or
 `decisions: "hold"` / `holdDecisions: true`. One monitor per publication. Queries are no longer a list inside the config; they are records.
 
@@ -78,6 +79,22 @@ number is the sum of `requests` and `credits` on that day's `QRUN#` records. Yie
 
 A query's `highWater` moves to the start of a pass that read it to its end. A new query starts from its `startDate` or the
 provider's default recency; a paused query resumes from its old `highWater`, so nothing between is lost.
+
+## Paid searches
+
+Every ask of a provider is paid for, so the collector keeps an account (`monitoring_web.web_feed`). Within a pass, which can span
+several runs (a run reads for 80 s, a stopped pass resumes on the next five minute wake), a query is **never asked for the same dates
+twice**: the cursor lists the asks already made (`asked`: query id, `start_date`, `end_date`). This matters because a one-day window is
+sent to the provider as the day before and that day (Tavily refuses a range that starts and ends on one day), so splitting a two-day
+range used to ask for the parent's own dates again as its later half. On 2026-11-02 that was 526 of 3,028 searches. A page that was paid
+for but could not be written before the Lambda ran out of time is kept in the cursor (`page`, scores as basis points) and read by the
+next run, not asked for again. Splitting a full page into narrower ranges is still done, since those are different searches; it is what
+makes a query average about 1.35 asks per pass.
+
+The run line and the receipt carry `searches`: `run` (what this run paid for) and `pass` (all runs since the pass began), each with
+`requests`, `providers` (requests by answering provider) and `failures` (`provider:kind:status`, for example `tavily:plan_exhausted:432`, a
+provider that was reached and refused or failed). A provider that refuses the key or reports its plan used up is not asked again for the
+rest of that run. When every provider is refused the run fails and the monitor waits for its next scheduled time (no five minute retry).
 
 ## QueryRun
 

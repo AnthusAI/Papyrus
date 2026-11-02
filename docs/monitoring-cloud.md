@@ -44,7 +44,14 @@ Only real constraints bound a pass:
   for `ttab` and `huggingface`; for a large first load of history use the backfill command, which has no such pause). The next pass
   first re-reads the top of each feed (new items first, up to the high-water mark) and then continues at each cursor,
   so nothing between the two is skipped. Only when every feed is read to its end is `resume` cleared and the next pass
-  due an `intervalSeconds` later.
+  due an `intervalSeconds` later, or, when the config has `runAt`, at the next occurrence of that wall-clock time.
+- **A fixed time of day.** `runAt: {"time": "02:00", "timeZone": "America/New_York"}` (any IANA zone) makes a finished pass's
+  `nextDueAt` the next occurrence of that time, computed from the local date, so daylight saving changes the UTC instant and never
+  the clock time (on the spring-forward day a time inside the gap runs at the first moment after it; on the fall-back day the first
+  occurrence is used). The five minute wake is unchanged: a pass stopped by its time budget is due at once and resumes on the next
+  wake, and the resumed pass asks for no search already paid for in that pass (docs/search-monitors.md, "Paid searches"). The next
+  time is the first one after the finish plus the 60 s due slack, so an early wake cannot run the same morning twice. `intervalSeconds`
+  stays required (at least 60) and is the fallback when `runAt` is absent.
 - **The source's rate limit.** A 429 is waited out for as long as `Retry-After` says (seconds or an HTTP date); with no
   header the wait starts at 5 s and doubles to at most 300 s while the limit lasts. If the wait would not fit in the
   pass's time, the pass stops there (`read.stoppedBy: rate_limited`) and resumes at the same page next pass.
@@ -109,7 +116,7 @@ enrichment writes a better one). The source id is a hash of the canonical URL. C
 `monitoring_candidates.py` (shared candidates), `monitoring_web_publications.py` (config builders).
 
 **Config** (`MONITOR#web-<id>` / `CONFIG`): `sourceType: "web-search"`, `sourceUrl: "https://api.tavily.com/search"`,
-`publicationId`, `topic` (`news`, the default, or `general`), `intervalSeconds` (default 3600), `candidateGroup` (`shared` for the six
+`publicationId`, `topic` (`news`, the default, or `general`), `intervalSeconds` (default 3600), optional `runAt`, `candidateGroup` (`shared` for the six
 shared-Cyclotron monitors), optional `startDate` (`YYYY-MM-DD`, for a query's very first pass). The Tavily key is read as the
 router's is: `TAVILY_API_KEY`, or the SSM SecureString named in `PAPYRUS_TAVILY_KEY_PARAMETER`.
 **Search providers and the fallback chain.** Tavily, then Perplexity, then OpenAI is the default chain, cheapest first (Tavily is free while it has credits; Perplexity is about $5 per 1,000 requests, OpenAI $10 plus tokens; Gemini's grounded search, $14, is opt-in), and the monitor reads its results through `papyrus_content.web_search`,
@@ -126,7 +133,7 @@ skipped as *unavailable*, which is not a failure. A provider that fails is skipp
 (other 4xx), `provider error` (5xx), `unreachable` and `unreadable answer`. The run error reads for example `tavily: plan exhausted (432);
 openai: authentication failed (401)`; when every provider was only rate limited the pass waits as before. Each `QRUN#` record lists the
 providers that answered (`providers`, request counts) and why others were passed over (`skipped`, for example `tavily: plan exhausted
-(432)`). Only Tavily and Perplexity can bound a search by date: any other provider is asked once per query window and the window is never
+(432)`). The run line and receipt of a web monitor also carry `searches` (paid searches by provider for the run and for the whole pass, and the failures each provider answered; docs/search-monitors.md, "Paid searches"), and a provider that refuses its key or reports its plan used up is skipped for the rest of that run. To drop a provider (for example OpenAI) set the `WebSearchProviders` stack parameter (`tavily,perplexity`) and deploy; no monitor config sets `searchProviders`, so the parameter alone decides. Only Tavily and Perplexity can bound a search by date: any other provider is asked once per query window and the window is never
 split into days (it would only repeat the answer). `excludeDomains` / `includeDomains` (a query's, plus the monitor's `excludeDomains`) are
 sent natively where the provider has them (Tavily, OpenAI, Perplexity include) and are always applied again to the answer. `topic` applies
 to Tavily only. A written answer is not requested by monitors.
@@ -374,6 +381,7 @@ as `pending`, so unscreened HN items never flood a queue.
 | Lambda `papyrus-monitoring-collector` | Python 3.13, arm64, 256 MB, 120 s, reserved concurrency 1 when the account quota allows (parameter `ReservedConcurrency`; 0 leaves it unreserved), logs kept 30 days |
 | Schedule `papyrus-monitoring-hn-collect` | EventBridge Scheduler `rate(15 minutes)`, no flexible window, 3 retries, SQS dead-letter queue |
 | Alarm `papyrus-monitoring-collector-errors` | Lambda `Errors` >= 1 in 15 minutes (no notification action yet) |
+| Alarm `papyrus-monitoring-search-provider-failing` | the collector logged `{"monitor": "search_provider_failing", "provider", "kind": "auth" or "plan_exhausted"}` (a web-search provider refusing its key or out of plan, such as Tavily 432 or Perplexity 401) at least once in a day; metric `Papyrus/Monitoring` `SearchProviderFailing` from a metric filter on the collector log group (no notification action yet) |
 | Roles | Collector: this table and its own log group only. Schedule: invoke this function, send to its DLQ |
 
 Code: `src/papyrus_content/monitoring_cloud.py` (stdlib and boto3 plus the existing
