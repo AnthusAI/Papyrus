@@ -89,6 +89,8 @@ def command(argv: list[str]) -> int:
     backfill.add_argument("--since", help="Only deliveries at or after this ISO timestamp (with timezone)")
     backfill.add_argument("--apply", action="store_true", help="Write the relations; without it nothing is written")
     backfill.add_argument("--dry-run", action="store_true", help="The default; accepted for clarity")
+    from .monitoring_view_cli import add_arguments as add_view_arguments
+    add_view_arguments(sub)
     window = sub.add_parser("backfill",
                             help="Load a Hugging Face monitor's history for its configured filters: pages the whole window, waits out rate limits, Ctrl-C safe and resumable (dry-run unless --apply)")
     window.add_argument("--monitor", required=True)
@@ -106,6 +108,9 @@ def command(argv: list[str]) -> int:
     queries.add_argument("--out", help="Also save the proposal as JSON")
     queries.add_argument("--criteria-dir", help="Directory of the lab's reviewed <publication>-relevance.json files")
     args = parser.parse_args(argv)
+    if args.command in ("overview", "page"):
+        from .monitoring_view_cli import command as view_command
+        return view_command(args)
     if args.command == "web-queries":
         if args.enable and not args.write:
             parser.error("--enable needs --write")
