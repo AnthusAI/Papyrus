@@ -165,6 +165,26 @@ Feature: Editorial checks
     When an operator runs papyrus editorial check on a draft saying "This is game-changing."
     Then the printed check result has a "no-hype" finding on "game-changing"
 
+  # An operator reads the findings themselves, not just a count, so they can act on each one.
+  Scenario: Checking a version from the command line prints every finding
+    Given a stored check of version 1 with a violation of "no-hype" on "game-changing" and a judgment for review of "measured-or-model" on "Sales doubled."
+    When an operator runs papyrus editorial check-version on version 1
+    Then the printed summary says "1 violations" and "1 for review"
+    And each finding is printed with its policy, severity, probability, message, excerpt and id
+    And the violation is printed before the finding for review
+
+  Scenario: Checking a version from the command line as JSON prints the full findings
+    Given a stored check of version 1 with a violation of "no-hype" on "game-changing" and a judgment for review of "measured-or-model" on "Sales doubled."
+    When an operator runs papyrus editorial check-version on version 1 with --json
+    Then the printed JSON lists both findings with their ids, probabilities and excerpts
+
+  # A judgment about the whole story has no passage to quote, so it says so instead of showing an empty excerpt.
+  Scenario: A judgment about the whole story says it applies to the whole story
+    Given Humanus returns a judgment finding for the whole story and one for the sentence "Sales doubled."
+    When an editor checks "Sales doubled. Costs fell." in section "engineering"
+    Then the whole-story finding's message starts with "Applies to the whole story"
+    And the sentence finding keeps its excerpt "Sales doubled." and its message unchanged
+
   Scenario: The function resolves its provider keys from Amplify secrets
     Given the function environment has Amplify secret placeholders for "TYPESAFE_API_KEY" and "OPENAI_API_KEY"
     And SSM holds a value for "TYPESAFE_API_KEY" only
