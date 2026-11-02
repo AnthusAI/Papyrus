@@ -92,6 +92,16 @@ Which operation saves a later edit:
 | Hard gate, stage review, flag (acknowledged) | `saveReviewReason` with `answerReasonUpdate` | `answer.feedback`. The decision, the steer, who and when stay. |
 | Held email | `monitoringDecideEmailSubmission` again, with the same decision and the new reason | The Monitoring view rewrites the decision row's `reason` (and `reasonEditedAt`) until the receiver has applied the decision. Afterwards the receipt keeps the reason it was applied with, the page says so in words, and no row is written. A repeat with no reason changes nothing. |
 | Reference, incomplete capture | the References review (`onRateReference`) with the same choice and the new note (#798) | `curationStatusReason` on the existing rating. |
+| Link suggestion | `decideReferenceLink` again, with the same decision and the new note | The relation's `metadata.note` (and `decidedAt`). The link state does not change. |
+
+## Link suggestions (epic PPY-2e9064)
+
+Vector-suggested links (a Reference to a Reference, or to a concept; `suggested` SemanticRelation rows) are items of the type "Link suggestion", counted by the **Links** pill. Reviewing them in bulk is what lets the site's Cyclotron learn from them.
+
+* **Feed.** `ReferenceLinksStore.listSuggested(cursor)` (`components/reference-links-client.ts`) reads `listSemanticRelationsByNewsroomFeedAndCreatedAt` for the feed key `reference-links` with `relationState = suggested`, newest first, and keeps reading DynamoDB pages until it holds 50 open suggestions or the feed ends (the filter runs after a page is read). It resolves both ends and returns a page plus a cursor. Only the first page is read on arrival; "Load more link suggestions" reads the next. No schema change: the query already exists in the deployed lean schema.
+* **Rank.** Most likely first: by the close match stored in the row's `score` (the vector index records no probability), within the pages read so far. An item's importance is its close match, so the page's usual order applies. A row with no close match comes last. A suggestion has no prediction, so it is never "decided automatically".
+* **Detail.** `LinkSuggestionBody` (`components/needs-me-bodies.tsx`): the two ends side by side on a wide pane (`ReferenceCard` from the Related section, both dates), a concept as a hash chip, then the shared Accept / Reject and the optional Why.
+* **Deciding.** `store.decide({ relationId, decision, note })`, the call the Related section makes, which is the `decideReferenceLink` mutation. The decided item keeps its place; Next goes on.
 
 
 ## What the page shows in v0, in order
@@ -118,10 +128,11 @@ correction-to-ground-truth path.
 * `lib/review-requests.ts`: sections, ordering, summary, the words, the answer and timeout updates (shared by the page and its tests).
 * `lib/review-client.ts`: the GraphQL calls; every change carries the condition `state = open`.
 * `components/newsroom-ops-overview.tsx` mounts it above the existing destinations.
+* On a phone the detail is a full-screen sheet (`FULL_SCREEN_SHEET` in `components/ui/sheet.tsx`, also used by the Assignments and Topics detail sheets), with Previous and Next pinned at the bottom.
 * Tests: `scripts/test-notification-center.ts`.
 
 **Needs attention** (the Overview's list of pending references) shows the Cyclotron's suggestion on each row: the same read-only Cyclotron row as the review card (Accept or Reject highlighted with its confidence, or "No prediction"). The row opens the reference in the review queue, where the decision is made.
 
 There is no "Proposed Stories" entry in the sidebar: generated ideas live in the Idea column of the Stories board. The Proposals panel (`/newsroom/administration/proposals`, under Administration) is only for other Proposals (renames, merges, new concepts, reader-filed proposals) and hides old `story_draft` rows.
 
-Tests: `scripts/test-needs-me-ranking.ts` (score, order, threshold, snapshot, adapters), `scripts/test-notification-center.ts` (review-request model and words, the rendered page), `scripts/test-notification-center-feed.ts` (browser, 375 and 1440 px, fake data API), `features/newsroom-notification-center.feature` (`npm run test:notification-center`).
+Tests: `scripts/test-needs-me-links.ts` and `features/needs-me-link-suggestions.feature`, `features/needs-me-phone-detail.feature` (link suggestions and the full-screen phone detail; `npm run test:needs-me-links`), `scripts/test-needs-me-ranking.ts` (score, order, threshold, snapshot, adapters), `scripts/test-notification-center.ts` (review-request model and words, the rendered page), `scripts/test-notification-center-feed.ts` (browser, 375 and 1440 px, fake data API), `features/newsroom-notification-center.feature` (`npm run test:notification-center`).

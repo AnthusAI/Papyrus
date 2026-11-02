@@ -2,6 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 import { symmetricSubjectFirst, type RelatedEntry, type RelatedItem, type SuggestionLabel } from "../lib/reference-links";
+import { compareSuggestions, type LinkSuggestion, type LinkSuggestionPage } from "../lib/link-suggestions";
 import { conceptKeysForHashtag } from "../lib/wiki";
 
 export type SuggestOutcome = { labels: Record<string, SuggestionLabel>; skipped: string | null };
@@ -18,6 +19,8 @@ export type ReferenceLinksStore = {
   create: (input: { subjectLineageId: string; objectKind: "reference" | "semanticNode"; objectLineageId: string; predicate: string }) => Promise<{ relationId: string }>;
   decide: (input: { relationId: string; decision: "accept" | "reject"; note?: string }) => Promise<void>;
   suggest: (referenceId: string) => Promise<SuggestOutcome>;
+  /** The Needs me queue: one page of open suggestions, from the cursor the last page returned (null for the first). Most likely first within the page. */
+  listSuggested?: (cursor: string | null) => Promise<LinkSuggestionPage>;
 };
 
 const ReferenceLinksStoreContext = createContext<ReferenceLinksStore | null>(null);
@@ -61,6 +64,8 @@ export function createMemoryReferenceLinksStore(options: {
   /** What Suggest more reports as skipped (the backend's raw reason), so the plain wording can be tested. */
   skipped?: string;
   onCall?: (call: Record<string, unknown>) => void;
+  /** How many suggestions `listSuggested` returns at a time (all of them by default). */
+  suggestedPageSize?: number;
 }): ReferenceLinksStore {
   const items = new Map(options.items.map(item => [`${item.kind}#${item.lineageId}`, item]));
   const links = [...(options.links ?? [])];
@@ -81,7 +86,25 @@ export function createMemoryReferenceLinksStore(options: {
       direction: mine ? "outgoing" : "incoming", item, similarity: link.similarity ?? null, label: labels.get(otherId) ?? null,
     };
   };
+  const suggestedPage = (cursor: string | null): LinkSuggestionPage => {
+    const all = links
+      .filter(link => link.state === "suggested")
+      .flatMap((link): LinkSuggestion[] => {
+        const subject = itemFor("reference", link.subjectLineageId);
+        const object = itemFor(link.objectKind === "semanticNode" ? "concept" : "reference", link.objectLineageId);
+        return subject && object ? [{ relationId: link.id, subject, object, similarity: link.similarity ?? null, createdAt: null }] : [];
+      })
+      .sort(compareSuggestions);
+    const start = cursor ? Number(cursor) : 0;
+    const size = options.suggestedPageSize ?? all.length;
+    const end = start + size;
+    return { suggestions: all.slice(start, end), cursor: end < all.length ? String(end) : null };
+  };
   return {
+    async listSuggested(cursor) {
+      note({ type: "listSuggested", cursor });
+      return suggestedPage(cursor);
+    },
     async listForReference(referenceLineageId) {
       return links.map(link => entryFor(link, referenceLineageId)).filter((entry): entry is RelatedEntry => Boolean(entry));
     },
