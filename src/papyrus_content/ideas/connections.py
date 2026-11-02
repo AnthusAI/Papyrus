@@ -5,18 +5,19 @@ An idea that only restates its source is not filed. The single-item writer is th
 handles it must cite beside the source (``I1``):
 
 * ``E1``, kind ``acceptReason``: the words an editor wrote when they accepted the Reference (``curationStatusReason``, only when a person voted).
-  It is the editors' view, cited as such and never as a fact.
+  It is direction for the writer: it says what to look for, it is never reported in the story and it grounds no fact.
 * ``M1..``, kind ``message``: human Messages in threads anchored on the Reference.
 * ``R1..``, kind ``neighbour``: another accepted Reference linked to it: a confirmed link (a person or a rule made it), or a suggested one whose
   similarity is at least the site's median nearest-neighbour similarity (the cut the cluster signal uses: ``context_packs.typical_neighbour_pairs``).
   A neighbour must have a summary (or an editors' explanation) beyond its title, so the writer never leans on a title alone.
 * ``X1..``, kind ``editorsExplanation``: the words an editor wrote on the link to a neighbour (``ReferenceEdge.explanation``, PR #1034; read with ``getattr``, so a
-  build whose edges have no such field works the same without them). Also the editors' view.
+  build whose edges have no such field works the same without them). Also direction, not content.
 
 ``Connections.clears_the_bar`` decides before any model call whether there is anything to add: some connection, and for a Reference whose page could not
 be read (no page text and no real summary) a Message or a neighbour, because an accept reason alone is no reason to describe what cannot be read.
 ``standard_problems`` is the check after the call: the dek rests on a connection, at least one body sentence does, the connecting sentence shares a content
-word with what it cites, the editors' words are attributed to editors, no "trend" is claimed without counts. Nothing here asks a model.
+word with what it cites, no sentence talks about how the story came to be, no "trend" is claimed without counts. Nothing here asks a model; whether the draft says
+anything is ``point_check``'s question.
 
 ``minimumStandard`` (a site's ``monitorStories`` setting) is ``more-than-summary`` or ``summary``. ``summary`` is the old behaviour, kept only so the
 replay (``scripts/replay_idea_standard.py``) can compare the two on the same References; remove it, with its prompt, after the replay.
@@ -45,7 +46,12 @@ KINDS = (ACCEPT_REASON, MESSAGE, NEIGHBOUR, EDITORS_EXPLANATION)
 PREFIX = {ACCEPT_REASON: "E", MESSAGE: "M", NEIGHBOUR: "R", EDITORS_EXPLANATION: "X"}
 KIND_OF_PREFIX = {prefix: kind for kind, prefix in PREFIX.items()}
 HANDLE = re.compile(r"^([EMRX])(\d+)$")
-EDITOR_WORD = re.compile(r"\beditors?\b", re.IGNORECASE)
+#: How the story came to be, not what it is about. Phrases, not single words: "similarity", "monitor" and "knowledge base" are also subjects the sites cover.
+INTERNAL_WORDING = re.compile(
+    r"\b(the editors\b|editors'|editors? (accepted|chose|picked|said|noted|see|saw)|accepted (it|this|the item|the reference)|why (it|this) was accepted|by similarity|similarity score|"
+    r"(suggested|confirmed) (link|reference)|related reference|this reference\b|the newsroom|newsroom's|the monitor\b|monitor (found|marked|flagged))",
+    re.IGNORECASE,
+)
 TREND_CLAIM = re.compile(r"\b(trends?|trending|rising|surging|on the rise)\b")   # lower case only: "Trend Micro" is a name, not a claim
 EMAIL = re.compile(r"[^@\s:]+@[^@\s:]+\.[^@\s:]+")
 CONFIRMED, SUGGESTED = "confirmed", "suggested"
@@ -54,7 +60,7 @@ NOTHING_TO_ADD = "nothing_to_add"
 ONLY_THE_SOURCE_CITED = "only_the_source_cited"
 DEK_WITHOUT_CONNECTION = "dek_without_connection"
 CONNECTION_UNGROUNDED = "connection_ungrounded"
-EDITORS_VIEW_NOT_ATTRIBUTED = "editors_view_not_attributed"
+INTERNAL_WORDING_USED = "internal_wording"
 MESSAGE_WITHOUT_REFERENCE = "message_cited_without_reference"
 TREND_WITHOUT_SIGNAL = "trend_claim_without_signal"
 DESCRIBES_UNREAD_PAGE = "describes_unread_page"
@@ -215,8 +221,8 @@ def standard_problems(sentences: Sequence[Mapping[str, Any]], connections: Conne
         where, role, text = sentence["where"], sentence["role"], sentence["text"]
         cited = [handle for handle in sentence["handles"] if handle in known]
         kinds = {known[handle].kind for handle in cited}
-        if kinds & {ACCEPT_REASON, EDITORS_EXPLANATION} and not EDITOR_WORD.search(text):
-            problems.append(trends._problem(where, text, EDITORS_VIEW_NOT_ATTRIBUTED))
+        if INTERNAL_WORDING.search(text):
+            problems.append(trends._problem(where, text, INTERNAL_WORDING_USED))
         if MESSAGE in kinds and not ({SOURCE_HANDLE} & set(sentence["handles"]) or NEIGHBOUR in kinds):
             problems.append(trends._problem(where, text, MESSAGE_WITHOUT_REFERENCE))
         if TREND_CLAIM.search(text):

@@ -73,7 +73,8 @@ def arm_summary(run: Mapping[str, Any]) -> dict[str, Any]:
         "nothingToAdd": run["nothingToAdd"], "connectionsUsed": run["connectionsUsed"], "checkFailures": run["checkFailures"],
         "skipped": sorted({row["reason"] for row in run["skipped"]}), "duplicates": len(run["duplicates"]), "modelCalls": usage.get("calls", 0),
         "costUsd": usage.get("costUsd") or 0.0, "stoppedBy": run["stoppedBy"], "stoppedForCost": run.get("stoppedForCost"),
-        "knowledgeErrors": run.get("knowledgeErrors"),
+        "knowledgeErrors": run.get("knowledgeErrors"), "noPointOffered": run.get("noPointOffered", 0), "pointChecks": len(run.get("pointChecks") or []),
+        "pointCheckFailed": sum(bool(row["failures"]) for row in run.get("pointChecks") or []),
     }
 
 
@@ -161,13 +162,14 @@ def replay_site(
         runs[arm] = monitor_stories.draft_monitor_stories(
             client=readonly, site=site, context=held, json_store=None, transport=transport, idea_store=None, review_client=None,
             model=model or synthesis.DEFAULT_MODEL, limit=None, dry_run=True, now=moment, fetch=fetch or monitor_stories.fetch_source, corpus_key=corpus_key,
-            explorer=explorer, ordered_candidates=order, minimum_standard=arm, knowledge=knowledge, maximum_cost_usd=max(max_cost_usd - spent, 0.0),
+            explorer=explorer, ordered_candidates=order, minimum_standard=arm, knowledge=knowledge, maximum_cost_usd=max(max_cost_usd - spent, 0.0), judge_old_standard=True,
         )
         spent += float((runs[arm].get("usage") or {}).get("costUsd") or 0.0)
     sample, key = build_pairs(runs, knowledge, by_lineage, pairs=pairs, seed=seed)
     return {
         "site": site, "corpusKey": corpus_key, "asOf": iso(moment), "seed": seed, "maxCostUsd": max_cost_usd, "costUsd": round(spent, 6), "referencesOffered": len(order),
         "arms": {arm: arm_summary(runs[arm]) for arm in ARMS}, "pairs": len(key), "sample": "\n".join(sample) + "\n", "key": key,
+        "pointChecks": {arm: runs[arm].get("pointChecks") or [] for arm in ARMS},
     }
 
 
@@ -175,8 +177,9 @@ def write_outputs(result: Mapping[str, Any], directory: Path) -> dict[str, Path]
     """``result.json`` (without the sample text), ``sample.md`` and ``key.json``, in a private local directory."""
     target = assert_private(directory)
     target.mkdir(parents=True, exist_ok=True)
-    paths = {"result": target / "result.json", "sample": target / "sample.md", "key": target / "key.json"}
-    paths["result"].write_text(json.dumps({key: value for key, value in result.items() if key not in ("sample", "key")}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths = {"result": target / "result.json", "sample": target / "sample.md", "key": target / "key.json", "pointChecks": target / "point-checks.json"}
+    paths["pointChecks"].write_text(json.dumps(result.get("pointChecks") or {}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths["result"].write_text(json.dumps({key: value for key, value in result.items() if key not in ("sample", "key", "pointChecks")}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     paths["sample"].write_text(str(result["sample"]), encoding="utf-8")
     paths["key"].write_text(json.dumps(result["key"], indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return paths
