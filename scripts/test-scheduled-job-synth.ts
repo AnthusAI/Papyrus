@@ -343,7 +343,7 @@ const taskStatements = policyStatements(template, "JobTaskRoleDefaultPolicy");
 const allowedActions = new Set([
   "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucket", "s3:GetBucketLocation",
   "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem",
-  "ssm:GetParameter", "appsync:GraphQL", "lambda:GetFunctionConfiguration", "amplify:ListJobs", "cloudfront:CreateInvalidation", "cloudfront:DescribeKeyValueStore",
+  "ssm:GetParameter", "appsync:GraphQL", "appsync:GetGraphqlApi", "lambda:GetFunctionConfiguration", "amplify:ListJobs", "cloudfront:CreateInvalidation", "cloudfront:DescribeKeyValueStore",
   "cloudfront-keyvaluestore:DescribeKeyValueStore", "cloudfront-keyvaluestore:GetKey", "cloudfront-keyvaluestore:ListKeys",
   "cloudfront-keyvaluestore:PutKey", "cloudfront-keyvaluestore:DeleteKey", "cloudfront-keyvaluestore:UpdateKeys",
 ]);
