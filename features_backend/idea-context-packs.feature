@@ -205,7 +205,7 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
   Scenario: A cold site with no concept links still yields a cluster pack from vectors alone
     Given a site five days old whose accepted References have no concept links and no edges, four of them about one thing
     When the context packs are built with the site's vector index
-    Then a cluster pack holds those four accepted References
+    Then the top-ranked cluster pack holds those four accepted References
     And the pack is marked emerging because no earlier arrivals exist to compare with
     And the pack's edges are all suggested and each carries its similarity
 
@@ -213,7 +213,7 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
     Given a site five days old whose accepted References have no concept links and no edges, four of them about one thing
     And a person has linked two of them with a related_to edge
     When the context packs are built with the site's vector index
-    Then the cluster pack lists that link as confirmed without a similarity
+    Then the top-ranked cluster pack lists that link as confirmed without a similarity
     And the other pairs are listed as suggested with their similarity
 
   Scenario: Without a vector index the cluster signal is skipped and says why
@@ -222,10 +222,12 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
     Then no cluster pack exists
     And the log says the cluster signal was skipped for want of a vector provider
 
-  Scenario: A cold site whose References are alike yields no cluster pack
+  Scenario: A cold site whose References are not alike offers only emerging cluster packs
+    Clusters are ranked by how much closer their members are than the background, not gated: a small site never clears a corrected test, so
+    a gate would hide every theme. Loose pairs rank low; the citation check, the gate and the editors' spikes judge the ideas.
     Given a site five days old whose accepted References have no concept links and no edges, none of them alike
     When the context packs are built with the site's vector index
-    Then no pack exists
+    Then only emerging cluster packs exist
 
   Scenario: A Reference with far more connections than the rest of the site is a hub
     Given a site of 150 accepted References where the newest one is linked to six older ones
