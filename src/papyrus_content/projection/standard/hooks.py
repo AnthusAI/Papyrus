@@ -162,7 +162,9 @@ class HookSite:
         return self._memo[name]
 
     def rendition_records(self) -> list[dict]:
-        """The ``meta.json`` records of the site store: the images the site has (empty when the site has no ``images`` settings)."""
+        """The ``meta.json`` records of the site store: the images the site has (empty when the site has no ``images`` settings).
+
+        Keys and hrefs in a record are site-relative; under ``urls.basePath`` the files are at ``<base path>/<key>``."""
         if "records" not in self._memo:
             self._memo["records"] = self._records()
         return self._memo["records"]
