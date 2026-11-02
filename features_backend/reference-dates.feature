@@ -84,3 +84,21 @@ Feature: Every Reference carries the date its source was published, when the sou
     And a source published long before it reached the site that nobody has attended to for months
     When the context packs are built from them
     Then no resurfaced pack exists
+
+  Scenario: The backfill resolves dates for existing References without running the rest of curation
+    Given Reference "dated-a" has a page that declares the Open Graph article published time "2026-10-28T09:30:00Z"
+    And Reference "dated-b" already has the publication date "2026-10-01" from a monitor
+    And Reference "dated-c" has a page that cannot be fetched
+    And Reference "dated-d" already has a recorded publication date resolution
+    When the publication date backfill runs
+    Then Reference "dated-a" has the publication date "2026-10-28" resolved from "og:article:published_time"
+    And Reference "dated-b" records its publication date as resolved from "monitor"
+    And Reference "dated-c" is unchanged and counted as a fetch failure
+    And Reference "dated-d" is skipped
+    And no summary was written and no curation card exists for any of them
+
+  Scenario: A dry run of the backfill writes nothing
+    Given Reference "dated-a" has a page that declares the Open Graph article published time "2026-10-28T09:30:00Z"
+    When the publication date backfill runs as a dry run
+    Then the dry run lists Reference "dated-a" with the date "2026-10-28" from "og:article:published_time"
+    And the dry run wrote nothing

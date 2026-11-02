@@ -90,7 +90,7 @@ Both fields exist; the work is populating and using them consistently.
 Design:
 
 * **Populate on ingestion** by extending the existing publication-date resolution to HTML (`web_structured_metadata.py` already parses structured metadata; add the three date sources above) and running it in the curation stage every Reference passes (`reference_curation.curate_reference`). Provenance goes where it already goes: `metadata.publicationDateResolution = {source: "og:article:published_time" | "json-ld" | "pdf" | "monitor" | "citation-year", precision: "day" | "month" | "year", resolvedAt}`. No schema change.
-* **Backfill** with the existing `papyrus references curate --corpus-id … --force` path (it is idempotent and leased), as a one-off per site, bounded by the curation budget, not by a count.
+* **Backfill** with `papyrus references backfill-publication-dates --corpus-id ID [--dry-run]`, a one-off per site that captures each unresolved Reference's page and runs only the date stage (no summaries, no model cost; idempotent). Do not use `references curate --force` for this: it re-runs every stage, including the LLM summary.
 * **Unknown publication date stays null.** Never copy `createdAt` into it. Every analysis declares its basis, and a pack states `dateBasis` per item, so the model never writes "published on" from an ingestion date.
 * **Which analyses use which date:**
 * Ingestion date (`createdAt`): everything that measures the newsroom's own stream: the acceptance burst and hub signals, arrival volume baselines, `learn_freshness` (editors' reaction time), auto-accept latency, de-duplication of runs. Rationale: these ask "what is happening in this site now", which is when the item arrived here.
