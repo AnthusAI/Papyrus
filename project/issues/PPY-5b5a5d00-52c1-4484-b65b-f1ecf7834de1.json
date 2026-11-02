@@ -10,9 +10,17 @@
   "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "130dea63-6edc-4002-84b9-db9ec51f43e9",
+      "author": "home",
+      "text": "Implemented on feature/PPY-5b5a5d-run-id-on-machine-items, PR https://github.com/AnthusAI/Papyrus/pull/1058. Item has no createdBy or source column, so the run is recorded in Item.metadata.machineWrite (runId, createdByRunId, writer, at): no schema change. Covers the wiki sync (--run-id) and the idea pipeline (knowledge-<publication>-<execution>). New: papyrus knowledge run undo|restore --run-id (dry run unless --apply; retired stage; never deletes). Tests: test_machine_writes.py (14), features_backend/knowledge-run-undo.feature (10 scenarios), knowledge_cloud tests. Not deployed: needs a release and a rebuilt knowledge-run image.",
+      "created_at": "2026-11-02T21:49:33.060674Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-02T18:00:33.304501Z",
-  "updated_at": "2026-11-02T18:00:33.304531Z",
+  "updated_at": "2026-11-02T21:49:33.061250Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -81,7 +81,7 @@ def test_a_corpus_key_of_its_own_changes_nothing_else(tmp_path):
     without_ai_review(other)
 
     def normal(shell, root):
-        return [[argument.replace(str(root), "<work>").replace("ai-ml-research", "shipped") for argument in call] for call in shell.calls]
+        return [[argument.replace(str(root), "<work>").replace("ai-ml-research", "shipped").replace("manual-2", "manual-1") for argument in call] for call in shell.calls]
 
     assert normal(plain_shell, tmp_path / "a") == normal(other_shell, tmp_path / "b")
     assert other.state.prefix == "publications/shipped/" and other.config.actor_name == "Shipped research agent"

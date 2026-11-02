@@ -104,6 +104,7 @@ class Run:
         env.setdefault("PAPYRUS_GRAPHQL_AUTH", "iam")
         env["PAPYRUS_ALLOW_CROSS_ROOT"] = "1"
         env["PAPYRUS_PROJECTION_LEASE_PURPOSE"] = "cloud-run projection"
+        env["KNOWLEDGE_RUN_ID"] = self.config.run_id
         if self.outputs.exists():
             from ..knowledge_snapshot.commands import endpoint_of_outputs  # noqa: PLC0415
 
@@ -623,7 +624,7 @@ def wiki_sync(run: Run) -> dict:
     run.pull(site=True, run=bool(run.config.monitor_sources or run.config.reference_documents_bucket))
     sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options(), *run.reference_options()]
     sync += beats_options(run)
-    sync += ["--vocabulary", str(run.config_dir / VOCABULARY_FILE), "--retire"]  # pages of kinds the vocabulary does not declare come down
+    sync += ["--vocabulary", str(run.config_dir / VOCABULARY_FILE), "--retire", "--run-id", run.config.run_id]  # pages of kinds the vocabulary does not declare come down; each page records the run
     run.sh(*sync)  # the dry run: its plan, with every page it would retire, is in the task log
     run.run_dir.mkdir(parents=True, exist_ok=True)
     run.sh(*sync, "--apply", "--retired-out", str(run.run_dir / RETIRED_FILE))  # drafts only

@@ -136,6 +136,19 @@ For each unreviewed entity (`generated`), each new cluster and each proposed rel
 
 `config/review-guidance.md` in the state bucket, if present, is appended to the instructions: the publication's editors' preferences, kept out of code.
 
+## Which run wrote an Item, and undoing a run
+
+Every Item a run writes records the run in `Item.metadata.machineWrite` (PPY-5b5a5d; `Item` has no `createdBy` or `source` column, and the field is JSON, so there is no schema change): `runId` (the latest run to write it), `createdByRunId` (the run that made it; absent for an Item a person made), `writer` and `at`. The run id of a cloud execution is `knowledge-<publication>-<execution name>`; the state machine's `KNOWLEDGE_PUBLICATION` and `KNOWLEDGE_EXECUTION_NAME` give every task, including `trend-drafts` and `monitor-stories`, the same id. The wiki sync takes it as `--run-id` (a sync without one that writes makes up `wiki-sync-<UTC time>` and prints it); the idea pipeline reads it from the environment. `versionCreatedBy` is not changed: the Idea column reads `AI` there to label a generated idea.
+
+```bash
+papyrus knowledge run undo --run-id knowledge-<publication>-<execution name>                # dry run: what it would retire, by type and section
+papyrus knowledge run undo --run-id ... --apply --live-out live.json                       # retire and unpublish; never deletes
+papyrus ops content project --unpublished-items live.json --static-dir ... --bucket ...    # then take the pages off the site (a human, under the lease)
+papyrus knowledge run restore --run-id ... [--apply]                                       # put the Items back (a page that was live returns as a draft)
+```
+
+Undo selects the Items the run **created**, unpublishes the live ones and moves every one to the `retired` stage, recording what each was in `machineWrite.undone`. It is a dry run unless `--apply` is given, unlike most mutation commands. Items a later run only revised are retired too when this run created them, and the dry run marks them "rewritten by" the later run. The wiki sync and `wiki publish --all-drafts` leave a page at the `retired` stage alone, so the next run does not bring it back; moving the stage back (or `restore`) is the way to un-retire. The `retired` stage is not a Stories-board column.
+
 ## State, ledger and idempotency
 
 State is per publication in the stack's S3 bucket (versioned, private), under `publications/<publication>/`:
