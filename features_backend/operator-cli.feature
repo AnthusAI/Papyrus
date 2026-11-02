@@ -46,6 +46,18 @@ Feature: Operator CLI
     And stderr should not contain "ImportError"
     And stderr should not contain "ModuleNotFoundError"
 
+  @install
+  Scenario: The version is the installed distribution's version
+    Given the papyrus-newsroom distribution is installed as version "5.70.0"
+    When I ask for the papyrus version
+    Then the printed version is "5.70.0"
+
+  @install
+  Scenario: A source checkout without an installed distribution still prints a version
+    Given the papyrus-newsroom distribution is not installed
+    When I ask for the papyrus version
+    Then the printed version is the checkout's fallback version
+
   # ---------------------------------------------------------------------------
   # Backend selection
   # ---------------------------------------------------------------------------

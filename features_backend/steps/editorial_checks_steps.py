@@ -749,3 +749,94 @@ def step_xstory_not_naming(context, other):
         for finding in run["findings"]:
             if finding["policyId"] == "cross-story-boilerplate":
                 assert other not in finding["message"], finding
+
+
+# --- command-line findings and whole-story judgments ---------------------------------------------------------------------
+
+def _finding(**values):
+    return {"id": "f-0", "policyId": "p", "severity": "warn", "status": "review", "message": "m", "excerpt": "", "segmentId": "s1", **values}
+
+
+@given('a stored check of version 1 with a violation of "{violation}" on "{excerpt}" and a judgment for review of "{review}" on "{reviewed}"')
+def step_stored_check(context, violation, excerpt, review, reviewed):
+    context.stored_run = {"findings": [
+        _finding(id="f-review", policyId=review, status="review", probability=0.53, message="Is this measured or modeled?", excerpt=reviewed),
+        _finding(id="f-violation", policyId=violation, severity="error", status="violation", probability=0.91, message="Avoid hype.", excerpt=excerpt),
+    ], "violations": 1, "reviews": 1}
+
+
+def _run_check_version(context, flags):
+    import contextlib
+    import io
+    from unittest import mock
+
+    from papyrus_content import editorial_commands as commands
+
+    summary = {"itemId": "story-v1", "violations": 1, "reviews": 1}
+    output = io.StringIO()
+    with mock.patch.object(commands, "request_item_check", return_value=summary), \
+            mock.patch.object(commands, "read_item_check_run", return_value=context.stored_run), \
+            contextlib.redirect_stdout(output):
+        commands.editorial_check_version(["--item", "story-v1", *flags])
+    context.printed = output.getvalue()
+
+
+@when("an operator runs papyrus editorial check-version on version 1")
+def step_check_version_cli(context):
+    _run_check_version(context, [])
+
+
+@when("an operator runs papyrus editorial check-version on version 1 with --json")
+def step_check_version_json(context):
+    _run_check_version(context, ["--json"])
+
+
+@then('the printed summary says "{violations}" and "{reviews}"')
+def step_printed_summary(context, violations, reviews):
+    first = context.printed.splitlines()[0]
+    assert violations in first and reviews in first, first
+
+
+@then("each finding is printed with its policy, severity, probability, message, excerpt and id")
+def step_printed_findings(context):
+    for expected in ("no-hype", "error", "p=0.91", "Avoid hype.", "game-changing", "f-violation",
+                     "measured-or-model", "warn", "p=0.53", "Is this measured or modeled?", "Sales doubled.", "f-review"):
+        assert expected in context.printed, (expected, context.printed)
+
+
+@then("the violation is printed before the finding for review")
+def step_violation_first(context):
+    assert context.printed.index("f-violation") < context.printed.index("f-review"), context.printed
+
+
+@then("the printed JSON lists both findings with their ids, probabilities and excerpts")
+def step_printed_json(context):
+    payload = json.loads(context.printed)
+    assert [(f["id"], f["probability"], f["excerpt"]) for f in payload["findings"]] == [
+        ("f-review", 0.53, "Sales doubled."), ("f-violation", 0.91, "game-changing")], payload
+    assert payload["summary"]["violations"] == 1
+
+
+@given('Humanus returns a judgment finding for the whole story and one for the sentence "{sentence}"')
+def step_humanus_judgments(context, sentence):
+    from unittest import mock
+
+    result = {"findings": [
+        _finding(id="f-doc", segmentId="doc", message="Claims are measured or modeled.", excerpt=""),
+        _finding(id="f-sentence", segmentId="s1", message="Claim lacks a source.", excerpt=sentence),
+    ], "lanes": {}}
+    patcher = mock.patch.object(editorial.humanus, "check", return_value=result)
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+
+
+@then('the whole-story finding\'s message starts with "{prefix}"')
+def step_whole_story_message(context, prefix):
+    finding = next(f for f in context.check_result["findings"] if f["id"] == "f-doc")
+    assert finding["message"].startswith(prefix) and finding["excerpt"] == "", finding
+
+
+@then('the sentence finding keeps its excerpt "{excerpt}" and its message unchanged')
+def step_sentence_unchanged(context, excerpt):
+    finding = next(f for f in context.check_result["findings"] if f["id"] == "f-sentence")
+    assert finding["excerpt"] == excerpt and finding["message"] == "Claim lacks a source.", finding

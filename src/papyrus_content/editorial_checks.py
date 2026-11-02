@@ -269,13 +269,28 @@ def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, 
         "options": {"lanes": lanes, "classifier": classifier},
     }
     services.last_check_request = request
-    result = humanus.check(request, **services.humanus_kwargs("decision_model"))
+    result = mark_whole_story_findings(humanus.check(request, **services.humanus_kwargs("decision_model")))
     if skip_judgments:
         result["lanes"]["classifier"] = skipped_judgments(missing_doctrine)
     # No NewsroomSection for the stored value: the section's own mission and policy could not be applied. Say so (PPY-2c4b56).
     missing_sections = context.get("missingSectionConfiguration") or []
     if missing_sections:
         result["lanes"]["section"] = {"status": "skipped", "reason": f"no section configuration for {', '.join(missing_sections)}"}
+    return result
+
+
+WHOLE_STORY_PREFIX = "Applies to the whole story. "
+
+
+def mark_whole_story_findings(result: dict[str, Any]) -> dict[str, Any]:
+    """A document-scope judgment has no passage to quote (Humanus gives it an empty excerpt and one id per detector).
+
+    Say so in the message, so an editor reads "the whole story" instead of an excerpt that is missing by mistake.
+    """
+    for finding in result.get("findings") or []:
+        message = finding.get("message") or ""
+        if finding.get("segmentId") == "doc" and not finding.get("excerpt") and not message.startswith(WHOLE_STORY_PREFIX):
+            finding["message"] = WHOLE_STORY_PREFIX + message
     return result
 
 
@@ -317,7 +332,7 @@ def try_policy(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
         "pack": {"schemaVersion": 1, "packId": "papyrus-try", "version": "draft", "policies": [policy]},
         "options": {"classifier": {"model": settings["classifierModel"], "deadlineSeconds": settings["deadlineSeconds"]}},
     }
-    return humanus.check(request, **services.humanus_kwargs("decision_model"))
+    return mark_whole_story_findings(humanus.check(request, **services.humanus_kwargs("decision_model")))
 
 
 def import_starter_pack(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
