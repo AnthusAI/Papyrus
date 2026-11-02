@@ -10,7 +10,7 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-from papyrus_content.reference_links import decide, link_concept, link_references, reference_link_relation_id  # noqa: E402
+from papyrus_content.reference_links import NO_SCORE_SORT_VALUE, OPEN_SUGGESTION_KEY, decide, link_concept, link_references, open_suggestion_fields, reference_link_relation_id  # noqa: E402
 
 NOW = "2026-11-01T12:00:00Z"
 LATER = "2026-11-02T12:00:00Z"
@@ -36,8 +36,15 @@ class FakeClient:
     def list_by_index(self, index_name, key_value, *, limit=100):
         if index_name == "referencesByLineageAndVersion":
             return [row for row in self.tables["Reference"].values() if row["lineageId"] == key_value and row["id"] != key_value]
+        if index_name == "semanticRelationsByNewsroomFeedWithOpenSuggestionFields":
+            return [row for row in self.tables["SemanticRelation"].values() if row.get("newsroomFeedKey") == key_value]
         field = {"semanticRelationsBySubjectState": "subjectStateKey", "semanticRelationsByObjectState": "objectStateKey"}[index_name]
         return [row for row in self.tables["SemanticRelation"].values() if row[field] == key_value]
+
+    def open_suggestion_index(self):
+        """What the sparse suggestion index holds, most likely first: rows with a key, by their sort value, highest first."""
+        rows = [row for row in self.tables["SemanticRelation"].values() if row.get("openSuggestionKey") is not None]
+        return sorted(rows, key=lambda row: row["openSuggestionScore"], reverse=True)
 
     def current_edges(self, kind, lineage):
         key = f"{kind}#{lineage}#current"
@@ -114,6 +121,65 @@ class ReferenceLinkTests(unittest.TestCase):
             link_references(client, "reference-a", "reference-b", "mentions", "human", actor="x")
         with self.assertRaises(ValueError):
             link_references(client, "reference-a", "reference-a", "related_to", "human", actor="x")
+
+
+class SuggestionIndexTests(unittest.TestCase):
+    def test_a_suggestion_is_in_the_index_at_its_close_match_and_an_unscored_one_is_last(self):
+        client = FakeClient()
+        link_references(client, "reference-a", "reference-b", "related_to", "suggested", actor="auto:vector", score=0.7, now=NOW)
+        link_references(client, "reference-a", "reference-c", "related_to", "suggested", actor="auto:vector", score=None, now=NOW)
+        link_concept(client, "reference-b", NODE, "suggested", actor="auto:vector", score=0.9, now=NOW)
+        order = client.open_suggestion_index()
+        self.assertEqual([row["openSuggestionScore"] for row in order], [0.9, 0.7, NO_SCORE_SORT_VALUE])
+        self.assertEqual({row["openSuggestionKey"] for row in order}, {OPEN_SUGGESTION_KEY})
+        self.assertEqual(order[-1]["objectLineageId"], "reference-c")
+
+    def test_a_score_that_is_not_a_number_sorts_last(self):
+        for score in (None, float("nan"), float("inf"), True, "0.8"):
+            self.assertEqual(open_suggestion_fields("suggested", score)["openSuggestionScore"], NO_SCORE_SORT_VALUE, repr(score))
+        self.assertEqual(open_suggestion_fields("suggested", 0)["openSuggestionScore"], 0.0)
+        self.assertEqual(open_suggestion_fields("suggested", -0.25)["openSuggestionScore"], -0.25)
+
+    def test_a_row_that_is_not_a_suggestion_has_no_key(self):
+        for state in ("current", "rejected"):
+            self.assertEqual(open_suggestion_fields(state, 0.9), {"openSuggestionKey": None, "openSuggestionScore": None})
+
+    def test_a_new_link_a_person_makes_carries_no_index_fields(self):
+        client = FakeClient()
+        row = client.tables["SemanticRelation"][link_references(client, "reference-a", "reference-b", "related_to", "human", actor="sub-1", now=NOW)["relationId"]]
+        self.assertNotIn("openSuggestionKey", row)
+
+    def test_deciding_takes_a_suggestion_out_of_the_index_at_once(self):
+        for decision in ("accepted", "rejected"):
+            with self.subTest(decision):
+                client = FakeClient()
+                result = link_references(client, "reference-a", "reference-b", "related_to", "suggested", actor="auto:vector", score=0.8, now=NOW)
+                self.assertEqual(len(client.open_suggestion_index()), 1)
+                decide(client, result["relationId"], decision, None, None, "sub-1", now=LATER)
+                self.assertEqual(client.open_suggestion_index(), [])
+
+    def test_a_link_a_person_writes_over_a_suggestion_takes_it_out(self):
+        client = FakeClient()
+        link_references(client, "reference-a", "reference-b", "related_to", "suggested", actor="auto:vector", score=0.8, now=NOW)
+        link_references(client, "reference-b", "reference-a", "related_to", "human", actor="sub-1", now=LATER)
+        self.assertEqual(client.open_suggestion_index(), [])
+
+    def test_a_later_suggestion_never_overwrites_a_decision_or_returns_it_to_the_index(self):
+        client = FakeClient()
+        result = link_references(client, "reference-a", "reference-b", "related_to", "suggested", actor="auto:vector", score=0.8, now=NOW)
+        decide(client, result["relationId"], "rejected", "off-topic", None, "sub-1", now=LATER)
+        again = link_references(client, "reference-a", "reference-b", "related_to", "suggested", actor="auto:vector", score=0.99, now="2026-11-03T12:00:00Z")
+        self.assertEqual(again["outcome"], "kept")
+        self.assertEqual(client.open_suggestion_index(), [])
+        row = client.tables["SemanticRelation"][result["relationId"]]
+        self.assertEqual((row["relationState"], row["score"]), ("rejected", 0.8))
+
+    def test_suggesting_again_moves_an_open_suggestion_to_its_new_place(self):
+        client = FakeClient()
+        link_references(client, "reference-a", "reference-b", "related_to", "suggested", actor="auto:vector", score=0.5, now=NOW)
+        link_references(client, "reference-a", "reference-c", "related_to", "suggested", actor="auto:vector", score=0.6, now=NOW)
+        link_references(client, "reference-a", "reference-b", "related_to", "suggested", actor="auto:vector", score=0.95, now=LATER)
+        self.assertEqual([row["objectLineageId"] for row in client.open_suggestion_index()], ["reference-b", "reference-c"])
 
 
 class SharedRowVectorTests(unittest.TestCase):

@@ -330,6 +330,26 @@ def references_backfill_feed_keys(flags: list[str]) -> None:
         print(f"references\tbackfill-feed-keys\t{key}\t{value}")
 
 
+def references_backfill_suggestion_index(flags: list[str]) -> None:
+    """``papyrus references backfill-suggestion-index [--dry-run] [--json]``.
+
+    Sets ``openSuggestionKey`` and ``openSuggestionScore`` on every open link suggestion so the Needs me queue can read them most likely first
+    (src/papyrus_content/reference_suggestion_backfill.py). It writes only those two fields, and writes nothing for a row that is already right,
+    so a second run writes nothing. Writes unless ``--dry-run``, which prints the counts.
+    """
+    from .reference_suggestion_backfill import backfill_suggestion_index
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "references backfill-suggestion-index")
+    client, _ = create_authoring_client()
+    result = backfill_suggestion_index(client, dry_run=not apply,
+                                       progress=lambda line: print(f"references\tbackfill-suggestion-index\tprogress\t{line}") if int(line.split()[0]) % 100 == 0 else None)
+    if options.get("json"):
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return
+    for key, value in result.items():
+        print(f"references\tbackfill-suggestion-index\t{key}\t{value}")
+
+
 def references_backfill_reviewed_feed_key(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references backfill-reviewed-feed-key")

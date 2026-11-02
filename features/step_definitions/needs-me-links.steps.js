@@ -12,9 +12,11 @@ for (const given of [
   "an isolated Needs me feed with four suggested links read two at a time",
   "an isolated Needs me feed whose first save is refused",
   "an isolated Needs me feed that reads links through the page's related-links store",
+  "a stand-in suggestion index that returns two pages of open suggestions already in order of close match",
 ]) Given(given, function () { this.linksResult = ""; });
 
 for (const when of [
+  "the Needs me queue reads its first page and then the page after it",
   "the editor opens the Links pill at 390 and 1440 pixels",
   "the editor presses \"Load more link suggestions\"",
   "the editor opens the first suggestion on a wide screen and on a phone",
@@ -29,6 +31,11 @@ for (const when of [
 
 // Each outcome runs the named browser scenario in scripts/test-needs-me-links.ts.
 const outcomes = [
+  ["unit", [
+    "each page is one request to the open-suggestion index, asking for the highest close match first, carrying the cursor the last page returned",
+    "the suggestions keep the order the index gave and one whose References cannot be shown is left out rather than shown as an id",
+    "nothing is read on, filtered or re-ranked in the browser, and an empty index is an empty queue",
+  ]],
   ["queue", [
     "each suggestion is a card of the type \"Link suggestion\" with Accept and Reject, ordered by close match from 0.91 down",
     "the header says how many link suggestions are waiting and the other pills leave them out",

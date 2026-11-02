@@ -134,6 +134,7 @@ from .references_commands import (
     references_backfill_corpus_storage_paths,
     references_backfill_feed_keys,
     references_backfill_reviewed_feed_key,
+    references_backfill_suggestion_index,
     references_create_doi_backfill_assignment,
     references_create_identifier_backfill_assignment,
     references_curate_recent,
@@ -313,6 +314,7 @@ PORTED_COMMANDS = frozenset(
         "references:prove-priming-cross-validated",
         "references:prove-site-sections",
         "references:backfill-reviewed-feed-key",
+        "references:backfill-suggestion-index",
         "references:backfill-monitor-deliveries",
         "references:backfill-feed-keys",
         "references:backfill-corpus-storage-paths",
@@ -702,6 +704,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_backfill_monitor_deliveries(flags)
     elif route == "references:backfill-reviewed-feed-key":
         references_backfill_reviewed_feed_key(flags)
+    elif route == "references:backfill-suggestion-index":
+        references_backfill_suggestion_index(flags)
     elif route == "references:backfill-feed-keys":
         references_backfill_feed_keys(flags)
     elif route == "references:backfill-corpus-storage-paths":

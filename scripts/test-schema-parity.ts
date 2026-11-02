@@ -17,10 +17,12 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
   NewsroomSection: ["tenantId"],
 };
 
-// Indexes the References page reads through (features_backend/reference-feed-keys.feature): each must exist, with its sort key, in both files.
+// Indexes the newsroom reads through: each must exist, with its sort key, in both files. The References page reads the first two
+// (features_backend/reference-feed-keys.feature); the Needs me link-suggestion queue reads the last (features_backend/reference-link-suggestion-index.feature).
 const REQUIRED_INDEXES = [
   'index("feedStateKey").sortKeys(["predictionSortKey"]).queryField("listReferencesByFeedStateAndPrediction")',
   'index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival")',
+  'index("openSuggestionKey").sortKeys(["openSuggestionScore"]).queryField("listSemanticRelationsByOpenSuggestionAndScore")',
 ];
 
 function extractFieldNames(source: string, modelName: string): Set<string> {
@@ -66,7 +68,7 @@ for (const file of SCHEMA_FILES) {
   for (const declaration of REQUIRED_INDEXES) {
     if (!source.includes(declaration)) {
       failed = true;
-      console.error(`Reference is missing ${declaration} in ${file}`);
+      console.error(`Missing ${declaration} in ${file}`);
     }
   }
 }

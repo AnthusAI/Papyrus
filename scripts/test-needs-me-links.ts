@@ -9,7 +9,7 @@ import { build } from "esbuild";
 import { chromium, type Page } from "playwright";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { compareSuggestions, isOpenSuggestion, lineagesOfSuggestionRows, suggestionsFromRows } from "../lib/link-suggestions";
+import { compareSuggestions, isOpenSuggestion, lineagesOfSuggestionRows, OPEN_SUGGESTION_KEY, readSuggestionPage, SUGGESTED_LINKS_QUERY, SUGGESTION_PAGE_SIZE, suggestionsFromRows } from "../lib/link-suggestions";
 import { buildNeedsMeItems, linkSuggestionItems, waitingTextFor } from "../lib/needs-me-items";
 import { countNeedsMe, matchesFilter, rankNeedsMe } from "../lib/needs-me-ranking";
 import { localPreviewLinkSuggestionItems, localPreviewLinkSuggestions } from "../lib/local-preview-reference-links";
@@ -169,8 +169,9 @@ const scenarios: Record<string, () => Promise<void>> = {
     assert.equal(isOpenSuggestion(row("a", 0.5, "current")), false, "a decided link is not a suggestion");
     assert.equal(isOpenSuggestion({ ...row("a", 0.5), predicate: "cites" }), false);
     assert.equal(isOpenSuggestion({ ...row("a", 0.5), subjectKind: "item" }), false);
-    const ranked = suggestionsFromRows([row("low", 0.4), row("none", null), row("high", 0.93), row("rejected", 0.99, "rejected"), row("gone", 0.8, "suggested", "reference", "missing"), row("high", 0.93)], resolve);
-    assert.deepEqual(ranked.map((entry) => entry.relationId), ["high", "low", "none"], "most likely first, no close match last, nothing unresolved or already decided, no repeats");
+    const ranked = suggestionsFromRows([row("high", 0.93), row("low", 0.4), row("none", null), row("rejected", 0.99, "rejected"), row("gone", 0.8, "suggested", "reference", "missing"), row("high", 0.93)], resolve);
+    assert.deepEqual(ranked.map((entry) => entry.relationId), ["high", "low", "none"], "the server's order is kept; nothing unresolved or already decided, no repeats");
+    assert.deepEqual(suggestionsFromRows([row("low", 0.4), row("high", 0.93)], resolve).map((entry) => entry.relationId), ["low", "high"], "a page is not re-ranked on the client");
     assert.deepEqual(lineagesOfSuggestionRows([row("a", 0.5), row("b", 0.5, "suggested", "semanticNode", "preview-concept-translation")]), { concepts: ["preview-concept-translation"], references: ["preview-reference-lineage-1", "preview-reference-lineage-4"] });
     assert.ok(compareSuggestions({ ...ranked[0], createdAt: "2026-10-30T00:00:00Z", similarity: 0.5 }, { ...ranked[0], relationId: "z", createdAt: "2026-10-01T00:00:00Z", similarity: 0.5 }) < 0, "equal matches: the newer first");
 
@@ -182,6 +183,32 @@ const scenarios: Record<string, () => Promise<void>> = {
     const second = await store.listSuggested!(first.cursor);
     assert.deepEqual(second.suggestions.map((entry) => entry.similarity), [0.66]);
     assert.equal(second.cursor, null, "the last page ends the queue");
+
+    // The network store reads the open-suggestion index: one request per page, server order, the server's cursor handed straight on.
+    const asked: Array<{ query: string; variables: Record<string, unknown> }> = [];
+    const pages: Record<string, { items: Array<ReturnType<typeof row> | null>; nextToken: string | null }> = {
+      first: { items: [row("high", 0.93), null, row("none", null, "suggested", "semanticNode", "preview-concept-translation"), row("gone", 0.8, "suggested", "reference", "missing")], nextToken: "token-2" },
+      "token-2": { items: [row("low", 0.4)], nextToken: null },
+    };
+    const graphql = async (query: string, variables: Record<string, unknown>) => {
+      asked.push({ query, variables });
+      return { listSemanticRelationsByOpenSuggestionAndScore: pages[(variables.nextToken as string | null) ?? "first"] };
+    };
+    const resolveAll = async () => resolve;
+    const pageOne = await readSuggestionPage(graphql, null, resolveAll);
+    assert.deepEqual(pageOne.suggestions.map((entry) => entry.relationId), ["high", "none"], "an unresolved end is left out, the order is the server's");
+    assert.equal(pageOne.cursor, "token-2");
+    const pageTwo = await readSuggestionPage(graphql, pageOne.cursor, resolveAll);
+    assert.deepEqual(pageTwo.suggestions.map((entry) => entry.relationId), ["low"]);
+    assert.equal(pageTwo.cursor, null, "the last page ends the queue");
+    assert.equal(asked.length, 2, "one request per page: no read-on loop, no client-side filter");
+    assert.deepEqual(asked.map((call) => call.variables), [
+      { openSuggestionKey: "reference-links#suggested", sortDirection: "DESC", limit: 50, nextToken: null },
+      { openSuggestionKey: "reference-links#suggested", sortDirection: "DESC", limit: 50, nextToken: "token-2" },
+    ]);
+    assert.equal([OPEN_SUGGESTION_KEY, SUGGESTION_PAGE_SIZE].join(), "reference-links#suggested,50");
+    assert.ok(SUGGESTED_LINKS_QUERY.includes("listSemanticRelationsByOpenSuggestionAndScore(openSuggestionKey: $openSuggestionKey") && !SUGGESTED_LINKS_QUERY.includes("filter"), "the index query, with no filter to run after the read");
+    assert.ok((await readSuggestionPage(async () => ({}), null, resolveAll)).suggestions.length === 0, "an empty queue is an empty page");
 
     // In the feed: ranked by close match, never skipped for confidence, decided state follows the visit's decisions.
     const items = linkSuggestionItems([...first.suggestions, ...second.suggestions], new Map([[first.suggestions[0].relationId, { choice: "reject" as const, note: "Different harbour." }]]));

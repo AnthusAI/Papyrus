@@ -10,6 +10,8 @@ export const SYMMETRIC_PREDICATES: readonly string[] = [RELATED_TO];
 export const LINK_DECISIONS = { accept: "accepted", reject: "rejected" } as const;
 const DECIDABLE_KINDS: readonly string[] = [REFERENCE_LINK_KIND, REFERENCE_CONCEPT_KIND, ITEM_CONCEPT_KIND];
 const STATE_FOR_DECISION = { accepted: "current", rejected: "rejected" } as const;
+/** The Needs me queue's index holds a row only while it is an open suggestion (fields set by src/papyrus_content/reference_links.py). Deciding or confirming a link takes it out. */
+const CLEARED_OPEN_SUGGESTION = { openSuggestionKey: null, openSuggestionScore: null } as const;
 
 const RELATION_TYPE_FIELDS: Record<string, { relationTypeId: string; relationTypeKey: string; relationDomain: string }> = {
   related_to: { relationTypeId: "semantic-relation-type-related-to", relationTypeKey: "related_to", relationDomain: "generic" },
@@ -133,6 +135,8 @@ export function buildHumanEdgeRow(input: { relationId: string; kind: string; pre
     importedAt: input.now,
     updatedAt: input.now,
     newsroomFeedKey: REFERENCE_LINK_FEED_KEY,
+    // A confirmed link leaves the suggestion index at once. A new row has nothing to clear, so it carries no index fields.
+    ...(input.existing ? CLEARED_OPEN_SUGGESTION : {}),
     metadata: JSON.stringify(metadata),
   };
 }
@@ -205,6 +209,7 @@ export async function decideReferenceLink(
       id: input.relationId,
       relationState: state,
       ...referenceLinkStateKeysFromParts(String(row.subjectKind), String(row.subjectLineageId), String(row.objectKind), String(row.objectLineageId), String(row.predicate), state),
+      ...CLEARED_OPEN_SUGGESTION,
       reviewRecommended: false,
       updatedAt: input.now,
       metadata: JSON.stringify(metadata),

@@ -12,6 +12,7 @@ predicate stays for text that enrichment extracted.
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
 from .ids import hash_short
@@ -33,6 +34,10 @@ ITEM_CONCEPT_KIND = "item.concept"
 REFERENCE_LINK_FEED_KEY = "reference-links"
 STATE_FOR_PROVENANCE = {"human": "current", "derived": "current", "suggested": "suggested"}
 STATE_FOR_DECISION = {"accepted": "current", "rejected": "rejected"}
+# The sparse index that serves the Needs me queue (docs/reference-link-suggestion-index.md): a row is in it only while it is an open
+# suggestion. The partition value is constant, the sort value is the row's close match, and a row with none sorts last.
+OPEN_SUGGESTION_KEY = f"{REFERENCE_LINK_FEED_KEY}#suggested"
+NO_SCORE_SORT_VALUE = -2.0
 
 
 def reference_link_relation_id(predicate: str, first_lineage_id: str, second_lineage_id: str) -> str:
@@ -48,6 +53,16 @@ def _state_keys(subject_kind: str, subject_lineage_id: str, object_kind: str, ob
         "objectSubjectStateKey": f"{object_state_key}#{subject_kind}",
         "predicateObjectStateKey": f"{predicate}#{object_state_key}",
     }
+
+
+def open_suggestion_fields(state: str, score: float | None) -> dict[str, Any]:
+    """The two index fields of a row in ``state``: set while it is a suggestion, null (so out of the index) otherwise.
+
+    A cosine similarity is never below -1, so a row without a usable ``score`` sorts under every scored row at ``NO_SCORE_SORT_VALUE``."""
+    if state != "suggested":
+        return {"openSuggestionKey": None, "openSuggestionScore": None}
+    usable = isinstance(score, (int, float)) and not isinstance(score, bool) and math.isfinite(score)
+    return {"openSuggestionKey": OPEN_SUGGESTION_KEY, "openSuggestionScore": float(score) if usable else NO_SCORE_SORT_VALUE}
 
 
 def _stored_metadata(row: dict[str, Any] | None) -> dict[str, Any]:
@@ -135,6 +150,9 @@ def _write_edge(
         "newsroomFeedKey": REFERENCE_LINK_FEED_KEY,
         "metadata": json.dumps(metadata, sort_keys=True),
     }
+    # A new row that is not a suggestion carries no index fields; an existing row that stops being one has them cleared.
+    if state == "suggested" or existing is not None:
+        record.update(open_suggestion_fields(state, score))
     outcome = client.upsert("SemanticRelation", record)
     return {"relationId": relation_id, "relationState": state, "outcome": outcome}
 
@@ -305,6 +323,7 @@ def decide(
             "id": relation_id,
             "relationState": state,
             **_state_keys(row["subjectKind"], row["subjectLineageId"], row["objectKind"], row["objectLineageId"], row["predicate"], state),
+            **open_suggestion_fields(state, None),
             "reviewRecommended": False,
             "updatedAt": now,
             "metadata": json.dumps(metadata, sort_keys=True),

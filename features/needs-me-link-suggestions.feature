@@ -4,7 +4,11 @@ Feature: Link suggestions wait in "What needs me", ranked most likely first, so 
   may Accept or Reject, and every answer, with its optional reason, teaches the site's Cyclotron. Deciding one at a time from the
   Related section of each Reference meant nobody reviewed them, so they are now also items in the Needs me feed. Each suggestion is a
   card of the type "Link suggestion" and the Links pill counts them. They are ranked by the close match the index recorded, 0.91 before
-  0.84, and a suggestion with no close match comes last. The index records no probability, so a suggestion has no prediction and is never
+  0.84, and a suggestion with no close match comes last. That ranking is the server's and covers every open suggestion, not just the
+  few that were read last: each open suggestion sits in a sparse index sorted by its close match, a page is one request to that
+  index, and the cursor it returns is the cursor to the next page, so the most likely suggestion in the whole queue is always first
+  and nothing is read on, filtered or re-ranked in the browser. A suggestion an editor has decided leaves that index in the same
+  write, so it never comes back. The index records no probability, so a suggestion has no prediction and is never
   decided automatically; it always waits for a person. Only the first page is read when the editor arrives, and a "Load more link
   suggestions" button reads the next, so thousands of suggestions are never loaded at once. A card opens the same detail pane as any
   Needs me item. Its body shows the two References side by side on a wide pane, one above the other on a phone, each with its title,
@@ -20,6 +24,13 @@ Feature: Link suggestions wait in "What needs me", ranked most likely first, so 
     Then each suggestion is a card of the type "Link suggestion" with Accept and Reject, ordered by close match from 0.91 down
     And the header says how many link suggestions are waiting and the other pills leave them out
     And nothing scrolls sideways, there are no drop-downs and every icon is a Lucide icon
+
+  Scenario: The queue is read from the open-suggestion index, one request per page, in the server's order
+    Given a stand-in suggestion index that returns two pages of open suggestions already in order of close match
+    When the Needs me queue reads its first page and then the page after it
+    Then each page is one request to the open-suggestion index, asking for the highest close match first, carrying the cursor the last page returned
+    And the suggestions keep the order the index gave and one whose References cannot be shown is left out rather than shown as an id
+    And nothing is read on, filtered or re-ranked in the browser, and an empty index is an empty queue
 
   Scenario: Only a page of suggestions is read at a time
     Given an isolated Needs me feed with four suggested links read two at a time
