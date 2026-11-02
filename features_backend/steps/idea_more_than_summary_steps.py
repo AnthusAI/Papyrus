@@ -283,7 +283,7 @@ def step_memory_broken(context):
 # --- the run -----------------------------------------------------------------------------------------------------------------------
 
 
-def run_ideas(context, *, dry_run=False):
+def run_ideas(context, *, dry_run=False, **options):
     state = held(context)
     client = client_of(context)
     state.runs.append(None)
@@ -291,7 +291,7 @@ def run_ideas(context, *, dry_run=False):
         run = monitor_stories.draft_monitor_stories(
             client=client, site="example-site", context=site_context(), json_store=None, transport=state.model, idea_store=FakeIdeaStore(client), review_client=client,
             limit=state.limit, dry_run=dry_run, now=NOW, fetch=lambda url: None if url in state.unreadable else PAGE, knowledge=knowledge_of(context),
-            ordered_candidates=[row_of(context, state.only)["lineageId"]] if state.only else None, retry_memory=state.memory,
+            ordered_candidates=[row_of(context, state.only)["lineageId"]] if state.only else None, retry_memory=state.memory, **options,
         )
     state.runs[-1] = run
     return run
@@ -300,6 +300,16 @@ def run_ideas(context, *, dry_run=False):
 @when("the run drafts ideas")
 def step_run(context):
     run_ideas(context)
+
+
+@when("the run drafts ideas with no time left")
+def step_no_time(context):
+    run_ideas(context, out_of_time=lambda: True)
+
+
+@when("the run drafts ideas while the suggested links are still being written")
+def step_suggestions_waiting(context):
+    run_ideas(context, suggestions_waiting=True)
 
 
 @when("the run drafts ideas as a dry run")
@@ -447,6 +457,16 @@ def step_flag_words(context, first, second):
 def step_acknowledged(context):
     [flag] = flags(context)
     assert flag["state"] == "answered" and flag["answer"]["decision"] == "acknowledge" and "flowing again" in flag["answer"]["feedback"], flag
+
+
+@then("the run was stopped by time")
+def step_stopped_by_time(context):
+    assert last(context)["stoppedBy"] == "time", last(context)["stoppedBy"]
+
+
+@then("the run was not stopped")
+def step_not_stopped(context):
+    assert last(context)["stoppedBy"] is None, last(context)["stoppedBy"]
 
 
 @then("no flag is raised")

@@ -19,14 +19,18 @@ vector, or, where this role has no ``s3vectors:DeleteVectors``, is re-marked ``c
 fails is reported as a warning and deletes nothing. Only the editors' internal knowledge query returns them (docs/internal-knowledge-research.md).
 
 The only bounds are the run's time and its cost meter: embedding cost (text-embedding-3-small, from the characters embedded) is added to the model
-spend of the publication's run. "Since the last pass" is a watermark, the newest acceptance time the pass completed, which the router keeps in its
-own table next to its other per-publication state. A pass that is stopped or fails leaves the watermark where it was, so the next pass takes up the
-same References (already-written vectors are skipped by key).
+spend of the publication's run. "Since the last pass" is a watermark, which the router keeps in its own table next to its other per-publication state. A pass that
+finishes writes the newest acceptance time as a plain timestamp. A pass the time or cost stopped keeps what it finished: once the index sync has completed, the
+suggestions go through the References accepted first (the ones drafting needs), then the pending ones, each group oldest first, and the pass writes a cursor per
+group (a JSON object of ``timestamp#id`` positions) after the last Reference it finished, so the next pass takes up where this one stopped and a huge first pass
+drains over a few runs. A pass whose index sync stopped or failed leaves the watermark where it was (the vectors already written are skipped by key). The result
+says how much is left (``suggestionsRemaining``).
 
 Without ``vectorIndexArn`` in the publication's ``monitorStories`` the pass does nothing and says why, and packs run without vectors.
 """
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -40,7 +44,7 @@ INDEXED_STATUSES = ("accepted", "pending")
 WATERMARK_SORT_KEY_PREFIX = "STATE#vectorSync#"
 WRITTEN_OUTCOMES = ("created", "updated")
 EMPTY_RESULT = {"indexed": 0, "conceptCardsWritten": 0, "linkExplanationsWritten": 0, "suggestionsWritten": 0, "suggestionsSkippedReason": None, "indexSkippedReason": None,
-                "costUsd": 0.0, "stoppedBy": None, "newlyAccepted": 0, "newlyPending": 0}
+                "costUsd": 0.0, "stoppedBy": None, "newlyAccepted": 0, "newlyPending": 0, "suggestionsRemaining": 0}
 
 
 def watermark_sort_key(publication_id: str) -> str:
@@ -109,23 +113,55 @@ def vector_provider_for(policy: dict[str, Any], provider_for: Callable[..., Any]
         return None
 
 
-def references_since(client: Any, publication: dict[str, Any], watermark: str | None) -> list[dict[str, Any]]:
-    """The publication's accepted and pending References whose status changed (or that arrived) after the watermark (all of them when there is none),
-    oldest first. A pending Reference accepted later changes its ``curationStatusUpdatedAt`` and so comes round again as accepted; a rejected one is not
-    listed (``index_reference_passages`` removes its vectors on every sync, from the whole Reference list, not from this one)."""
-    def changed_at(row: dict[str, Any]) -> str:
-        return str(row.get("curationStatusUpdatedAt") or row.get("updatedAt") or row.get("createdAt") or "")
+def _changed_at(row: dict[str, Any]) -> str:
+    return str(row.get("curationStatusUpdatedAt") or row.get("updatedAt") or row.get("createdAt") or "")
 
+
+def _status_of(row: dict[str, Any]) -> str:
+    pending = row.get("curationStatus") == "pending" or str(row.get("curationStatusKey") or "").endswith("#pending")
+    return "pending" if pending else "accepted"
+
+
+def _position(row: dict[str, Any]) -> str:
+    """A Reference's place in the order a pass walks: ``timestamp#id`` (a bulk import gives many References one timestamp, so the id breaks the tie)."""
+    return f"{_changed_at(row)}#{row['id']}"
+
+
+def parse_watermark(value: str | None) -> dict[str, str]:
+    """The cursor of each status from the stored watermark: a plain timestamp (a finished pass, and every watermark written before cursors existed) is
+    the cursor of both; a JSON object holds one position per status. Anything unreadable is no cursor (the pass starts over; vectors already written are skipped)."""
+    if not value:
+        return {}
+    if value.startswith("{"):
+        try:
+            loaded = json.loads(value)
+        except ValueError:
+            return {}
+        return {status: str(loaded[status]) for status in INDEXED_STATUSES if isinstance(loaded, dict) and loaded.get(status)}
+    return {status: value for status in INDEXED_STATUSES}
+
+
+def _after(row: dict[str, Any], cursor: str | None) -> bool:
+    if not cursor:
+        return True
+    if "#" in cursor:
+        stamp, identifier = cursor.split("#", 1)
+        return (_changed_at(row), str(row["id"])) > (stamp, identifier)
+    return _changed_at(row) > cursor
+
+
+def references_since(client: Any, publication: dict[str, Any], watermark: str | None) -> list[dict[str, Any]]:
+    """The publication's accepted and pending References whose status changed (or that arrived) after the watermark (all of them when there is none): the
+    accepted ones first, then the pending ones, each oldest first (drafting needs the accepted ones' suggestions, so they come first). A pending Reference
+    accepted later changes its ``curationStatusUpdatedAt`` and so comes round again as accepted; a rejected one is not listed (``index_reference_passages``
+    removes its vectors on every sync, from the whole Reference list, not from this one)."""
+    cursors = parse_watermark(watermark)
     found: dict[str, dict[str, Any]] = {}
     for status in INDEXED_STATUSES:
         for row in client.list_by_index(ACCEPTED_INDEX, f"{publication['corpusId']}#{status}"):
-            if row.get("id") and row.get("versionState", "current") == "current" and (not watermark or changed_at(row) > watermark):
+            if row.get("id") and row.get("versionState", "current") == "current" and _after(row, cursors.get(status)):
                 found[str(row["id"])] = row
-    return sorted(found.values(), key=changed_at)
-
-
-def _changed_at(row: dict[str, Any]) -> str:
-    return str(row.get("curationStatusUpdatedAt") or row.get("updatedAt") or row.get("createdAt") or "")
+    return sorted(found.values(), key=lambda row: (_status_of(row) == "pending", _changed_at(row), str(row["id"])))
 
 
 def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, Any], *, now: datetime, out_of_time: Callable[[], bool],
@@ -150,8 +186,9 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
     except Exception as error:  # noqa: BLE001
         reason = f"could not read the accepted and pending References ({type(error).__name__}: {str(error)[:160]})"
         return {**result, "indexSkippedReason": reason, "suggestionsSkippedReason": reason}
-    result["newlyPending"] = sum(1 for row in newly if row.get("curationStatus") == "pending" or str(row.get("curationStatusKey") or "").endswith("#pending"))
+    result["newlyPending"] = sum(1 for row in newly if _status_of(row) == "pending")
     result["newlyAccepted"] = len(newly) - result["newlyPending"]
+    result["suggestionsRemaining"] = len(newly)
     bucket = policy.get("storageBucketName")
     indexing_ok = False
     if not embedding_key:
@@ -161,20 +198,37 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
     else:
         indexing_ok = _sync_index(publication, policy, newly, result, services_for=services_for, indexer=indexer, embedding_key=embedding_key,
                                   out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd)
+    done = 0   # how many of `newly` the pass got through
     if not (policy.get("suggestions") or {}).get("enabled", True):
         result["suggestionsSkippedReason"] = "suggestions are off in the publication's monitorStories"
+        done = len(newly) if indexing_ok else 0
     elif result["stoppedBy"]:
         result["suggestionsSkippedReason"] = f"stopped by {result['stoppedBy']} while indexing"
     else:
-        _suggest(client, publication, arn, newly, result, now=now, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd, suggester=suggester,
-                 provider_for=provider_for, calibration_loader=calibration_loader)
-    if newly and indexing_ok and not result["stoppedBy"] and not result.get("suggestionsError"):
-        try:
-            write_watermark(max(_changed_at(row) for row in newly))
-        except Exception as error:  # noqa: BLE001
-            result["watermarkError"] = f"{type(error).__name__}: {str(error)[:160]}"
+        done = _suggest(client, publication, arn, newly, result, now=now, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd, suggester=suggester,
+                        provider_for=provider_for, calibration_loader=calibration_loader)
+    result["suggestionsRemaining"] = len(newly) - done
+    if newly and indexing_ok and not result.get("suggestionsError"):
+        # The index is complete for everything in `newly`; the watermark moves over the References the pass got through (all of them when it finished).
+        value = max(_changed_at(row) for row in newly) if done == len(newly) else _cursor_after(newly[:done], read_watermark_value=watermark)
+        if value:
+            try:
+                write_watermark(value)
+            except Exception as error:  # noqa: BLE001
+                result["watermarkError"] = f"{type(error).__name__}: {str(error)[:160]}"
     result["costUsd"] = round(result["costUsd"], 6)
     return result
+
+
+def _cursor_after(finished: list[dict[str, Any]], *, read_watermark_value: str | None) -> str | None:
+    """The watermark after a pass that got through ``finished`` (a prefix of the order it walks) and no further: one position per status, the last finished
+    Reference of that status, else the cursor it had. None when nothing was finished (the watermark stays)."""
+    if not finished:
+        return None
+    cursors = parse_watermark(read_watermark_value)
+    for row in finished:   # in walking order, so the last of each status wins
+        cursors[_status_of(row)] = _position(row)
+    return json.dumps(cursors, sort_keys=True)
 
 
 def _sync_index(publication: dict[str, Any], policy: dict[str, Any], newly: list[dict[str, Any]], result: dict[str, Any], *, services_for: Callable[..., Any],
@@ -208,7 +262,9 @@ def _sync_index(publication: dict[str, Any], policy: dict[str, Any], newly: list
 
 def _suggest(client: Any, publication: dict[str, Any], arn: str, newly: list[dict[str, Any]], result: dict[str, Any], *, now: datetime,
              out_of_time: Callable[[], bool], maximum_cost_usd: float, suggester: Callable[..., dict] | None, provider_for: Callable[..., Any] | None,
-             calibration_loader: Callable[[Any], Any] | None) -> None:
+             calibration_loader: Callable[[Any], Any] | None) -> int:
+    """Suggests for each Reference of ``newly`` in order until the time or the cost stops it; returns how many it got through (a Reference that fails or
+    has no vector is passed over, as it always was)."""
     from papyrus_knowledge_query.services import S3VectorsProvider
 
     from . import reference_suggestions, suggestion_calibration
@@ -220,10 +276,11 @@ def _suggest(client: Any, publication: dict[str, Any], arn: str, newly: list[dic
     except Exception as error:  # noqa: BLE001
         result["suggestionsSkippedReason"] = f"suggestions could not start ({type(error).__name__}: {str(error)[:160]})"
         result["suggestionsError"] = True
-        return
+        return 0
     timestamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     missing_vector = 0
     failures = 0
+    done = 0
     for row in newly:
         if out_of_time():
             result["stoppedBy"] = "time"
@@ -231,6 +288,7 @@ def _suggest(client: Any, publication: dict[str, Any], arn: str, newly: list[dic
         if result["costUsd"] >= maximum_cost_usd:
             result["stoppedBy"] = "cost"
             break
+        done += 1
         try:
             outcome = suggest(client, provider, str(row["id"]), corpus_id=publication["corpusId"], calibration=calibration, now=timestamp)
         except Exception:  # noqa: BLE001 - one Reference that fails does not stop the rest
@@ -244,3 +302,4 @@ def _suggest(client: Any, publication: dict[str, Any], arn: str, newly: list[dic
         result["suggestionsFailed"] = failures
     if missing_vector:
         result["suggestionsWithoutVector"] = missing_vector
+    return done

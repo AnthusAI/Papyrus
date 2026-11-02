@@ -25,7 +25,7 @@ def state(context):
 
 
 def reset(context):
-    context.vector = SimpleNamespace(policy={}, watermark=tv.Watermark(), rows=[], pass_=tv.Pass(), out_of_time=lambda: False, result=None, line=None, order=[], table=None)
+    context.vector = SimpleNamespace(policy={}, watermark=tv.Watermark(), rows=[], pending=[], pass_=tv.Pass(), out_of_time=lambda: False, result=None, line=None, order=[], table=None)
     tv.vectors.s3vectors_client_missing_reason = lambda region_name=None: None
 
 
@@ -62,10 +62,38 @@ def step_references_accepted(context, times):
     state(context).rows = [tv.accepted(number, stamp) for number, stamp in enumerate(stamps, start=1)]
 
 
+@given('a pending Reference with id "{identifier}" changed at "{stamp}"')
+def step_pending_reference(context, identifier, stamp):
+    state(context).pending.append({**tv.accepted(0, stamp), "id": identifier, "lineageId": f"lineage-{identifier}", "curationStatus": "pending"})
+
+
+@given('a publication whose watermark is a cursor after "{identifier}"')
+def step_cursor_watermark(context, identifier):
+    import json
+
+    reset(context)
+    state(context).watermark = tv.Watermark(json.dumps({"accepted": f"2026-10-30T10:00:00Z#{identifier}", "pending": "2026-10-29T12:00:00Z"}))
+
+
+def time_for(context, suggestions):
+    ticks = iter([False] * (1 + suggestions))   # one look by the index sync, then one before each suggestion; then the time is gone
+    state(context).out_of_time = lambda: next(ticks, True)
+
+
+@given("the time lasts for the index sync and {count:d} suggestion")
+def step_time_one(context, count):
+    time_for(context, count)
+
+
+@given("the time lasts for the index sync and {count:d} suggestions")
+def step_time_many(context, count):
+    time_for(context, count)
+
+
 @when("the vector pass runs")
 def step_run_pass(context):
     current = state(context)
-    current.result = tv.run_pass(tv.AcceptedClient(current.rows), current.pass_, current.watermark, policy=current.policy, out_of_time=current.out_of_time)
+    current.result = tv.run_pass(tv.AcceptedClient(current.rows, current.pending), current.pass_, current.watermark, policy=current.policy, out_of_time=current.out_of_time)
 
 
 @then("the index is synced for the {count:d} References accepted after the watermark before any suggestion is made")
@@ -83,6 +111,46 @@ def step_suggested(context, count):
 @then('the watermark is now "{value}"')
 def step_watermark(context, value):
     assert state(context).watermark.value == value, state(context).watermark.value
+
+
+@then("suggestions are made for {identifiers} only")
+def step_suggested_only(context, identifiers):
+    import re
+
+    wanted = re.findall(r'"([^"]+)"', identifiers)
+    assert state(context).pass_.order == ["index", *[f"suggest:{identifier}" for identifier in wanted]], state(context).pass_.order
+
+
+@then('suggestions are made in the order {identifiers}')
+def step_suggested_order(context, identifiers):
+    import re
+
+    wanted = re.findall(r'"([^"]+)"', identifiers)
+    assert state(context).pass_.order == ["index", *[f"suggest:{identifier}" for identifier in wanted]], state(context).pass_.order
+
+
+@then("{count:d} suggestions are left")
+def step_left_many(context, count):
+    assert state(context).result["suggestionsRemaining"] == count, state(context).result
+
+
+@then("{count:d} suggestion is left")
+def step_left_one(context, count):
+    assert state(context).result["suggestionsRemaining"] == count, state(context).result
+
+
+@then("no suggestions are left")
+def step_left_none(context):
+    assert state(context).result["suggestionsRemaining"] == 0, state(context).result
+
+
+@then('the watermark is a cursor after "{identifier}"')
+def step_cursor(context, identifier):
+    import json
+
+    cursors = json.loads(state(context).watermark.value)
+    assert cursors["accepted"].endswith(f"#{identifier}"), cursors
+    assert cursors["pending"] == "2026-10-29T12:00:00Z", cursors   # the pending References were not reached: their cursor stays where it was
 
 
 @then("the index is synced for the concept cards only")
@@ -138,6 +206,11 @@ def step_router_references(context):
     context.vector.rows = [tv.accepted(1, "2026-10-30T10:00:00Z")]
 
 
+@given("the vector pass's share of the time is already spent")
+def step_share_spent(context):
+    state(context).drafter_options = {"vector_out_of_time": lambda: True}
+
+
 def run_router_task(context):
     from _pytest.monkeypatch import MonkeyPatch
 
@@ -153,7 +226,7 @@ def run_router_task(context):
         table, store = tv.router_with(current.policy)
         _, client = world(2)
         current.table = table
-        current.result, current.line, _ = tv.run_task(store, client, current.order, patches, accepted_rows=current.rows)
+        current.result, current.line, _ = tv.run_task(store, client, current.order, patches, accepted_rows=current.rows, drafter_options=getattr(current, 'drafter_options', None))
     finally:
         patches.undo()
 
@@ -184,6 +257,63 @@ def step_router_runs(context):
         current.line = lines[tv.tms.PUBLICATION]
     finally:
         patches.undo()
+
+
+@then("the steps ran in the order index sync, drafting, index sync, suggestions")
+def step_order_after(context):
+    assert state(context).order == ["index", "drafting", "index", "suggest"], state(context).order
+
+
+@then("the log line says {count:d} suggestions written and no suggestions left")
+def step_log_written_none_left(context, count):
+    line = state(context).line
+    assert line["suggestionsWritten"] == count and not line.get("suggestionsRemaining"), line
+
+
+@then("the log line shows no raised curation flag")
+def step_no_flag_line(context):
+    assert state(context).line["curationFlag"] != "raised", state(context).line
+
+
+@given("the router has {seconds:d} seconds left when a publication starts")
+def step_budget_given(context, seconds):
+    reset(context)
+    state(context).seconds = seconds
+
+
+@when("the router runs its daily monitor stories with a fake drafter")
+def step_budget_run(context):
+    from _pytest.monkeypatch import MonkeyPatch
+
+    from test_monitor_stories import StoryModel
+
+    current = state(context)
+    remaining = [current.seconds]
+    seen = {}
+
+    def drafter(client, publication, **options):
+        seen.update(options)
+        return {"publicationId": publication["publicationId"], "status": "complete", "stoppedBy": None, "drafted": 0}
+
+    patches = MonkeyPatch()
+    try:
+        patches.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
+        _, store = tv.router_with(dict(tv.tms.SINGLE_ITEM_ONLY))
+        _, client = world(1)
+        endpoints = {tv.tr.ENDPOINT.replace("abc123", "api0"): client}
+        tv.run_router(store, "hn", now=tv.NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint], deliver=tv.tr.Delivery(),
+                      time_left=lambda: remaining[0], story_transport=StoryModel(), story_drafter=drafter)
+    finally:
+        patches.undo()
+    current.checks = lambda left: (remaining.__setitem__(0, left), seen["out_of_time"](), seen["vector_out_of_time"]())[1:]
+
+
+@then("drafting is out of time at {drafting:d} seconds left and the vector pass at {vectors:d} seconds left")
+def step_budget_then(context, drafting, vectors):
+    check = state(context).checks
+    assert check(vectors + 1) == (False, False)   # plenty of time: neither is over
+    assert check(vectors - 1) == (False, True)   # between the two limits only the vector pass is over: the drafting still has its half
+    assert check(drafting - 1) == (True, True)   # below the drafting limit both are over
 
 
 @then("the steps ran in the order index sync, suggestions, drafting")

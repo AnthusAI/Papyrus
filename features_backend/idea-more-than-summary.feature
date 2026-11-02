@@ -289,6 +289,25 @@ Feature: An idea is more than a summary of its Reference
     Then one flag is open in the Notification Center
     And the flag says "No ideas today: no accepted References are waiting to be written about."
 
+  Scenario: A run that got through all its candidates and filed nothing is not a stopped run, and still raises the flag
+    Given the accepted Reference "A tool that checks claims" that no editor has said anything about
+    When the run drafts ideas
+    Then the run was not stopped
+    And one flag is open in the Notification Center
+
+  Scenario: A run that ran out of time before it got through its candidates raises no flag
+    Given the accepted Reference "A tool that checks claims" that no editor has said anything about
+    And the accepted Reference "A tool that checks quotations" that no editor has said anything about
+    When the run drafts ideas with no time left
+    Then the run was stopped by time
+    And the run files nothing
+    And no flag is raised
+
+  Scenario: A run that files nothing while the suggested links it would connect from are still being written raises no flag
+    Given the accepted Reference "A tool that checks claims" that no editor has said anything about
+    When the run drafts ideas while the suggested links are still being written
+    Then no flag is raised
+
   Scenario: A dry run raises no flag and the Reference is not marked drafted
     Given the accepted Reference "A tool that checks claims" that no editor has said anything about
     When the run drafts ideas as a dry run

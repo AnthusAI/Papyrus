@@ -621,6 +621,7 @@ def draft_monitor_stories(
     signal_run: Any = None,
     knowledge: connection_rules.Knowledge | None = None,
     retry_memory: retry_rules.RetryMemory | None = None,
+    suggestions_waiting: bool = False,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing.
 
@@ -637,6 +638,9 @@ def draft_monitor_stories(
     looks again), and a run that files nothing raises one curation flag (``review.settle_curation_flag``). A draft that passes the citation rules still has to pass
     ``point_check.judge`` (a model judge that fails closed), for a pack idea as well as a single item. ``knowledge`` is what the run knows about the Reference
     (tests and the replay pass their own).
+
+    ``stoppedBy`` ``time`` or ``cost`` means the candidates were not all looked at, and ``suggestions_waiting`` that the router has not yet written the
+    suggested links the connections come from: either way a run that filed nothing says nothing about curation, so it raises no curation flag.
 
     ``retry_memory`` (``ideas/retry_memory.py``) remembers what was rejected and against which connections: a Reference or pack whose draft was rejected is
     skipped (``already_rejected``) until the newsroom has a connection for it that the rejection was not made against, a new comment, link, explanation, related
@@ -657,7 +661,7 @@ def draft_monitor_stories(
         "duplicateCut": cut.record(),
         "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model, "minimumStandard": connection_rules.MORE_THAN_SUMMARY,
         "store": "dry-run" if dry_run else (idea_store.kind if idea_store else "json"), "dryRun": dry_run, "private": True,
-        "window": {"since": since, "until": iso(moment)}, "limit": limit, "stoppedBy": None,
+        "window": {"since": since, "until": iso(moment)}, "limit": limit, "stoppedBy": None, "suggestionsWaiting": suggestions_waiting,
         "excludedSourceHosts": list(normalize_hosts(excluded_hosts)), "statuses": list(dict.fromkeys(statuses)),
     }
     stored = [idea for idea in (json_store.ideas() if json_store else []) if idea.get("origin") == "monitor"]

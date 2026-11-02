@@ -203,12 +203,12 @@ def row(number, status, at):
     return {"id": f"ref-{number}", "lineageId": f"lineage-{number}", "versionState": "current", "curationStatus": status, "curationStatusUpdatedAt": at}
 
 
-def test_the_router_picks_up_accepted_and_pending_references_after_the_watermark_oldest_first_and_never_rejected_ones():
+def test_the_router_picks_up_accepted_and_pending_references_after_the_watermark_accepted_first_then_oldest_first_and_never_rejected_ones():
     client = ByStatusClient([row(1, "accepted", "2026-10-30T10:00:00Z")], [row(2, "pending", "2026-10-29T10:00:00Z"), row(3, "pending", "2026-10-25T10:00:00Z")])
     found = vectors.references_since(client, {"corpusId": "c"}, "2026-10-26T00:00:00Z")
-    assert [r["id"] for r in found] == ["ref-2", "ref-1"]
+    assert [r["id"] for r in found] == ["ref-1", "ref-2"]   # the accepted one first (drafting needs its suggestions), then the pending ones, oldest first
     assert client.asked == ["c#accepted", "c#pending"]
-    assert [r["id"] for r in vectors.references_since(client, {"corpusId": "c"}, None)] == ["ref-3", "ref-2", "ref-1"]
+    assert [r["id"] for r in vectors.references_since(client, {"corpusId": "c"}, None)] == ["ref-1", "ref-3", "ref-2"]
 
 
 def test_a_pending_reference_accepted_since_the_last_pass_comes_round_again_as_accepted():
