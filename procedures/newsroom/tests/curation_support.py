@@ -63,8 +63,20 @@ TEI = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
+def deployed_model_fields(model: str) -> frozenset[str]:
+    """The fields the site API's input type accepts for ``model``: the model's block in amplify/data/schema.ts (the schema sites deploy)."""
+    import re
+    from pathlib import Path
+    source = (Path(__file__).resolve().parents[3] / "amplify" / "data" / "schema.ts").read_text()
+    start = re.search(rf"^  {model}: (?:a\.model|realtimeModel)\(", source, re.M)
+    block = source[start.start():]
+    block = block[:block.index(".secondaryIndexes")] if ".secondaryIndexes" in block else block
+    return frozenset(["id", *re.findall(r"^\s{6}(\w+): a\.", block, re.M)])
+
+
 class MemoryClient:
-    """Reference and ReferenceAttachment tables in memory, with the calls curation makes."""
+    """Reference and ReferenceAttachment tables in memory, with the calls curation makes. A Reference update with a field the deployed schema
+    does not define fails here as it fails against AppSync (a ``metadata`` write once broke curation in production)."""
 
     def __init__(self, references=()):
         self.tables = {"Reference": {r["id"]: copy.deepcopy(r) for r in references}, "ReferenceAttachment": {}, "ModelAttachment": {}}
@@ -83,6 +95,9 @@ class MemoryClient:
         return "created"
 
     def update_record(self, model, row):
+        if model == "Reference":
+            unknown = set(row) - deployed_model_fields("Reference")
+            assert not unknown, f"UpdateReferenceInput has no field {sorted(unknown)}"
         self.writes += 1
         self.tables[model][row["id"]].update(copy.deepcopy(row))
 
