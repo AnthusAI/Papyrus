@@ -8,12 +8,14 @@ stage (``--store items``, the default; ``--store json`` keeps them as local file
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from ..graphql_authoring import create_authoring_client
+from ..machine_writes import run_id_from_environment
 from ..options import normalize_string, parse_options
 from .excluded_hosts import normalize_hosts
 from ..papyrus_config import resolve_openai_api_key
@@ -133,7 +135,7 @@ def _idea_store(name: str, client: Any):
     if name == ITEMS:
         from .gate import HumanusGate
 
-        return ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=HumanusGate.for_site())
+        return ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=HumanusGate.for_site(), run_id=run_id_from_environment(os.environ))
     return None
 
 

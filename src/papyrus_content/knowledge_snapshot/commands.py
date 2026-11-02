@@ -913,8 +913,22 @@ def knowledge_runs(flags: list[str]) -> None:
     runs(flags)
 
 
+def knowledge_run_undo(flags: list[str]) -> None:
+    from ..knowledge_cloud.undo import knowledge_run_undo as undo  # noqa: PLC0415
+
+    undo(flags)
+
+
+def knowledge_run_restore(flags: list[str]) -> None:
+    from ..knowledge_cloud.undo import knowledge_run_restore as restore  # noqa: PLC0415
+
+    restore(flags)
+
+
 KNOWLEDGE_COMMANDS = {
     "cloud-run": knowledge_cloud_run,
+    "run-undo": knowledge_run_undo,
+    "run-restore": knowledge_run_restore,
     "runs": knowledge_runs,
     "corpus-export": knowledge_corpus_export,
     "publish-run": knowledge_publish_run,

@@ -20,6 +20,7 @@ from ..knowledge_snapshot.builder import _aliases, _public_keys
 from ..knowledge_snapshot.keys import contains_email, slug
 from ..knowledge_snapshot.model import LINK_MONITOR, Beat, KnowledgeData
 from ..knowledge_snapshot.publish_run import json_object
+from ..machine_writes import RETIRED_STAGE, machine_write
 from ..publishing import ItemFields, item_id_for, published_item_id_for, save_item, unpublish_item
 from ..story_reporting import save_story_version
 from ..wiki_stamp import WIKI_PAGE_ITEM_TYPE
@@ -134,6 +135,8 @@ def _plan_page(
     if not rows:
         return PagePlan(CREATE, section, spec, lineage_id, None, text)
     working = working_version(rows)
+    if working.get("stage") == RETIRED_STAGE:  # an undo (or a person) retired it: the sync does not bring it back
+        return PagePlan(UNCHANGED, section, spec, lineage_id, working["id"], text, "retired; left down")
     same = comparable(front_matter_of(working)) == comparable(spec.front_matter) and (working.get("bodyMarkus") or "") == spec.body
     if same:
         return PagePlan(UNCHANGED, section, spec, lineage_id, working["id"], text)
@@ -300,8 +303,8 @@ def plan_sync(
             label = f"{section}/{working.get('slug')}"
             if not retire:
                 warnings.append(f"{label}: no longer generated; left as it is (pass --retire to take it down)")
-            elif front.get(RETIRED_KEY) is True and lineage_id not in published_sources:
-                continue  # retired by an earlier run and still down
+            elif (front.get(RETIRED_KEY) is True or working.get("stage") == RETIRED_STAGE) and lineage_id not in published_sources:
+                continue  # retired by an earlier run, or by an undo, and still down
             else:
                 retired.append(
                     RetirePlan(section, str(working.get("slug") or ""), lineage_id, working["id"], published_sources.get(lineage_id), front_matter_yaml({**front, RETIRED_KEY: True}))
@@ -309,10 +312,14 @@ def plan_sync(
     return SyncPlan(tuple(pages), tuple(warnings), tuple(retired))
 
 
-def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = None) -> dict[str, int]:
+WRITER = "knowledge-wiki-sync"
+
+
+def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = None, run_id: str | None = None) -> dict[str, int]:
     """Write the plan. Creates and updates save drafts; a revision is a new draft version beside the live page.
-    Nothing is published."""
+    Nothing is published. With a ``run_id`` every Item written records the run (``machine_writes.py``), so the run can be undone."""
     written: dict[str, int] = defaultdict(int)
+    stamp = machine_write(run_id, WRITER)
     for page in plan.pages:
         if page.action == UNCHANGED:
             continue
@@ -320,7 +327,7 @@ def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = Non
         if page.action == REVISE:
             save_story_version(
                 client, page.lineage_id, front_matter_yaml=page.front_matter_yaml, body_markus=spec.body, actor=actor,
-                change_reason=f"wiki-sync: {spec.kind} text changed", now=now,
+                change_reason=f"wiki-sync: {spec.kind} text changed", now=now, machine_write=stamp,
             )
         else:
             existing = client.get_record("Item", page.item_id) if page.item_id else None
@@ -329,7 +336,7 @@ def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = Non
                 ItemFields(
                     type=WIKI_PAGE_ITEM_TYPE, slug=(existing or {}).get("slug") or spec.slug, section=page.section,
                     front_matter_yaml=page.front_matter_yaml, body_markus=spec.body,
-                    aliases=list((existing or {}).get("aliases") or []), id=page.item_id or page.lineage_id,
+                    aliases=list((existing or {}).get("aliases") or []), id=page.item_id or page.lineage_id, machine_write=stamp,
                 ),
                 actor=actor, now=now,
             )
@@ -342,7 +349,7 @@ def apply_plan(client: Any, plan: SyncPlan, *, actor: str, now: str | None = Non
             client,
             ItemFields(
                 type=WIKI_PAGE_ITEM_TYPE, slug=existing.get("slug") or page.slug, section=page.section, front_matter_yaml=page.front_matter_yaml,
-                body_markus=existing.get("bodyMarkus") or "", aliases=list(existing.get("aliases") or []), id=page.item_id,
+                body_markus=existing.get("bodyMarkus") or "", aliases=list(existing.get("aliases") or []), id=page.item_id, machine_write=stamp,
             ),
             actor=actor, now=now,
         )

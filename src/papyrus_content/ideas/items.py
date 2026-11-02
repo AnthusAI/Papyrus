@@ -18,6 +18,7 @@ from typing import Any
 import yaml
 
 from ..ids import hash_short
+from ..machine_writes import machine_write
 from ..publishing import ItemFields, item_id_for, save_item, utc_now_iso
 from ..record_helpers import slugify
 from ..section_ids import match_section
@@ -121,7 +122,7 @@ def item_id_for_idea(draft: dict[str, Any]) -> str:
 
 def file_idea_item(
     client: Any, draft: dict[str, Any], *, actor: str = DEFAULT_ACTOR, now: str | None = None, source_text_reader: SourceTextReader | None = None,
-    extra_generated: dict[str, Any] | None = None, gate: Gate | None = None,
+    extra_generated: dict[str, Any] | None = None, gate: Gate | None = None, run_id: str | None = None,
 ) -> dict[str, Any]:
     """Saves a generated idea as an Item at the idea stage and links the References it cites ``based_on``. Returns ``itemId``, ``lineageId``,
     ``created`` and ``linked``. A body that copies a cited Reference's text raises ``StoryCopiedFromReference`` before anything is written.
@@ -173,7 +174,7 @@ def file_idea_item(
         save_item(
             client,
             ItemFields(type="article", slug=slugify(title)[:80].strip("-") or item_id, section=section, front_matter_yaml=yaml.safe_dump(front, sort_keys=False, allow_unicode=True, width=1000),
-                       body_markus=body, aliases=[], id=item_id, overrides={"stage": IDEA_STAGE}),
+                       body_markus=body, aliases=[], id=item_id, overrides={"stage": IDEA_STAGE}, machine_write=machine_write(run_id, "idea-pipeline")),
             actor=actor, now=now,
         )
         existing = client.get_record("Item", item_id)
@@ -207,15 +208,16 @@ class ItemStore:
     kind = KIND
 
     def __init__(self, client: Any, *, actor: str = DEFAULT_ACTOR, source_text_reader: SourceTextReader | None = None, legacy: Callable[[], list[dict[str, Any]]] | None = None,
-                 gate: Gate | None = None) -> None:
+                 gate: Gate | None = None, run_id: str | None = None) -> None:
         self.client = client
         self.gate = gate
+        self.run_id = run_id  # the knowledge run, when one is filing: recorded on each idea Item (machine_writes.py)
         self.actor = actor
         self.source_text_reader = source_text_reader
         self.legacy = legacy
 
     def file_story_draft(self, draft: dict[str, Any]) -> str:
-        result = file_idea_item(self.client, draft, actor=self.actor, source_text_reader=self.source_text_reader, gate=self.gate)
+        result = file_idea_item(self.client, draft, actor=self.actor, source_text_reader=self.source_text_reader, gate=self.gate, run_id=self.run_id)
         if result["check"] is not None:
             draft["editorialCheck"] = result["check"]
         return result["lineageId"]

@@ -22,6 +22,7 @@ import json
 from typing import Any, Callable
 
 from .content_item_lifecycle import CONTENT_ITEM_STAGES, require_content_item_stage
+from .machine_writes import apply_stamp
 from .ids import hash_short, safe_id
 from .publishing import (
     ItemFields,
@@ -157,6 +158,7 @@ def save_story_version(
     now: str | None = None,
     stage: str | None = None,
     media_rows: Callable[[str], list[dict[str, Any]]] | None = None,
+    machine_write: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Records the next draft version of a story and marks the previous latest version superseded.
 
@@ -186,6 +188,7 @@ def save_story_version(
                 columns[key] = carried
     metadata = json.loads(latest.get("metadata") or "{}") if isinstance(latest.get("metadata"), str) else dict(latest.get("metadata") or {})
     metadata["frontMatterYaml"] = fields.front_matter_yaml
+    apply_stamp(metadata, machine_write, created=False, now=now)
     record = {
         **_without_server_fields(latest),
         **compact_dict(columns),
