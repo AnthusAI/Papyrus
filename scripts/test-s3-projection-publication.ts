@@ -402,7 +402,7 @@ const exampleEdgeArn = "arn:aws:cloudfront::111122223333:distribution/EEXAMPLE12
 const fromEnvironment = resolveSitePublication({ publication: explicitPublication }, "markus", { PAPYRUS_EDGE_DISTRIBUTION_ARN: exampleEdgeArn });
 assert.equal(fromEnvironment?.edgeDistributionArn, exampleEdgeArn, "the variable supplies the ARN");
 assert.equal(fromEnvironment?.projector, "web/projector.py", "the rest of the publication is kept");
-assert.equal(explicitPublication.edgeDistributionArn, undefined, "the configured object is not mutated");
+assert.equal("edgeDistributionArn" in explicitPublication, false, "the configured object is not mutated");
 assert.equal(resolveSitePublication({ publication: { ...explicitPublication, edgeDistributionArn: edgeArn } }, "markus", { PAPYRUS_EDGE_DISTRIBUTION_ARN: exampleEdgeArn })?.edgeDistributionArn, exampleEdgeArn, "the variable wins over the literal");
 assert.equal(resolveSitePublication({ publication: { ...explicitPublication, edgeDistributionArn: edgeArn } }, "markus", {})?.edgeDistributionArn, edgeArn, "the literal still works");
 assert.equal(resolveSitePublication({ publication: { ...explicitPublication, edgeDistributionArn: edgeArn } }, "markus", { PAPYRUS_EDGE_DISTRIBUTION_ARN: "  " })?.edgeDistributionArn, edgeArn, "a blank variable is ignored");
