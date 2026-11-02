@@ -10,9 +10,17 @@
   "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6c29f9a3-e5b8-4a28-995e-8721fc0fe629",
+      "author": "home",
+      "text": "Add: re-send an item the source refused (clear final, new attempt, back to collected). Done by hand for 3 web-anth-us items on 2026-11-02 after a Cyclotron contention bug. reopen_stale_finals in monitoring_router.py is the precedent.",
+      "created_at": "2026-11-02T21:13:11.514545Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-02T16:37:20.275168Z",
-  "updated_at": "2026-11-02T16:37:20.275197Z",
+  "updated_at": "2026-11-02T21:13:11.514773Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
