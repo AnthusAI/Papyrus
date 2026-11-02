@@ -1,0 +1,20 @@
+{
+  "id": "PPY-73f55700-b747-46f8-8931-44d5791fdb61",
+  "title": "Story agent: reads everything, makes new variations when asked",
+  "description": "One high-level conversation per Story on the existing story_conversation MessageThread (anchor item#lineage), editors posting as today and the agent replying with authorKind AI. Pi-based, Chatticus-compatible shape. Tools: read the Story, its variations and the thread, search the knowledge base, offer a requested variation that records requestMessageId and basedOnVariationIds. Start with a spike on where it runs.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T13:41:30.855015Z",
+  "updated_at": "2026-11-02T13:41:30.855045Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

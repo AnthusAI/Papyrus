@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9e7a4ad9-b486-4f21-b105-f6bf0c02d9d1",
+  "title": "Variations side by side in the Story detail",
+  "description": "Each variation leads with its point and the things it connects to. Accept or Reject with a reason box, no dropdowns, Lucide icons, full screen on a phone. Accepting carries the wording onto the Story as a new version. Ryan reviews screenshots before merge.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T13:41:30.760230Z",
+  "updated_at": "2026-11-02T13:41:30.760279Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
