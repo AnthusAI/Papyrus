@@ -11,6 +11,8 @@
  *                      not about ideas                               subject story's title and excerpt
  *   flag               an open flag                                  reads the review request
  *   held_email         an email submission held for review           reads the monitoring email summary (subject, sender, verdicts)
+ *   link_suggestion    a vector-suggested link between two          reads the suggested relation (its two ends and close match);
+ *                      References, or a Reference and a concept     ranked by the close match, most likely first
  *   concept_proposal   a proposed taxonomy concept or reader         STUB: typed, returns nothing until those sources reach the page
  *                      proposal
  */
@@ -24,6 +26,8 @@ import { dekAddsInformation, referenceDek, referenceSourceHost, type ReferencePr
 import { referenceArrivalTime, referenceDisplayTime } from "./reference-feed-ranking";
 import type { CaptureStatus } from "./reference-capture";
 import type { RelevanceDecisionView } from "./relevance-decisions";
+import { closeMatchText, type RelatedItem } from "./reference-links";
+import type { LinkSuggestion } from "./link-suggestions";
 import { ideaIdsOf, ideasBoardHref, nextText, type ReviewRequest } from "./review-requests";
 import { predictionOf, uncertaintyOf, type NeedsMeCounts, type NeedsMeDecisionState, type NeedsMeItem } from "./needs-me-ranking";
 
@@ -32,7 +36,8 @@ export type NeedsMePayload =
   | { kind: "ideas"; request: ReviewRequest; ideas: IdeaListing[]; boardHref: string }
   | { kind: "request"; request: ReviewRequest; storyTitle: string | null; excerpt: string | null; storyDeleted: boolean }
   | { kind: "email"; summary: MonitoringEmailSummary }
-  | { kind: "concept"; row: ConceptProposalRow };
+  | { kind: "concept"; row: ConceptProposalRow }
+  | { kind: "link"; suggestion: LinkSuggestion; note: string | null };
 
 /** One idea of a batch, as the card lists it: its title (the id until the title is read) and the stage it is in. */
 export type IdeaListing = { id: string; title: string; stage: string | null; href: string };
@@ -234,6 +239,45 @@ export function heldEmailItems(summaries: readonly MonitoringEmailSummary[], dec
   return items;
 }
 
+// --- link suggestions --------------------------------------------------------------------------------------------
+
+/** What a link end is called on a card: a Reference by its title, a concept by its hashtag. */
+export function linkEndName(item: RelatedItem): string {
+  return item.kind === "concept" ? item.hashtag ?? item.title : item.title;
+}
+
+export type LinkDecision = { choice: "accept" | "reject"; note: string };
+
+/**
+ * Suggested links, as items. They are ranked by their close match (the importance), most likely first; the vector index records no
+ * probability, so there is no prediction and a suggestion is never decided automatically. A suggestion decided in this visit keeps its
+ * place showing the answer, like a rated Reference.
+ */
+export function linkSuggestionItems(suggestions: readonly LinkSuggestion[], decided: ReadonlyMap<string, LinkDecision>): NeedsMeEntry[] {
+  return suggestions.map((suggestion) => {
+    const made = decided.get(suggestion.relationId);
+    const match = closeMatchText(suggestion.similarity);
+    const concept = suggestion.object.kind === "concept";
+    return {
+      type: "link_suggestion",
+      id: `link#${suggestion.relationId}`,
+      title: `${linkEndName(suggestion.subject)} and ${linkEndName(suggestion.object)}`,
+      dek: `${concept ? "A Reference and a concept" : "Two References"} that look like they belong together${match ? `: ${match}` : ""}.`,
+      image: null,
+      source: "Suggested link",
+      host: suggestion.subject.host,
+      createdAt: timeOf(suggestion.createdAt),
+      importance: suggestion.similarity ?? 0,
+      uncertainty: uncertaintyOf(undefined),
+      decisionState: choiceState(made?.choice),
+      defaultOutcome: "If you leave it, the link is not made and the suggestion keeps waiting.",
+      hardGate: false,
+      askedForReview: true,
+      payload: { kind: "link", suggestion, note: made?.note ?? null },
+    } satisfies NeedsMeEntry;
+  });
+}
+
 // --- stubs ---------------------------------------------------------------------------------------------------------
 
 /** A proposed taxonomy concept or a reader's proposal. Not on the page yet: the source is typed so the adapter has a place to land. */
@@ -258,6 +302,9 @@ export type NeedsMeSources = ReferenceSources & {
   emails: readonly MonitoringEmailSummary[];
   emailsDecided: ReadonlyMap<string, "accept" | "reject">;
   concepts?: readonly ConceptProposalRow[];
+  /** The suggested links read so far (a page at a time), and the ones decided in this visit by relation id. */
+  linkSuggestions?: readonly LinkSuggestion[];
+  linksDecided?: ReadonlyMap<string, LinkDecision>;
 };
 
 /** Every source, as one list of items (unordered: `rankNeedsMe` orders it). */
@@ -271,6 +318,7 @@ export function buildNeedsMeItems(sources: NeedsMeSources): NeedsMeEntry[] {
     ...fromRequests.reviews.map((item) => requestItem(item, context)),
     ...fromRequests.flags.map((item) => requestItem(item, context)),
     ...heldEmailItems(sources.emails, sources.emailsDecided),
+    ...linkSuggestionItems(sources.linkSuggestions ?? [], sources.linksDecided ?? new Map()),
     ...conceptProposalItems(sources.concepts ?? []),
   ];
 }
@@ -287,6 +335,7 @@ export function waitingTextFor(counts: NeedsMeCounts): string {
     counts.stories ? plural(counts.stories, "story review") : null,
     counts.email ? plural(counts.email, "held email", "held emails") : null,
     counts.captures ? plural(counts.captures, "capture to check", "captures to check") : null,
+    counts.links ? plural(counts.links, "link suggestion") : null,
     counts.other ? plural(counts.other, "other item") : null,
   ].filter((part): part is string => part !== null);
   if (!parts.length) return "All caught up";

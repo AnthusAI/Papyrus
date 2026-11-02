@@ -2,13 +2,13 @@
 
 import {
   CheckIcon, ChevronDownIcon, CircleCheckBigIcon, CircleCheckIcon, CircleXIcon, ClipboardCheckIcon, FileWarningIcon, FlagIcon, InfoIcon, LayoutPanelLeftIcon, LightbulbIcon,
-  Loader2Icon, LockIcon, MailIcon, NewspaperIcon, SlidersHorizontalIcon, Undo2Icon, type LucideIcon,
+  LinkIcon, Loader2Icon, LockIcon, MailIcon, NewspaperIcon, SlidersHorizontalIcon, Undo2Icon, type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { FULL_SCREEN_SHEET, FULL_SCREEN_SHEET_HEADER, Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { ReferenceAttachmentRecord } from "../lib/category-repository";
 import type { MonitoringEmailDetails } from "../lib/monitoring-overview";
@@ -39,9 +39,9 @@ import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 export type NeedsMeDecision = { choice: ReviewChoice; reasonCode: ReferenceRejectionReasonCode | null; why: string; notThisKind: boolean };
 
 const TYPE_ICON: Record<NeedsMeType, LucideIcon> = {
-  reference: NewspaperIcon, idea_batch: LightbulbIcon, stage_review: ClipboardCheckIcon, held_email: MailIcon, incomplete_capture: FileWarningIcon, concept_proposal: LightbulbIcon, flag: FlagIcon,
+  reference: NewspaperIcon, idea_batch: LightbulbIcon, stage_review: ClipboardCheckIcon, held_email: MailIcon, incomplete_capture: FileWarningIcon, concept_proposal: LightbulbIcon, flag: FlagIcon, link_suggestion: LinkIcon,
 };
-const TYPE_HUE: Record<NeedsMeType, number> = { reference: 215, idea_batch: 150, stage_review: 270, held_email: 25, incomplete_capture: 45, concept_proposal: 330, flag: 190 };
+const TYPE_HUE: Record<NeedsMeType, number> = { reference: 215, idea_batch: 150, stage_review: 270, held_email: 25, incomplete_capture: 45, concept_proposal: 330, flag: 190, link_suggestion: 100 };
 
 function cardPrediction(item: NeedsMeEntry, predictionLoading: boolean): CardPrediction {
   if (item.payload.kind === "reference" && item.payload.decision) return predictionFromDecision(item.payload.decision);
@@ -278,6 +278,10 @@ export type NeedsMeViewProps = {
   /** Changes only the Why of an item that is already decided (a review request, a held email). Throws a sentence when it cannot. */
   onEditReason?: (item: NeedsMeEntry, why: string) => Promise<void>;
   onOpened?: (item: NeedsMeEntry) => void;
+  /** More suggested links wait to be read; `onLoadMoreLinks` reads the next page. */
+  moreLinks?: boolean;
+  loadingMoreLinks?: boolean;
+  onLoadMoreLinks?: () => Promise<void> | void;
   loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
   /** Other sections of the page (open assignments, sections). They scroll inside the feed, below the cards, so the feed and the detail keep the viewport's full height. */
   below?: ReactNode;
@@ -291,6 +295,7 @@ function Note({ children, ...rest }: { children: ReactNode } & Record<string, un
 export function NeedsMeView({
   loadState, entries, threshold, now, shaping, recent, legacyAuto = [], settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
   referenceDisabledReason = null, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onOpened, loadEmail, below,
+  moreLinks = false, loadingMoreLinks = false, onLoadMoreLinks,
 }: NeedsMeViewProps) {
   const themeMode = useResolvedPapyrusTheme();
   const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
@@ -315,6 +320,11 @@ export function NeedsMeView({
   if (!snapshot.current && settled && entries.length > 0) snapshot.current = takeNeedsMeSnapshot(live);
   const placed = snapshot.current ? applyNeedsMeSnapshot(snapshot.current, live) : { feed: live.feed, auto: live.auto, newCount: 0 };
   const showNewItems = () => { snapshot.current = takeNeedsMeSnapshot(live); bumpOrder((count) => count + 1); };
+  // Asking for more link suggestions is asking to see them: the page that arrives is placed at once instead of waiting behind the pill.
+  const revealNew = useRef(false);
+  useEffect(() => {
+    if (revealNew.current && placed.newCount > 0) { revealNew.current = false; showNewItems(); }
+  });
 
   const byId = useMemo(() => new Map(entries.map((item) => [item.id, item])), [entries]);
   const latest = useRef({ byId, extras });
@@ -500,6 +510,20 @@ export function NeedsMeView({
                 />
               ))}
             </div>
+            {moreLinks && (filter === "all" || filter === "links") ? (
+              <div className="mt-4 flex justify-center">
+                <button
+                  className={cn(PILL, "min-h-11 bg-[var(--feed-card)] px-5 text-sm font-medium text-foreground")}
+                  data-needs-me-more-links
+                  disabled={loadingMoreLinks}
+                  onClick={() => { revealNew.current = true; void onLoadMoreLinks?.(); }}
+                  type="button"
+                >
+                  {loadingMoreLinks ? <Loader2Icon aria-hidden="true" className="size-4 animate-spin" /> : <LinkIcon aria-hidden="true" className="size-4" />}
+                  {loadingMoreLinks ? "Reading…" : "Load more link suggestions"}
+                </button>
+              </div>
+            ) : null}
             {!nothing && visible.length === 0 && !referencesLoading ? <Note data-filter-empty>Nothing in {NEEDS_ME_FILTER_LABELS[filter]} needs you right now.</Note> : null}
           </section>
         )}
@@ -568,14 +592,18 @@ export function NeedsMeView({
 
       {isMobile ? (
         <Sheet onOpenChange={(open) => { if (!open) closeDetail(); else setSheetOpen(true); }} open={(sheetOpen && Boolean(selected)) || caughtUp}>
-          <SheetContent className="gap-0 rounded-t-[length:var(--feed-radius-xl)] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" initialFocus={false} side="bottom" {...themeAttributes}>
-            <SheetHeader className="px-4 py-3"><SheetTitle className="text-left text-base">{selected ? NEEDS_ME_TYPE_LABELS[selected.type] : "Detail"}</SheetTitle></SheetHeader>
+          {/* A phone's detail is its own full screen: header at the top, the body filling the space and scrolling, Previous / Next pinned at the bottom, the notch and home bar respected. */}
+          <SheetContent
+            className={cn(FULL_SCREEN_SHEET, "grid-rows-[auto_minmax(0,1fr)_auto] bg-[var(--feed-card)] pb-0")}
+            data-feed-flat="" data-feed-surface="" data-needs-me-sheet="fullscreen" initialFocus={false} side="bottom" {...themeAttributes}
+          >
+            <SheetHeader className={FULL_SCREEN_SHEET_HEADER}><SheetTitle className="text-left text-base">{selected ? NEEDS_ME_TYPE_LABELS[selected.type] : "Detail"}</SheetTitle></SheetHeader>
             {selected ? (
-              <div className="min-w-0" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>
-                <ScrollArea className="max-h-[70dvh]"><div key={selected.id}>{detailBody(selected)}</div></ScrollArea>
+              <div className="min-h-0 min-w-0" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>
+                <ScrollArea className="h-full" data-needs-me-sheet-body><div key={selected.id}>{detailBody(selected)}</div></ScrollArea>
               </div>
-            ) : caughtUp ? caughtUpPanel : null}
-            {queueBar}
+            ) : caughtUp ? <div className="min-h-0 overflow-y-auto">{caughtUpPanel}</div> : <div />}
+            {queueBar ? <div className="bg-[var(--feed-card)] pb-[env(safe-area-inset-bottom)]" data-needs-me-sheet-footer>{queueBar}</div> : null}
           </SheetContent>
         </Sheet>
       ) : null}

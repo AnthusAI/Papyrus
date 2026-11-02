@@ -1,0 +1,20 @@
+{
+  "id": "PPY-4380f46d-32d5-4cda-a58a-c76e67a5a2cf",
+  "title": "Rank link suggestions most likely first across all of them (index on SemanticRelation)",
+  "description": "",
+  "type": "sub-task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-41134cac-0ca4-4ba0-9ad2-67a7a22aa859",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T05:28:00.938339Z",
+  "updated_at": "2026-11-02T05:28:00.938368Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

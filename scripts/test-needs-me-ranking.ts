@@ -105,7 +105,7 @@ assert.deepEqual(ids(swapped.feed), ["b", "a"]);
 const everything: NeedsMeItem[] = [
   item("1", "reference"), item("2", "reference", { decisionState: "accepted" }), item("3", "idea_batch"), item("4", "stage_review"), item("5", "held_email"), item("6", "incomplete_capture"), item("7", "flag"), item("8", "concept_proposal"),
 ];
-assert.deepEqual(countNeedsMe(everything), { all: 7, references: 1, ideas: 1, stories: 1, email: 1, captures: 1, other: 2 });
+assert.deepEqual(countNeedsMe(everything), { all: 7, references: 1, ideas: 1, stories: 1, email: 1, captures: 1, links: 0, other: 2 });
 assert.deepEqual(everything.filter((entry) => matchesFilter(entry, "other")).map((entry) => entry.id), ["7", "8"]);
 assert.equal(waitingTextFor(countNeedsMe(everything)), "1 idea batch, 1 reference, 1 story review, 1 held email, 1 capture to check and 2 other items waiting for you");
 assert.equal(waitingTextFor(countNeedsMe([])), "All caught up");

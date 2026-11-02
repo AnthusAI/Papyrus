@@ -41,3 +41,18 @@ export function localPreviewReferenceLinks(): MemoryLink[] {
     { id: "preview-link-6", subjectKind: "reference", subjectLineageId: "preview-reference-lineage-2", objectKind: "semanticNode", objectLineageId: "preview-concept-voice-cloning", state: "current", provenance: "human" },
   ];
 }
+
+/** The Needs me preview's suggested links: between References, and from a Reference to a concept, with close matches to rank by. */
+export function localPreviewLinkSuggestions(): MemoryLink[] {
+  const suggested = (id: string, subject: string, object: string, objectKind: MemoryLink["objectKind"], similarity: number): MemoryLink => ({
+    id, subjectKind: "reference", subjectLineageId: subject, objectKind, objectLineageId: object, state: "suggested", provenance: "suggested", similarity,
+  });
+  return [
+    suggested("preview-suggestion-1", "preview-reference-lineage-1", "preview-reference-lineage-4", "reference", 0.91),
+    suggested("preview-suggestion-2", "preview-reference-lineage-3", "preview-concept-voice-cloning", "semanticNode", 0.84),
+    suggested("preview-suggestion-3", "preview-reference-lineage-2", "preview-reference-lineage-3", "reference", 0.72),
+    suggested("preview-suggestion-4", "preview-reference-lineage-4", "preview-concept-translation", "semanticNode", 0.66),
+  ];
+}
+
+export const localPreviewLinkSuggestionItems = localPreviewReferenceLinkItems;

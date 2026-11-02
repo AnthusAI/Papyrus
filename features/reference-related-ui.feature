@@ -9,7 +9,11 @@ Feature: Editors see and manage what a Reference is related to
   more button asks for more suggestions, and where the site has no knowledge index it says "Suggestions need the knowledge index"
   while confirmed links and typed hashtags still work. On a concept page, "Linked by editors" lists the References people linked,
   each with both dates, with the same box to link another. Every mark has a word beside it, nothing is a drop-down, and there are no
-  borders. These scenarios use synthetic data in an isolated browser at 375 and 1440 pixels and never touch production.
+  borders. The same Related section is on the References page: opening an accepted Reference there shows its concepts, links and
+  suggestions between the review card's content and the messages. When Suggest more has nothing to suggest it says so in plain
+  words ("Suggestions appear once this Reference has a summary.") and never shows an internal reason; a reason it does not know gets
+  "No suggestions could be made for this Reference yet.", and any other failure says "Suggestions could not be made right now. Try
+  again in a moment." These scenarios use synthetic data in an isolated browser at 375 and 1440 pixels and never touch production.
 
   Scenario: Concepts and References show with words beside every mark
     Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
@@ -74,3 +78,22 @@ Feature: Editors see and manage what a Reference is related to
     When the editor looks at the Related section at 375 and 1440 pixels
     Then there are no borders or outlines and no drop-downs
     And nothing scrolls sideways
+
+  Scenario: The References page detail shows the Related section with its suggestions
+    Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
+    When the editor opens that Reference on the References page at 390 and 1440 pixels in the light and dark themes
+    Then the detail shows the Related section with its suggestions and the Accept and Reject buttons
+    And the Related section comes before the messages and Reference cards link to their own detail
+
+  Scenario: A viewer sees the Related section but cannot change links
+    Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
+    When a viewer without editor access opens that Reference on the References page
+    Then the section says "Editor access is required to change links."
+    And Suggest more and the add box are disabled
+
+  Scenario: Suggest more explains an empty result in plain words
+    Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
+    When the editor presses Suggest more and the site reports that the Reference has no summary vector, or a reason it does not know
+    Then the note says "Suggestions appear once this Reference has a summary." for the first
+    And the note says "No suggestions could be made for this Reference yet." for the unknown reason
+    And the note never contains internal wording

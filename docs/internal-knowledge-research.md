@@ -13,16 +13,60 @@ query shape, ranking, vector indexing, and output tuning.
 ## What counts as internal research
 
 - **Semantic search** over accepted references (S3 Vectors index, derived from
-  GraphQL + extracted text).
+  GraphQL + extracted text). The index also holds the summary vector of pending
+  References, as context for link suggestions only: the search filter always
+  asks for accepted References (or vectors that are not References) and drops a
+  pending match if one comes back, whatever `curationStatus` the request names.
 - **Anchored lookup** by `papyrus://` URI or explicit anchor ids (reference,
   category, assignment, semantic node, and other supported kinds).
 - **Graph expansion** along knowledge/ontology/classification/evidence relations
   (budgeted; operational/workflow edges stay out by default).
 - **Quality-aware ranking** from current `quality_rating_is` relations.
 
+- **Editors' explanations of links** (see below): the note an editor wrote on an
+  accepted Reference-to-Reference link or concept tag.
+
 Only **accepted** references are evidence-eligible. Pending prospects and web
 search hits are not internal knowledge until reference intake and curation
 accept them.
+
+## Editors' explanations of links
+
+When an editor accepts a link between two References, or tags a Reference with a
+concept, and writes why (`SemanticRelation` `metadata.note`, edge kinds
+`reference.link` and `reference.concept`; see
+[idea-context-packs.md](./idea-context-packs.md) section 2.2.1), that explanation
+is searchable meaning.
+
+- **Index.** One `link_explanation` vector per link whose state is `current`, whose
+  `metadata.decision` is `accepted` (or that a person made, provenance `human`),
+  that has a non-empty note and whose Reference ends are accepted. Key
+  `link_explanation-<relationId>`. Text: both ends' titles, the predicate and the
+  explanation. Metadata: `subjectLineageId`, `objectLineageId`, `relationId`,
+  `predicate`, `decidedBy`, `decidedAt`, `audience: editor`, `curationStatus:
+  accepted` (set on purpose: it passes the accepted-only filter and the
+  accepted-or-absent filter alike), `contentHash`. The vector's `contentHash` and
+  `curationStatus` are its watermark: the router's daily pass
+  (`monitoring_vectors.py`, through `index_reference_passages`) embeds a new or
+  edited explanation, skips an unchanged one, and removes the vector of a link
+  rejected or with its note cleared. The router's role has no
+  `s3vectors:DeleteVectors`, so there the vector is re-marked `curationStatus:
+  withdrawn` (the same AccessDenied fallback as for rejected References), which no
+  query returns; a role that may delete removes it on its next sync. A failed read
+  of the links is a warning in the sync stats and deletes nothing.
+- **Result.** `knowledgeQuery` returns a match as `structured.linkExplanations`
+  (attribution "Editor's explanation (<editor>)", the explanation, the predicate and
+  both ends with their `papyrus://reference/...` URIs) and as a `link_explanation`
+  evidence passage in the context text.
+- **Audience.** The explanation was written as an internal note. `knowledgeQuery`
+  has no public reader path today (AppSync authorises only the site's editors;
+  newsroom Tactus procedures, the CLI and the console are internal). To keep it so,
+  `scope.audience` is `editor` (the default) or `public`; any value but `editor`
+  excludes explanations in the metadata filter (`vectorKind != link_explanation`),
+  in the provider's post-filter, and in the engine. A future public reader feature
+  must send `audience: public` and an owner decision is needed before any
+  explanation reaches a public answer or page. Suggestions and idea-pack
+  neighbour queries filter by `vectorKind` and never read these vectors.
 
 ## Prerequisites
 

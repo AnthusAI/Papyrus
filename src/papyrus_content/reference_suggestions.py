@@ -5,6 +5,10 @@ See docs/idea-context-packs.md section 3.2. The Reference's own ``reference_summ
 filters. How many neighbours to keep is decided by the largest drop between consecutive similarities (the knee) unless a
 caller supplies a calibrated cut. Every kept neighbour is written as a ``suggested`` row; a person's earlier decision is never
 overwritten and a rejected neighbour is never offered again.
+
+The Reference being suggested for may be accepted or still pending: a pending Reference has a ``reference_summary`` vector too (context only, marked
+``curationStatus: pending``), and the Related section for it is filled from that vector. The neighbours are always accepted References: pending vectors are in
+the index but this module never queries them, so a pending Reference is never suggested as related to another.
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ SUGGESTION_ACTOR = "auto:vector"
 SUGGESTION_CLASSIFIER_ID = "vector:text-embedding-3-small"
 S3_VECTORS_MAX_TOP_K = 100
 REFERENCE_SUMMARY_VECTOR_KIND = "reference_summary"
+NEIGHBOUR_STATUS = "accepted"   # only accepted References are offered as neighbours; pending ones are indexed so they can be the query, never the answer
 CONCEPT_VECTOR_KINDS = ("concept_card", "ontology_concept_profile")
 EXCLUDED_RELATION_STATES = ("current", "rejected")
 
@@ -134,7 +139,7 @@ def suggest_for(
 
     reference_clauses: list[dict[str, Any]] = [
         {"vectorKind": {"$eq": REFERENCE_SUMMARY_VECTOR_KIND}},
-        {"curationStatus": {"$eq": "accepted"}},
+        {"curationStatus": {"$eq": NEIGHBOUR_STATUS}},
     ]
     if corpus:
         reference_clauses.append({"corpusId": {"$eq": corpus}})

@@ -534,8 +534,6 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     if style not in URL_STYLES:
         raise ValueError(f"urls.style must be one of {URL_STYLES}")
     base_path = _path_segment(str(urls.get("basePath") or ""), "urls.basePath")
-    if base_path and ("images" in raw or "media" in raw):
-        raise ValueError("urls.basePath does not work with images or media yet: their renditions are written at the bucket root")
     sections = []
     for section_name, entry in dict(urls.get("sections") or {}).items():
         entry = dict(entry or {})

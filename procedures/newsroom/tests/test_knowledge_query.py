@@ -865,6 +865,9 @@ def fake_services():
     return KnowledgeQueryServices(graph=FakeGraphProvider(), semantic=FakeSemanticProvider(), corpus_text=FakeCorpusTextProvider())
 
 
+ACCEPTED_OR_NOT_A_REFERENCE = {"$or": [{"curationStatus": {"$exists": False}}, {"curationStatus": {"$eq": "accepted"}}]}
+
+
 class KnowledgeQueryTests(unittest.TestCase):
     def test_vector_match_diversification_limits_repeated_reference_chunks(self):
         matches = [
@@ -922,11 +925,36 @@ class KnowledgeQueryTests(unittest.TestCase):
 
         self.assertEqual(metadata_filter, {
             "$and": [
+                ACCEPTED_OR_NOT_A_REFERENCE,
                 {"semanticLayer": {"$eq": "chat_detail"}},
                 {"searchVisibility": {"$eq": "explicit"}},
                 {"kind": {"$eq": "message"}},
             ]
         })
+
+    def test_s3_vector_filter_never_lets_a_pending_or_rejected_reference_through(self):
+        provider = S3VectorsProvider(vector_index_arn="arn:test:index")
+
+        for asked in (None, "accepted", "pending", "rejected"):
+            scope = {"corpusId": "c"} if asked is None else {"corpusId": "c", "curationStatus": asked}
+            clauses = provider._metadata_filter(scope)["$and"]
+            self.assertIn({"curationStatus": {"$eq": "accepted"}} if asked == "accepted" else ACCEPTED_OR_NOT_A_REFERENCE, clauses)
+            self.assertNotIn({"curationStatus": {"$eq": "pending"}}, clauses)
+            self.assertNotIn({"curationStatus": {"$eq": "rejected"}}, clauses)
+
+    def test_search_drops_a_pending_reference_that_comes_back_anyway(self):
+        provider = S3VectorsProvider(vector_index_arn="arn:test:index")
+        response = {"vectors": [
+            {"key": "a", "distance": 0.1, "metadata": {"kind": "reference", "id": "a", "curationStatus": "accepted"}},
+            {"key": "p", "distance": 0.05, "metadata": {"kind": "reference", "id": "p", "curationStatus": "pending"}},
+            {"key": "n", "distance": 0.2, "metadata": {"kind": "message", "id": "n"}},
+        ]}
+        client = mock.Mock()
+        client.query_vectors.return_value = response
+        with mock.patch.dict("sys.modules", {"boto3": mock.Mock(client=mock.Mock(return_value=client))}):
+            matches = provider._query_vectors([0.1], {}, 10)
+
+        self.assertEqual([match["id"] for match in matches], ["a", "n"])
 
     def test_quality_signal_reads_current_relation_score(self):
         signal, warning = quality_signal_from_relations([

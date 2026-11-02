@@ -48,6 +48,7 @@ import { ReferenceCapturePanel } from "./reference-capture-panel";
 import { useReferenceCapture, type CorrectCaptureAction } from "./reference-capture-client";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import { ReferenceConversation } from "./reference-conversation";
+import { RelatedSection } from "./related-section";
 import { useReferenceMessageCounts } from "./use-conversation";
 import { captureStatusesByLineage } from "../lib/reference-capture";
 import { buildFeedItems } from "../lib/reference-feed-ranking";
@@ -316,6 +317,7 @@ function ReferenceDetailPanel({
             </details>
           ) : null}
           {delegated ? <DelegatedCurationNote delegated={delegated} referenceLineageId={lineageId} /> : countsAsTrainingLabel ? <CountsAsTrainingLabelNote referenceLineageId={lineageId} /> : null}
+          <RelatedSection disabledReason={disabled ? "Editor access is required to change links." : null} hrefForReference={(related) => buildReferenceDetailPath(related, demo)} lineageId={lineageId} referenceId={reference.id} />
           <ReferenceConversation disabledReason={disabled ? "Editor access is required to write messages." : null} lineageId={lineageId} onCount={onMessageCount} referenceId={reference.id} title={referenceDisplayTitle(reference)} />
         </ReviewCard>
 

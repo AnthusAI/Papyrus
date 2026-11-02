@@ -303,6 +303,16 @@ class S3CorpusTextProvider:
         return self._client
 
 
+LINK_EXPLANATION_VECTOR_KIND = "link_explanation"   # papyrus_knowledge_query.vector_index.LINK_EXPLANATION_VECTOR_KIND
+EDITOR_AUDIENCE = "editor"
+
+
+def explanations_allowed(scope: dict[str, Any]) -> bool:
+    """An editor's explanation of a link is an internal note: only a request that is not for a public reader may be answered with one. ``scope.audience``
+    is ``editor`` (the default: ``knowledgeQuery`` is callable only by the site's editors); ``public``, or any other value, never gets one."""
+    return str(scope.get("audience") or "").strip().lower() in ("", EDITOR_AUDIENCE)
+
+
 @dataclass
 class S3VectorsProvider:
     """S3 Vectors-backed semantic provider.
@@ -329,6 +339,7 @@ class S3VectorsProvider:
                 + self._query_vectors(vector, scope, query_limit, vector_kind="reference_card")
                 + self._query_vectors(vector, scope, query_limit, vector_kind="note_source")
                 + self._query_vectors(vector, scope, query_limit, vector_kind="note_summary")
+                + (self._query_vectors(vector, scope, query_limit, vector_kind=LINK_EXPLANATION_VECTOR_KIND) if explanations_allowed(scope) else [])
             )
             passage_limit = min(query_limit, max(limit, 40))
             passage_matches = (
@@ -365,6 +376,10 @@ class S3VectorsProvider:
         matches = []
         for index, vector_match in enumerate(response.get("vectors") or response.get("matches") or []):
             metadata = vector_match.get("metadata") or {}
+            if metadata.get("curationStatus") not in (None, "accepted"):
+                continue   # defence in depth behind the filter: a pending or rejected Reference is never a search result
+            if metadata.get("vectorKind") == LINK_EXPLANATION_VECTOR_KIND and not explanations_allowed(scope):
+                continue   # defence in depth behind the filter: an editor's explanation is never a public reader's result
             matches.append(
                 {
                     "providerRank": index + 1,
@@ -431,10 +446,18 @@ class S3VectorsProvider:
 
     def _metadata_filter(self, scope: dict[str, Any], vector_kind: str | None = None) -> dict[str, Any] | None:
         clauses: list[dict[str, Any]] = []
-        for key in ("corpusId", "categorySetId", "classifierId", "curationStatus"):
+        for key in ("corpusId", "categorySetId", "classifierId"):
             value = scope.get(key)
             if isinstance(value, str) and value:
                 clauses.append({key: {"$eq": value}})
+        # Pending References are indexed as context for suggestions and packs only; no search ever returns one, whatever the scope asks for. Vectors that
+        # carry no curationStatus (notes, concepts, ontology) are not References and stay in.
+        if scope.get("curationStatus") == "accepted":
+            clauses.append({"curationStatus": {"$eq": "accepted"}})
+        else:
+            clauses.append({"$or": [{"curationStatus": {"$exists": False}}, {"curationStatus": {"$eq": "accepted"}}]})
+        if not explanations_allowed(scope):
+            clauses.append({"vectorKind": {"$ne": LINK_EXPLANATION_VECTOR_KIND}})
         if vector_kind:
             clauses.append({"vectorKind": {"$eq": vector_kind}})
         vector_kinds = scope.get("vectorKinds")

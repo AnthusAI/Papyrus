@@ -190,7 +190,7 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
     vectors = run_vector_pass(client, publication, policy, now=now, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd, embedding_key=embedding_key,
                               read_watermark=read_watermark, write_watermark=write_watermark)
     vector_line = {key: vectors[key] for key in ("indexed", "conceptCardsWritten", "suggestionsWritten", "suggestionsSkippedReason")}
-    for key in ("indexSkippedReason", "newlyAccepted", "suggestionsFailed", "suggestionsWithoutVector", "watermarkError"):
+    for key in ("indexSkippedReason", "newlyAccepted", "newlyPending", "suggestionsFailed", "suggestionsWithoutVector", "watermarkError"):
         if vectors.get(key):
             vector_line[key] = vectors[key]
     if not policy["contextPacks"]["enabled"] and not policy["singleItem"]:

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "97e5680d-cca6-45b8-8a41-4a783a6d6030",
+  "issue_id": "PPY-a9da0147-4d01-4368-ab85-6495f719978c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T05:28:00.641Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Explanations on links are visible and editable in the Related section",
+    "description": "",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-41134cac-0ca4-4ba0-9ad2-67a7a22aa859",
+    "labels": []
+  }
+}

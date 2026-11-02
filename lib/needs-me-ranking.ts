@@ -25,19 +25,19 @@ import { normalizeReferenceCurationStatus } from "./reference-policy";
 import type { RelevanceDecisionView } from "./relevance-decisions";
 import { acceptProbability } from "./reference-feed-ranking";
 
-export type NeedsMeType = "reference" | "idea_batch" | "stage_review" | "held_email" | "incomplete_capture" | "concept_proposal" | "flag";
+export type NeedsMeType = "reference" | "idea_batch" | "stage_review" | "held_email" | "incomplete_capture" | "concept_proposal" | "flag" | "link_suggestion";
 
-export const NEEDS_ME_TYPES: readonly NeedsMeType[] = ["reference", "idea_batch", "stage_review", "held_email", "incomplete_capture", "concept_proposal", "flag"];
+export const NEEDS_ME_TYPES: readonly NeedsMeType[] = ["reference", "idea_batch", "stage_review", "held_email", "incomplete_capture", "concept_proposal", "flag", "link_suggestion"];
 
 /** The pills above the feed. */
-export type NeedsMeFilter = "all" | "references" | "ideas" | "stories" | "email" | "captures" | "other";
-export const NEEDS_ME_FILTERS: readonly NeedsMeFilter[] = ["all", "references", "ideas", "stories", "email", "captures", "other"];
+export type NeedsMeFilter = "all" | "references" | "ideas" | "stories" | "email" | "captures" | "links" | "other";
+export const NEEDS_ME_FILTERS: readonly NeedsMeFilter[] = ["all", "references", "ideas", "stories", "email", "captures", "links", "other"];
 export const NEEDS_ME_FILTER_LABELS: Record<NeedsMeFilter, string> = {
-  all: "All", references: "References", ideas: "Ideas", stories: "Stories", email: "Email", captures: "Captures", other: "Other",
+  all: "All", references: "References", ideas: "Ideas", stories: "Stories", email: "Email", captures: "Captures", links: "Links", other: "Other",
 };
 
 const FILTER_OF: Record<NeedsMeType, Exclude<NeedsMeFilter, "all">> = {
-  reference: "references", idea_batch: "ideas", stage_review: "stories", held_email: "email", incomplete_capture: "captures", concept_proposal: "other", flag: "other",
+  reference: "references", idea_batch: "ideas", stage_review: "stories", held_email: "email", incomplete_capture: "captures", concept_proposal: "other", flag: "other", link_suggestion: "links",
 };
 
 export function filterOfType(type: NeedsMeType): Exclude<NeedsMeFilter, "all"> {
@@ -50,7 +50,7 @@ export function matchesFilter(item: Pick<NeedsMeItem, "type">, filter: NeedsMeFi
 
 /** The words for a type, used on the card and in the detail pane. */
 export const NEEDS_ME_TYPE_LABELS: Record<NeedsMeType, string> = {
-  reference: "Reference", idea_batch: "Ideas to review", stage_review: "Story review", held_email: "Held email", incomplete_capture: "Capture check", concept_proposal: "Concept proposal", flag: "For your information",
+  reference: "Reference", idea_batch: "Ideas to review", stage_review: "Story review", held_email: "Held email", incomplete_capture: "Capture check", concept_proposal: "Concept proposal", flag: "For your information", link_suggestion: "Link suggestion",
 };
 
 export type NeedsMePrediction = {
@@ -251,7 +251,7 @@ export type NeedsMeCounts = Record<NeedsMeFilter, number>;
 
 /** What waits for a person, by pill: only open items count. */
 export function countNeedsMe(items: readonly Pick<NeedsMeItem, "type" | "decisionState">[]): NeedsMeCounts {
-  const counts: NeedsMeCounts = { all: 0, references: 0, ideas: 0, stories: 0, email: 0, captures: 0, other: 0 };
+  const counts: NeedsMeCounts = { all: 0, references: 0, ideas: 0, stories: 0, email: 0, captures: 0, links: 0, other: 0 };
   for (const item of items) {
     if (item.decisionState !== "open") continue;
     counts.all += 1;

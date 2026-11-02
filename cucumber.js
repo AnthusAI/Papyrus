@@ -60,6 +60,11 @@ module.exports = {
     require: ["features/step_definitions/notification-center.steps.js"],
     format: ["summary"],
   },
+  needsMeLinks: {
+    paths: ["features/needs-me-link-suggestions.feature", "features/needs-me-phone-detail.feature"],
+    require: ["features/step_definitions/needs-me-links.steps.js"],
+    format: ["summary"],
+  },
   referenceFeed: {
     paths: ["features/newsroom-reference-feed.feature"],
     require: ["features/step_definitions/reference-feed.steps.js"],
