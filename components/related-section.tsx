@@ -3,7 +3,7 @@
 import { CheckIcon, HashIcon, LinkIcon, Loader2Icon, SparklesIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  KNOWLEDGE_INDEX_MISSING_TEXT, classifyAddInput, closeMatchText, isKnowledgeIndexMissing, publishedAddedText, relatedEdgeWords,
+  classifyAddInput, closeMatchText, publishedAddedText, relatedEdgeWords, suggestFailureText, suggestSkippedText,
   type RelatedEntry, type RelatedItem, type SuggestionLabel,
 } from "../lib/reference-links";
 import { cn } from "@/lib/utils";
@@ -15,8 +15,9 @@ import { AutoGrowTextarea } from "./ui/auto-grow-textarea";
 const LABEL = "font-[family-name:var(--font-sans)] text-[10px] font-extrabold tracking-[0.07em] uppercase";
 const TILE = "rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-control)]";
 
-function failureText(failure: unknown, fallback: string): string {
-  return failure instanceof Error && failure.message ? failure.message : fallback;
+/** Always the plain fallback: a backend or network message is internal wording and is never shown to an editor. */
+function failureText(_failure: unknown, fallback: string): string {
+  return fallback;
 }
 
 function useEntries(load: (() => Promise<RelatedEntry[]>) | null) {
@@ -147,7 +148,7 @@ function AddLinkBox({ disabled, mode, onPick, search }: {
       if (mine !== ticket.current) return;
       setResults([]);
       setSearched(true);
-      setMessage({ kind: "error", text: failureText(failure, "The search failed.") });
+      setMessage({ kind: "error", text: failureText(failure, "The search did not work. Try again.") });
     });
   }, [conceptsAllowed, parsed.mode, parsed.query]);
   const pick = async (item: RelatedItem) => {
@@ -242,10 +243,10 @@ export function RelatedSection({ disabledReason = null, hrefForReference, lineag
     try {
       const outcome = await store.suggest(referenceId ?? lineageId);
       setLabels(current => ({ ...current, ...outcome.labels }));
-      if (outcome.skipped) setSuggestNote(outcome.skipped);
+      if (outcome.skipped) setSuggestNote(suggestSkippedText(outcome.skipped));
       await reload();
     } catch (failure) {
-      setSuggestNote(isKnowledgeIndexMissing(failure) ? KNOWLEDGE_INDEX_MISSING_TEXT : failureText(failure, "Suggestions could not be made."));
+      setSuggestNote(suggestFailureText(failure));
     } finally {
       setSuggesting(false);
     }
