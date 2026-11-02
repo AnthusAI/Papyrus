@@ -10,9 +10,17 @@
   "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "cce3a460-5585-498a-869e-fdf255df2c65",
+      "author": "home",
+      "text": "Consultation and Ryan 11-02: no silent bot; forums are channels with no bot needed, on the Chatticus channel record (chatticus-e4f1f2). Do not start until that settles. Deletion is real (chatticus-c02220). Open chat is live (chatticus-02299d); forum lists, Messages page and home page may poll or lag. Needs an identity mapping for existing threads' authorSub, forum search, and author names and handles for the public home page.",
+      "created_at": "2026-11-02T16:32:18.576238Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-02T16:03:29.048160Z",
-  "updated_at": "2026-11-02T16:03:29.048200Z",
+  "updated_at": "2026-11-02T16:32:18.576499Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

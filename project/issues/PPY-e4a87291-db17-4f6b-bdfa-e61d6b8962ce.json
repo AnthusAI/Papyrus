@@ -24,10 +24,17 @@
       "text": "Correction to the earlier correction: Chatticus channels store participants, but createChannel takes one human and nothing adds another, so several people cannot yet share a channel. Gaps are now tracked in chatticus-4b2417 (6 tasks).",
       "created_at": "2026-11-02T15:33:57.367555Z",
       "comment_type": "default"
+    },
+    {
+      "id": "83cf528b-ceba-4666-a9db-1240039232d8",
+      "author": "home",
+      "text": "Stale note: the Papyrus pin db862e38 is now on Chatticus develop, since PR 650 merged.",
+      "created_at": "2026-11-02T16:32:18.787178Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-02T13:41:30.947780Z",
-  "updated_at": "2026-11-02T15:33:57.367832Z",
+  "updated_at": "2026-11-02T16:32:18.787439Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

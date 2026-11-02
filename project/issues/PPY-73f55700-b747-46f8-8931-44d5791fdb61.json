@@ -24,10 +24,17 @@
       "text": "Ryan 11-02: one newsroom bot plus a separate conversation per Story; the newsroom bot can see all of them. PR 650 merged into Chatticus develop after Ryan's approval. Chatticus work is epic chatticus-4b2417. Open: whether people's Messages move onto Chatticus channels.",
       "created_at": "2026-11-02T15:33:57.166779Z",
       "comment_type": "default"
+    },
+    {
+      "id": "8d66a808-6dfe-4939-952a-48d514b2ae85",
+      "author": "home",
+      "text": "Supersedes the earlier text: the conversation lives on a Chatticus channel, not a story_conversation MessageThread (PPY-f69829). The bot gets read and offer tools only. Run the point check on variations it makes. Needs a per-turn or per-channel spend ceiling.",
+      "created_at": "2026-11-02T16:32:18.653166Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-02T13:41:30.855015Z",
-  "updated_at": "2026-11-02T15:33:57.166999Z",
+  "updated_at": "2026-11-02T16:32:18.653444Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
