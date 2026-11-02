@@ -345,7 +345,7 @@ A site whose product has a dedicated AWS account is hosted in that account, not 
 `cyclotron-production`, Chattic.us in `chatticus-production`. Publication bucket, CloudFront, certificate,
 pipeline and CodeConnections connection all live there; only DNS validation and alias records may be written
 cross-account into the zone's own account. Sites that belong to the Papyrus platform itself (Shipped,
-Distinctive, Pilobol.us, Anth.us, Threat Intelligence, p.apyr.us) are the ones hosted in `papyrus-production`. Each site records its account in `infra/site.json` under `aws.accountId`; the app-shell stack deploys there and nowhere else.
+Distinctive, Pilobol.us, Anth.us, Threat Intelligence, p.apyr.us) are the ones hosted in `papyrus-production`. A site names its account in the deploy environment (`PAPYRUS_AWS_ACCOUNT_ID`, see [AWS identifiers outside Git](#aws-identifiers-outside-git)) or, for sites not yet migrated, in `infra/site.json` under `aws.accountId`; the app-shell stack deploys there and nowhere else.
 A new CodeConnections connection is created PENDING and needs a one-time console approval by a human
 (Developer Tools, Settings, Connections, Update pending connection) before its pipeline can run.
 
@@ -358,13 +358,75 @@ SITE=infra/site.json AWS_PROFILE=<profile> npm run diff
 SITE=infra/site.json AWS_PROFILE=<profile> npm run deploy
 ```
 
-`SITE` is the path to the site's own `infra/site.json` (resolve it from the shell directory, or use an absolute path). The stack deploys to the account and region in that file's `aws` block:
+`SITE` is the path to the site's own `infra/site.json`. The stack deploys to the account named by `PAPYRUS_AWS_ACCOUNT_ID` (a 12-digit id in the environment, not in a file) and the region in the file's `aws` block:
 
-```json
-"aws": { "profile": "papyrus-production", "accountId": "712236451410", "region": "us-east-1" }
+```
+export PAPYRUS_AWS_ACCOUNT_ID=111122223333
 ```
 
-There is no default account and no `CDK_DEFAULT_ACCOUNT` or `CDK_DEFAULT_ENV` override: a `site.json` without `aws.accountId` and `aws.region` fails with `does not say where it deploys`. Point `AWS_PROFILE` at credentials for that account; CDK refuses to deploy if they belong to another one. `TS_NODE_TRANSPILE_ONLY` is not needed: `npm run build` type-checks the app and CI runs it.
+```json
+"aws": { "profile": "papyrus-production", "region": "us-east-1" }
+```
+
+An `aws.accountId` still in `site.json` is a fallback and works as before; when `PAPYRUS_AWS_ACCOUNT_ID` is set it wins. There is no default account and no `CDK_DEFAULT_ACCOUNT` or `CDK_DEFAULT_ENV` override: with neither, the deploy fails with `does not say where it deploys` and names `PAPYRUS_AWS_ACCOUNT_ID`. Point `AWS_PROFILE` at credentials for that account; CDK refuses to deploy if they belong to another one. `TS_NODE_TRANSPILE_ONLY` is not needed: `npm run build` type-checks the app and CI runs it.
+
+## AWS identifiers outside Git
+
+LeftBlock blocks AWS account ids and resource ids in commits (`leftblock-aws-account-id`, `leftblock-aws-resource-id`). A site repository therefore holds none of them. Every place that used to read a literal now reads a value from somewhere that is not Git, and keeps the literal as a fallback so an unmigrated site behaves exactly as before. **A value from the environment always wins over a literal; with neither, the command fails and names the variable.**
+
+One pattern:
+
+| Where it runs | Where the value lives | Names |
+| --- | --- | --- |
+| GitHub Actions workflows | repository **variables** (Settings, Secrets and variables, Actions, Variables). Variables, not secrets: they only need to stay out of Git | `AWS_ACCOUNT_ID`, `AMPLIFY_APP_ID` |
+| Amplify builds and backend synthesis (`amplify.yml`, `postinstall`, `papyrus.config.ts`, `ampx`) | Amplify **branch environment variables** | `PAPYRUS_AMPLIFY_APP_ID`, `PAPYRUS_COMPUTE_ROLE_ARN` (both set by the app-shell stack), `PAPYRUS_EDGE_DISTRIBUTION_ARN` |
+| Operator tooling and the app-shell CDK app (`cdk synth -c site=`, `papyrus-infra`, `papyrus site google-secrets`, the knowledge-run stack) | the shell or CI environment | `PAPYRUS_AWS_ACCOUNT_ID`, `PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN` |
+
+None of these reaches a browser bundle: they are read at deploy, build and synth time only, and none is `NEXT_PUBLIC_`.
+
+| Variable | Read by | Replaces |
+| --- | --- | --- |
+| `PAPYRUS_AWS_ACCOUNT_ID` | `resolveDeployEnvironment` (`bin/app-shell.ts`, the knowledge-run app), `papyrus-infra synth` and `deploy` (verified against the credentials before `deploy` starts: a mismatch deploys nothing), `papyrus site google-secrets` (asserted with STS before any read or write; `--account` still wins) | `aws.accountId` in `infra/site.json`, and `--account` in a `postinstall` |
+| `PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN` | `parseSiteConfig` | `cms.prospectusAccountsApiStageArn` |
+| `PAPYRUS_AMPLIFY_APP_ID` | the `deploy` and `deploy-edge` guards of `papyrus-infra`; an `amplify.yml` guard such as `test "$AWS_APP_ID" = "${PAPYRUS_AMPLIFY_APP_ID:?...}"` | the literal after `--only-app-id`, and the literal in an `amplify.yml` guard. The app-shell stack sets it on its own production and staging branches, so it needs no manual step on a site that redeploys the stack |
+| `PAPYRUS_COMPUTE_ROLE_ARN` | the `reader-steering` and `newsletter` plugins | `computeRoleArn` in `papyrus.config.ts`. Set by the app-shell stack on its branches |
+| `PAPYRUS_EDGE_DISTRIBUTION_ARN` | `publication` resolution in the site backend | `publication.edgeDistributionArn` in `papyrus.config.ts`. Not derivable (the edge stack is separate), so set it by hand on the branch. A stack deploy rewrites a branch's whole variable list, so the stack carries this one through from the environment it deploys in (the branch's own variable in the Amplify build; export it yourself for a deploy from a checkout) |
+| `vars.AWS_ACCOUNT_ID`, `vars.AMPLIFY_APP_ID` | the deploy workflow caller | the role ARN and `app-id` literals in `.github/workflows/deploy.yml` |
+
+Account ids that can be derived are not configured at all: the stack uses `${AWS::AccountId}` and its own outputs for everything it creates, which is why the two stack-set variables above need no manual setting.
+
+### The owning-app guard fails closed
+
+`papyrus-infra deploy` and `deploy-edge` run in every Amplify build of the repository and deploy only from the app and branch that own the stack. The owning app is `PAPYRUS_AMPLIFY_APP_ID` when set, otherwise the value after `--only-app-id`. A site that passes `--only-app-id` has opted in to the guard; if the value is empty (`--only-app-id "$PAPYRUS_AMPLIFY_APP_ID"` with the variable unset) the build **fails** and deploys nothing, rather than lifting the guard. Outside an Amplify build nothing is evaluated, so a local `npm install` still works. A `postinstall` with neither the flag nor the variable has no guard, as before.
+
+For the same reason, an Amplify app that builds this repository but does not own the stack (a second app, for example a reader app) must also have `PAPYRUS_AMPLIFY_APP_ID` set, to the owning app's id; otherwise its build fails at the guard. The same holds for an `amplify.yml` guard written with `${PAPYRUS_AMPLIFY_APP_ID:?...}`.
+
+### Migration recipe
+
+Every step is additive until the last one, so the build never breaks: **set the variables first, change the code that reads them second, delete the literal last**, one site at a time, a release after the Papyrus version that has this feature (the feature is in the version that contains this section; bump `@anthusai/papyrus` and `papyrusVersion` first, as in [Deploy on merge to main](#deploy-on-merge-to-main), in the same change as step 2 below, because an older pin ignores the variables).
+
+1. **Variables (no code change).**
+   - GitHub repository variables `AWS_ACCOUNT_ID` and `AMPLIFY_APP_ID` (`CmsAppId` output).
+   - Amplify branch variables on the owning app's production branch (and on any other app that builds the repository): `PAPYRUS_AMPLIFY_APP_ID`. Redeploying the app-shell stack sets this and `PAPYRUS_COMPUTE_ROLE_ARN` on its own branches, and replaces the branch's variables with the stack's, so do it in the one deploy that carries the version bump. Add `PAPYRUS_EDGE_DISTRIBUTION_ARN` by hand before that deploy (and export it in the shell if you deploy the stack from a checkout), because it is the one value the stack cannot derive but does carry through.
+   - Your shell or CI: `PAPYRUS_AWS_ACCOUNT_ID` (and `PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN` for a site with reader features) wherever you run `cdk`, `papyrus-infra` or `papyrus site google-secrets`.
+2. **Code that reads them** (one pull request per site, with the version bump):
+   - `.github/workflows/deploy.yml`: replace `app-id: <literal>` and `role-to-assume: <literal arn>` with `app-id: ${{ vars.AMPLIFY_APP_ID }}`, `aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}` and `role-name: <siteId>-github-deploy`.
+   - `amplify.yml`: replace `test "$AWS_APP_ID" = "<literal>"` with `test "$AWS_APP_ID" = "${PAPYRUS_AMPLIFY_APP_ID:?set PAPYRUS_AMPLIFY_APP_ID on this Amplify branch}"`.
+   - `package.json` `postinstall`: replace `--only-app-id <literal>` with `--only-app-id "$PAPYRUS_AMPLIFY_APP_ID"` and delete `--account <literal>`.
+   - `papyrus.config.ts`: delete `computeRoleArn` (plugins read `PAPYRUS_COMPUTE_ROLE_ARN`) and `edgeDistributionArn` (read from `PAPYRUS_EDGE_DISTRIBUTION_ARN`) once the branch variables exist. If `computeRoleArn` is the only setting a plugin still needs, keep the plugin entry as the plain name.
+   - `infra/site.json`: delete `aws.accountId` and, for Shipped, `cms.prospectusAccountsApiStageArn`. Keep `aws.region`, `aws.profile`.
+3. **Verify**, then delete literals you kept as insurance (GitHub variables are visible in the workflow run; Amplify shows the branch variables in the console). Check the next merge: the workflow started a job, the build ran the guard (`papyrus-infra deploy: ... does not own the stack, skipping` in a non-owning app, a deploy in the owner), and `papyrus site google-secrets check` still asserts the account.
+4. **Roll back** by putting the literal back; it wins only when the variable is unset.
+
+Per site:
+
+| Site | GitHub variables | Amplify branch variables | Environment for operators | Literals to delete |
+| --- | --- | --- | --- | --- |
+| Pilobolus | `AWS_ACCOUNT_ID`, `AMPLIFY_APP_ID` | `PAPYRUS_AMPLIFY_APP_ID` on every app that builds the repository | `PAPYRUS_AWS_ACCOUNT_ID` | `--only-app-id` and `--account` values in `package.json` `postinstall`; `aws.accountId`; the role ARN and app id in `deploy.yml` |
+| Shipped | `AWS_ACCOUNT_ID`, `AMPLIFY_APP_ID` | `PAPYRUS_AMPLIFY_APP_ID`, `PAPYRUS_COMPUTE_ROLE_ARN`, `PAPYRUS_EDGE_DISTRIBUTION_ARN` | `PAPYRUS_AWS_ACCOUNT_ID`, `PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN` | `computeRoleArn` (two places) and `edgeDistributionArn` in `papyrus.config.ts`; `aws.accountId` and `cms.prospectusAccountsApiStageArn` in `site.json`; the role ARN and app id in `deploy.yml`; the app id in the OAuth redirect list is a hostname, handled separately (below) |
+| Anth.us | `AWS_ACCOUNT_ID`, `AMPLIFY_APP_ID` | `PAPYRUS_AMPLIFY_APP_ID`, `PAPYRUS_EDGE_DISTRIBUTION_ARN` | `PAPYRUS_AWS_ACCOUNT_ID` | the `test "$AWS_APP_ID" = ...` literal in `amplify.yml`; `edgeDistributionArn` in `papyrus.config.ts`; `aws.accountId`; the role ARN and app id in `deploy.yml` |
+
+Anth.us is the live site: do its steps in the order above, with variables set and verified on the branch before the pull request that removes literals, and without a second deploy. A literal that is part of a URL (an `https://main.<appId>.amplifyapp.com/` entry in `PAPYRUS_OAUTH_REDIRECT_URLS`, or `PAPYRUS_SITE_PUBLIC_URL` built from `$AWS_APP_ID`) is not read by this feature: build it from `$AWS_APP_ID` in the build command, or leave it for the separate clean-up.
 
 ## Deploy on merge to main
 
@@ -398,7 +460,7 @@ Public sites get everything from the app shell, so a new site needs no extra inf
 3. **The workflow.** Copy
    [`infra/amplify-app-shell/examples/deploy-on-merge.workflow.yml`](../infra/amplify-app-shell/examples/deploy-on-merge.workflow.yml)
    to `.github/workflows/deploy.yml`, replace its CI steps with the repository's own checks and
-   fill in the app id (`CmsAppId`) and the role ARN. Its `deploy` job calls the reusable
+   pass the app id and account from the repository variables `AMPLIFY_APP_ID` and `AWS_ACCOUNT_ID` (see [AWS identifiers outside Git](#aws-identifiers-outside-git)); no id goes in the file. Its `deploy` job calls the reusable
    workflow `AnthusAI/Papyrus/.github/workflows/amplify-deploy.yml`, which assumes the role,
    runs `aws amplify start-job --job-type RELEASE --commit-id <the merged sha>` and polls
    `get-job` until it succeeds or fails. The Amplify job therefore records the real commit id,
@@ -692,8 +754,9 @@ A projected page, a section base or a `homePage` segment that starts with one of
 `papyrus-infra synth` and `papyrus-infra deploy` never default to a fixed AWS account. The account is the first of:
 
 1. `--account <id>`
-2. `CDK_DEFAULT_ACCOUNT`
-3. the account returned by `aws sts get-caller-identity` for the current credentials (the aws CLI must be on `PATH`)
+2. `PAPYRUS_AWS_ACCOUNT_ID`, which `deploy` then checks against the credentials (a mismatch deploys nothing)
+3. `CDK_DEFAULT_ACCOUNT`
+4. the account returned by `aws sts get-caller-identity` for the current credentials (the aws CLI must be on `PATH`)
 
 If none of these yields a 12-digit account id, the command exits with `cannot determine the AWS account` and the reason. The region is `--region`, then `AWS_REGION`, `AWS_DEFAULT_REGION`, `CDK_DEFAULT_REGION`, and finally `us-east-1`. Amplify builds set none of the `CDK_DEFAULT_*` variables, so a deploy from a build uses the build role's own account; passing `--account` in the postinstall hook is still allowed and wins.
 
@@ -859,7 +922,7 @@ backend: {
     kind: "s3-projection",
     projector: "web/projector.py",                 // optional, relative .py path in the site repo
     staticDir: "web/static",                       // optional, relative directory in the site repo
-    edgeDistributionArn: "arn:aws:cloudfront::123456789012:distribution/E3UMOOJRMY7FK7", // optional
+    edgeDistributionArn: "arn:aws:cloudfront::111122223333:distribution/EEXAMPLE12345", // optional; or set PAPYRUS_EDGE_DISTRIBUTION_ARN on the Amplify branch and leave this out
     distribution: { create: false },               // or { create: true, aliases, certificateArn | acm }
     cache: { htmlSMaxAgeSeconds: 300, invalidation: "targeted" }, // optional; these are the defaults ("off" and 60 s for the no-invalidation fallback)
     retainBucketOnDelete: true,                    // default; false destroys the bucket with the stack

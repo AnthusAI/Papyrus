@@ -38,9 +38,22 @@ const awsConfig = parseCmsSite(mutated("pilobol-us.site.json", (c) => (c.aws = {
 assert.deepEqual(awsConfig.aws, { profile: "papyrus-production", accountId: "123456789012", region: "us-east-1" });
 assert.equal(staticConfig.aws?.accountId, "712236451410", "examples record their deploy account");
 assert.deepEqual(resolveDeployEnvironment(awsConfig), { account: "123456789012", region: "us-east-1" });
-assert.throws(() => resolveDeployEnvironment({ siteId: "x", aws: undefined }), /does not say where it deploys.*aws\.accountId and aws\.region/);
-assert.throws(() => resolveDeployEnvironment({ siteId: "x", aws: { accountId: "123456789012" } }), /aws\.region/);
-assert.throws(() => resolveDeployEnvironment({ siteId: "x", aws: { region: "us-east-1" } }), /aws\.accountId/);
+assert.throws(() => resolveDeployEnvironment({ siteId: "x", aws: undefined }, {}), /does not say where it deploys.*PAPYRUS_AWS_ACCOUNT_ID \(or aws\.accountId\) and aws\.region/);
+assert.throws(() => resolveDeployEnvironment({ siteId: "x", aws: { accountId: "123456789012" } }, {}), /aws\.region/);
+assert.throws(() => resolveDeployEnvironment({ siteId: "x", aws: { region: "us-east-1" } }, {}), /PAPYRUS_AWS_ACCOUNT_ID/);
+// The account may come from the environment instead of site.json; the environment wins over a literal, a literal still works.
+assert.deepEqual(resolveDeployEnvironment({ siteId: "x", aws: { region: "us-east-1" } }, { PAPYRUS_AWS_ACCOUNT_ID: "111122223333" }), { account: "111122223333", region: "us-east-1" });
+assert.deepEqual(resolveDeployEnvironment(awsConfig, { PAPYRUS_AWS_ACCOUNT_ID: "111122223333" }), { account: "111122223333", region: "us-east-1" }, "the environment wins over aws.accountId");
+assert.deepEqual(resolveDeployEnvironment(awsConfig, { PAPYRUS_AWS_ACCOUNT_ID: "  " }), { account: "123456789012", region: "us-east-1" }, "a blank variable falls back to the literal");
+assert.throws(() => resolveDeployEnvironment(awsConfig, { PAPYRUS_AWS_ACCOUNT_ID: "not-an-account" }), /PAPYRUS_AWS_ACCOUNT_ID must be a 12-digit/);
+assert.throws(() => resolveDeployEnvironment({ siteId: "x", aws: { region: "us-east-1" } }, {}), /No account is assumed/);
+// cms.prospectusAccountsApiStageArn may also come from the environment.
+const shippedExampleRaw = () => readExample("shipped.site.json");
+const prospectusArn = "arn:aws:execute-api:us-east-1:111122223333:abcde12345/api";
+assert.equal(parseSiteConfig(mutated("shipped.site.json", (c) => { delete c.cms.prospectusAccountsApiStageArn; delete c.cms.readerRetirementPoll; }), { PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN: prospectusArn }).cms?.prospectusAccountsApiStageArn, prospectusArn, "the environment supplies the ARN when site.json has none");
+assert.equal(parseSiteConfig(shippedExampleRaw(), { PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN: prospectusArn }).cms?.prospectusAccountsApiStageArn, prospectusArn, "the environment wins over the literal");
+assert.equal(parseSiteConfig(shippedExampleRaw(), {}).cms?.prospectusAccountsApiStageArn, shippedExampleRaw().cms.prospectusAccountsApiStageArn, "the literal still works");
+assert.throws(() => parseSiteConfig(shippedExampleRaw(), { PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN: "nope" }), /PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN/);
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { accountId: "1234" })), "aws.accountId");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { region: "mars" })), "aws.region");
 assertRejects(mutated("pilobol-us.site.json", (c) => (c.aws = { secret: "x" })), "aws.secret");

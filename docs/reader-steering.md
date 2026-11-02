@@ -22,7 +22,7 @@ export default defineSite({
     plugins: [
       {
         name: "reader-steering",
-        computeRoleArn: "arn:aws:iam::<account>:role/<the CmsComputeRoleArn output>",
+        computeRoleArn: "arn:aws:iam::<account>:role/<the CmsComputeRoleArn output>", // optional: PAPYRUS_COMPUTE_ROLE_ARN on the Amplify branch wins
         dimensions: ["real", "useful", "notable", "novel"],
       },
     ],
@@ -32,7 +32,7 @@ export default defineSite({
 
 Enabling it is a backend deploy: nine models, three staff mutations, the `reader-actions` function, a rate-window table and, when
 `snapshot.schedule` is on, one EventBridge rule are added. A site that does not list it synthesizes exactly what it did before.
-`computeRoleArn` is the `CmsComputeRoleArn` output of the app-shell stack. The plugin does not edit that role: it puts a
+`computeRoleArn` is the `CmsComputeRoleArn` output of the app-shell stack. It need not be written in the repository: the stack sets it on its Amplify branches as `PAPYRUS_COMPUTE_ROLE_ARN`, which wins over the written value, so the setting can be left out ([AWS identifiers outside Git](site-hosting.md#aws-identifiers-outside-git)). The plugin does not edit that role: it puts a
 resource policy on `reader-actions` that lets exactly that role invoke exactly that function.
 
 | Setting | Default | Meaning |

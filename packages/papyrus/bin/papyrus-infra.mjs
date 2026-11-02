@@ -7,6 +7,8 @@
  * papyrus-infra cost amplify [--months 3] [--through YYYY-MM] [--no-apps] [--plan-budget]   (read-only: Cost Explorer for AWS Amplify by usage type and account, per-app build minutes, a budget threshold learned from history; --plan-budget prints, and never runs, the budget commands)
  * papyrus-infra amplify job-log --app-id ID [--branch main] [--job ID | --latest-failed] [--region R]   (read-only: a job's step statuses, log tail, first error and stack failures)
  * papyrus-infra deploy --site infra/site.json [--only-branch main] [--only-app-id ID] [--out cdk.out] [--account A] [--region R]
+ * Account: --account, else PAPYRUS_AWS_ACCOUNT_ID (verified against the credentials), else CDK_DEFAULT_ACCOUNT, else the caller's STS account.
+ * Owning app: --only-app-id, else PAPYRUS_AMPLIFY_APP_ID; give the flag an empty value and the build fails instead of skipping the guard.
  * Synthesizes the app-shell stack for a publication from its own site.json,
  * prints one of the generated Amplify build specs, or deploys the stack from
  * inside the Amplify build of the one branch that owns it.
@@ -15,7 +17,8 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { resolveCdkEnvironment } from "../src/cdk-environment.mjs";
+import { assertCallerMatchesPinnedAccount, resolveCdkEnvironment } from "../src/cdk-environment.mjs";
+import { resolveOwningAppId } from "../src/owning-app.mjs";
 
 const USAGE = [
   "Usage: papyrus-infra synth --site infra/site.json [--out cdk.out] [--account A] [--region R]",
@@ -39,6 +42,16 @@ const resolveEnvironmentOrExit = () => {
     return resolveCdkEnvironment({ explicitAccount: opt("account"), explicitRegion: opt("region") });
   } catch (error) {
     console.error(`papyrus-infra: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+};
+// The app that owns a stack: --only-app-id, replaced by PAPYRUS_AMPLIFY_APP_ID when that is set. A site that passes the
+// flag has opted in, so an empty value (an unset variable expanded by the shell) stops the build rather than lifting the guard.
+const owningAppIdOrExit = (commandName) => {
+  try {
+    return resolveOwningAppId({ args, environment: process.env });
+  } catch (error) {
+    console.error(`papyrus-infra ${commandName}: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
   }
 };
@@ -99,11 +112,11 @@ if (command === "compile-edge-function") {
 if (command === "deploy-edge") {
   const buildAppId = process.env.AWS_APP_ID;
   const buildBranch = process.env.AWS_BRANCH;
-  const owningAppId = opt("only-app-id");
   if (!buildAppId || !buildBranch) {
     console.log("papyrus-infra deploy-edge: not running inside an Amplify build, skipping");
     process.exit(0);
   }
+  const owningAppId = owningAppIdOrExit("deploy-edge");
   if (buildBranch !== opt("only-branch", "main") || (owningAppId && buildAppId !== owningAppId)) {
     console.log(`papyrus-infra deploy-edge: ${buildAppId}/${buildBranch} does not own the stack, skipping`);
     process.exit(0);
@@ -186,14 +199,20 @@ if (command === "deploy") {
   const buildAppId = process.env.AWS_APP_ID;
   const buildBranch = process.env.AWS_BRANCH;
   const owningBranch = opt("only-branch", "main");
-  const owningAppId = opt("only-app-id");
   if (!buildAppId || !buildBranch) {
     console.log("papyrus-infra deploy: not running inside an Amplify build, skipping");
     process.exit(0);
   }
+  const owningAppId = owningAppIdOrExit("deploy");
   if (buildBranch !== owningBranch || (owningAppId && buildAppId !== owningAppId)) {
     console.log(`papyrus-infra deploy: ${buildAppId}/${buildBranch} does not own the stack, skipping`);
     process.exit(0);
+  }
+  try {
+    assertCallerMatchesPinnedAccount();
+  } catch (error) {
+    console.error(`papyrus-infra deploy: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
   }
   const outputDirectory = path.resolve(opt("out", process.env.CDK_OUTDIR ?? "cdk.out"));
   const explicitAccount = opt("account");

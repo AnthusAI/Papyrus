@@ -1,4 +1,4 @@
-import type { AmplifyAppShellSiteConfig } from "../../amplify-app-shell/lib/site-config";
+import { resolveAwsAccountId, type AmplifyAppShellSiteConfig } from "../../amplify-app-shell/lib/site-config";
 
 /** The pipeline stages, in execution order. `projection` must stay last: it publishes to the live site. */
 export const KNOWLEDGE_STAGE_NAMES = [
@@ -327,12 +327,15 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   };
 }
 
-/** Applies the defaults. The site must say where it deploys (`aws.accountId`, `aws.region`) and carry a `knowledgeRun` block. */
-export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, "siteId" | "repository" | "aws" | "knowledgeRun">): KnowledgeRunConfig {
+/** Applies the defaults. The site must say where it deploys (`PAPYRUS_AWS_ACCOUNT_ID` or `aws.accountId`, and `aws.region`) and carry a `knowledgeRun` block. */
+export function resolveKnowledgeRunConfig(
+  site: Pick<AmplifyAppShellSiteConfig, "siteId" | "repository" | "aws" | "knowledgeRun">,
+  environment: Record<string, string | undefined> = process.env,
+): KnowledgeRunConfig {
   if (site.knowledgeRun === undefined) throw new Error(`site.json: site "${site.siteId}" has no knowledgeRun block`);
-  const account = site.aws?.accountId;
+  const account = resolveAwsAccountId(site.aws, environment);
   const region = site.aws?.region;
-  if (!account || !region) throw new Error(`site.json: site "${site.siteId}" needs aws.accountId and aws.region to deploy the knowledge run`);
+  if (!account || !region) throw new Error(`site.json: site "${site.siteId}" needs PAPYRUS_AWS_ACCOUNT_ID (or aws.accountId) and aws.region to deploy the knowledge run`);
   const settings = parseKnowledgeRun(site.knowledgeRun);
   const publication = site.siteId;
   const memoryMiB = settings.memoryMiB ?? DEFAULT_MEMORY_MIB;

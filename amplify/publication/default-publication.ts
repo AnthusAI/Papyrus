@@ -1,3 +1,4 @@
+import { EDGE_DISTRIBUTION_ARN_ENVIRONMENT_VARIABLE, environmentOrConfigured, type IdentifierEnvironment } from "../deploy-identifiers";
 import type { PapyrusPublicationConfig, PapyrusSiteBackendConfig } from "../site-backend-config";
 
 export const DEFAULT_MARKUS_PUBLICATION: PapyrusPublicationConfig = { kind: "s3-projection", reprojectOnDeploy: true };
@@ -9,6 +10,18 @@ export const DEFAULT_MARKUS_PUBLICATION: PapyrusPublicationConfig = { kind: "s3-
  * they write a `publication`.
  */
 export function resolveSitePublication(
+  backend: Pick<PapyrusSiteBackendConfig, "publication" | "reader">,
+  rendererKind: string | undefined,
+  environment: IdentifierEnvironment = process.env,
+): PapyrusPublicationConfig | undefined {
+  const publication = resolveConfiguredPublication(backend, rendererKind);
+  if (publication === undefined) return undefined;
+  // PAPYRUS_EDGE_DISTRIBUTION_ARN (set on the Amplify branch) wins over a written edgeDistributionArn, so the ARN need not be in Git.
+  const edgeDistributionArn = environmentOrConfigured(EDGE_DISTRIBUTION_ARN_ENVIRONMENT_VARIABLE, publication.edgeDistributionArn, environment);
+  return edgeDistributionArn === publication.edgeDistributionArn ? publication : { ...publication, edgeDistributionArn };
+}
+
+function resolveConfiguredPublication(
   backend: Pick<PapyrusSiteBackendConfig, "publication" | "reader">,
   rendererKind: string | undefined,
 ): PapyrusPublicationConfig | undefined {

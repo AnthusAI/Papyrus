@@ -159,7 +159,7 @@ Every command group prints its own subcommands for `papyrus <group>` and `papyru
 
 - `set` asserts the AWS account with STS (refusing on a mismatch, before any write), prompts for the client id (visible) and the secret (hidden), or takes `--client-id ID` plus `--secret-stdin` for automation. There is no `--secret` argument. It writes SSM SecureStrings at `/amplify/<appId>/<branch>-branch-<hash>/GOOGLE_CLIENT_ID` and `.../GOOGLE_CLIENT_SECRET`, confirms by fingerprint, and prints the Google Cloud Console origin and `/oauth2/idpresponse` redirect URI and the redeploy step.
 - `check` reports whether both parameters exist (last modified, fingerprint), whether the deployed Cognito Google provider uses the same client id (fingerprint compare), the state of `PAPYRUS_DISABLE_GOOGLE_OAUTH` on the branch, and the URIs to register. It exits 1 when anything is missing or different. No value is ever printed.
-- Account, profile and region come from the flags, then the optional `aws` block of `infra/site.json` (`profile`, `accountId`, `region`), then `AWS_PROFILE` / `AWS_REGION`. An expected account is mandatory.
+- Account, profile and region come from the flags, then, for the account, `PAPYRUS_AWS_ACCOUNT_ID`, then the optional `aws` block of `infra/site.json` (`profile`, `accountId`, `region`), then `AWS_PROFILE` / `AWS_REGION`. An expected account is mandatory.
 - It never enables or disables Google OAuth.
 
 Walkthrough: [site-hosting.md](site-hosting.md#google-sign-in). Executable spec: `procedures/newsroom/tests/test_site_google_secrets.py`.

@@ -155,6 +155,31 @@ def test_account_flag_overrides_site_json_and_profile_falls_back_to_env(tmp_path
     assert aws.session_args == ("from-env", "eu-west-1")
 
 
+def test_environment_account_replaces_site_json_and_is_still_asserted_with_sts(tmp_path):
+    make_site(tmp_path, aws={"region": "us-west-2"})
+    aws = FakeAws(account="111122223333")
+    code, _ = run(tmp_path, aws, ["set"], env={"PAPYRUS_AWS_ACCOUNT_ID": "111122223333"})
+    assert code == 0 and aws.puts
+    wrong = FakeAws(account=ACCOUNT)  # credentials for a different account than the pin
+    with pytest.raises(OperatorError, match="Wrong AWS account"):
+        run(tmp_path, wrong, ["set"], env={"PAPYRUS_AWS_ACCOUNT_ID": "111122223333"})
+    assert wrong.puts == []
+
+
+def test_environment_account_wins_over_the_site_json_literal_and_the_flag_wins_over_both(tmp_path):
+    make_site(tmp_path)  # the literal in site.json is ACCOUNT
+    aws = FakeAws(account="111122223333")
+    run(tmp_path, aws, ["set"], env={"PAPYRUS_AWS_ACCOUNT_ID": "111122223333"})
+    assert aws.puts, "the environment account, not the literal, is the one asserted"
+    literal_only = FakeAws(account="111122223333")
+    with pytest.raises(OperatorError, match="Wrong AWS account"):
+        run(tmp_path, literal_only, ["set"])  # without the variable the literal is the expectation, as before
+    make_site(tmp_path, aws={"region": "us-west-2"})
+    flagged = FakeAws(account=ACCOUNT)
+    run(tmp_path, flagged, ["set", "--account", ACCOUNT], env={"PAPYRUS_AWS_ACCOUNT_ID": "111122223333"})
+    assert flagged.puts, "the flag wins over the environment"
+
+
 def test_set_from_flag_and_stdin_never_prompts(tmp_path):
     make_site(tmp_path)
     aws = FakeAws()
