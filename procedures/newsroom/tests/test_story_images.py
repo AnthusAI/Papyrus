@@ -235,3 +235,32 @@ def test_open_media_store_picks_the_lane(monkeypatch):
     monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "user")
     story_images.open_media_store("b", "pool")
     assert built[-1] == ("b", ("user-client", "pool"))
+
+
+def test_a_file_already_stored_keeps_its_path_even_after_the_slug_changes(tmp_path):
+    png(tmp_path / "c.png")
+    first = plan_story_images('::image{src="c.png"}', tmp_path, slug="draft-unsectioned-1a2b3c4d")
+    stored = story_images.existing_assets(
+        [row for row in first.media_rows("item-v2")]
+    )
+    again = plan_story_images('::image{src="c.png"}', tmp_path, slug="a-real-title", existing=stored)
+    assert [i.src_path for i in again.images] == ["assets/draft-unsectioned-1a2b3c4d/c.png"]
+    assert again.images[0].storage_path == first.images[0].storage_path
+
+
+def test_a_name_holding_different_content_is_numbered_not_overwritten(tmp_path):
+    png(tmp_path / "c.png", 40, 20)
+    existing = {"assets/hello/c.png": "0" * 64}
+    plan = plan_story_images('::image{src="c.png"}', tmp_path, slug="hello", existing=existing)
+    assert plan.images[0].src_path == "assets/hello/c-2.png"
+    assert 'src="assets/hello/c-2.png"' in plan.body
+
+
+def test_existing_assets_reads_src_path_and_sha_from_metadata_rows():
+    rows = [
+        {"metadata": json.dumps({"srcPath": "assets/a/x.png", "sha256": "ab"})},
+        {"metadata": {"srcPath": "assets/a/y.png", "sha256": "cd"}},
+        {"metadata": "not json"},
+        {"metadata": json.dumps({"srcPath": "assets/a/z.png"})},
+    ]
+    assert story_images.existing_assets(rows) == {"assets/a/x.png": "ab", "assets/a/y.png": "cd"}

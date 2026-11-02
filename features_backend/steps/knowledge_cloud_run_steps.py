@@ -453,6 +453,27 @@ def step_monitor_sources(context, sources, weeks):
     start(context, context.execution, context.extra)
 
 
+@given('the site sets the Reference documents bucket "{bucket}" with the extractor "{extractor}"')
+def step_reference_documents(context, bucket, extractor):
+    context.extra = {"KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET": bucket, "KNOWLEDGE_REFERENCE_DOCUMENTS_EXTRACTOR": extractor}
+    start(context, context.execution, context.extra)
+
+
+@given('the site sets the monitor sources "{sources}" for {weeks:d} weeks and the Reference documents bucket "{bucket}"')
+def step_both_sources(context, sources, weeks, bucket):
+    context.extra = {"KNOWLEDGE_MONITOR_SOURCES": sources, "KNOWLEDGE_MONITOR_WEEKS": str(weeks), "KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET": bucket}
+    start(context, context.execution, context.extra)
+
+
+@then('each of the commands {commands} was given "--reference-documents" with the week\'s Reference documents file')
+def step_reference_documents_file(context, commands):
+    expected = str(context.run_.work / "runs" / "2026-W44" / "reference-documents.json")
+    for text in names(commands):
+        found = [call for call in context.shell.calls if text in " ".join(call)]
+        assert found, text
+        assert all(call[call.index("--reference-documents") + 1] == expected for call in found), (text, found)
+
+
 @then('each of the commands {commands} was given "--monitor-records" with the week\'s records file')
 def step_monitor_records_file(context, commands):
     expected = str(context.run_.work / "runs" / "2026-W44" / "monitor-records.json")

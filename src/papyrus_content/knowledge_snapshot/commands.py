@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from ..knowledge_wiki.kinds import public_kinds_of
 from ..env import graphql_endpoint
 from ..graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from ..ids import knowledge_corpus_id
@@ -79,7 +80,7 @@ from .monitor_records import (
     write_records,
 )
 from .parallel import DEFAULT_WORKERS, map_with_clients, worker_count
-from .publish_run import STATUS_ACCEPTED, PublishPlan, is_item_mention, plan_publish_run
+from .publish_run import STATUS_ACCEPTED, PublishPlan, is_extractor_mention, plan_publish_run
 from .registry import build_registry, read_vocabulary_kinds
 from .topic_config import read_extra_stop_words, render, topic_modeling_configuration
 from .relation_review import (
@@ -92,6 +93,14 @@ from .relation_review import (
     review_state,
 )
 from .corpus_export import DEFAULT_TYPES, biblicus_item_id, export_items, render_record, write_export
+from .reference_documents import (
+    S3TextStore,
+    biblicus_reference_id,
+    export_reference_documents,
+    load_reference_documents,
+    read_documents_file,
+    write_documents_file,
+)
 from .run_input import load_run, translate_item_ids
 from .weeks import current_monday, parse_day
 
@@ -277,9 +286,11 @@ def knowledge_publish_run(flags: list[str]) -> None:
     records = read_records(options["monitor-records"]) if normalize_string(options.get("monitor-records")) else []
     ledger_path = _path_option(options, "monitor-ledger") if records else None
     ledger = None if options.get("monitor-full") else (MonitorLedger.read(ledger_path) if ledger_path else None)
+    documents = read_documents_file(options["reference-documents"]) if normalize_string(options.get("reference-documents")) else []
     if run is not None:
         known = {biblicus_item_id(item.item_id): item.item_id for item in items}
         known.update({biblicus_record_id(record.reference_id): record.reference_id for record in records})
+        known.update({biblicus_reference_id(document.reference_id): document.reference_id for document in documents})
         run = translate_item_ids(run, known)
     node_rows = current_nodes(client.list_records("SemanticNode"))
     mention_rows = mention_rows_of_items(client, items, workers=workers, client_factory=worker_clients(client))
@@ -303,6 +314,7 @@ def knowledge_publish_run(flags: list[str]) -> None:
         confirm_resolved=bool(options.get("confirm-resolved")),
         front_matter_actor_name=agent_name,
         records=records,
+        reference_documents=[document.as_item() for document in documents],
         record_rows_for=read_record_rows,
         ledger=ledger,
     )
@@ -339,7 +351,25 @@ def knowledge_corpus_export(flags: list[str]) -> None:
         if normalize_string(options.get("monitor-records-out")):
             write_records(Path(options["monitor-records-out"]), records, as_of=as_of, sources=sources)
     in_topic_model = bool(options.get("records-in-topic-model"))
-    counts = write_export(items, out, [render_record(record) for record in records] if in_topic_model else [])
+    reference_files = []
+    reference_counts: dict[str, int] = {}
+    bucket = normalize_string(options.get("reference-documents-bucket"))
+    if bucket:  # explicit and opt-in: the corpus's own References with extracted text are documents (records stay data)
+        corpus_key = normalize_string(options.get("corpus-key"))
+        if not corpus_key:
+            raise ValueError("--reference-documents-bucket needs --corpus-key (the publication's knowledge corpus key).")
+        extractor = normalize_string(options.get("reference-documents-extractor")) or "markitdown"
+        store = S3TextStore(bucket, corpus_key, extractor)
+        documents, left = load_reference_documents(client, corpus_id=knowledge_corpus_id({"key": corpus_key}), texts=store.list_texts())
+        reference_files, reference_counts = export_reference_documents(
+            documents, store, out, on_progress=lambda done, total: print(f"knowledge\tcorpus-export\treference documents {done}/{total}", flush=True)
+        )
+        reference_counts.update({f"left{name.capitalize()}": count for name, count in left.items()})
+        kept = {file.item_id for file in reference_files}
+        if normalize_string(options.get("reference-documents-out")):
+            write_documents_file(Path(options["reference-documents-out"]), [document for document in documents if document.reference_id in kept])
+    counts = write_export(items, out, [render_record(record) for record in records] if in_topic_model else [], reference_files)
+    counts.update({f"reference{name[0].upper()}{name[1:]}": count for name, count in reference_counts.items()})
     if records and not in_topic_model:  # data for counts and relations only: the topic model reads the site's own items
         counts["recordsAsData"] = len(records)
     for warning in warnings[:20]:
@@ -348,6 +378,8 @@ def knowledge_corpus_export(flags: list[str]) -> None:
         print(json.dumps({"out": str(out), "types": list(types), **counts}, indent=2, sort_keys=True))
         return
     monitor = f"{counts['records']} monitor records\t" if "records" in counts else (f"{counts['recordsAsData']} monitor records (data only, not in the corpus)\t" if "recordsAsData" in counts else "")
+    if "referenceDocuments" in counts:
+        monitor += f"{counts['referenceDocuments']} reference documents ({counts['referenceDownloaded']} downloaded, {counts['referenceReused']} unchanged, {counts['referenceLeftStubs']} without text)\t"
     print(f"knowledge\tcorpus-export\t{counts['items']} items\t{monitor}{counts['undated']} undated\t{counts['removed']} removed\t{out}")
 
 
@@ -381,6 +413,7 @@ def _snapshot_options(options: dict[str, Any]) -> SnapshotOptions:
         unaccepted_clusters=unaccepted,
         maker_kind=normalize_string(options.get("maker-kind")) or "maker",
         concept_kinds=_concept_kinds(options.get("concept-kinds")),
+        public_kinds=public_kinds_of(options),
     )
 
 
@@ -396,6 +429,8 @@ def based_template(projector: Any, template: str | None) -> str | None:
 
 def load_knowledge_data(client: Any, projector: Any, options: dict[str, Any]) -> KnowledgeData:
     items = published_items(client.list_published_item_summaries(), url_resolver(projector))
+    if normalize_string(options.get("reference-documents")):  # Reference documents count as dated sources that cite their Reference's address
+        items = [*items, *(document.as_item() for document in read_documents_file(options["reference-documents"]))]
     if normalize_string(options.get("monitor-records")):  # monitor records count in the data; they are never pages
         items = [*items, *(record_as_item(record) for record in read_records(options["monitor-records"]))]
     node_rows = current_nodes(client.list_records("SemanticNode"))
@@ -662,7 +697,7 @@ def _review(flags: list[str], name: str, build) -> None:
 
 def knowledge_entities_accept(flags: list[str]) -> None:
     def build(options, node, client, _rows, actor):
-        mentions = [row for row in relations_of_nodes(client, [node]) if is_item_mention(row)]
+        mentions = [row for row in relations_of_nodes(client, [node]) if is_extractor_mention(row)]
         return accept_patches(node, mentions, actor=actor, now=utc_now(), confirm_links=not options.get("keep-links-unconfirmed"))
 
     _review(flags, "accept", build)
@@ -742,7 +777,8 @@ def knowledge_entities_registry(flags: list[str]) -> None:
     for warning in warnings:
         print(f"knowledge\tentities\tregistry\twarning\t{warning}", file=sys.stderr)
     aliases = sum(len(entry["aliases"]) for entry in registry)
-    print(f"knowledge\tentities\tregistry\t{len(registry)} entities\t{aliases} aliases\t{len(warnings)} ambiguous\t{out}")
+    outside = sum(1 for warning in warnings if "which the vocabulary does not have" in warning)
+    print(f"knowledge\tentities\tregistry\t{len(registry)} entities\t{aliases} aliases\t{len(warnings) - outside} ambiguous\t{outside} outside the vocabulary\t{out}")
 
 
 def knowledge_topic_config(flags: list[str]) -> None:

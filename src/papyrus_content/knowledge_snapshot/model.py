@@ -16,6 +16,7 @@ LINK_EXTRACTOR = "extractor"
 LINK_MONITOR = "monitor"
 KIND_ITEM = "item"
 KIND_MONITOR_RECORD = "monitor-record"
+KIND_REFERENCE_DOCUMENT = "reference-document"  # a Reference whose extracted text is a corpus document: a dated, page-bearing source, unlike a record
 UNACCEPTED_HIDE = "hide"
 UNACCEPTED_UNNAMED = "unnamed"
 
@@ -125,5 +126,6 @@ class SnapshotOptions:
     unaccepted_clusters: str = UNACCEPTED_HIDE
     maker_kind: str = "maker"
     concept_kinds: tuple[str, ...] | None = None
+    public_kinds: tuple[str, ...] | None = None  # the kinds that have wiki pages (see knowledge_wiki.kinds); None: every kind but the authors
     neighbour_limit: int = 12
     related_limit: int = 12

@@ -86,6 +86,11 @@ def step_none(context):
     assert context.packs == []
 
 
+@then("only emerging cluster packs exist")
+def step_only_emerging_clusters(context):
+    assert all(pack.signal_type == "cluster" and pack.signal.get("emerging") for pack in context.packs)
+
+
 @then("an acceptance pack exists for that concept")
 def step_acceptance(context):
     assert [pack.anchor for pack in context.packs if pack.signal_type == "acceptance"] == ["concept-voice"]
@@ -622,11 +627,16 @@ def step_build_cluster_without(context):
     context.log_lines = records
 
 
-@then("a cluster pack holds those four accepted References")
+def top_cluster(context):
+    """The highest-ranked cluster pack: clusters are ranked by surprise, not gated, so loose pairs may rank below the real topic."""
+    return max((pack for pack in context.packs if pack.signal_type == "cluster"), key=lambda pack: pack.surprise)
+
+
+@then("the top-ranked cluster pack holds those four accepted References")
 def step_cluster_four(context):
-    [pack] = [pack for pack in context.packs if pack.signal_type == "cluster"]
+    pack = top_cluster(context)
     context.cluster_pack = pack
-    assert sorted(pack.accepted_lineage_ids) == [f"topic-{n}" for n in range(4)]
+    assert {f"topic-{n}" for n in range(4)} <= set(pack.accepted_lineage_ids)
 
 
 @then("the pack is marked emerging because no earlier arrivals exist to compare with")
@@ -640,9 +650,9 @@ def step_cluster_suggested(context):
     assert edges and all(row["provenance"] == "suggested" and 0 < row["similarity"] <= 1 for row in edges)
 
 
-@then("the cluster pack lists that link as confirmed without a similarity")
+@then("the top-ranked cluster pack lists that link as confirmed without a similarity")
 def step_confirmed_edge(context):
-    [pack] = [pack for pack in context.packs if pack.signal_type == "cluster"]
+    pack = top_cluster(context)
     context.cluster_pack = pack
     handles = {row["title"]: row["handle"] for row in pack.references}
     pair = {handles["Title topic-0"], handles["Title topic-1"]}

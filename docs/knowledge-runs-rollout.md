@@ -33,7 +33,7 @@ The projection stage installs `papyrus-newsroom` at the site's pin before it wri
 | --- | --- | --- |
 | OpenAI key parameters | all | Exist: `/papyrus/shipped/openai-api-key`, `/papyrus/p-apyr-us/openai-api-key`, and the three `/amplify/shared/<appId>/OPENAI_API_KEY` (SecureString; names only were listed). The task role reads whichever the block names. |
 | Alarm e-mail | all | `/papyrus/shipped/knowledge-run/alarm-email` exists (String). |
-| Vocabulary, stop words, `amplify_outputs.json` | all | Seeded with defaults by the first run. A site-specific `vocabulary.yml` can be uploaded to `publications/<site>/config/` later. |
+| Vocabulary, stop words, `amplify_outputs.json` | all | Seeded with defaults by the first run. A site-specific `vocabulary.yml` can be uploaded to `publications/<site>/config/` later; the public wiki publishes only the kinds that vocabulary declares, so a site copied from another one needs its own (`machines-on-machines` has an AI/ML-research vocabulary: organization, model, model_family, technique, task, benchmark, dataset, software, topic, person). |
 | Knowledge Map page in the site repo | all but Shipped | Not needed for a run to succeed or for the snapshot at `_data/knowledge/index.json`; without the map and topic pages the site just does not show them. |
 | HN router entry | `distinctive` | Absent from `MONITOR#hn` / `CONFIG#router`; a write to the monitoring table, so Ryan's. Until then only its existing 33 `monitor-*` records count. |
 | Image | all | Build and push from develop at or after the merge of #749 and #747: `PAPYRUS_SPEC='papyrus-newsroom[markus] @ git+https://github.com/AnthusAI/Papyrus@<sha>' infra/knowledge-run/build_image.sh`. Deploy a backend with `listStoryDrafts` before the image. |

@@ -273,6 +273,8 @@
   "/wiki/{slug}/",
   "--as-of",
   "2026-10-26",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
   "--beats-config",
   "<work>/site/web/scoring.json",
   "--concept-kinds",
@@ -296,6 +298,8 @@
   "/wiki/{slug}/",
   "--as-of",
   "2026-10-26",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
   "--beats-config",
   "<work>/site/web/scoring.json",
   "--concept-kinds",
@@ -315,7 +319,10 @@
   "--monitor-records",
   "<work>/runs/2026-W44/monitor-records.json",
   "--beats-config",
-  "<work>/site/web/scoring.json"
+  "<work>/site/web/scoring.json",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
+  "--retire"
  ],
  [
   "papyrus",
@@ -330,7 +337,12 @@
   "<work>/runs/2026-W44/monitor-records.json",
   "--beats-config",
   "<work>/site/web/scoring.json",
-  "--apply"
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
+  "--retire",
+  "--apply",
+  "--retired-out",
+  "<work>/runs/2026-W44/retired-wiki-items.json"
  ],
  [
   "papyrus",

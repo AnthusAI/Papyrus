@@ -487,6 +487,30 @@ def _project_removal(
     _converge(context, report, site, item_id, tombstone)
 
 
+@_leased
+def project_removals(context: ProjectionContext, item_ids: Collection[str]) -> ProjectionReport:
+    """Take the pages of items that were unpublished off the site, in one pass.
+
+    ``item_ids`` are the source item ids of the pages that were live (the ids their projection state is kept under). An id that is
+    still published is left alone. The listing pages are repaired against the data as it stands, then the pages, redirects and
+    state of the removed items go: the work of a reconcile for exactly these items, without the scan of the whole store, and
+    without ``project_all``'s refusal to delete (that guard exists for a wrong configuration; here the caller names what leaves).
+    """
+    site = context.source.site_index()
+    published = {summary.item_id for summary in site.items}
+    gone = sorted({item_id for item_id in item_ids if item_id not in published})
+    report = ProjectionReport()
+    stale = _stale_listing_keys(context, site)
+    if stale:
+        _write_listing_pages(context, report, context.projector.listing_pages(site, set(stale)), context.projector.listing_inputs(site))
+    _finish(context, report)
+    if gone:
+        removed = _remove_items(context, gone, site)
+        report.written.extend(removed.written)
+        report.deleted.extend(removed.deleted)
+    return report
+
+
 def _converge(
     context: ProjectionContext, report: ProjectionReport, site_used: SiteIndex, item_id: str, state: ItemState | None
 ) -> None:
@@ -872,7 +896,7 @@ def _guard_reconcile(
     _guard_deletions(context, planned, dropped)
 
 
-def _remove_items(context: ProjectionContext, item_ids: list[str], site: SiteIndex) -> None:
+def _remove_items(context: ProjectionContext, item_ids: list[str], site: SiteIndex) -> ProjectionReport:
     """Remove the pages, redirects and state of items that are no longer published, in one pass.
 
     The listing pages were already repaired against ``site``, so nothing links to
@@ -903,7 +927,7 @@ def _remove_items(context: ProjectionContext, item_ids: list[str], site: SiteInd
         if gone:
             context.redirect_store.delete_all(gone)
     cleanup.written.extend(project_item_pages(context, finish=False).written)
-    _finish(context, cleanup)
+    return _finish(context, cleanup)
 
 
 def _reconcile_redirects(context: ProjectionContext, report: ReconcileReport, site: SiteIndex, dry_run: bool) -> None:

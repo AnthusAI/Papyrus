@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 
+from ..knowledge_wiki.kinds import INTERNAL_KINDS, is_public_kind
 from .cluster_history import history_file, identity_of, valid_weeks, week_entry
 from .monitor_records import provenance_of
 from .keys import contains_email, entity_key, is_public_key, kind_label, kind_key, normalize_name, slug
@@ -126,7 +127,7 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
     eligible = [
         node
         for node in data.nodes
-        if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name)
+        if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name) and kind_key(node.kind) not in INTERNAL_KINDS
     ]
     keys = _public_keys(eligible)
     items_by_node: dict[str, set[str]] = defaultdict(set)
@@ -164,7 +165,7 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
                 weekly_start=week_monday(min(counts)).isoformat(),
                 change=change_of(values8, history),
                 new=is_new(history),
-                href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template and has_page else None,
+                href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template and has_page and is_public_kind(node.kind, options.public_kinds) else None,
             )
         )
     return sorted(entities, key=lambda entity: (-len(entity.item_keys), entity.key))

@@ -22,6 +22,9 @@ They are data for counts and relations and are **not** corpus documents, so the 
 ``--records-in-topic-model`` (an experiment; the cloud run never passes it) each record is also one ``record-<reference id>.md``:
 ``kind: monitor-record``, ``papyrus_record_id``, the Hub card as ``url`` and the record's source date as ``dates.published_at``, its body
 the record's structured line, never model card text. The wiki and the projection never read these files.
+
+A site that opts in (``--reference-documents-bucket``) also gets one ``ref-<reference id>.md`` per Reference with extracted text
+(``reference_documents.py``). Those are real corpus documents, unlike the records above.
 """
 
 from __future__ import annotations
@@ -41,6 +44,7 @@ from .monitor_records import MARKER as RECORD_MARKER
 from .monitor_records import MonitorRecord, biblicus_record_id, record_summary
 
 ITEM_MARKER = "papyrus_item_id:"
+REFERENCE_MARKER = "papyrus_reference_id:"
 DEFAULT_TYPES = ("article", "page")
 
 
@@ -140,15 +144,16 @@ def render_record(record: MonitorRecord) -> ExportedItem:
 
 def _is_exported_file(path: Path) -> bool:
     with path.open(encoding="utf-8") as handle:
-        return any(line.startswith((ITEM_MARKER, RECORD_MARKER)) for _, line in zip(range(20), handle))
+        return any(line.startswith((ITEM_MARKER, RECORD_MARKER, REFERENCE_MARKER)) for _, line in zip(range(20), handle))
 
 
-def write_export(items: list[ExportedItem], out: Path, records: list[ExportedItem] | None = None) -> dict[str, int]:
+def write_export(items: list[ExportedItem], out: Path, records: list[ExportedItem] | None = None, references: list[ExportedItem] | None = None) -> dict[str, int]:
     """Write the files; remove files of an earlier export (they carry ``papyrus_item_id`` or ``papyrus_record_id``) that are
     no longer published or delivered."""
     out.mkdir(parents=True, exist_ok=True)
     records = records or []
-    items = [*items, *records]
+    references = references or []
+    items = [*items, *records, *references]
     wanted = {item.file for item in items}
     removed = 0
     for stale in sorted(out.glob("*.md")):
@@ -157,7 +162,9 @@ def write_export(items: list[ExportedItem], out: Path, records: list[ExportedIte
             removed += 1
     for item in items:
         (out / item.file).write_text(item.text, encoding="utf-8")
-    counts = {"items": len(items) - len(records), "removed": removed, "undated": sum(1 for item in items if not item.published_at)}
+    counts = {"items": len(items) - len(records) - len(references), "removed": removed, "undated": sum(1 for item in items if not item.published_at)}
     if records:
         counts["records"] = len(records)
+    if references:
+        counts["referenceDocuments"] = len(references)
     return counts

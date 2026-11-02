@@ -65,3 +65,12 @@ Feature: Sites publish their public CLI login values
   Scenario: A site whose console has its own host registers the CLI callback there
     When the federation client is synthesized for a site whose console has its own origin
     Then the CLI callback and the Prospectus web callback are on the console origin and the loopback is unchanged
+
+  Scenario: The identity pool trusts the CLI's federation client like the web client
+    When the identity pool is synthesized with the CLI moved onto the federation client
+    Then the pool lists the federation client beside the web client on the same user pool with the same token check
+    And the federation client has its own Token role mapping so the editor and admin groups' roles apply to the CLI as to the browser
+
+  Scenario: A site that does not move the CLI keeps its identity pool exactly as it was
+    When the identity pool is synthesized without the CLI on the federation client
+    Then the pool lists only the web client and has one role mapping

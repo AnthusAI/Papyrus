@@ -44,18 +44,34 @@ those stored paths. What counts as a picture:
 Everything is checked before any write: at most 10 MB per file; a PNG, JPEG, GIF, WebP, AVIF or SVG picture; and a dark
 version whose width-to-height ratio is within 0.5% of the light one's. A rejection names each bad file and saves
 nothing. `--dry-run` prints one line per file (light or dark, source file, media id, stored path, size, and which light
-picture a dark one belongs to) and writes nothing, to the backend or to S3. Running the command again with the same
-files reuses the same stored paths and media ids, so it adds no duplicate rows or objects (the objects are compared by
-sha256 and only re-uploaded when the picture changed); like any save, it does record another draft version.
+picture a dark one belongs to) and writes nothing, to the backend or to S3. Like any save, each run records another draft
+version.
+
+**Re-runs and stable paths.** Running the command again with the same files reuses the same stored paths and S3 objects:
+a file whose content is already stored for the story (any of its versions) keeps its exact `srcPath`, and the object is
+only re-uploaded when the picture changed (compared by sha256). A name that already holds *different* content is never
+overwritten; the new file gets `-2`, `-3`, as the editor numbers it. `MediaAsset` rows are keyed by story **version**
+(the table is queried by item id, and the editor and the version carry-forward derive `media-<version id>-<hash of
+srcPath>` the same way), so each saved version has its own rows pointing at the same objects; a row id repeats only for
+the same version and path.
+
+**Where the files live, and whether that moves.** The key is `media/assets/<slug>/<file>` with the slug the story has when
+the file is first stored; a story with no real slug yet has the generated `draft-unsectioned-<hash>` slug and the CLI
+uses it exactly as the editor does. The path does not move afterwards: publishing, `stories set-slug` and a section
+change never rewrite media keys or the saved body (the body keeps the stored `srcPath`), so pictures keep working, and
+their URLs stay the same, after publish. A later slug change only affects pictures added after it.
 
 Both sign-in lanes work, and they reach S3 differently:
 
 | Lane | Rows (`MediaAsset`) | S3 objects |
 | --- | --- | --- |
 | `PAPYRUS_GRAPHQL_AUTH=iam` | IAM-signed GraphQL | the AWS credentials of the caller (bucket from `--bucket`, `PAPYRUS_MEDIA_BUCKET` or `amplify_outputs.json`) |
-| `PAPYRUS_GRAPHQL_AUTH=user` (`papyrus login`) | Cognito user token; the `editor` or `admin` group may write `MediaAsset` | the signed-in ID token is traded for temporary credentials from the site's Cognito identity pool, the way the browser editor uploads; the group's `media/*` write rule applies |
+| `PAPYRUS_GRAPHQL_AUTH=user` (`papyrus login`) | Cognito user token; the `editor` or `admin` group may write `MediaAsset` | the signed-in ID token is traded for temporary credentials from the site's Cognito identity pool, the way the browser editor uploads; the group's `media/*` write rule applies; the identity pool must trust the app client the CLI signed in on (below) |
 
-The user lane needs the identity pool id: `--identity-pool-id`, `PAPYRUS_IDENTITY_POOL_ID`, or `auth.identity_pool_id` in
+A site that moved the CLI onto its Prospectus federation client (`cliOnFederationClient`) has the backend register that
+client on the identity pool too, with the same Token role mapping as the web client, so a CLI ID token gets the same
+`editor` or `admin` group role as the browser. Until a site runs a backend with that change, the exchange fails with "Token
+is not from a supported provider of this identity pool". The user lane needs the identity pool id: `--identity-pool-id`, `PAPYRUS_IDENTITY_POOL_ID`, or `auth.identity_pool_id` in
 `amplify_outputs.json`. The `createModelAttachmentUpload` presigned-URL mutation cannot serve this command: it only
 issues keys under `newsroom/payloads` and `media/payloads`, never `media/assets`.
 
