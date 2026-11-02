@@ -156,3 +156,6 @@ papyrus knowledge snapshot --site-bucket <bucket> --entity-href '/wiki/{slug}/' 
 ```
 
 Code: `src/papyrus_content/knowledge_wiki/` (sync and commands), `src/papyrus_content/wiki_stamp.py` (the stamp and its checker), `src/papyrus_content/projection/standard/wiki.py` (the stamp, notice and footer on the page). Tests: `procedures/newsroom/tests/test_knowledge_wiki.py`.
+
+
+Concepts that editors invent by typing a hashtag have the kind `editor_concept`. They are real concepts in the console (Related section, suggestions) but are not published: like paper authors, the wiki publishes the kind only when the site's vocabulary names it. There is no per-concept publish switch yet. See [idea context packs](idea-context-packs.md#concepts-an-editor-invents-by-typing-a-hashtag).

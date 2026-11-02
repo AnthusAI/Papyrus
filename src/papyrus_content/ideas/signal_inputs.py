@@ -288,6 +288,25 @@ def predicted_probability(row: dict[str, Any]) -> float | None:
     return float(value) if isinstance(value, (int, float)) else None
 
 
+def human_tagged_lineages(client: Any) -> set[str]:
+    """The lineage ids of the References an editor tagged with a concept (a current ``related_to`` link to a concept, provenance human, made or decided by a
+    person). A tag, including a concept an editor invented by typing its hashtag, is a human signal: the Reference counts as one a person worked on, so its
+    concept links are read like a vote's. One paginated read of the site's link rows; an unreadable feed means no tags."""
+    from .. import suggestion_calibration
+
+    try:
+        rows = client.list_by_index(suggestion_calibration.FEED_INDEX, suggestion_calibration.REFERENCE_LINK_FEED_KEY)
+    except Exception:  # noqa: BLE001
+        return set()
+    tagged: set[str] = set()
+    for row in rows:
+        metadata = suggestion_calibration._metadata(row)
+        if (row.get("relationState") == "current" and row.get("objectKind") == "semanticNode" and row.get("subjectKind") == REFERENCE_KIND
+                and metadata.get("provenance") == "human" and row.get("subjectLineageId")):
+            tagged.add(str(row["subjectLineageId"]))
+    return tagged
+
+
 def load_signal_inputs(
     client: Any, *, site: str, now: datetime, workers: int = DEFAULT_WORKERS, client_factory: Callable[[], Any] | None = None,
     out_of_time: Callable[[], bool] = lambda: False,
@@ -300,7 +319,8 @@ def load_signal_inputs(
     references = sorted(collect_references(client, [f"{CORPUS_PREFIX}{site}"], list(ACTION_FOR_STATUS), None), key=lambda entry: str(entry["id"]))
     messages, anchored = load_messages(client)
     is_pending = lambda row: str(row.get("curationStatus") or "pending") == "pending"  # noqa: E731
-    core = [row for row in references if row.get("curationActorKind") == HUMAN or str(row.get("lineageId") or row["id"]) in anchored]
+    tagged = human_tagged_lineages(client)
+    core = [row for row in references if row.get("curationActorKind") == HUMAN or str(row.get("lineageId") or row["id"]) in anchored | tagged]
     core_ids = {row["id"] for row in core}
     backlog = sorted((row for row in references if is_pending(row) and row["id"] not in core_ids),
                      key=lambda row: (-(predicted_probability(row) or 0.0), str(row["id"])))

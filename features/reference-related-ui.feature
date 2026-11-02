@@ -103,6 +103,16 @@ Feature: Editors see and manage what a Reference is related to
     When the editor opens the Related section of that Reference
     Then the suggestions are asked for once without a press and show as soon as the answer comes
 
+  Scenario: Typing a hashtag no concept has offers one action that makes the concept and tags the Reference
+    Given a Reference with no links that nobody has asked suggestions for
+    When the editor types a hashtag that no concept has, taps the create action twice and then does the same with Enter
+    Then one concept and one confirmed link are made, the existing name offers itself instead of a second concept, and the action shows a Lucide icon in light and dark at 375 and 1440 pixels
+
+  Scenario: The concept an editor made takes a description on its own page
+    Given a concept page for a concept an editor made
+    When the editor adds a description in place
+    Then the words are saved without a dialog and the button then says Edit description
+
   Scenario: Suggest more explains an empty result in plain words
     Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
     When the editor presses Suggest more and the site reports that the Reference has no summary vector, or a reason it does not know

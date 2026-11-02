@@ -90,3 +90,58 @@ test("publication precision shows as a month or a year, and createdAt is never t
   assert.equal(referenceDatesText({ sourcePublishedAt: null, createdAt: "2026-10-28T08:00:00Z" }), "published unknown · added 2026-10-28");
   assert.equal(referenceDatesText({ sourcePublishedAt: "2026-10-01T00:00:00Z", createdAt: "2026-10-28T08:00:00Z", metadata: JSON.stringify({ publicationDateResolution: { precision: "month" } }) }), "published Oct 2026 · added 2026-10-28");
 });
+
+// --- concepts an editor invents by typing a hashtag -------------------------------------------------------------------------------------------
+import { conceptSlug, describeEditorConcept, editorConceptLineageId, ensureEditorConcept, EDITOR_CONCEPT_KIND } from "../amplify/functions/category-action/reference-links";
+
+function conceptStore() {
+  const nodes = new Map<string, any>();
+  const { store, relations } = fakeStore();
+  let creates = 0;
+  const full = {
+    ...store,
+    getSemanticNode: async (id: string) => nodes.get(id) ?? store.getSemanticNode(id),
+    createSemanticNode: async (node: Record<string, unknown>) => { creates += 1; if (nodes.has(node.lineageId as string)) return false; nodes.set(node.lineageId as string, node); return true; },
+    updateSemanticNode: async (node: Record<string, unknown>) => { for (const [key, value] of nodes) if (value.id === node.id) nodes.set(key, { ...value, ...node }); },
+  };
+  return { store: full, nodes, relations, creates: () => creates };
+}
+
+test("a typed hashtag becomes the name part of the key: case folded, spaces and other characters one hyphen", () => {
+  assert.equal(conceptSlug("#Fake Website  Networks"), "fake-website-networks");
+  assert.equal(conceptSlug("  #fake_website/networks! "), "fake-website-networks");
+  assert.equal(conceptSlug("#"), "");
+});
+
+test("typing a new hashtag makes the concept with its name, the editor concept kind, who made it and when, and a confirmed human link", async () => {
+  const world = conceptStore();
+  const result = await createReferenceLink(world.store, { subjectLineageId: vectors.references[0], objectKind: "semanticNode", objectLineageId: "ignored", predicate: "related_to", newConceptName: "Fake Website Networks", callerSub: "editor-1", now: "2026-11-02T12:00:00Z" });
+  const lineage = editorConceptLineageId("fake-website-networks");
+  const node = world.nodes.get(lineage);
+  assert.deepEqual({ kind: node.nodeKind, key: node.nodeKey, name: node.displayName, status: node.status, by: node.versionCreatedBy, at: node.versionCreatedAt, description: node.description ?? null },
+    { kind: EDITOR_CONCEPT_KIND, key: "editor_concept--fake-website-networks", name: "fake website networks", status: "accepted", by: "editor-1", at: "2026-11-02T12:00:00Z", description: null });
+  const [row] = [...world.relations.values()];
+  const metadata = JSON.parse(row.metadata as string);
+  assert.equal(result.outcome, "created");
+  assert.deepEqual({ state: row.relationState, predicate: row.predicate, object: row.objectLineageId, provenance: metadata.provenance, by: metadata.addedBy, decision: metadata.decision }, { state: "current", predicate: "related_to", object: lineage, provenance: "human", by: "editor-1", decision: "accepted" });
+});
+
+test("a double tap, or the same name typed later, makes one concept and one link", async () => {
+  const world = conceptStore();
+  const input = { subjectLineageId: vectors.references[0], objectKind: "semanticNode", objectLineageId: "x", predicate: "related_to", newConceptName: "#fake-website-networks", callerSub: "editor-1", now: "2026-11-02T12:00:00Z" };
+  await createReferenceLink(world.store, input);
+  await createReferenceLink(world.store, { ...input, newConceptName: "FAKE website NETWORKS" });
+  assert.equal(world.nodes.size, 1);
+  assert.equal(world.relations.size, 1);
+});
+
+test("only a concept an editor made can be described, and the words are kept with who wrote them", async () => {
+  const world = conceptStore();
+  await ensureEditorConcept(world.store, "fake website networks", "editor-1", "2026-11-02T12:00:00Z");
+  const lineage = editorConceptLineageId("fake-website-networks");
+  const done = await describeEditorConcept(world.store, { lineageId: lineage, description: "  Sites made to look like news.  ", callerSub: "editor-2", now: "2026-11-02T13:00:00Z" });
+  assert.equal(done.description, "Sites made to look like news.");
+  assert.equal(world.nodes.get(lineage).versionCreatedBy, "editor-2");
+  world.nodes.set("semantic-node-generated", { id: "semantic-node-generated-v1", lineageId: "semantic-node-generated", nodeKind: "model" });
+  await assert.rejects(describeEditorConcept(world.store, { lineageId: "semantic-node-generated", description: "x", callerSub: "editor-2", now: "2026-11-02T13:00:00Z" }), /Only a concept an editor made/);
+});

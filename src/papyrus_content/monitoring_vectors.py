@@ -205,12 +205,16 @@ def _is_signal(row: dict[str, Any], signalled: set[str]) -> bool:
 
 
 def signal_lineages(client: Any) -> set[str]:
-    """The lineage ids of the References a conversation is anchored on (a vote is on the Reference row itself). Unreadable threads mean no signal from them."""
+    """The lineage ids of the References a person worked on besides voting: a conversation is anchored on it, or an editor tagged it with a concept (a vote is on
+    the Reference row itself). Unreadable threads or links mean no signal from them."""
+    from .ideas.signal_inputs import human_tagged_lineages
+
     try:
-        return {str(thread.get("primaryAnchorKey") or "").removeprefix(REFERENCE_ANCHOR_PREFIX)
-                for thread in client.list_records("MessageThread") if thread and str(thread.get("primaryAnchorKey") or "").startswith(REFERENCE_ANCHOR_PREFIX)}
+        anchored = {str(thread.get("primaryAnchorKey") or "").removeprefix(REFERENCE_ANCHOR_PREFIX)
+                    for thread in client.list_records("MessageThread") if thread and str(thread.get("primaryAnchorKey") or "").startswith(REFERENCE_ANCHOR_PREFIX)}
     except Exception:  # noqa: BLE001
-        return set()
+        anchored = set()
+    return anchored | human_tagged_lineages(client)
 
 
 def references_since(client: Any, publication: dict[str, Any], watermark: str | None, signal_ids: Iterable[str] = ()) -> list[dict[str, Any]]:

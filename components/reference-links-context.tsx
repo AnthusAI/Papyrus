@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import { symmetricSubjectFirst, type LinkExplanation, type RelatedEntry, type RelatedItem, type SuggestionLabel } from "../lib/reference-links";
+import { conceptSlug, editorConceptItem, editorConceptLineageId, symmetricSubjectFirst, type LinkExplanation, type RelatedEntry, type RelatedItem, type SuggestionLabel } from "../lib/reference-links";
 import { compareSuggestions, type LinkSuggestion, type LinkSuggestionPage } from "../lib/link-suggestions";
 import { conceptKeysForHashtag } from "../lib/wiki";
 
@@ -20,6 +20,10 @@ export type ReferenceLinksStore = {
   /** Accept or reject a link. `note` is the person's words: the explanation of an accepted link (it replaces the earlier words; "" clears them), the reason for a rejection. */
   decide: (input: { relationId: string; decision: "accept" | "reject"; note?: string }) => Promise<void>;
   suggest: (referenceId: string) => Promise<SuggestOutcome>;
+  /** Invents the concept named by a typed hashtag if it does not exist and tags the Reference with it, as one confirmed `related_to` link. Asking twice makes one concept and one link. */
+  createConceptAndTag?: (referenceLineageId: string, name: string) => Promise<{ relationId: string; item: RelatedItem }>;
+  /** An editor's words about a concept they invented ("" clears them). */
+  describeConcept?: (conceptLineageId: string, description: string) => Promise<void>;
   /** The Needs me queue: one page of open suggestions, from the cursor the last page returned (null for the first). Most likely first within the page. */
   listSuggested?: (cursor: string | null) => Promise<LinkSuggestionPage>;
 };
@@ -145,6 +149,20 @@ export function createMemoryReferenceLinksStore(options: {
       const id = `memory-link-${links.length + 1}`;
       links.push({ id, subjectKind: "reference", subjectLineageId: subject, objectKind: input.objectKind, objectLineageId: object, state: "current", provenance: "human" });
       return { relationId: id };
+    },
+    async createConceptAndTag(referenceLineageId, name) {
+      note({ type: "createConceptAndTag", referenceLineageId, name });
+      const slug = conceptSlug(name);
+      const item = items.get(`concept#${editorConceptLineageId(slug)}`) ?? editorConceptItem(slug);
+      items.set(`concept#${item.lineageId}`, item);
+      const existing = links.find(link => link.subjectLineageId === referenceLineageId && link.objectLineageId === item.lineageId);
+      if (existing) { existing.state = "current"; return { relationId: existing.id, item }; }
+      const id = `memory-link-${links.length + 1}`;
+      links.push({ id, subjectKind: "reference", subjectLineageId: referenceLineageId, objectKind: "semanticNode", objectLineageId: item.lineageId, state: "current", provenance: "human" });
+      return { relationId: id, item };
+    },
+    async describeConcept(conceptLineageId, description) {
+      note({ type: "describeConcept", conceptLineageId, description });
     },
     async decide(input) {
       note({ type: "decide", ...input });
