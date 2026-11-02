@@ -406,7 +406,7 @@ def test_the_stack_has_a_private_bucket_one_key_parameter_and_least_privilege_fo
     assert read["Action"] == "ssm:GetParameter" and "EnrichmentOpenAiKeyParameter" in json.dumps(read["Resource"]) and "*" not in json.dumps(read["Resource"])
     storage = resources["RouterEnrichmentStoragePolicy"]["Properties"]["PolicyDocument"]["Statement"]
     assert storage[0]["Action"] == ["s3:GetObject", "s3:PutObject"] and storage[0]["Resource"][1].endswith("/enrichment/*")
-    assert all(r[1].endswith("/types/Mutation/fields/createModelAttachmentDownload") for r in storage[1]["Resource"]) and len(storage[1]["Resource"]) == 7
+    assert all(r[1].endswith("/types/Mutation/fields/createModelAttachmentDownload") for r in storage[1]["Resource"]) and len(storage[1]["Resource"]) == 8
 
 
 def test_the_router_gets_the_tavily_key_parameter_and_may_read_and_decrypt_only_that():
