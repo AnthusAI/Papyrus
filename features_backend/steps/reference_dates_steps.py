@@ -29,8 +29,9 @@ def dated_reference(context):
 
 
 def stored_resolution(context):
-    raw = dated_reference(context).get("metadata")
-    return (json.loads(raw) if raw else {}).get("publicationDateResolution")
+    """The provenance lives on the curation card (the curation attachment's metadata): the Reference model has no metadata field."""
+    card = curation.read_card(context.client, dated_reference(context)) or {}
+    return card.get("publicationDate")
 
 
 @given("a site with a pending Reference whose source page declares its date in no way yet")
