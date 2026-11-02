@@ -10,8 +10,8 @@ handles it must cite beside the source (``I1``):
 * ``R1..``, kind ``neighbour``: another accepted Reference linked to it: a confirmed link (a person or a rule made it), or a suggested one whose
   similarity is at least the site's median nearest-neighbour similarity (the cut the cluster signal uses: ``context_packs.typical_neighbour_pairs``).
   A neighbour must have a summary (or an editors' explanation) beyond its title, so the writer never leans on a title alone.
-* ``X1..``, kind ``editorsExplanation``: the words an editor wrote on the link to a neighbour (PR #1034 puts them on ``ReferenceEdge.explanation``; before
-  that change there are none). Also the editors' view.
+* ``X1..``, kind ``editorsExplanation``: the words an editor wrote on the link to a neighbour (``ReferenceEdge.explanation``, PR #1034; read with ``getattr``, so a
+  build whose edges have no such field works the same without them). Also the editors' view.
 
 ``Connections.clears_the_bar`` decides before any model call whether there is anything to add: some connection, and for a Reference whose page could not
 be read (no page text and no real summary) a Message or a neighbour, because an accept reason alone is no reason to describe what cannot be read.
@@ -297,7 +297,7 @@ class Knowledge:
         from .signal_inputs import edges_of
 
         for edge in edges_of([row for row in rows if row.get("relationState", "current") == "current"]):
-            explanation = getattr(edge, "explanation", None)   # present once PR #1034 is in; None before it
+            explanation = getattr(edge, "explanation", None)   # PR #1034 puts it on the edge; a build without it has none
             self._confirmed.setdefault(edge.subject_lineage_id, []).append((edge.object_lineage_id, explanation))
             self._confirmed.setdefault(edge.object_lineage_id, []).append((edge.subject_lineage_id, explanation))
         for row in rows:

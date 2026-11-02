@@ -79,10 +79,12 @@ def editor_accepted(row, reason=REASON):
     return row
 
 
-def link(first, second, *, state="suggested", score=0.8, predicate="related_to"):
+def link(first, second, *, state="suggested", score=0.8, predicate="related_to", note=None):
+    """A link row of the feed. ``note`` is what an editor wrote when they accepted or made it (``metadata.note``, decided by a person)."""
     low, high = sorted([first["lineageId"], second["lineageId"]])
+    metadata = {"decision": "accepted", "decidedBy": "editor-a", "note": note} if note else {}
     return {"relationState": state, "predicate": predicate, "subjectKind": "reference", "objectKind": "reference", "subjectLineageId": low, "objectLineageId": high,
-            "score": score, "createdAt": "2026-10-20T00:00:00Z", "metadata": "{}"}
+            "score": score, "createdAt": "2026-10-20T00:00:00Z", "metadata": json.dumps(metadata)}
 
 
 def run_stories(client, model, *, standard="more-than-summary", pages=lambda url: PAGE, store=None, dry_run=False, **options):
@@ -214,14 +216,10 @@ def test_a_neighbour_with_only_a_title_or_not_accepted_is_not_offered():
     assert knowledge.neighbours_of(rows[0]["lineageId"])[0] == []   # r2 has no summary, r3 is pending
 
 
-def test_a_confirmed_link_is_a_neighbour_whatever_its_similarity_and_may_carry_the_editors_explanation(monkeypatch):
+def test_a_confirmed_link_is_a_neighbour_whatever_its_similarity_and_may_carry_the_editors_explanation():
     rows, base = world(2)
-    feed = [link(rows[0], rows[1], state="current", score=None)]
+    feed = [link(rows[0], rows[1], state="current", score=None, note="Both cover the same vendor.")]
     client = LinkedClient(references=rows, relations=base.relations, feed=feed)
-    from papyrus_content.ideas import signal_inputs
-
-    real = signal_inputs.edges_of
-    monkeypatch.setattr(signal_inputs, "edges_of", lambda relations: [SimpleNamespace(**vars(edge), explanation="Both cover the same vendor.") for edge in real(relations)])
     knowledge = knowledge_for(client, {rows[1]["lineageId"]: "A summary."})
     [neighbour], _ = knowledge.neighbours_of(rows[0]["lineageId"])
     assert (neighbour.provenance, neighbour.explanation) == ("confirmed", "Both cover the same vendor.")
@@ -229,11 +227,27 @@ def test_a_confirmed_link_is_a_neighbour_whatever_its_similarity_and_may_carry_t
     assert handles == ["R1", "X1"]   # the explanation is a connection handle of its own once #1034 supplies it
 
 
-def test_without_the_explanation_field_a_confirmed_link_is_still_a_neighbour():
+def test_a_link_no_person_explained_has_no_explanation_and_a_machine_links_words_are_not_the_editors():
     rows, base = world(2)
     client = LinkedClient(references=rows, relations=base.relations, feed=[link(rows[0], rows[1], state="current", score=None)])
     [neighbour], _ = knowledge_for(client, {rows[1]["lineageId"]: "A summary."}).neighbours_of(rows[0]["lineageId"])
-    assert neighbour.explanation is None   # before PR #1034 the edge carries no words
+    assert neighbour.explanation is None
+    machine = link(rows[0], rows[1], state="current", score=None, note="Matched by similarity.")
+    machine["metadata"] = json.dumps({"decision": "accepted", "decidedBy": "auto:vector", "note": "Matched by similarity."})
+    client = LinkedClient(references=rows, relations=base.relations, feed=[machine])
+    assert knowledge_for(client, {rows[1]["lineageId"]: "A summary."}).neighbours_of(rows[0]["lineageId"])[0][0].explanation is None
+
+
+def test_on_a_build_whose_edges_carry_no_explanation_field_a_confirmed_link_is_still_a_neighbour(monkeypatch):
+    """The rule counts an explanation when the edge has the field (PR #1034, merged) and does not need it."""
+    rows, base = world(2)
+    client = LinkedClient(references=rows, relations=base.relations, feed=[link(rows[0], rows[1], state="current", score=None, note="Both cover the same vendor.")])
+    from papyrus_content.ideas import signal_inputs
+
+    real = signal_inputs.edges_of
+    monkeypatch.setattr(signal_inputs, "edges_of", lambda relations: [SimpleNamespace(subject_lineage_id=edge.subject_lineage_id, object_lineage_id=edge.object_lineage_id, predicate=edge.predicate) for edge in real(relations)])
+    [neighbour], _ = knowledge_for(client, {rows[1]["lineageId"]: "A summary."}).neighbours_of(rows[0]["lineageId"])
+    assert (neighbour.provenance, neighbour.explanation) == ("confirmed", None)
 
 
 def test_a_backend_that_refuses_a_read_is_noted_and_treated_as_empty():

@@ -95,14 +95,14 @@ Feature: An idea is more than a summary of its Reference
     And the idea records the connections "acceptReason" and "neighbour:R1"
     And the idea still targets only "A tool that checks claims"
 
-  Scenario: The words an editor wrote on a link count as a connection of their own, whether or not the editors' explanations have shipped
+  Scenario: The words an editor wrote on a link count as a connection of their own, and the rule does not need them
     Given the accepted Reference "A tool that checks claims" with the editors' reason "Claim checking matters to our sourcing coverage."
     And the accepted Reference "A tool that checks quotations" with the summary "A tool that checks quotations against archives."
     And editors connected "A tool that checks claims" to "A tool that checks quotations" and explained "Both guard the newsroom's sourcing."
     When the connections of "A tool that checks claims" are read
     Then the connections are "E1", "R1" and "X1"
     And "X1" carries the editors' explanation "Both guard the newsroom's sourcing." as the editors' view
-    When the editors' explanations are not available yet
+    When the build has no editors' explanations on its links
     And the connections of "A tool that checks claims" are read
     Then the connections are "E1" and "R1"
 

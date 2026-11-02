@@ -38,7 +38,7 @@ UNREADABLE_DETAILS = {"likes": 5}
 def held(context) -> SimpleNamespace:
     if not hasattr(context, "mts"):
         context.mts = SimpleNamespace(
-            standard="more-than-summary", rows=[], summaries={}, comments=[], feed=[], unreadable=set(), explanations={}, shipped=True, model=Model(story()), client=None,
+            standard="more-than-summary", rows=[], summaries={}, comments=[], feed=[], unreadable=set(), shipped=True, model=Model(story()), client=None,
             runs=[], only=None, connections=None, cut=None,
         )
     return context.mts
@@ -79,18 +79,14 @@ def knowledge_of(context) -> rules.Knowledge:
 
 @contextmanager
 def explanations_as_shipped(context):
-    """``signal_inputs.edges_of`` as it is once PR #1034 puts the editors' words on an edge (``explanation``), or as it is before (no such field)."""
+    """``signal_inputs.edges_of`` as it is (an edge carries ``explanation``, PR #1034), or as a build without that field has it."""
     state = held(context)
     real = signal_inputs.edges_of
 
-    def with_words(relations):
-        found = []
-        for edge in real(relations):
-            words = state.explanations.get(frozenset((edge.subject_lineage_id, edge.object_lineage_id)))
-            found.append(SimpleNamespace(**vars(edge), explanation=words) if state.shipped else edge)
-        return found
+    def without_words(relations):
+        return [SimpleNamespace(subject_lineage_id=edge.subject_lineage_id, object_lineage_id=edge.object_lineage_id, predicate=edge.predicate) for edge in real(relations)]
 
-    with mock.patch.object(signal_inputs, "edges_of", with_words):
+    with mock.patch.object(signal_inputs, "edges_of", real if state.shipped else without_words):
         yield
 
 
@@ -153,8 +149,7 @@ def step_linked(context, first, second):
 
 @given('editors connected "{first}" to "{second}" and explained "{words}"')
 def step_linked_explained(context, first, second, words):
-    step_linked(context, first, second)
-    held(context).explanations[frozenset((row_of(context, first)["lineageId"], row_of(context, second)["lineageId"]))] = words
+    held(context).feed.append(link(row_of(context, first), row_of(context, second), state="current", score=None, note=words))
 
 
 @given("the vector index suggests these matches:")
@@ -377,7 +372,7 @@ def step_read(context, title):
     read_connections(context, title)
 
 
-@when("the editors' explanations are not available yet")
+@when("the build has no editors' explanations on its links")
 def step_unshipped(context):
     held(context).shipped = False
 
