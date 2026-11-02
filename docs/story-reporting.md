@@ -75,11 +75,34 @@ is not from a supported provider of this identity pool". The user lane needs the
 `amplify_outputs.json`. The `createModelAttachmentUpload` presigned-URL mutation cannot serve this command: it only
 issues keys under `newsroom/payloads` and `media/payloads`, never `media/assets`.
 
+**Publishing from the CLI.** `papyrus ops content publish --id <item-id>` writes the published records and then projects the
+page. Three things to know:
+
+- **Placeholder slugs are refused.** A story created from the CLI keeps the generated `draft-<section>-<hash>` slug (for
+  example `draft-unsectioned-1a2b3c4d5e6f7a8b`) until `papyrus stories set-slug --story <id> --slug <new-slug>` gives it
+  one. `content publish` (a `--dry-run` too) stops with that command in the error and writes nothing; there is no override.
+  Unpublishing is not blocked. (The newsroom's own Publish button does not check this: the editor only requires a non-empty
+  slug, so a story published from the console can still go live at a placeholder address.)
+- **The signed-in lane projects through the newsroom.** With `PAPYRUS_GRAPHQL_AUTH=user` there are no AWS credentials to invoke
+  the content-actions function, so after writing the records the CLI calls the `publishItem` mutation (`unpublishItem` for
+  an unpublish) that the console's Publish button calls. It is idempotent: it finds nothing left to change, projects the
+  page, and reports whether the page is live. The IAM lane still invokes the function directly. (That second call does not
+  announce the publish to the newsletter; the console's Publish does.)
+- **A failed projection is a failed command.** If the page could not be projected, the command exits 1 and says the data is
+  published but the page is not, with the exact retry: `papyrus ops content publish --id <item-id>` (repeating it changes
+  nothing already written). With `--json` the payload has `"ok": false`, `"dataPublished": true`, `"pagePublished": false`,
+  `"retry"` and `"message"`. `--no-trigger` skips projection on purpose and is not a failure. `stories set-slug` on a
+  published story projects the same way.
+
 To move a story between board stages without saving a draft:
 
 ```bash
 papyrus stories move --story <lineage> --stage reporting [--reason "why"] [--author-label "ChatGPT"]
 ```
+
+**`--stage published` does not publish.** It only moves the card; no page is written and nothing goes live. The command prints a
+warning on stderr saying so (in a `--dry-run` too; stdout keeps its tab-separated lines) and naming
+`papyrus ops content publish --id <item-id>`, which is what publishes.
 
 This is the same `Item.stage` update a card move makes. The stage must be one of the content item stages (`idea`, `assignment`, `reporting`, `copywriting`, `illustration`, `typesetting`, `published`, `held`, `spiked`), and each move posts a note in the story's Reporting trail. The `moveStoryStage` GraphQL mutation (input `{ lineageId, stage, reason }`, editor groups) does the same for browser and agent clients.
 

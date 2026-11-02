@@ -93,7 +93,7 @@ def test_the_cli_passes_changed_through_to_the_task() -> None:
     from papyrus_content.publishing import PublishResult
 
     tasks: list[dict[str, Any]] = []
-    with mock.patch.object(publish_commands, "projection_enabled", return_value=True), mock.patch.object(
+    with mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "iam"}), mock.patch.object(publish_commands, "projection_enabled", return_value=True), mock.patch.object(
         publish_commands, "trigger_projection", side_effect=lambda task: tasks.append(task) or {"ok": True}
     ):
         publish_commands.run_site_triggers(mock.Mock(), {"no-trigger": False}, PublishResult(False, ITEM, PUBLISHED, 1))

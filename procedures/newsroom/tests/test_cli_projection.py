@@ -19,7 +19,7 @@ from papyrus_content.story_commands import stories_set_slug
 from fake_client import FakeAuthoringClient  # noqa: E402
 
 NOW = "2026-10-05T12:00:00Z"
-PROJECTING = {"PAPYRUS_PUBLICATION_KIND": "s3-projection", "PAPYRUS_CONTENT_ACTIONS_FUNCTION": "content-actions-fn"}
+PROJECTING = {"PAPYRUS_PUBLICATION_KIND": "s3-projection", "PAPYRUS_CONTENT_ACTIONS_FUNCTION": "content-actions-fn", "PAPYRUS_GRAPHQL_AUTH": "iam"}
 
 
 def item_fields(slug: str = "hello", item_id: str = "item-articles-hello", section: str = "articles") -> ItemFields:
@@ -100,17 +100,20 @@ class PublishProjectionTests(unittest.TestCase):
         revalidate.assert_called_once()
         invoke.assert_not_called()
 
-    def test_projection_failure_does_not_fail_the_publish(self) -> None:
+    def test_projection_failure_exits_non_zero_after_the_data_is_published(self) -> None:
         client = self.saved()
         output = io.StringIO()
         with mock.patch.dict("os.environ", PROJECTING), \
                 mock.patch("papyrus_content.publish_commands.create_authoring_client", return_value=(client, {})), \
                 mock.patch("papyrus_content.projection_trigger._invoke_lambda", side_effect=RuntimeError("denied")), \
                 contextlib.redirect_stdout(output):
-            content_publish(["--id", "item-articles-hello", "--json"])
+            with self.assertRaises(SystemExit) as raised:
+                content_publish(["--id", "item-articles-hello", "--json"])
+        self.assertEqual(raised.exception.code, 1)
         payload = json.loads(output.getvalue())
-        self.assertTrue(payload["ok"])
+        self.assertFalse(payload["ok"])
         self.assertFalse(payload["projection"]["ok"])
+        self.assertEqual(client.get_record("Item", "item-articles-hello")["status"], "published")
 
 
 class SetSlugTests(unittest.TestCase):

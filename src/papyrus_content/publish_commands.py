@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 import json
+import re
+import sys
 from typing import Any, Callable
 
 from .graphql_authoring import create_authoring_client
 from .options import normalize_string, parse_options, resolve_mutation_apply
-from .projection_trigger import SKIP_LINE, item_task, projection_enabled, skipped_projection, trigger_projection
+from .projection_trigger import (
+    SKIP_LINE,
+    item_task,
+    projection_enabled,
+    retry_command,
+    skipped_projection,
+    trigger_projection,
+    trigger_projection_as_user,
+)
 from .publishing import DryRunClient, PublishError, publish_item, unpublish_item
 from .rebuild_trigger import (
     DEFAULT_READER_BRANCH,
@@ -20,6 +30,22 @@ from .rebuild_trigger import (
 )
 
 DEFAULT_ACTOR = "papyrus-cli"
+# The slug a story gets when it is created (``draft-<section>-<hash>``) until someone runs ``stories set-slug``.
+PLACEHOLDER_SLUG = re.compile(r"^draft-[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{8,16}$")
+
+
+def is_placeholder_slug(slug: Any) -> bool:
+    return bool(PLACEHOLDER_SLUG.match(str(slug or "")))
+
+
+def refuse_placeholder_slug(client, item_id: str) -> None:
+    item = client.get_record("Item", item_id) or {}
+    if is_placeholder_slug(item.get("slug")):
+        raise PublishError(
+            "placeholder-slug",
+            f"{item_id} still has the placeholder slug {item['slug']!r}, so publishing would put the page at that address. "
+            f"Give it a real address first: papyrus stories set-slug --story {item_id} --slug <new-slug>",
+        )
 
 
 def resolve_item_id(client, options: dict[str, Any]) -> str:
@@ -47,9 +73,11 @@ def run_site_triggers(client, options: dict[str, Any], result, *, unpublished: b
         return {"projection": skipped_projection()} if projecting else {}
     triggers: dict[str, Any] = {}
     if projecting:
-        triggers["projection"] = trigger_projection(
-            item_task(result.item_id, unpublished=unpublished, published_item_id=result.published_item_id if result.changed else None)
-        )
+        task = item_task(result.item_id, unpublished=unpublished, published_item_id=result.published_item_id if result.changed else None)
+        from .user_auth_mode import user_auth_requested
+
+        # The signed-in lane has no AWS credentials to invoke the function, so it asks the newsroom's own mutation.
+        triggers["projection"] = trigger_projection_as_user(client, task) if user_auth_requested() else trigger_projection(task)
     if not result.changed:
         return triggers
     item = client.get_record("Item", result.item_id) or {}
@@ -76,6 +104,8 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
     item_id = resolve_item_id(client, options)
     target = client if apply else DryRunClient(client)
     try:
+        if not unpublished:
+            refuse_placeholder_slug(client, item_id)
         result = action(target, item_id, actor=actor)
     except PublishError as error:
         payload = {
@@ -90,8 +120,10 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
     triggers: dict[str, Any] = {}
     if apply and (result.changed or projection_enabled()):
         triggers = run_site_triggers(client, options, result, unpublished=unpublished)
+    projection = triggers.get("projection") or {}
+    page_failed = projection.get("ok") is False
     payload = {
-        "ok": True,
+        "ok": not page_failed,
         "dryRun": not apply,
         "changed": result.changed,
         "itemId": result.item_id,
@@ -100,8 +132,19 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
         "planned": planned,
         **triggers,
     }
+    failure = None
+    if page_failed:
+        retry = retry_command(result.item_id, unpublished=unpublished)
+        failure = (
+            f"{label} FAILED to project the page: the data is {'unpublished' if unpublished else 'published'} but the page "
+            f"is not {'removed' if unpublished else 'live'} ({projection.get('error') or 'unknown error'}). "
+            f"Retry with: {retry}"
+        )
+        payload.update({"dataPublished": not unpublished, "pagePublished": False, "retry": retry, "message": failure})
     if options.get("json"):
         print(json.dumps(payload, indent=2))
+        if failure:
+            raise SystemExit(1)
         return
     state = "changed" if result.changed else "unchanged"
     print(f"{label}: {result.item_id} {state} (published version {result.version_number})")
@@ -112,6 +155,9 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
             print(f"  {SKIP_LINE}")
         else:
             print(f"  {key}: {json.dumps(outcome)}")
+    if failure:
+        print(failure, file=sys.stderr)
+        raise SystemExit(1)
 
 
 def content_publish(flags: list[str]) -> None:
