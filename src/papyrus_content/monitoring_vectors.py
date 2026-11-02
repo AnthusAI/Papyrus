@@ -4,12 +4,19 @@ Before packs and single items, ``monitoring_stories.run_publication`` calls ``ru
 
 1. Sync the publication's vector index: the summary, source and passage vectors of the References accepted since the last pass, the summary vector of the
    pending ones (context only: their vectors are marked ``curationStatus: pending`` and every reader-facing query filters to accepted), and the concept
-   cards (content-hash skipping, so an unchanged card costs nothing). Every pass also reconciles the status of what is already indexed: a pending Reference
+   cards (content-hash skipping, so an unchanged card costs nothing), and the editors' explanations of accepted links (``link_explanation`` vectors, internal
+   notes: see "Link explanations" below). Every pass also reconciles the status of what is already indexed: a pending Reference
    accepted since gets its metadata rewritten (no embedding call) and its passages written, and the vectors of a rejected, archived or superseded Reference
    are deleted (``index_reference_passages`` does this on every ``sync``, whatever References it is asked to index). It is ``papyrus_knowledge_query.vector_index.index_reference_passages`` with
    ``action="sync"``, reached through the publication's own API with the router's IAM access and the site's storage bucket for the extracted text.
 2. Suggest related References and concepts for each Reference accepted or pending since the last pass (``reference_suggestions.suggest_for``), cut where the
    site's own decided suggestions say (``suggestion_calibration.load_calibration``).
+
+Link explanations: a person's note on an accepted Reference-to-Reference link or concept tag (``SemanticRelation`` ``metadata.note``) is embedded with both ends'
+titles, one vector per link, marked ``audience: editor``. The vector's own ``contentHash`` and ``curationStatus`` are its watermark (the router keeps no extra
+state for it): a new or edited explanation is embedded and written, an unchanged one costs nothing, and a link later rejected or with its note cleared loses its
+vector, or, where this role has no ``s3vectors:DeleteVectors``, is re-marked ``curationStatus: withdrawn`` (the AccessDenied fallback above). A link read that
+fails is reported as a warning and deletes nothing. Only the editors' internal knowledge query returns them (docs/internal-knowledge-research.md).
 
 The only bounds are the run's time and its cost meter: embedding cost (text-embedding-3-small, from the characters embedded) is added to the model
 spend of the publication's run. "Since the last pass" is a watermark, the newest acceptance time the pass completed, which the router keeps in its
@@ -32,7 +39,7 @@ ACCEPTED_INDEX = "referencesByCurationStatusKey"
 INDEXED_STATUSES = ("accepted", "pending")
 WATERMARK_SORT_KEY_PREFIX = "STATE#vectorSync#"
 WRITTEN_OUTCOMES = ("created", "updated")
-EMPTY_RESULT = {"indexed": 0, "conceptCardsWritten": 0, "suggestionsWritten": 0, "suggestionsSkippedReason": None, "indexSkippedReason": None,
+EMPTY_RESULT = {"indexed": 0, "conceptCardsWritten": 0, "linkExplanationsWritten": 0, "suggestionsWritten": 0, "suggestionsSkippedReason": None, "indexSkippedReason": None,
                 "costUsd": 0.0, "stoppedBy": None, "newlyAccepted": 0, "newlyPending": 0}
 
 
@@ -192,7 +199,8 @@ def _sync_index(publication: dict[str, Any], policy: dict[str, Any], newly: list
         result["indexSkippedReason"] = f"index sync failed ({type(error).__name__}: {str(error)[:400]})"
         return False
     result["conceptCardsWritten"] = int(stats.get("conceptCardsToWrite") or 0)
-    result["indexed"] = max(int(stats.get("vectorsWritten") or 0) - result["conceptCardsWritten"], 0)
+    result["linkExplanationsWritten"] = int(stats.get("linkExplanationsToWrite") or 0)
+    result["indexed"] = max(int(stats.get("vectorsWritten") or 0) - result["conceptCardsWritten"] - result["linkExplanationsWritten"], 0)
     result["costUsd"] += embedding_cost_usd(int(stats.get("embeddingInputCharacters") or 0))
     result["stoppedBy"] = stats.get("stoppedBy")
     return not result["stoppedBy"]
