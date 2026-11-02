@@ -89,7 +89,7 @@ Feature: Every Reference carries the date its source was published, when the sou
     Given Reference "dated-a" has a page that declares the Open Graph article published time "2026-10-28T09:30:00Z"
     And Reference "dated-b" already has the publication date "2026-10-01" from a monitor
     And Reference "dated-c" has a page that cannot be fetched
-    And Reference "dated-d" already has a recorded publication date resolution
+    And Reference "dated-d" already has a publication date recorded on its curation card
     When the publication date backfill runs
     Then Reference "dated-a" has the publication date "2026-10-28" resolved from "og:article:published_time"
     And Reference "dated-b" records its publication date as resolved from "monitor"

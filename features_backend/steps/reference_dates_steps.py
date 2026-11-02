@@ -15,6 +15,7 @@ for path in (REPO_ROOT / "src", REPO_ROOT / "procedures" / "newsroom" / "tests")
 
 from curation_support import NOW, MemoryClient, Summarizer, article_html, page, reference, services as build_services  # noqa: E402
 from papyrus_content import reference_curation as curation  # noqa: E402
+from papyrus_content.reference_curation_store import new_card, read_card, write_card  # noqa: E402
 
 DATED_ARTICLE_URL = "https://news.example.org/dated"
 ADDED_AT = "2026-11-01T08:00:00Z"
@@ -243,10 +244,10 @@ def _(context, name):
     backfill_state(context)[0].append(reference(name, sourceUri=backfill_url(name)))
 
 
-@given('Reference "{name}" already has a recorded publication date resolution')
+@given('Reference "{name}" already has a publication date recorded on its curation card')
 def _(context, name):
-    resolution = {"publicationDateResolution": {"source": "pdf", "precision": "day", "resolvedAt": "2026-10-01T00:00:00Z"}}
-    backfill_state(context)[0].append(reference(name, sourceUri=backfill_url(name), metadata=json.dumps(resolution)))
+    backfill_state(context)[0].append(reference(name, sourceUri=backfill_url(name)))
+    context.backfill_resolved = [*getattr(context, "backfill_resolved", []), name]
 
 
 def run_backfill(context, dry_run):
@@ -254,6 +255,12 @@ def run_backfill(context, dry_run):
 
     refs, pages = backfill_state(context)
     context.client = MemoryClient(refs)
+    for name in getattr(context, "backfill_resolved", []):
+        done = next(ref for ref in refs if ref["id"] == f"{name}-v1")
+        card = new_card(done)
+        card["publicationDate"] = {"source": "pdf", "precision": "day", "resolvedAt": "2026-10-01T00:00:00Z"}
+        write_card(context.client, done, card, NOW)
+    context.writes_before = context.client.writes
 
     def explorer(url, context=None, **kwargs):
         found = pages.get(url)
@@ -283,12 +290,12 @@ def backfilled(context, name):
 def _(context, name, value, source):
     row = backfilled(context, name)
     assert row["sourcePublishedAt"] == value
-    assert json.loads(row["metadata"])["publicationDateResolution"]["source"] == source
+    assert read_card(context.client, row)["publicationDate"]["source"] == source
 
 
 @then('Reference "{name}" records its publication date as resolved from "{source}"')
 def _(context, name, source):
-    assert json.loads(backfilled(context, name)["metadata"])["publicationDateResolution"]["source"] == source
+    assert (read_card(context.client, backfilled(context, name)) or {}).get("publicationDate", {}).get("source") == source
 
 
 @then('Reference "{name}" is unchanged and counted as a fetch failure')
@@ -304,7 +311,10 @@ def _(context, name):
 
 @then("no summary was written and no curation card exists for any of them")
 def _(context):
-    assert not context.client.tables["ReferenceAttachment"] and not context.client.tables["ModelAttachment"]
+    assert not context.client.tables["ModelAttachment"]
+    for row in context.client.tables["ReferenceAttachment"].values():
+        card = json.loads(row["metadata"])
+        assert card["summary"] == {"status": "not_run"} and card["capture"] == {"status": "not_run"}
 
 
 @then('the dry run lists Reference "{name}" with the date "{value}" from "{source}"')
@@ -315,4 +325,4 @@ def _(context, name, value, source):
 
 @then("the dry run wrote nothing")
 def _(context):
-    assert context.client.writes == 0
+    assert context.client.writes == context.writes_before

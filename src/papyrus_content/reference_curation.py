@@ -495,22 +495,16 @@ class _RecordingClient:
         self.updates.append(row)
 
 
-def _has_resolution(reference: dict[str, Any]) -> bool:
-    raw = reference.get("metadata")
-    try:
-        metadata = json.loads(raw) if isinstance(raw, str) and raw.strip() else dict(raw or {})
-    except ValueError:
-        return False
-    return isinstance(metadata, dict) and bool(metadata.get("publicationDateResolution"))
-
-
 def backfill_publication_date(client: Any, reference: dict[str, Any], *, capture: Callable[..., Capture] = capture_source,
                               explorer: Callable[..., Any] = explore, now: Callable[[], datetime] = utc_now, dry_run: bool = False) -> dict[str, Any]:
-    """Resolve one Reference's publication date and nothing else (no summary, no GROBID, no card). ``outcome`` is one of
-    ``resolved`` (a date came from the page), ``monitor`` (the date the monitor supplied is recorded as such), ``unknown`` (the page
-    declares none), ``fetch_failed``, ``skipped_pdf`` or ``already_resolved``. A page is fetched only when the Reference has no date at all."""
+    """Resolve one Reference's publication date and nothing else (no summary, no GROBID). The date goes on ``Reference.sourcePublishedAt``
+    and its provenance on the curation card (``card["publicationDate"]``); a Reference with no card gets a minimal one from ``new_card``.
+    ``outcome`` is one of ``resolved`` (a date came from the page), ``monitor`` (the date the monitor supplied is recorded as such),
+    ``unknown`` (the page declares none), ``fetch_failed``, ``skipped_pdf`` or ``already_resolved``. A page is fetched only when the
+    Reference has no date at all."""
     result: dict[str, Any] = {"referenceId": reference["id"], "outcome": "already_resolved"}
-    if _has_resolution(reference):
+    card = read_card(client, reference)
+    if card and card.get("publicationDate"):
         return result
     source_uri = normalize_string(reference.get("sourceUri")) or ""
     if source_uri.lower().split("?")[0].split("#")[0].endswith(".pdf"):
@@ -524,11 +518,14 @@ def backfill_publication_date(client: Any, reference: dict[str, Any], *, capture
         if not captured.ok:
             return {**result, "outcome": "fetch_failed", "failure": captured.failure}
     working = dict(reference)
-    sink = _RecordingClient() if dry_run else client
-    _publication_date_stage(sink, working, captured, now())
-    if not _has_resolution(working):
+    card = card or new_card(reference)
+    stamp = now()
+    _publication_date_stage(_RecordingClient() if dry_run else client, working, card, captured, stamp)
+    resolution = card.get("publicationDate")
+    if not resolution:
         return {**result, "outcome": "unknown"}
-    resolution = json.loads(working["metadata"])["publicationDateResolution"]
+    if not dry_run:
+        write_card(client, reference, card, stamp)
     return {**result, "outcome": "monitor" if resolution["source"] == "monitor" else "resolved", "date": working.get("sourcePublishedAt"),
             "source": resolution["source"], "precision": resolution["precision"]}
 
@@ -584,6 +581,10 @@ def references_backfill_publication_dates(flags: list[str]) -> None:
             if item["outcome"] in {"resolved", "monitor"}:
                 print(f"would-set\t{item['referenceId']}\t{item['date']}\t{item['source']}\t{item['precision']}")
     counts = result["counts"]
+    if not counts["scanned"]:
+        print(f"No current http(s) References found in corpus {corpus_id}. Check the corpus id (it is knowledge-corpus-<publication key>; "
+              "`papyrus references list` shows the corpusId of a Reference).")
+        return
     by_source = ",".join(f"{source}={number}" for source, number in sorted(counts["resolvedBySource"].items())) or "none"
     print(f"scanned={counts['scanned']}\talreadyResolved={counts['alreadyResolved']}\tresolved={counts['resolved']} ({by_source})\t"
           f"keptMonitorDate={counts['keptMonitorDate']}\tunknown={counts['unknown']}\tfetchFailures={counts['fetchFailures']}\t"
