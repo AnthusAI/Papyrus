@@ -26,11 +26,11 @@ class GraphQLRequestError(RuntimeError):
 
 
 def credential_recovery_guidance() -> str:
-    from .user_auth_mode import user_auth_requested
-    if user_auth_requested():
-        return "Check your newsroom identity/publication permissions with `papyrus auth status`; renew with `papyrus login` if needed."
-    profile = os.environ.get("AWS_PROFILE", "").strip() or "<profile>"
-    return f"Your AWS session may have expired or lack access. Run `aws sso login --profile {profile}` and retry."
+    from .user_auth_mode import iam_requested
+    if iam_requested():
+        profile = os.environ.get("AWS_PROFILE", "").strip() or "<profile>"
+        return f"PAPYRUS_GRAPHQL_AUTH=iam is set, so this call used AWS credentials, which may have expired or lack access. Renew them (`aws sso login --profile {profile}`) or unset it and run `papyrus login`."
+    return "Check your newsroom identity/publication permissions with `papyrus auth status`; renew with `papyrus login` if needed."
 
 
 def is_operator_facing_error(error: BaseException) -> bool:

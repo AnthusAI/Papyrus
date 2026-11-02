@@ -112,6 +112,8 @@ function main() {
 }
 
 function ensureAuthoringEnv() {
+  // Break-glass: AWS credentials on purpose; the engine refuses an unnamed lane (PPY-5f119a).
+  if (!process.env.PAPYRUS_GRAPHQL_AUTH) process.env.PAPYRUS_GRAPHQL_AUTH = "iam";
   if (!process.env.PAPYRUS_GRAPHQL_ENDPOINT) {
     process.env.PAPYRUS_GRAPHQL_ENDPOINT = DEFAULT_ENDPOINT;
   }

@@ -39,7 +39,7 @@ fi
 export AWS_PROFILE="$PROFILE" AWS_REGION="$REGION"
 export PAPYRUS_MEDIA_BUCKET_NAME="$BUCKET"
 export PAPYRUS_GRAPHQL_ENDPOINT="$GRAPHQL"
-export PAPYRUS_GRAPHQL_USE_IAM=true
+export PAPYRUS_GRAPHQL_AUTH=iam   # break-glass: AWS credentials on purpose (PPY-5f119a)
 
 ARGS=()
 [[ -n "$ARCHIVE_KEY" ]] && ARGS+=(--archive-key "$ARCHIVE_KEY")

@@ -23,6 +23,9 @@ def _run_papyrus(context, command: str, *, clean_env: bool = False) -> None:
     context.last_command = command
     env = {} if clean_env else os.environ.copy()
     env["PYTHONPATH"] = f"{context.repo_root / 'src'}:{context.repo_root}"
+    env["PAPYRUS_CLI_STATE_DIR"] = os.environ["PAPYRUS_CLI_STATE_DIR"]   # the isolated, empty sign-in directory; never the real home one
+    if getattr(context, "iam_lane_named", False):
+        env["PAPYRUS_GRAPHQL_AUTH"] = "iam"
     if context.config_path:
         env["PAPYRUS_OPERATOR_CONFIG"] = str(context.config_path)
     if getattr(context, "fixture_root_active", False) and not getattr(context, "pod_root", None):
@@ -102,6 +105,11 @@ def step_local_pod_fixture(context):
 @given("no operator CLI fixtures are loaded")
 def step_no_fixtures(context):
     context.fixture_root_active = False
+
+
+@given("the IAM lane is named on purpose")
+def step_iam_lane_named(context):
+    context.iam_lane_named = True
 
 
 @given("no AWS credentials are available")

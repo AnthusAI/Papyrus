@@ -6,6 +6,7 @@ from typing import Any
 
 from papyrus_content.env import load_dotenv
 from papyrus_content.graphql_http import authoring_credentials_available
+from papyrus_content.user_auth_mode import LOGIN_REQUIRED_MESSAGE
 
 from ..config import OperatorConfig
 from ..errors import OperatorError
@@ -30,11 +31,7 @@ class CloudBackend(OperatorBackend):
     if self._fixture_root():
       return
     if not authoring_credentials_available():
-      raise OperatorError(
-        "No AWS credentials for cloud authoring. Set AWS_PROFILE to a profile that can assume the "
-        "papyrus-authoring role (for example: aws sso login --profile <profile>).",
-        exit_code=2,
-      )
+      raise OperatorError(LOGIN_REQUIRED_MESSAGE, exit_code=2)
 
   def list_references(
     self,

@@ -270,19 +270,32 @@ Feature: Operator CLI
     And stderr should not contain "Traceback"
 
   @auth @cloud-backend
-  Scenario: Cloud authoring without AWS credentials surfaces operator guidance instead of a traceback
+  Scenario: Cloud authoring without a sign-in session says to log in instead of a traceback
     Given operator CLI config selects backend "cloud"
     And no operator CLI fixtures are loaded
     And no AWS credentials are available
     When I run `papyrus assignments list --limit 1`
     Then the exit code should be 2
-    And stderr should mention `AWS_PROFILE`
+    And stderr should mention `papyrus login`
+    And stderr should not contain "AWS_PROFILE"
+    And stderr should not contain "Traceback"
+
+  @auth @cloud-backend
+  Scenario: Cloud authoring does not use AWS credentials the machine happens to have
+    Given operator CLI config selects backend "cloud"
+    And no operator CLI fixtures are loaded
+    And a GraphQL endpoint that rejects credentials with status 401
+    When I run `papyrus assignments list --limit 1`
+    Then the exit code should be 2
+    And stderr should mention `papyrus login`
+    And stderr should not contain "GraphQL request failed"
     And stderr should not contain "Traceback"
 
   @auth @errors
-  Scenario: Expired SSO credentials print recovery guidance and exit 2 without a traceback
+  Scenario: Expired SSO credentials on the explicit IAM lane print recovery guidance and exit 2 without a traceback
     Given operator CLI config selects backend "cloud"
     And no operator CLI fixtures are loaded
+    And the IAM lane is named on purpose
     And a GraphQL endpoint that rejects credentials with status 401
     When I run `papyrus assignments list --limit 1`
     Then the exit code should be 2

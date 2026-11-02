@@ -1904,7 +1904,7 @@ class KnowledgeQueryTests(unittest.TestCase):
             with contextlib.redirect_stderr(stderr):
                 exit_code = newsroom_cli.main(["knowledge-query", "--query", "LLM"])
         self.assertEqual(exit_code, 2)
-        self.assertIn("AWS_PROFILE", stderr.getvalue())
+        self.assertIn("PAPYRUS_GRAPHQL_ENDPOINT", stderr.getvalue())
         self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_semantic_relation_seed_includes_note_about(self):

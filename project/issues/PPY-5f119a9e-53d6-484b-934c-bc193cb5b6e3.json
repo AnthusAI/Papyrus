@@ -10,9 +10,17 @@
   "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ef4d5379-d7d8-47af-8289-dba79e177b07",
+      "author": "home",
+      "text": "Branch feature/PPY-5f119a-fail-closed (PR against develop, not merged). graphql_request_headers now refuses with 'run papyrus login' (exit 2) unless PAPYRUS_GRAPHQL_AUTH=iam is set; knowledge query auto/remote refuses unless --execution local or iam. Workers declare the opt-in in image/stack definitions in the same PR (see PR body for deploy order). Backend suite: 173 features pass; remaining 2 errors are stale local venv (httpcore2). Test isolation fixed in conftest.py and features_backend/environment.py.",
+      "created_at": "2026-11-02T21:37:00.568533Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-02T16:43:32.932693Z",
-  "updated_at": "2026-11-02T16:43:32.932756Z",
+  "updated_at": "2026-11-02T21:37:00.571885Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

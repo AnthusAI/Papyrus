@@ -1,8 +1,10 @@
 """Shared AppSync GraphQL HTTP client for CLI tools and newsroom helpers.
 
 Configured editorial sessions use normal Cognito user authorization; explicit
-operator IAM calls use the standard AWS credential chain. Failed user sessions
-never escalate to IAM. Renewable user secrets live only in OS secure storage.
+operator IAM calls (``PAPYRUS_GRAPHQL_AUTH=iam``) use the standard AWS credential
+chain. With no session and no explicit IAM opt-in a request refuses and says to
+run ``papyrus login``. Failed user sessions never escalate to IAM. Renewable user
+secrets live only in OS secure storage.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ import urllib.request
 from typing import Any
 
 from .env import graphql_endpoint, graphql_timeout_seconds, load_dotenv
-from .operator_errors import GraphQLRequestError, credential_recovery_guidance
+from .operator_errors import GraphQLRequestError, OperatorError, credential_recovery_guidance
 
 CREDENTIAL_REJECTION_STATUS_CODES = frozenset({401, 403})
 
@@ -34,8 +36,8 @@ def _aws_credentials() -> Any:
     credentials = _credential_session.get_credentials()
     if credentials is None:
         raise ValueError(
-            "No AWS credentials found for IAM AppSync signing. Set AWS_PROFILE to an SSO or role profile "
-            "(for example `aws sso login --profile <profile>`), or run with an OIDC or build role."
+            "PAPYRUS_GRAPHQL_AUTH=iam is set but no AWS credentials were found to sign the request. Renew them "
+            "(for example `aws sso login --profile <profile>`), or unset it and run `papyrus login`."
         )
     return credentials
 
@@ -49,23 +51,27 @@ def aws_credentials_available() -> bool:
 
 
 def authoring_credentials_available() -> bool:
-    from .user_auth_mode import user_auth_requested
+    from .user_auth_mode import iam_requested, user_auth_requested
     # The selected user session is checked/renewed at request time, without an
     # AWS credential probe or escalation when that user session has expired.
-    return user_auth_requested() or aws_credentials_available()
+    # AWS credentials count only after an explicit IAM opt-in.
+    return user_auth_requested() or (iam_requested() and aws_credentials_available())
 
 
 def graphql_request_headers(*, endpoint: str, body: bytes) -> dict[str, str]:
     from .guest_auth import refuse_guest_auth
 
     refuse_guest_auth("this command")
-    from .user_auth_mode import user_auth_requested
+    from .user_auth_mode import LOGIN_REQUIRED_MESSAGE, iam_requested, user_auth_requested
     if user_auth_requested():
         from .cli_user_auth import selected_headers
         user_headers = selected_headers(endpoint)
-        if user_headers is not None:
-            return user_headers
-    return iam_signed_graphql_headers(endpoint, body)
+        if user_headers is None:
+            raise OperatorError(LOGIN_REQUIRED_MESSAGE)
+        return user_headers
+    if iam_requested():
+        return iam_signed_graphql_headers(endpoint, body)
+    raise OperatorError(LOGIN_REQUIRED_MESSAGE)
 
 
 def execute_graphql(

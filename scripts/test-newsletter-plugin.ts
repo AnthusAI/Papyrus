@@ -235,9 +235,10 @@ assert.equal(pluginSettings({ custom: { papyrusPlugins: { newsletter: published 
 // The function environment.
 const environment = newsletterEnvironment(config, "table-name", "/papyrus/example/newsletter-key");
 assert.deepEqual(Object.keys(environment).sort(), [
-  "ALARM_NAMES", "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "INSTANT_ALERTS", "ITEM_URL_STYLE", "KEY_PARAMETER", "LISTS_JSON", "SENDING_DOMAIN", "SITE_BASE_PATH", "SITE_ID",
+  "ALARM_NAMES", "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "INSTANT_ALERTS", "ITEM_URL_STYLE", "KEY_PARAMETER", "LISTS_JSON", "PAPYRUS_GRAPHQL_AUTH", "SENDING_DOMAIN", "SITE_BASE_PATH", "SITE_ID",
   "SITE_ORIGIN", "TABLE_NAME", "THEME_JSON",
 ]);
+assert.equal(environment.PAPYRUS_GRAPHQL_AUTH, "iam", "the functions name the IAM lane; the shared client refuses an unnamed one");
 assert.equal(environment.SITE_ORIGIN, "https://news.example.com");
 assert.equal(environment.SITE_BASE_PATH, "");
 assert.equal(newsletterEnvironment(resolveNewsletterConfig(with_({ basePath: "/posts" })), "t", "k").SITE_BASE_PATH, "posts");

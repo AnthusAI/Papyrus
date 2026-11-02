@@ -34,9 +34,11 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
 - **`kbs` stays the board.** Kanbus owns issues, columns, screenshots, and
   workflow transitions. `papyrus` owns newsroom objects (references, assignments,
   editions, knowledge). Do not merge `kbs` into `papyrus`.
-- **Auth is operator UX.** Cloud authoring signs with the AWS credential chain
-  (`AWS_PROFILE`); there is no `papyrus auth` group and no token to refresh.
-  Missing AWS credentials must print recovery guidance, not a Python traceback.
+- **Auth is operator UX.** Cloud authoring runs on the signed-in user session
+  (`papyrus login <site>`); with no session a command refuses in one line that
+  says to run `papyrus login` and exits 2, never a Python traceback. AWS
+  credentials are used only when `PAPYRUS_GRAPHQL_AUTH=iam` (or a command's
+  `--auth iam`) names them on purpose, for workers and break-glass commands.
 - **Local pod references** live under `stories/<story-id>/references/*.json`.
   `papyrus references register --backend local` requires `--story <story-id>`
   or `local.defaultStory` in operator CLI config; never hard-code a story path.

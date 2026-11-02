@@ -94,7 +94,9 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
     public publication/client selection metadata may be persisted separately.
     Never scrape browser cookies, log tokens, invent grants, use API-key/guest
     authoring, or fall back to a broader IAM identity when user auth fails.
-  - **Operator IAM commands** explicitly use `PAPYRUS_GRAPHQL_AUTH=iam` and the
+  - **No silent IAM.** With no session and no explicit opt-in a request refuses
+    and says to run `papyrus login` (exit 2).
+  - **Operator IAM commands and workers** explicitly use `PAPYRUS_GRAPHQL_AUTH=iam` and the
     standard AWS chain (SSO, assumed role, OIDC or build role). Native user login
     does not grant deployment or infrastructure authority. This user-auth lane
     intentionally replaces the former IAM-only CLI policy; it does not change
@@ -136,8 +138,9 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
   `skills/knowledge-query/SKILL.md`. Run queries with
   `PYTHONPATH=src python -m papyrus_newsroom knowledge-query` or
   `poetry run papyrus-newsroom knowledge-query` (not ad-hoc GraphQL). Use
-  `--execution local` only when developing engine behavior; default remote
-  execution needs `PAPYRUS_GRAPHQL_ENDPOINT` and AWS credentials (`AWS_PROFILE`).
+  `--execution local` only when developing engine behavior (it reads S3 with AWS
+  credentials and must be asked for); default remote execution runs on your
+  `papyrus login` session and refuses, saying to log in, when there is none.
   `knowledgeQuery` is the shared CLI/Lambda path; prefer local CLI iteration
   for context-pack content changes and deploy only when ready for AppSync.
 - Bounded exploratory researcher loops vs one-shot researchers are documented in

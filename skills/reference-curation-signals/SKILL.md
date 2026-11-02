@@ -326,7 +326,7 @@ available.
    because a `Reference` was accepted:
 
    ```bash
-   AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
+   PAPYRUS_GRAPHQL_AUTH=iam AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
      poetry run papyrus knowledge vector-index --action sync \
      --corpus-id <corpus-id> \
      --max-references 25 \

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import shutil
+import tempfile
 from pathlib import Path
 
 REQUIRES_CYCLOTRON_TAG = "requires-cyclotron"
@@ -25,8 +26,30 @@ def after_all(context):
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+# Variables that choose a GraphQL lane or a signed-in site. A developer's machine has a real `papyrus login` session in
+# ~/.config/papyrus and often a lane in the shell; scenarios must see neither (PPY-5f119a). A scenario that wants a lane sets it.
+SIGN_IN_ENVIRONMENT = ("PAPYRUS_GRAPHQL_AUTH", "PAPYRUS_CLI_AUTH_CONFIG", "PAPYRUS_GRAPHQL_ENDPOINT")
+
+
+def isolate_sign_in(context):
+    context.sign_in_saved = {name: os.environ.pop(name, None) for name in (*SIGN_IN_ENVIRONMENT, "PAPYRUS_CLI_STATE_DIR")}
+    context.sign_in_state_dir = tempfile.mkdtemp(prefix="papyrus-behave-state-")
+    os.environ["PAPYRUS_CLI_STATE_DIR"] = context.sign_in_state_dir
+
+
+def restore_sign_in(context):
+    shutil.rmtree(getattr(context, "sign_in_state_dir", ""), ignore_errors=True)
+    for name, value in getattr(context, "sign_in_saved", {}).items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
+
 def before_scenario(context, scenario):
     from papyrus_content import cli_user_auth
+
+    isolate_sign_in(context)
 
     context.real_site_enrolls = cli_user_auth.site_enrolls
     cli_user_auth.site_enrolls = lambda config, **kwargs: False
@@ -62,3 +85,4 @@ def after_scenario(context, scenario):
             context.graphql_stub_endpoint = None
         os.environ.clear()
         os.environ.update(context.env)
+    restore_sign_in(context)

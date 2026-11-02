@@ -2,7 +2,7 @@
 
 `monitoring_view_cli`, the signed-in side of `papyrus automations` and the signed-in side of `papyrus knowledge query`
 share this. Nothing here imports boto3, reads an AWS profile or falls back to IAM: a missing session is a one-line
-refusal. The shared fallback in `graphql_http.graphql_request_headers` is untouched (PPY-5f119a).
+refusal. The shared `graphql_http.graphql_request_headers` is fail-closed the same way (PPY-5f119a): IAM only on an explicit opt-in.
 """
 from __future__ import annotations
 

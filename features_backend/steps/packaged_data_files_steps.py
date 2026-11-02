@@ -142,6 +142,7 @@ def step_without_cli_login(context):
         key: value for key, value in os.environ.items() if not key.startswith(("AWS_", "PAPYRUS_GRAPHQL_AUTH"))
     } | {
         "PAPYRUS_CLI_STATE_DIR": str(state),
+        "PAPYRUS_GRAPHQL_AUTH": "iam",   # a deployed function names the IAM lane in its environment (PPY-5f119a)
         "AWS_ACCESS_KEY_ID": "AKIDEXAMPLE",
         "AWS_SECRET_ACCESS_KEY": "example-secret",
         "AWS_REGION": "us-east-1",

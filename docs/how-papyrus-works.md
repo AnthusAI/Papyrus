@@ -191,13 +191,16 @@ Amplify sandbox, deployment, and seeding from a local machine.
 Papyrus already follows that split:
 
 - AWS credentials come from the normal AWS SDK/CLI chain, usually
-  `AWS_PROFILE` plus your local `~/.aws` config.
+  `AWS_PROFILE` plus your local `~/.aws` config. Papyrus commands do not use them
+  unless you name the IAM lane on purpose (`PAPYRUS_GRAPHQL_AUTH=iam`).
 - App-level settings belong in `.env`.
 - The seed script can still use Cognito editor credentials when seeding through
   Amplify Auth.
-- The content CLI signs authoring requests with SigV4 from the AWS credential
-  chain (`AWS_PROFILE`). It does not log into a Papyrus user pool and stores no
-  token.
+- The content CLI runs on the session `papyrus login` stores (Cognito user,
+  checked by the site's API). With no session it refuses and says to run
+  `papyrus login`. It signs with SigV4 from the AWS credential chain only when
+  `PAPYRUS_GRAPHQL_AUTH=iam` is set on purpose, as workers and break-glass
+  commands do.
 
 Papyrus has three distinct GraphQL auth lanes:
 

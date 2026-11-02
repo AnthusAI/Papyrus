@@ -285,7 +285,7 @@ def config_for_endpoint(endpoint: str) -> AuthConfig:
     if not matches:
         raise AuthError(f'No signed-in Papyrus site uses GraphQL endpoint {endpoint}. Signed in: '+', '.join(site_host(site) for site in sites)
                         +'. Run `papyrus login <site>` for the site that owns this endpoint, '
-                        'or set PAPYRUS_GRAPHQL_AUTH=iam to use your AWS credentials for it instead.')
+                        'or, for a worker or a break-glass command only, set PAPYRUS_GRAPHQL_AUTH=iam on purpose.')
     return matches[0]
 
 
@@ -460,7 +460,7 @@ class SiteSession:
     def headers(self, endpoint):
         if endpoint != self.config.graphql_endpoint:
             raise AuthError('GraphQL endpoint does not match the signed-in publication; log in to the site that owns it, '
-                            'or set PAPYRUS_GRAPHQL_AUTH=iam to use your AWS credentials for this endpoint instead.')
+                            'or, for a worker or a break-glass command only, set PAPYRUS_GRAPHQL_AUTH=iam on purpose.')
         return self._session.headers(endpoint)
 
     def status(self):
