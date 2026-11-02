@@ -226,6 +226,31 @@ Feature: The scheduled cloud knowledge run
     Then the stage succeeded
     And the commands include "--monitor-sources routed --monitor-weeks 26"
 
+  Scenario: A site that sets no Reference documents bucket exports its own items only
+    When the stages "corpus-sync", "topic-model", "typed-extraction", "publish-run", "snapshot" run
+    Then no command was given "--reference-documents"
+
+  Scenario: A site that sets a Reference documents bucket exports the texts of its References as documents
+    Given the site sets the Reference documents bucket "media-bucket" with the extractor "markitdown"
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--reference-documents-bucket media-bucket --reference-documents-extractor markitdown"
+    And the commands include "--corpus-key shipped"
+    And the state in S3 holds "runs/2026-W44/reference-documents.json"
+
+  Scenario: The import, the snapshot, the archive and the wiki read the same Reference documents file
+    Given the site sets the Reference documents bucket "media-bucket" with the extractor "markitdown"
+    And the stages "corpus-sync", "topic-model", "typed-extraction" have run
+    When the stages "publish-run", "snapshot", "archive", "wiki-sync" run
+    Then each of the commands "knowledge publish-run", "knowledge snapshot", "knowledge archive", "knowledge wiki sync" was given "--reference-documents" with the week's Reference documents file
+
+  Scenario: Reference documents and monitor records are separate sources
+    Given the site sets the monitor sources "routed" for 26 weeks and the Reference documents bucket "media-bucket"
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--monitor-records-out"
+    And the commands include "--reference-documents-out"
+
   Scenario: The import, the snapshot, the archive and the wiki read the same records file
     Given the site sets the monitor sources "huggingface" for 26 weeks
     And the stages "corpus-sync", "topic-model", "typed-extraction" have run

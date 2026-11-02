@@ -104,6 +104,10 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     KNOWLEDGE_ALLOW_TEST_FAILURE: "true",
     ...(config.beatsConfig ? { KNOWLEDGE_BEATS_CONFIG: config.beatsConfig } : {}),
     ...(config.conceptKinds ? { KNOWLEDGE_CONCEPT_KINDS: config.conceptKinds.join(",") } : {}),
+    // Read by corpus-sync only; set only when the site opted in with `referenceDocuments`.
+    ...(config.referenceDocuments
+      ? { KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET: config.referenceDocuments.mediaBucket, KNOWLEDGE_REFERENCE_DOCUMENTS_EXTRACTOR: config.referenceDocuments.extractor }
+      : {}),
     ...(config.monitorSources
       ? {
           KNOWLEDGE_MONITOR_SOURCES: config.monitorSources.join(","),
@@ -176,6 +180,22 @@ export function knowledgeTaskStatements(config: KnowledgeRunConfig): iam.PolicyS
       ],
       resources: [config.redirectsKvsArn],
     }),
+    // Only a site that opted in with `referenceDocuments`: read the extracted texts under one prefix of the media bucket, nothing else, no writes.
+    ...(config.referenceDocuments
+      ? [
+          new iam.PolicyStatement({
+            sid: "ReferenceDocumentTexts",
+            actions: ["s3:GetObject"],
+            resources: [`arn:aws:s3:::${config.referenceDocuments.mediaBucket}/${config.referenceDocuments.prefix}*`],
+          }),
+          new iam.PolicyStatement({
+            sid: "ReferenceDocumentList",
+            actions: ["s3:ListBucket"],
+            resources: [`arn:aws:s3:::${config.referenceDocuments.mediaBucket}`],
+            conditions: { StringLike: { "s3:prefix": [`${config.referenceDocuments.prefix}*`] } },
+          }),
+        ]
+      : []),
   ];
 }
 

@@ -41,6 +41,9 @@ function policyStatements(template: Template, roleLogicalIdPrefix: string): any[
     .flatMap(([, resource]) => resource.Properties.PolicyDocument.Statement);
 }
 
+const statementsOf = (built: { template: Template }, sid: string): any =>
+  policyStatements(built.template, "JobTaskRoleDefaultPolicy").find((statement) => statement.Sid === sid);
+
 // The example opts in to monitor stories; the base stack here is the template without that optional step (it is tested below and per example).
 const { stack, template, config } = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; });
 const everything = JSON.stringify(template.toJSON());
@@ -543,6 +546,46 @@ assert.deepEqual(withoutCorpusKey, staticEnvironment, "Shipped's task environmen
   assert.deepEqual(base.template.toJSON(), knowledgeStack((site) => { site.knowledgeRun.corpusKey = undefined; }).template.toJSON(), "an absent corpus key leaves the template untouched");
 }
 
+// Reference documents: opt-in. Without the block nothing changes; with it the tasks get the bucket and the task role may read one prefix of it.
+{
+  const MEDIA = "media-bucket-for-test";
+  const optIn = (site: any) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; site.knowledgeRun.referenceDocuments = { enabled: true, mediaBucket: MEDIA }; };
+  const off = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; });
+  const on = knowledgeStack(optIn);
+  assert.equal(off.config.referenceDocuments, undefined);
+  assert.ok(!("KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET" in environmentOf(off)), "no block: no variable");
+  assert.equal(statementsOf(off, "ReferenceDocumentTexts"), undefined, "no block: no extra permission");
+  assert.deepEqual(
+    on.config.referenceDocuments,
+    { mediaBucket: MEDIA, extractor: "markitdown", prefix: "corpora/ai-ml-research/extracted/markitdown/raw/" },
+    "the prefix follows the corpus key and the extractor",
+  );
+  const onEnvironment = environmentOf(on);
+  assert.equal(onEnvironment.KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET, MEDIA);
+  assert.equal(onEnvironment.KNOWLEDGE_REFERENCE_DOCUMENTS_EXTRACTOR, "markitdown");
+  assert.deepEqual(
+    Object.keys(onEnvironment).filter((name) => !(name in environmentOf(off))).sort(),
+    ["KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET", "KNOWLEDGE_REFERENCE_DOCUMENTS_EXTRACTOR"],
+    "opting in adds two variables and changes nothing else",
+  );
+  const texts = statementsOf(on, "ReferenceDocumentTexts");
+  assert.deepEqual(texts.Action, "s3:GetObject", "read only: no put, no delete");
+  assert.deepEqual(texts.Resource, `arn:aws:s3:::${MEDIA}/corpora/ai-ml-research/extracted/markitdown/raw/*`);
+  const list = statementsOf(on, "ReferenceDocumentList");
+  assert.deepEqual(list.Action, "s3:ListBucket");
+  assert.deepEqual(list.Resource, `arn:aws:s3:::${MEDIA}`);
+  assert.deepEqual(list.Condition, { StringLike: { "s3:prefix": ["corpora/ai-ml-research/extracted/markitdown/raw/*"] } }, "listing is limited to the same prefix");
+  const noKey = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; delete site.knowledgeRun.corpusKey; site.knowledgeRun.referenceDocuments = { enabled: true, mediaBucket: MEDIA, extractor: "pdf-text" }; });
+  assert.equal(noKey.config.referenceDocuments?.prefix, "corpora/shipped/extracted/pdf-text/raw/", "without a corpus key the siteId names the corpus");
+  const disabled = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; site.knowledgeRun.referenceDocuments = { enabled: false, mediaBucket: MEDIA }; });
+  assert.deepEqual(disabled.template.toJSON(), off.template.toJSON(), "enabled false leaves the template untouched");
+  rejects((block) => { block.referenceDocuments = []; }, /knowledgeRun\.referenceDocuments must be an object/);
+  rejects((block) => { block.referenceDocuments = { enabled: true }; }, /knowledgeRun\.referenceDocuments\.mediaBucket must be a non-empty string/);
+  rejects((block) => { block.referenceDocuments = { mediaBucket: MEDIA }; }, /knowledgeRun\.referenceDocuments\.enabled must be true or false/);
+  rejects((block) => { block.referenceDocuments = { enabled: true, mediaBucket: MEDIA, extractor: "../x" }; }, /knowledgeRun\.referenceDocuments\.extractor is invalid/);
+  rejects((block) => { block.referenceDocuments = { enabled: true, mediaBucket: MEDIA, prefix: "*" }; }, /knowledgeRun\.referenceDocuments\.prefix is not a known field/);
+}
+
 // A site may name any existing SSM parameter for the OpenAI key and the alarm address, and several sites may share them.
 const sharedKey = "/papyrus/shared/openai-api-key";
 const sharedAlarm = "/papyrus/shared/knowledge-run/alarm-email";
@@ -566,7 +609,7 @@ for (const siteId of ["shipped", "p-apyr-us"]) {
 // Every site's example config carries a daily, staggered knowledge run that files routed records and monitor-story drafts.
 const SHIPPED_KEY = "/papyrus/shipped/openai-api-key";
 const SHIPPED_ALARM = "/papyrus/shipped/knowledge-run/alarm-email";
-const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: string; distribution?: string; noMonitorStories?: boolean; excludedSourceHosts?: string[] }> = {
+const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: string; distribution?: string; noMonitorStories?: boolean; excludedSourceHosts?: string[]; referenceDocuments?: string }> = {
   shipped: { hour: 5, key: SHIPPED_KEY },
   "anth-us": { hour: 6, key: SHIPPED_KEY },
   "threat-intelligence": { hour: 7, key: "/amplify/shared/d12wnrx15qbcc2/OPENAI_API_KEY" },
@@ -575,7 +618,7 @@ const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: 
   "pilobol-us": { hour: 9, key: SHIPPED_KEY },
   "p-apyr-us": { hour: 10, key: "/papyrus/p-apyr-us/openai-api-key", corpusKey: "ai-ml-research", distribution: "E2EM0JLBC2W9WW" },
   dataparade: { hour: 11, key: "/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY", corpusKey: "data-parade" },
-  "machines-on-machines": { hour: 12, key: SHIPPED_KEY, corpusKey: "ai-ml-research", distribution: "E1PTZ8B9ZF9GCU" },
+  "machines-on-machines": { hour: 12, key: SHIPPED_KEY, corpusKey: "ai-ml-research", distribution: "E1PTZ8B9ZF9GCU", referenceDocuments: "corpora/ai-ml-research/extracted/markitdown/raw/" },
 };
 const exampleDirectory = path.dirname(examplePath);
 const seenHours = new Set<number>();
@@ -593,6 +636,8 @@ for (const [siteId, expected] of Object.entries(siteExpectations)) {
   assert.equal(resolved.openAiKeyParameter, expected.key);
   assert.equal(resolved.alarmEmailParameter, SHIPPED_ALARM);
   assert.equal(resolved.corpusKey, expected.corpusKey);
+  assert.equal(resolved.referenceDocuments?.prefix, expected.referenceDocuments, `${siteId}: only the site that opted in reads References as documents`);
+  if (expected.referenceDocuments) assert.equal(resolved.stageTimeouts["typed-extraction"], 43200, `${siteId}: typed extraction of the Reference texts gets a longer timeout`);
   if (expected.distribution) assert.equal(resolved.edgeDistributionId, expected.distribution);
   const built = new KnowledgeRunStack(new App(), `KnowledgeRun-${siteId}`, resolved, { env, imageTag: "test" });
   assert.equal(built.stackName, knowledgeRunStackName(siteId));

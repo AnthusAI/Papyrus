@@ -30,7 +30,7 @@ from .model import (
 )
 from .monitor_import import is_record_mention
 from .parallel import DEFAULT_WORKERS, map_with_clients
-from .publish_run import NODE_KIND, is_item_mention, json_object
+from .publish_run import NODE_KIND, is_item_mention, is_reference_mention, json_object
 
 CURRENT = "current"
 
@@ -134,7 +134,7 @@ def links_and_relations(relation_rows: Iterable[Mapping[str, Any]]) -> tuple[lis
             continue
         metadata = json_object(row.get("metadata"))
         confirmed = metadata.get("confirmed") is True
-        if is_item_mention(row):
+        if is_item_mention(row) or is_reference_mention(row):
             links.append(
                 ItemLink(
                     item_key=str(row["subjectLineageId"]),
