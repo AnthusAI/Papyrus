@@ -2,7 +2,7 @@
 
 Goal: every Papyrus site runs a daily [knowledge run](knowledge-cloud-run.md) from its monitor feeds, configuration only: routed monitor records on the Knowledge Map (`monitorSources: ["routed"]`), a few cited story ideas a day from the top routed items (`monitorStories`), and trend ideas (all filed as Items at the `idea` stage).
 
-Checked read-only against account 712236451410 (`AWS_PROFILE=papyrus-production`, us-east-1) on 2026-10-27, after the corpus key (`knowledgeRun.corpusKey`), the default vocabulary and `amplify_outputs.json` seeding, the empty-corpus success and the `infra/site.json` pin fallback landed. Nothing was created or changed in AWS. Every site's example config under `infra/amplify-app-shell/examples/` now carries its `knowledgeRun` block (`anth-us`, `distinctive` and `dataparade` have new example files mirroring their site repos' `infra/site.json`), and `npm run test:scheduled-job-synth` synthesizes all seven.
+Checked read-only against account 712236451410 (`AWS_PROFILE=papyrus-production`, us-east-1) on 2026-10-27, after the corpus key (`knowledgeRun.corpusKey`), the default vocabulary and `amplify_outputs.json` seeding, the empty-corpus success and the `infra/site.json` pin fallback landed. Nothing was created or changed in AWS. Every site's example config under `infra/amplify-app-shell/examples/` now carries its `knowledgeRun` block (`anth-us`, `distinctive` and `dataparade` have new example files mirroring their site repos' `infra/site.json`), and `npm run test:scheduled-job-synth` synthesizes all eight.
 
 ## Readiness
 
@@ -14,9 +14,10 @@ Checked read-only against account 712236451410 (`AWS_PROFILE=papyrus-production`
 | `distinctive` | `papyrus-scheduled-job-knowledge-run-distinctive` | `cron(0 8 * * ? *)` | `knowledge-corpus-distinctive`: 54 (33 `monitor-*`); not in the HN router | `/amplify/shared/d2xke8ygmrzqpp/OPENAI_API_KEY` | requirements-publication.txt 3.2.0: no projection lease | Blocked: the projection pin (see Pins) |
 | `pilobol-us` | `papyrus-scheduled-job-knowledge-run-pilobol-us` | `cron(0 9 * * ? *)` | `knowledge-corpus-pilobol-us`: 0 | `/papyrus/shipped/openai-api-key (Ryan's decision: shared with Shipped)` | infra/site.json 5.42.1 (fallback) | Ready; no-op until the router delivers (the corpus has 0 References) |
 | `p-apyr-us` | `papyrus-scheduled-job-knowledge-run-p-apyr-us` | `cron(0 10 * * ? *)` | `knowledge-corpus-ai-ml-research`: 6,052 (23 routed) | `/papyrus/p-apyr-us/openai-api-key` | infra/site.json 5.41.5 (fallback) | Ready (`corpusKey` `ai-ml-research`) |
+| `machines-on-machines` | `papyrus-scheduled-job-knowledge-run-machines-on-machines` | `cron(0 12 * * ? *)` | `knowledge-corpus-ai-ml-research` (shared with `p-apyr-us`; copied 2026-11-01): about 6,864 | `/papyrus/shipped/openai-api-key (shared with Shipped)` | requirements-publication.txt 5.69.0 | Prepared, not deployed (`corpusKey` `ai-ml-research`; plugin `home-page`) |
 | `dataparade` | `papyrus-scheduled-job-knowledge-run-dataparade` | `cron(0 11 * * ? *)` | `knowledge-corpus-data-parade`: 181 (none routed) | `/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY` | requirements-publication.txt 5.42.1 | Ready (`corpusKey` `data-parade`); no routed records yet |
 
-Every block has `monitorSources: ["routed"]`, no `monitorWeeks` (all history counts), `monitorStories: {"limit": 3}` and `alarmEmailParameter: /papyrus/shipped/knowledge-run/alarm-email` (one mailbox for every alarm; each new SNS subscription still has to be confirmed once from it). Each stack is 41 resources (42 in a `cdk synth` template, which adds `CDKMetadata`), the same as Shipped's. `conceptKinds` and `beatsConfig` are left to the default vocabulary the first run seeds; add them when a site writes its own `vocabulary.yml`.
+Every block has `monitorSources: ["routed"]`, no `monitorWeeks` (all history counts), `monitorStories: {"limit": 3}` and `alarmEmailParameter: /papyrus/shipped/knowledge-run/alarm-email` (one mailbox for every alarm; each new SNS subscription still has to be confirmed once from it). Each stack is 41 resources (42 in a `cdk synth` template, which adds `CDKMetadata`), the same as Shipped's, except that every stack after Shipped's sets `knowledgeRun.reuseImageRepository: true`: the account has one `papyrus-scheduled-jobs/knowledge-run` ECR repository (Shipped's stack created it), so a second stack that tried to create it would fail change-set validation. Such a stack imports the repository by name and has 40 resources. `machines-on-machines` sets it; the other five sites' example configs need it too before they deploy. `conceptKinds` and `beatsConfig` are left to the default vocabulary the first run seeds; add them when a site writes its own `vocabulary.yml`.
 
 ## Pins
 
@@ -123,6 +124,20 @@ npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-p-apyr-us \
   --parameters KnowledgeRun-p-apyr-us:MonitorStoriesEnabled=true
 ```
 
+### machines-on-machines
+
+The site's reader distribution is `E1PTZ8B9ZF9GCU` (`machines-on-machines.anth.us`, origin the site bucket the projection writes); the `newsroom.` distribution is the console. `TrendDraftsEndpoint` is the AppSync GraphQL host from the site's `amplify_outputs.json`, which is not the API id the block holds.
+
+```bash
+SITE=../amplify-app-shell/examples/machines-on-machines.site.json
+npx cdk diff   -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-machines-on-machines
+npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-machines-on-machines \
+  --parameters KnowledgeRun-machines-on-machines:TrendDraftsEnabled=true \
+  --parameters KnowledgeRun-machines-on-machines:TrendDraftsEndpoint=https://vuagbw3fmvalta762m4zsacxce.appsync-api.us-east-1.amazonaws.com/graphql \
+  --parameters KnowledgeRun-machines-on-machines:TrendDraftsSnapshotUrl=https://machines-on-machines.anth.us/_data/knowledge/index.json \
+  --parameters KnowledgeRun-machines-on-machines:MonitorStoriesEnabled=true
+```
+
 ### dataparade
 
 ```bash
@@ -146,11 +161,11 @@ aws stepfunctions start-execution --state-machine-arn $ARN \
   --name manual-$(date -u +%Y%m%dT%H%M%S) --input '{"publication":"<site>"}'
 ```
 
-Use the `siteId` for `<site>` (`shipped`, `anth-us`, `threat-intelligence`, `distinctive`, `pilobol-us`, `p-apyr-us`, `dataparade`). Run one by hand after each deploy and read the ledger and the `monitor-stories` log before leaving the schedule on.
+Use the `siteId` for `<site>` (`shipped`, `anth-us`, `threat-intelligence`, `distinctive`, `pilobol-us`, `p-apyr-us`, `machines-on-machines`, `dataparade`). Run one by hand after each deploy and read the ledger and the `monitor-stories` log before leaving the schedule on.
 
 ## Order
 
 1. Image: build one from develop; check the backends have `listStoryDrafts`.
 2. Shipped: deploy and watch the 05:00 run (routed records in `corpus-sync`, ideas in the `monitor-stories` log).
-3. Ready sites, in schedule order: `threat-intelligence`, `p-apyr-us`, `dataparade`, `pilobol-us` (a no-op until the router delivers).
+3. Ready sites, in schedule order: `threat-intelligence`, `p-apyr-us`, `machines-on-machines`, `dataparade`, `pilobol-us` (a no-op until the router delivers).
 4. After their pins are bumped: `anth-us`, then `distinctive` (and its router entry).

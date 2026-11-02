@@ -48,6 +48,8 @@ export type KnowledgeRunSettings = {
    * (p-apyr-us keeps its References in `ai-ml-research`). Unset means the `siteId`. State, ledger, alarms and SSM names stay keyed by `siteId`.
    */
   corpusKey?: string;
+  /** True on every site's stack but the first: the account's one `papyrus-scheduled-jobs/knowledge-run` ECR repository already exists (Shipped's stack created it). */
+  reuseImageRepository?: boolean;
   siteBucket: string;
   edgeDistributionId: string;
   redirectsKvsArn: string;
@@ -93,6 +95,7 @@ export type KnowledgeRunConfig = {
   publication: string;
   /** Set only when the site names a corpus of its own; the tasks then get `KNOWLEDGE_CORPUS_KEY`. */
   corpusKey?: string;
+  reuseImageRepository: boolean;
   account: string;
   region: string;
   schedule: string;
@@ -202,7 +205,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   const record = raw as Record<string, unknown>;
   // trendWindowDays and trendCooldownDays are retired (the command chooses the window and the repeat rule from the data): still accepted, ignored.
   rejectUnknownKeys(record, [
-    "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "corpusKey", "siteBucket", "edgeDistributionId",
+    "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "corpusKey", "reuseImageRepository", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
     "monitorSources", "monitorWeeks", "monitorSuggestions", "monitorStories", "excludedSourceHosts", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
@@ -261,6 +264,9 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     memoryMiB: optionalInteger(record.memoryMiB, "memoryMiB", 2048, 122880),
     ephemeralStorageGiB: optionalInteger(record.ephemeralStorageGiB, "ephemeralStorageGiB", 21, 200),
     corpusKey: optionalString(record.corpusKey, "corpusKey", CORPUS_KEY_PATTERN, "lowercase letters, digits and hyphens, as in knowledge-corpus-<key>"),
+    ...(record.reuseImageRepository !== undefined
+      ? { reuseImageRepository: typeof record.reuseImageRepository === "boolean" ? record.reuseImageRepository : fail("reuseImageRepository", "must be true or false") }
+      : {}),
     siteBucket: requireString(record.siteBucket, "siteBucket", SITE_BUCKET_PATTERN, "S3 bucket name"),
     edgeDistributionId: requireString(record.edgeDistributionId, "edgeDistributionId", DISTRIBUTION_ID_PATTERN, "CloudFront distribution id"),
     redirectsKvsArn: requireString(record.redirectsKvsArn, "redirectsKvsArn", KVS_ARN_PATTERN, "CloudFront KeyValueStore ARN"),
@@ -301,6 +307,7 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
   return {
     publication,
     ...(settings.corpusKey !== undefined ? { corpusKey: settings.corpusKey } : {}),
+    reuseImageRepository: settings.reuseImageRepository ?? false,
     account,
     region,
     schedule: settings.schedule ?? DEFAULT_SCHEDULE,

@@ -220,6 +220,7 @@ export class KnowledgeRunStack extends Stack {
       publication: config.publication,
       pipeline: knowledgePipeline(config, trendDrafts, monitorStories),
       imageTag,
+      reuseImageRepository: config.reuseImageRepository,
       defaultSize: { vCpu: config.vCpu, memoryMiB: config.memoryMiB, ephemeralStorageGiB: config.ephemeralStorageGiB },
       defaultStageTimeoutSeconds: DEFAULT_STAGE_TIMEOUT_SECONDS,
       schedule: { expression: config.schedule, state: config.scheduleState },
