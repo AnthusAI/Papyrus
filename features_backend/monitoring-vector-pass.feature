@@ -5,9 +5,13 @@ Feature: The router keeps each site's vector index current and writes suggestion
   run the indexing by hand. Once a day the monitoring router's monitor-stories task does it for each publication, before it builds packs or drafts single items:
   first it syncs the index (the vectors of the References accepted since its last pass, and the concept cards, which cost nothing again when unchanged), then it
   suggests links for each of those newly accepted References, cut where the site's own accepted and rejected suggestions say, and only then does what it did before.
-  The router remembers "since the last pass" as the newest acceptance time it finished, in its own table next to its other per-publication state, so a pass
-  that is stopped leaves it where it was and the next pass takes up the same References again; vectors already written are skipped. There is no fixed number of
-  References or suggestions: the pass is bounded only by the run's time and its cost meter, to which the embeddings add their price. A site with no index
+  The router remembers "since the last pass" in its own table next to its other per-publication state. A pass that finishes stores the newest acceptance time.
+  A pass that the time stops keeps what it finished: the suggestions go through the accepted References first and then the pending ones, and the watermark
+  becomes a cursor (acceptance time and id) after the last Reference it got through, so the next pass takes up from there and a big first pass drains over a few
+  runs, with the log line saying how many suggestions are left. A pass whose index sync was stopped leaves the watermark where it was; vectors already
+  written are skipped. The pass is held to the first half of a publication's time so that it cannot starve the drafting, and it continues after the drafting
+  if time is left. There is no fixed number of References or suggestions: the pass is bounded only by the run's time and its cost meter, to which the
+  embeddings add their price. A site with no index
   recorded in its router entry runs without vectors, and the log line says why suggestions are off. The index addresses and storage buckets are copied from each
   site's amplify_outputs.json when the router configuration is seeded, never typed. The index, the embeddings and the backends are fakes in these scenarios.
 
@@ -59,6 +63,60 @@ Feature: The router keeps each site's vector index current and writes suggestion
     When the vector pass runs
     Then the pass was stopped by time
     And no watermark is written
+
+  Scenario: A pass the time stopped keeps what it finished, and says how much is left
+    Given a publication with an index whose watermark is "2026-10-29T12:00:00Z"
+    And References accepted at "2026-10-30T10:00:00Z", "2026-10-30T11:00:00Z" and "2026-10-30T12:00:00Z"
+    And the time lasts for the index sync and 1 suggestion
+    When the vector pass runs
+    Then the pass was stopped by time
+    And suggestions are made for "ref-1" only
+    And 2 suggestions are left
+    And the watermark is a cursor after "ref-1"
+
+  Scenario: The next pass takes up where the stopped one left off and finishes
+    Given a publication whose watermark is a cursor after "ref-1"
+    And References accepted at "2026-10-30T10:00:00Z", "2026-10-30T11:00:00Z" and "2026-10-30T12:00:00Z"
+    When the vector pass runs
+    Then suggestions are made for "ref-2" and "ref-3" only
+    And no suggestions are left
+    And the watermark is now "2026-10-30T12:00:00Z"
+
+  Scenario: References that share one acceptance time, as in a bulk import, are told apart by their id
+    Given a publication with an index whose watermark is "2026-10-29T12:00:00Z"
+    And References accepted at "2026-10-30T10:00:00Z", "2026-10-30T10:00:00Z" and "2026-10-30T10:00:00Z"
+    And the time lasts for the index sync and 2 suggestions
+    When the vector pass runs
+    Then 1 suggestion is left
+    And the watermark is a cursor after "ref-2"
+
+  Scenario: Accepted References get their suggestions before pending ones
+    Given a publication with an index whose watermark is "2026-10-29T12:00:00Z"
+    And a pending Reference with id "ref-9" changed at "2026-10-30T09:00:00Z"
+    And References accepted at "2026-10-30T10:00:00Z" and "2026-10-30T11:00:00Z"
+    When the vector pass runs
+    Then suggestions are made in the order "ref-1", "ref-2", "ref-9"
+
+  Scenario: A large backlog of vectors does not stop the drafting
+    Given a router publication whose entry names an index and a storage bucket
+    And 2 accepted References that the "hn" monitor delivered, one accepted since the last pass
+    And the vector pass's share of the time is already spent
+    When the router runs its daily monitor stories with the vector pass
+    Then the steps ran in the order index sync, drafting, index sync, suggestions
+    And 2 ideas are drafted
+    And the log line shows no raised curation flag
+
+  Scenario: When the drafting is done with time to spare, the vector pass continues from where it stopped
+    Given a router publication whose entry names an index and a storage bucket
+    And 2 accepted References that the "hn" monitor delivered, one accepted since the last pass
+    And the vector pass's share of the time is already spent
+    When the router runs its daily monitor stories with the vector pass
+    Then the log line says 2 suggestions written and no suggestions left
+
+  Scenario: The router holds the vector pass to the first half of a publication's time
+    Given the router has 400 seconds left when a publication starts
+    When the router runs its daily monitor stories with a fake drafter
+    Then drafting is out of time at 120 seconds left and the vector pass at 260 seconds left
 
   Scenario: The router's run indexes, suggests and then drafts, and its log line says what was done
     Given a router publication whose entry names an index and a storage bucket

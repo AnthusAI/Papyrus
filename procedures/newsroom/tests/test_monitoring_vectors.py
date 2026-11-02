@@ -245,6 +245,36 @@ def test_running_out_of_time_stops_the_index_and_the_suggestions_and_keeps_the_w
     assert steps.order == ["index", "suggest:ref-1"] and result["stoppedBy"] == "time"   # index check passed, ref-1 suggested, then the time was gone
 
 
+def test_a_pass_the_time_stopped_saves_its_place_and_the_next_pass_resumes_after_it_and_finishes():
+    rows = [accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-30T10:00:00Z"), accepted(3, "2026-10-30T10:00:00Z")]   # one acceptance time, as in a bulk import
+    watermark, ticks = Watermark(), iter([False, False, False])
+    first = Pass()
+    result = run_pass(AcceptedClient(rows), first, watermark, out_of_time=lambda: next(ticks, True))
+    assert first.order == ["index", "suggest:ref-1", "suggest:ref-2"] and result["suggestionsRemaining"] == 1
+    assert json.loads(watermark.value) == {"accepted": "2026-10-30T10:00:00Z#ref-2"}
+    second = Pass()
+    result = run_pass(AcceptedClient(rows), second, watermark)
+    assert second.options.reference_ids == ("ref-3",) and second.order == ["index", "suggest:ref-3"] and result["suggestionsRemaining"] == 0
+    assert watermark.value == "2026-10-30T10:00:00Z"   # finished: the plain timestamp again
+
+
+def test_a_stopped_pass_that_got_through_nothing_leaves_the_watermark_and_an_unreadable_one_starts_over():
+    watermark = Watermark("{broken")
+    pass_ = Pass()
+    run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, watermark, out_of_time=iter([False, True]).__next__)
+    assert watermark.writes == [] and pass_.options.reference_ids == ("ref-1",)
+
+
+def test_accepted_references_are_suggested_before_pending_ones_and_each_group_keeps_its_own_cursor():
+    pending = {**accepted(9, "2026-10-29T09:00:00Z"), "curationStatus": "pending"}
+    pass_, watermark = Pass(), Watermark()
+    ticks = iter([False, False, False])
+    run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-30T11:00:00Z")], [pending]), pass_, watermark, out_of_time=lambda: next(ticks, True))
+    assert pass_.order == ["index", "suggest:ref-1", "suggest:ref-2"]   # the older pending Reference waits behind the accepted ones
+    cursors = json.loads(watermark.value)
+    assert cursors == {"accepted": "2026-10-30T11:00:00Z#ref-2"}   # the pending group was not reached: no cursor, so it is all still to do
+
+
 def test_one_reference_whose_suggestions_fail_does_not_stop_the_others():
     class Flaky(Pass):
         def suggester(self, client, provider, reference_id, **options):
@@ -308,7 +338,7 @@ def router_with(settings):
     return table, store
 
 
-def run_task(store, client, order, monkeypatch, *, key="sk-test", accepted_rows=None):
+def run_task(store, client, order, monkeypatch, *, key="sk-test", accepted_rows=None, drafter_options=None):
     pass_ = Pass(characters=400_000, cards=1, written=3)
     monkeypatch.setattr("papyrus_content.monitoring_vectors.references_since", lambda c, p, watermark: accepted_rows or [])
     monkeypatch.setattr("papyrus_content.monitoring_vectors.run_vector_pass", partial(
@@ -324,7 +354,10 @@ def run_task(store, client, order, monkeypatch, *, key="sk-test", accepted_rows=
 
     real_drafting = monitor_stories.draft_monitor_stories
     monkeypatch.setattr(monitor_stories, "draft_monitor_stories", lambda **options: (order.append("drafting"), real_drafting(**options))[1])
-    draft = partial(run_publication, fetch=pages(*range(1, 60)), explorer=None)
+    base = partial(run_publication, fetch=pages(*range(1, 60)), explorer=None)
+
+    def draft(client, publication, **options):
+        return base(client, publication, **{**options, **(drafter_options or {})})   # a test's own options win over what the router passes
 
     with redirect_stdout(out):
         result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint], deliver=tr.Delivery(),

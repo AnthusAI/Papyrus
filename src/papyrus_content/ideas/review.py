@@ -66,7 +66,9 @@ def settle_curation_flag(client: Any, run: dict[str, Any], site: str) -> dict[st
     * The run filed nothing because a Reference had nothing to add (``nothing_to_add``), a draft added nothing beyond its source (``point_check_failed``,
       ``no_point_offered``, or ``already_rejected`` on an earlier run with nothing new known since) or there were no candidates at all: ONE flag, mode
       ``flag`` (Notification Center, acknowledge only), is raised, unless one is already open for this publication. It says what would help: accept reasons
-      missing, suggested links waiting in Related, the first skipped titles. It is quiet when the run stopped for another reason or failed to file.
+      missing, suggested links waiting in Related, the first skipped titles. It is quiet when the run did not get through its candidates (stopped by time or
+      cost, so the empty result says nothing about curation), when the suggested links its connections come from are still being written
+      (``suggestionsWaiting``), and when it failed to file.
 
     Needs ``listReviewRequests``, ``updateReviewRequest`` and ``createReviewRequest`` on the site's API (``RouterIdeaPolicy`` and the review policies of
     ``infra/monitoring/papyrus-monitoring.yaml``).
@@ -87,6 +89,8 @@ def settle_curation_flag(client: Any, run: dict[str, Any], site: str) -> dict[st
         no_candidates = run["inputs"]["candidates"] == 0
         if run.get("stoppedBy") == "file_error" or not (waiting or rejected_now or no_candidates):
             return {"status": "not_needed"}
+        if run.get("stoppedBy") in ("time", "cost") or run.get("suggestionsWaiting"):
+            return {"status": "not_needed", "note": f"Not raised: the run stopped by {run['stoppedBy']}." if run.get("stoppedBy") in ("time", "cost") else "Not raised: suggested links are still being written."}
         if opened:
             return {"status": "already_open", "requestId": opened[0]["id"]}
         reason, ask = curation_flag_text(run, [*waiting, *rejected_now])
