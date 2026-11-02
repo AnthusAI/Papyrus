@@ -192,6 +192,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await card.locator("[data-review-reason] textarea").waitFor();
       assert.equal(await card.locator("[data-review-reason] textarea").inputValue(), "", "the router's acceptance reason is not put in the editor's mouth");
       assert.doesNotMatch(await card.locator("[data-review-reason] label").innerText(), /required to accept/i, "no reason is required to Accept");
+      assert.match(await card.locator("[data-review-reason] label").innerText(), /optional/i, "an Accept does not need words");
       assert.match(await card.locator("[data-feed-saved]").innerText(), /Say why if you like/);
       assert.equal(await card.locator("[data-review-record]").isDisabled(), false, "Record is available without words");
       assert.equal((await requests(page) as unknown[]).length, 0, "nothing is sent until the editor records it");

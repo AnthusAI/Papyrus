@@ -243,7 +243,7 @@ export function DecisionControl({
       {showReason ? (
         <div className="grid gap-y-1.5" data-review-reason>
           <label className={cn(LABEL, "text-muted-foreground")} htmlFor={fieldId}>
-            Reason{reasonRequiredFor ? ` · required to ${WORD[reasonRequiredFor].toLowerCase()}` : " · optional"}
+            Reason{reasonRequiredFor && (!answer || answer === reasonRequiredFor) ? ` · required to ${WORD[reasonRequiredFor].toLowerCase()}` : " · optional"}
           </label>
           {/* Written reasons only. A row of canned answers collects a label the model mostly has already;
               what trains the next prediction is a sentence. */}
