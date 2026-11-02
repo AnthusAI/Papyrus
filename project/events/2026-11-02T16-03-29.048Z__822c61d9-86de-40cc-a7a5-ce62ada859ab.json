@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "822c61d9-86de-40cc-a7a5-ce62ada859ab",
+  "issue_id": "PPY-f6982905-7bc6-4de5-9748-3fe3e16bd735",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T16:03:29.048Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Move people's conversations onto Chatticus channels",
+    "description": "Ryan 11-02: conversations between people and bots, forum threads included, use the Chatticus message and channel model and one store. Machine records do not move; they stay on the 10-29 removal plan. Today across 7 sites: 6 Reference threads, 13 Story reporting threads, 98 console threads, 1 forum thread, no story_conversation threads. A person's message reaches the bot only when it addresses the bot; otherwise no agent response. Readers to change: Messages page, Story and Reference detail, home page threads. Waits on Chatticus epic chatticus-4b2417. Done: Gherkin scenarios, existing threads migrated site by site after a dry-run count, p.apyr.us docs task updated.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+    "labels": []
+  }
+}
