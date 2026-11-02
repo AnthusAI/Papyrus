@@ -85,6 +85,12 @@ def _category_context(client: Any, options: dict[str, Any], data) -> tuple[list[
     return rows, {key: text for key, text in descriptions.items() if text}, children
 
 
+def _retired_entry(page) -> dict[str, Any]:
+    front = front_matter_of({"metadata": {"frontMatterYaml": page.front_matter_yaml}})
+    kind = "entity" if front.get("entityKey") else (front.get("topicKind") or "topic")
+    return {"section": page.section, "slug": page.slug, "kind": kind, "live": page.live, "title": front.get("title"), "entityKind": front.get("kind")}
+
+
 def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int], run_id: str | None = None) -> None:
     if as_json:
         print(
@@ -94,10 +100,13 @@ def _print_plan(plan, apply: bool, as_json: bool, written: dict[str, int], run_i
                     "runId": run_id if apply else None,
                     "counts": plan.counts,
                     "pages": [
-                        {"action": page.action, "section": page.section, "slug": page.spec.slug, "kind": page.spec.kind, "note": page.note}
+                        {
+                            "action": page.action, "section": page.section, "slug": page.spec.slug, "kind": page.spec.kind, "note": page.note,
+                            "entityKind": page.spec.front_matter.get("kind"), "title": page.spec.front_matter.get("title"),
+                        }
                         for page in plan.pages
                     ],
-                    "retired": [{"section": page.section, "slug": page.slug, "live": page.live} for page in plan.retired],
+                    "retired": [_retired_entry(page) for page in plan.retired],
                     "warnings": list(plan.warnings),
                     "written": written,
                 },
