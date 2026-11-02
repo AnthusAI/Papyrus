@@ -9,7 +9,7 @@ Usage: papyrus [--help] [--version] [--backend local|cloud] <group> <command> [o
 
 Operator groups:
   references    List or show references (local pod or cloud GraphQL)
-  monitors      Due Hacker News collection and local worker checkpoints
+  monitors      Monitoring state (overview, page; signed in, read-only) and Hacker News worker checkpoints
   assignments   List newsroom assignments (cloud) or pod stories (local)
   knowledge     Knowledge query and steering utilities
   reporting     Reporting assignment workflow
