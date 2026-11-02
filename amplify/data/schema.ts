@@ -663,6 +663,13 @@ const definitions = {
     .authorization((allow) => [allow.groups(contentWriteGroups)])
     .handler(functionHandler("contentActions", contentActions)),
 
+  createStoryFromReference: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
   MessageHashtagLinks: a.customType({
     ok: a.boolean().required(),
     linkedNodeKeys: a.string().array().required(),

@@ -10,6 +10,8 @@ promotion of a ``story_draft`` Proposal, ``papyrus stories create --reference``,
    copywriter) and goes through the copywriting and copy-editing stages. It is never the Reference's captured or extracted text, and
    ``refuse_copied_body`` refuses a seeded body that shares a long verbatim span with that text. The one thing a story may take from
    the Reference is the preview image, and only for a ``post`` (``SEEDED_IMAGE_ITEM_TYPES``): see ``seeded_image_markus``.
+   The editor's one-tap Create Story (``create_story_from_reference``) is the one path that seeds the image for any type, and starts the body from the Reference's
+   generated summary (our words; the copy guard still applies).
 
 Nothing here publishes. A story that already exists is never rewritten (the editor's text is never overwritten); only its link is
 made sure of.
@@ -29,7 +31,8 @@ from .link_exploration import canonical_url
 from .publishing import ItemFields, item_id_for, save_item
 from .record_helpers import slugify
 from .reference_images import PREVIEW_ROLE
-from .story_reporting import BASED_ON, current_reference, link_reference_to_story, story_references
+from .content_item_lifecycle import STORY_ITEM_TYPES
+from .story_reporting import BASED_ON, current_reference, latest_story_version, link_reference_to_story, stories_based_on_reference, story_references
 
 #: The item types whose image is seeded from the Reference's preview image.
 SEEDED_IMAGE_ITEM_TYPES = ("post",)
@@ -201,6 +204,7 @@ def create_story_from_references(
     front_matter: dict[str, Any] | None = None,
     item_id: str | None = None,
     source_text_reader: SourceTextReader | None = None,
+    seed_image: bool = False,
     now: str | None = None,
 ) -> dict[str, Any]:
     """Saves the draft story for one or more References, links each to it as ``based_on``, and returns what happened.
@@ -208,7 +212,7 @@ def create_story_from_references(
     ``body_markus`` is our own text (a story draft's body); without it the body is a brief for the copywriter. A body that copies the
     Reference's text raises ``StoryCopiedFromReference`` before anything is written. A ``post`` also gets the first Reference's preview
     image. A story that already exists keeps its text; its links are still made sure of. Returns ``itemId``, ``lineageId``, ``created``,
-    ``linked`` (reference lineage ids), ``image`` (``seeded``, ``none`` or ``not a post``) and ``copyCheck`` (``passed`` or ``unchecked``).
+    ``linked`` (reference lineage ids), ``image`` (``seeded``, ``none`` or ``not a post``; ``seed_image`` seeds any type, as the editor's Create Story action does) and ``copyCheck`` (``passed`` or ``unchecked``).
     """
     if not references:
         raise ValueError("A story based on a Reference needs at least one Reference.")
@@ -227,11 +231,14 @@ def create_story_from_references(
         meta = dict(front_matter or {})
         meta.setdefault("title", title)
         meta.setdefault("sources", [{"title": row.get("title") or row.get("sourceUri"), "url": row.get("sourceUri")} for row in rows if row.get("sourceUri")])
-        if item_type in SEEDED_IMAGE_ITEM_TYPES:
+        if seed_image or item_type in SEEDED_IMAGE_ITEM_TYPES:
             preview = next((found for found in (preview_of(client, row) for row in rows) if found), None)
             if preview:
                 body = seeded_image_markus(preview, rows[0]) + "\n\n" + body
-                meta["seededImage"] = {"url": preview["url"], "from": "reference-preview", "hosted": False}
+                meta["seededImage"] = {
+                    "url": preview["url"], "from": "reference-preview", "hosted": False,
+                    "credit": f"Image: {preview['site']}" if preview.get("site") else None, "page": rows[0].get("sourceUri"),
+                }
                 image = "seeded"
             else:
                 image = "none"
@@ -388,3 +395,128 @@ def plan_reference_links(client: Any, *, role: str | None = None) -> list[dict[s
                 "sourceUri": reference["sourceUri"], "linkedAddress": address, "role": chosen, "exists": reference_lineage in linked,
             })
     return plan
+
+
+# --- the editor's one-tap "Create Story" ---------------------------------------------------------------------------------------
+
+#: Front matter key that marks a story started by the Create Story action; the editor shows a plain note while it is there.
+SEEDED_FROM_KEY = "seededFrom"
+
+
+def host_of(url: Any) -> str | None:
+    host = urlsplit(str(url or "")).hostname
+    return host.removeprefix("www.") if host else None
+
+
+def source_attribution(reference: dict[str, Any], preview: dict[str, Any] | None) -> str:
+    """``Source: [title](address), site.`` The link and who it came from; never the source's own text."""
+    title = _attribute(str(reference.get("title") or reference.get("sourceUri") or "the source")).replace("[", "(").replace("]", ")")
+    site = (preview or {}).get("site") or host_of(reference.get("sourceUri"))
+    address = str(reference.get("sourceUri") or "")
+    link = f"[{title}]({address})" if address else title
+    return f"Source: {link}" + (f", {site}." if site else ".")
+
+
+def start_body(summary: str, attribution: str) -> str:
+    """The body Create Story starts from: the Reference's generated summary, then the source link and attribution. Without a summary, the source line only."""
+    return (f"{summary.strip()}\n\n" if summary.strip() else "") + attribution + "\n"
+
+
+def obvious_section(client: Any) -> str | None:
+    """The one enabled newsroom section, when the site has exactly one; else None (an editor chooses)."""
+    try:
+        enabled = [row for row in client.list_records("NewsroomSection") if row.get("enabled") is not False]
+    except Exception:  # noqa: BLE001 - no section list is no obvious section
+        return None
+    return str(enabled[0]["id"]) if len(enabled) == 1 and enabled[0].get("id") else None
+
+
+def unused_slug(client: Any, section: str | None, base: str, lineage: str) -> str:
+    """``base``, or ``base-<n>`` when a story with that address exists already (a second story from the same Reference)."""
+    candidate, number = base, 1
+    while client.get_record("Item", item_id_for(section, candidate)) is not None:
+        number += 1
+        candidate = f"{base}-{number}"
+        if number > 50:
+            candidate = f"{base}-{lineage[-6:]}-{number}"
+            break
+    return candidate
+
+
+def story_rows(client: Any, reference_lineage: str) -> list[dict[str, Any]]:
+    """Stories already based on the Reference: ``itemId``, ``lineageId``, ``title``, ``stage``, newest first."""
+    rows = []
+    for link in stories_based_on_reference(client, reference_lineage):
+        if link["role"] != BASED_ON:
+            continue
+        try:
+            story = latest_story_version(client, str(link["storyLineageId"]))
+        except Exception:  # noqa: BLE001 - a link whose story cannot be read is not offered
+            continue
+        rows.append({
+            "itemId": story["id"], "lineageId": link["storyLineageId"], "title": story.get("title") or story.get("slug") or "", "stage": story.get("stage"),
+            "updatedAt": story.get("updatedAt") or "",
+        })
+    return sorted(rows, key=lambda row: str(row["updatedAt"]), reverse=True)
+
+
+def create_story_from_reference(
+    client: Any,
+    reference_id: str,
+    *,
+    actor: str,
+    item_type: str = "article",
+    again: bool = False,
+    summary_of: Callable[[str], str] | None = None,
+    source_text_reader: SourceTextReader | None = None,
+    now: str | None = None,
+) -> dict[str, Any]:
+    """The editor's one-tap Create Story: a draft story at the copywriting stage, started from this Reference, linked to it, ready to write.
+
+    * type ``item_type`` (``article`` by default; any of ``STORY_ITEM_TYPES``), stage ``copywriting``, a section only when the site has exactly one;
+    * the title is the Reference's title; the body is the Reference's generated summary (``summary_of``, the summary chain of the idea pipeline) followed by the
+      source link and attribution, or the source line alone when no summary exists. Nothing else is written, and no text is invented;
+    * the Reference's preview image, if the page declared one, is the first line: a remote address (never copied to our media) with a credit to its site, recorded
+      in the front matter with the page it came from. It is another site's picture: the editor checks the rights before publishing;
+    * ``uses_evidence`` / ``based_on`` links the story to the Reference, so it is listed under "Stories based on this Reference".
+
+    A Reference that already has a story is not given a second one silently: unless ``again`` is true the result is ``{"created": False, "existing": [...]}``.
+    A summary that repeats ``COPIED_RUN_WORDS`` words of the captured text is left out (``summary: "withheld"``), the same copy guard as every other path.
+    This never changes the Reference's curation status; the editor's Accept is a vote the caller records through the existing review path.
+    """
+    if item_type not in STORY_ITEM_TYPES:
+        raise ValueError(f"A story is one of {', '.join(STORY_ITEM_TYPES)}, not {item_type!r}.")
+    reference = current_reference(client, reference_id)
+    if reference is None:
+        raise ValueError(f"Reference not found: {reference_id}")
+    lineage = str(reference.get("lineageId") or reference["id"])
+    existing = story_rows(client, lineage)
+    if existing and not again:
+        return {"created": False, "existing": existing, "referenceLineageId": lineage}
+    preview = preview_of(client, reference)
+    title = re.sub(r"\s+", " ", str(reference.get("title") or "")).strip() or host_of(reference.get("sourceUri")) or "Untitled story"
+    section = obvious_section(client)
+    slug = unused_slug(client, section, slugify(title)[:80].strip("-") or f"story-{lineage[-6:]}", lineage)
+    try:
+        summary = " ".join(str((summary_of(lineage) if summary_of else "") or "").split())
+    except Exception:  # noqa: BLE001 - no summary is a source line only
+        summary = ""
+    attribution = source_attribution(reference, preview)
+
+    def make(text: str, state: str) -> dict[str, Any]:
+        front = {"title": title, SEEDED_FROM_KEY: {"kind": "reference", "referenceLineageId": lineage, "summary": state, "by": actor}}
+        return create_story_from_references(
+            client, references=[reference], section=section or "", slug=slug, title=title, actor=actor, body_markus=start_body(text, attribution),
+            item_type=item_type, front_matter=front, source_text_reader=source_text_reader, seed_image=True, now=now, item_id=item_id_for(section, slug),
+        )
+
+    state = "included" if summary else "none"
+    try:
+        result = make(summary, state)
+    except StoryCopiedFromReference:
+        state = "withheld"
+        result = make("", state)
+    return {
+        **result, "created": True, "title": title, "itemType": item_type, "stage": "copywriting", "summary": state, "section": section,
+        "referenceLineageId": lineage, "imageCredit": f"Image: {preview['site']}" if preview and preview.get("site") else None,
+    }

@@ -224,6 +224,8 @@ The weekly cloud knowledge run can run this command after it publishes the snaps
 
 ## Monitor stories
 
+A Reference an editor already made a Story from (**Create Story**, [reference curation pipeline](reference-curation-pipeline.md#create-story-ppy-3c11bd)) has a story `based_on` it, so it is counted as `hasStory` and never drafted again as an idea.
+
 `papyrus ideas monitor-stories` writes about the items a site's **monitors** found ([monitoring in the cloud](monitoring-cloud.md)). A monitor
 delivers pending `Reference`s into the site's canonical knowledge corpus (`knowledge-corpus-<site>`), each recording its monitor on the Reference
 (`discoveredByMonitorId`: `hn`, `huggingface`, an email intake) and, where the source has them, the source's structured `discoveryDetails`. Most of what arrives is never written about. This command picks the few most worth a story and files one cited draft for each.

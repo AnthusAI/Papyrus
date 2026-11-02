@@ -1,5 +1,6 @@
 "use client";
 
+import { CreateStoryButton } from "./create-story-button";
 import { DETAIL_PANE_WIDTH, LIST_HIDDEN_WHEN_DETAIL_OPEN } from "./list-detail-layout";
 import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
 import { ReferenceAddEntry } from "./reference-add-entry";
@@ -302,6 +303,17 @@ function ReferenceDetailPanel({
       <div className="space-y-4 p-4" data-reference-curation-status={status}>
         <ReviewCard
           confirmsAutomatic={auto}
+          createStory={(
+            <CreateStoryButton
+              demo={demo}
+              disabled={disabled}
+              onAccept={() => { if (ratings) ratings.choose(lineageId, "accept"); else void onReview("accept"); }}
+              preview={{ title: referenceDisplayTitle(reference), url: reference.sourceUri ?? null, summary: capture.summary ?? summaryOf(reference) ?? null, imageUrl: null, site: null }}
+              referenceId={reference.id}
+              size="large"
+              status={status}
+            />
+          )}
           decided={status === "accepted" && !auto ? "accept" : status === "rejected" ? "reject" : null}
           dek={referenceDek(reference, referencePreviewsByLineage(previewAttachments).get(lineageId))}
           disabledReason={disabled ? "Editor access is required to change this reference." : null}
@@ -920,6 +932,7 @@ export function NewsroomReferencesView({
                 now={mountedAt}
                 onOpen={selectReference}
                 onRate={rateFromFeed}
+                demo={demo}
                 onShowChange={(next) => { setFeedShow(next); setCaughtUp(false); }}
                 onSortChange={(next) => { setFeedSort(next); setCaughtUp(false); }}
                 onVisitRated={markVisitRated}

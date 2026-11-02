@@ -9,7 +9,10 @@ import type {
   UnpublishItemResult,
   MoveStoryStageInput,
   MoveStoryStageResult,
+  CreateStoryFromReferenceInput,
+  CreateStoryFromReferenceResult,
 } from "./content-actions-client";
+import { SEEDED_FROM_KEY, SEEDED_IMAGE_KEY, seededImageLine, sourceAttribution, startBody } from "./story-from-reference";
 import {
   createDemoArticleRecords,
   demoContentHash,
@@ -79,6 +82,7 @@ function demoEnvelope(bodyMarkus: string) {
 export function createDemoArticlesBackend(): ArticlesBackend {
   const records = new Map<string, DemoArticleRecord>(createDemoArticleRecords().map((record) => [record.id, record]));
   let created = 0;
+  const storiesFromReference = new Map<string, string[]>();
 
   const requireRecord = (id: string): DemoArticleRecord => {
     const record = records.get(id);
@@ -189,6 +193,31 @@ export function createDemoArticlesBackend(): ArticlesBackend {
       },
       async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
         return { ok: true, changed: true, stage: input.stage };
+      },
+      async createStoryFromReference(input: CreateStoryFromReferenceInput): Promise<CreateStoryFromReferenceResult> {
+        // The preview has no backend to look the Reference up in, so it is given the same facts the real action reads.
+        const hint = input.preview;
+        if (!hint) throw new ContentActionFailure([{ code: "story-not-created", message: "The preview was not given the Reference.", line: null }]);
+        const already = storiesFromReference.get(input.referenceId) ?? [];
+        if (already.length && !input.again) {
+          return { ok: true, created: false, referenceLineageId: input.referenceId, existing: already.map((id) => ({ itemId: id, lineageId: id, title: records.get(id)?.title ?? hint.title, stage: "copywriting" })) };
+        }
+        const site = hint.site ?? (hint.url ? new URL(hint.url).hostname.replace(/^www\./, "") : null);
+        const image = hint.imageUrl ? `${seededImageLine(hint.imageUrl, hint.title, hint.site)}\n\n` : "";
+        const bodyMarkus = image + startBody(hint.summary, sourceAttribution(hint.title, hint.url, site));
+        const summaryState = hint.summary?.trim() ? "included" : "none";
+        const frontMatterYaml = [
+          `title: ${JSON.stringify(hint.title)}`,
+          `${SEEDED_FROM_KEY}:\n  kind: reference\n  referenceLineageId: ${JSON.stringify(input.referenceId)}\n  summary: ${summaryState}`,
+          ...(hint.imageUrl ? [`${SEEDED_IMAGE_KEY}:\n  url: ${JSON.stringify(hint.imageUrl)}\n  hosted: false${hint.site ? `\n  credit: ${JSON.stringify(`Image: ${hint.site}`)}` : ""}`] : []),
+        ].join("\n") + "\n";
+        const id = `demo-article-new-${(created += 1)}`;
+        records.set(id, {
+          id, type: input.itemType ?? "article", slug: `from-reference-${created}`, section: null, title: hint.title, status: "draft", frontMatterYaml, bodyMarkus,
+          contentHash: demoContentHash(frontMatterYaml, bodyMarkus), publishedContentHash: null, versionNumber: null, everPublished: false, updatedAt: new Date().toISOString(),
+        });
+        storiesFromReference.set(input.referenceId, [...already, id]);
+        return { ok: true, created: true, itemId: id, lineageId: id, title: hint.title, itemType: input.itemType ?? "article", stage: "copywriting", summary: summaryState, image: hint.imageUrl ? "seeded" : "none", imageCredit: hint.imageUrl && hint.site ? `Image: ${hint.site}` : null };
       },
       async unpublishItem(id: string): Promise<UnpublishItemResult> {
         const record = requireRecord(id);
