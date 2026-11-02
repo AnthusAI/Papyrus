@@ -41,13 +41,25 @@ def _text_from_option_or_file(options: dict, text_name: str, file_name: str) -> 
 
 
 def stories_save_version(flags: list[str]) -> None:
-    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name> [--stage <stage> | --advance] [--no-check]"""
+    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name> [--stage <stage> | --advance] [--no-check] [--images <dir> [--bucket <bucket>] [--identity-pool-id <id>]]
+
+    --images <dir> uploads every local picture the body uses (::image{src=...} and ![](...) whose path resolves under
+    <dir>), plus a matching <name>.dark.<ext> or srcDark file, as the newsroom editor's "Insert image" would: the same
+    MediaAsset rows and S3 objects (media/assets/<slug>/<file>), then saves the body with src (and srcDark) rewritten
+    to the stored paths. Files over 10 MB, of a type other than PNG/JPEG/GIF/WebP/AVIF/SVG, or whose dark version has
+    a different aspect ratio (over 0.5%) are rejected by name before anything is written; --dry-run prints the upload
+    plan and writes nothing; re-running reuses the same media ids and objects. Auth: both lanes work. With
+    PAPYRUS_GRAPHQL_AUTH=iam the AWS credentials write to S3; with PAPYRUS_GRAPHQL_AUTH=user (editor or admin group)
+    the signed-in ID token is traded for temporary credentials from the site's Cognito identity pool
+    (--identity-pool-id, PAPYRUS_IDENTITY_POOL_ID or amplify_outputs.json).
+    """
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories save-version")
     lineage_id = _required_option(options, "story")
     body = _text_from_option_or_file(options, "body", "body-file")
     if body is None:
         raise ValueError("--body-file (or --body) is required.")
+    images_dir = normalize_string(options.get("images"))
     client, _ = create_authoring_client()
     latest = current_story_version(client, lineage_id)
     front_matter = _text_from_option_or_file(options, "front-matter", "front-matter-file")
@@ -57,7 +69,19 @@ def stories_save_version(flags: list[str]) -> None:
     reason = _required_option(options, "reason")
     author = _required_option(options, "author-label")
     next_number = int(latest.get("versionNumber") or 1) + 1
+    image_plan = None
+    if images_dir:
+        from .story_images import plan_story_images
+
+        image_plan = plan_story_images(body, Path(images_dir), slug=latest["slug"], tenant_id=getattr(client, "tenant_id", None))
+        body = image_plan.body
     print(f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t{'write' if apply else 'dry run'}")
+    if image_plan is not None:
+        from .story_images import plan_lines
+        from .story_reporting import planned_version_record_id
+
+        for line in plan_lines(image_plan, planned_version_record_id(client, lineage_id)):
+            print(line)
     if not apply:
         return
     stage = normalize_string(options.get("stage"))
@@ -65,7 +89,16 @@ def stories_save_version(flags: list[str]) -> None:
         if stage:
             raise ValueError("Pass --stage or --advance, not both.")
         stage = advance_stage(latest.get("stage"))
-    record = save_story_version(client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason, stage=stage)
+    if image_plan is not None and image_plan.images:
+        from .story_images import open_media_store, upload_planned_images
+
+        store = open_media_store(normalize_string(options.get("bucket")), normalize_string(options.get("identity-pool-id")))
+        for image, outcome in upload_planned_images(image_plan, store):
+            print(f"stories\tsave-version\timage-{outcome}\t{image.storage_path}")
+    record = save_story_version(
+        client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason, stage=stage,
+        media_rows=image_plan.media_rows if image_plan is not None else None,
+    )
     print(f"stories\tsave-version\tsaved\t{record['id']}")
     if stage and stage != (latest.get("stage") or "idea"):
         from .story_triggers import deliver_from_environment

@@ -128,3 +128,21 @@ def storage_bucket_from_amplify_outputs(filepath: str | Path | None = None) -> s
         return None
     storage = parsed.get("storage") or {}
     return storage.get("bucket_name") or storage.get("bucketName")
+
+
+def identity_pool_id_from_amplify_outputs(filepath: str | Path | None = None) -> str | None:
+    """The Cognito identity pool the signed-in user lane trades its ID token with for S3 credentials."""
+    explicit = (os.environ.get("PAPYRUS_IDENTITY_POOL_ID") or "").strip()
+    if explicit:
+        return explicit
+    path = Path(filepath) if filepath else amplify_outputs_path()
+    if not path.is_absolute():
+        path = PAPYRUS_ROOT / path
+    if not path.exists():
+        return None
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    auth = parsed.get("auth") or {}
+    return auth.get("identity_pool_id") or auth.get("identityPoolId")
