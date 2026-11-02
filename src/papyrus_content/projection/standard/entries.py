@@ -17,7 +17,7 @@ from ..public_data import SUMMARY_FIELD_NAMES, clipped, tags_of
 from .config import SectionConfig, StandardSettings
 from .urls import UrlPolicy
 
-SUMMARY_FIELDS = (*SUMMARY_FIELD_NAMES, "dek", "standfirst")
+SUMMARY_FIELDS = SUMMARY_FIELD_NAMES
 IMAGE_FIELDS = ("image", "cover", "ogImage", "thumbnail")
 UPDATED_FIELDS = ("updated", "modified", "lastmod", "dateModified")
 FALSE_VALUES = {"false", "0", "no", "off"}
