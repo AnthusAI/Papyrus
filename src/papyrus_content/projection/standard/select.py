@@ -34,7 +34,7 @@ class Selection:
         """``drafts``: the entries of draft state that the selection would pick if they were published."""
         if not (entry.draft if drafts else entry.listed):
             return False
-        if self.sections and (entry.section.name if entry.section else "@root") not in self.sections:
+        if self.sections and (entry.topic or "@root") not in self.sections:
             return False
         have = {tag.casefold() for tag in entry.tags}
         if self.tags and not have & {tag.casefold() for tag in self.tags}:

@@ -139,7 +139,7 @@ def include_inputs(includes: list[dict], entries: list[StandardEntry], settings:
             inputs.append([dict(attributes), [entry.fingerprint(full=True) for entry in listing_entries(attributes, entries, settings)]])
         elif kind == "block":
             wanted = depends_of(attributes)
-            chosen = [entry for entry in entries if "*" in wanted or (entry.section.name if entry.section else "@root") in wanted]
+            chosen = [entry for entry in entries if "*" in wanted or (entry.topic or "@root") in wanted]
             inputs.append([dict(attributes), [entry.fingerprint(full=True) for entry in chosen]])
         elif kind == "references":
             inputs.append([dict(attributes), "home-page:references"])

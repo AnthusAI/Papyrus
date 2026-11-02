@@ -1,0 +1,20 @@
+{
+  "id": "PPY-4142e8d1-ec6e-4eef-abad-f4f0220ed639",
+  "title": "p.apyr.us docs: key URLs on the Item type (urls.types), sections as topics, and the section migration (follow-up of PPY-a6acd2)",
+  "description": "Write the p.apyr.us docs page for the engine change in PPY-a6acd2: urls.types (keying a URL base and listing on the Item type), urls.sections.<id>.aliases, sections as topics (collections select.sections), the dry-run section migration (python -m papyrus_content.section_migration) and the URL comparison (python -m papyrus_content.projection.url_compare). Source text is docs/building-a-papyrus-static-site.md (Sections and types) and docs/content-item-lifecycle.md (Story types and sections).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T19:34:49.399038Z",
+  "updated_at": "2026-11-02T19:35:04.949149Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

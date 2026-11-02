@@ -12,11 +12,11 @@ export type ContentItemStageDefinition = {
 };
 
 /**
- * The Item types that are stories. A story's type is its own attribute, separate from its section: "article" today, "post"
- * when posts arrive (add it here and nowhere else). Every other Item type (wiki_page, doctrine, page, and so on) is not a
+ * The Item types that are stories. A story's type is its own attribute, separate from its section (a topic): "article" and "post".
+ * Add a type here, and in STORY_ITEM_TYPES in src/papyrus_content/content_item_lifecycle.py. Every other Item type (wiki_page, doctrine, page, and so on) is not a
  * story and never appears on the Stories board or in a story count.
  */
-export const STORY_ITEM_TYPES: readonly string[] = ["article"];
+export const STORY_ITEM_TYPES: readonly string[] = ["article", "post"];
 
 export function isStoryItemType(type: string | null | undefined): boolean {
   return typeof type === "string" && STORY_ITEM_TYPES.includes(type);

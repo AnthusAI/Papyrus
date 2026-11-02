@@ -107,13 +107,22 @@ class SectionIndexConfig:
     source: str | None = None         # a Markus page file in the static directory that replaces the generated layout
 
 
+TYPE_GROUP_PREFIX = "type:"
+
+
 @dataclass(frozen=True)
 class SectionConfig:
-    """One section; a site that declares none is a site without sections."""
+    """One URL group: a section (``urls.sections``) or an Item type (``urls.types``). A site that declares none is a site without sections.
+
+    A section group is keyed by the Item's ``section`` string (its topic); a type group is keyed by ``Item.type`` and its ``name``
+    is ``type:<type>``, so it can never be mistaken for a section. Both have the same settings and the same pages.
+    """
 
     name: str
     base: str
     label: str
+    aliases: tuple[str, ...] = ()     # other stored ``section`` values that mean this section (a title kept from before the ids): section groups only
+    item_type: str | None = None      # the Item type of a type group; ``None`` for a section
     pages: bool = True
     listing: bool = True              # the section's entries are listed: found by listings, tag pages, feeds and public data
     listing_page: bool = True         # the section has a listing page of its own (False: a collection or a page is its listing)
@@ -127,6 +136,15 @@ class SectionConfig:
     archive: ArchiveConfig | None = None
     sort: str = "date"                # "date" (newest first) or "order" (front matter order, then title)
     index: SectionIndexConfig | None = None   # page 1 of the listing as a section front page
+
+    @property
+    def is_type(self) -> bool:
+        return self.item_type is not None
+
+    @property
+    def where(self) -> str:
+        """Where the group is declared in projection.json, for error messages: ``urls.sections.x`` or ``urls.types.article``."""
+        return f"urls.types.{self.item_type}" if self.is_type else f"urls.sections.{self.name}"
 
 
 @dataclass(frozen=True)
@@ -429,7 +447,18 @@ class StandardSettings:
         return self.sections_home or any(section.index is not None for section in self.sections)
 
     def section(self, name: str | None) -> SectionConfig | None:
-        return next((section for section in self.sections if section.name == name), None)
+        """The group named ``name`` (a section id, ``type:<type>`` for a type group) or, for a section, one of its ``aliases``."""
+        if name is None:
+            return None
+        return next((section for section in self.sections if section.name == name or (not section.is_type and name in section.aliases)), None)
+
+    def type_group(self, item_type: str | None) -> SectionConfig | None:
+        return next((section for section in self.sections if section.is_type and section.item_type == item_type), None)
+
+    def group_for(self, section: str | None, item_type: str | None) -> SectionConfig | None:
+        """The URL group of an Item: its section when the site declares it, otherwise the group declared for its type."""
+        found = next((group for group in self.sections if not group.is_type and section is not None and (group.name == section or section in group.aliases)), None)
+        return found or self.type_group(item_type)
 
     def collection(self, collection_id: str | None) -> CollectionConfig | None:
         return next((collection for collection in self.collections if collection.id == collection_id), None)
@@ -462,10 +491,10 @@ def _links(raw, where: str, *, groups: bool = False) -> tuple[NavLink, ...]:
     return tuple(links)
 
 
-def _section_index(raw, section_name: str) -> SectionIndexConfig | None:
+def _section_index(raw, owner: str) -> SectionIndexConfig | None:
     if raw is None:
         return None
-    where = f"urls.sections.{section_name}.index"
+    where = f"{owner}.index"
     if not isinstance(raw, Mapping):
         raise ValueError(f"{where} must be an object")
     _only(raw, {"lead", "latest", "references", "referencesCount", "source"}, where)
@@ -490,7 +519,7 @@ def _section_index(raw, section_name: str) -> SectionIndexConfig | None:
 def _check_section_fronts(sections, home_page: HomePageSettings | None) -> None:
     for section in sections:
         if section.index is not None and section.index.references and home_page is None:
-            raise ValueError(f"urls.sections.{section.name}.index.references needs homePage in projection.json")
+            raise ValueError(f"{section.where}.index.references needs homePage in projection.json")
     if home_page is None:
         return
     if home_page.forum is not None:
@@ -502,6 +531,73 @@ def _check_section_fronts(sections, home_page: HomePageSettings | None) -> None:
     unknown = [name for name in home_page.home_sections or () if not any(section.name == name and section.listing and section.listing_page for section in sections)]
     if unknown:
         raise ValueError(f"homePage.homeSections names sections that have no listing page: {', '.join(unknown)}")
+
+
+GROUP_KEYS = {"base", "label", "pages", "listing", "listingPage", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "groupBy", "archive", "sort", "index"}
+
+
+def _group_from_mapping(name: str, entry, where: str, *, item_type: str | None = None) -> SectionConfig:
+    """One ``urls.sections.<section>`` or ``urls.types.<type>`` entry; both take the same settings (a section also takes ``aliases``)."""
+    entry = dict(entry or {})
+    _only(entry, GROUP_KEYS | ({"aliases"} if item_type is None else set()), where)
+    if entry.get("sort", "date") not in ("date", "order"):
+        raise ValueError(f"{where}.sort must be 'date' or 'order'")
+    group_by = entry.get("groupBy")
+    if group_by is not None and not valid_group_by(group_by):
+        raise ValueError(f"{where}.groupBy must be 'week', 'month' or 'field:<front matter field>'")
+    archive_raw = entry.get("archive")
+    archive = None
+    if archive_raw is not None:
+        _only(archive_raw, {"by", "base", "description"}, f"{where}.archive")
+        if archive_raw.get("by", "month") not in ("month", "year"):
+            raise ValueError("archive.by must be 'month' or 'year'")
+        archive = ArchiveConfig(
+            by=archive_raw.get("by", "month"),
+            base=_path_segment(str(archive_raw.get("base", "archive")), f"{where}.archive.base"),
+            description=str(archive_raw.get("description", "")),
+        )
+    aliases = entry.get("aliases") or ()
+    if isinstance(aliases, str) or not all(isinstance(alias, str) and alias.strip() for alias in aliases):
+        raise ValueError(f"{where}.aliases must be a list of the other stored section values (names) this section answers to")
+    plain = item_type if item_type is not None else name
+    return SectionConfig(
+        index=_section_index(entry.get("index"), where),
+        name=name,
+        item_type=item_type,
+        aliases=tuple(aliases),
+        base=_unreserved_segment(entry.get("base", plain), f"{where}.base"),
+        label=str(entry.get("label") or plain.replace("-", " ").replace("_", " ").title()),
+        pages=bool(entry.get("pages", True)),
+        listing=bool(entry.get("listing", True)),
+        listing_page=bool(entry.get("listingPage", True)),
+        feed=bool(entry.get("feed", True)),
+        sitemap=bool(entry.get("sitemap", True)),
+        link_field=str(entry.get("linkField", "url")),
+        description=str(entry.get("description", "")),
+        page_size=int(entry["pageSize"]) if entry.get("pageSize") is not None else None,
+        list_empty=bool(entry.get("listEmpty", False)),
+        group_by=group_by,
+        archive=archive,
+        sort=str(entry.get("sort", "date")),
+    )
+
+
+def _check_groups(groups) -> None:
+    """A section's alias is not another section's name or alias, and a type group does not share a listing base with another group."""
+    taken: dict[str, str] = {}
+    for group in groups:
+        if group.is_type:
+            continue
+        for stored in (group.name, *group.aliases):
+            if stored in taken and taken[stored] != group.name:
+                raise ValueError(f"urls.sections: {stored!r} names both {taken[stored]!r} and {group.name!r}")
+            taken[stored] = group.name
+    for position, group in enumerate(groups):
+        if not group.is_type or not group.listing_page:
+            continue
+        for other in groups:
+            if other is not group and other.listing_page and other.base == group.base:
+                raise ValueError(f"urls.types.{group.item_type}.base {group.base!r} is already the base of {other.name!r}")
 
 
 def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
@@ -529,51 +625,19 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
             raise ValueError(f"site.dateFormat is not a valid strftime pattern: {error}") from error
 
     urls = dict(raw.get("urls") or {})
-    _only(urls, {"style", "sections", "basePath"}, "urls")
+    _only(urls, {"style", "sections", "types", "basePath"}, "urls")
     style = urls.get("style", "html")
     if style not in URL_STYLES:
         raise ValueError(f"urls.style must be one of {URL_STYLES}")
     base_path = _path_segment(str(urls.get("basePath") or ""), "urls.basePath")
     sections = []
-    for section_name, entry in dict(urls.get("sections") or {}).items():
-        entry = dict(entry or {})
-        _only(entry, {"base", "label", "pages", "listing", "listingPage", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "groupBy", "archive", "sort", "index"}, f"urls.sections.{section_name}")
-        if entry.get("sort", "date") not in ("date", "order"):
-            raise ValueError(f"urls.sections.{section_name}.sort must be 'date' or 'order'")
-        group_by = entry.get("groupBy")
-        if group_by is not None and not valid_group_by(group_by):
-            raise ValueError(f"urls.sections.{section_name}.groupBy must be 'week', 'month' or 'field:<front matter field>'")
-        archive_raw = entry.get("archive")
-        archive = None
-        if archive_raw is not None:
-            _only(archive_raw, {"by", "base", "description"}, f"urls.sections.{section_name}.archive")
-            if archive_raw.get("by", "month") not in ("month", "year"):
-                raise ValueError("archive.by must be 'month' or 'year'")
-            archive = ArchiveConfig(
-                by=archive_raw.get("by", "month"),
-                base=_path_segment(str(archive_raw.get("base", "archive")), f"urls.sections.{section_name}.archive.base"),
-                description=str(archive_raw.get("description", "")),
-            )
-        sections.append(
-            SectionConfig(
-                index=_section_index(entry.get("index"), section_name),
-                name=section_name,
-                base=_unreserved_segment(entry.get("base", section_name), f"urls.sections.{section_name}.base"),
-                label=str(entry.get("label") or section_name.replace("-", " ").title()),
-                pages=bool(entry.get("pages", True)),
-                listing=bool(entry.get("listing", True)),
-                listing_page=bool(entry.get("listingPage", True)),
-                feed=bool(entry.get("feed", True)),
-                sitemap=bool(entry.get("sitemap", True)),
-                link_field=str(entry.get("linkField", "url")),
-                description=str(entry.get("description", "")),
-                page_size=int(entry["pageSize"]) if entry.get("pageSize") is not None else None,
-                list_empty=bool(entry.get("listEmpty", False)),
-                group_by=group_by,
-                archive=archive,
-                sort=str(entry.get("sort", "date")),
-            )
-        )
+    for item_type, entry in dict(urls.get("types") or {}).items():
+        if not str(item_type).strip() or str(item_type) != str(item_type).strip():
+            raise ValueError(f"urls.types needs Item type names such as 'article', got {item_type!r}")
+        sections.append(_group_from_mapping(f"{TYPE_GROUP_PREFIX}{item_type}", entry, f"urls.types.{item_type}", item_type=str(item_type)))
+    # the type groups come first in every list of groups (the home blocks, the section tabs, llms.txt); the sections follow in their order
+    sections.extend(_group_from_mapping(section_name, entry, f"urls.sections.{section_name}") for section_name, entry in dict(urls.get("sections") or {}).items())
+    _check_groups(sections)
 
     static = dict(raw.get("static") or {})
     _only(static, {"copy"}, "static")

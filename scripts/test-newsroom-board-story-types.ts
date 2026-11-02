@@ -23,10 +23,11 @@ const version = (id: string, type: string, stage: string, status = "draft"): Con
 const scenario = process.argv[2] ?? "all";
 const runs: Record<string, () => Promise<void>> = {
   async types() {
-    assert.deepEqual([...STORY_ITEM_TYPES], ["article"], "an article is the only story type until posts arrive");
+    assert.deepEqual([...STORY_ITEM_TYPES], ["article", "post"], "articles and posts are the story types");
     assert.equal(isStoryItemType("article"), true);
+    assert.equal(isStoryItemType("post"), true);
     for (const type of ["wiki_page", "doctrine", "page", "", null, undefined]) assert.equal(isStoryItemType(type as string), false, `${String(type)} is not a story`);
-    assert.deepEqual(storyItemTypeFilter(), { type: { eq: "article" } }, "the query filter names the story types");
+    assert.deepEqual(storyItemTypeFilter(), { or: [{ type: { eq: "article" } }, { type: { eq: "post" } }] }, "the query filter names the story types");
   },
   async copywriting() {
     const issues = projectContentItemBoard({ contentItemVersions: [version("wiki-1", "wiki_page", "copywriting"), version("story-1", "article", "copywriting")] });

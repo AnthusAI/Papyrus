@@ -20,6 +20,7 @@ import yaml
 from ..ids import hash_short
 from ..publishing import ItemFields, item_id_for, save_item, utc_now_iso
 from ..record_helpers import slugify
+from ..section_ids import match_section
 from ..story_from_reference import REFERENCE_TARGET_PREFIX, SourceTextReader, _current_versions, check_body_against_references, reference_lineages_of_targets
 from ..story_reporting import BASED_ON, current_reference, link_reference_to_story
 
@@ -28,6 +29,22 @@ IDEA_STAGE = "idea"
 SPIKED_STAGE = "spiked"
 DEFAULT_ACTOR = "AI"
 KIND = "items"
+
+
+def section_id_of(client: Any, named: Any) -> str | None:
+    """The id of the newsroom section an idea names (by title or id), or the old slug of the name when the site has no such section.
+
+    A Story's section is a topic and holds a section id. The ideas name a section by its title, and the slug of a title is not always the id
+    (``Before You File`` is ``guides``), so the id is looked up the way the editorial checks look it up.
+    """
+    text = str(named or "").strip()
+    if not text:
+        return None
+    try:
+        found = match_section(client.list_records("NewsroomSection"), text)
+    except (ValueError, AttributeError):
+        found = None
+    return str(found["id"]) if found else (slugify(text) or None)
 
 
 class IdeaRefused(ValueError):
@@ -134,7 +151,7 @@ def file_idea_item(
         body = "\n".join(line for line in str(draft.get("body") or "").splitlines() if not line.startswith("Section: ")).strip() + "\n"
         if references:
             check_body_against_references(client, body, references, source_text_reader)
-        section = slugify(str(draft.get("section") or "")) or None
+        section = section_id_of(client, draft.get("section"))
         for superseded in draft.get("supersedes") or []:
             if client.get_record("Item", f"{superseded}-v1") is None and not any((row.get("lineageId") or row["id"]) == superseded for row in client.list_records("Item")):
                 raise ValueError(f"supersedes names {superseded}, which is not an Item lineage.")
