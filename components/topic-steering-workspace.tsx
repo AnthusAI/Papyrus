@@ -39,7 +39,11 @@ import {
   loadEditorUserDirectoryData,
   loadModelPayloadsForOwner,
   loadStoragePathText,
-  loadEditorReferencesData,
+  loadAllEditorReferences,
+  loadReferenceFeedCorpusIds,
+  readReferenceFeedStream,
+  discardFeedCorpusIds,
+  loadReferenceAttachmentsForLineages,
   loadEditorProcedureData,
   loadEditorReferencePredictions,
   loadEditorReferenceReviewDetails,
@@ -93,7 +97,8 @@ import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { correctReferenceCapture } from "../lib/content-actions-client";
-import { loadMessagesWithHeadStart, loadReferencesWithHeadStart } from "./references-prefetch";
+import { loadMessagesWithHeadStart } from "./references-prefetch";
+import { useIndexedReferenceFeed, type IndexedFeedSource } from "./use-indexed-reference-feed";
 import { useReferencePredictions } from "../lib/use-reference-predictions";
 import { buildFeedItems, feedWindow } from "../lib/reference-feed-ranking";
 import { loadFeedSnapshot, saveFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
@@ -901,6 +906,17 @@ function NewsDeskDashboard({
   const [hasHydratedReferences, setHasHydratedReferences] = useState(
     dashboard.isDemo ? dashboard.references.length > 0 : false,
   );
+  // Every Reference is read only for the consumers that need all of them (the List view, the Assignments graph, Search), and only when
+  // one is opened. The feed and the home page read their own pages from the feed-state indexes.
+  const [wantsAllReferences, setWantsAllReferences] = useState(false);
+  const [allReferencesState, setAllReferencesState] = useState<{ status: "idle" | "loading" | "ready" | "error"; error: string | null }>({ status: "idle", error: null });
+  const [allReferencesAttempt, setAllReferencesAttempt] = useState(0);
+  const requestAllReferences = useCallback(() => setWantsAllReferences(true), []);
+  const retryAllReferences = useCallback(() => { setAllReferencesState({ status: "idle", error: null }); setAllReferencesAttempt((count) => count + 1); }, []);
+  const feedSource = useMemo<IndexedFeedSource>(() => ({
+    loadCorpusIds: () => loadReferenceFeedCorpusIds(Object.keys(summary?.facets?.references?.byCorpus ?? {})),
+    readStream: readReferenceFeedStream,
+  }), [summary?.facets?.references?.byCorpus]);
   const [referencesRealtimeStatus, setReferencesRealtimeStatus] = useState<RealtimeSubscriptionStatus>("idle");
   const [referencesRealtimeError, setReferencesRealtimeError] = useState<string | null>(null);
   const referencesRef = useRef(references);
@@ -969,14 +985,14 @@ function NewsDeskDashboard({
     messages: summaryCountFromRecord(summary, "messages"),
     assignments: summaryCountFromRecord(summary, "assignments"),
     references: summaryCountFromRecord(summary, "references")
-      ?? (hasHydratedReferences ? references.length : null),
+      ?? (allReferencesState.status === "ready" ? references.length : null),
     topics: summaryCountFromRecord(summary, "categories"),
     concepts: summaryCountFromRecord(summary, "semanticNodes"),
     administration: userDirectory.length + doctrineRecords.length + newsroomSections.length + procedureDefinitions.length,
     search: 0,
   }), [
     doctrineRecords.length,
-    hasHydratedReferences,
+    allReferencesState.status,
     newsroomSections.length,
     procedureDefinitions.length,
     references.length,
@@ -1207,32 +1223,95 @@ function NewsDeskDashboard({
     if (authState.status === "signedIn") return;
     setLoadedSections((current) => ({ ...current, references: false }));
     setHasHydratedReferences(false);
+    setWantsAllReferences(false);
+    setAllReferencesState({ status: "idle", error: null });
+    discardFeedCorpusIds();
   }, [authState.status]);
 
+  // Records the feed has read join the page's own list; the summary is not touched (they are not new, only newly read).
+  const takeFeedRecords = useCallback((records: ReferenceRecord[]) => {
+    setReferences((current) => mergeReferenceRecords(current, records));
+    setHasHydratedReferences(true);
+    setLoadedSections((current) => ({ ...current, references: true }));
+  }, []);
+
+  // The home page shows the newest unrated References: one page of the arrival index, read when the home page is open.
+  const overviewFeed = useIndexedReferenceFeed({
+    enabled: canLoadPrivateCorpus && activeTab === "overview",
+    source: feedSource,
+    sort: "newest",
+    show: "unrated",
+  });
   useEffect(() => {
-    if (!canLoadPrivateCorpus || hasHydratedReferences) return;
+    if (overviewFeed.status === "ready") takeFeedRecords(overviewFeed.records);
+    if (overviewFeed.status === "error") {
+      setActionState({ id: "references-load", message: `The References could not be read. ${overviewFeed.error ?? ""}`.trim(), tone: "error" });
+    }
+  }, [overviewFeed.status, overviewFeed.records, overviewFeed.error, takeFeedRecords]);
+
+  // Attachments (previews, captured text) for the References the feed shows, a batch per short pause: one request for the batch, none for
+  // a Reference already read.
+  const attachmentsAsked = useRef(new Set<string>());
+  const attachmentsQueue = useRef<string[]>([]);
+  const attachmentsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestAttachments = useCallback((lineageIds: string[]) => {
+    if (dashboard.isDemo) return;
+    for (const id of lineageIds) {
+      if (attachmentsAsked.current.has(id)) continue;
+      attachmentsAsked.current.add(id);
+      attachmentsQueue.current.push(id);
+    }
+    if (!attachmentsQueue.current.length || attachmentsTimer.current) return;
+    attachmentsTimer.current = setTimeout(() => {
+      attachmentsTimer.current = null;
+      const batch = attachmentsQueue.current.splice(0);
+      void loadReferenceAttachmentsForLineages(batch)
+        .then((loaded) => {
+          if (!loaded.length) return;
+          setReferenceAttachments((current) => {
+            const byId = new Map(current.map((attachment) => [attachment.id, attachment] as const));
+            for (const attachment of loaded) byId.set(attachment.id, attachment);
+            return [...byId.values()].sort((left, right) => left.sortKey.localeCompare(right.sortKey));
+          });
+        })
+        .catch((error) => {
+          // Previews are a nicety: let the next scroll ask again, and say nothing that blocks voting.
+          for (const id of batch) attachmentsAsked.current.delete(id);
+          console.warn("[References] attachments for the shown cards could not be read", error);
+        });
+    }, 40);
+  }, [dashboard.isDemo]);
+
+  const needsAllReferences = canLoadPrivateCorpus && (wantsAllReferences || activeTab === "assignments" || activeTab === "search");
+  useEffect(() => {
+    if (!needsAllReferences || allReferencesState.status === "ready" || allReferencesState.status === "loading") return;
     let active = true;
-    void loadReferencesWithHeadStart()
-      .then(({ references: nextReferences, referenceAttachments }) => {
+    setAllReferencesState({ status: "loading", error: null });
+    void loadAllEditorReferences()
+      .then((all) => {
         if (!active) return;
-        setReferences(nextReferences);
-        setReferenceAttachments(referenceAttachments);
+        setReferences((current) => mergeReferenceRecords(current, all));
+        setAllReferencesState({ status: "ready", error: null });
         setHasHydratedReferences(true);
-        setLoadedSections((current) => ({ ...current, references: true }));
       })
       .catch((error) => {
-        if (active) {
-          setActionState({
-            id: "references-load",
-            message: error instanceof Error ? error.message : "references load failed",
-            tone: "error",
-          });
-        }
+        if (active) setAllReferencesState({ status: "error", error: error instanceof Error ? error.message : "The references could not be read." });
       });
-    return () => {
-      active = false;
-    };
-  }, [canLoadPrivateCorpus, hasHydratedReferences]);
+    return () => { active = false; };
+    // `allReferencesAttempt` is the Retry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsAllReferences, allReferencesAttempt]);
+
+  // A reference opened by its address is read on its own when the feed has not brought it.
+  useEffect(() => {
+    if (!canLoadPrivateCorpus || activeTab !== "references" || !pathnameReferenceLineageId) return;
+    if (referencesRef.current.some((reference) => referenceLineageId(reference) === pathnameReferenceLineageId)) return;
+    let active = true;
+    void loadReferenceRecordByLineageId(pathnameReferenceLineageId)
+      .then((found) => { if (active && found) setReferences((current) => mergeReferenceRecords(current, [found])); })
+      .catch((error) => { if (active) setActionState({ id: "reference-load", message: error instanceof Error ? error.message : "This reference could not be read.", tone: "error" }); });
+    return () => { active = false; };
+  }, [activeTab, canLoadPrivateCorpus, pathnameReferenceLineageId]);
 
   useEffect(() => {
     if (dashboard.isDemo) return;
@@ -3190,6 +3269,12 @@ function NewsDeskDashboard({
             references={references}
             loadAutoAccepted={dashboard.isDemo && !isLocalPreviewEnabled() ? undefined : loadAutoAcceptedReferencePage}
             loading={!dashboard.isDemo && !hasHydratedReferences}
+            feedSource={canLoadPrivateCorpus ? feedSource : undefined}
+            onFeedRecords={takeFeedRecords}
+            onShownIds={requestAttachments}
+            ratedTotal={ratedCountFromSummary(summary)}
+            onNeedAllReferences={requestAllReferences}
+            allReferences={{ status: allReferencesState.status, error: allReferencesState.error, retry: retryAllReferences }}
             onCorrectCapture={dashboard.isDemo ? undefined : (input) => correctReferenceCapture(input)}
             savedCopy={savedFeedCopy}
           />
@@ -15036,6 +15121,24 @@ function buildReviewedReferenceRecord(
     } : {}),
     updatedAt: options.now,
   };
+}
+
+/** Merge records that were read into the page's list, keeping a record the page already holds when it is newer. */
+function mergeReferenceRecords(current: ReferenceRecord[], incoming: ReferenceRecord[]): ReferenceRecord[] {
+  const byId = new Map(current.map((reference) => [reference.id, reference] as const));
+  for (const reference of incoming) {
+    const held = byId.get(reference.id);
+    if (held && (held.updatedAt ?? "") > (reference.updatedAt ?? "")) continue;
+    byId.set(reference.id, reference);
+  }
+  return sortReferencesByRecency(selectCanonicalReferenceRecords([...byId.values()]));
+}
+
+/** Accepted plus rejected References from the newsroom summary, or null when the summary does not say. */
+function ratedCountFromSummary(summary: NewsroomSummaryRecord | null | undefined): number | null {
+  const byStatus = summary?.facets?.references?.byCurationStatus;
+  if (!byStatus) return null;
+  return Number(byStatus.accepted ?? 0) + Number(byStatus.rejected ?? 0);
 }
 
 function upsertReferenceRecords(

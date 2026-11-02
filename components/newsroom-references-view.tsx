@@ -5,7 +5,7 @@ import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
 import { ReferenceAddEntry } from "./reference-add-entry";
 import { ReferenceCurationControls, useReferenceImport } from "./reference-curation-controls";
 
-import { ArrowLeftIcon, ExternalLinkIcon, LayoutGridIcon, ListIcon, PlusIcon } from "lucide-react";
+import { ArrowLeftIcon, ExternalLinkIcon, LayoutGridIcon, ListIcon, Loader2Icon, PlusIcon, RefreshCwIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -56,9 +56,10 @@ import { ReferenceConversation } from "./reference-conversation";
 import { RelatedSection } from "./related-section";
 import { useReferenceMessageCounts } from "./use-conversation";
 import { captureStatusesByLineage } from "../lib/reference-capture";
-import { buildFeedItems } from "../lib/reference-feed-ranking";
+import { buildFeedItems, feedLeadId, referenceArrivalTime, scoreFeedItem, type FeedItem } from "../lib/reference-feed-ranking";
 import type { PredictionStatuses } from "../lib/reference-predictions";
 import { useFeedWindow } from "./use-feed-window";
+import { useIndexedReferenceFeed, type IndexedFeedSource } from "./use-indexed-reference-feed";
 import { referenceDek, referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { chooseSyntheticRejects, withSyntheticRejects } from "../lib/local-preview-synthetic-rejects";
@@ -150,11 +151,26 @@ type NewsroomReferencesViewProps = {
   loading?: boolean;
   /** Reads one page of the "Accepted automatically" list from the database (newest first). Without it the list is built from the loaded References. */
   loadAutoAccepted?: AutoAcceptedReader;
+  /**
+   * Present when the feed reads itself from the feed-state indexes, a page at a time, as the reader scrolls. The view then ignores
+   * `loading`, asks `onFeedRecords` to take each page's records into the page's own list, and says which Reference ids are shown
+   * (`onShownIds`) so their attachments and predictions are read for those alone.
+   */
+  feedSource?: IndexedFeedSource;
+  onFeedRecords?: (records: ReferenceRecord[]) => void;
+  onShownIds?: (lineageIds: string[]) => void;
+  /** How many References have an answer, from the summary: for the "all caught up" text without reading them. */
+  ratedTotal?: number | null;
+  /** The List view needs every Reference; it asks for them when opened (they are not read otherwise) and shows how that read is going. */
+  onNeedAllReferences?: () => void;
+  allReferences?: { status: "idle" | "loading" | "ready" | "error"; error: string | null; retry: () => void };
   /** The last view this browser saved. Shown, read only, until the live read arrives. */
   savedCopy?: { references: ReferenceRecord[]; previews: Array<[string, ReferencePreview]>; decisions: Array<[string, RelevanceDecisionView]> } | null;
 };
 
 type ReferenceView = "feed" | "list";
+
+const NO_FEED_ITEMS: FeedItem[] = [];
 
 type ReferenceListFilter = ReferenceStatusFilter | "auto_accepted" | "needs_review";
 
@@ -419,7 +435,13 @@ export function NewsroomReferencesView({
   onReview,
   referenceAttachments = [],
   references: liveReferences,
-  loading = false,
+  loading: loadingProp = false,
+  feedSource,
+  onFeedRecords,
+  onShownIds,
+  ratedTotal = null,
+  onNeedAllReferences,
+  allReferences,
   onCorrectCapture,
   savedCopy = null,
   loadAutoAccepted,
@@ -433,8 +455,17 @@ export function NewsroomReferencesView({
   );
   const routeLineageId = pathname ? pathnameLineageId ?? "" : initialReferenceLineageId ?? "";
 
+  const { sort: feedSort, setSort: setFeedSort, show: feedShow, setShow: setFeedShow } = useFeedPreferences();
+  const serverMode = Boolean(feedSource);
+  const indexed = useIndexedReferenceFeed({ enabled: serverMode, source: feedSource, sort: feedSort, show: feedShow });
+  const loading = serverMode ? indexed.status === "loading" || indexed.status === "idle" : loadingProp;
+  useEffect(() => {
+    if (serverMode && indexed.status === "ready") onFeedRecords?.(indexed.records);
+    // `onFeedRecords` is the host's setter; the records are what changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indexed.records, indexed.status, serverMode]);
   // Until the live read arrives, a saved copy of the last view fills the page. It is display only.
-  const showingSavedCopy = loading && !liveReferences.length && Boolean(savedCopy?.references.length);
+  const showingSavedCopy = !serverMode && loading && !liveReferences.length && Boolean(savedCopy?.references.length);
   const references = showingSavedCopy ? savedCopy!.references : liveReferences;
   const baseDecisions = useMemo(
     () => (showingSavedCopy && !liveDecisions?.size ? new Map(savedCopy!.decisions) : liveDecisions),
@@ -465,7 +496,6 @@ export function NewsroomReferencesView({
   }, [referenceAttachments, savedCopy, showingSavedCopy]);
   const [view, setView] = useState<ReferenceView>("feed");
   const [addOpen, setAddOpen] = useState(false);
-  const { sort: feedSort, setSort: setFeedSort, show: feedShow, setShow: setFeedShow } = useFeedPreferences();
   const { counts: messageCounts, setCount: setMessageCount } = useReferenceMessageCounts(!loading);
   const [visitRated, setVisitRated] = useState<ReadonlySet<string>>(() => new Set());
   const [mountedAt] = useState(() => Date.now());
@@ -482,8 +512,8 @@ export function NewsroomReferencesView({
   const allItems = useMemo(() => buildFeedItems(canonicalReferences, decisions), [canonicalReferences, decisions]);
   const managedPredictions = Boolean(predictionStatuses);
   const feedWindowState = useFeedWindow({
-    allItems,
-    blocked: loading || showingSavedCopy || previewSkeleton,
+    allItems: serverMode ? NO_FEED_ITEMS : allItems,
+    blocked: serverMode || loading || showingSavedCopy || previewSkeleton,
     predictionStatuses,
     predictionsPending: predictionState === "loading",
     onRequestPredictions,
@@ -491,9 +521,55 @@ export function NewsroomReferencesView({
     show: feedShow,
     visitRated,
   });
-  const { items: feedItems, leadId: feedLead, hasMore: hasMoreItems, loadingMore: loadingMoreItems, loadMore: loadMoreItems, showNewItems } = feedWindowState;
-  const newItemCount = feedWindowState.newCount;
-  const ratedCount = useMemo(() => allItems.filter((item) => item.rated).length, [allItems]);
+  // Server mode: the feed is the index's own order, page by page. A Reference an editor rates stays where it is for the visit.
+  const [revealed, setRevealed] = useState<string[]>([]);
+  useEffect(() => { setRevealed([]); }, [feedSort, feedShow]);
+  const indexedLineages = useMemo(() => new Set(indexed.records.map(referenceLineageId)), [indexed.records]);
+  const arrivals = useMemo(() => {
+    if (!serverMode || indexed.status !== "ready") return [] as ReferenceRecord[];
+    const shown = new Set(revealed);
+    return canonicalReferences.filter((reference) => {
+      const lineage = referenceLineageId(reference);
+      return normalizeReferenceCurationStatus(reference.curationStatus) === "pending" && !indexedLineages.has(lineage) && !shown.has(lineage)
+        && (referenceArrivalTime(reference) ?? 0) > indexed.readAt;
+    }).sort((left, right) => (referenceArrivalTime(right) ?? 0) - (referenceArrivalTime(left) ?? 0));
+  }, [canonicalReferences, indexed.readAt, indexed.status, indexedLineages, revealed, serverMode]);
+  const serverItems = useMemo(() => {
+    if (!serverMode) return NO_FEED_ITEMS;
+    const current = new Map(canonicalReferences.map((reference) => [referenceLineageId(reference), reference] as const));
+    const seen = new Set<string>();
+    const items: FeedItem[] = [];
+    for (const lineage of [...revealed, ...indexed.records.map(referenceLineageId)]) {
+      if (seen.has(lineage)) continue;
+      seen.add(lineage);
+      const record = current.get(lineage) ?? indexed.records.find((candidate) => referenceLineageId(candidate) === lineage);
+      if (!record || normalizeReferenceCurationStatus(record.curationStatus) === "archived") continue;
+      const item = scoreFeedItem(record, decisions?.get(lineage));
+      const original = record.predictedAcceptProbability;
+      items.push(typeof original === "number" ? { ...item, probability: original } : item);
+    }
+    return items;
+  }, [canonicalReferences, decisions, indexed.records, revealed, serverMode]);
+  const shownIdsKey = serverItems.map((item) => item.lineageId).join("\u0000");
+  useEffect(() => {
+    if (!serverMode || !serverItems.length) return;
+    const ids = serverItems.map((item) => item.lineageId);
+    onShownIds?.(ids);
+    onRequestPredictions?.(ids);
+    // `shownIdsKey` stands for the ids.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownIdsKey, serverMode]);
+  const feedItems = serverMode ? serverItems : feedWindowState.items;
+  const feedLead = serverMode ? feedLeadId(serverItems) : feedWindowState.leadId;
+  const hasMoreItems = serverMode ? indexed.hasMore : feedWindowState.hasMore;
+  const loadingMoreItems = serverMode ? indexed.loadingMore : feedWindowState.loadingMore;
+  const loadMoreItems = serverMode ? () => { void indexed.loadMore(); } : feedWindowState.loadMore;
+  const showNewItems = serverMode ? () => setRevealed((current) => [...arrivals.map(referenceLineageId), ...current]) : feedWindowState.showNewItems;
+  const newItemCount = serverMode ? arrivals.length : feedWindowState.newCount;
+  const ratedCount = useMemo(
+    () => (serverMode ? ratedTotal ?? serverItems.filter((item) => item.rated).length : allItems.filter((item) => item.rated).length),
+    [allItems, ratedTotal, serverItems, serverMode],
+  );
   const [scrollTarget, setScrollTarget] = useState<{ id: string; nonce: number } | null>(null);
   const feedOrderIds = useMemo(
     () => feedItems.map((item) => item.lineageId),
@@ -502,6 +578,8 @@ export function NewsroomReferencesView({
   const statusCounts = useMemo(() => countReferencesByStatus(canonicalReferences), [canonicalReferences]);
 
   const [statusFilter, setStatusFilter] = useState<ReferenceListFilter>(routeLineageId ? "all" : "pending");
+  const needsEverything = serverMode && view === "list" && statusFilter !== "auto_accepted";
+  useEffect(() => { if (needsEverything) onNeedAllReferences?.(); }, [needsEverything, onNeedAllReferences]);
   // `?status=` opens the list on that filter (the page writes it when a filter is chosen); "Accepted automatically" is `?status=auto-accepted`.
   useEffect(() => {
     const requested = typeof window === "undefined" ? null : referenceListFilterFromSearch(window.location.search);
@@ -837,7 +915,7 @@ export function NewsroomReferencesView({
             <div className="px-1.5 pb-6 pt-1.5 pr-2.5">
               <ReferenceFeed
                 disabledReason={feedDisabledReason}
-                loading={previewSkeleton || (loading && !references.length)}
+                loading={previewSkeleton || (serverMode ? loading : loading && !references.length)}
                 messageCounts={messageCounts}
                 now={mountedAt}
                 onOpen={selectReference}
@@ -853,13 +931,15 @@ export function NewsroomReferencesView({
                 hasMore={hasMoreItems}
                 loadingMore={loadingMoreItems}
                 onLoadMore={loadMoreItems}
+                error={serverMode ? indexed.error ?? indexed.moreError : null}
+                onRetry={serverMode ? indexed.retry : undefined}
                 previews={previews}
                 captures={showCaptures ? captureStatuses : undefined}
                 leadId={feedLead}
                 scrollTarget={scrollTarget}
                 ratings={ratings}
                 selectedLineageId={selectedLineageId}
-                stale={showingSavedCopy || (loading && references.length > 0)}
+                stale={!serverMode && (showingSavedCopy || (loading && references.length > 0))}
                 show={feedShow}
                 sort={feedSort}
                 visitRated={visitRated}
@@ -882,6 +962,7 @@ export function NewsroomReferencesView({
         >
           <TabsList className="h-auto w-full flex-wrap justify-start gap-1 bg-muted/40 p-1">
             {filters.map((filter) => {
+              const everything = !serverMode || allReferences?.status === "ready";
               const count = filter.key === "all"
                 ? canonicalReferences.length
                 : filter.key === "needs_review"
@@ -890,13 +971,25 @@ export function NewsroomReferencesView({
               return (
                 <TabsTrigger className="text-xs sm:text-sm" key={filter.key} value={filter.key}>
                   {filter.label}
-                  {filter.key === "auto_accepted" ? null : <Badge className="ml-1.5 min-w-5 px-1.5" variant="secondary">{count}</Badge>}
+                  {filter.key === "auto_accepted" || !everything ? null : <Badge className="ml-1.5 min-w-5 px-1.5" variant="secondary">{count}</Badge>}
                 </TabsTrigger>
               );
             })}
           </TabsList>
         </Tabs>
 
+        {serverMode && statusFilter !== "auto_accepted" && allReferences && allReferences.status !== "ready" ? (
+          allReferences.status === "error" ? (
+            <div className="flex shrink-0 items-center gap-3 rounded-2xl bg-[var(--feed-card)] p-3 text-sm" data-list-all-error role="alert" {...FEED_SURFACE_PROPS}>
+              <span className="min-w-0 flex-1">The full list could not be read. {allReferences.error}</span>
+              <Button onClick={allReferences.retry} size="sm" type="button" variant="outline"><RefreshCwIcon aria-hidden="true" />Retry</Button>
+            </div>
+          ) : (
+            <p className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground" data-list-all-loading role="status">
+              <Loader2Icon aria-hidden="true" className="size-4 animate-spin" />Reading every reference. The counts appear when it is done.
+            </p>
+          )
+        ) : null}
         <ScrollArea className="min-h-0 flex-1">
           {statusFilter === "auto_accepted" ? (
             <div className="px-1.5 pb-6 pt-1.5 pr-2.5" {...FEED_SURFACE_PROPS}>

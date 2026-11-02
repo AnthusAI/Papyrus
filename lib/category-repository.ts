@@ -289,6 +289,12 @@ export type ReferenceRecord = {
   curationDecisionRelationId?: string | null;
   newsroomFeedKey?: string | null;
   reviewedFeedKey?: string | null;
+  /** The feed-state keys the References page reads through (docs/reference-feed-indexes.md). */
+  feedStateKey?: string | null;
+  feedArrivalAt?: string | null;
+  predictedAcceptProbability?: number | null;
+  predictionDecidedAt?: string | null;
+  predictionSortKey?: string | null;
   /** The monitor that delivered this Reference (set at intake; the Reference is the record, no Message). */
   discoveredByMonitorId?: string | null;
   /** What the monitor's source said about it (a Hub model's structured fields, say). */

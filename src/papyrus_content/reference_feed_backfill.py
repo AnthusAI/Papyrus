@@ -17,6 +17,20 @@ from .reference_feed_keys import FEED_KEY_FIELDS, PREDICTION_FIELDS, feed_keys, 
 STATUSES = ("pending", "accepted", "rejected", "archived")
 
 
+def corpus_ids_for(client: Any, *, site: str | None, corpus_keys: str | None, all_corpora: bool) -> list[str]:
+    """The corpora one run covers: every KnowledgeCorpus the backend lists (``--all-corpora``), the comma-separated ``--corpus-key`` list, or
+    the site's own ``knowledge-corpus-<site>``. A publication's References can sit in corpora named for something else than its site."""
+    if all_corpora:
+        found = sorted({str(row["id"]) for row in client.list_records("KnowledgeCorpus") if row.get("id")})
+        if not found:
+            raise ValueError("references backfill-feed-keys --all-corpora found no KnowledgeCorpus rows.")
+        return found
+    keys = [key.strip() for key in (corpus_keys or site or "").split(",") if key.strip()]
+    if not keys:
+        raise ValueError("references backfill-feed-keys needs --site KEY, --corpus-key KEY[,KEY...] or --all-corpora.")
+    return [f"knowledge-corpus-{key}" for key in dict.fromkeys(keys)]
+
+
 def planned_fields(client: Any, reference: dict[str, Any], positive_label: str) -> dict[str, Any]:
     """The fields to write for one Reference, or {} when it is already right."""
     fields: dict[str, Any] = {}

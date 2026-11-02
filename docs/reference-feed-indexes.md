@@ -23,6 +23,12 @@ Both are partitioned by `feedStateKey`.
 
 The page reads `<corpusId>#unrated` for "Unrated only" and both partitions for "Include rated", merging the two streams with the same comparator.
 
+## What the page reads
+
+On open, the References page reads the site's `KnowledgeCorpus` ids (a handful, once per session) and then one page of 24 from each partition, in parallel: `<corpus>#unrated` for "Unrated only", plus `<corpus>#rated` for "Include rated". `lib/reference-feed-pages.ts` merges the partitions into one list in feed order, so a site with several corpora shows them in one feed. Scrolling near the end reads the next round (a partition is read again only when its buffer has run dry). Attachments for the cards shown are read in one batched request, and predictions in one batched request per page, never for a Reference not shown. Nothing reads a whole table: the List view and the Assignments and Search pages read every Reference only when opened (`loadAllEditorReferences`).
+
+A failed read shows the error with a Retry; an empty site shows the empty message; a slow read shows skeletons. A Reference with no `feedStateKey` is not in either partition, so it is not in the feed: run the backfill below before a site gets this page.
+
 ## Who keeps the keys right
 
 | Writer | What it does |
@@ -36,14 +42,39 @@ The page reads `<corpusId>#unrated` for "Unrated only" and both partitions for "
 
 The key functions live in `src/papyrus_content/reference_feed_keys.py` and `lib/reference-feed-keys.ts`; `scripts/fixtures/reference-feed-key-vectors.json` holds the vectors both test.
 
+## Every way of creating a Reference is in the feed
+
+The feed shows a Reference only if it has the keys, whatever its source. Every creating writer sets all three (`src/papyrus_content/reference_creation_paths_test.py` and the scenario "Every way of creating a Reference is in the feed" run each offline, in two corpora):
+
+| Source | Writer |
+| --- | --- |
+| `papyrus references import`, assignment registration, email submission (`papyrus_newsroom/email_submissions.py`), Slack and console chat `Reference.create` (`papyrus_newsroom/newsroom.py`), named imports | `catalog.reference_record`, through `build_reference_catalog_registration_records` |
+| Monitor delivery (`papyrus-monitoring-worker`) | `monitoring_intake.ReferenceIntake`, through `catalog.reference_record` |
+| Console and email hand-off Lambda (`intakePendingReferences`, `intakeEmailSubmissionReferences`) | `reference_intake.find_or_create_source_reference`, through `catalog.reference_record` |
+| Accession (next version, or a replacement lineage) | `accession.py` |
+| Citations found in a paper (GROBID) | `reference_url_text._resolve_or_build_cited_reference_record` |
+| A new version of an existing Reference | `records.prepare_versioned_knowledge_records`: the old version loses its key; the new one is keyed and keeps the original prediction and arrival |
+| Moving a Reference to another corpus | `category-action` `moveReferenceCorpus` (TypeScript, `referenceFeedKeys`) |
+| An agent's accept, reject, reopen or archive from chat | `papyrus_newsroom/reference_actions.review_reference_curation` sets `feedStateKey` |
+
+The console's "Paste a URL" and "Import a file" create Cyclotron priming examples, not References.
+
+A re-import does not repair a Reference that has no keys: it reuses a current Reference with the same import run or content. Only the backfill below keys existing rows.
+
 ## Backfill
 
 ```bash
-papyrus references backfill-feed-keys --site KEY --dry-run     # counts only
-papyrus references backfill-feed-keys --site KEY               # writes
+papyrus references backfill-feed-keys --site KEY --dry-run                       # counts only, corpus knowledge-corpus-KEY
+papyrus references backfill-feed-keys --corpus-key KEY1,KEY2,KEY3 --dry-run      # named corpora (comma-separated), one report each
+papyrus references backfill-feed-keys --all-corpora --dry-run                    # every KnowledgeCorpus the backend lists
+papyrus references backfill-feed-keys --all-corpora                              # writes
 ```
 
-It reads each current Reference of the publication's corpus (`knowledge-corpus-KEY`, or `--corpus-key`) by curation status, takes the current `relevance_decision_is` decision as its prediction, and writes only the five fields above. It never touches a vote, a curation field or a relation, keeps a prediction a Reference already has, and writes nothing on a second run. Writing a Reference refreshes its `updatedAt`, which Amplify maintains.
+It reads each current Reference of a corpus by curation status (`referencesByCurationStatusKey`, partition `<corpusId>#pending|accepted|rejected|archived`, no other filter), takes the current `relevance_decision_is` decision as its prediction, and writes only the five fields above (`id` plus the fields it changes). It never touches a vote, a curation field or a relation, keeps a prediction a Reference already has, and writes nothing on a second run. A Reference with no decision gets keys and sorts as 0.5. Writing a Reference refreshes its `updatedAt`, which Amplify maintains; `curationStatusUpdatedAt` is untouched. The first write also makes a site's home-page trigger schedule one debounced snapshot, because `feedStateKey` is one of its watched fields.
+
+`--site KEY` means the corpus `knowledge-corpus-KEY`. It does not choose the backend: the CLI talks to the backend it is configured for (`PAPYRUS_GRAPHQL_ENDPOINT` or `amplify_outputs.json`). A publication whose References sit in corpora named for something else than its site key (Machines on Machines holds `knowledge-corpus-ai-ml-research`, `-journalism` and `-history`, not `knowledge-corpus-machines-on-machines`) needs `--all-corpora` or `--corpus-key`; `--site machines-on-machines` alone finds nothing.
+
+Order: deploy the data API (schema and indexes) and the engine, dry-run, write, dry-run again (every corpus must report `changed 0`), then release the index-backed References page to the site. Backfill before the page is released: until then the page would show only keyed References.
 
 ## Rollout
 
