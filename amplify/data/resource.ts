@@ -1387,6 +1387,40 @@ const schema = a.schema({
       allow.groups(["editor", adminGroup]).to(["read", "create", "update"]),
     ]),
 
+  /** One way a Story could connect to what the newsroom knows: its own point, wording and connections. Not a version: variations sit side by side and an editor chooses (docs/story-variations.md). */
+  StoryVariation: a
+    .model({
+      id: a.id().required(),
+      storyLineageId: a.id().required(),
+      variationNumber: a.integer().required(),
+      status: a.string().required(),
+      point: a.string().required(),
+      headline: a.string().required(),
+      deck: a.string(),
+      bodyMarkus: a.string(),
+      section: a.string(),
+      connections: a.json(),
+      origin: a.string().required(),
+      basedOnVariationIds: a.id().array(),
+      requestMessageId: a.id(),
+      pointCheck: a.json(),
+      runId: a.string(),
+      model: a.string(),
+      createdBy: a.string(),
+      decidedBySub: a.string(),
+      decidedByLabel: a.string(),
+      decidedAt: a.datetime(),
+      decisionReason: a.string(),
+      createdAt: a.datetime().required(),
+      updatedAt: a.datetime().required(),
+    })
+    .secondaryIndexes((index) => [
+      index("storyLineageId").sortKeys(["variationNumber"]).queryField("listStoryVariationsByStoryAndNumber"),
+    ])
+    .authorization((allow) => [
+      allow.groups(contentWriteGroups).to(["read", "create", "update"]),
+    ]),
+
   /** Who is told about review requests: scope default, mode or automation. Changed by data, not code. */
   ReviewRecipientRule: a
     .model({
