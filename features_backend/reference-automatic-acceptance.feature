@@ -168,3 +168,10 @@ Feature: A confident prediction nobody voted on is accepted automatically, once 
     When the router runs its automatic acceptance
     Then the Reference is accepted by "auto:cyclotron"
     And the Reference stays accepted
+
+  Scenario: An editor's confirmation of an automatic acceptance counts as a human vote
+    Given the editors accepted 40 References the Cyclotron was 90% sure were relevant, each within 2 days
+    And the Cyclotron accepted a Reference automatically that an editor then confirmed, 3 days after delivery
+    When the router runs its automatic acceptance
+    Then the log line counts 41 votes
+

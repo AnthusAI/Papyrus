@@ -3,7 +3,9 @@ Feature: An editor can review everything that was accepted automatically, and re
   The Cyclotron accepts a confident Reference nobody voted on, and a monitor with a fixed delivery rule accepts what matches its rule. Both
   leave the Reference accepted, marked "Accepted automatically", with the reason. The References page has a filter of that name, opened by
   the address ?status=auto-accepted. It lists every such Reference, newest acceptance first, as the same cards the feed uses, with the same
-  Accept and Reject buttons and a written reason for a Reject. It reads the database a page at a time from the accepted References, with
+  Accept and Reject buttons and a written reason box. Accept confirms the automatic acceptance as the editor's own vote, with an optional
+  explanation; Reject overturns it and needs one. Either replaces the automatic actor with the editor, so the Reference leaves the list, counts
+  as a human vote for the threshold, and is sent to the Cyclotron with the explanation as its comment (features_backend). It reads the database a page at a time from the accepted References, with
   the filter applied by the database, so it works with several thousand References and needs no index of its own. An editor's own
   acceptance is never in it, and a Reference leaves it once an editor has voted.
 
@@ -26,6 +28,23 @@ Feature: An editor can review everything that was accepted automatically, and re
     When the editor taps Reject on an automatically accepted card
     Then the reason box is empty and a reason is required before anything is sent
     And once the editor writes a reason and records it, the Reject is sent with that reason and the card leaves the list
+
+  Scenario: Confirming an automatic acceptance with an explanation records the editor's vote and takes the card out
+    Given a newsroom with Cyclotron acceptances, a rule acceptance and an editor's own acceptance
+    When the editor taps Accept on an automatically accepted card and writes an explanation
+    Then the reason box is offered, empty, and no reason is required
+    And nothing is sent until the editor records it, and then the Accept is sent with that explanation and the card leaves the list
+
+  Scenario: Confirming without an explanation is allowed, and an explanation typed first goes out with the tap
+    Given a newsroom with Cyclotron acceptances, a rule acceptance and an editor's own acceptance
+    When the editor taps Accept on an automatically accepted card and records it without a word
+    Then the Accept is sent with no explanation, rather than an empty one, and the card leaves the list
+    And an explanation typed before tapping Accept is sent with the tap
+
+  Scenario: The detail pane confirms the same way as the card
+    Given a newsroom with Cyclotron acceptances, a rule acceptance and an editor's own acceptance
+    When the editor opens an automatically accepted reference and taps Accept
+    Then the box is offered first and nothing is sent until Record
 
   Scenario: An empty list says so in plain words
     Given a newsroom where nothing has been accepted automatically

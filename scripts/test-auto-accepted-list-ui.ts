@@ -143,7 +143,8 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(firstPage.length, 4);
       // Reaching the end of the list reads the next page by itself; the button is the same read for a reader who does not scroll.
       const grew = await page.waitForFunction(() => document.querySelectorAll("[data-auto-accepted-item]").length > 4, null, { timeout: 1500 }).then(() => true, () => false);
-      if (!grew) await page.getByRole("button", { name: "Show more" }).click();
+      // The button may be replaced by the automatic read while it is being tapped; either way the next page must arrive.
+      if (!grew) await page.getByRole("button", { name: "Show more" }).click({ timeout: 1500 }).catch(() => undefined);
       await page.waitForFunction(() => document.querySelectorAll("[data-auto-accepted-item]").length > 4);
       const all = await itemIds(page);
       assert.equal(new Set(all).size, all.length, "no card twice");
@@ -176,6 +177,76 @@ const scenarios: Record<string, () => Promise<void>> = {
       await settle(page);
       await page.waitForFunction(() => !document.querySelector('[data-auto-accepted-item="r1"]'));
       assert.deepEqual(await itemIds(page), ["r0", "r3", "r4"], "the others stay where they were");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** Accept confirms: the box is offered first and the explanation is optional. Recorded as the editor's own vote, and the card leaves the list. */
+  async confirm_with_explanation() {
+    const { browser, page, errors } = await setup();
+    try {
+      await page.locator('[data-auto-accepted-list="ready"]').waitFor();
+      const card = page.locator('[data-auto-accepted-item="r0"]');
+      assert.equal(await card.locator('[data-review-choice="accept"]').getAttribute("aria-pressed"), "false", "an automatic acceptance is not yet the editor's answer");
+      await card.locator('[data-review-choice="accept"]').click();
+      await card.locator("[data-review-reason] textarea").waitFor();
+      assert.equal(await card.locator("[data-review-reason] textarea").inputValue(), "", "the router's acceptance reason is not put in the editor's mouth");
+      assert.doesNotMatch(await card.locator("[data-review-reason] label").innerText(), /required to accept/i, "no reason is required to Accept");
+      assert.match(await card.locator("[data-feed-saved]").innerText(), /Say why if you like/);
+      assert.equal(await card.locator("[data-review-record]").isDisabled(), false, "Record is available without words");
+      assert.equal((await requests(page) as unknown[]).length, 0, "nothing is sent until the editor records it");
+      await card.locator("[data-review-reason] textarea").fill("Exactly our beat.");
+      await card.locator("[data-review-record]").click();
+      await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 1);
+      const [request] = await requests(page) as Array<{ referenceId: string; action: string; options: { note?: string } }>;
+      assert.deepEqual([request.action, request.referenceId, request.options.note], ["accept", "r0-v1", "Exactly our beat."]);
+      await settle(page);
+      await page.waitForFunction(() => !document.querySelector('[data-auto-accepted-item="r0"]'));
+      assert.deepEqual(await itemIds(page), ["r1", "r3", "r4"], "the others stay where they were");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** Confirming without a word is allowed, and words typed before the tap go with it at once. */
+  async confirm_without_explanation() {
+    const { browser, page, errors } = await setup();
+    try {
+      await page.locator('[data-auto-accepted-list="ready"]').waitFor();
+      const card = page.locator('[data-auto-accepted-item="r0"]');
+      await card.locator('[data-review-choice="accept"]').click();
+      await card.locator("[data-review-record]").click();
+      await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 1);
+      const [first] = await requests(page) as Array<{ action: string; options: { note?: string } }>;
+      assert.equal(first.action, "accept");
+      assert.ok(!first.options.note, "no explanation sent, rather than an empty one");
+      await settle(page);
+      await page.waitForFunction(() => !document.querySelector('[data-auto-accepted-item="r0"]'));
+      const typed = page.locator('[data-auto-accepted-item="r1"]');
+      await typed.locator("[data-review-reason] textarea").fill("Fine.");
+      await typed.locator('[data-review-choice="accept"]').click();
+      await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2);
+      assert.equal(((await requests(page)) as Array<{ options: { note?: string } }>)[1].options.note, "Fine.", "words typed first go with the tap");
+      await settle(page);
+      await page.waitForFunction(() => !document.querySelector('[data-auto-accepted-item="r1"]'));
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** The detail pane treats an automatic acceptance the same way as the card: Accept confirms, with the optional box. */
+  async detail_matches_the_card() {
+    const { browser, page, errors } = await setup();
+    try {
+      await page.locator('[data-auto-accepted-list="ready"]').waitFor();
+      await page.locator('[data-auto-accepted-item="r0"] [data-feed-open]').click();
+      const detail = page.locator('[data-news-desk-reference-detail="r0"]:visible');
+      await detail.waitFor();
+      assert.equal(await detail.locator('[data-review-row="you"] [data-review-choice="accept"]').getAttribute("aria-pressed"), "false");
+      await detail.locator('[data-review-row="you"] [data-review-choice="accept"]').click();
+      assert.match(await detail.locator("[data-feed-saved]").innerText(), /Say why if you like/);
+      assert.equal((await requests(page) as unknown[]).length, 0);
+      await detail.locator("[data-review-record]").click();
+      await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 1);
+      assert.equal(((await requests(page)) as Array<{ action: string }>)[0].action, "accept");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },

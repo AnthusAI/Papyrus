@@ -71,7 +71,7 @@ function MoreSentinel({ hasMore, loadingMore, onLoadMore, itemCount }: { hasMore
 /**
  * Everything accepted without an editor, newest first, as the same cards the feed uses: the same Accept and Reject controls, and a Reject
  * asks for its reason in the same box. Under each card, the reason it was accepted and how sure the Cyclotron was.
- * The page hides a card once an editor has voted on its Reference (a Reject takes it out of the list). Accept is already the Reference's state, so it stays as the card shows it.
+ * The page hides a card once an editor has voted on its Reference (a Reject or an Accept takes it out of the list). Accept confirms it as the editor's own answer (the reason is optional), so it leaves too.
  */
 export function AutoAcceptedList({
   captures,
@@ -136,7 +136,7 @@ export function AutoAcceptedList({
   return (
     <div className="space-y-4" data-auto-accepted-list="ready">
       <p className="text-sm text-muted-foreground" data-auto-accepted-intro>
-        These were accepted without an editor, newest first. Reject any you disagree with, and say why.
+        These were accepted without an editor, newest first. Accept the ones you agree with, and say why if you like. Reject any you disagree with, and say why.
       </p>
       <div className={FEED_GRID} data-feed-grid>
         {items.map((reference) => {

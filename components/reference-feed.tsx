@@ -310,12 +310,15 @@ export function FeedCard({
   const { reference } = item;
   const titleId = useId();
   const status = normalizeReferenceCurationStatus(reference.curationStatus);
-  const answer: ReviewChoice | null = status === "accepted" ? "accept" : status === "rejected" ? "reject" : null;
+  const auto = isAutoAccepted(reference);
+  // An automatic acceptance is not the editor's answer yet: Accept confirms it (and offers the reason box), Reject overturns it.
+  const answer: ReviewChoice | null = status === "accepted" && !auto ? "accept" : status === "rejected" ? "reject" : null;
   // Rating state lives in a store: the shared one when given (so the detail pane and this card stay in step), else a private one.
   const local = useRatingStore({
     save: async (_id, choice, detail) => { await onRate(reference, choice, detail.reasonCode); },
     saved: () => answer,
     seed: () => ({ note: "", reasonCode: null }),
+    confirms: () => auto,
   });
   const store = ratings ?? local;
   const rating = store.get(item.lineageId);

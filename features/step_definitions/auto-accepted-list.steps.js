@@ -21,6 +21,9 @@ for (const when of [
   "the editor chooses the Accepted automatically filter and reaches the end of the list",
   "the editor taps Reject on an automatically accepted card",
   "the editor opens the list on a phone",
+  "the editor taps Accept on an automatically accepted card and writes an explanation",
+  "the editor taps Accept on an automatically accepted card and records it without a word",
+  "the editor opens an automatically accepted reference and taps Accept",
   "the first page of the list is read",
 ]) When(when, function () {});
 
@@ -30,6 +33,9 @@ const outcomes = [
   [["the Accepted automatically filter is selected and shows no count", "only the automatic acceptances are listed, newest first, each with who accepted it, how sure the Cyclotron was, and the reason it recorded", "the editor's own acceptance is not listed", "the cards carry the same Accept and Reject buttons, with no dropdown"], () => browser("opens_from_the_address")],
   [["the address says ?status=auto-accepted", "the next page is read from where the last stopped, and no card appears twice"], () => browser("pages_and_address")],
   [["the reason box is empty and a reason is required before anything is sent", "once the editor writes a reason and records it, the Reject is sent with that reason and the card leaves the list"], () => browser("reject_leaves_the_list")],
+  [["the reason box is offered, empty, and no reason is required", "nothing is sent until the editor records it, and then the Accept is sent with that explanation and the card leaves the list"], () => browser("confirm_with_explanation")],
+  [["the Accept is sent with no explanation, rather than an empty one, and the card leaves the list", "an explanation typed before tapping Accept is sent with the tap"], () => browser("confirm_without_explanation")],
+  [["the box is offered first and nothing is sent until Record"], () => browser("detail_matches_the_card")],
   [["it says that nothing has been accepted automatically yet"], () => browser("empty_state")],
   [["nothing scrolls sideways, the tap targets are large and the icons are Lucide"], () => browser("phone")],
   [["the page holds the newest automatic acceptances and only a small part of the 5000 is read"], () => logic("a page is filled from the newest end and stops there")],

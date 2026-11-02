@@ -285,7 +285,8 @@ function ReferenceDetailPanel({
     >
       <div className="space-y-4 p-4" data-reference-curation-status={status}>
         <ReviewCard
-          decided={status === "accepted" ? "accept" : status === "rejected" ? "reject" : null}
+          confirmsAutomatic={auto}
+          decided={status === "accepted" && !auto ? "accept" : status === "rejected" ? "reject" : null}
           dek={referenceDek(reference, referencePreviewsByLineage(previewAttachments).get(lineageId))}
           disabledReason={disabled ? "Editor access is required to change this reference." : null}
           initialNote={sourceNote}
@@ -525,12 +526,14 @@ export function NewsroomReferencesView({
     [loadAutoAccepted],
   );
   const autoRead = useAutoAcceptedReferences({ enabled: autoOpen && !showingSavedCopy, read: readAutoAccepted });
+  // Lineages an editor has voted on from here: they leave the list as soon as the vote is saved, whatever the page's own copy says.
+  const [votedHere, setVotedHere] = useState<ReadonlySet<string>>(() => new Set());
   const autoRecords = useMemo(() => {
     const held = new Map(canonicalReferences.map((reference) => [referenceLineageId(reference), reference] as const));
     return autoRead.items
       .map((read) => laterVoteRecord(read, held.get(referenceLineageId(read))))
-      .filter(isAutoAccepted);   // an editor's vote (a Reject, a later Accept, an archive) ends the automatic acceptance, so the card leaves
-  }, [autoRead.items, canonicalReferences]);
+      .filter((reference) => !votedHere.has(referenceLineageId(reference)) && isAutoAccepted(reference));   // an editor's vote (a Reject, a later Accept, an archive) ends the automatic acceptance, so the card leaves
+  }, [autoRead.items, canonicalReferences, votedHere]);
   const autoLineageIds = useMemo(() => autoRecords.map(referenceLineageId), [autoRecords]);
   const autoIdsKey = autoLineageIds.join("\u0000");
   useEffect(() => {
@@ -657,7 +660,8 @@ export function NewsroomReferencesView({
   // One rating store for the whole view: the grid cards and the detail pane read and write the same state, so a vote or a reason
   // entered in either shows in both. Reason then vote, or vote then reason, both end up on one decision.
   const sectionChoices = useRef<Map<string, string | null>>(new Map());
-  const referenceById = (lineageId: string) => selectedReferenceRecordByLineage(canonicalReferences, lineageId);
+  const referenceById = (lineageId: string) => selectedReferenceRecordByLineage(canonicalReferences, lineageId)
+    ?? autoRead.items.find((item) => referenceLineageId(item) === lineageId) ?? null;
   const ratings = useRatingStore({
     save: async (lineageId, choice, detail) => {
       const reference = referenceById(lineageId);
@@ -671,11 +675,15 @@ export function NewsroomReferencesView({
         ...(sectionId ? { sectionId } : {}),
         ...(decision ? { decisionRelationId: decision.decisionRelationId, shareable: false } : {}),
       });
+      setVotedHere((current) => new Set(current).add(lineageId));
     },
     saved: (lineageId) => {
-      const status = normalizeReferenceCurationStatus(referenceById(lineageId)?.curationStatus);
-      return status === "accepted" ? "accept" : status === "rejected" ? "reject" : null;
+      const reference = referenceById(lineageId);
+      const status = normalizeReferenceCurationStatus(reference?.curationStatus);
+      // An automatic acceptance is not an editor's answer: Accept on it is a confirmation, Reject an overturn.
+      return status === "accepted" && !(reference && isAutoAccepted(reference)) ? "accept" : status === "rejected" ? "reject" : null;
     },
+    confirms: (lineageId) => { const reference = referenceById(lineageId); return Boolean(reference && isAutoAccepted(reference)); },
     seed: (lineageId) => {
       const reference = referenceById(lineageId);
       const status = normalizeReferenceCurationStatus(reference?.curationStatus);

@@ -369,3 +369,9 @@ def step_summary_untouched(context):
 @then("the Reference stays accepted")
 def step_stays_accepted(context):
     assert target_row(context)["curationStatus"] == "accepted" and target_row(context)["curationStatusUpdatedBy"] == "auto:cyclotron"
+
+
+@given("the Cyclotron accepted a Reference automatically that an editor then confirmed, {days:d} days after delivery")
+def step_confirmed(context, days):
+    # The record an editor's Accept leaves on an automatically accepted Reference: same status, but the editor is the actor.
+    add(context, status="accepted", actor=EDITOR, verdict=0.95, created_days_ago=20, voted_after_days=days)

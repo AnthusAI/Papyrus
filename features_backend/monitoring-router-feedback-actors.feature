@@ -146,3 +146,27 @@ Feature: The router sends feedback for references curated by people, including i
     And the feedback task runs
     Then one feedback was sent to Cyclotron with the label include
     And the feedback task read no delivered reference one by one
+
+  Scenario: An editor's confirmation of an automatic acceptance reaches the Cyclotron with the explanation
+    Given the Cyclotron accepted a reference automatically and the feedback task ran
+    When an editor confirms that automatic acceptance saying "Exactly our beat."
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label include
+    And the feedback carries the explanation "Exactly our beat."
+
+  Scenario: A confirmation without an explanation sends none, and it is still a new vote
+    Given the Cyclotron accepted a reference automatically and the feedback task ran
+    When an editor confirms that automatic acceptance without an explanation
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label include
+    And the feedback carries no explanation
+
+  Scenario: An explanation added to a confirmation later is sent as a new request
+    Given the Cyclotron accepted a reference automatically and the feedback task ran
+    When an editor confirms that automatic acceptance without an explanation
+    And the feedback task runs
+    And the editor adds the explanation "Agent platforms." to that vote
+    And the feedback task runs
+    Then Cyclotron has received 2 feedback requests with different request ids
+    And the latest feedback carries the explanation "Agent platforms."
+

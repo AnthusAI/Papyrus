@@ -127,7 +127,7 @@ export function DecisionControl({
 
   /* What the chosen segment says about itself while the answer is in flight or held back. A segment
      never claims to be unrecorded while it is being recorded. */
-  const stagedWord = saving ? (decided ? "Updating…" : "Sending…") : needsReason ? "Needs a reason" : null;
+  const stagedWord = saving ? (decided ? "Updating…" : "Sending…") : needsReason ? (answer === "accept" ? "Not recorded yet" : "Needs a reason") : null;
 
   return (
     <div className="@container/decision grid gap-y-2" data-decision-control data-rating-grid>
@@ -274,10 +274,10 @@ export function DecisionControl({
         {note ? <span data-feed-reason>{note}</span> : null}
         {needsReason ? (
           <>
-            <span className="font-semibold text-foreground">A reason is needed to record {WORD[answer ?? "reject"]}</span>
+            <span className="font-semibold text-foreground">{answer === "accept" ? "Say why if you like, then record Accept" : `A reason is needed to record ${WORD[answer ?? "reject"]}`}</span>
             <button
               className="rounded-[var(--feed-radius-md,16px)] bg-[var(--primary)] px-2.5 py-0.5 font-semibold text-[var(--primary-foreground)] outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-[var(--feed-quiet,0.6)]"
-              disabled={!reason.trim()}
+              disabled={answer !== "accept" && !reason.trim()}
               data-review-record
               onClick={() => { if (answer) onChoose(answer); }}
               type="button"
