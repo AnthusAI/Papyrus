@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   ts:
-    # Pinned: ubuntu-latest moved to 26.04, where Playwright cannot install Chromium (2026-10-31).
+    # Pinned: ubuntu-24.04 moved to 26.04, where Playwright cannot install Chromium (2026-10-31).
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -59,7 +59,7 @@ jobs:
       - run: npm test
 
   python:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
