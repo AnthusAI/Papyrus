@@ -10,9 +10,17 @@
   "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "780653d9-05a0-4c6f-908a-180e3abf174b",
+      "author": "home",
+      "text": "Found while investigating the 2026-11-02 junk: the cause was a missing kind filter (fixed in 5.72.0), but stub pages remain possible for vocabulary kinds. See description.",
+      "created_at": "2026-11-02T21:51:13.796628Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-02T21:47:18.386008Z",
-  "updated_at": "2026-11-02T21:47:18.386093Z",
+  "updated_at": "2026-11-02T21:51:13.796942Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
