@@ -24,6 +24,13 @@ SUMMARY_RELATION_RE = re.compile(r"^reference_summary_(\d+)_tokens$")
 
 CONCEPT_CARD_KEY_PREFIX = "concept_card-"
 
+LINK_EXPLANATION_KEY_PREFIX = "link_explanation-"
+LINK_EXPLANATION_VECTOR_KIND = "link_explanation"
+LINK_EXPLANATION_FEED_KEY = "reference-links"   # papyrus_content.reference_links.REFERENCE_LINK_FEED_KEY, the feed every Reference link and concept tag row carries
+LINK_EXPLANATION_EDGE_KINDS = ("reference.link", "reference.concept")
+LINK_EXPLANATION_AUDIENCE = "editor"
+LINK_EXPLANATION_WITHDRAWN = "withdrawn"
+
 LIST_SEMANTIC_NODES_QUERY = """
 query ListSemanticNodes($limit: Int, $nextToken: String) {
   listSemanticNodes(limit: $limit, nextToken: $nextToken) {
@@ -57,6 +64,17 @@ query ListNoteMessages($messageKind: String!, $limit: Int, $nextToken: String) {
   listMessagesByKindAndCreatedAt(messageKind: $messageKind, limit: $limit, nextToken: $nextToken) {
     items {
       id messageKind messageDomain status summary source importRunId authorLabel semanticLayer searchVisibility threadId createdAt updatedAt
+    }
+    nextToken
+  }
+}
+"""
+
+LIST_LINK_RELATIONS_QUERY = """
+query ListLinkRelations($newsroomFeedKey: String!, $limit: Int, $nextToken: String) {
+  listSemanticRelationsByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, limit: $limit, nextToken: $nextToken) {
+    items {
+      id relationState predicate subjectKind subjectId subjectLineageId objectKind objectId objectLineageId updatedAt importedAt metadata
     }
     nextToken
   }
@@ -100,6 +118,7 @@ class VectorIndexOptions:
     include_passage_vectors: bool = True
     include_ontology_vectors: bool = True
     include_concept_cards: bool = True
+    include_link_explanations: bool = True
     force: bool = False
     dry_run: bool = False
     progress_every: int = 25
@@ -189,6 +208,11 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "conceptCardsPrepared": 0,
         "conceptCardsSkippedUnchanged": 0,
         "conceptCardsToWrite": 0,
+        "linkExplanationsPrepared": 0,
+        "linkExplanationsToWrite": 0,
+        "linkExplanationsSkippedUnchanged": 0,
+        "linkExplanationsRemoved": 0,
+        "linkExplanationsWithdrawn": 0,
         "noteResults": [],
         "ontologyResults": [],
         "failures": [],
@@ -312,6 +336,9 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
                     pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
+    if options.include_link_explanations and not stats.get("stoppedBy"):
+        pending_vectors = _sync_link_explanations(
+            services.graph, all_references, existing_vectors, pending_vectors, stats, vector_index_arn, options)
     for prepared in [] if stats.get("stoppedBy") else prepared_notes:
         pending_vectors = _consume_prepared_note(prepared, stats, existing_keys, pending_vectors, vector_index_arn, options)
     if pending_vectors and not options.dry_run:
@@ -1499,6 +1526,204 @@ def _prepare_concept_card_vectors(graph: Any) -> list[dict[str, Any]]:
             },
         })
     return vectors
+
+
+def _link_explanation_key(relation_id: str) -> str:
+    return f"{LINK_EXPLANATION_KEY_PREFIX}{relation_id}"
+
+
+def _relation_metadata(relation: dict[str, Any]) -> dict[str, Any]:
+    raw = relation.get("metadata")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw or "{}")
+        except json.JSONDecodeError:
+            return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _list_link_relations(graph: Any) -> list[dict[str, Any]]:
+    relations: list[dict[str, Any]] = []
+    next_token = None
+    while True:
+        payload = graph.graphql(LIST_LINK_RELATIONS_QUERY, {"newsroomFeedKey": LINK_EXPLANATION_FEED_KEY, "limit": 100, "nextToken": next_token})
+        connection = payload.get("listSemanticRelationsByNewsroomFeedAndCreatedAt") or {}
+        relations.extend(item for item in connection.get("items") or [] if item)
+        next_token = connection.get("nextToken")
+        if not next_token:
+            return relations
+
+
+def _link_explanation_text(relation: dict[str, Any]) -> str:
+    """The editor's explanation of an accepted link, or "" when the edge carries none or is not an accepted, person-made Reference link or concept tag.
+    ``current`` is a link a person made or confirmed; ``metadata.decision`` is ``accepted`` once decided, and a link a person made has provenance ``human``."""
+    metadata = _relation_metadata(relation)
+    if relation.get("relationState") != "current" or metadata.get("kind") not in LINK_EXPLANATION_EDGE_KINDS:
+        return ""
+    if not (metadata.get("decision") == "accepted" or (metadata.get("decision") in (None, "") and metadata.get("provenance") == "human")):
+        return ""
+    return _clean_text(str(metadata.get("note") or ""))
+
+
+def _prepare_link_explanation_vector(relation: dict[str, Any], titles: dict[str, str], options: VectorIndexOptions, corpus_id: str) -> dict[str, Any]:
+    """One vector for one explained link. Its text names both ends and the explanation so it stands alone. The metadata carries both lineage ids, the
+    relation id, the predicate and who decided; ``curationStatus: accepted`` is set on purpose so the Reference filter lets it through whatever the scope asks,
+    and ``audience: editor`` marks it as an internal note that no public reader query may return (services.S3VectorsProvider)."""
+    metadata_row = _relation_metadata(relation)
+    explanation = _link_explanation_text(relation)
+    first = titles[f"{relation['subjectKind']}#{relation['subjectLineageId']}"]
+    second = titles[f"{relation['objectKind']}#{relation['objectLineageId']}"]
+    predicate = str(relation.get("predicate") or "related_to")
+    text = f"Editor's explanation of a link between two items.\nLink: {first} ({predicate.replace('_', ' ')}) {second}\nExplanation: {explanation}"
+    relation_id = str(relation["id"])
+    metadata = {
+        "kind": "semanticRelation",
+        "vectorKind": LINK_EXPLANATION_VECTOR_KIND,
+        "id": relation_id,
+        "lineageId": relation_id,
+        "relationId": relation_id,
+        "relationKind": metadata_row.get("kind"),
+        "predicate": predicate,
+        "subjectKind": relation.get("subjectKind"),
+        "subjectLineageId": relation.get("subjectLineageId"),
+        "objectKind": relation.get("objectKind"),
+        "objectLineageId": relation.get("objectLineageId"),
+        "subjectTitle": _truncate_filterable_metadata(first, MAX_FILTERABLE_TITLE_CHARS),
+        "objectTitle": _truncate_filterable_metadata(second, MAX_FILTERABLE_TITLE_CHARS),
+        "title": _truncate_filterable_metadata(f"{first} / {second}", MAX_FILTERABLE_TITLE_CHARS),
+        "decidedBy": metadata_row.get("decidedBy") or metadata_row.get("addedBy"),
+        "decidedAt": metadata_row.get("decidedAt") or metadata_row.get("addedAt"),
+        "audience": LINK_EXPLANATION_AUDIENCE,
+        "curationStatus": "accepted",
+        "corpusId": corpus_id,
+        "categorySetId": options.category_set_id,
+        "contentHash": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "explanation": explanation[:1800],
+        "text": text[:2400],
+    }
+    return {"key": _link_explanation_key(relation_id), "text": text, "metadata": metadata}
+
+
+def _plan_link_explanations(graph: Any, all_references: list[dict[str, Any]], options: VectorIndexOptions) -> dict[str, Any]:
+    """What the index should hold for explained links: ``candidates`` (vectors to hold, by key) and ``remove`` (relation ids whose vector must go: the link is
+    rejected or no longer current, its note is cleared, or an end is no longer accepted). A link whose Reference end the graph does not list at all is left alone."""
+    references = {str(ref.get("lineageId") or ref.get("id")): ref for ref in all_references if ref.get("versionState") == "current" and (ref.get("lineageId") or ref.get("id"))}
+    nodes = {str(node.get("lineageId") or node.get("id")): node for node in _list_accepted_semantic_nodes(graph)}
+    known_reference_ids = {str(ref.get("lineageId") or ref.get("id")) for ref in all_references if ref.get("lineageId") or ref.get("id")}
+    candidates: dict[str, dict[str, Any]] = {}
+    remove: set[str] = set()
+    leave: set[str] = set()
+    for relation in _list_link_relations(graph):
+        relation_id = str(relation.get("id") or "")
+        if not relation_id:
+            continue
+        if not _link_explanation_text(relation):
+            remove.add(relation_id)
+            continue
+        titles: dict[str, str] = {}
+        corpus_id = options.corpus_id
+        verdict = "write"
+        for side in ("subject", "object"):
+            kind, lineage = str(relation.get(f"{side}Kind") or ""), str(relation.get(f"{side}LineageId") or "")
+            if kind == "reference":
+                reference = references.get(lineage)
+                if reference is None:
+                    verdict = "leave" if lineage not in known_reference_ids else "remove"
+                    break
+                if reference_curation_status(reference) != ACCEPTED_STATUS:
+                    verdict = "remove"
+                    break
+                titles[f"{kind}#{lineage}"] = _reference_title(reference)
+                corpus_id = corpus_id or str(reference.get("corpusId") or "")
+            elif kind == "semanticNode":
+                node = nodes.get(lineage)
+                if node is None or not node.get("displayName"):
+                    verdict = "remove"
+                    break
+                titles[f"{kind}#{lineage}"] = _clean_text(str(node["displayName"]))
+            else:
+                verdict = "remove"
+                break
+        if verdict == "write":
+            if options.corpus_id and corpus_id != options.corpus_id:
+                continue
+            candidates[_link_explanation_key(relation_id)] = _prepare_link_explanation_vector(relation, titles, options, corpus_id)
+        elif verdict == "remove":
+            remove.add(relation_id)
+        else:
+            leave.add(relation_id)
+    return {"candidates": candidates, "remove": remove - set(candidates), "leave": leave}
+
+
+def _sync_link_explanations(
+    graph: Any,
+    all_references: list[dict[str, Any]],
+    existing_vectors: list[dict[str, Any]],
+    pending_vectors: list[dict[str, Any]],
+    stats: dict[str, Any],
+    vector_index_arn: str,
+    options: VectorIndexOptions,
+) -> list[dict[str, Any]]:
+    """Keeps one vector per explained, accepted link current. The vector's own ``contentHash`` (ends' titles plus the explanation) and ``curationStatus`` are its
+    watermark: an unchanged explanation costs nothing, a new or edited one is embedded and written, and the vector of a link later rejected or with its note
+    cleared is deleted. A role without ``s3vectors:DeleteVectors`` (the router's) cannot delete, so the vector is re-marked ``curationStatus: withdrawn``,
+    which every query filter excludes, until a role that may delete runs the sync."""
+    if not hasattr(graph, "graphql"):
+        return pending_vectors
+    try:
+        plan = _plan_link_explanations(graph, all_references, options)
+    except Exception as error:  # noqa: BLE001 - a link read that fails must not delete anything or fail the Reference sync
+        stats["warnings"].append(f"link explanations were not synced ({type(error).__name__}: {str(error)[:160]})")
+        return pending_vectors
+    existing = {
+        str(vector["key"]): vector.get("metadata") or {}
+        for vector in existing_vectors
+        if str(vector.get("key") or "").startswith(LINK_EXPLANATION_KEY_PREFIX)
+    }
+    for key, candidate in plan["candidates"].items():
+        stats["vectorsPrepared"] += 1
+        stats["linkExplanationsPrepared"] += 1
+        stored = existing.get(key) or {}
+        if not options.force and stored.get("contentHash") == candidate["metadata"]["contentHash"] and stored.get("curationStatus") == "accepted":
+            stats["vectorsSkippedExisting"] += 1
+            stats["linkExplanationsSkippedUnchanged"] += 1
+            continue
+        stats["vectorsToWrite"] += 1
+        stats["linkExplanationsToWrite"] += 1
+        if not options.dry_run:
+            pending_vectors.append(candidate)
+            if len(pending_vectors) >= options.batch_size:
+                pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
+    stale = sorted(key for key, metadata in existing.items()
+                   if str(metadata.get("relationId") or key[len(LINK_EXPLANATION_KEY_PREFIX):]) in plan["remove"] and key not in plan["candidates"])
+    stats["linkExplanationsRemoved"] = len(stale)
+    if stale and not options.dry_run:
+        pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
+        _remove_link_explanation_vectors(vector_index_arn, stale, existing, stats)
+    return pending_vectors
+
+
+def _remove_link_explanation_vectors(vector_index_arn: str, keys: list[str], existing: dict[str, dict[str, Any]], stats: dict[str, Any]) -> None:
+    try:
+        _delete_vectors(vector_index_arn, keys)
+        stats["vectorsDeletedForStatus"] += len(keys)
+        return
+    except Exception as error:  # noqa: BLE001
+        code = str(((getattr(error, "response", None) or {}).get("Error") or {}).get("Code") or "")
+        if "AccessDenied" not in code:
+            raise
+    marked = [key for key in keys if existing.get(key, {}).get("curationStatus") != LINK_EXPLANATION_WITHDRAWN]
+    stats["warnings"].append(f"s3vectors:DeleteVectors was denied for {len(keys)} link explanation vectors; they were marked {LINK_EXPLANATION_WITHDRAWN} instead")
+    for batch in _batched_scalar(marked, 100):
+        rewritten = []
+        for vector in _get_vectors(vector_index_arn, batch):
+            if not (vector.get("data") or {}).get("float32"):
+                continue
+            metadata = {**(vector.get("metadata") or {}), "curationStatus": LINK_EXPLANATION_WITHDRAWN}
+            rewritten.append({"key": vector["key"], "data": vector["data"], "metadata": _sanitize_vector_metadata(metadata)})
+        if rewritten:
+            _put_vectors(vector_index_arn, rewritten)
+            stats["linkExplanationsWithdrawn"] += len(rewritten)
 
 
 def _list_ontology_attachments(graph: Any) -> list[dict[str, Any]]:
