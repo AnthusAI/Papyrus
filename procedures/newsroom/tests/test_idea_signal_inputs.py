@@ -193,3 +193,32 @@ def test_pending_relations_are_read_most_likely_first_until_time_runs_out():
     by_lineage = {row["lineageId"]: row["predictedAcceptProbability"] for row in rows}
     assert len(read) == 8 and min(by_lineage[lineage] for lineage in read) > max(p for lineage, p in by_lineage.items() if lineage not in read)
     assert len(inputs.pending_context) == len([row for row in rows if row["predictedAcceptProbability"] >= 0.5])
+
+
+def decided(note: Any, by: str | None = "editor-a", decision: str | None = "accepted") -> dict[str, Any]:
+    return {"metadata": json.dumps({"kind": "reference.link", "decidedBy": by, "decision": decision, "note": note})}
+
+
+def test_only_the_words_of_a_person_who_accepted_a_link_become_its_explanation_and_addresses_are_scrubbed():
+    first, second, third, fourth, fifth = (voted(number, "accepted") for number in range(1, 6))
+    relations = {first["lineageId"]: [
+        edge(first, second, **decided("Both  read the\nsame  filing. Ask me at ed@example.org.")),
+        edge(first, third, **decided("A machine rule said this.", by="auto:vector")),
+        edge(first, fourth, **decided("Not accepted.", decision="rejected")),
+        edge(first, fifth, **decided("   ")),
+        edge(second, third, relationState="suggested", **decided("Only suggested.")),
+        edge(second, fourth),
+        concept(first, "cn-a", "related_to", **decided("This is the product named in the filing.")),
+        concept(first, "cn-b", "mentions", **decided("Words on a machine mention.")),
+        concept(first, "cn-c", "related_to", **decided("Rejected concept.", decision="rejected")),
+    ]}
+    inputs = load_signal_inputs(FakeSignalClient(references=[first, second, third, fourth, fifth], relations=relations), site="example-site", now=NOW)
+    said = {(e.subject_lineage_id, e.object_lineage_id): e.explanation for e in inputs.edges}
+    assert said[(first["lineageId"], second["lineageId"])] == "Both read the same filing. Ask me at [address removed]"
+    assert said[(first["lineageId"], third["lineageId"])] is None
+    assert said[(first["lineageId"], fourth["lineageId"])] is None
+    assert said[(first["lineageId"], fifth["lineageId"])] is None
+    assert (second["lineageId"], third["lineageId"]) not in said
+    assert {(l.concept_id, l.predicate): l.explanation for l in inputs.concept_links} == {
+        ("cn-a", "related_to"): "This is the product named in the filing.", ("cn-b", "mentions"): None, ("cn-c", "related_to"): None,
+    }

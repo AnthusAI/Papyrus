@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ba1f318e-5896-4500-9d0d-13dec7a35bf0",
+  "title": "Remove AWS from the operating manuals once the CLI covers it, then shrink operator access",
+  "description": "Update AGENTS.md, docs and skills so the CLI is the documented path. Then propose to Ryan the reduced operator IAM permissions and the break-glass procedure. The IAM change itself is Ryan's decision.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T16:37:20.479222Z",
+  "updated_at": "2026-11-02T16:37:20.479261Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

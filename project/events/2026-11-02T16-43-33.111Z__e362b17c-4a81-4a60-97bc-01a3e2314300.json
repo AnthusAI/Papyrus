@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e362b17c-4a81-4a60-97bc-01a3e2314300",
+  "issue_id": "PPY-029a99ca-483a-46c5-8846-e87a8d19544a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T16:43:33.111Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Server-side re-projection and snapshots, so laptops never write site buckets",
+    "description": "ops content project, home-page snapshot, knowledge snapshot/archive and proposals publish write S3, CloudFront and KVS or invoke Lambda with the operator's AWS credentials, even with --auth user. Add narrow mutations (reprojectSite and similar) so only the server role holds those writes. Also closes the 10-31 home-page snapshot incident class.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+    "labels": []
+  }
+}

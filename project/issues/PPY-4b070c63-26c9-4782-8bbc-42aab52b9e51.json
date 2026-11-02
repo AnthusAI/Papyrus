@@ -1,0 +1,20 @@
+{
+  "id": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+  "title": "Story variations and a conversation for each Story",
+  "description": "An editor sees several ways a new item could connect to what the newsroom knows (another Reference, a Story, a Concept), each as a StoryVariation, and talks to the Story's own agent to get new ones, for example: combine the Story from A with the concept from B and ignore C. Design: docs/story-variations.md. Ryan 2026-11-02.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T13:41:07.098610Z",
+  "updated_at": "2026-11-02T13:41:07.098688Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

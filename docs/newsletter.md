@@ -96,7 +96,7 @@ backend: {
       siteId: "shipped",                                   // the sending stack's SiteId
       siteOrigin: "https://shipped.anth.us",               // the public origin; the plugin's links and redirects are built on it
       basePath: "",                                        // projection.json urls.basePath ("/posts" for dataparade.io/posts); omit for a site at the root
-      computeRoleArn: "arn:aws:iam::<account>:role/<the CmsComputeRoleArn output>",
+      computeRoleArn: "arn:aws:iam::<account>:role/<the CmsComputeRoleArn output>", // optional: PAPYRUS_COMPUTE_ROLE_ARN on the Amplify branch wins
       sendingDomain: "shipped.anth.us",
       fromAddress: "newsletter@<sendingDomain>",              // a mailbox name at sendingDomain
       fromName: "Shipped",

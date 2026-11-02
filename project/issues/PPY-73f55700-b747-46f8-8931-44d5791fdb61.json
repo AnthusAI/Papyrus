@@ -1,0 +1,42 @@
+{
+  "id": "PPY-73f55700-b747-46f8-8931-44d5791fdb61",
+  "title": "Story agent: reads everything, makes new variations when asked",
+  "description": "One high-level conversation per Story on the existing story_conversation MessageThread (anchor item#lineage), editors posting as today and the agent replying with authorKind AI. Pi-based, Chatticus-compatible shape. Tools: read the Story, its variations and the thread, search the knowledge base, offer a requested variation that records requestMessageId and basedOnVariationIds. Start with a spike on where it runs.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "ea87c2df-d9e0-4992-8620-5b780b54d2eb",
+      "author": "home",
+      "text": "Waits on the Chatticus work in PPY-e4a872. Ryan 2026-11-02: no Papyrus-only agent as a stopgap, so ignore 'Start with a spike on where it runs'. Also open: which system holds the Story conversation.",
+      "created_at": "2026-11-02T13:47:28.747365Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "f9924314-20c5-4989-90b5-704a65160541",
+      "author": "home",
+      "text": "Ryan 11-02: one newsroom bot plus a separate conversation per Story; the newsroom bot can see all of them. PR 650 merged into Chatticus develop after Ryan's approval. Chatticus work is epic chatticus-4b2417. Open: whether people's Messages move onto Chatticus channels.",
+      "created_at": "2026-11-02T15:33:57.166779Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "8d66a808-6dfe-4939-952a-48d514b2ae85",
+      "author": "home",
+      "text": "Supersedes the earlier text: the conversation lives on a Chatticus channel, not a story_conversation MessageThread (PPY-f69829). The bot gets read and offer tools only. Run the point check on variations it makes. Needs a per-turn or per-channel spend ceiling.",
+      "created_at": "2026-11-02T16:32:18.653166Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-02T13:41:30.855015Z",
+  "updated_at": "2026-11-02T16:32:18.653444Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

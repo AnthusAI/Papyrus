@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4c2c06aa-1775-43b1-bfec-2c34afdf4278",
+  "issue_id": "PPY-52dd3649-44e1-42d6-a2c7-06d7e5a7b169",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T18:57:41.349Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Keep AWS account and resource ids out of site repositories",
+    "description": "",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

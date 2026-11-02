@@ -6,11 +6,11 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import logging
-import re
 from typing import Any
 
 from .env import graphql_endpoint, load_dotenv
 from .newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND
+from .section_ids import match_section
 
 LOGGER = logging.getLogger(__name__)
 PRECEDENCE = ['publication', 'section', 'assignment']
@@ -92,10 +92,6 @@ def hosted_publication(client, requested_key: str | None = None) -> dict:
             'tenantId': getattr(client, 'tenant_id', None)}
 
 
-def _slug(value: str) -> str:
-    return re.sub(r'[^a-z0-9]+', '-', value.lower()).strip('-')
-
-
 def find_section(client, value: str) -> dict | None:
     """The NewsroomSection a stored section value means: by id, then slug (the id's local part), then name (title or short title).
 
@@ -104,21 +100,7 @@ def find_section(client, value: str) -> dict | None:
     if direct:
         return direct
     lister = getattr(client, 'safe_list_records', None)
-    rows = lister('NewsroomSection') if lister else []
-    wanted = _slug(value)
-    names = lambda row: [name for name in (row.get('title'), row.get('shortTitle')) if isinstance(name, str)]
-    steps = [
-        lambda row: _slug(str(row.get('id') or '').split('#')[-1]) == wanted,
-        lambda row: any(name.strip().lower() == value.strip().lower() for name in names(row)),
-        lambda row: any(_slug(name) == wanted for name in names(row)),
-    ]
-    for step in steps:
-        matches = [row for row in rows if step(row)]
-        if len(matches) > 1:
-            raise ValueError(f'Section "{value}" is ambiguous: {", ".join(str(row.get("id")) for row in matches)}.')
-        if matches:
-            return matches[0]
-    return None
+    return match_section(lister('NewsroomSection') if lister else [], value)
 
 
 def resolve_editorial_context(client, *, endpoint: str, publication_key: str | None = None,

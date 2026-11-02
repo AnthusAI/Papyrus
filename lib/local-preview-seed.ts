@@ -71,9 +71,49 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
   });
 }
 
+/** Sample References that were accepted without an editor, for the "Accepted automatically" list: written as the router writes them. */
+const PREVIEW_AUTO_ACCEPTED: ReadonlyArray<{ title: string; host: string; hoursAgo: number; actor: "auto:cyclotron" | "auto:rule" | "editor"; confidence?: number; monitor?: string }> = [
+  { title: "Harbor commission publishes its dredging schedule for the winter", host: "harbor-commission.example.test", hoursAgo: 3, actor: "auto:cyclotron", confidence: 0.97 },
+  { title: "Daily ferry timetable, revised", host: "ferries.example.test", hoursAgo: 9, actor: "auto:rule", monitor: "ferry-notices" },
+  { title: "What the school board's redistricting maps leave out", host: "ledger.example.test", hoursAgo: 14, actor: "auto:cyclotron", confidence: 0.93 },
+  { title: "Zoning reversal: the three documents behind the vote", host: "city-records.example.test", hoursAgo: 20, actor: "editor" },
+  { title: "Lighthouse keepers' logbooks, digitised", host: "archive.example.test", hoursAgo: 31, actor: "auto:cyclotron", confidence: 0.91 },
+  { title: "Council meeting agenda, week 44", host: "council.example.test", hoursAgo: 40, actor: "auto:rule", monitor: "council-agendas" },
+  { title: "A bakery that outlasted four recessions", host: "market-gazette.example.test", hoursAgo: 55, actor: "auto:cyclotron", confidence: 0.9 },
+];
+
+function previewAutoAcceptedReason(plan: (typeof PREVIEW_AUTO_ACCEPTED)[number]): string {
+  if (plan.actor === "auto:rule") {
+    return `Accepted automatically by the ${plan.monitor} monitor's rule (every collected item): it delivers only items that match the rule, so there is no relevance prediction and the match is the acceptance. An editor can still Reject it.`;
+  }
+  return `Accepted automatically by the Cyclotron: it was ${((plan.confidence ?? 0) * 100).toFixed(1)}% sure this is relevant, at or above the 90.0% learned from 42 editor votes (estimated accept rate 97.6%, 95% lower bound 91.0%, target 90%), and nobody voted within 2.0 days, the 90% quantile of how long editors take. An editor can still Reject it.`;
+}
+
 export function createLocalPreviewReferences(): ReferenceRecord[] {
   const curationStatuses = ["pending", "accepted", "accepted", "rejected", "pending"];
-  return curationStatuses.map((curationStatus, index) => ({
+  const autoAccepted: ReferenceRecord[] = PREVIEW_AUTO_ACCEPTED.map((plan, index) => {
+    const at = isoTimestampHoursBeforeBase(plan.hoursAgo);
+    const editor = plan.actor === "editor";
+    return {
+      id: `preview-auto-reference-${index}`,
+      lineageId: `preview-auto-reference-lineage-${index}`,
+      versionNumber: 1,
+      versionState: "current",
+      corpusId: "preview-corpus",
+      externalItemId: `preview-auto-source-${index}`,
+      title: plan.title,
+      sourceUri: `https://${plan.host}/story-${index + 1}`,
+      curationStatus: "accepted",
+      curationStatusKey: "preview-corpus#accepted",
+      curationStatusUpdatedAt: at,
+      curationStatusUpdatedBy: editor ? "preview-editor" : plan.actor,
+      curationStatusReason: editor ? "Primary source for the zoning story." : previewAutoAcceptedReason(plan),
+      curationActorKind: editor ? "human" : plan.actor === "auto:rule" ? "rule" : "cyclotron",
+      importedAt: isoTimestampHoursBeforeBase(plan.hoursAgo + 50),
+      updatedAt: at,
+    };
+  });
+  const sampled = curationStatuses.map((curationStatus, index): ReferenceRecord => ({
     id: `preview-reference-${index}`,
     lineageId: `preview-reference-lineage-${index}`,
     versionNumber: 1,
@@ -87,6 +127,7 @@ export function createLocalPreviewReferences(): ReferenceRecord[] {
     importedAt: isoTimestampHoursBeforeBase(index * 5),
     updatedAt: isoTimestampHoursBeforeBase(index * 5),
   }));
+  return [...sampled, ...autoAccepted];
 }
 
 export function createLocalPreviewAssignments(): AssignmentRecord[] {

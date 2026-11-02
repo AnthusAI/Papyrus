@@ -1,0 +1,20 @@
+{
+  "id": "PPY-52dd3649-44e1-42d6-a2c7-06d7e5a7b169",
+  "title": "Keep AWS account and resource ids out of site repositories",
+  "description": "",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T18:57:41.349324Z",
+  "updated_at": "2026-11-02T18:57:41.349757Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

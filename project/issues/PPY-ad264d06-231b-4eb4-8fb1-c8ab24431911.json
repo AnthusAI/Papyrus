@@ -10,9 +10,17 @@
   "parent": "PPY-c6aced07-9898-4b25-849b-10013cb69441",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "1f6a2cac-d382-4706-9361-d4747a4f2a78",
+      "author": "home",
+      "text": "Ryan 11-02: the target stays at 90% until votes clear it. Editors can confirm or reject auto-accepted items from a new list (PR 1048, on develop, not released).",
+      "created_at": "2026-11-02T18:44:19.101119Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-29T10:38:53.687796Z",
-  "updated_at": "2026-10-29T10:40:24.893396Z",
+  "updated_at": "2026-11-02T18:44:19.101964Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

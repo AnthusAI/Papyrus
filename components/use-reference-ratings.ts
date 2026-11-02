@@ -41,12 +41,17 @@ export type RatingController = {
  * A Reject needs a reason (the backend refuses one without): words or a reason code, whichever the surface asks for. With neither it
  * waits as `pending` until one arrives; a typed reason is kept in the store until it is saved and is never dropped by a failed save.
  */
-export function useRatingStore({ save, saved, seed, needsReason, sticky, saveNote }: {
+export function useRatingStore({ save, saved, seed, needsReason, confirms, sticky, saveNote }: {
   save: RatingSave;
   saved: (id: string) => ReviewChoice | null;
   seed: (id: string) => { note: string; reasonCode: ReferenceRejectionReasonCode | null };
   /** Whether a Reject on this item must wait for a reason code. Default yes (a Reference); an AI draft or an email asks nothing. */
   needsReason?: (id: string) => boolean;
+  /**
+   * True for an item whose Accept is a confirmation of something the system accepted for it (an automatic acceptance). The Accept then waits
+   * for the editor to say why, if they wish, and is recorded with "Record"; an explanation typed first goes out with the tap.
+   */
+  confirms?: (id: string) => boolean;
   /**
    * True for an item whose decision, once made, cannot be sent again (an AI draft moves its Proposal, a review request closes, a held email is
    * queued). A reason typed after such a decision goes to `saveNote` instead, onto the decision that exists.
@@ -57,8 +62,8 @@ export function useRatingStore({ save, saved, seed, needsReason, sticky, saveNot
 }): RatingController {
   const [items, setItems] = useState<Record<string, ItemRating>>({});
   const itemsRef = useRef(items);
-  const latest = useRef({ save, saved, seed, needsReason, sticky, saveNote });
-  latest.current = { save, saved, seed, needsReason, sticky, saveNote };
+  const latest = useRef({ save, saved, seed, needsReason, confirms, sticky, saveNote });
+  latest.current = { save, saved, seed, needsReason, confirms, sticky, saveNote };
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const inFlight = useRef<Set<string>>(new Set());
   const dirty = useRef<Set<string>>(new Set());
@@ -115,6 +120,8 @@ export function useRatingStore({ save, saved, seed, needsReason, sticky, saveNot
     // code the editor did not pick: the backend reads the words for the code they name, and files words
     // that name none under "other". Only a Reject with neither words nor a code waits for one.
     if (choice === "reject" && !reasonCode && !note.trim() && (latest.current.needsReason?.(id) ?? true)) { patch(id, { pending: "reject", askReason: true }); return; }
+    // Confirming an automatic acceptance: the box is offered first and the explanation is optional, so "Record" (or any words typed) sends it.
+    if (choice === "accept" && !note.trim() && latest.current.confirms?.(id) && !itemsRef.current[id]?.askReason) { patch(id, { pending: "accept", askReason: true }); return; }
     if (inFlight.current.has(id)) { dirty.current.add(id); return; }
     inFlight.current.add(id);
     dirty.current.delete(id);

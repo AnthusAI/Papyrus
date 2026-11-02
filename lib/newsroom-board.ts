@@ -6,6 +6,7 @@ import {
   canonicalContentItemStage,
   contentItemStageKeys,
   contentItemStageLabel,
+  isStoryItemType,
   latestVersionPerContentItem,
   type ContentItemVersionRecord,
 } from "./content-item-lifecycle";
@@ -92,7 +93,8 @@ export function projectContentItemBoard(records: {
   const contentItemType = contentItemBoardType();
   const stageDefinitions = getContentItemStageDefinitions();
   const stageKeys = contentItemStageKeys(stageDefinitions);
-  const contentItemVersionsOnBoard = latestVersionPerContentItem(records.contentItemVersions)
+  // The loaders already ask for story types only; this keeps a non-story Item out of the cards and the counts whatever fed it in.
+  const contentItemVersionsOnBoard = latestVersionPerContentItem(records.contentItemVersions.filter(version => isStoryItemType(version.type)))
     .map(version => ({ version, stage: canonicalContentItemStage(version.stage ?? "idea", stageDefinitions) }))
     .filter(({ stage }) => stageKeys.includes(stage) || !ASSIGNMENT_PHASE_STAGE_KEYS.includes(stage));
   return contentItemVersionsOnBoard.map(({ version, stage }) => {

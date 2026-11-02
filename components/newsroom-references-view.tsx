@@ -24,6 +24,8 @@ import {
 } from "../lib/newsroom-index-filters";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import {
+  referenceListFilterFromSearch,
+  referenceListFilterToUrlStatus,
   countReferencesByStatus,
   filterReferencesByStatus,
   formatReferenceListDate,
@@ -37,6 +39,9 @@ import {
   type ReferenceStatusFilter,
 } from "../lib/newsroom-references";
 import { AutoAcceptedBadge } from "./auto-accepted-badge";
+import { AutoAcceptedList } from "./auto-accepted-list";
+import { useAutoAcceptedReferences, type AutoAcceptedReader } from "./use-auto-accepted-references";
+import { autoAcceptedFromRecords, laterVoteRecord } from "../lib/auto-accepted-references";
 import { isAutoAccepted, normalizeReferenceCurationStatus, referenceReasonCode, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
@@ -143,13 +148,15 @@ type NewsroomReferencesViewProps = {
   onCorrectCapture?: CorrectCaptureAction;
   /** True while the References are still being read: the feed shows card skeletons instead of an empty page. */
   loading?: boolean;
+  /** Reads one page of the "Accepted automatically" list from the database (newest first). Without it the list is built from the loaded References. */
+  loadAutoAccepted?: AutoAcceptedReader;
   /** The last view this browser saved. Shown, read only, until the live read arrives. */
   savedCopy?: { references: ReferenceRecord[]; previews: Array<[string, ReferencePreview]>; decisions: Array<[string, RelevanceDecisionView]> } | null;
 };
 
 type ReferenceView = "feed" | "list";
 
-type ReferenceListFilter = ReferenceStatusFilter | "needs_review";
+type ReferenceListFilter = ReferenceStatusFilter | "auto_accepted" | "needs_review";
 
 const NEEDS_REVIEW_FILTER: { key: ReferenceListFilter; label: string } = { key: "needs_review", label: "Needs review" };
 
@@ -157,6 +164,8 @@ const STATUS_FILTERS: Array<{ key: ReferenceListFilter; label: string }> = [
   { key: "all", label: "All" },
   { key: "pending", label: "Pending" },
   { key: "accepted", label: "Accepted" },
+  // No count: the Newsroom summary counts by status, not by who accepted, so a number here could not be kept right.
+  { key: "auto_accepted", label: "Accepted automatically" },
   { key: "rejected", label: "Rejected" },
   { key: "archived", label: "Archived" },
 ];
@@ -276,7 +285,8 @@ function ReferenceDetailPanel({
     >
       <div className="space-y-4 p-4" data-reference-curation-status={status}>
         <ReviewCard
-          decided={status === "accepted" ? "accept" : status === "rejected" ? "reject" : null}
+          confirmsAutomatic={auto}
+          decided={status === "accepted" && !auto ? "accept" : status === "rejected" ? "reject" : null}
           dek={referenceDek(reference, referencePreviewsByLineage(previewAttachments).get(lineageId))}
           disabledReason={disabled ? "Editor access is required to change this reference." : null}
           initialNote={sourceNote}
@@ -412,6 +422,7 @@ export function NewsroomReferencesView({
   loading = false,
   onCorrectCapture,
   savedCopy = null,
+  loadAutoAccepted,
 }: NewsroomReferencesViewProps) {
   const pathname = usePathname();
   const sessionImport = useReferenceImport(disabled);
@@ -491,6 +502,13 @@ export function NewsroomReferencesView({
   const statusCounts = useMemo(() => countReferencesByStatus(canonicalReferences), [canonicalReferences]);
 
   const [statusFilter, setStatusFilter] = useState<ReferenceListFilter>(routeLineageId ? "all" : "pending");
+  // `?status=` opens the list on that filter (the page writes it when a filter is chosen); "Accepted automatically" is `?status=auto-accepted`.
+  useEffect(() => {
+    const requested = typeof window === "undefined" ? null : referenceListFilterFromSearch(window.location.search);
+    if (!requested) return;
+    setView("list");
+    setStatusFilter(requested);
+  }, []);
   const needsReviewCount = useMemo(
     () => canonicalReferences.filter((reference) => needsReview(reference, decisions?.get(referenceLineageId(reference)))).length,
     [canonicalReferences, decisions],
@@ -498,11 +516,38 @@ export function NewsroomReferencesView({
   const filters = decisions?.size ? [NEEDS_REVIEW_FILTER, ...STATUS_FILTERS] : STATUS_FILTERS;
   const [selectedLineageId, setSelectedLineageId] = useState(routeLineageId);
 
+  // "Accepted automatically": a page at a time from the database, never a scan of every Reference. A card follows an editor's later vote
+  // in this session (a Reject takes it out).
+  const autoOpen = statusFilter === "auto_accepted";
+  const liveReferencesRef = useRef(liveReferences);
+  liveReferencesRef.current = liveReferences;
+  const readAutoAccepted = useMemo<AutoAcceptedReader>(
+    () => loadAutoAccepted ?? (async () => ({ items: autoAcceptedFromRecords(liveReferencesRef.current), nextToken: null, hasMore: false })),
+    [loadAutoAccepted],
+  );
+  const autoRead = useAutoAcceptedReferences({ enabled: autoOpen && !showingSavedCopy, read: readAutoAccepted });
+  // Lineages an editor has voted on from here: they leave the list as soon as the vote is saved, whatever the page's own copy says.
+  const [votedHere, setVotedHere] = useState<ReadonlySet<string>>(() => new Set());
+  const autoRecords = useMemo(() => {
+    const held = new Map(canonicalReferences.map((reference) => [referenceLineageId(reference), reference] as const));
+    return autoRead.items
+      .map((read) => laterVoteRecord(read, held.get(referenceLineageId(read))))
+      .filter((reference) => !votedHere.has(referenceLineageId(reference)) && isAutoAccepted(reference));   // an editor's vote (a Reject, a later Accept, an archive) ends the automatic acceptance, so the card leaves
+  }, [autoRead.items, canonicalReferences, votedHere]);
+  const autoLineageIds = useMemo(() => autoRecords.map(referenceLineageId), [autoRecords]);
+  const autoIdsKey = autoLineageIds.join("\u0000");
+  useEffect(() => {
+    if (autoOpen && autoLineageIds.length) onRequestPredictions?.(autoLineageIds);
+    // `autoIdsKey` stands for `autoLineageIds`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpen, autoIdsKey, onRequestPredictions]);
   const filteredReferences = useMemo(
-    () => statusFilter === "needs_review"
+    () => statusFilter === "auto_accepted"
+      ? autoRecords
+      : statusFilter === "needs_review"
       ? canonicalReferences.filter((reference) => needsReview(reference, decisions?.get(referenceLineageId(reference))))
       : filterReferencesByStatus(canonicalReferences, statusFilter),
-    [canonicalReferences, decisions, statusFilter],
+    [autoRecords, canonicalReferences, decisions, statusFilter],
   );
 
   const selectedReference = useMemo(
@@ -550,7 +595,7 @@ export function NewsroomReferencesView({
   const syncStatusUrl = useCallback((nextStatus: ReferenceListFilter) => {
     if (demo) return;
     const filters = {
-      status: nextStatus === "all" ? "" : nextStatus,
+      status: referenceListFilterToUrlStatus(nextStatus),
       processing: "",
       order: "published" as const,
     };
@@ -615,7 +660,8 @@ export function NewsroomReferencesView({
   // One rating store for the whole view: the grid cards and the detail pane read and write the same state, so a vote or a reason
   // entered in either shows in both. Reason then vote, or vote then reason, both end up on one decision.
   const sectionChoices = useRef<Map<string, string | null>>(new Map());
-  const referenceById = (lineageId: string) => selectedReferenceRecordByLineage(canonicalReferences, lineageId);
+  const referenceById = (lineageId: string) => selectedReferenceRecordByLineage(canonicalReferences, lineageId)
+    ?? autoRead.items.find((item) => referenceLineageId(item) === lineageId) ?? null;
   const ratings = useRatingStore({
     save: async (lineageId, choice, detail) => {
       const reference = referenceById(lineageId);
@@ -629,16 +675,21 @@ export function NewsroomReferencesView({
         ...(sectionId ? { sectionId } : {}),
         ...(decision ? { decisionRelationId: decision.decisionRelationId, shareable: false } : {}),
       });
+      setVotedHere((current) => new Set(current).add(lineageId));
     },
     saved: (lineageId) => {
-      const status = normalizeReferenceCurationStatus(referenceById(lineageId)?.curationStatus);
-      return status === "accepted" ? "accept" : status === "rejected" ? "reject" : null;
+      const reference = referenceById(lineageId);
+      const status = normalizeReferenceCurationStatus(reference?.curationStatus);
+      // An automatic acceptance is not an editor's answer: Accept on it is a confirmation, Reject an overturn.
+      return status === "accepted" && !(reference && isAutoAccepted(reference)) ? "accept" : status === "rejected" ? "reject" : null;
     },
+    confirms: (lineageId) => { const reference = referenceById(lineageId); return Boolean(reference && isAutoAccepted(reference)); },
     seed: (lineageId) => {
       const reference = referenceById(lineageId);
       const status = normalizeReferenceCurationStatus(reference?.curationStatus);
       return {
-        note: reference && status !== "pending" ? reference.curationStatusReason ?? "" : "",
+        // An automatic acceptance's reason is the router's, not the editor's: it must not become the reason of an editor's Reject.
+        note: reference && status !== "pending" && !isAutoAccepted(reference) ? reference.curationStatusReason ?? "" : "",
         reasonCode: reviewReasons?.get(lineageId) ?? (reference ? referenceReasonCode(reference) : null) ?? null,
       };
     },
@@ -839,7 +890,7 @@ export function NewsroomReferencesView({
               return (
                 <TabsTrigger className="text-xs sm:text-sm" key={filter.key} value={filter.key}>
                   {filter.label}
-                  <Badge className="ml-1.5 min-w-5 px-1.5" variant="secondary">{count}</Badge>
+                  {filter.key === "auto_accepted" ? null : <Badge className="ml-1.5 min-w-5 px-1.5" variant="secondary">{count}</Badge>}
                 </TabsTrigger>
               );
             })}
@@ -847,6 +898,31 @@ export function NewsroomReferencesView({
         </Tabs>
 
         <ScrollArea className="min-h-0 flex-1">
+          {statusFilter === "auto_accepted" ? (
+            <div className="px-1.5 pb-6 pt-1.5 pr-2.5" {...FEED_SURFACE_PROPS}>
+              <AutoAcceptedList
+                captures={showCaptures ? captureStatuses : undefined}
+                decisions={decisions}
+                disabledReason={feedDisabledReason}
+                error={autoRead.error}
+                hasMore={autoRead.hasMore}
+                items={autoRecords}
+                loading={autoRead.loading}
+                loadingMore={autoRead.loadingMore}
+                messageCounts={messageCounts}
+                now={mountedAt}
+                onLoadMore={autoRead.loadMore}
+                onOpen={selectReference}
+                onRate={rateFromFeed}
+                onRetry={autoRead.retry}
+                onRetryPrediction={onRetryPrediction}
+                predictionStatuses={predictionStatuses}
+                previews={previews}
+                ratings={ratings}
+                selectedLineageId={selectedLineageId}
+              />
+            </div>
+          ) : (
           <div className="flex flex-col gap-2 pb-4" data-newsroom-card-grid>
             {filteredReferences.length ? filteredReferences.map((reference) => {
               const lineageId = referenceLineageId(reference);
@@ -893,6 +969,7 @@ export function NewsroomReferencesView({
               </Card>
             )}
           </div>
+          )}
         </ScrollArea>
           </>
         )}

@@ -21,7 +21,7 @@ import test_monitoring_stories as tms  # noqa: E402
 from field_recorder import FieldRecorder  # noqa: E402
 from fake_idea_store import FakeIdeaStore  # noqa: E402
 from ideas_fixtures import NOW  # noqa: E402
-from test_monitor_stories import StoryModel, pages, world  # noqa: E402
+from test_monitor_stories import StoryModel, pages, with_editors_reasons, world  # noqa: E402
 from papyrus_content import monitoring_vectors as vectors  # noqa: E402
 from papyrus_content.monitoring_router import run_router, validate_router_config  # noqa: E402
 from papyrus_content.monitoring_stories import run_publication, validate_monitor_stories  # noqa: E402
@@ -316,6 +316,7 @@ def run_task(store, client, order, monkeypatch, *, key="sk-test", accepted_rows=
         suggester=lambda c, provider, reference_id, **options: (order.append("suggest"), pass_.suggester(c, provider, reference_id, **options))[1],
         provider_for=lambda arn: object(), calibration_loader=lambda c: None))
     model = StoryModel()
+    with_editors_reasons(client)   # a single item needs something the newsroom knows beyond its source
     endpoints = {tr.ENDPOINT.replace("abc123", "api0"): client}
     out = io.StringIO()
 

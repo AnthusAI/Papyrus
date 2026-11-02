@@ -30,7 +30,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | Key | Contents |
 |---|---|
 | `site` | `name`, `shortName`, `publisher`, `tagline`, `description`, `language` (default `en`), `productionUrl`, `author`, `componentsCss` (default `true`: ship the baseline component CSS), `summaryFields` (ordered front matter fields for the summary; default `description`, `summary`, `excerpt`, `blurb`, `dek`, `standfirst`), `dateFormat` (a `strftime` pattern such as `%B %d, %Y` for the dates the core components and the article header print; default: ISO dates), `ledeField` (a front matter field whose text is printed as the article's lede under its title, in place of the summary-derived one; default: none) |
-| `urls` | `style`: `html` (`/x.html`, default), `directory` (`/x/`) or `clean` (stored as `x.html`, addressed as `/x`). `sections`: `{ "<section>": { base, label, description, pages, listing, listingPage, feed, sitemap, linkField, pageSize, listEmpty, sort, groupBy, archive } }`. Leave it out for a site without sections. `basePath` (for example `"/posts"`): every page and file Papyrus generates, and every URL it builds, lives under that path, so another site's CDN can serve the projection with one route (see [Serving a projection under a host site's path](site-hosting.md#serving-a-projection-under-a-host-sites-path)). Paths you write yourself (nav and footer links, `seo` and `icons` paths, redirects, aliases, links in articles) are request paths and are used as written, so they include the base path. `404.html` and `robots.txt` stay at the bucket root. Image renditions, listing copies and `media.originals` objects live under the base path too (`/posts/assets/responsive/...`), and the image URLs in a page are root-relative under it (a site at the root keeps page-relative `../assets/...` URLs) |
+| `urls` | `style`: `html` (`/x.html`, default), `directory` (`/x/`) or `clean` (stored as `x.html`, addressed as `/x`). `sections`: `{ "<section>": { base, label, description, pages, listing, listingPage, feed, sitemap, linkField, pageSize, listEmpty, sort, groupBy, archive, aliases } }`. `types`: `{ "<Item type>": { base, label, ... } }`, the same settings keyed on the Item's type instead of its section (see "Sections and types"). Leave both out for a site without sections. `basePath` (for example `"/posts"`): every page and file Papyrus generates, and every URL it builds, lives under that path, so another site's CDN can serve the projection with one route (see [Serving a projection under a host site's path](site-hosting.md#serving-a-projection-under-a-host-sites-path)). Paths you write yourself (nav and footer links, `seo` and `icons` paths, redirects, aliases, links in articles) are request paths and are used as written, so they include the base path. `404.html` and `robots.txt` stay at the bucket root. Image renditions, listing copies and `media.originals` objects live under the base path too (`/posts/assets/responsive/...`), and the image URLs in a page are root-relative under it (a site at the root keeps page-relative `../assets/...` URLs) |
 | `nav` | `links: [{label, href, cta, external, children}]` (`external` adds `rel="noopener"`; `children: [{label, href}]` makes a dropdown group, see "Header and footer options"), `disclosure` (a menu button for narrow screens), `homeLabel`, `brandHtml` (trusted markup inside the wordmark link) |
 | `footer` | `columns: [{title, links}]`, `text`, `family` (the Anthus family footer, see "Header and footer options") |
 | `seo` | `defaultImage`, `defaultImageAlt` (its alt text, used when a page's share image is the default), `homeSocialTitle` (the generated home page's og/twitter title when it differs from the site name), `imageSize: [w, h]`, `twitterSite`, `twitterCreator`, `jsonLdTypes: {section-or-type: "NewsArticle"}`, `defaultJsonLd`, `publisherName`, `breadcrumbs`, `isBasedOnField` (a front matter field holding the absolute URL of the original a page is based on; it becomes `isBasedOn` in the article JSON-LD), `articleTypes` (entry types that are not listed but still report `og:type` article and Article JSON-LD) |
@@ -72,6 +72,57 @@ An item's section comes from its CMS path (`essays/slow-water`). A section lists
 no page, appear in listings as cards that link to `linkField` (front matter `url` by default), and are never in
 the sitemap or the feeds. `feed: false`, `sitemap: false`, `listing: false` take a section out of that one view. `groupBy` (`week`, Monday start, `month`, or `field:<front matter field>`, which groups by that field's value in the listing's own order, with entries lacking it last under "Other") gives the listing view dated groups (`listing.groups`) which the default listing renders under headings, `archive` (`{by: month|year, base, description}`) adds one page per month or year that has entries at `/<section>/<archive base>/<YYYY-MM>/` (in the sitemap, each with its own inputs), An item named `index` in a declared section is that section's **introduction**: it has no page of its own; its body (and title and description) head the section's listing at `/<base>/`, and a line `{{ section listing }}` in it places the generated cards (otherwise they follow the introduction). `sort: "order"` lists a section by front matter `order` (ascending, then title) instead of newest first. `pageSize` overrides the site's page size for the section, `description` is its listing's meta description, and `listEmpty: true` keeps its listing page when it has no entries (by default an empty section has no page).
 Items in a section that is not declared are ignored; items with no section are root pages (`/about.html`).
+
+### Sections and types
+
+A Story has a **type** (`article`, `post`) and a **section**: the topic it is about, which holds the id of a newsroom section
+(`agent-security`) or nothing. They are two attributes, and a site chooses which one decides where its pages live. A
+`urls.types` entry takes exactly the settings of a `urls.sections` entry and is keyed on `Item.type`:
+
+```json
+"urls": { "style": "directory",
+  "types": {
+    "article": { "base": "articles", "label": "Articles", "listingPage": false },
+    "post":    { "base": "posts", "label": "Posts" }
+  },
+  "sections": { "platform": { "base": "platform", "listingPage": false } }
+}
+```
+
+With that, an article whose section is `agent-security`, `unsectioned` or nothing at all is published at `/articles/<slug>/`, listed
+on the articles listing (when it has a listing page), in the sitemap and in the feeds. The rules, in order:
+
+1. A section the site declares in `urls.sections` (by its name, or by one of its `aliases`) decides the group. A declared section
+   therefore wins over the type: that is how Distinctive's `/rulings/` and Shipped's `/open-weights/` stay topic URLs.
+2. Otherwise the group declared for the Item's type in `urls.types` decides it, whatever the Item's section string is.
+3. Otherwise an Item with a section the site does not declare is ignored (as before), and an Item with no section is a root page.
+
+A site that declares no `urls.types` behaves exactly as it did; there is no other change to read. A type group's name is
+`type:<type>` wherever a group is named (`homePage.homeSections`, a hook's `listing.section`, `entry.section.name`), so it can
+never be mistaken for a section; `entry.section.item_type` is the type (`None` for a section). The type groups come first in
+every list of groups, then the sections in their order. A type group may not share a listing base with another group.
+
+The section as a topic is still there: `select.sections` (collections, `tagSelect`, `::include` `sections=`), `DEPENDS_ON` and
+`seo.jsonLdTypes` read the Item's topic (`entry.topic`: the declared section's name, or the section stored on an Item whose group is
+its type), and `select.types` / `notTypes` select by type. A topic listing is a collection with `"select": {"sections": ["agent-security"]}`;
+there is no other topic page. A type that is not `article` or `page` is projected when `urls.types` names it, as when `listings.types` does.
+
+`aliases` on a section lists other stored `section` values that mean the same section, for data written before the ids were used
+(`"aws": { "base": "aws", "aliases": ["AWS"] }`). It lets a site key its sections on ids while the stored values are migrated.
+
+**Moving a site from section keys to type keys** takes four steps, in this order, and moves no address:
+
+1. Change `web/projection.json` (`urls.sections.articles` becomes `urls.types.article`; collections, `tagSelect` and `::include`
+   lines that said `sections: ["articles"]` say `types: ["article"]`) and any site hook that tested `summary.section == "articles"`.
+   This works with the data as it is, because an Item whose section is not declared still falls to its type.
+2. Prove it: `python -m papyrus_content.projection.url_compare compare --snapshot rows.json --old-static old/web --new-static new/web --plan plan.json`
+   projects the site's published rows twice into temporary directories and diffs every generated path, the sitemap, the feeds and the
+   redirects (exit status 1 if any differ). `rows.json` is a read-only scan of the `PublishedItem` table; the tool never writes to a
+   backend or a bucket. With `--plan` the new side also has the migrated sections.
+3. Deploy the site change.
+4. Clear the stored values: `python -m papyrus_content.section_migration plan --site NAME --scan-dir scans --static web` prints what would
+   change (a dry run: it never writes) and is blocked while the configuration still needs an old value; `apply --plan FILE
+   --confirm-site NAME --yes` writes it. See [content item lifecycle](content-item-lifecycle.md#story-types-and-sections).
 
 ### Entries
 
@@ -195,7 +246,7 @@ once):
 
 | Key | Meaning |
 |---|---|
-| `select` | `sections` (names; `@root` is the items with no section), `tags` (any of), `allTags` (all of), `notTags` (none of), `types` (Story types, any of; `article`, `post`, ...), `notTypes` (Story types, none of). Tags and types compare case-insensitively. Only listed entries (published, not drafts, of a listed type) are selected |
+| `select` | `sections` (names of the Item's section as a topic; `@root` is the items with no section), `tags` (any of), `allTags` (all of), `notTags` (none of), `types` (Story types, any of; `article`, `post`, ...), `notTypes` (Story types, none of). Tags and types compare case-insensitively. Only listed entries (published, not drafts, of a listed type) are selected |
 | `pageSize`, `featuredCount` | default to the site's `listings` values; page 1 shows `featuredCount` + `pageSize` entries (the first `featuredCount` are `listing.featured`), later pages `pageSize` |
 | `sort`, `ties` | `date` (newest first, default), `order` (front matter `order`, then title) or `title`; entries with equal dates go `slug-desc` (default) or `slug-asc` |
 | `drafts` | page 1's `listing.drafts` carries the draft entries the selection would pick if they were published (for a hook that shows them); they are never in the listing, tag pages, feeds or the sitemap |

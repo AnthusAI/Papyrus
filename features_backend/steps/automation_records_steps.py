@@ -270,6 +270,8 @@ def no_secrets(context):
 def run_cli(context, line):
     import contextlib
     import io
+    import os
+    import unittest.mock
     import papyrus_content.graphql_authoring as graphql_authoring
     words = line.split()
     assert words[0] == "automations"
@@ -278,7 +280,7 @@ def run_cli(context, line):
     au.monitoring_reader_from_environment = lambda env=None: context.reader
     out, context.cli_error = io.StringIO(), None
     try:
-        with contextlib.redirect_stdout(out):
+        with contextlib.redirect_stdout(out), unittest.mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}):   # the AWS lane, whatever session the machine holds
             au.run_command(words[1], words[2:])
     except au.AutomationError as error:
         context.cli_error = str(error)

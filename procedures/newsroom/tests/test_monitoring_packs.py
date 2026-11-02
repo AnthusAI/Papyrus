@@ -15,7 +15,7 @@ import test_monitoring_router as tr  # noqa: E402
 from field_recorder import FieldRecorder  # noqa: E402
 from ideas_fixtures import NOW, entity, reference  # noqa: E402
 from test_idea_pack_stories import idea as pack_idea  # noqa: E402
-from test_monitor_stories import MonitorClient, StoryModel, pages, provenance  # noqa: E402
+from test_monitor_stories import MonitorClient, StoryModel, is_point_check, pages, provenance, with_editors_reasons  # noqa: E402
 from test_monitoring_stories import PUBLICATION, fake_idea_sink, iam_auth, quiet_gate, router, run_task  # noqa: E402,F401  (the fixtures are the task tests' own)
 from papyrus_content.ideas import pack_stories  # noqa: E402
 
@@ -38,8 +38,9 @@ def human_vote(number, days_ago, concept):
 class PackWorld(MonitorClient):
     """A backend with monitored References (r1..rN), the site's human votes, concepts, message threads and existing ideas."""
 
-    def __init__(self, *args, threads=(), thread_messages=None, nodes=(), messages=None, **kwargs) -> None:
+    def __init__(self, *args, threads=(), thread_messages=None, nodes=(), messages=None, summaries=True, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self.summaries = summaries
         self.threads = list(threads)
         self.thread_messages = thread_messages or {}
         self.nodes = list(nodes)
@@ -51,6 +52,10 @@ class PackWorld(MonitorClient):
         if model == "SemanticNode":
             return list(self.nodes)
         return super().list_records(model)
+
+    def list_reference_attachments_by_lineage(self, lineage_id):
+        """Every Reference has a curated summary, so a pack is written from summaries and not from titles."""
+        return [{"role": "curation", "status": "active", "metadata": json.dumps({"summary": {"text": f"A summary of {lineage_id}."}})}] if self.summaries else []
 
     def get_record(self, model, record_id):
         return dict(self.messages[record_id]) if model == "Message" and record_id in self.messages else super().get_record(model, record_id)
@@ -65,13 +70,15 @@ VOICE_NODE = {"id": "node-voice-v1", "lineageId": "concept-voice", "versionState
               "nodeKind": "concept", "displayName": "Voice cloning", "description": "Synthetic voices."}
 
 
-def pack_world(monitored=2, *, lively=(), burst=9, ideas=()):
+def pack_world(monitored=2, *, lively=(), burst=9, ideas=(), summaries=True, reasoned=True):
     """``monitored`` monitored References; ``burst`` human accepts of the voice concept in the last days after twenty-one steady accepts of another one;
     a lively thread of Messages on each monitored Reference number in ``lively``; ``ideas`` existing idea Items."""
     monitored_rows, base = [], None
     from test_monitor_stories import world
 
     monitored_rows, base = world(monitored)
+    if reasoned:
+        with_editors_reasons(base)   # a single item needs something the newsroom knows beyond its source
     rows, relations, threads, thread_messages = list(monitored_rows), dict(base.relations), [], {}
     for number in range(1, 22):
         row, links = human_vote(100 + number, 70 - number * 3, "concept-other")
@@ -88,7 +95,7 @@ def pack_world(monitored=2, *, lively=(), burst=9, ideas=()):
             {"id": f"m-{number}-{count}", "threadId": f"thread-{number}", "status": "active", "role": "human", "authorKind": "staff", "content": f"Comment {count}",
              "createdAt": days_before(0.5 + count * 0.1)} for count in range(6)]
     return PackWorld(references=rows, relations=relations, incoming=base.incoming, sections=("Analysis", "Tools"), threads=threads,
-                     thread_messages=thread_messages, nodes=[VOICE_NODE], items=list(ideas))
+                     thread_messages=thread_messages, nodes=[VOICE_NODE], items=list(ideas), summaries=summaries)
 
 
 class RouterModel(StoryModel):
@@ -102,6 +109,8 @@ class RouterModel(StoryModel):
                                     pack_idea("Consent rules lag behind cloning tools", ["R3", "R4"], dek="Editors keep returning to the same open question.")]
 
     def __call__(self, url, headers, payload):
+        if is_point_check(payload):
+            return super().__call__(url, headers, payload)   # a point check is neither a pack call nor an item call
         if payload["instructions"].startswith("You propose story ideas for a publication from a theme"):
             self.pack_requests.append(payload)
             self.order.append("pack")
@@ -147,7 +156,8 @@ def test_one_run_walks_one_queue_of_a_pack_and_a_single_item_and_raises_one_revi
     assert (line["packs"], line["ideasFromPacks"], line["packsSkippedNoNewEvidence"]) == (1, 2, 0)
     assert line["packDetails"] == [{"signal": "acceptance", "anchor": "concept-voice", "correctedPValue": pytest.approx(5.9e-05, rel=0.2), "ideas": 2}]
     assert line["drafted"] == 3 and line["status"] == "complete" and line["stoppedBy"] is None   # two ideas from the pack and the one single item the signals single out
-    assert line["candidates"] == 1 and len(model.pack_requests) == 1 and len(model.requests) == 1
+    assert line["candidates"] == 1 and len(model.pack_requests) == 1 and len(model.drafting) == 1
+    assert len(model.checks) == 3   # a point check for each of the pack's two ideas and for the single item
     assert len(filing.filed) == 2 and len(client.filed) == 1
     assert {record["origin"] for record in filing.filed} == {"context-pack"}
     assert len(client.reviews) == 1   # one soft review request for the run, packs and single items together
@@ -209,7 +219,7 @@ def test_single_item_false_runs_the_packs_only(monkeypatch):
     model = RouterModel()
     _, lines = run_packs(client, model, {"singleItem": False})
     line = pack_lines(lines)
-    assert line["drafted"] == 2 and line["candidates"] == 0 and model.requests == [] and len(filing.filed) == 2
+    assert line["drafted"] == 2 and line["candidates"] == 0 and model.drafting == [] and len(model.checks) == 2 and len(filing.filed) == 2
 
 
 def test_context_packs_off_with_single_item_on_is_the_task_as_it_was(monkeypatch):
@@ -251,10 +261,10 @@ def test_packs_and_single_items_share_one_cost_meter_and_one_cost_stop(monkeypat
     from papyrus_content.monitoring_stories import run_publication
     from test_monitoring_stories import pages
 
-    _, lines = run_task_with(store, client, model, partial(run_publication, fetch=pages(1, 2), explorer=None, maximum_cost_usd=0.0435))
+    _, lines = run_task_with(store, client, model, partial(run_publication, fetch=pages(1, 2), explorer=None, maximum_cost_usd=0.1305))
     line = pack_lines(lines)
     assert line["stoppedBy"] == "cost" and line["status"] == "stopped"
-    assert line["costUsd"] == pytest.approx(0.043) and line["drafted"] == 2   # the pack went first and spent 0.043; the single item's estimate no longer fitted under 0.0435
+    assert line["costUsd"] == pytest.approx(0.129) and line["drafted"] == 2   # the pack went first and spent 0.129 (its call and the point check of each of its two ideas); the single item's estimate no longer fitted under 0.1305
     assert len(client.filed) == 0 and len(filing.filed) == 2
 
 
@@ -490,7 +500,7 @@ def test_the_router_zip_closure_carries_the_pack_modules_and_they_import_with_on
     build = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(build)
     modules = build.router_modules()
-    needed = ["ideas/signal_inputs", "ideas/signal_queue", "ideas/context_packs", "ideas/item_signals", "ideas/pack_stories", "monitoring_stories"]
+    needed = ["ideas/signal_inputs", "ideas/signal_queue", "ideas/context_packs", "ideas/item_signals", "ideas/pack_stories", "ideas/connections", "monitoring_stories"]
     assert set(needed) <= set(modules), sorted(set(needed) - set(modules))
     task = tmp_path / "task"
     for name in ["__init__", *modules]:
@@ -499,7 +509,7 @@ def test_the_router_zip_closure_carries_the_pack_modules_and_they_import_with_on
         shutil.copy(root / "src" / "papyrus_content" / f"{name}.py", target)
     shutil.copytree(Path(yaml.__file__).parent, task / "yaml")
     script = ("import sys; sys.path.insert(0, sys.argv[1])\n"
-              "from papyrus_content.ideas import signal_inputs, signal_queue, context_packs, item_signals, pack_stories\n"
+              "from papyrus_content.ideas import signal_inputs, signal_queue, context_packs, item_signals, pack_stories, connections, monitor_stories\n"
               "from papyrus_content import monitoring_stories\n"
               "assert monitoring_stories.validate_monitor_stories('p', None)['contextPacks']['enabled']\n"
               "assert not any(m in sys.modules for m in ('pydantic', 'biblicus', 'httpx', 'tiktoken'))\n")
@@ -519,6 +529,62 @@ def test_a_lively_thread_on_one_reference_yields_a_pack_with_related_accepted_re
     [pack] = [p for p in build_packs(signals, LOOKUPS, now=NOW) if p.signal_type == "conversation"]
     assert pack.accepted_lineage_ids[0] == "ref-1" and len(pack.accepted_lineage_ids) == 4
     assert [row.get("relation") for row in pack.references] == [None, "shared concept #voice-cloning", "shared concept #voice-cloning", "shared concept #voice-cloning"]
+    pack = pack_support.summarised(pack, *[row["handle"] for row in pack.references if row["status"] == "accepted"])
     client = pack_support.backend(pack)
     result = pack_support.run(pack, client, pack_support.transport_of(pack_support.idea("Editors keep returning to one voice story", ["R1", "R2"])))
     assert result.filed_count == 1
+
+
+# --- the standard on the pack path ---------------------------------------------------------------------------------------
+
+
+def test_a_pack_with_only_titles_is_skipped_and_a_single_item_with_a_reason_is_still_written(monkeypatch):
+    filing = FilingRecorder(monkeypatch)
+    client = pack_world(2, lively=(1,), summaries=False)
+    model = RouterModel()
+    table, store = router(settings={PUBLICATION: PACKS_ON})
+    _, lines = run_task(store, {PUBLICATION: client}, model)
+    line = pack_lines(lines)
+    assert model.pack_requests == [] and filing.filed == []   # the pack's References are known by their titles alone: the model is not asked
+    assert line["packs"] == 1 and line["ideasFromPacks"] == 0 and line["nothingToAdd"] == 1
+    assert line["failedTheCheck"] == 0 and line["drafted"] == 1 and line["curationFlag"] == "not_needed"   # the single item has an editor's reason and its draft passed both checks
+
+
+def test_a_run_that_only_skips_raises_one_flag_that_names_the_waiting_themes(monkeypatch):
+    FilingRecorder(monkeypatch)
+    client = pack_world(0, lively=(), summaries=False)
+    table, store = router(settings={PUBLICATION: {**PACKS_ON, "singleItem": False}})
+    _, lines = run_task(store, {PUBLICATION: client}, RouterModel())
+    line = pack_lines(lines)
+    flags = [r for r in client.reviews.values() if r["mode"] == "flag"]
+    assert line["nothingToAdd"] == 1 and line["curationFlag"] == "raised" and len(flags) == 1
+    assert flags[0]["reason"] == "No ideas today: 1 theme had only titles to go on, so the ideas would only have summarised them."
+
+
+RESTATES = {"verdict": "restates", "claim": "", "repeats_itself": False, "exposes_process": False, "reason": "It lists what each source says."}
+
+
+def test_a_pack_whose_ideas_the_point_check_rejects_files_nothing_and_is_not_written_again_until_it_has_a_new_connection(monkeypatch):
+    filing = FilingRecorder(monkeypatch)
+    client = pack_world(2, lively=(1,), reasoned=False)
+    model = RouterModel(verdict=RESTATES)
+    table, store = router(settings={PUBLICATION: {**PACKS_ON, "singleItem": False}})
+    _, lines = run_task(store, {PUBLICATION: client}, model)
+    first = pack_lines(lines)
+    assert filing.filed == [] and first["ideasFromPacks"] == 0 and first["failedTheCheck"] == 2 and len(model.pack_requests) == 1 and len(model.checks) == 2
+    assert first["curationFlag"] == "raised"   # nothing was filed: editors are asked to work on curation
+    rows = [item for (_, sort_key), item in table.items.items() if sort_key.startswith("IDEA_REJECTED#")]
+    assert len(rows) == 1 and rows[0]["reasons"] == ["point_check_failed"] and rows[0]["subject"].startswith("pack:acceptance:")
+
+    _, lines = run_task(store, {PUBLICATION: client}, model)
+    second = pack_lines(lines)
+    assert len(model.pack_requests) == 1 and len(model.checks) == 2   # not asked again: no new connection
+    assert second["alreadyRejected"] == 1 and second["failedTheCheck"] == 0 and second["retriedWithNewConnections"] == 0
+
+    # a pack's connections are its References, comments and links; one more accepted Reference joins it
+    new_row, links = human_vote(300, 0.2, "concept-voice")
+    client.references.append(new_row)
+    client.relations[new_row["lineageId"]] = links
+    _, lines = run_task(store, {PUBLICATION: client}, model)
+    third = pack_lines(lines)
+    assert len(model.pack_requests) == 2 and third["retriedWithNewConnections"] == 1

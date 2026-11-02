@@ -11,6 +11,24 @@ export type ContentItemStageDefinition = {
   collapsedUntilOpened?: boolean;
 };
 
+/**
+ * The Item types that are stories. A story's type is its own attribute, separate from its section (a topic): "article" and "post".
+ * Add a type here, and in STORY_ITEM_TYPES in src/papyrus_content/content_item_lifecycle.py. Every other Item type (wiki_page, doctrine, page, and so on) is not a
+ * story and never appears on the Stories board or in a story count.
+ */
+export const STORY_ITEM_TYPES: readonly string[] = ["article", "post"];
+
+export function isStoryItemType(type: string | null | undefined): boolean {
+  return typeof type === "string" && STORY_ITEM_TYPES.includes(type);
+}
+
+/** The GraphQL `filter` that keeps only story Items, for the Item and PublishedItem list queries. */
+export function storyItemTypeFilter(): Record<string, unknown> {
+  return STORY_ITEM_TYPES.length === 1
+    ? { type: { eq: STORY_ITEM_TYPES[0] } }
+    : { or: STORY_ITEM_TYPES.map(type => ({ type: { eq: type } })) };
+}
+
 export const PUBLISHED_STAGE_KEY = "published";
 
 /** Stage keys written before the story stages were simplified, read as the stage that replaced them. */

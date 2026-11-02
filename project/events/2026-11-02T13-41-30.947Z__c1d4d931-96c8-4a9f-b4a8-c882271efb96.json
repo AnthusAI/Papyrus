@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c1d4d931-96c8-4a9f-b4a8-c882271efb96",
+  "issue_id": "PPY-e4a87291-db17-4f6b-bdfa-e61d6b8962ce",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T13:41:30.947Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Chatticus: what a Story agent needs",
+    "description": "Gaps found 2026-11-02. A channel belongs to one user but a Story conversation is shared by editors. No general sub-agent tool found in the Chatticus tree (the task tool is household tasks). Bots provision a computer, heavy for one bot per Story; check the computerless profile. Papyrus pins an unmerged Chatticus commit, 10 ahead and 13 behind main.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+    "labels": []
+  }
+}

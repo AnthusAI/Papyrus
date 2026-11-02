@@ -124,7 +124,7 @@ def step_second(context, publication, count, monitor):
 @given("the Lambda runs out of time after {count:d} drafts")
 def step_time(context, count):
     held = state(context)
-    held.left = lambda: 1e9 if len(held.model.requests) < count else 0
+    held.left = lambda: 1e9 if len(held.model.drafting) < count else 0
 
 
 @given("every draft takes {seconds:d} seconds of a {total:d} second Lambda")
@@ -238,7 +238,7 @@ def step_which(context, first, second):
 
 @then("the model was asked exactly once")
 def step_once(context):
-    assert len(state(context).model.requests) == 1, len(state(context).model.requests)
+    assert len(state(context).model.drafting) == 1, len(state(context).model.drafting)
 
 
 def check(context, publication, expected):

@@ -33,11 +33,11 @@ export function localPreviewReferenceLinks(): MemoryLink[] {
     id, subjectKind: "reference", subjectLineageId: "preview-reference-lineage-0", objectKind, objectLineageId: object, state, provenance, similarity,
   });
   return [
-    reference("preview-link-1", "preview-concept-voice-cloning", "semanticNode", "current", "human"),
-    reference("preview-link-2", "preview-reference-lineage-1", "reference", "current", "human"),
+    { ...reference("preview-link-1", "preview-concept-voice-cloning", "semanticNode", "current", "human"), note: "This Reference is about voice cloning for harbour announcements, which is the use the concept page tracks.", noteAt: "2026-10-30T09:12:00Z" },
+    { ...reference("preview-link-2", "preview-reference-lineage-1", "reference", "current", "human"), note: "The minutes are the council vote that this Reference reports on.", noteAt: "2026-10-31T14:03:00Z" },
     reference("preview-link-3", "preview-concept-speech-synthesis", "semanticNode", "suggested", "suggested", 0.81),
     reference("preview-link-4", "preview-reference-lineage-2", "reference", "suggested", "suggested", 0.74),
-    { id: "preview-link-5", subjectKind: "reference", subjectLineageId: "preview-reference-lineage-3", objectKind: "semanticNode", objectLineageId: "preview-concept-voice-cloning", state: "current", provenance: "human" },
+    { id: "preview-link-5", subjectKind: "reference", subjectLineageId: "preview-reference-lineage-3", objectKind: "semanticNode", objectLineageId: "preview-concept-voice-cloning", state: "current", provenance: "human", note: "The audit prices the voice-cloning contract the concept covers.", noteAt: "2026-10-31T10:40:00Z" },
     { id: "preview-link-6", subjectKind: "reference", subjectLineageId: "preview-reference-lineage-2", objectKind: "semanticNode", objectLineageId: "preview-concept-voice-cloning", state: "current", provenance: "human" },
   ];
 }

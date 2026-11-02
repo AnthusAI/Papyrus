@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8de89eae-7369-496a-9cd4-96be4a6c96da",
+  "issue_id": "PPY-9e7a4ad9-b486-4f21-b105-f6bf0c02d9d1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T13:41:30.760Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Variations side by side in the Story detail",
+    "description": "Each variation leads with its point and the things it connects to. Accept or Reject with a reason box, no dropdowns, Lucide icons, full screen on a phone. Accepting carries the wording onto the Story as a new version. Ryan reviews screenshots before merge.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+    "labels": []
+  }
+}

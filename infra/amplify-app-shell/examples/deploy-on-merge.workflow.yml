@@ -1,7 +1,14 @@
 # Copy to <site repo>/.github/workflows/deploy.yml (PUBLIC repositories only).
 # CI runs on every push and pull request; a green push to main starts the Amplify job for
-# that exact commit through GitHub OIDC. Replace the CI steps with the repo's own checks,
-# and the app id and siteId with the site's (stack outputs CmsAppId and GithubDeployRoleArn).
+# that exact commit through GitHub OIDC. Replace the CI steps with the repo's own checks and <siteId> with the
+# site's id (the role is the stack output GithubDeployRoleArn).
+#
+# No AWS ids live in this file or anywhere else in the repository. Set two GitHub repository variables
+# (Settings > Secrets and variables > Actions > Variables), from the stack outputs:
+#   AWS_ACCOUNT_ID   the 12-digit AWS account the site deploys to
+#   AMPLIFY_APP_ID   the Amplify app id (CmsAppId)
+# They are variables, not secrets: they only need to stay out of Git. If one is missing the deploy job
+# stops at its first step and names the variable.
 name: CI and deploy
 
 on:
@@ -36,5 +43,6 @@ jobs:
       contents: read
     uses: AnthusAI/Papyrus/.github/workflows/amplify-deploy.yml@main
     with:
-      app-id: dxxxxxxxxxxxxx
-      role-to-assume: arn:aws:iam::712236451410:role/<siteId>-github-deploy
+      app-id: ${{ vars.AMPLIFY_APP_ID }}
+      aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
+      role-name: <siteId>-github-deploy

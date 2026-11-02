@@ -35,7 +35,6 @@ import {
   resolveArticlesBackend,
   stagingPreviewUrl,
   suggestSlug,
-  uniqueSections,
   type ArticlesBackend,
   type EditableArticle,
   type ErrorLocation,
@@ -138,7 +137,6 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const latestVersionNumber = latestVersion?.number ?? null;
   const [changeReason, setChangeReason] = useState("");
   const citedKeys = useMemo(() => Object.values(((bodyIr as { papyrus?: { citations?: Record<string, string[]> } } | null)?.papyrus?.citations) ?? {}).flat(), [bodyIr]);
-  const [sections, setSections] = useState<string[]>([]);
   const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
   const [reloadToken, setReloadToken] = useState(0);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
@@ -173,22 +171,6 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
       cancelled = true;
     };
   }, [activeArticleId, backend, blocked, isNew, reloadToken]);
-
-  useEffect(() => {
-    if (blocked) return;
-    let cancelled = false;
-    backend
-      .listRows()
-      .then((rows) => {
-        if (!cancelled) setSections(uniqueSections(rows));
-      })
-      .catch(() => {
-        if (!cancelled) setSections([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [backend, blocked]);
 
   const savedItemId = editor?.id ?? null;
   useEffect(() => {

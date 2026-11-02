@@ -17,7 +17,7 @@ from ..public_data import SUMMARY_FIELD_NAMES, clipped, tags_of
 from .config import SectionConfig, StandardSettings
 from .urls import UrlPolicy
 
-SUMMARY_FIELDS = (*SUMMARY_FIELD_NAMES, "dek", "standfirst")
+SUMMARY_FIELDS = SUMMARY_FIELD_NAMES
 IMAGE_FIELDS = ("image", "cover", "ogImage", "thumbnail")
 UPDATED_FIELDS = ("updated", "modified", "lastmod", "dateModified")
 FALSE_VALUES = {"false", "0", "no", "off"}
@@ -67,7 +67,7 @@ def calendar_date(value) -> str:
 @dataclass(frozen=True)
 class StandardEntry:
     summary: ItemSummary
-    section: SectionConfig | None
+    section: SectionConfig | None   # the URL group: the declared section, or the group declared for the Item's type
     key: str | None          # page key; None for a link-only item
     url: str | None          # site path; None for a link-only item
     title: str
@@ -92,6 +92,16 @@ class StandardEntry:
         return self.summary.slug
 
     @property
+    def topic(self) -> str | None:
+        """The Item's section as a topic: a declared section's name, or the stored section of an Item whose URL group is its type.
+
+        Selections (``sections``), ``DEPENDS_ON`` and ``seo.jsonLdTypes`` read this; ``section`` is where the page lives.
+        """
+        if self.section is None or not self.section.is_type:
+            return self.section.name if self.section is not None else None
+        return self.summary.section
+
+    @property
     def item_id(self) -> str:
         return self.summary.item_id
 
@@ -114,7 +124,7 @@ class StandardEntry:
             return card
         return card + [
             self.item_id, self.updated, self.type, self.canonical, self.feed_eligible, self.noindex, self.listed,
-            list(self.tags), self.section.name if self.section else None, self.summary.front_matter, self.derived, self.draft,
+            list(self.tags), self.topic, self.summary.front_matter, self.derived, self.draft,
         ]
 
 
@@ -143,11 +153,11 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
     if summary.section is None and summary.slug == "index":
         return None  # the authored home page is an item page of its own, not a listed entry
     section: SectionConfig | None = None
-    if settings.sectioned and summary.section is not None:
-        section = settings.section(summary.section)
-        if section is None:
-            return None
-        if summary.slug == "index":
+    if settings.sectioned:
+        section = settings.group_for(summary.section, summary.type)
+        if section is None and summary.section is not None:
+            return None  # a section the site does not declare, on a type it gives no base
+        if section is not None and not section.is_type and summary.slug == "index":
             return None  # the section's introduction: shown above its listing, not a listed page of its own
     front_matter = summary.front_matter
     has_page = section.pages if section is not None else True

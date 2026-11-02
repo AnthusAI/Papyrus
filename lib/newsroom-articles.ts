@@ -9,11 +9,13 @@ import {
   type ContentActionError,
 } from "./content-actions-client";
 import { createDemoArticlesBackend } from "./content-actions-demo";
+import { STORY_ITEM_TYPES } from "./content-item-lifecycle";
 
 export type ArticleStatus = "draft" | "published";
-export type ArticleType = "article" | "page";
+export type ArticleType = "article" | "post" | "page";
 
-export const ARTICLE_TYPES: ArticleType[] = ["article", "page"];
+/** The types the editor offers: every story type (the one list in content-item-lifecycle) and the page. */
+export const ARTICLE_TYPES: ArticleType[] = [...(STORY_ITEM_TYPES as readonly ArticleType[]), "page"];
 
 export type NewsroomArticleRow = {
   id: string;
@@ -318,12 +320,4 @@ export function stagingPreviewUrl(
   if (!stagingBaseUrl || !slug || type !== "article") return null;
   const base = stagingBaseUrl.replace(/\/+$/, "");
   return staticSite ? `${base}/articles/${slug}.html` : `${base}/articles/${slug}`;
-}
-
-export function uniqueSections(rows: NewsroomArticleRow[]): string[] {
-  const sections = new Set<string>();
-  for (const row of rows) {
-    if (row.section) sections.add(row.section);
-  }
-  return [...sections].sort();
 }

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-84b0dd93-1d04-4a17-9f56-71fd3ac88608",
+  "title": "Knowledge run previews bulk writes before they go live",
+  "description": "After 1,366 mostly junk wiki pages reached Machines on Machines on 11-02. A site's first knowledge run produces a preview (what it would publish, a sample by kind) for a person to approve before writing. Later runs proceed unless output differs sharply from the site's own history, using a learned comparison, not a fixed cap. Ryan approved 11-02: knowledge-run rollouts to more sites hold until this and the run-id story are done. Gherkin specs.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T18:00:33.207550Z",
+  "updated_at": "2026-11-02T18:00:33.207609Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

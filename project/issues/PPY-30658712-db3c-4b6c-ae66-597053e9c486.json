@@ -1,0 +1,20 @@
+{
+  "id": "PPY-30658712-db3c-4b6c-ae66-597053e9c486",
+  "title": "Alert when a newsroom stage suddenly grows",
+  "description": "Alert when a stage grows far beyond its normal size for that site, using an adaptive comparison (no fixed caps). Also add to the new-site steps: after a first run, open the newsroom, not only the public site.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T18:00:33.393667Z",
+  "updated_at": "2026-11-02T18:00:33.393697Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

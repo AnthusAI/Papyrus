@@ -14,6 +14,13 @@ Feature: Editors see and manage what a Reference is related to
   words ("Suggestions appear once this Reference has a summary.") and never shows an internal reason; a reason it does not know gets
   "No suggestions could be made for this Reference yet.", and any other failure says "Suggestions could not be made right now. Try
   again in a moment." These scenarios use synthetic data in an isolated browser at 375 and 1440 pixels and never touch production.
+  The words an editor writes when they accept or make a link are meaning, not decoration. Every accepted or hand-made link, a Reference card
+  or a concept chip, shows its explanation in a plain rounded block with a quote icon and the word "Explanation", and says who wrote it and
+  when: "Written by an editor on 2026-10-31" (the link keeps an account id, not a name). An editor adds or changes the words in place with
+  the same text box as everywhere else, and Save, Cancel and Edit say what they do; saving goes through the same decision that accepted the
+  link, so the link stays accepted. A reason typed when accepting a suggestion becomes its explanation. A viewer without editor access reads
+  the words and has no way to change them. A suggestion has no explanation, and the reason given when rejecting one is never shown as one.
+  The idea writer reads the same words (features_backend/link-explanations-in-packs.feature).
 
   Scenario: Concepts and References show with words beside every mark
     Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
@@ -97,3 +104,32 @@ Feature: Editors see and manage what a Reference is related to
     Then the note says "Suggestions appear once this Reference has a summary." for the first
     And the note says "No suggestions could be made for this Reference yet." for the unknown reason
     And the note never contains internal wording
+
+  Scenario: An accepted link shows the editor's explanation and who wrote it
+    Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
+    When the editor reads the explanations on the confirmed links
+    Then each confirmed link shows its words in a block with a quote icon, and says "Written by an editor" with the date
+    And the suggestions show no explanation
+
+  Scenario: An editor changes an explanation in place
+    Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
+    When the editor edits, cancels, clears and adds explanations on the links, and accepts a suggestion with a reason
+    Then saving records an accept decision carrying the new words, so the link stays accepted
+    And cancelling saves nothing, and clearing the words offers Add explanation again
+    And the reason given when accepting a suggestion becomes its explanation
+
+  Scenario: The concept page shows and edits the explanation of each link
+    Given a concept page with two References linked by editors
+    When the editor reads and adds an explanation under "Linked by editors"
+    Then the explanation that exists is shown and the link without one offers Add explanation
+    And adding words records an accept decision with them
+
+  Scenario: A viewer reads explanations and cannot change them
+    Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
+    When a viewer without editor access reads the explanations
+    Then the explanations are readable and no Edit, Add explanation or text box is offered
+
+  Scenario: An accepted link's explanation is shown on a phone and a desktop in both themes
+    Given a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference
+    When the explanation is shown and being edited at 390 and 1440 pixels in the light and dark themes
+    Then nothing scrolls sideways and the page raises no errors

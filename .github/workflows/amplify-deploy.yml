@@ -6,6 +6,11 @@
 # Public repositories only. Private repositories get no free Actions minutes; their deploys run
 # in AWS (CodePipeline/CodeBuild or Amplify's own repository-connected auto-build).
 #
+# Neither the AWS account id nor the Amplify app id belongs in the site repository. The caller keeps them
+# in GitHub repository variables and passes them in (variables are not secrets; they simply stay out of Git):
+#   AWS_ACCOUNT_ID    the 12-digit account the site deploys to
+#   AMPLIFY_APP_ID    the Amplify app id (stack output CmsAppId)
+#
 # Caller (see infra/amplify-app-shell/examples/deploy-on-merge.workflow.yml):
 #   deploy:
 #     needs: ci
@@ -13,21 +18,38 @@
 #     permissions: { id-token: write, contents: read }
 #     uses: AnthusAI/Papyrus/.github/workflows/amplify-deploy.yml@main
 #     with:
-#       app-id: d1234567890
-#       role-to-assume: arn:aws:iam::712236451410:role/<siteId>-github-deploy
+#       app-id: ${{ vars.AMPLIFY_APP_ID }}
+#       aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
+#       role-name: <siteId>-github-deploy
+#
+# Backward compatible: a caller that still passes `role-to-assume` (a full role ARN) and a literal `app-id`
+# keeps working, and `role-to-assume` wins over `aws-account-id` + `role-name` when both are given. When
+# the app id or the role cannot be worked out the first step fails and says which variable to set.
 name: Deploy to Amplify
 
 on:
   workflow_call:
     inputs:
       app-id:
-        description: Amplify app id (the CMS app, or the reader app for a reader-only site)
-        required: true
+        description: Amplify app id (the CMS app, or the reader app for a reader-only site); pass vars.AMPLIFY_APP_ID
+        required: false
         type: string
+        default: ""
+      aws-account-id:
+        description: 12-digit AWS account id; pass vars.AWS_ACCOUNT_ID. Used with role-name to build the role ARN
+        required: false
+        type: string
+        default: ""
+      role-name:
+        description: Name of the <siteId>-github-deploy role (not an id; used with aws-account-id)
+        required: false
+        type: string
+        default: ""
       role-to-assume:
-        description: ARN of the <siteId>-github-deploy role
-        required: true
+        description: Full ARN of the <siteId>-github-deploy role. Optional; wins over aws-account-id plus role-name
+        required: false
         type: string
+        default: ""
       branch-name:
         description: Amplify branch to build
         required: false
@@ -52,9 +74,36 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
+      - name: Work out the app and the role
+        id: target
+        env:
+          APP_ID: ${{ inputs.app-id }}
+          ACCOUNT_ID: ${{ inputs.aws-account-id }}
+          ROLE_NAME: ${{ inputs.role-name }}
+          ROLE_TO_ASSUME: ${{ inputs.role-to-assume }}
+        run: |
+          set -euo pipefail
+          if [ -z "$APP_ID" ]; then
+            echo "::error::No Amplify app id. Set the repository variable AMPLIFY_APP_ID and pass it as app-id (vars.AMPLIFY_APP_ID)"
+            exit 1
+          fi
+          role="$ROLE_TO_ASSUME"
+          if [ -z "$role" ]; then
+            if [ -z "$ACCOUNT_ID" ] || [ -z "$ROLE_NAME" ]; then
+              echo "::error::No deploy role. Set the repository variable AWS_ACCOUNT_ID and pass it as aws-account-id (vars.AWS_ACCOUNT_ID) with role-name: <siteId>-github-deploy (or pass role-to-assume)"
+              exit 1
+            fi
+            case "$ACCOUNT_ID" in
+              [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]) ;;
+              *) echo "::error::aws-account-id must be a 12-digit AWS account id"; exit 1 ;;
+            esac
+            role="arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
+          fi
+          echo "role=${role}" >> "$GITHUB_OUTPUT"
+
       - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
-          role-to-assume: ${{ inputs.role-to-assume }}
+          role-to-assume: ${{ steps.target.outputs.role }}
           aws-region: ${{ inputs.region }}
           role-session-name: gh-deploy-${{ github.run_id }}
 

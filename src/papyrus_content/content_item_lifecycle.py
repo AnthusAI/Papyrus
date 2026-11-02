@@ -31,6 +31,12 @@ LEGACY_CONTENT_ITEM_STAGE_REPLACEMENTS = {
     "editor_select": "reporting",
 }
 DEFAULT_CONTENT_ITEM_FORMAT = "article"
+#: The Item types that are stories; the same list as STORY_ITEM_TYPES in lib/content-item-lifecycle.ts (add a type in both).
+STORY_ITEM_TYPES = ("article", "post")
+
+
+def is_story_item_type(item_type: str | None) -> bool:
+    return item_type in STORY_ITEM_TYPES
 
 
 def require_content_item_stage(stage: str) -> str:
@@ -63,7 +69,7 @@ def build_new_content_item_version(
     actor_label: str,
     now: str,
 ) -> dict[str, Any]:
-    section = section_key or "unsectioned"
+    section = section_key or None  # a story with no section stores none (a section is a topic, never a placeholder)
     content_item_format = DEFAULT_CONTENT_ITEM_FORMAT
     return {
         "id": f"{lineage_id}-v1",
@@ -79,10 +85,10 @@ def build_new_content_item_version(
         "status": "draft",
         "typeStatus": f"{content_item_format}#draft",
         "stage": require_content_item_stage(stage),
-        "slug": f"draft-{safe_id(section)}-{hash_short([lineage_id, 1, title])}",
+        "slug": f"draft-{safe_id(section or 'unsectioned')}-{hash_short([lineage_id, 1, title])}",
         "shortSlug": None,
         "section": section,
-        "sectionStatus": f"{section}#draft",
+        "sectionStatus": f"{section or ''}#draft",
         "title": title,
         "headline": title,
         "deck": summary,

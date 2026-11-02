@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "877a1b5c-6d79-4e6b-8e16-84e03f63fcb8",
+  "issue_id": "PPY-656e1d28-5bd3-40b0-9b64-6a997c58cddb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T13:41:31.039Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us page for Story variations",
+    "description": "Document the feature on the product site when the view ships.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+    "labels": []
+  }
+}

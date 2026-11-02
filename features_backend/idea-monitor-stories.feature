@@ -9,7 +9,9 @@ Feature: A site writes about the items its monitors find
   sentence must cite the source, and every number and date in it must appear in what the source says. A draft that fails is not
   filed. A draft that passes is filed as an idea at the idea stage, proposed by AI, with the source's address in its
   body and the monitor named as its provenance. A Reference is never drafted twice. Every undrafted item is considered, however old: there is no default window, and an older item is only ranked lower, by a freshness weight learned from how quickly the site's editors accepted items. Nothing is approved, moved or published by the run;
-  one soft review request covers the batch. Turning a draft into a story is a later step.
+  one soft review request covers the batch. Turning a draft into a story is a later step. A draft must also meet the standard of
+  idea-more-than-summary.feature: it rests on something the newsroom knows beyond the source and it makes a claim of its own. These scenarios are about reading, ranking,
+  checking and filing, so every accepted Reference in them was accepted by an editor with a reason, and the model's point check finds that the story adds something.
 
   Background:
     Given a site "example-site" with the sections "Analysis" and "Tools"
@@ -259,15 +261,18 @@ Feature: A site writes about the items its monitors find
     When the operator drafts monitor stories and files them as ideas with a limit of 1
     Then the ideas filed are for "Passes the check"
 
-  Scenario: A passing story is filed as an idea that cites its source and names the monitor
+  Scenario: A passing story is filed as an idea that cites its source, names the monitor and rests on something the newsroom knows
     Given the monitors of the site delivered these items:
       | monitor     | title                     | verdict      | days ago |
       | huggingface | A tool that checks claims | include 0.80 | 1        |
+    And the editors accepted "A tool that checks claims" and wrote "Claim checking matters to our sourcing coverage."
+    And the model writes a story for "A tool that checks claims" that rests on the editors' reason
     And every linked page can be read
     When the operator drafts monitor stories and files them as ideas with a limit of 1
     Then 1 idea is filed and it is proposed by AI and still at the idea stage
     And the idea body cites the address of the item
     And the idea evidence names the "huggingface" monitor and the address of the item
+    And the idea evidence records the connection "acceptReason"
     And the idea targets the Reference it is about
     And model "gpt-6-luna" was the only model asked
     And one soft review request covers the run

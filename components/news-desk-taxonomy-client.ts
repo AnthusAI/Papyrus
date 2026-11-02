@@ -6,6 +6,7 @@ import { hasEditorRights } from "../lib/staff-groups";
 
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
+import { AUTO_ACCEPTED_PAGE_SIZE, autoAcceptedFromRecords, autoAcceptedServerFilter, collectAutoAcceptedPage, type AutoAcceptedPage } from "../lib/auto-accepted-references";
 import { createLocalPreviewRealPublishedVersions, createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
@@ -64,7 +65,8 @@ import {
   type ConversationViewer,
 } from "../lib/conversation";
 import { LINK_MESSAGE_HASHTAGS_MUTATION, messageHasHashtag, postMessageArguments, postMessageMutation } from "../lib/post-message";
-import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { isStoryItemType, legacyStageKeysToLoad, storyItemTypeFilter, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { collectFilteredPage } from "../lib/story-stage-paging";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
@@ -2047,6 +2049,37 @@ function loadAllNewsroomReferences(): Promise<ReferenceRecord[]> {
   return loadAllPages((nextToken) => loadNewsroomReferencePage({ nextToken }));
 }
 
+/** How many rows one database read looks at while the "Accepted automatically" list walks the accepted partition for matches. */
+const AUTO_ACCEPTED_READ_SIZE = 200;
+
+/**
+ * One page of the "Accepted automatically" list, newest acceptance first (lib/auto-accepted-references.ts). It queries the accepted
+ * partition of the curation-status index with the actor filter applied by the database; it never loads the whole table, and it needs no index
+ * of its own.
+ */
+export async function loadAutoAcceptedReferencePage(
+  options: { nextToken?: string | null; limit?: number; corpusId?: string } = {},
+): Promise<AutoAcceptedPage> {
+  const limit = options.limit ?? AUTO_ACCEPTED_PAGE_SIZE;
+  if (isLocalPreviewEnabled()) {
+    const everything = autoAcceptedFromRecords(createLocalPreviewReferences());
+    const start = options.nextToken ? Number(options.nextToken) || 0 : 0;
+    const items = everything.slice(start, start + limit);
+    const next = start + items.length;
+    return { items, nextToken: next < everything.length ? String(next) : null, hasMore: next < everything.length };
+  }
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) {
+    return { items: autoAcceptedFromRecords(testMock.references), nextToken: null, hasMore: false };
+  }
+  const filter = autoAcceptedServerFilter(options.corpusId);
+  return collectAutoAcceptedPage(
+    (token) => loadReferencePageByStatus({ status: "accepted", limit: AUTO_ACCEPTED_READ_SIZE, nextToken: token, filter }),
+    { nextToken: options.nextToken ?? null, limit },
+  );
+}
+
 export function normalizeNewsroomReferencePageOrder(value?: string | null): NewsroomReferencePageOrder {
   return value?.trim() === "imported" ? "imported" : "published";
 }
@@ -2364,8 +2397,8 @@ export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPage
 }
 
 const CONTENT_ITEMS_BY_STAGE_QUERY = `
-  query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
-    listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+  query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $filter: ModelItemFilterInput, $limit: Int, $nextToken: String) {
+    listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, filter: $filter, limit: $limit, nextToken: $nextToken) {
       items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy }
       nextToken
     }
@@ -2386,7 +2419,7 @@ export async function loadNewsroomContentItemStagePage(
   limit: number = CONTENT_ITEM_COLUMN_PAGE_LIMIT,
 ): Promise<ContentItemStagePage> {
   if (isLocalPreviewEnabled()) {
-    const versionsInStage = createLocalPreviewContentItemVersions().filter(version => version.stage === stage);
+    const versionsInStage = createLocalPreviewContentItemVersions().filter(version => version.stage === stage && isStoryItemType(version.type));
     const offset = nextToken ? Number(nextToken) : 0;
     const followingOffset = offset + limit;
     return {
@@ -2399,23 +2432,24 @@ export async function loadNewsroomContentItemStagePage(
     graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
   };
   const field = "listItemsByStageAndUpdatedAt";
-  const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
-    query: CONTENT_ITEMS_BY_STAGE_QUERY,
-    variables: { stage, sortDirection: "DESC", limit, nextToken },
-    authMode: USER_POOL_AUTH_MODE,
-  });
-  assertNoGraphQLErrors(response.errors);
-  const connection = response.data?.[field];
-  if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
-  return {
-    versions: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[],
-    nextToken: connection.nextToken ?? null,
-  };
+  // Only story types, filtered in the query. The filter runs after DynamoDB reads a page, so read until the column has its page.
+  const page = await collectFilteredPage<ContentItemVersionRecord>(async (token, scanLimit) => {
+    const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
+      query: CONTENT_ITEMS_BY_STAGE_QUERY,
+      variables: { stage, sortDirection: "DESC", filter: storyItemTypeFilter(), limit: Math.max(limit, scanLimit), nextToken: token },
+      authMode: USER_POOL_AUTH_MODE,
+    });
+    assertNoGraphQLErrors(response.errors);
+    const connection = response.data?.[field];
+    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+    return { items: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[], nextToken: connection.nextToken ?? null };
+  }, { nextToken, wanted: limit });
+  return { versions: page.items, nextToken: page.nextToken };
 }
 
 const PUBLISHED_ITEMS_QUERY = `
-  query ListPublishedItems($limit: Int, $nextToken: String) {
-    listPublishedItems(limit: $limit, nextToken: $nextToken) {
+  query ListPublishedItems($filter: ModelPublishedItemFilterInput, $limit: Int, $nextToken: String) {
+    listPublishedItems(filter: $filter, limit: $limit, nextToken: $nextToken) {
       items { sourceItemId itemLineageId versionNumber type status title headline slug section publishedAt }
       nextToken
     }
@@ -2446,7 +2480,7 @@ export async function loadNewsroomPublishedContentItemVersions(): Promise<Conten
   do {
     const response: GraphQLConnectionResponse<PublishedItemBoardRow> = await client.graphql({
       query: PUBLISHED_ITEMS_QUERY,
-      variables: { limit: NEWSROOM_PAGE_LIMIT, nextToken },
+      variables: { filter: storyItemTypeFilter(), limit: NEWSROOM_PAGE_LIMIT, nextToken },
       authMode: USER_POOL_AUTH_MODE,
     });
     assertNoGraphQLErrors(response.errors);
@@ -3138,13 +3172,16 @@ async function loadReferencePageByStatus({
   limit = NEWSROOM_PAGE_LIMIT,
   nextToken,
   corpusId,
+  filter: suppliedFilter,
 }: {
   status: ReferenceStatus;
   limit?: number;
   nextToken?: string | null;
   corpusId?: string;
+  /** Replaces the default server filter (current, in the References feed, this corpus). */
+  filter?: Record<string, unknown>;
 }): Promise<NewsroomRecordPage<ReferenceRecord>> {
-  const filter = buildReferenceServerFilter(corpusId);
+  const filter = suppliedFilter ?? buildReferenceServerFilter(corpusId);
   return runReferenceIndexedQuery({
     query: LIST_REFERENCES_BY_CURATION_STATUS_AND_UPDATED_AT_QUERY,
     field: "listReferencesByCurationStatusAndUpdatedAt",

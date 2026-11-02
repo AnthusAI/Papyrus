@@ -14,7 +14,7 @@ RUN apt-get update \
 COPY infra/knowledge-run/constraints.txt /tmp/constraints.txt
 # PyPI's aarch64 torch pulls the CUDA libraries (gigabytes, no GPU here), so torch comes from the CPU index first.
 RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.14.1"
-ARG BIBLICUS_VERSION=1.16.0
+ARG BIBLICUS_VERSION=1.16.1
 RUN pip install -c /tmp/constraints.txt \
         "biblicus[typed-extraction,topic-modeling]==${BIBLICUS_VERSION}" boto3 awscrt \
     && rm -rf /root/.cache

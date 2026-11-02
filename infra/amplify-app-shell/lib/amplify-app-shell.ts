@@ -253,6 +253,18 @@ export class AmplifyAppShellStack extends Stack {
       ? config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS
       : Fn.join(",", [config.cms.environment.PAPYRUS_OAUTH_REDIRECT_URLS, ...defaultOriginsToAllow]);
 
+    // The app's own id and compute role, derived here so a site repository never has to carry them: the build's
+    // "is this the owning app" guard compares $AWS_APP_ID with PAPYRUS_AMPLIFY_APP_ID, and the backend plugins that
+    // name the compute role (reader steering, newsletter) read PAPYRUS_COMPUTE_ROLE_ARN. A deploy rewrites a branch's
+    // whole variable list, so PAPYRUS_EDGE_DISTRIBUTION_ARN (not derivable: the edge stack is separate) is carried
+    // through from the environment the deploy runs in, which in the Amplify build is the branch's own variable.
+    const edgeDistributionArn = process.env.PAPYRUS_EDGE_DISTRIBUTION_ARN?.trim();
+    const ownIdentifiers: Record<string, string> = {
+      PAPYRUS_AMPLIFY_APP_ID: cmsApp.attrAppId,
+      PAPYRUS_COMPUTE_ROLE_ARN: computeRole.roleArn,
+      ...(edgeDistributionArn ? { PAPYRUS_EDGE_DISTRIBUTION_ARN: edgeDistributionArn } : {}),
+    };
+
     const productionBranch = new amplify.CfnBranch(this, "Branch", {
       appId: cmsApp.attrAppId,
       branchName: "main",
@@ -268,6 +280,7 @@ export class AmplifyAppShellStack extends Stack {
         ...(config.cms.applyCognitoDomainPrefix ? { PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX: "true" } : {}),
         PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,
         PAPYRUS_SITE_BRAND: config.brand,
+        ...ownIdentifiers,
         SITE_ENV: "production",
         PAPYRUS_SITE_ORIGIN: productionSiteOrigin,
         ...(consoleOrigin ? { PAPYRUS_CONSOLE_ORIGIN: consoleOrigin } : {}),
@@ -298,6 +311,7 @@ export class AmplifyAppShellStack extends Stack {
           ...(config.cms.applyCognitoDomainPrefix ? { PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX: "true" } : {}),
           PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,
           PAPYRUS_SITE_BRAND: config.brand,
+          ...ownIdentifiers,
           SITE_ENV: "staging",
           PAPYRUS_SITE_ORIGIN: stagingSiteOrigin,
           ...stagingMode,

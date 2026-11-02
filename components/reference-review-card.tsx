@@ -38,6 +38,7 @@ export function predictionFromDecision(decision: { label: string; positiveLabel:
  */
 export function ReviewCard({
   children,
+  confirmsAutomatic = false,
   decided,
   dek,
   disabledReason,
@@ -55,6 +56,8 @@ export function ReviewCard({
   ratings,
 }: {
   children?: ReactNode;
+  /** True while the item stands accepted automatically: Accept then confirms it, and offers the reason box first. */
+  confirmsAutomatic?: boolean;
   /** A shared rating store, so the grid card and this card stay in step. Optional: the card works alone without it. */
   ratings?: RatingController;
   /** The saved human answer, or null while the item is undecided. */
@@ -83,6 +86,7 @@ export function ReviewCard({
     save: (_id, choice, detail) => onDecide(choice, detail),
     saved: () => decided,
     seed: () => ({ note: initialNote, reasonCode: initialReason }),
+    confirms: () => confirmsAutomatic,
   });
   const store = ratings ?? local;
   const item = store.get(itemId);

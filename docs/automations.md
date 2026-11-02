@@ -264,10 +264,13 @@ papyrus automations update --id distinctive.ttab [--enabled false] [--title T] [
   [--timeout-seconds N] [--max-concurrent N] [--budget-usd N] [--dry-run]
 ```
 
-`create`, `update` and `run` use the normal sign-in lane (`papyrus login`, editor or admin); operators can use
-`PAPYRUS_GRAPHQL_AUTH=iam`. `runs`, `run` (and the run column of `show`) also need AWS credentials that can read the
-monitoring table, found through the SSM parameter `/papyrus/monitoring/table-name`. Without them the records
-still list.
+Signed in with `papyrus login` (editor or admin), `list`, `show`, `runs` and `run` need no AWS credentials: they ask the
+site's `automationOverview` and `runAutomation`, the same operations the console uses, and the site reads the monitoring
+table and starts the run with its own role. `--input` works. Two things the site has no equivalent for are refused in one
+line on this lane: `run --dry-run`, and `runs --limit` above the site's default of the most recent runs. Choose the AWS
+lane (`PAPYRUS_GRAPHQL_AUTH=iam`, with credentials that can read the monitoring table through the SSM parameter
+`/papyrus/monitoring/table-name` and invoke the procedure runner) for those. `create` and `update` use the authoring client
+on either lane.
 
 ## Console
 

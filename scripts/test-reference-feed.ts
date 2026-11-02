@@ -431,7 +431,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await byRule.count(), 1, "a rule monitor's delivery carries the badge too");
       assert.ok((await byRule.innerText()).includes("Accepted automatically (by rule)"), "and says it was by rule");
       assert.equal(await card(page, "editor-accepted").locator("[data-auto-accepted]").count(), 0, "an editor's accept is not marked");
-      assert.equal(await card(page, "auto-accepted").getAttribute("data-feed-rated"), "accept", "it still reads as accepted, and the editor can change it");
+      assert.equal(await card(page, "auto-accepted").getAttribute("data-feed-rated"), null, "an automatic acceptance is not the editor's answer yet: Accept confirms it, Reject overturns it");
     });
   },
 

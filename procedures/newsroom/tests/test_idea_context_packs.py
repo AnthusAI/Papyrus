@@ -196,7 +196,9 @@ import logging
 import math
 import random
 
+from papyrus_content.ideas.context_packs import context_of, edge_rows
 from papyrus_content.ideas.signal_inputs import AcceptedReference, ReferenceEdge
+from papyrus_content.knowledge_snapshot.trends import TrendConfig
 from papyrus_knowledge_query.vector_index import reference_summary_vector_key
 
 DIMENSIONS = 48
@@ -398,3 +400,45 @@ def test_a_component_with_earlier_arrivals_is_scanned_against_the_sites_arrivals
     signal = packs[0].as_json()["signal"]
     assert "new" not in signal and "emerging" not in signal and signal["correctedPValue"] <= 0.01
     assert {f"fresh-{n}" for n in range(8)} <= set(packs[0].accepted_lineage_ids)
+
+
+def explained_hub(note: str = "Both are the same vendor's two releases."):
+    references, _, hub = hub_site()
+    edges = [ReferenceEdge(hub, references[number].lineage_id, "related_to", moment(1), note if number == 0 else None) for number in range(6)]
+    return references, edges, hub
+
+
+def test_an_editors_explanation_rides_on_the_confirmed_edge_it_belongs_to_and_on_no_other():
+    references, edges, hub = explained_hub()
+    pack = [pack for pack in build_packs(cluster_inputs(references, edges), PackLookups(), now=NOW) if pack.signal_type == "hub"][0].as_json()
+    explained = [row for row in pack["edges"] if "editorsExplanation" in row]
+    assert len(explained) == 1 and len(pack["edges"]) == 6
+    assert explained[0]["editorsExplanation"] == {"writtenBy": "editor", "text": "Both are the same vendor's two releases."}
+    assert explained[0]["provenance"] == "confirmed"
+
+
+def test_a_suggested_edge_never_carries_an_explanation():
+    references = [accepted_reference(f"topic-{n}", 1 + n * 0.1) for n in range(2)]
+    explained = ReferenceEdge("topic-0", "topic-1", "related_to", moment(1), "Said by an editor")
+    context = context_of(cluster_inputs(references, [explained]), PackLookups(), NOW, TrendConfig())
+    rows = edge_rows(context, {"topic-0": "R1", "topic-1": "R2"}, [("topic-0", "topic-1", 0.9)])
+    assert [(row["provenance"], "editorsExplanation" in row) for row in rows] == [("confirmed", True)]
+
+
+def test_an_explained_concept_link_between_pack_members_is_an_edge_to_the_concept_and_unexplained_links_add_none():
+    explained = [ConceptLink("ref-1", "concept-voice", "related_to", "This Reference is about voice cloning in call centres."), ConceptLink("ref-2", "concept-voice", "related_to")]
+    votes = acceptance_votes()
+    packs = build_packs(inputs(votes=votes, links=explained), LOOKUPS, now=NOW)
+    shown = [pack for pack in packs if pack.signal_type == "acceptance"][0].as_json()
+    concept_edges = [row for row in shown["edges"] if row["to"].startswith("C")]
+    handle = {row["title"]: row["handle"] for row in shown["references"]}
+    assert concept_edges == [{"from": handle["Title ref-1"], "to": "C1", "type": "related_to", "provenance": "confirmed",
+                              "editorsExplanation": {"writtenBy": "editor", "text": "This Reference is about voice cloning in call centres."}}]
+
+
+def test_trimming_a_pack_takes_an_edges_explanation_with_the_member_it_joins():
+    references, edges, hub = explained_hub()
+    pack = [pack for pack in build_packs(cluster_inputs(references, edges), PackLookups(), now=NOW) if pack.signal_type == "hub"][0]
+    smaller = trim_pack(pack, limit=pack.size() - 1)
+    members = {row["handle"] for row in smaller.references}
+    assert all(row["from"] in members and row["to"] in members for row in smaller.edges)

@@ -178,8 +178,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     @property
     def projectable_types(self) -> tuple[str, ...]:
-        """Item types the site lists (``listings.types``) beyond the ``article`` and ``page`` every site projects."""
-        return tuple(name for name in self.standard.listings.types if name not in EXPORTED_TYPES)
+        """Item types the site lists (``listings.types``) or gives a URL base (``urls.types``) beyond the ``article`` and ``page`` every site projects."""
+        declared = (*self.standard.listings.types, *(group.item_type for group in self.standard.sections if group.is_type))
+        return tuple(dict.fromkeys(name for name in declared if name not in EXPORTED_TYPES))
 
     @classmethod
     def from_static_directory(cls, static_directory, *, renditions=None, plugins=(), environ=None):  # type: ignore[override]
@@ -495,8 +496,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def _json_ld_type(self, entry: StandardEntry) -> str:
         mapping = dict(self.standard.seo.json_ld_types)
-        section = entry.section.name if entry.section else None
-        return mapping.get(section) or mapping.get(entry.type) or self.standard.seo.default_json_ld
+        return mapping.get(entry.topic) or mapping.get(entry.type) or self.standard.seo.default_json_ld
 
     def _breadcrumbs(self, entry: StandardEntry) -> tuple[tuple[str, str], ...]:
         if not self.standard.breadcrumbs:
@@ -531,7 +531,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return []
         selected = [
             entry for entry in entries
-            if "*" in wanted or (entry.section.name if entry.section else "@root") in wanted
+            if "*" in wanted or (entry.topic or "@root") in wanted
         ]
         return self._fingerprints(selected, full=True)
 
@@ -681,7 +681,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
         # custom pages, and authored page files
         for custom in self.standard.pages:
-            selected = [entry for entry in entries if "*" in custom.depends_on or (entry.section and entry.section.name in custom.depends_on)]
+            selected = [entry for entry in entries if "*" in custom.depends_on or (entry.topic and entry.topic in custom.depends_on)]
             authored = self._page_includes(custom.source, f"pages.{custom.id}") if custom.source else None
             digest_input = [self._fingerprints(selected, full=True) if self.hooks.page_body else []]
             if authored is not None:
@@ -896,7 +896,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         origin = self.environment.origin
         if section.index.source:
             facts = SimpleNamespace(title=page.title, authors=(), author_details=(), date="", updated="", summary_text=page.description or "")
-            return item_markdown(facts, self._twin(self._page_text(section.index.source, f"urls.sections.{section.name}.index"), section.index.source), self.head.absolute(page.path))
+            return item_markdown(facts, self._twin(self._page_text(section.index.source, f"{section.where}.index"), section.index.source), self.head.absolute(page.path))
         include_line = ""
         if section.index.references:
             attributes = " ".join(f'{name}="{value}"' for name, value in self._reference_attributes(section).items())
@@ -986,7 +986,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _tag_entries(self, listed: list[StandardEntry]) -> list[StandardEntry]:
         """The entries the tag pages and the tag index cover: every listed entry unless ``listings.tagSelect`` narrows it."""
         select = self.standard.listings.tag_select
-        return select.select(listed) if (select.sections or select.tags or select.all_tags or select.not_tags) else listed
+        return select.select(listed) if (select.sections or select.tags or select.all_tags or select.not_tags or select.types or select.not_types) else listed
 
     def _tag_map(self, listed: list[StandardEntry]) -> dict[str, list[StandardEntry]]:
         merged: dict[str, tuple[str, list[StandardEntry]]] = {}
@@ -1004,7 +1004,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if section_name is None:
             return None
         for summary in summaries:
-            if summary.section == section_name and summary.slug == "index" and not PurePosixPath(summary.output_path).name.startswith(("_", ".")):
+            group = self.standard.section(summary.section)
+            if group is not None and group.name == section_name and summary.slug == "index" and not PurePosixPath(summary.output_path).name.startswith(("_", ".")):
                 return summary
         return None
 
@@ -1055,7 +1056,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             inputs.append(self._home_page.digest())
             inputs.append(self._home_page_stylesheet_token())
         if index.source:
-            text, found = self._page_includes(index.source, f"urls.sections.{section.name}.index")
+            text, found = self._page_includes(index.source, f"{section.where}.index")
             inputs.append([hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)])
         return inputs
 
@@ -1068,7 +1069,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             index = section.index
             head = PageHead(title=view.label, path=view.url_for_page(1), description=section.description or self.standard.identity.description)
             page = self._page("listing", head, site, entries=tuple(listed), listing=view)
-            owner = f"urls.sections.{section.name}.index"
+            owner = f"{section.where}.index"
             lead = view.entries[0] if index.lead and view.entries else None
             latest = view.entries[1:] if lead is not None else view.entries
             references_html = ""

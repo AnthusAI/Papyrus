@@ -17,12 +17,15 @@ Fields of ``SignalInputs``:
   Reference must be read to be judged) and those a Message thread is anchored on (``reference#<lineage>``). An accepted or rejected Reference with
   no human vote and no thread triggers no query. The reads run concurrently (``DEFAULT_WORKERS``, one client copy per thread).
 * ``concept_links``: ``ConceptLink`` tuple, one per current SemanticRelation from a Reference to a semanticNode with predicate ``mentions`` or
-  ``related_to`` (``related_to`` is the human "relates to this concept" link): ``reference_lineage_id``, ``concept_id``, ``predicate``.
+  ``related_to`` (``related_to`` is the human "relates to this concept" link): ``reference_lineage_id``, ``concept_id``, ``predicate`` and ``explanation``.
   Links of every Reference the pass read, so a signal can use them for votes, for pending context and for Messages anchored on a Reference.
 * ``edges``: ``ReferenceEdge`` tuple, one per current SemanticRelation between two References (predicate ``related_to``, ``cites``, ``supports`` or
   ``contradicts``) that touches a Reference the pass read: the relations are read by subject state key and by object state key (the concurrent reads
-  of the other relations), so an edge is found from whichever end was read. Each has ``subject_lineage_id``, ``object_lineage_id``, ``predicate`` and
-  ``created_at``. Suggested and rejected edges are not read (their state key is not ``current``).
+  of the other relations), so an edge is found from whichever end was read. Each has ``subject_lineage_id``, ``object_lineage_id``, ``predicate``,
+  ``created_at`` and ``explanation``. Suggested and rejected edges are not read (their state key is not ``current``).
+* ``explanation`` (on a concept link and on an edge): the words a person wrote when they accepted or made the link (``metadata.note``), scrubbed of
+  addresses, or ``None``. Only a link a person decided carries one: ``metadata.decision`` is ``accepted`` and ``decidedBy`` is a person, not an
+  ``auto:`` rule. A suggested row, a rejected row (its note is a reason for the model to learn from, not meaning) and a machine link never do.
 * ``accepted``: ``AcceptedReference`` tuple, every accepted Reference of the publication whoever accepted it (a person or a machine rule), with the
   day it was accepted (``accepted_at``, falling back to the time it arrived), so the hub and cluster signals can compare recent arrivals with the
   site's own history. Their concept ids are those of the pass's concept links (a Reference the pass did not read has none).
@@ -37,11 +40,14 @@ Fields of ``SignalInputs``:
 from __future__ import annotations
 
 import copy
+import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from ..priming_export import scrubbed
 from ..reference_vote import ACTION_FOR_STATUS, HUMAN
 from ..knowledge_snapshot.parallel import DEFAULT_WORKERS, map_with_clients
 from .context import list_stories, story_entry
@@ -81,6 +87,7 @@ class ConceptLink:
     reference_lineage_id: str
     concept_id: str
     predicate: str
+    explanation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -89,6 +96,7 @@ class ReferenceEdge:
     object_lineage_id: str
     predicate: str
     created_at: str | None
+    explanation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -211,6 +219,22 @@ def load_messages(client: Any) -> tuple[tuple[SignalMessage, ...], set[str]]:
     return tuple(sorted(messages, key=lambda message: (message.created_at, message.message_id))), anchored
 
 
+MACHINE_ACTOR_PREFIX = "auto:"
+
+
+def explanation_of(relation: dict[str, Any]) -> str | None:
+    """What a person wrote when they accepted or made this link, scrubbed and on one line; ``None`` for a link no person decided and for no words."""
+    raw = relation.get("metadata")
+    try:
+        metadata = json.loads(raw or "{}") if isinstance(raw, str) else dict(raw or {})
+    except ValueError:
+        return None
+    decided_by = str(metadata.get("decidedBy") or "")
+    if metadata.get("decision") != "accepted" or not decided_by or decided_by.startswith(MACHINE_ACTOR_PREFIX):
+        return None
+    return re.sub(r"\s+", " ", scrubbed(metadata.get("note"))) or None
+
+
 def concept_links_of(lineage: str, relations: list[dict[str, Any]]) -> list[ConceptLink]:
     found = {}
     for relation in relations:
@@ -221,14 +245,15 @@ def concept_links_of(lineage: str, relations: list[dict[str, Any]]) -> list[Conc
             and relation.get("objectKind") == "semanticNode"
             and concept
         ):
-            found[(concept, relation["predicate"])] = ConceptLink(lineage, concept, relation["predicate"])
+            explanation = explanation_of(relation) if relation["predicate"] == "related_to" else None
+            found[(concept, relation["predicate"])] = ConceptLink(lineage, concept, relation["predicate"], explanation)
     return [found[key] for key in sorted(found)]
 
 
 def edges_of(relations: list[dict[str, Any]]) -> list[ReferenceEdge]:
     """The current Reference-to-Reference edges among ``relations`` (read from either end of the edge)."""
     return [
-        ReferenceEdge(str(relation["subjectLineageId"]), str(relation["objectLineageId"]), str(relation["predicate"]), relation.get("createdAt"))
+        ReferenceEdge(str(relation["subjectLineageId"]), str(relation["objectLineageId"]), str(relation["predicate"]), relation.get("createdAt"), explanation_of(relation))
         for relation in relations
         if relation.get("relationState", "current") == "current" and relation.get("predicate") in EDGE_PREDICATES
         and relation.get("subjectKind") == REFERENCE_KIND and relation.get("objectKind") == REFERENCE_KIND

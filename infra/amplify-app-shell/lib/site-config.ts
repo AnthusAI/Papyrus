@@ -222,7 +222,7 @@ const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
 const PROSPECTUS_ACCOUNTS_API_STAGE_ARN_PATTERN = /^arn:aws:execute-api:[a-z0-9-]+:\d{12}:[a-z0-9]+\/api$/;
-const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_EMAIL_FROM_ADDRESS", "PAPYRUS_EMAIL_IDENTITY_ARN", "PAPYRUS_EMAIL_CONFIGURATION_SET", "PAPYRUS_EMAIL_EVENT_TOPIC_NAME", "PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_READER_POLL_SECRET_PARAMETER", "PAPYRUS_SITE_ORIGIN", "PAPYRUS_CONSOLE_ORIGIN", "PAPYRUS_ENABLE_CLI_REMOTE_LOGIN", "PAPYRUS_CLI_INVOKER_ROLE_ARN", "PAPYRUS_ALARM_TOPIC_ARN"];
+const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_EMAIL_FROM_ADDRESS", "PAPYRUS_EMAIL_IDENTITY_ARN", "PAPYRUS_EMAIL_CONFIGURATION_SET", "PAPYRUS_EMAIL_EVENT_TOPIC_NAME", "PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_READER_POLL_SECRET_PARAMETER", "PAPYRUS_SITE_ORIGIN", "PAPYRUS_CONSOLE_ORIGIN", "PAPYRUS_ENABLE_CLI_REMOTE_LOGIN", "PAPYRUS_CLI_INVOKER_ROLE_ARN", "PAPYRUS_ALARM_TOPIC_ARN", "PAPYRUS_AMPLIFY_APP_ID", "PAPYRUS_COMPUTE_ROLE_ARN"];
 
 /** Routes Prospectus admits for a registered Papyrus site (Prospectus accounts/papyrus-sites.ts). */
 export const PROSPECTUS_PAPYRUS_SITE_ROUTES = [
@@ -473,7 +473,7 @@ function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
   };
 }
 
-function parseCms(value: unknown): CmsConfig {
+function parseCms(value: unknown, environment: Record<string, string | undefined>): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
   rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "consoleOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild", "cms", "alarmTopicArn", "cms", "cliOnFederationClient"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
@@ -489,7 +489,10 @@ function parseCms(value: unknown): CmsConfig {
   if (cmsRecord.readerRetirementPoll !== undefined && typeof cmsRecord.readerRetirementPoll !== "boolean") {
     fail("cms.readerRetirementPoll", `must be a boolean, got ${JSON.stringify(cmsRecord.readerRetirementPoll)}`);
   }
-  if (cmsRecord.readerRetirementPoll === true && cmsRecord.prospectusAccountsApiStageArn === undefined) {
+  // The ARN carries an account and an API id, so a site can keep it out of Git: the environment value wins over the literal.
+  const prospectusFromEnvironment = environment[PROSPECTUS_ACCOUNTS_API_STAGE_ARN_ENVIRONMENT_VARIABLE]?.trim();
+  const prospectusAccountsApiStageArn = prospectusFromEnvironment || cmsRecord.prospectusAccountsApiStageArn;
+  if (cmsRecord.readerRetirementPoll === true && prospectusAccountsApiStageArn === undefined) {
     fail("cms.readerRetirementPoll", "requires cms.prospectusAccountsApiStageArn: the poll calls Prospectus as the site");
   }
   if (cmsRecord.cliRemoteLogin !== undefined && typeof cmsRecord.cliRemoteLogin !== "boolean") {
@@ -530,8 +533,8 @@ function parseCms(value: unknown): CmsConfig {
     alarmTopicArn: cmsRecord.alarmTopicArn as string | undefined,
     stagingPreview: parseStagingPreview(cmsRecord.stagingPreview),
     prospectusAccountsApiStageArn: optionalString(
-      cmsRecord.prospectusAccountsApiStageArn,
-      "cms.prospectusAccountsApiStageArn",
+      prospectusAccountsApiStageArn,
+      prospectusFromEnvironment ? PROSPECTUS_ACCOUNTS_API_STAGE_ARN_ENVIRONMENT_VARIABLE : "cms.prospectusAccountsApiStageArn",
       PROSPECTUS_ACCOUNTS_API_STAGE_ARN_PATTERN,
       "arn:aws:execute-api:<region>:<account>:<api id>/api",
     ),
@@ -658,7 +661,7 @@ function parseCi(raw: unknown, autoDeploy: boolean): CiGateConfig | undefined {
   return { gate: gate as CiGateConfig["gate"], statusContext, requireSignature: false };
 }
 
-export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
+export function parseSiteConfig(raw: unknown, environment: Record<string, string | undefined> = process.env): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
@@ -682,7 +685,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const papyrusVersion = requireString(record.papyrusVersion, "papyrusVersion", PAPYRUS_VERSION_PATTERN, "exact version such as 1.0.0 or 1.0.0-next.1");
   const storagePreviewPrefix = optionalString(record.storagePreviewPrefix, "storagePreviewPrefix", /^[A-Za-z0-9._-]+\/$/, "must end with /");
 
-  const cms = record.cms === undefined && frontend === "markus-static" ? undefined : parseCms(record.cms);
+  const cms = record.cms === undefined && frontend === "markus-static" ? undefined : parseCms(record.cms, environment);
 
   let reader: AmplifyAppShellSiteConfig["reader"];
   if (record.reader !== undefined) {
@@ -792,18 +795,45 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   return config;
 }
 
+/** Environment variable that names the AWS account a site deploys to, so `infra/site.json` need not carry it. */
+export const AWS_ACCOUNT_ID_ENVIRONMENT_VARIABLE = "PAPYRUS_AWS_ACCOUNT_ID";
+/** Environment variable that replaces `cms.prospectusAccountsApiStageArn`, so the ARN need not live in Git. */
+export const PROSPECTUS_ACCOUNTS_API_STAGE_ARN_ENVIRONMENT_VARIABLE = "PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN";
+
 /**
- * The CDK environment for a site's app-shell stack, taken only from the site's own `aws` block. There is
- * deliberately no default account: a deploy that guesses an account can land in, or fail against, the wrong
- * one.
+ * The account a site deploys to: `PAPYRUS_AWS_ACCOUNT_ID` when set, otherwise the `aws.accountId` literal of
+ * `infra/site.json` (still honoured so existing sites keep deploying), otherwise undefined. An environment value
+ * that is not a 12-digit account id is an error rather than something to guess around.
  */
-export function resolveDeployEnvironment(config: Pick<AmplifyAppShellSiteConfig, "siteId" | "aws">): { account: string; region: string } {
-  const account = config.aws?.accountId;
+export function resolveAwsAccountId(
+  aws: SiteAwsConfig | undefined,
+  environment: Record<string, string | undefined> = process.env,
+): string | undefined {
+  const fromEnvironment = environment[AWS_ACCOUNT_ID_ENVIRONMENT_VARIABLE]?.trim();
+  if (fromEnvironment) {
+    if (!/^\d{12}$/.test(fromEnvironment)) {
+      throw new Error(`${AWS_ACCOUNT_ID_ENVIRONMENT_VARIABLE} must be a 12-digit AWS account id`);
+    }
+    return fromEnvironment;
+  }
+  return aws?.accountId || undefined;
+}
+
+/**
+ * The CDK environment for a site's app-shell stack, taken only from the deploy environment
+ * (`PAPYRUS_AWS_ACCOUNT_ID`) or the site's own `aws` block. There is deliberately no default account: a deploy
+ * that guesses an account can land in, or fail against, the wrong one.
+ */
+export function resolveDeployEnvironment(
+  config: Pick<AmplifyAppShellSiteConfig, "siteId" | "aws">,
+  environment: Record<string, string | undefined> = process.env,
+): { account: string; region: string } {
+  const account = resolveAwsAccountId(config.aws, environment);
   const region = config.aws?.region;
-  const missing = [account ? "" : "aws.accountId", region ? "" : "aws.region"].filter(Boolean);
+  const missing = [account ? "" : `${AWS_ACCOUNT_ID_ENVIRONMENT_VARIABLE} (or aws.accountId)`, region ? "" : "aws.region"].filter(Boolean);
   if (!account || !region) {
     throw new Error(
-      `site "${config.siteId}" does not say where it deploys: add ${missing.join(" and ")} to its site.json, e.g. "aws": { "accountId": "<12-digit account>", "region": "us-east-1" }. No account is assumed.`,
+      `site "${config.siteId}" does not say where it deploys: set ${missing.join(" and ")}, e.g. ${AWS_ACCOUNT_ID_ENVIRONMENT_VARIABLE}=<12-digit account> in the environment and "aws": { "region": "us-east-1" } in its site.json. No account is assumed.`,
     );
   }
   return { account, region };
