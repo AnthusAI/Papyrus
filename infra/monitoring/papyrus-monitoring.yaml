@@ -65,6 +65,10 @@ Parameters:
     Type: String
     Default: xcobakwl4jagvhdq54qc55flii
     Description: AppSync API id of the Distinctive Mark backend (the TTAB decisions monitor delivers there).
+  MachinesOnMachinesApiId:
+    Type: String
+    Default: lxyzo2l2pjftjdha7egy73wndu
+    Description: AppSync API id of the Machines on Machines backend (a Cyclotron-decided publication; it replaces the Papyrus product-site backend, whose grants stay until that backend is retired).
   AnthUsVectorIndexArn:
     Type: String
     Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
@@ -135,6 +139,16 @@ Parameters:
     Default: unset-storage-bucket
     Description: >-
       Name of the storage bucket of Distinctive Mark (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
+  MachinesOnMachinesVectorIndexArn:
+    Type: String
+    Default: arn:aws:s3vectors:us-east-1:712236451410:bucket/unset-vector-bucket/index/unset-vector-index
+    Description: >-
+      ARN of the S3 Vectors index of Machines on Machines (its amplify_outputs.json custom.knowledgeQuery.s3VectorIndexArn). The default names no index, so the grant reads nothing until a change set fills it.
+  MachinesOnMachinesStorageBucketName:
+    Type: String
+    Default: unset-storage-bucket
+    Description: >-
+      Name of the storage bucket of Machines on Machines (its amplify_outputs.json storage.bucket_name), read for the extracted text the vector index embeds. The default names no bucket.
   ScheduleState:
     Type: String
     Default: ENABLED
@@ -651,6 +665,7 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/createModelAttachmentDownload"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createModelAttachmentDownload"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createModelAttachmentDownload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createModelAttachmentDownload"
 
   RouterEnrichmentKeyPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -1135,7 +1150,7 @@ Resources:
   RouterDistinctiveIntakePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      Description: The router's Reference intake grants for Distinctive Mark, outside the role's inline policy size limit.
+      Description: The router's Reference intake grants for Distinctive Mark and for Machines on Machines (a Cyclotron-decided publication), outside the role's inline policy size limit. Machines on Machines shares this policy because RouterRole is at the 20-managed-policy limit. Same field list as PublicationReferenceIntake.
       Roles: [!Ref RouterRole]
       PolicyDocument:
         Version: "2012-10-17"
@@ -1162,6 +1177,28 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createReferenceAttachment"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createSemanticRelation"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateReferenceAttachment"
+          - Sid: MachinesOnMachinesReferenceIntake
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getKnowledgeImportRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getMessage"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getModelAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getReferenceAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listKnowledgeCorpuses"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listKnowledgeCorporaByRoleAndName"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listReferences"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/completeModelAttachmentUpload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createKnowledgeImportRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createMessage"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createModelAttachmentUpload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createReferenceAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/updateReferenceAttachment"
 
   RouterAutomationReadPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -1220,6 +1257,10 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createSemanticNode"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getSemanticNode"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createSemanticNode"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/updateSemanticRelation"
 
   RouterAutoAcceptPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -1247,6 +1288,8 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/updateReference"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/updateReference"
 
   RouterMonitorStoriesPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -1354,20 +1397,20 @@ Resources:
 
   # Lets the router's daily monitor-stories task file generated story ideas as Items at the idea stage (src/papyrus_content/ideas/items.py) and run
   # the Humanus editorial gate on each one first (src/papyrus_content/ideas/gate.py). One policy, not one per API, because RouterRole is near the
-  # 20-managed-policy limit: the fields are named exactly and the API is a wildcard, which in this account is the seven routed publication APIs.
+  # 20-managed-policy limit: the fields are named exactly and the API is a wildcard, which in this account is the eight routed publication APIs.
   # It also carries the reads of the context-pack signals (the publication's Messages, human votes, concepts and Reference summaries:
   # src/papyrus_content/ideas/signal_inputs.py and signal_queue.py) and the writes of a pack idea (the Item, its based_on and concept edges:
   # pack_stories.py), still in this one policy. Test: test_monitoring_packs.py records every field the pack path asks for.
   # The SSM statement reads the TypeSafe key for the gate's judgment lane. The vector pass (src/papyrus_content/monitoring_vectors.py) adds the S3 Vectors
-  # actions on the seven sites' indexes, the read of each site's storage bucket for the text it embeds, and the GraphQL fields that sync and suggestions ask for;
-  # test_monitoring_vectors.py records every field they ask for. Hand-run with a change set; the fourteen VectorIndexArn / StorageBucketName parameters need values.
+  # actions on the eight sites' indexes, the read of each site's storage bucket for the text it embeds, and the GraphQL fields that sync and suggestions ask for;
+  # test_monitoring_vectors.py records every field they ask for. Hand-run with a change set; the sixteen VectorIndexArn / StorageBucketName parameters need values.
   RouterIdeaPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: >-
         The router's monitor-stories task: idea Items and the Humanus gate, the context-pack signal reads and pack idea writes, the vector
-        pass (S3 Vectors on the seven sites' indexes, each site's storage bucket), and the TypeSafe key. One policy because RouterRole is near
-        the 20-managed-policy limit; the fields are named exactly and the API is a wildcard (the seven routed publication APIs).
+        pass (S3 Vectors on the eight sites' indexes, each site's storage bucket), and the TypeSafe key. One policy because RouterRole is near
+        the 20-managed-policy limit; the fields are named exactly and the API is a wildcard (the eight routed publication APIs).
       Roles: [!Ref RouterRole]
       PolicyDocument:
         Version: "2012-10-17"
@@ -1408,7 +1451,7 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferences"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByNewsroomFeedAndCreatedAt"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateSemanticRelation"
-          # The vector pass of the daily monitor-stories task: sync (list, write) the seven sites' indexes and query them for suggestions. A parameter left at its default names no index.
+          # The vector pass of the daily monitor-stories task: sync (list, write) the eight sites' indexes and query them for suggestions. A parameter left at its default names no index.
           - Sid: FanOutMonitorStories
             Effect: Allow
             Action: lambda:InvokeFunction
@@ -1428,6 +1471,7 @@ Resources:
               - !Ref PilobolusVectorIndexArn
               - !Ref ShippedVectorIndexArn
               - !Ref DistinctiveVectorIndexArn
+              - !Ref MachinesOnMachinesVectorIndexArn
           - Sid: SiteStorageExtractedText
             Effect: Allow
             Action: s3:GetObject
@@ -1439,6 +1483,7 @@ Resources:
               - !Sub "arn:${AWS::Partition}:s3:::${PilobolusStorageBucketName}/*"
               - !Sub "arn:${AWS::Partition}:s3:::${ShippedStorageBucketName}/*"
               - !Sub "arn:${AWS::Partition}:s3:::${DistinctiveStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${MachinesOnMachinesStorageBucketName}/*"
           # With EditorialJudgmentKeyParameter empty this ARN names no parameter, so the grant reads nothing.
           - Sid: ReadEditorialJudgmentKey
             Effect: Allow
@@ -1456,7 +1501,7 @@ Resources:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: >-
-        Lets the router's daily monitor-stories task draft stories on Distinctive Mark (DistinctiveApiId), with the same eleven fields the
+        Lets the router's daily monitor-stories task draft stories on Distinctive Mark (DistinctiveApiId) and on Machines on Machines (MachinesOnMachinesApiId, which shares this policy because RouterRole is at the 20-managed-policy limit), with the same eleven fields the
         other two monitor-stories policies grant on the six publications the hn monitor lists. Its own schedule runs the task for the
         web-distinctive monitor; TTAB References that Distinctive's Automation handles are still skipped (handledByAutomation).
       Roles: [!Ref RouterRole]
@@ -1478,6 +1523,17 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listStoryDrafts"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createReviewRequest"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/fileProposal"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/getReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listAutomations"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listItems"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listNewsroomSections"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listSemanticRelationsByObjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Query/fields/listStoryDrafts"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/fileProposal"
 
   DistinctiveMonitorStoriesSchedule:
     Type: AWS::Scheduler::Schedule
