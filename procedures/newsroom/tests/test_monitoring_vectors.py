@@ -51,10 +51,15 @@ def accepted(number: int, at: str) -> dict:
 class AcceptedClient:
     """Lists the References the router asks for by status key: ``rows`` are the accepted ones, ``pending`` the pending ones."""
 
-    def __init__(self, rows, pending=()):
+    def __init__(self, rows, pending=(), threads=()):
         self.rows = rows
         self.pending = list(pending)
+        self.threads = list(threads)
         self.asked = []
+
+    def list_records(self, model):
+        assert model == "MessageThread"
+        return self.threads
 
     def list_by_index(self, index_name, key_value, *, limit=100):
         self.asked.append((index_name, key_value))
@@ -160,25 +165,32 @@ def test_seeding_refuses_outputs_without_an_index_or_a_bucket_and_publications_t
 # --- the pass: order, watermark, bounds -----------------------------------------------------------------------------------------------------
 
 
-def test_the_index_is_synced_for_the_newly_accepted_references_then_each_gets_suggestions_and_the_watermark_moves():
+def done(watermark):
+    return json.loads(watermark.value)
+
+
+def test_the_index_is_synced_for_the_new_references_then_each_gets_suggestions_newest_first_and_the_watermark_moves():
+    # A plain timestamp from an older pass: everything up to it is done. ref-1 and ref-2 are newer; ref-3 was accepted before.
     client = AcceptedClient([accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-31T10:00:00Z"), accepted(3, "2026-10-29T10:00:00Z")])
     pass_, watermark = Pass(characters=4_000_000, cards=2, written=5), Watermark("2026-10-29T12:00:00Z")
     result = run_pass(client, pass_, watermark)
     assert client.asked == [("referencesByCurationStatusKey", "knowledge-corpus-example-site#accepted"), ("referencesByCurationStatusKey", "knowledge-corpus-example-site#pending")]
-    assert pass_.options.action == "sync" and pass_.options.reference_ids == ("ref-1", "ref-2") and not pass_.options.skip_references   # ref-3 was accepted before the last pass
+    assert pass_.options.action == "sync" and sorted(pass_.options.reference_ids) == ["ref-1", "ref-2"] and not pass_.options.skip_references   # ref-3 was before the old watermark
     assert pass_.options.include_concept_cards and not pass_.options.include_ontology_vectors
-    assert pass_.order == ["index", "suggest:ref-1", "suggest:ref-2"]   # the index first; the oldest acceptance first
+    assert pass_.order == ["index", "suggest:ref-1", "suggest:ref-2"]   # new arrivals, oldest of them first: the saved place then moves over a finished prefix
     assert all(options["calibration"] == "calibration" and options["corpus_id"] == "knowledge-corpus-example-site" and "cut" not in options for _, options in pass_.suggested)
     assert (result["indexed"], result["conceptCardsWritten"], result["suggestionsWritten"], result["suggestionsSkippedReason"]) == (5, 2, 4, None)
-    assert watermark.writes == ["2026-10-31T10:00:00Z"]
+    assert done(watermark)["accepted"]["high"] == "2026-10-31T10:00:00Z#ref-2"
     assert result["costUsd"] == pytest.approx(0.02)   # 4,000,000 characters at 4 per token, $0.02 per million tokens
 
 
-def test_the_first_pass_takes_every_accepted_reference_and_a_pass_with_nothing_new_still_syncs_the_concept_cards():
-    client = AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")])
+def test_the_first_pass_takes_every_reference_newest_first_and_a_pass_with_nothing_new_still_syncs_the_concept_cards():
+    client = AcceptedClient([accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-31T10:00:00Z")])
     watermark = Watermark()
-    run_pass(client, Pass(), watermark)
-    assert watermark.value == "2026-10-30T10:00:00Z"
+    first = Pass()
+    run_pass(client, first, watermark)
+    assert first.order == ["index", "suggest:ref-2", "suggest:ref-1"]   # newest first
+    assert done(watermark)["accepted"] == {"high": "2026-10-31T10:00:00Z#ref-2", "low": "2026-10-30T10:00:00Z#ref-1"}
     quiet = Pass(cards=1)
     result = run_pass(client, quiet, watermark)
     assert quiet.options.skip_references and quiet.options.reference_ids == () and quiet.order == ["index"]
@@ -211,7 +223,7 @@ def test_suggestions_can_be_turned_off_and_the_index_is_still_kept_current():
     pass_, watermark = Pass(), Watermark()
     result = run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, watermark, policy={"suggestions": {"enabled": False}})
     assert pass_.order == ["index"] and result["suggestionsSkippedReason"] == "suggestions are off in the publication's monitorStories"
-    assert watermark.writes == ["2026-10-30T10:00:00Z"]
+    assert done(watermark)["accepted"]["high"] == "2026-10-30T10:00:00Z#ref-1"
 
 
 def test_without_the_openai_key_the_index_is_skipped_with_a_reason_the_watermark_stays_and_suggestions_still_use_the_vectors_that_exist():
@@ -242,20 +254,38 @@ def test_running_out_of_time_stops_the_index_and_the_suggestions_and_keeps_the_w
     ticks = iter([False, False, True])
     result = run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-30T11:00:00Z"), accepted(3, "2026-10-30T12:00:00Z")]), steps, Watermark(),
                       out_of_time=lambda: next(ticks, True))
-    assert steps.order == ["index", "suggest:ref-1"] and result["stoppedBy"] == "time"   # index check passed, ref-1 suggested, then the time was gone
+    assert steps.order == ["index", "suggest:ref-3"] and result["stoppedBy"] == "time"   # index check passed, the newest suggested, then the time was gone
 
 
-def test_a_pass_the_time_stopped_saves_its_place_and_the_next_pass_resumes_after_it_and_finishes():
+def test_a_pass_the_time_stopped_saves_its_place_and_the_next_pass_resumes_below_it_and_finishes():
     rows = [accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-30T10:00:00Z"), accepted(3, "2026-10-30T10:00:00Z")]   # one acceptance time, as in a bulk import
     watermark, ticks = Watermark(), iter([False, False, False])
     first = Pass()
     result = run_pass(AcceptedClient(rows), first, watermark, out_of_time=lambda: next(ticks, True))
-    assert first.order == ["index", "suggest:ref-1", "suggest:ref-2"] and result["suggestionsRemaining"] == 1
-    assert json.loads(watermark.value) == {"accepted": "2026-10-30T10:00:00Z#ref-2"}
+    assert first.order == ["index", "suggest:ref-3", "suggest:ref-2"] and result["suggestionsRemaining"] == 1   # newest first; ties go by id
+    assert done(watermark)["accepted"] == {"high": "2026-10-30T10:00:00Z#ref-3", "low": "2026-10-30T10:00:00Z#ref-2"}
     second = Pass()
     result = run_pass(AcceptedClient(rows), second, watermark)
-    assert second.options.reference_ids == ("ref-3",) and second.order == ["index", "suggest:ref-3"] and result["suggestionsRemaining"] == 0
-    assert watermark.value == "2026-10-30T10:00:00Z"   # finished: the plain timestamp again
+    assert second.options.reference_ids == ("ref-1",) and second.order == ["index", "suggest:ref-1"] and result["suggestionsRemaining"] == 0
+    assert done(watermark)["accepted"]["low"] == "2026-10-30T10:00:00Z#ref-1"
+    third = Pass()
+    run_pass(AcceptedClient(rows), third, watermark)
+    assert third.order == ["index"]   # nothing left
+
+
+def test_a_reference_that_arrives_while_the_backlog_is_unfinished_is_handled_first_at_the_next_pass_and_the_backlog_goes_on_below_its_place():
+    old = [accepted(1, "2026-10-01T10:00:00Z"), accepted(2, "2026-10-02T10:00:00Z"), accepted(3, "2026-10-03T10:00:00Z"), accepted(4, "2026-10-04T10:00:00Z")]
+    watermark, ticks = Watermark(), iter([False, False])
+    run_pass(AcceptedClient(old), Pass(), watermark, out_of_time=lambda: next(ticks, True))   # got through ref-4 only
+    assert done(watermark)["accepted"] == {"high": "2026-10-04T10:00:00Z#ref-4", "low": "2026-10-04T10:00:00Z#ref-4"}
+    arrivals = [*old, accepted(5, "2026-11-01T10:00:00Z"), accepted(6, "2026-11-02T10:00:00Z")]
+    second, ticks = Pass(), iter([False, False, False, False])
+    run_pass(AcceptedClient(arrivals), second, watermark, out_of_time=lambda: next(ticks, True))
+    assert second.order == ["index", "suggest:ref-5", "suggest:ref-6", "suggest:ref-3"]   # the new ones (oldest of them first) before the backlog, then the backlog newest first
+    assert done(watermark)["accepted"] == {"high": "2026-11-02T10:00:00Z#ref-6", "low": "2026-10-03T10:00:00Z#ref-3"}
+    third = Pass()
+    run_pass(AcceptedClient(arrivals), third, watermark)
+    assert third.order == ["index", "suggest:ref-2", "suggest:ref-1"]
 
 
 def test_a_stopped_pass_that_got_through_nothing_leaves_the_watermark_and_an_unreadable_one_starts_over():
@@ -263,16 +293,42 @@ def test_a_stopped_pass_that_got_through_nothing_leaves_the_watermark_and_an_unr
     pass_ = Pass()
     run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, watermark, out_of_time=iter([False, True]).__next__)
     assert watermark.writes == [] and pass_.options.reference_ids == ("ref-1",)
+    older = Watermark(json.dumps({"accepted": "2026-10-30T10:00:00Z#ref-1"}))   # the shape of the earlier cursor release: no version, so it starts over
+    pass_ = Pass()
+    run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, older)
+    assert pass_.options.reference_ids == ("ref-1",)
 
 
-def test_accepted_references_are_suggested_before_pending_ones_and_each_group_keeps_its_own_cursor():
-    pending = {**accepted(9, "2026-10-29T09:00:00Z"), "curationStatus": "pending"}
+def test_what_an_editor_looks_at_comes_first_a_human_vote_or_a_conversation_then_pending_then_bulk_accepted_with_no_human_signal():
+    voted = {**accepted(1, "2026-09-01T10:00:00Z"), "curationActorKind": "human"}
+    talked = {**accepted(2, "2026-08-01T10:00:00Z"), "lineageId": "lineage-talked"}
+    bulk = [accepted(3, "2026-11-01T10:00:00Z"), accepted(4, "2026-10-30T10:00:00Z")]
+    pending = [{**accepted(5, "2026-10-01T10:00:00Z"), "curationStatus": "pending"}, {**accepted(6, "2026-10-20T10:00:00Z"), "curationStatus": "pending"}]
+    client = AcceptedClient([voted, talked, *bulk], pending, threads=[{"id": "t1", "primaryAnchorKey": "reference#lineage-talked"}, {"id": "t2", "primaryAnchorKey": "item#story"}])
     pass_, watermark = Pass(), Watermark()
-    ticks = iter([False, False, False])
-    run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-30T11:00:00Z")], [pending]), pass_, watermark, out_of_time=lambda: next(ticks, True))
-    assert pass_.order == ["index", "suggest:ref-1", "suggest:ref-2"]   # the older pending Reference waits behind the accepted ones
-    cursors = json.loads(watermark.value)
-    assert cursors == {"accepted": "2026-10-30T11:00:00Z#ref-2"}   # the pending group was not reached: no cursor, so it is all still to do
+    run_pass(client, pass_, watermark)
+    assert pass_.order == ["index", "suggest:ref-1", "suggest:ref-2", "suggest:ref-6", "suggest:ref-5", "suggest:ref-3", "suggest:ref-4"]
+    assert sorted(done(watermark)["done"]) == ["ref-1", "ref-2"]
+
+
+def test_a_reference_that_gains_a_human_vote_after_it_was_suggested_as_bulk_is_suggested_again_as_a_signal_whatever_its_date():
+    rows = [accepted(1, "2026-10-01T10:00:00Z"), accepted(2, "2026-10-02T10:00:00Z")]
+    watermark = Watermark()
+    run_pass(AcceptedClient(rows), Pass(), watermark)
+    rows[0] = {**rows[0], "curationActorKind": "human"}   # an editor voted on ref-1, whose date is inside the done interval
+    again = Pass()
+    run_pass(AcceptedClient(rows), again, watermark)
+    assert again.order == ["index", "suggest:ref-1"]
+    third = Pass()
+    run_pass(AcceptedClient(rows), third, watermark)
+    assert third.order == ["index"]
+
+
+def test_a_plain_timestamp_from_an_older_pass_means_everything_up_to_it_is_done():
+    pass_ = Pass()
+    run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-30T12:00:00Z")], [{**accepted(3, "2026-10-30T09:00:00Z"), "curationStatus": "pending"}]),
+             pass_, Watermark("2026-10-30T11:00:00Z"))
+    assert pass_.order == ["index", "suggest:ref-2"]
 
 
 def test_one_reference_whose_suggestions_fail_does_not_stop_the_others():
@@ -340,7 +396,7 @@ def router_with(settings):
 
 def run_task(store, client, order, monkeypatch, *, key="sk-test", accepted_rows=None, drafter_options=None):
     pass_ = Pass(characters=400_000, cards=1, written=3)
-    monkeypatch.setattr("papyrus_content.monitoring_vectors.references_since", lambda c, p, watermark: accepted_rows or [])
+    monkeypatch.setattr("papyrus_content.monitoring_vectors.plan_since", lambda c, p, watermark, signal=(): (list(accepted_rows or []), {"signal": 0, "news": 0, "backlog": {"pending": 0, "accepted": len(accepted_rows or [])}, "state": {}}))
     monkeypatch.setattr("papyrus_content.monitoring_vectors.run_vector_pass", partial(
         vectors.run_vector_pass, services_for=lambda publication, bucket: object(), indexer=lambda services, options: (order.append("index"), pass_.indexer(services, options))[1],
         suggester=lambda c, provider, reference_id, **options: (order.append("suggest"), pass_.suggester(c, provider, reference_id, **options))[1],
@@ -382,7 +438,7 @@ def test_a_router_run_syncs_the_index_then_suggests_then_drafts_and_the_log_line
     assert (line["indexed"], line["conceptCardsWritten"], line["suggestionsWritten"], line["suggestionsSkippedReason"]) == (3, 1, 2, None)
     assert line["drafted"] == 2 and line["costUsd"] >= 0.002   # the model's spend and the embeddings (400,000 characters) share one meter
     stored = table.get_item({"pk": "MONITOR#hn", "sk": vectors.watermark_sort_key(tms.PUBLICATION)})["Item"]
-    assert stored["watermark"] == "2026-10-30T10:00:00Z"
+    assert json.loads(stored["watermark"])["accepted"]["high"] == "2026-10-30T10:00:00Z#ref-1"
     assert result["monitorStories"][tms.PUBLICATION]["indexed"] == 3
 
 
@@ -507,7 +563,7 @@ def test_the_router_zip_closure_carries_the_vector_pass_and_the_knowledge_query_
     needed = ["monitoring_vectors", "reference_suggestions", "suggestion_calibration", "reference_links", "knowledge_snapshot/keys", "knowledge_wiki/pages", "corpus_storage_paths"]
     assert set(needed) <= set(modules), sorted(set(needed) - set(modules))
     files = build.knowledge_query_files()
-    assert set(files) == {f"papyrus_knowledge_query/{name}.py" for name in ("__init__", "engine", "ranking", "services", "tokens", "uris", "vector_index")}
+    assert set(files) == {f"papyrus_knowledge_query/{name}.py" for name in ("__init__", "concept_kinds", "engine", "ranking", "services", "tokens", "uris", "vector_index")}
     assert sum(len(data) for data in files.values()) < 1_000_000   # source only: far below the zip's bound
     task = tmp_path / "task"
     for name in ["__init__", *modules]:

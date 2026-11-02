@@ -309,6 +309,21 @@ def references_suggest_links(flags: list[str]) -> None:
     print(json.dumps(suggest_for(client, provider, reference_id, corpus_id=corpus_id, calibration=load_calibration(client), dry_run=not apply), indent=2))
 
 
+def references_retire_junk_suggestions(flags: list[str]) -> None:
+    """``papyrus references retire-junk-suggestions [--execute]``.
+
+    Lists the open ``auto:vector`` concept suggestions whose concept is a bookkeeping node (an author, a coverage, comment, quality-rating or relevance node;
+    src/papyrus_content/junk_suggestions.py). It writes nothing unless ``--execute`` is given; then it marks each suggestion rejected (reason
+    ``not_a_concept``, by ``auto:cleanup``), so it leaves the queue and is not offered again. Nothing is deleted."""
+    from .junk_suggestions import retire_junk_suggestions
+    options = parse_options(flags)
+    client, _ = create_authoring_client()
+    result = retire_junk_suggestions(client, execute=bool(options.get("execute")))
+    print(json.dumps({key: value for key, value in result.items() if key != "rows"}, indent=2))
+    for row in result["rows"]:
+        print(f"references\tretire-junk-suggestions\t{'retired' if result['executed'] else 'would retire'}\t{row['relationId']}\t{row['nodeKind']}\t{row['nodeKey']}\t{row['score']}")
+
+
 def references_backfill_feed_keys(flags: list[str]) -> None:
     """``papyrus references backfill-feed-keys (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--positive-label LABEL] [--dry-run]``.
 

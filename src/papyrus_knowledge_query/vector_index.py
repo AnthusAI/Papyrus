@@ -17,6 +17,7 @@ from typing import Any
 from papyrus_content.knowledge_snapshot.keys import concept_hashtag, kind_label
 from papyrus_content.knowledge_wiki.pages import entity_body
 
+from .concept_kinds import is_concept
 from .engine import _chunk_text, _clean_text, object_title
 from .services import GraphQLKnowledgeGraphProvider, KnowledgeQueryServices
 
@@ -125,6 +126,7 @@ class VectorIndexOptions:
     worker_count: int = 8
     skip_references: bool = False
     stop_check: Callable[[dict[str, Any]], str | None] | None = None
+    concept_kinds: tuple[str, ...] | None = None   # the publication's allowlist of concept kinds; None: every kind but the bookkeeping ones (concept_kinds.py)
 
 
 def index_reference_passages(services: KnowledgeQueryServices, options: VectorIndexOptions) -> dict[str, Any]:
@@ -320,7 +322,7 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
             for vector in existing_vectors
             if str(vector.get("key") or "").startswith(CONCEPT_CARD_KEY_PREFIX)
         }
-        for candidate in _prepare_concept_card_vectors(services.graph):
+        for candidate in _prepare_concept_card_vectors(services.graph, options.concept_kinds):
             stats["vectorsPrepared"] += 1
             stats["conceptCardsPrepared"] += 1
             unchanged = existing_card_hashes.get(candidate["key"]) == candidate["metadata"]["contentHash"]
@@ -1500,7 +1502,7 @@ def _concept_card_text(node: dict[str, Any]) -> str:
     return f"{lead}\n\nKind: {kind_label(str(node.get('nodeKind') or ''))}.{alias_line}"
 
 
-def _prepare_concept_card_vectors(graph: Any) -> list[dict[str, Any]]:
+def _prepare_concept_card_vectors(graph: Any, concept_kinds: tuple[str, ...] | None = None) -> list[dict[str, Any]]:
     if not graph or not hasattr(graph, "graphql"):
         return []
     vectors: list[dict[str, Any]] = []
@@ -1508,6 +1510,8 @@ def _prepare_concept_card_vectors(graph: Any) -> list[dict[str, Any]]:
         node_key = str(node.get("nodeKey") or "")
         if not node_key or not node.get("displayName"):
             continue
+        if not is_concept(node.get("nodeKind"), node_key, concept_kinds):
+            continue   # authors, comment and rating concepts, coverage questions and the like are not subjects to link a Reference to
         text = _concept_card_text(node)
         lineage_id = str(node.get("lineageId") or node.get("id") or "")
         hashtag = concept_hashtag(node_key)

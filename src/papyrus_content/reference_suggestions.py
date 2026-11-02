@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Protocol
 
+from papyrus_knowledge_query.concept_kinds import is_concept
 from papyrus_knowledge_query.vector_index import reference_summary_vector_key
 
 from .reference_links import RELATED_TO, link_concept, link_references
@@ -113,6 +114,7 @@ def suggest_for(
     dry_run: bool = False,
     actor: str = SUGGESTION_ACTOR,
     now: str | None = None,
+    concept_kinds: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     """Suggests related References and concepts for one Reference, given by record id or lineage id.
 
@@ -156,6 +158,8 @@ def suggest_for(
         result["references"].append(_kept(candidate, outcome, calibration, "reference"))
 
     concept_matches = vector_provider.query_by_vector(query_vector, S3_VECTORS_MAX_TOP_K, {"vectorKind": {"$in": list(CONCEPT_VECTOR_KINDS)}})
+    # A card written before bookkeeping nodes were left out may still be in the index (the router cannot delete vectors): not a concept to offer.
+    concept_matches = [match for match in concept_matches if is_concept((match.get("metadata") or {}).get("nodeKind"), (match.get("metadata") or {}).get("nodeKey"), concept_kinds)]
     concepts = _best_by_lineage(concept_matches, _concept_lineage, excluded)
     choose_count = cut or (calibration.cut("concept", knee_cut_count) if calibration is not None else None) or knee_cut_count
     for candidate in concepts[: choose_count([c["similarity"] for c in concepts])]:

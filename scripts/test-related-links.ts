@@ -46,6 +46,7 @@ const REFERENCE = { lineageId: "preview-reference-lineage-0", id: "preview-refer
 const items = localPreviewReferenceLinkItems();
 const links = params.has("concept") ? localPreviewReferenceLinks().filter((link) => link.objectKind === "semanticNode" && link.state === "current" && link.id !== "preview-link-1")
   : params.has("noindex") ? localPreviewReferenceLinks().filter((link) => link.id === "preview-link-1")
+  : params.has("bare") ? []
   : localPreviewReferenceLinks();
 window.calls = [];
 const store = createMemoryReferenceLinksStore({
@@ -342,6 +343,18 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await related.locator("[data-related-add] textarea").isDisabled(), true);
     });
     console.log("Related scenario passed: referencesViewer");
+  },
+
+  /** A Reference opened with no links and never tried gets its suggestions once, without a click, and they show when the call returns. */
+  async autoSuggest() {
+    await run("?bare=1", [375, 1440], async (page, width) => {
+      await page.locator('[data-related-reference-card="preview-reference-lineage-4"]').waitFor();
+      const made = (await calls(page)).filter((call) => (call as { type?: string }).type === "suggest");
+      assert.equal(made.length, 1, "asked once, by itself");
+      assert.equal(await page.locator("[data-related-suggest-more]").isDisabled(), false, "the button is back once the answer came");
+      await screenshot(page, "auto-suggest", width);
+    });
+    console.log("Related scenario passed: autoSuggest");
   },
 
   async skipNotes() {

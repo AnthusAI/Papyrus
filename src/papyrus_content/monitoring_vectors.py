@@ -19,12 +19,20 @@ vector, or, where this role has no ``s3vectors:DeleteVectors``, is re-marked ``c
 fails is reported as a warning and deletes nothing. Only the editors' internal knowledge query returns them (docs/internal-knowledge-research.md).
 
 The only bounds are the run's time and its cost meter: embedding cost (text-embedding-3-small, from the characters embedded) is added to the model
-spend of the publication's run. "Since the last pass" is a watermark, which the router keeps in its own table next to its other per-publication state. A pass that
-finishes writes the newest acceptance time as a plain timestamp. A pass the time or cost stopped keeps what it finished: once the index sync has completed, the
-suggestions go through the References accepted first (the ones drafting needs), then the pending ones, each group oldest first, and the pass writes a cursor per
-group (a JSON object of ``timestamp#id`` positions) after the last Reference it finished, so the next pass takes up where this one stopped and a huge first pass
-drains over a few runs. A pass whose index sync stopped or failed leaves the watermark where it was (the vectors already written are skipped by key). The result
-says how much is left (``suggestionsRemaining``).
+spend of the publication's run. "Since the last pass" is a watermark, which the router keeps in its own table next to its other per-publication state, and the suggestions
+go in the order an editor looks at the site, not in the order of the data:
+
+* **Tier 1, signal**: a Reference a person voted on, or that has a conversation anchored on it. Newest first. The watermark lists the ids already done (the few
+  hundred Reference a person touched), so a Reference that gains a vote later is suggested at the next pass wherever its date falls.
+* **Tier 2, pending**, **tier 3, accepted with no human signal** (bulk imports and machine acceptances; drafting wants these, they wait last).
+* Within tiers 2 and 3: **new arrivals first, then the backlog newest first**. Each tier keeps an interval ``[low, high]`` of positions (``timestamp#id``) it
+  has been through. A Reference newer than ``high`` is a new arrival and is done first, oldest of the new ones first, so ``high`` only ever moves up over a finished
+  prefix; the backlog is whatever is older than ``low``, newest first, so ``low`` moves down over a finished prefix. A pass the time or cost stopped saves exactly
+  that, so the next pass resumes without redoing anything, and a Reference that arrives meanwhile is never behind the backlog: it is above ``high``.
+  A plain timestamp written by an older pass reads as "everything up to it is done" (``high`` = it, ``low`` = nothing). A watermark in any other shape starts over.
+
+A pass whose index sync stopped or failed leaves the watermark where it was (the vectors already written are skipped by key). The result says how much is
+left (``suggestionsRemaining``).
 
 Without ``vectorIndexArn`` in the publication's ``monitorStories`` the pass does nothing and says why, and packs run without vectors.
 """
@@ -32,7 +40,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
@@ -122,14 +130,26 @@ def _status_of(row: dict[str, Any]) -> str:
     return "pending" if pending else "accepted"
 
 
-def _position(row: dict[str, Any]) -> str:
-    """A Reference's place in the order a pass walks: ``timestamp#id`` (a bulk import gives many References one timestamp, so the id breaks the tie)."""
-    return f"{_changed_at(row)}#{row['id']}"
+REFERENCE_ANCHOR_PREFIX = "reference#"   # the anchor key of a conversation about a Reference (home_page/threads.py)
+TIERS = ("pending", "accepted")
 
 
-def parse_watermark(value: str | None) -> dict[str, str]:
-    """The cursor of each status from the stored watermark: a plain timestamp (a finished pass, and every watermark written before cursors existed) is
-    the cursor of both; a JSON object holds one position per status. Anything unreadable is no cursor (the pass starts over; vectors already written are skipped)."""
+def _key(row: dict[str, Any]) -> tuple[str, str]:
+    return (_changed_at(row), str(row["id"]))
+
+
+def _split(position: str | None) -> tuple[str, str] | None:
+    """A saved position as a sort key: ``timestamp#id``, or a bare timestamp (an older pass: everything up to it)."""
+    if not position:
+        return None
+    stamp, _, identifier = position.partition("#")
+    return (stamp, identifier)
+
+
+def parse_watermark(value: str | None) -> dict[str, Any]:
+    """The saved place: ``{"done": [ids of tier 1], "pending": {"high", "low"}, "accepted": {...}}``. A bare timestamp is the old watermark and means "all of
+    it up to here is done" (``high`` = the timestamp, ``low`` = ``""``: nothing older is left). Anything else is no place: the pass starts over (vectors
+    already written are skipped, so this costs time and loses nothing)."""
     if not value:
         return {}
     if value.startswith("{"):
@@ -137,31 +157,88 @@ def parse_watermark(value: str | None) -> dict[str, str]:
             loaded = json.loads(value)
         except ValueError:
             return {}
-        return {status: str(loaded[status]) for status in INDEXED_STATUSES if isinstance(loaded, dict) and loaded.get(status)}
-    return {status: value for status in INDEXED_STATUSES}
+        if not isinstance(loaded, dict) or loaded.get("v") != 2:
+            return {}
+        return {"done": [str(item) for item in loaded.get("done") or []],
+                **{tier: {"high": (loaded.get(tier) or {}).get("high"), "low": (loaded.get(tier) or {}).get("low")} for tier in TIERS}}
+    return {"done": [], **{tier: {"high": value, "low": ""} for tier in TIERS}}
 
 
-def _after(row: dict[str, Any], cursor: str | None) -> bool:
-    if not cursor:
-        return True
-    if "#" in cursor:
-        stamp, identifier = cursor.split("#", 1)
-        return (_changed_at(row), str(row["id"])) > (stamp, identifier)
-    return _changed_at(row) > cursor
-
-
-def references_since(client: Any, publication: dict[str, Any], watermark: str | None) -> list[dict[str, Any]]:
-    """The publication's accepted and pending References whose status changed (or that arrived) after the watermark (all of them when there is none): the
-    accepted ones first, then the pending ones, each oldest first (drafting needs the accepted ones' suggestions, so they come first). A pending Reference
-    accepted later changes its ``curationStatusUpdatedAt`` and so comes round again as accepted; a rejected one is not listed (``index_reference_passages``
-    removes its vectors on every sync, from the whole Reference list, not from this one)."""
-    cursors = parse_watermark(watermark)
-    found: dict[str, dict[str, Any]] = {}
+def plan_since(client: Any, publication: dict[str, Any], watermark: str | None, signal_lineages: Iterable[str] = ()) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """(the References still to do in the order to do them, how that order is made of parts). A rejected Reference is not listed
+    (``index_reference_passages`` removes its vectors on every sync, from the whole Reference list); a pending one accepted later changes its
+    ``curationStatusUpdatedAt`` and comes round as a new accepted arrival. The parts are what ``advance`` needs to move the saved place."""
+    state = parse_watermark(watermark)
+    done_ids = set(state.get("done") or [])
+    signalled = set(signal_lineages)
+    rows: dict[str, dict[str, Any]] = {}
     for status in INDEXED_STATUSES:
         for row in client.list_by_index(ACCEPTED_INDEX, f"{publication['corpusId']}#{status}"):
-            if row.get("id") and row.get("versionState", "current") == "current" and _after(row, cursors.get(status)):
-                found[str(row["id"])] = row
-    return sorted(found.values(), key=lambda row: (_status_of(row) == "pending", _changed_at(row), str(row["id"])))
+            if row.get("id") and row.get("versionState", "current") == "current":
+                rows[str(row["id"])] = row
+    signal = [row for row in rows.values() if _is_signal(row, signalled) and str(row["id"]) not in done_ids]
+    signal.sort(key=_key, reverse=True)
+    others = [row for row in rows.values() if not _is_signal(row, signalled)]
+    news: list[dict[str, Any]] = []
+    backlog: dict[str, list[dict[str, Any]]] = {}
+    for tier in TIERS:
+        members = sorted((row for row in others if _status_of(row) == tier), key=_key)
+        place = state.get(tier) or {}
+        high, low = _split(place.get("high")), _split(place.get("low"))
+        if not place or (high is None and low is None):
+            backlog[tier] = members[::-1]
+            continue
+        news += [row for row in members if high is not None and _beyond(_key(row), high)]
+        backlog[tier] = [row for row in reversed(members) if low is not None and _key(row) < low]
+    ordered = [*signal, *news, *backlog["pending"], *backlog["accepted"]]
+    parts = {"signal": len(signal), "news": len(news), "backlog": {tier: len(backlog[tier]) for tier in TIERS}, "state": state}
+    return ordered, parts
+
+
+def _beyond(key: tuple[str, str], high: tuple[str, str]) -> bool:
+    """Newer than a saved ``high``: by timestamp alone when the position has no id (an older pass saved only the time)."""
+    return key > high if high[1] else key[0] > high[0]
+
+
+def _is_signal(row: dict[str, Any], signalled: set[str]) -> bool:
+    return row.get("curationActorKind") == "human" or str(row.get("lineageId") or row["id"]) in signalled
+
+
+def signal_lineages(client: Any) -> set[str]:
+    """The lineage ids of the References a conversation is anchored on (a vote is on the Reference row itself). Unreadable threads mean no signal from them."""
+    try:
+        return {str(thread.get("primaryAnchorKey") or "").removeprefix(REFERENCE_ANCHOR_PREFIX)
+                for thread in client.list_records("MessageThread") if thread and str(thread.get("primaryAnchorKey") or "").startswith(REFERENCE_ANCHOR_PREFIX)}
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def references_since(client: Any, publication: dict[str, Any], watermark: str | None, signal_ids: Iterable[str] = ()) -> list[dict[str, Any]]:
+    return plan_since(client, publication, watermark, signal_ids)[0]
+
+
+def advance(parts: dict[str, Any], processed: list[dict[str, Any]]) -> str:
+    """The saved place after the pass got through ``processed`` (a prefix of the plan's order)."""
+    state = parts["state"]
+    place = {"v": 2, "done": list(state.get("done") or []), **{tier: dict(state.get(tier) or {"high": None, "low": None}) for tier in TIERS}}
+    signal_count, news_count = parts["signal"], parts["news"]
+    for number, row in enumerate(processed):
+        if number < signal_count:
+            if str(row["id"]) not in place["done"]:
+                place["done"].append(str(row["id"]))
+            continue
+        tier = _status_of(row)
+        position = "#".join(_key(row))
+        current = place[tier]
+        if number < signal_count + news_count:   # oldest new arrival first, so `high` moves up over a finished prefix
+            if not _split(current.get("high")) or _beyond(_key(row), _split(current["high"])):
+                current["high"] = position
+        else:   # the backlog, newest first, so `low` moves down; the first ever row also fixes `high`
+            if _split(current.get("high")) is None:
+                current["high"] = position
+            if _split(current.get("low")) is None or _key(row) < _split(current["low"]):
+                current["low"] = position
+    return json.dumps(place, sort_keys=True)
 
 
 def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, Any], *, now: datetime, out_of_time: Callable[[], bool],
@@ -182,7 +259,7 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
         return {**result, "indexSkippedReason": missing_client, "suggestionsSkippedReason": missing_client}
     try:
         watermark = read_watermark()
-        newly = references_since(client, publication, watermark)
+        newly, parts = plan_since(client, publication, watermark, signal_lineages(client))
     except Exception as error:  # noqa: BLE001
         reason = f"could not read the accepted and pending References ({type(error).__name__}: {str(error)[:160]})"
         return {**result, "indexSkippedReason": reason, "suggestionsSkippedReason": reason}
@@ -210,7 +287,7 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
     result["suggestionsRemaining"] = len(newly) - done
     if newly and indexing_ok and not result.get("suggestionsError"):
         # The index is complete for everything in `newly`; the watermark moves over the References the pass got through (all of them when it finished).
-        value = max(_changed_at(row) for row in newly) if done == len(newly) else _cursor_after(newly[:done], read_watermark_value=watermark)
+        value = advance(parts, newly[:done]) if done else None
         if value:
             try:
                 write_watermark(value)
@@ -218,17 +295,6 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
                 result["watermarkError"] = f"{type(error).__name__}: {str(error)[:160]}"
     result["costUsd"] = round(result["costUsd"], 6)
     return result
-
-
-def _cursor_after(finished: list[dict[str, Any]], *, read_watermark_value: str | None) -> str | None:
-    """The watermark after a pass that got through ``finished`` (a prefix of the order it walks) and no further: one position per status, the last finished
-    Reference of that status, else the cursor it had. None when nothing was finished (the watermark stays)."""
-    if not finished:
-        return None
-    cursors = parse_watermark(read_watermark_value)
-    for row in finished:   # in walking order, so the last of each status wins
-        cursors[_status_of(row)] = _position(row)
-    return json.dumps(cursors, sort_keys=True)
 
 
 def _sync_index(publication: dict[str, Any], policy: dict[str, Any], newly: list[dict[str, Any]], result: dict[str, Any], *, services_for: Callable[..., Any],

@@ -167,9 +167,9 @@ def step_pass(context):
             services_for=lambda p, b: "services", indexer=indexer, suggester=suggester, provider_for=lambda arn: "provider", calibration_loader=lambda c: None)
 
 
-@then("both References are indexed and suggested for, the older first")
+@then("both References are indexed and suggested for, the pending one first")
 def step_both(context):
-    assert context.indexed_ids == ["ref-1", "ref-2"] and context.suggested == ["ref-1", "ref-2"], (context.indexed_ids, context.suggested)
+    assert sorted(context.indexed_ids) == ["ref-1", "ref-2"] and context.suggested == ["ref-2", "ref-1"], (context.indexed_ids, context.suggested)
 
 
 @then("the pass reports {accepted:d} newly accepted and {pending:d} newly pending Reference")
@@ -177,9 +177,12 @@ def step_counts(context, accepted, pending):
     assert (context.result["newlyAccepted"], context.result["newlyPending"]) == (accepted, pending), context.result
 
 
-@then('the pass records "{value}" as its new watermark')
-def step_watermark(context, value):
-    assert context.watermark_writes[-1] == value, context.watermark_writes
+@then("the pass saves a place for the pending and the accepted group")
+def step_watermark(context):
+    import json
+
+    place = json.loads(context.watermark_writes[-1])
+    assert place["v"] == 2 and place["pending"]["high"].endswith("#ref-2") and place["accepted"]["high"].endswith("#ref-1"), place
 
 
 # --- suggestions and search -------------------------------------------------------------------------------------------------------------

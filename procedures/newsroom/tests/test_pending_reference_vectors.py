@@ -203,12 +203,12 @@ def row(number, status, at):
     return {"id": f"ref-{number}", "lineageId": f"lineage-{number}", "versionState": "current", "curationStatus": status, "curationStatusUpdatedAt": at}
 
 
-def test_the_router_picks_up_accepted_and_pending_references_after_the_watermark_accepted_first_then_oldest_first_and_never_rejected_ones():
+def test_the_router_picks_up_accepted_and_pending_references_after_the_watermark_new_arrivals_first_then_pending_then_accepted_newest_first():
     client = ByStatusClient([row(1, "accepted", "2026-10-30T10:00:00Z")], [row(2, "pending", "2026-10-29T10:00:00Z"), row(3, "pending", "2026-10-25T10:00:00Z")])
     found = vectors.references_since(client, {"corpusId": "c"}, "2026-10-26T00:00:00Z")
-    assert [r["id"] for r in found] == ["ref-1", "ref-2"]   # the accepted one first (drafting needs its suggestions), then the pending ones, oldest first
+    assert [r["id"] for r in found] == ["ref-2", "ref-1"]   # both are new arrivals; the pending tier comes before the accepted one
     assert client.asked == ["c#accepted", "c#pending"]
-    assert [r["id"] for r in vectors.references_since(client, {"corpusId": "c"}, None)] == ["ref-1", "ref-3", "ref-2"]
+    assert [r["id"] for r in vectors.references_since(client, {"corpusId": "c"}, None)] == ["ref-2", "ref-3", "ref-1"]   # no saved place: pending (what editors triage) newest first, then the accepted with no human signal
 
 
 def test_a_pending_reference_accepted_since_the_last_pass_comes_round_again_as_accepted():
@@ -236,8 +236,8 @@ def test_the_pass_syncs_and_suggests_for_pending_references_and_counts_them():
             now=__import__("datetime").datetime(2026, 11, 2), out_of_time=lambda: False, maximum_cost_usd=1.0, embedding_key="k", read_watermark=lambda: None,
             write_watermark=written.append, services_for=lambda p, b: "services", indexer=indexer, suggester=suggester, provider_for=lambda arn: "provider",
             calibration_loader=lambda c: None)
-    assert seen["ids"] == ("ref-1", "ref-2") and suggested == ["ref-1", "ref-2"]
-    assert result["newlyAccepted"] == 1 and result["newlyPending"] == 1 and written == ["2026-10-31T10:00:00Z"]
+    assert sorted(seen["ids"]) == ["ref-1", "ref-2"] and suggested == ["ref-2", "ref-1"]   # the pending one is newer and in the earlier tier
+    assert result["newlyAccepted"] == 1 and result["newlyPending"] == 1 and len(written) == 1
 
 
 # --- suggestions for a pending Reference ----------------------------------------------------------------------------------------------------
