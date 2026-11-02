@@ -649,6 +649,11 @@ class FakeAppSync:
         assert model == "Reference"
         return self.references.get(record_id)
 
+    def list_by_index(self, index, key):
+        """The References of the status named at the end of the key. Every publication sees all of them; a delivery row picks its own."""
+        assert index == "referencesByCurationStatusKey"
+        return [{"id": record_id, **record} for record_id, record in self.references.items() if record.get("curationStatus") == key.rsplit("#", 1)[1]]
+
 
 def delivered_table(table, labels=None):
     store, cyclotron = setup_router(table)
@@ -673,7 +678,7 @@ def test_feedback_maps_accepted_and_rejected_to_labels_with_deterministic_reques
                   "reference-p-apyr-us-101": ref("rejected", "user:sub-2"),
                   "reference-threat-intelligence-101": ref("pending", "papyrus-monitoring-worker")}
     result = feedback_run(table, store, cyclotron, references)
-    assert result["feedback"]["sent"] == 2 and result["feedback"]["pending"] == 1
+    assert result["feedback"]["sent"] == 2 and result["feedback"]["pending"] == 0   # the worker's pending Reference is not a vote
     sent = {c[1].split("/")[3]: c[2] for c in cyclotron.posts() if c[2]["operation"] == "feedback"}
     assert sent["anth-us"]["payload"] == {"bindingRevision": "1", "itemId": "hn-101", "itemRevision": 2,
                                           "output": "anth-us-relevance", "label": "include",
@@ -685,9 +690,10 @@ def test_feedback_maps_accepted_and_rejected_to_labels_with_deterministic_reques
     assert {f["outcome"] for f in fb} == {"sent"} and len(fb) == 2
     done = table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]
     assert done["feedback"] == "sent" and "gsi1pk" not in done
-    # rerun: sent rows are out of the queue, the pending one is checked again, nothing is re-sent
+    # rerun: both votes have receipts, so nothing is re-sent
     again = feedback_run(table, store, cyclotron, references, now=6000)
-    assert again["feedback"]["sent"] == 0 and len([c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]) == 2
+    assert again["feedback"]["sent"] == 0 and again["feedback"]["unchanged"] == 2
+    assert len([c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]) == 2
 
 
 def test_held_decisions_send_no_decide_request_and_say_so_in_the_receipt(table):
@@ -772,13 +778,12 @@ def test_feedback_is_still_sent_while_decisions_are_held(table):
 @pytest.mark.parametrize("record", [
     ref("accepted", None), ref("accepted", ""), ref("accepted", "papyrus-monitoring-worker"),
     ref("accepted", "system:auto"), ref("accepted", "user:")])
-def test_feedback_skips_missing_or_non_human_actors_and_records_why(table, record):
+def test_feedback_skips_missing_or_non_human_actors(table, record):
     store, cyclotron = delivered_table(table)
     result = feedback_run(table, store, cyclotron, {"reference-anth-us-101": record})
-    assert result["feedback"]["sent"] == 0 and result["feedback"]["skipped"] >= 1
+    assert result["feedback"]["sent"] == 0 and result["feedback"]["failed"] == 0   # not a person's vote: never a candidate
     assert not [c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]
-    row = table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]
-    assert "not a human" in row["lastNote"] and row["gsi1pk"] == "FEEDBACK#hn#pending"
+    assert not [k for k in table.items if k[1].startswith("FB#")]
 
 
 def test_feedback_is_off_unless_live_and_a_stored_switch_is_ignored(table):
@@ -799,9 +804,9 @@ def test_feedback_refusal_stops_cleanly_and_uncertain_is_retried_later(table):
     cyclotron.feedback_override = (503, {"code": "provider_key_unavailable"})
     result = feedback_run(table, store, cyclotron, refs)
     assert result["feedback"]["status"] == "stopped" and result["feedback"]["stoppedBy"] == "provider_key_unavailable"
-    assert table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]["gsi1pk"] == "FEEDBACK#hn#pending"
+    assert not [k for k in table.items if k[1].startswith("FB#")]          # nothing final was recorded: the next run asks again
     cyclotron.feedback_override = (500, {})
-    assert feedback_run(table, store, cyclotron, refs, now=6000)["feedback"]["failed"] == 1
+    assert feedback_run(table, store, cyclotron, refs, now=6000)["feedback"]["pending"] == 1
     cyclotron.feedback_override = None
     assert feedback_run(table, store, cyclotron, refs, now=7000)["feedback"]["sent"] == 1
     request_ids = {c[2]["requestId"] for c in cyclotron.posts() if c[2]["operation"] == "feedback"}
@@ -855,7 +860,7 @@ def test_feedback_binding_changed_is_retried_next_run_instead_of_stopping_the_sw
     cyclotron.feedback_override = (409, {"detail": "publication binding changed"})
     result = feedback_run(table, store, cyclotron, refs)
     assert result["feedback"]["status"] == "complete" and result["feedback"]["failed"] == 2
-    assert table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]["gsi1pk"] == "FEEDBACK#hn#pending"
+    assert not [k for k in table.items if k[1].startswith("FB#")]
     cyclotron.feedback_override = None
     assert feedback_run(table, store, cyclotron, refs, now=6000)["feedback"]["sent"] == 2
 
@@ -866,8 +871,137 @@ def test_feedback_for_a_publication_missing_from_the_config_is_skipped_without_p
     cfg["publications"] = [p for p in cfg["publications"] if p["publicationId"] != "anth-us"]
     table.put_item(cfg)
     result = feedback_run(table, store, cyclotron, {"reference-anth-us-101": ref("accepted", "user:s")})
-    assert result["feedback"]["sent"] == 0 and result["feedback"]["skipped"] >= 1
+    assert result["feedback"]["sent"] == 0 and result["feedback"]["failed"] == 0
     assert not [c for c in cyclotron.posts() if c[2]["operation"] == "feedback" and "anth-us" in c[1]]
+
+
+def sent_feedback(cyclotron):
+    return [c[2] for c in cyclotron.posts() if c[2]["operation"] == "feedback"]
+
+
+def explained(status, actor, why, at="2026-10-21T01:00:00Z"):
+    return ref(status, actor, at) | {"curationStatusReason": why}
+
+
+def test_feedback_sends_the_editors_explanation_as_the_comment(table):
+    store, cyclotron = delivered_table(table)
+    refs = {"reference-anth-us-101": explained("rejected", "user:s", "  Just a product announcement.  "),
+            "reference-p-apyr-us-101": ref("accepted", "user:t")}
+    assert feedback_run(table, store, cyclotron, refs)["feedback"]["sent"] == 2
+    sent = {c[1].split("/")[3]: c[2] for c in cyclotron.posts() if c[2]["operation"] == "feedback"}
+    assert sent["anth-us"]["payload"]["comment"] == "Just a product announcement."
+    assert "comment" not in sent["p-apyr-us"]["payload"]                   # no explanation: the field is left out, never sent empty
+    from hashlib import sha256
+    plain = sha256("\n".join(["reference-p-apyr-us-101", "accepted", "2026-10-21T01:00:00Z"]).encode()).hexdigest()
+    assert sent["p-apyr-us"]["requestId"] == plain                         # a vote without an explanation keeps the id it always had
+    withwhy = sha256("\n".join(["reference-anth-us-101", "rejected", "2026-10-21T01:00:00Z", "Just a product announcement."]).encode()).hexdigest()
+    assert sent["anth-us"]["requestId"] == withwhy
+    receipts = {v["publicationId"]: v for k, v in table.items.items() if k[1].startswith("FB#")}
+    assert receipts["anth-us"]["explained"] is True and receipts["p-apyr-us"]["explained"] is False
+    assert "Just a product" not in json.dumps(receipts, default=str)       # the receipt does not copy the text
+
+
+def test_a_changed_explanation_on_a_sent_vote_is_sent_again_as_a_new_request(table):
+    store, cyclotron = delivered_table(table)
+    refs = {"reference-anth-us-101": ref("accepted", "user:s")}
+    feedback_run(table, store, cyclotron, refs)
+    assert feedback_run(table, store, cyclotron, refs, now=5500)["feedback"]["unchanged"] == 1
+    refs = {"reference-anth-us-101": explained("accepted", "user:s", "Agent platforms.")}   # same status, same time: only the explanation is new
+    again = feedback_run(table, store, cyclotron, refs, now=6000)
+    assert again["feedback"]["sent"] == 1
+    first, second = sent_feedback(cyclotron)
+    assert first["requestId"] != second["requestId"] and "comment" not in first["payload"] and second["payload"]["comment"] == "Agent platforms."
+    assert feedback_run(table, store, cyclotron, refs, now=7000)["feedback"]["sent"] == 0      # and then it is settled
+    assert len(sent_feedback(cyclotron)) == 2
+
+
+def test_an_editor_changing_a_sent_vote_reaches_the_cyclotron_as_a_correction(table):
+    store, cyclotron = delivered_table(table)
+    feedback_run(table, store, cyclotron, {"reference-anth-us-101": ref("accepted", "user:s")})
+    undone = explained("rejected", "user:s", "Not for us after all.", at="2026-10-22T01:00:00Z")   # Accept, then un-accept
+    assert feedback_run(table, store, cyclotron, {"reference-anth-us-101": undone}, now=6000)["feedback"]["sent"] == 1
+    first, second = sent_feedback(cyclotron)
+    assert (first["payload"]["label"], second["payload"]["label"]) == ("include", "exclude") and second["payload"]["comment"] == "Not for us after all."
+    assert len({first["requestId"], second["requestId"]}) == 2
+
+
+def test_feedback_reads_the_votes_not_the_deliveries(table):
+    """The pass starts from the editors' votes; it does not read each delivered Reference (a site has thousands, a few dozen are voted)."""
+    store, cyclotron = delivered_table(table)
+    reads = []
+
+    class Counting(FakeAppSync):
+        def get_record(self, model, record_id):
+            reads.append(record_id)
+            return super().get_record(model, record_id)
+
+    config = validate_router_config(table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+    client = CyclotronClient(config, sign=lambda m, u, b: {}, http=cyclotron.http, sleep=lambda s: None, clock=lambda: 0)
+    refs = {"reference-anth-us-101": ref("accepted", "user:s"), "reference-p-apyr-us-101": ref("pending", "papyrus-monitoring-worker")}
+    result = run_router(store, "hn", now=5000, task="feedback", cyclotron=client, appsync=lambda e: Counting(refs), deliver=Delivery())
+    assert result["feedback"]["sent"] == 1 and reads == []
+
+
+def test_feedback_reaches_a_vote_however_many_deliveries_came_before_it(table):
+    store, cyclotron = delivered_table(table)
+    for number in range(500):                                              # a long history of delivered, never-voted References
+        key = f"DELIV#anth-us#reference-anth-us-old-{number}"
+        table.items[("MONITOR#hn", key)] = {"pk": "MONITOR#hn", "sk": key, "publicationId": "anth-us", "referenceId": f"reference-anth-us-old-{number}",
+                                            "itemId": "hn-1", "source": {"revision": 1}, "output": "anth-us-relevance", "bindingRevision": "1",
+                                            "gsi1pk": "FEEDBACK#hn#pending", "gsi1sk": f"2026-10-01T00:00:00Z#{number}"}
+    result = feedback_run(table, store, cyclotron, {"reference-anth-us-101": ref("accepted", "user:s")})
+    assert result["feedback"]["sent"] == 1
+
+
+def test_a_routing_run_no_longer_runs_auto_accept_inline(table):
+    store, cyclotron = delivered_table(table)
+    result = go(table, store, cyclotron, now=6000)
+    assert result["autoAccept"] == {}                                      # its own task, so a routing run can never starve it
+
+
+def test_auto_accept_without_a_publication_fans_out_one_run_per_publication_and_does_nothing_itself(table):
+    store, _ = setup_router(table)
+    cfg = table.items[("MONITOR#hn", "CONFIG#router")]
+    cfg["publications"][1]["autoAccept"] = {"enabled": False}
+    started = []
+    result = run_router(store, "hn", now=1, task="auto-accept", fan_out=started.append)
+    expected = [p["publicationId"] for p in cfg["publications"] if p["publicationId"] != cfg["publications"][1]["publicationId"]]
+    assert result["status"] == "fanned-out" and result["publications"] == expected == started
+    assert not [k for k in table.items if k[1].startswith(("LOCK#", "ROUTERUN#"))]
+
+
+def test_an_auto_accept_run_naming_a_publication_takes_its_own_lock_and_validates_the_name(table):
+    store, _ = setup_router(table)
+    cfg = table.items[("MONITOR#hn", "CONFIG#router")]
+    pid = cfg["publications"][0]["publicationId"]
+    assert run_router(store, "hn", now=1, task="route", publication_id=pid)["status"] == "error"
+    assert run_router(store, "hn", now=1, task="auto-accept", publication_id="nowhere")["status"] == "error"
+    assert store.acquire_router_lock("hn", "other", now=1000, sk=f"LOCK#auto-accept#{pid}")
+    assert run_router(store, "hn", now=1010, task="auto-accept", publication_id=pid)["status"] == "locked"
+    assert store.acquire_router_lock("hn", "route", now=1010)              # the routing lock and the other publications are not held
+    assert store.acquire_router_lock("hn", "stories", now=1010, sk=f"LOCK#monitor-stories#{pid}")
+
+
+def test_an_auto_accept_run_runs_only_the_named_publication(table, monkeypatch):
+    store, cyclotron = setup_router(table)
+    cfg = table.items[("MONITOR#hn", "CONFIG#router")]
+    seen = []
+    monkeypatch.setattr(mr, "run_auto_accept", lambda client, publication, policy, **kw: seen.append(publication["publicationId"]) or {
+        "publicationId": publication["publicationId"], "status": "ran", "accepted": 0})
+    pid = cfg["publications"][1]["publicationId"]
+    result = run_router(store, "hn", now=1, task="auto-accept", publication_id=pid, cyclotron=object(), appsync=lambda e: object(), deliver=Delivery(),
+                        time_left=lambda: 600)
+    assert seen == [pid] and list(result["autoAccept"]) == [pid]
+
+
+def test_auto_accept_has_its_own_hourly_schedules_for_hn_and_distinctive():
+    resources = _template()["Resources"]
+    hn, distinctive = resources["AutoAcceptSchedule"]["Properties"], resources["DistinctiveAutoAcceptSchedule"]["Properties"]
+    assert json.loads(hn["Target"]["Input"]) == {"task": "auto-accept", "monitorId": "hn"}
+    assert json.loads(distinctive["Target"]["Input"]) == {"task": "auto-accept", "monitorId": "web-distinctive"}
+    for schedule in (hn, distinctive):
+        assert schedule["ScheduleExpression"].startswith("cron(") and schedule["Target"]["RetryPolicy"]["MaximumRetryAttempts"] == 0
+        assert schedule["Target"]["Arn"] == ("GetAtt", "RouterFunction.Arn")
 
 
 # --- intake provenance, packaging, template --------------------------------------------------------------------
@@ -2196,7 +2330,8 @@ def test_feedback_skips_machine_and_missing_actors(table):
                   "reference-p-apyr-us-101": ref("accepted", "papyrus-monitoring-worker"),
                   "reference-threat-intelligence-101": ref("accepted", "Papyrus newsroom")}
     result = feedback_run(table, store, cyclotron, references)
-    assert result["feedback"]["sent"] == 0 and result["feedback"]["skipped"] == 3
+    assert result["feedback"]["sent"] == 0 and result["feedback"]["skipped"] == 0   # machines' acceptances are not votes: never candidates
+    assert not [c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]
     for actor in ("", "user:", "system:monitor", "worker:abc", "papyrus-relevance", "demo-import", "behave-x"):
         assert not mr.human_actor(actor)
 

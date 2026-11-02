@@ -1535,6 +1535,47 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createReviewRequest"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/fileProposal"
 
+  AutoAcceptSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-auto-accept
+      Description: >-
+        Every hour at minute 41, start the auto-accept task for the hn monitor (docs/monitoring-cloud.md#automatic-acceptance). The run accepts nothing
+        itself: it invokes the router once per publication the monitor lists whose autoAccept is not off, so each publication has the Lambda's whole time
+        budget and its own lock, and no routing run can use the time up first. No retry: the next hour repeats it.
+      ScheduleExpression: cron(41 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"auto-accept","monitorId":"hn"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  DistinctiveAutoAcceptSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-distinctive-auto-accept
+      Description: >-
+        Every hour at minute 11, the same auto-accept task for Distinctive Mark, which the hn router does not list
+        (docs/monitoring-cloud.md#automatic-acceptance). No retry.
+      ScheduleExpression: cron(11 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"auto-accept","monitorId":"web-distinctive"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
   DistinctiveMonitorStoriesSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:

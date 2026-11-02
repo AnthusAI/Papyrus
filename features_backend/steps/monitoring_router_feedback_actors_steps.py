@@ -33,8 +33,20 @@ def step_machine(context):
 
 
 @when("the feedback task runs")
+@then("the feedback task runs")
 def step_run(context):
-    context.result = tr.feedback_run(context.table_, context.store, context.cyclotron, context.references)
+    context.reads = []
+    reads = context.reads
+
+    class Counting(tr.FakeAppSync):
+        def get_record(self, model, record_id):
+            reads.append(record_id)
+            return super().get_record(model, record_id)
+
+    config = tr.validate_router_config(context.table_.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+    client = tr.CyclotronClient(config, sign=lambda m, u, b: {}, http=context.cyclotron.http, sleep=lambda s: None, clock=lambda: 0)
+    context.result = tr.run_router(context.store, "hn", now=5000, task="feedback", cyclotron=client,
+                                   appsync=lambda e: Counting(context.references), deliver=tr.Delivery())
 
 
 @then("one feedback was sent to Cyclotron with the label include")
@@ -51,7 +63,7 @@ def step_no_email(context):
 @then("no feedback was sent to Cyclotron")
 def step_none(context):
     assert feedback_posts(context) == []
-    assert context.result["feedback"]["skipped"] == 2
+    assert context.result["feedback"]["sent"] == 0 and context.result["feedback"]["skipped"] == 0   # not votes: never even candidates
 
 
 @given("the publication binding has since moved to revision {revision} with unchanged criteria")
@@ -85,11 +97,10 @@ def step_revision(context, revision):
     assert [p["payload"]["bindingRevision"] for p in feedback_posts(context)] == [revision]
 
 
-@then("the feedback stays queued for the next run")
+@then("the feedback stays waiting for the next run")
 def step_queued(context):
     assert context.result["feedback"]["failed"] == 1 and context.result["feedback"]["status"] == "complete"
-    row = context.table_.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]
-    assert row["gsi1pk"] == "FEEDBACK#hn#pending"
+    assert not [key for key in context.table_.items if key[1].startswith("FB#")]   # no final receipt: the vote is asked for again
 
 
 @given("Cyclotron answers feedback with publication binding changed")
@@ -129,7 +140,7 @@ def step_auto(context):
 @given("the Cyclotron accepted a reference automatically and the feedback task ran")
 def step_auto_ran(context):
     context.references["reference-anth-us-101"] = tr.ref("accepted", "auto:cyclotron")
-    context.result = tr.feedback_run(context.table_, context.store, context.cyclotron, context.references)
+    step_run(context)
 
 
 @when("an editor rejects that reference in the newsroom UI")
@@ -148,13 +159,90 @@ def step_sent_exclude(context):
     assert len(sent) == 1 and sent[0]["payload"]["label"] == "exclude", sent
 
 
-@then("the automatic acceptance stays queued as not a human curation")
+@then("the automatic acceptance is not counted as an editor's vote")
 def step_auto_queued(context):
-    assert context.result["feedback"]["skipped"] == 1
-    row = context.table_.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]
-    assert row["gsi1pk"] == "FEEDBACK#hn#pending" and "not a human" in row["lastNote"], row
+    assert context.result["feedback"]["sent"] == 0 and context.result["feedback"]["skipped"] == 0
+    assert not [key for key in context.table_.items if key[1].startswith("FB#")]
 
 
 @when("a monitor's rule accepts a reference automatically")
 def step_rule(context):
     context.references["reference-anth-us-101"] = tr.ref("accepted", "auto:rule")
+
+
+def with_reason(status, actor, why, at="2026-10-21T01:00:00Z"):
+    return tr.ref(status, actor, at) | {"curationStatusReason": why}
+
+
+@when('an editor rejects a reference in the newsroom UI saying "{why}"')
+def step_rejects_saying(context, why):
+    context.references["reference-anth-us-101"] = with_reason("rejected", "editor@example.test", why)
+
+
+@when('an editor accepts a reference in the newsroom UI saying "{why}"')
+def step_accepts_saying(context, why):
+    context.references["reference-anth-us-101"] = with_reason("accepted", "editor@example.test", why)
+
+
+@when('an editor rejects that reference in the newsroom UI saying "{why}"')
+def step_rejects_that_saying(context, why):
+    context.references["reference-anth-us-101"] = with_reason("rejected", "editor@example.test", why, at="2026-10-22T01:00:00Z")
+
+
+@given("an editor accepted a reference and the feedback task ran")
+def step_accepted_and_ran(context):
+    context.references["reference-anth-us-101"] = tr.ref("accepted", "editor@example.test")
+    step_run(context)
+
+
+@when('the editor adds the explanation "{why}" to that vote')
+def step_adds_explanation(context, why):
+    context.references["reference-anth-us-101"] = with_reason("accepted", "editor@example.test", why)   # same status, same time: only the words are new
+
+
+@given("{count:d} earlier deliveries that nobody voted on")
+def step_old_deliveries(context, count):
+    for number in range(count):
+        key = f"DELIV#anth-us#reference-anth-us-old-{number}"
+        context.table_.items[("MONITOR#hn", key)] = {
+            "pk": "MONITOR#hn", "sk": key, "publicationId": "anth-us", "referenceId": f"reference-anth-us-old-{number}", "itemId": "hn-1",
+            "source": {"revision": 1}, "output": "anth-us-relevance", "bindingRevision": "1",
+            "gsi1pk": "FEEDBACK#hn#pending", "gsi1sk": f"2026-10-01T00:00:00Z#{number}"}
+
+
+@then('the feedback carries the explanation "{why}"')
+def step_carries(context, why):
+    assert feedback_posts(context)[-1]["payload"].get("comment") == why, feedback_posts(context)
+
+
+@then("the feedback carries no explanation")
+def step_carries_none(context):
+    assert "comment" not in feedback_posts(context)[-1]["payload"], feedback_posts(context)
+
+
+@then('the latest feedback carries the explanation "{why}"')
+def step_latest_carries(context, why):
+    step_carries(context, why)
+
+
+@then('the latest feedback has the label {label} and carries the explanation "{why}"')
+def step_latest_label(context, label, why):
+    assert feedback_posts(context)[-1]["payload"]["label"] == label
+    step_carries(context, why)
+
+
+@then("Cyclotron has received {count:d} feedback request")
+@then("Cyclotron has received {count:d} feedback requests")
+def step_count(context, count):
+    assert len(feedback_posts(context)) == count, feedback_posts(context)
+
+
+@then("Cyclotron has received {count:d} feedback requests with different request ids")
+def step_count_distinct(context, count):
+    sent = feedback_posts(context)
+    assert len(sent) == count and len({post["requestId"] for post in sent}) == count, sent
+
+
+@then("the feedback task read no delivered reference one by one")
+def step_no_reads(context):
+    assert context.reads == []
