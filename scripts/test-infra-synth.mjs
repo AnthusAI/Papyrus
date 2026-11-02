@@ -364,7 +364,7 @@ try {
   }
   const reusableDeploy = fs.readFileSync(path.join(repo, ".github/workflows/amplify-deploy.yml"), "utf8");
   assert.match(reusableDeploy, /workflow_call:/);
-  assert.match(reusableDeploy, /role-to-assume: \$\{\{ inputs\.role-to-assume \}\}/);
+  assert.match(reusableDeploy, /role-to-assume: \$\{\{ steps\.target\.outputs\.role \}\}/);
   assert.match(reusableDeploy, /--commit-id "\$COMMIT_ID"/, "the job builds the exact commit that passed CI");
   assert.match(reusableDeploy, /get-job/, "the workflow waits for the job");
   assert.match(reusableDeploy, /LimitExceededException/, "back-to-back merges wait for the running job instead of failing");
