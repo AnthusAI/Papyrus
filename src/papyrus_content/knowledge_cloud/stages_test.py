@@ -374,7 +374,7 @@ def test_a_week_without_an_entry_is_archived(tmp_path):
     assert "--replace" not in commands(shell, ["papyrus", "knowledge", "archive"])[0]
 
 
-def test_the_projection_report_is_found_among_other_output_and_logged(tmp_path, capsys):
+def test_the_projection_report_is_found_among_other_output_and_logged(tmp_path, capfd):
     from .stages import first_json_object
 
     noisy = 'knowledge\tauth\tiam\thost\n{"written": 3, "deleted": 0, "errors": []}\nProjected: 3 written, 0 deleted\n'
@@ -389,10 +389,10 @@ def test_the_projection_report_is_found_among_other_output_and_logged(tmp_path, 
         first_json_object(metric)
 
 
-def test_the_projection_stage_logs_its_report_and_records_the_counts(tmp_path, capsys):
+def test_the_projection_stage_logs_its_report_and_records_the_counts(tmp_path, capfd):
     run, shell = make_run(tmp_path)
     assert run_stage("projection", run) == 0
-    assert 'projection report: {"written": 3, "deleted": 0}' in capsys.readouterr().out
+    assert 'projection report: {"written": 3, "deleted": 0}' in capfd.readouterr().out
     details = run.ledger.table.get_item(Key={"publication": "shipped", "runKey": "2026-W44#manual-1#projection"})["Item"]["details"]
     assert details["written"] == 3 and details["deleted"] == 0
 
@@ -534,3 +534,15 @@ def test_a_site_that_cannot_take_review_requests_never_fails_the_run(tmp_path):
 
     result = suggest_promotions(suggestion_run(tmp_path), ReviewBackend(fail=True))
     assert result["status"] == "not_raised" and "ReviewRequest" in result["error"]
+
+
+def test_a_failed_command_with_its_output_redirected_prints_that_output_to_the_task_log(tmp_path, capfd):
+    import sys
+
+    from .stages import run_shell
+
+    out = tmp_path / "out.json"
+    script = "import sys; print('{\"status\": \"failed\", \"message\": \"bad vocabulary\"}'); sys.exit(1)"
+    with pytest.raises(StageFailed, match="exited with 1"):
+        run_shell([sys.executable, "-c", script], cwd=tmp_path, env={}, stdout=out)
+    assert "bad vocabulary" in capfd.readouterr().err
