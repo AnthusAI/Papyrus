@@ -245,12 +245,14 @@ Everything is data already read by the router (`validate_monitor_stories`, `moni
 "enabled": true,
 "store": "items",
 "singleItem": true,
+"minimumStandard": "more-than-summary",
 "contextPacks": {"enabled": true, "signals": ["conversation", "acceptance", "hub", "cluster", "resurfaced"]},
 "suggestions": {"enabled": true},
 "vectorIndexArn": "arn:aws:s3vectors:…:index/…"
 }
 ```
 
+* `minimumStandard` is `more-than-summary` (the default) or `summary`; see section 9. `summary` is the old behaviour, kept only so the replay can compare the two; it is removed with its prompt after the replay.
 * `signals` lists which of the closed set run; omitting it runs all that have data. There are no numeric knobs: windows, cuts and thresholds are learned or derived as above; the only bounds are the task's time and cost, which already exist (`MAXIMUM_COST_USD`, per-publication time share).
 * `vectorIndexArn` is read from the site's `amplify_outputs.json` (`custom.knowledgeQuery.s3VectorIndexArn`) by `seed_router_config.py`, never typed. Without it, packs run without vectors (`conversation`, `acceptance`, `hub` over confirmed edges still work) and suggestions are off with a logged reason.
 * Infra: `infra/monitoring/papyrus-monitoring.yaml` gains a managed policy with `s3vectors:GetVectors/QueryVectors/PutVectors` on the seven index ARNs and the GraphQL fields the signals read (`listMessagesByKindAndCreatedAt`, `listMessageThreadsByKindAndUpdatedAt`, `listMessagesByThreadAndCreatedAt`, `listReferencesByCurationStatusKeyAndUpdatedAt`, `listSemanticNodesByCorpusAndNodeKey`, `listSemanticRelationsByObjectState`, `createSemanticRelation`, `updateSemanticRelation`). Router role capacity: 17 of 20 policies used (docs/monitoring-cloud.md L799); fold the new grants into `RouterIdeaPolicy` rather than add a policy. Built in S2.5: [vector index and suggestions](monitoring-cloud.md#vector-index-and-suggestions); `storageBucketName` is read from `storage.bucket_name` the same way, because the sync reads each Reference's extracted text.
@@ -287,9 +289,65 @@ Built (PPY-2e2461): every series declares `dateBasis`. Packs carry it in `signal
 
 * `reference-link-fit` and `idea-pack-fit` classifiers derived in `siteCyclotron`; decided suggestions and idea forward/spike as labels; promotion only when a version beats the statistical rule on held-out decisions (PPY-c6aced's gate); vector de-duplication replaces the fixed `0.5`; hashtags typed in Message bodies become message → concept `related_to` edges (human provenance, written by the `linkMessageHashtags` mutation in the category-action Lambda from the stored Message).
 
+## 9. The minimum standard: an idea is more than a summary of its Reference
+
+Added 2026-11-02 (PPY-3ccdcb; Ryan's standard: an idea that is simply a summary of its Reference is not filed; themes and trends are means, not requirements). **This supersedes the earlier decision 3, "single-item ideas keep running if the signals chose them":** being chosen is not enough, the idea has to say something the Reference does not. Of the thirteen single-item ideas on the sites on 2026-11-02, all thirteen restated their source, three of them for a page that could not be read, and the two pack ideas were written from titles.
+
+### 9.1 What clears the bar
+
+An idea may be filed only when it rests on at least one **connection**: something the newsroom already knows about the Reference beyond the source. The writer is given them as handles beside the source `I1` (`ideas/connections.py`):
+
+| Handle | Kind (`connections` in `generated.evidence`) | What it is |
+| --- | --- | --- |
+| `E1` | `acceptReason` | The words a person wrote when they accepted the Reference (`curationStatusReason`, only when the vote was a person's; a machine's reason is not the editors' view). Scrubbed of addresses. It is **the editors' view**: cited as such ("the editors accepted it because ...") and never as a fact. |
+| `M1..` | `message` | A human Message in a thread anchored on the Reference. One person's comment, never evidence alone. |
+| `R1..` | `neighbour:R1` | Another accepted Reference linked to it: a confirmed link (a person or a rule made it), or a suggested one whose similarity is at least the site's typical nearest-neighbour similarity (the median, over the References that have a suggestion, of the similarity to the closest one: the cut `context_packs.typical_neighbour_pairs` uses for the cluster signal). It must have a summary (or an editors' explanation) beyond its title. |
+| `X1..` | `editorsExplanation:R1` | The words an editor wrote on the link to a neighbour (`ReferenceEdge.explanation`, PR #1034: `editorsExplanation` on the edge of a pack). Also the editors' view. Before #1034 there are none, and the rule works the same without them. |
+
+**An accept reason alone clears the bar** (it is commentary), with one exception: a Reference whose page could not be read (no page text and no real summary; stored facts such as likes do not count) also needs a Message or a neighbour. An unreadable page never produces an idea that describes what it cannot read, so on such a Reference every body sentence must rest on a connection (`describes_unread_page`) and the prompt says to name the thing from its title and write only about how the newsroom's knowledge bears on it. A Reference with nothing to connect to, or an unreadable page and only an accept reason, is **skipped before the model is asked** as `nothing_to_add`, with what was found recorded (`found`: accept reason, Messages, neighbours, suggested links). It is not marked drafted (no idea targets it), so the next run looks again, when an accept reason, a comment or a link may exist. A small site therefore proposes fewer ideas: there is no relaxed bar, no cold-start fallback and no numeric cap or window. An empty run is correct.
+
+### 9.2 The prompt and the rules after it
+
+`monitor_stories.SYSTEM_PROMPT` no longer asks for "what the item is ... and why it may matter, using only what the source gives you". It asks for one sentence about the item and then what it adds to what the newsroom already knows, and says that the dek and at least one body sentence must cite a handle from `what_the_newsroom_knows`. The rules that check the answer are deterministic (`connections.standard_problems`, plus the existing `trends.check_sentence`); a draft with any problem is not filed:
+
+| Reason | Meaning |
+| --- | --- |
+| `only_the_source_cited` | No body sentence cites a connection: the idea is a summary. |
+| `dek_without_connection` | The dek (the angle) does not rest on a connection. |
+| `connection_ungrounded` | No connecting sentence shares a content word (lower-cased, plural folded, common words and bare numbers left out) with what it cites: "this reflects a growing trend [I1][R2]" does not pass. |
+| `editors_view_not_attributed` | A sentence citing `E` or `X` does not say "editors". |
+| `message_cited_without_reference` | A Message is cited without the source or a related Reference in the same sentence. |
+| `trend_claim_without_signal` | The word trend (lower case), rising, surging or "on the rise" in a sentence: a single item is given no counts, so it cannot claim one. |
+| `describes_unread_page` | On an unreadable page, a body sentence that rests on the source alone. |
+
+The editors' words and Messages ground no number or date (their handles carry none), so a figure must come from a source. No model checks the idea: an adversarial "could a reader get this from the source alone?" call is a follow-up, to be built only if the replay shows filler getting through.
+
+A pack idea (`pack_stories.check_idea`) must also have a body sentence that cites two References together (`no_joint_sentence`: otherwise it is two summaries side by side) and may cite only References with a summary (`cites_reference_without_summary`). A pack never writes from titles: unless two of its accepted References have a summary, the pack is skipped as `nothing_to_add` before the model is asked. A Reference's summary (`signal_queue.ReferenceSummaries`) is the first that exists of the summary Message, the metadata attachment's summary, the **curation attachment's summary** and the **preview attachment's description** (when it is more than the title): the chain the vector index uses, so a pack stops writing from titles where a summary exists anywhere.
+
+### 9.3 What editors see
+
+`generated.evidence` records `connections` (for example `["acceptReason", "neighbour:R1"]`) and `minimumStandard`; the body quotes the editors' words in a "What editors said" section apart from its sources, and cites a neighbour as a numbered source. The run record gains `nothingToAdd`, `connectionsUsed` (ideas filed by the combination of kinds they rested on, so how often a reason was the only hook is visible) and `checkFailures` (drafts by the reason they failed).
+
+When a run files **nothing** because of `nothing_to_add`, or because there were no candidates at all, it raises **one flag** (`review_requests` mode `flag`, Acknowledge only) in the Notification Center, raised by `idea-pipeline` about the batch `ideas-curation:<site>` (`ideas/review.py::settle_curation_flag`). It reads, for example:
+
+> **No ideas today: 3 accepted References had nothing to connect to, so the ideas would only have summarised them.**
+> What would help most: add a reason when you accept (3 of 3 have none); confirm the suggested links waiting in Related (2 have close matches); comment on the ones you care about. Waiting: Tiny world model on a Raspberry Pi Pico; Agent replay sandbox; Edge inference notes.
+
+With no candidates the reason is "No ideas today: no accepted References are waiting to be written about." and the ask is to accept References (with the number of pending ones). The flag is quiet while ideas are flowing, is not raised again while an earlier one for the publication is open, and is **acknowledged by the next run that files ideas** ("Ideas are flowing again: run ... filed N."). A dry run raises none. The router role needs `listReviewRequests` and `updateReviewRequest` for this (added to `RouterIdeaPolicy`; a change set deploys them, and until it does the flag is simply not raised and the run record says why).
+
+### 9.4 The replay
+
+`scripts/replay_idea_standard.py` (`ideas/standard_replay.py`, ticket PPY-f40b36) runs the single-item path twice on the same accepted References, once with each `minimumStandard`, as dry runs, and writes `result.json` (per way: candidates, filed, `nothingToAdd`, `connectionsUsed`, check failures by reason, cost), `sample.md` (about twenty pairs, each Reference written both ways in a random order, with the connections shown and every sentence numbered to mark as *source*, *adds* or *filler*) and `key.json` (which version was which, kept apart). It writes nothing to any backend (the client refuses everything but reads and no review client is given), needs `--max-cost-usd` (a ceiling on the real cost of both runs together) and prints no key. Success: the share of filed ideas with at least one sentence the owner marks *adds* rises from the current 0 of 13, the filler rate stays below the adds rate, and the owner would post more of the new set as they are. After the replay, `minimumStandard: summary`, `connections.SUMMARY` and `SUMMARY_SYSTEM_PROMPT` are removed.
+
+### 9.5 Not in this slice
+
+The two-step angle-then-write call, the adversarial judge, concept handles (until the ontology is populated), and published Stories as connections (a story is always present, so it cannot gate; it needs a relatedness test first).
+
+---
+
 ## Decisions (settled, Ryan, 2026-11-01)
 
 1. **Concept links use `related_to`.** Tagging a Reference with a concept means the Reference relates to that concept: a `related_to` edge (reference → semanticNode), which the seed already allows. No new predicate. `mentions` stays for text the enrichment found.
 2. **Pending References may appear in packs.** Marked "not yet accepted" in the pack; they are context, never cited as evidence.
-3. **Single-item ideas keep running, beside the packs.** Their job is finding individual items worth a post, but they must be chosen by data/signals too (Cyclotron score, votes, comments, links, concept activity), not "every accepted undrafted item". Packs and single-item ideas are balanced by the same signal scores, not a fixed split.
+3. **Single-item ideas keep running, beside the packs.** *(Superseded 2026-11-02 by section 9: a single-item idea is filed only when it is more than a summary of its Reference. They still run beside the packs, but a Reference with nothing to connect to is skipped, not summarised.)* Their job is finding individual items worth a post, but they must be chosen by data/signals too (Cyclotron score, votes, comments, links, concept activity), not "every accepted undrafted item". Packs and single-item ideas are balanced by the same signal scores, not a fixed split.
 4. **Always collect the reason.** Accept/Reject on a suggestion (link, concept, idea) offers the same optional reason textarea as References; those reasons train the site's Cyclotrons. One standard Accept/Reject-with-reason UI component, shared by References, suggestions and ideas.
