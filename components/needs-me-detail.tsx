@@ -1,6 +1,6 @@
 "use client";
 
-import { ConceptBody, EmailBody, Heading, IdeaBatchBody, RequestBody, type DetailProps } from "./needs-me-bodies";
+import { ConceptBody, EmailBody, Heading, IdeaBatchBody, LinkSuggestionBody, RequestBody, type DetailProps } from "./needs-me-bodies";
 import { ReferenceBody } from "./needs-me-reference-detail";
 import { isReferenceLike } from "./needs-me-shared";
 
@@ -18,6 +18,7 @@ export function NeedsMeDetail(props: DetailProps) {
       {payload.kind === "ideas" ? <IdeaBatchBody {...props} payload={payload} /> : null}
       {payload.kind === "request" ? <RequestBody {...props} payload={payload} /> : null}
       {payload.kind === "email" ? <EmailBody {...props} payload={payload} /> : null}
+      {payload.kind === "link" ? <LinkSuggestionBody {...props} payload={payload} /> : null}
       {payload.kind === "concept" ? <ConceptBody item={item} /> : null}
     </div>
   );

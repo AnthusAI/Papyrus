@@ -19,6 +19,7 @@ export function recordedAnswer(item: NeedsMeEntry): { why: string | null; notThi
   const { payload } = item;
   if (payload.kind === "request") return { why: payload.request.answer?.feedback ?? null, notThisKind: payload.request.answer?.steer === "not_this_kind" };
   if (payload.kind === "email") return { why: payload.summary.quarantine?.decision?.reason || null, notThisKind: false };
+  if (payload.kind === "link") return { why: payload.note, notThisKind: false };
   return { why: null, notThisKind: false };
 }
 

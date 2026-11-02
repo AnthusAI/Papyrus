@@ -1,7 +1,7 @@
 "use client";
 
 import { AutoGrowTextarea } from "./ui/auto-grow-textarea";
-import { CheckIcon, CircleCheckIcon, CircleXIcon, LayoutPanelLeftIcon, LightbulbIcon, Loader2Icon, LockIcon, MailIcon } from "lucide-react";
+import { CheckIcon, CircleCheckIcon, CircleXIcon, HashIcon, LayoutPanelLeftIcon, LinkIcon, SparklesIcon, LightbulbIcon, Loader2Icon, LockIcon, MailIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
@@ -10,9 +10,11 @@ import { QUARANTINE_LABELS, type MonitoringEmailDetails } from "../lib/monitorin
 import { IDEA_STAGE, requestCaption } from "../lib/notification-feed";
 import { NEEDS_ME_TYPE_LABELS } from "../lib/needs-me-ranking";
 import type { NeedsMeEntry } from "../lib/needs-me-items";
+import { closeMatchText } from "../lib/reference-links";
 import { IDEA_BATCH_HOW, answerWords, formatWhen, nextText, steeringText, subjectHref, subjectLabel } from "../lib/review-requests";
 import { DecidedLine } from "./notification-cards";
 import { SourceMark } from "./reference-feed";
+import { ReferenceCard } from "./related-section";
 import { DecisionControl } from "./decision-control";
 import type { RatingController } from "./use-reference-ratings";
 import { FlagFooter, decidedChoiceOf, recordedAnswer } from "./needs-me-shared";
@@ -278,6 +280,51 @@ export function EmailBody(props: DetailProps & { payload: Extract<NeedsMeEntry["
       )}
       <DefaultOutcome item={item} />
       <DecisionPanel {...props} lockedNote={summary.quarantine?.decision ? `${summary.quarantine.decision.action === "accept" ? "Accepted" : "Rejected"}${summary.quarantine.decision.at ? ` on ${formatWhen(summary.quarantine.decision.at)}` : ""}.` : "Decided here. Monitoring shows what became of it."} />
+    </div>
+  );
+}
+
+/**
+ * A suggested link: the two References (or the Reference and the concept) side by side on a wide pane, stacked on a narrow one, each
+ * with its title, host and both dates, then the one Accept / Reject control with its optional Why. Deciding calls the same decide-link
+ * action the Related section uses, so the decision and its reason are recorded the same way.
+ */
+export function LinkSuggestionBody(props: DetailProps & { payload: Extract<NeedsMeEntry["payload"], { kind: "link" }> }) {
+  const { item, payload } = props;
+  const { suggestion } = payload;
+  const match = closeMatchText(suggestion.similarity);
+  const { object } = suggestion;
+  return (
+    <div className="space-y-4" data-link-suggestion-detail={suggestion.relationId}>
+      <header className="space-y-1.5">
+        <p className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><SparklesIcon aria-hidden="true" className="size-3.5" />Suggested{match ? <span data-link-close-match> · {match}</span> : null}</p>
+        <h2 className="break-words text-xl font-bold leading-tight tracking-tight text-foreground">Should these be linked?</h2>
+        <p className="break-words text-sm text-muted-foreground">{object.kind === "concept" ? "A Reference and a concept the vector index thinks belong together." : "Two References the vector index thinks are about the same thing."} Your answer teaches the site.</p>
+      </header>
+      <div className="@container"><div className="grid grid-cols-1 gap-3 @sm:grid-cols-2" data-link-suggestion-ends>
+        <div className="grid content-start gap-1.5" data-link-end="subject">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><LinkIcon aria-hidden="true" className="size-3.5" />Reference</span>
+          <ReferenceCard item={suggestion.subject} />
+        </div>
+        <div className="grid content-start gap-1.5" data-link-end="object">
+          {object.kind === "concept" ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><HashIcon aria-hidden="true" className="size-3.5" />Concept</span>
+              <span className="inline-flex w-fit items-center gap-1.5 rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-control)] px-3 py-2 text-sm font-semibold text-foreground" data-related-concept={object.lineageId}>
+                <HashIcon aria-hidden="true" className="size-3.5" /><span data-related-hashtag>{object.hashtag ?? object.title}</span>
+              </span>
+              {object.hashtag && object.title !== object.hashtag.replace(/^#/, "") ? <span className="text-xs text-muted-foreground">{object.title}{object.nodeKind ? ` · ${object.nodeKind.replace(/_/g, " ")}` : ""}</span> : null}
+            </>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><LinkIcon aria-hidden="true" className="size-3.5" />Reference</span>
+              <ReferenceCard item={object} />
+            </>
+          )}
+        </div>
+      </div></div>
+      <DefaultOutcome item={item} />
+      <DecisionPanel {...props} lockedNote="Decided here. The link and your reason are saved, and the site learns from them." />
     </div>
   );
 }

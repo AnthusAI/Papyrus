@@ -152,7 +152,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     assert.deepEqual(withoutStoryDrafts([{ kind: "story_draft" }, { kind: "rename" }]), [{ kind: "rename" }], "the Proposals panel leaves old story drafts to papyrus ideas migrate-proposals");
     assert.ok(!/^draft$/i.test(stateLabel("draft", true)), "the proposal's first state is not the bare word Draft");
     assert.equal(NEEDS_ME_FILTER_LABELS.ideas, "Ideas", "the Needs me filter");
-    assert.equal(waitingTextFor({ ideas: 2, references: 1, stories: 0, email: 0, captures: 0, other: 0 } as never), "2 idea batches and 1 reference waiting for you");
+    assert.equal(waitingTextFor({ ideas: 2, references: 1, stories: 0, email: 0, captures: 0, links: 0, other: 0 } as never), "2 idea batches and 1 reference waiting for you");
     assert.match(summaryText({ waiting: 0, ideas: 1, otherReviews: 0, decidedBySystem: 0, unread: 0 }), /1 idea to review/);
     assert.ok(!/draft|proposed stor/i.test(summaryText({ waiting: 0, ideas: 4, otherReviews: 0, decidedBySystem: 0, unread: 0 })));
     for (const file of ["components/newsroom-board-view.tsx", "components/needs-me-bodies.tsx", "components/needs-me-feed.tsx", "components/proposals-view.tsx", "lib/needs-me-items.ts", "lib/review-requests.ts"]) {

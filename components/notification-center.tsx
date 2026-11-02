@@ -8,7 +8,8 @@ import { recentDecisions } from "../lib/notification-feed";
 import { answerReasonUpdate, answerUpdate, applyReviewUpdate, cyclotronAutoDecided, ideaIdsOf, isIdeaBatch, type AnswerInput, type ReviewRequest } from "../lib/review-requests";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { learnConfidenceThreshold, shapingThisWeek } from "../lib/needs-me-ranking";
-import { buildNeedsMeItems } from "../lib/needs-me-items";
+import { buildNeedsMeItems, type LinkDecision } from "../lib/needs-me-items";
+import type { LinkSuggestion, LinkSuggestionPage } from "../lib/link-suggestions";
 import { captureStatusesByLineage } from "../lib/reference-capture";
 import { normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import type { ReferencePreview } from "../lib/reference-preview";
@@ -17,6 +18,7 @@ import { loadNotificationSnapshot, saveNotificationSnapshot } from "../lib/refer
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { SITE_BRAND } from "../lib/site-brand";
 import { FIXTURE_IDEAS, FIXTURE_EMAIL_DETAILS, FIXTURE_HELD_EMAILS, FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
+import { useReferenceLinksStore } from "./reference-links-context";
 import { NeedsMeView, type NeedsMeDecision } from "./needs-me-feed";
 import type { NeedsMeEntry } from "../lib/needs-me-items";
 import type { CorrectCaptureAction } from "./reference-capture-client";
@@ -44,6 +46,10 @@ export type NotificationApi = {
   loadHeldEmails?: () => Promise<MonitoringEmailSummary[]>;
   loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
   decideEmail?: (receiptId: string, decision: "accept" | "reject", reason: string) => Promise<EmailDecisionResult>;
+  /** One page of suggested links, most likely first within the page, from the cursor the last page returned (null for the first). Optional: without it the page's related-links store (the one the Related section uses) is read. */
+  loadLinkSuggestions?: (cursor: string | null) => Promise<LinkSuggestionPage>;
+  /** Decides a suggested link. Optional: without it the related-links store's decide, the Related section's own call, is used. */
+  decideLink?: (relationId: string, decision: "accept" | "reject", reason: string) => Promise<void>;
 };
 
 const liveApi: NotificationApi = {
@@ -131,6 +137,13 @@ export function NotificationCenter({
   onRateReference, referenceAttachments = NO_ATTACHMENTS, onCorrectCapture, actorLabel, demo, fixture = null, api: liveOverride = liveApi, below,
 }: ContainerProps) {
   const api = demo ? demoApi : liveOverride;
+  // Suggested links are read and decided through the related-links store the Related section uses, so a decision is recorded identically.
+  const linksStore = useReferenceLinksStore();
+  const loadLinks = api.loadLinkSuggestions ?? linksStore?.listSuggested;
+  const decideLinkNow = useMemo(
+    () => api.decideLink ?? (linksStore ? async (relationId: string, decision: "accept" | "reject", reason: string) => linksStore.decide({ relationId, decision, ...(reason ? { note: reason } : {}) }) : undefined),
+    [api.decideLink, linksStore],
+  );
   const [loadState, setLoadState] = useState<NotificationLoadState>("loading");
   const [stale, setStale] = useState(false);
   const [requests, setRequests] = useState<ReviewRequest[]>([]);
@@ -143,6 +156,12 @@ export function NotificationCenter({
   const [emails, setEmails] = useState<MonitoringEmailSummary[]>([]);
   const [emailsState, setEmailsState] = useState<"loading" | "ready">("loading");
   const [emailsDecided, setEmailsDecided] = useState<ReadonlyMap<string, "accept" | "reject">>(new Map());
+  const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
+  const [linksCursor, setLinksCursor] = useState<string | null>(null);
+  const [linksState, setLinksState] = useState<"loading" | "ready">("loading");
+  const [linksLoadingMore, setLinksLoadingMore] = useState(false);
+  const [linksDecided, setLinksDecided] = useState<ReadonlyMap<string, LinkDecision>>(new Map());
+  const linksStarted = useRef(false);
   const [stay, setStay] = useState<ReadonlySet<string>>(new Set());
   const [visitRated, setVisitRated] = useState<ReadonlySet<string>>(new Set());
   const [now] = useState(() => Date.now());
@@ -171,6 +190,26 @@ export function NotificationCenter({
     }
     setEmailsState("ready");
   }, [api, demo, fixture, preview]);
+
+  // Suggested links are read a page at a time, and only the first page on arrival: the rest waits for "Load more".
+  const addLinkPage = useCallback((page: LinkSuggestionPage) => {
+    setLinkSuggestions((current) => {
+      const known = new Set(current.map((entry) => entry.relationId));
+      return [...current, ...page.suggestions.filter((entry) => !known.has(entry.relationId))];
+    });
+    setLinksCursor(page.cursor);
+  }, []);
+  useEffect(() => {
+    if (linksStarted.current) return;
+    linksStarted.current = true;
+    if (preview === "caught-up" || !loadLinks) { setLinksState("ready"); return; }
+    void loadLinks(null).then(addLinkPage, () => undefined).finally(() => setLinksState("ready"));
+  }, [addLinkPage, loadLinks, preview]);
+  const loadMoreLinks = useCallback(async () => {
+    if (!loadLinks || !linksCursor || linksLoadingMore) return;
+    setLinksLoadingMore(true);
+    try { addLinkPage(await loadLinks(linksCursor)); } catch { setError("More link suggestions could not be read right now. Try again in a minute."); } finally { setLinksLoadingMore(false); }
+  }, [addLinkPage, linksCursor, linksLoadingMore, loadLinks]);
 
   // A return visit paints the last view at once, marked as such, while the real reads run.
   useEffect(() => {
@@ -266,13 +305,20 @@ export function NotificationCenter({
       : entry)));
   }, [actorLabel, api]);
 
+  /** Accept or Reject a suggested link (or, the same choice again, change its reason) through the decide-link action. */
+  const sendLinkDecision = useCallback(async (suggestion: LinkSuggestion, choice: "accept" | "reject", why: string) => {
+    if (!decideLinkNow) throw new Error("Links cannot be decided from here.");
+    await decideLinkNow(suggestion.relationId, choice, why.trim());
+    setLinksDecided((current) => new Map(current).set(suggestion.relationId, { choice, note: why.trim() }));
+  }, [decideLinkNow]);
+
   /**
    * Changes only the Why of an item that is already decided, onto the decision that exists:
    *   review request    the request's answer note (a hard gate, a stage review, an acknowledged flag)
    *   held email        the same decision again with the new reason, so the Monitoring view updates the recorded reason
    */
-  const latest = useRef({ requests, emails, emailsDecided });
-  latest.current = { requests, emails, emailsDecided };
+  const latest = useRef({ requests, emails, emailsDecided, linksDecided });
+  latest.current = { requests, emails, emailsDecided, linksDecided };
   const editReason = useCallback(async (item: NeedsMeEntry, why: string) => {
     const { payload } = item;
     const now = new Date();
@@ -287,8 +333,12 @@ export function NotificationCenter({
       const choice = latest.current.emailsDecided.get(payload.summary.receiptId) ?? payload.summary.quarantine?.decision?.action;
       if (!choice) throw new Error("This email has not been decided yet.");
       await sendEmailDecision(payload.summary, choice, why, true);
+    } else if (payload.kind === "link") {
+      const made = latest.current.linksDecided.get(payload.suggestion.relationId);
+      if (!made) throw new Error("This link has not been decided yet.");
+      await sendLinkDecision(payload.suggestion, made.choice, why);
     }
-  }, [actorLabel, api, sendEmailDecision]);
+  }, [actorLabel, api, sendEmailDecision, sendLinkDecision]);
 
   /** One decision, whatever the type: it goes to the action that already owns that kind of thing. */
   const decide = useCallback(async (item: NeedsMeEntry, decision: NeedsMeDecision) => {
@@ -303,8 +353,10 @@ export function NotificationCenter({
       else await answer(request, { decision: "reject", feedback: decision.why || null, steer: decision.notThisKind ? "not_this_kind" : null });
     } else if (payload.kind === "email") {
       await sendEmailDecision(payload.summary, decision.choice, decision.why);
+    } else if (payload.kind === "link") {
+      await sendLinkDecision(payload.suggestion, decision.choice, decision.why);
     }
-  }, [answer, onRateReference, sendEmailDecision]);
+  }, [answer, onRateReference, sendEmailDecision, sendLinkDecision]);
 
   const shownReferences = preview === "caught-up" ? references.filter((reference) => normalizeReferenceCurationStatus(reference.curationStatus) !== "pending") : references;
   const lineageIds = useMemo(() => shownReferences.map(referenceLineageId), [shownReferences]);
@@ -313,9 +365,9 @@ export function NotificationCenter({
   const entries = useMemo(
     () => buildNeedsMeItems({
       references: shownReferences, decisions, previews, captures, visitRated, requests, stay, demo, ideaStages,
-      storyTitles, storyExcerpts, deletedStories, emails, emailsDecided,
+      storyTitles, storyExcerpts, deletedStories, emails, emailsDecided, linkSuggestions, linksDecided,
     }),
-    [shownReferences, decisions, previews, captures, visitRated, requests, stay, demo, ideaStages, storyTitles, storyExcerpts, deletedStories, emails, emailsDecided],
+    [shownReferences, decisions, previews, captures, visitRated, requests, stay, demo, ideaStages, storyTitles, storyExcerpts, deletedStories, emails, emailsDecided, linkSuggestions, linksDecided],
   );
   const threshold = useMemo(() => learnConfidenceThreshold(shownReferences, decisions, visitRated), [shownReferences, decisions, visitRated]);
   const recent = useMemo(() => recentDecisions(requests, references, demo), [requests, references, demo]);
@@ -328,12 +380,13 @@ export function NotificationCenter({
     () => cyclotronAutoDecided(shownReferences, decisions, humanCuratedReferenceLineageIds, demo).filter((entry) => !shownIds.has(entry.lineageId)),
     [shownReferences, decisions, humanCuratedReferenceLineageIds, demo, shownIds],
   );
-  const settled = !stale && loadState === "ready" && emailsState === "ready" && !referencesLoading && !predictionLoading;
+  const settled = !stale && loadState === "ready" && emailsState === "ready" && linksState === "ready" && !referencesLoading && !predictionLoading;
 
   return (
     <NeedsMeView
       below={below} captureTeaserLine={teaserLine} demo={demo} entries={entries} error={error} legacyAuto={legacyAuto}
       loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason}
+      moreLinks={linksCursor !== null} loadingMoreLinks={linksLoadingMore} onLoadMoreLinks={loadMoreLinks}
       predictionLoading={predictionLoading} recent={recent} referenceAttachments={referenceAttachments}
       referenceDisabledReason={referenceDisabledReason} referencesLoading={referencesLoading} settled={settled} shaping={shaping} stale={stale} threshold={threshold}
     />
