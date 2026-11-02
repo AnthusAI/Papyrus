@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5b5a5d00-52c1-4484-b65b-f1ecf7834de1",
+  "title": "Machine-written Items record the run that wrote them",
+  "description": "All 1,388 Machines on Machines Items had empty createdBy and source, so cleanup had to select on type, stage and status. Every machine write records its run id. Undoing a run is one reversible step. Ties into who-wrote-what on the Chatticus channel record. Holds knowledge-run rollouts with the preview story. Gherkin specs.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T18:00:33.304501Z",
+  "updated_at": "2026-11-02T18:00:33.304531Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
