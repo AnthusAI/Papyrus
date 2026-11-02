@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "f9a60c9d-6058-49b6-8446-35e3f3c1e2b2",
+  "issue_id": "PPY-78a9b6ea-3d50-44bd-80a1-776d5be063e9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T17:49:11.370Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Knowledge run leaves junk wiki pages behind when it unpublishes them",
+    "description": "On 11-02 the Machines on Machines knowledge run published 1,366 wiki pages, most of them paper authors and internal labels. PR 1026 fixed what qualifies and the next run unpublished 1,362, which moved them to stage copywriting, status draft, instead of retiring them. Decide what an unpublished generated wiki page should become so nothing piles up in editorial stages, and whether the run should remove pages it generated. Board filter is separate.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+    "labels": []
+  }
+}
