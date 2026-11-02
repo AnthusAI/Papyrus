@@ -414,6 +414,7 @@ def test_without_a_monitoring_table_the_records_still_list():
 def cli(monkeypatch, capsys):
     state = {"client": fx.site_client(), "reader": reader()}
     import papyrus_content.graphql_authoring as ga
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")   # these test the AWS lane, whatever session the machine holds
     monkeypatch.setattr(ga, "create_authoring_client", lambda *a, **k: (state["client"], {}))
     monkeypatch.setattr(au, "monitoring_reader_from_environment", lambda env=None: state["reader"])
 

@@ -26,7 +26,7 @@ This page is the inventory behind epic PPY-2069d6. Each operation has one home:
 | Operation | Today | Home |
 |---|---|---|
 | Start a run, read runs and cost | `aws stepfunctions start-execution`, `papyrus knowledge runs` | New CLI and server API (PPY-e529c4) |
-| Knowledge query | `papyrus knowledge query` (always IAM-signed) | Existing CLI, moved to the user lane (PPY-544564) |
+| Knowledge query | `papyrus knowledge query` | Existing CLI. Remote queries run on the `papyrus login` session; `--execution local` still reads S3 and S3 Vectors with AWS credentials (PPY-544564) |
 | Publish-run, entity and cluster review | `papyrus knowledge ... --auth user` | Existing CLI |
 | Snapshot and archive file writes | `papyrus knowledge snapshot`, `archive` | New CLI and server API (PPY-029a99) |
 | Vector index | `papyrus knowledge vector-index` | New CLI and server API, or a job |
@@ -39,7 +39,7 @@ This page is the inventory behind epic PPY-2069d6. Each operation has one home:
 |---|---|---|
 | Publish, unpublish, set a slug, upload story images | `papyrus ops content`, `stories` | Existing CLI |
 | Re-project a site, home-page snapshot, reader snapshot | `ops content project`, `home-page snapshot`, `proposals publish` | New CLI and server API (PPY-029a99) |
-| Automations | `papyrus automations` (Lambda invoke and table reads) | Existing server API; move the CLI to it (PPY-544564) |
+| Automations | `papyrus automations list\|show\|runs\|run` | Existing CLI. Signed in, it asks the site's `automationOverview` and `runAutomation`; `run --dry-run` and `runs --limit` above the site's default are refused there (PPY-544564) |
 | Markus import and export, procedure registration, reference text and corpora sync | Direct S3 from the laptop | New CLI and server API, with signed URLs |
 | Renditions backfill | `ops content renditions` | New CLI and server API, or a job |
 | App rebuild, preview upload | `ops content rebuild`, `upload-preview` | Pipeline |
@@ -65,8 +65,8 @@ This page is the inventory behind epic PPY-2069d6. Each operation has one home:
 Remove these first, because they contradict the sign-in rule:
 
 - `graphql_request_headers` in `src/papyrus_content/graphql_http.py` falls back to the AWS credential chain when no user session applies. It should refuse and say to log in (PPY-5f119a).
-- `papyrus knowledge query` and `knowledge runs` ignore the user session.
-- `papyrus automations` and `proposals publish` call Lambda or the monitoring table directly.
+- `knowledge runs` ignores the user session.
+- `proposals publish` calls Lambda or the monitoring table directly. `papyrus automations` (list, show, runs, run) and `knowledge query` (remote) no longer do when signed in (PPY-544564); `automations create` and `update` already use the authoring client.
 - `knowledge snapshot`, `archive` and `home-page snapshot --auth user` take a user session for GraphQL but still write S3, CloudFront and the key-value store with AWS credentials.
 - `ops content inspect` reports only the AWS credential chain.
 

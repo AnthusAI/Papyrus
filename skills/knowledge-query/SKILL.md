@@ -343,9 +343,13 @@ Check `structured.request.semanticQuerySource`:
 
 ## CLI Usage
 
-Requires `PAPYRUS_GRAPHQL_ENDPOINT` and AWS credentials (`AWS_PROFILE`; SigV4)
-for default remote execution. Use `--execution local` when changing engine code under
-`src/papyrus_knowledge_query/`.
+Remote execution (the default) needs no AWS credentials. Sign in once with
+`papyrus login <site>` and the query runs on your session; with several signed-in sites, add
+`--site <host>` (or set `PAPYRUS_GRAPHQL_ENDPOINT`). The site allows the query for editors and admins;
+anyone else gets a one-line refusal. Without a session, remote execution still works from a machine with
+AWS credentials (`AWS_PROFILE`; SigV4) and `PAPYRUS_GRAPHQL_ENDPOINT`, and
+`PAPYRUS_GRAPHQL_AUTH=iam` forces that lane. Use `--execution local` when changing engine code under
+`src/papyrus_knowledge_query/`; the local engine reads S3 and S3 Vectors directly, so it needs AWS credentials.
 
 Semantic-only smoke:
 
@@ -408,8 +412,9 @@ poetry run papyrus knowledge query \
 
 The CLI uses local environment configuration:
 
-- `PAPYRUS_GRAPHQL_ENDPOINT`
-- AWS credentials from the standard chain (`AWS_PROFILE`)
+- `PAPYRUS_GRAPHQL_ENDPOINT` (or a `papyrus login` session, which supplies the endpoint)
+- the `papyrus login` session for remote execution, or AWS credentials from the standard chain (`AWS_PROFILE`) for
+  the IAM lane and for `--execution local`
 - optional `PAPYRUS_S3_VECTOR_INDEX_ARN`
 - optional `OPENAI_API_KEY`
 
