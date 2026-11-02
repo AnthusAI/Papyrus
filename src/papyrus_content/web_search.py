@@ -70,6 +70,7 @@ FAILURE_LABELS = {
     "bad_response": "unreadable answer",       # 200 with a body that is not a result list
 }
 UNAVAILABLE = "unavailable"
+REFUSAL_KINDS = ("auth", "plan_exhausted")
 
 
 class ProviderFailure(SearchError):
@@ -600,11 +601,13 @@ class SearchChain:
     """Providers tried in order. Satisfies the ``SearchProvider`` protocol (``name``, ``search``) as well as ``run``."""
 
     def __init__(self, names=None, *, environ: Mapping[str, str] | None = None, providers: Mapping[str, Provider] | None = None,
-                 **provider_options) -> None:
+                 remember_refusals: bool = False, **provider_options) -> None:
+        self.remember_refusals = remember_refusals
         self.names = chain_names(names, environ)
         self._providers = dict(providers or {})
         self._environ, self._options = environ, provider_options
         self.last: SearchResponse | None = None
+        self.refused: dict[str, Skip] = {}   # with remember_refusals: providers that refused the key or are out of plan are not asked again by this chain
 
     @property
     def name(self) -> str:
@@ -618,12 +621,18 @@ class SearchChain:
     def run(self, request: SearchRequest) -> SearchResponse:
         skipped: list[Skip] = []
         for name in self.names:
+            if name in self.refused:   # a refused key or a spent plan stays so for the life of the chain (one run): do not knock again
+                skipped.append(self.refused[name])
+                continue
             try:
                 response = self.provider(name).run(request)
             except SearchUnavailable as error:
                 skipped.append(Skip(name, UNAVAILABLE, detail=str(error)))
             except ProviderFailure as error:
-                skipped.append(Skip(name, error.kind, error.status, error.detail, error.retry_after))
+                skip = Skip(name, error.kind, error.status, error.detail, error.retry_after)
+                skipped.append(skip)
+                if self.remember_refusals and error.kind in REFUSAL_KINDS:
+                    self.refused[name] = skip
             except SearchError as error:
                 skipped.append(Skip(name, "bad_response", detail=str(error)[:100]))
             else:
