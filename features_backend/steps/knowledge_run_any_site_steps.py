@@ -18,7 +18,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 
 from papyrus_content.knowledge_cloud import stages as stages_module  # noqa: E402
 from papyrus_content.knowledge_cloud.config import STAGES  # noqa: E402
-from papyrus_content.knowledge_cloud.fakes import make_run  # noqa: E402
+from papyrus_content.knowledge_cloud.fakes import APPSYNC_ENDPOINT, make_run  # noqa: E402
 
 AWS = {"AWS_ACCESS_KEY_ID": "test", "AWS_SECRET_ACCESS_KEY": "test", "AWS_DEFAULT_REGION": "us-east-1"}
 API_ID = "abcdefghij0123456789klmnop"
@@ -169,9 +169,9 @@ def step_snapshot_projected(context):
     assert called(context, "papyrus", "knowledge", "snapshot") and called(context, "papyrus", "ops", "content", "project")
 
 
-@then("the backend endpoint of the commands is the AppSync address of the API id")
+@then("the backend endpoint of the commands is the address AppSync reports for the API")
 def step_endpoint(context):
-    assert context.run_.command_env()["PAPYRUS_GRAPHQL_ENDPOINT"] == f"https://{API_ID}.appsync-api.us-east-1.amazonaws.com/graphql"
+    assert context.run_.command_env()["PAPYRUS_GRAPHQL_ENDPOINT"] == APPSYNC_ENDPOINT and "abcdefghij" not in APPSYNC_ENDPOINT
 
 
 @then("every stage's ledger row says \"nothing to do\"")

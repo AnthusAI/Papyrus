@@ -7,7 +7,7 @@ import pytest
 from moto import mock_aws
 
 from .config import STAGES
-from .fakes import make_run
+from .fakes import APPSYNC_ENDPOINT, make_run
 from .stages import run_stage
 
 TESTDATA = Path(__file__).parent / "testdata"
@@ -112,11 +112,11 @@ def test_a_vocabulary_the_operator_wrote_is_never_replaced(tmp_path):
     assert "organization" not in (run.config_dir / "vocabulary.yml").read_text()
 
 
-def test_the_endpoint_file_is_built_from_the_api_id_when_the_state_has_none(tmp_path):
+def test_the_endpoint_file_holds_the_address_appsync_reports_for_the_api_id_when_the_state_has_none(tmp_path):
     run, shell = make_run(tmp_path, NEW_SITE, seeded=False)
     assert run_stage("corpus-sync", run) == 0
     outputs = json.loads(run.state.read_text("config/amplify_outputs.json"))
-    assert outputs == {"data": {"url": "https://abcdefghij0123456789klmnop.appsync-api.us-east-1.amazonaws.com/graphql"}}
+    assert outputs == {"data": {"url": APPSYNC_ENDPOINT}}
     assert run.command_env()["PAPYRUS_GRAPHQL_ENDPOINT"] == outputs["data"]["url"]
 
 

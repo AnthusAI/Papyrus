@@ -135,10 +135,11 @@ class Run:
         """Write the default of every operator file that is missing from ``config/``, locally and into the state, never over a file that exists.
 
         A site that has not written a vocabulary gets the generic one (organization, product, person, topic); a site whose state has no
-        ``amplify_outputs.json`` gets one built from ``appSyncApiId``. Stop words and review guidance are optional and have no default file."""
+        ``amplify_outputs.json`` gets one holding the endpoint AppSync reports for ``appSyncApiId``. Stop words and review guidance are optional and have no default file."""
         seeds = {VOCABULARY_FILE: default_vocabulary(self.config.publication)}
-        if self.config.appsync_api_id:
-            seeds[OUTPUTS_FILE] = default_outputs(self.config.appsync_api_id, self.config.region)
+        if self.config.appsync_api_id and not (self.config_dir / OUTPUTS_FILE).exists():
+            # An AppSync API id is not its endpoint host, so the address is asked of AppSync (only when the file is missing).
+            seeds[OUTPUTS_FILE] = default_outputs(self.services.appsync_endpoint(self.config.appsync_api_id))
         for name, text in seeds.items():
             target = self.config_dir / name
             if target.exists():
