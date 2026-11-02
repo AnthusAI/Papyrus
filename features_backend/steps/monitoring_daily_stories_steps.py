@@ -148,10 +148,38 @@ def step_refuse(context):
     client.graphql = graphql
 
 
-def run(context):
+def run(context, publication_id=None):
     held = state(context)
-    result, lines = tms.run_task(held.store, held.clients, held.slow or held.model, time_left=held.left, gate=getattr(held, "gate", None))
+    held.locks = []
+    original = held.store.acquire_router_lock
+    held.store.acquire_router_lock = lambda *a, **k: (held.locks.append(k.get("sk", "LOCK#router")), original(*a, **k))[1]
+    result, lines = tms.run_task(held.store, held.clients, held.slow or held.model, time_left=held.left, gate=getattr(held, "gate", None),
+                                 publication_id=publication_id)
     held.result, held.lines = result, lines
+
+
+@when('the router runs its daily monitor stories for the publication "{publication}"')
+def step_run_one(context, publication):
+    run(context, publication)
+
+
+@then('{count:d} story drafts are filed for "{publication}" and none for "{other}"')
+def step_filed_for(context, count, publication, other):
+    assert len(filed(context, publication)) == count and not filed(context, other)
+
+
+@then('the run took the lock of "{publication}", not the router lock, and released it')
+def step_lock(context, publication):
+    held = state(context)
+    assert held.locks == [f"LOCK#monitor-stories#{publication}"], held.locks
+    assert not [key for key in held.table.items if str(key[1]).startswith("LOCK#")]
+
+
+@then('the result is an error that names "{publication}", nothing is drafted and nothing stays locked')
+def step_unknown(context, publication):
+    held = state(context)
+    assert held.result["status"] == "error" and publication in held.result["reason"] and not held.locks
+    assert not filed(context) and not [key for key in held.table.items if str(key[1]).startswith("LOCK#")]
 
 
 @when("the router runs its daily monitor stories")
@@ -303,3 +331,20 @@ def step_lanes(context):
 @then("no story draft is filed")
 def step_none_filed(context):
     assert not filed(context), filed(context)
+
+
+@when("the router runs its daily monitor stories without naming a publication")
+def step_fan_out(context):
+    from papyrus_content.monitoring_router import run_router
+
+    held = state(context)
+    held.started = []
+    held.result = run_router(held.store, "hn", now=tms.NOW.timestamp(), task="monitor-stories", fan_out=held.started.append, story_transport=held.model)
+
+
+@then('it starts one run for "{first}" and one for "{second}", takes no lock and files no story draft')
+def step_fanned(context, first, second):
+    held = state(context)
+    assert held.result["status"] == "fanned-out" and held.started == [first, second]
+    assert not filed(context, first) and not filed(context, second)
+    assert not [key for key in held.table.items if str(key[1]).startswith("LOCK#")]

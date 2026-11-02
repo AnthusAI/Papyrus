@@ -66,13 +66,13 @@ def router(publications=(PUBLICATION,), settings=None):
     return table, store
 
 
-def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_table=None, gate=None):
+def run_task(store, clients, model, *, time_left=lambda: 1e9, fetch=None, mode_table=None, gate=None, publication_id=None):
     """Runs the monitor-stories task; `clients` maps a publication id to its backend. Returns (result, log lines by publication)."""
     endpoints = {tr.ENDPOINT.replace("abc123", f"api{n}"): client for n, client in enumerate(clients.values())}
     out = io.StringIO()
     with redirect_stdout(out):
         result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", appsync=lambda endpoint: endpoints[endpoint],
-                            deliver=tr.Delivery(), time_left=time_left, story_transport=model,
+                            deliver=tr.Delivery(), time_left=time_left, publication_id=publication_id, story_transport=model,
                             story_drafter=partial(run_publication, fetch=fetch or pages(*range(1, 60)), explorer=None, **({"gate": gate} if gate else {})))
     lines = {line["publicationId"]: line for line in map(json.loads, (l for l in out.getvalue().splitlines() if l.startswith('{"monitorStories"')))}
     return result, lines
@@ -493,6 +493,40 @@ def test_every_managed_policy_of_the_router_fits_the_6144_character_limit():
             assert len(re.sub(r"\s", "", document)) <= 6144, (name, len(document))
 
 
+def test_one_daily_schedule_for_the_hn_monitor_names_no_publication():
+    resources = _template()["Resources"]
+    hn = resources["MonitorStoriesSchedule"]["Properties"]
+    assert json.loads(hn["Target"]["Input"]) == {"task": "monitor-stories", "monitorId": "hn"}
+    assert hn["ScheduleExpression"] == "cron(30 7 * * ? *)" and hn["Target"]["RetryPolicy"] == {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 0}
+    assert not [n for n in resources if n.startswith("MonitorStories") and n.endswith("Schedule") and n != "MonitorStoriesSchedule"]
+
+
+def test_the_router_may_invoke_itself_through_the_idea_policy_and_retries_are_off():
+    text = (Path(__file__).resolve().parents[3] / "infra/monitoring/papyrus-monitoring.yaml").read_text()
+    policy = text[text.index("  RouterIdeaPolicy:"):text.index("  RouterIdeaPolicy:") + 12000]
+    assert "Action: lambda:InvokeFunction" in policy and "Resource: !GetAtt RouterFunction.Arn" in policy
+    assert _template()["Resources"]["RouterInvokeConfig"]["Properties"]["MaximumRetryAttempts"] == 0   # a failed publication run is not retried
+
+
+def test_a_monitor_stories_run_without_a_publication_fans_out_and_drafts_nothing():
+    table, store = router(("example-site", "other-site", "off-site"), {"off-site": {"enabled": False}})
+    started = []
+    result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", fan_out=started.append, story_transport=StoryModel())
+    assert result == {"monitorId": "hn", "runId": result["runId"], "status": "fanned-out", "publications": ["example-site", "other-site"]}
+    assert started == ["example-site", "other-site"]
+    assert not [k for k in table.items if str(k[1]).startswith(("LOCK#", "ROUTERUN#"))]   # no lock, no receipt
+
+
+def test_the_handler_invokes_its_own_arn_asynchronously_once_per_publication(monkeypatch):
+    from papyrus_content import monitoring_router as mr
+    calls = []
+    fake = type("C", (), {"invoke": lambda self, **kw: calls.append(kw)})()
+    monkeypatch.setitem(sys.modules, "boto3", type("B", (), {"client": staticmethod(lambda name: fake)}))
+    mr.invoke_self(type("Ctx", (), {"invoked_function_arn": "arn:aws:lambda:x:1:function:f"}), {"task": "monitor-stories", "monitorId": "hn", "publicationId": "a"})
+    assert calls[0]["FunctionName"] == "arn:aws:lambda:x:1:function:f" and calls[0]["InvocationType"] == "Event"
+    assert json.loads(calls[0]["Payload"])["publicationId"] == "a"
+
+
 def test_distinctive_has_its_own_daily_monitor_stories_schedule():
     # The hn router does not list Distinctive Mark, so its web monitor runs the same task on its own schedule, at the same hour.
     resources = _template()["Resources"]
@@ -500,6 +534,41 @@ def test_distinctive_has_its_own_daily_monitor_stories_schedule():
     assert json.loads(distinctive["Target"]["Input"]) == {"task": "monitor-stories", "monitorId": "web-distinctive"}
     assert distinctive["ScheduleExpression"] == hn["ScheduleExpression"]
     assert distinctive["Target"]["RetryPolicy"] == hn["Target"]["RetryPolicy"] == {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 0}
+
+
+def test_a_run_naming_one_publication_drafts_only_that_one_and_takes_its_own_lock():
+    table, store = router(("example-site", "other-site"))
+    _, first = world(2)
+    _, second = world(2)
+    seen = []
+    original = store.acquire_router_lock
+    store.acquire_router_lock = lambda *a, **k: (seen.append(k.get("sk")), original(*a, **k))[1]
+    endpoints = {tr.ENDPOINT.replace("abc123", f"api{n}"): c for n, c in enumerate((first, second))}
+    result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", publication_id="other-site", appsync=lambda e: endpoints[e],
+                        deliver=tr.Delivery(), story_transport=StoryModel(), story_drafter=partial(run_publication, fetch=pages(*range(1, 60)), explorer=None))
+    assert list(result["monitorStories"]) == ["other-site"] and len(second.filed) == 2 and not first.filed
+    assert seen == ["LOCK#monitor-stories#other-site"]
+    assert ("MONITOR#hn", "LOCK#router") not in table.items and ("MONITOR#hn", "LOCK#monitor-stories#other-site") not in table.items   # released
+
+
+def test_runs_of_different_publications_do_not_block_each_other_or_the_route_lock():
+    table, store = router(("example-site", "other-site"))
+    assert store.acquire_router_lock("hn", "a", 2000, sk="LOCK#monitor-stories#example-site")
+    assert store.acquire_router_lock("hn", "b", 2000, sk="LOCK#monitor-stories#other-site")
+    assert store.acquire_router_lock("hn", "route", 2000)
+    assert not store.acquire_router_lock("hn", "c", 2001, sk="LOCK#monitor-stories#example-site")
+    _, client = world(1)
+    result = run_router(store, "hn", now=2001, task="monitor-stories", publication_id="example-site", story_transport=StoryModel())
+    assert result["status"] == "locked"
+
+
+def test_an_unknown_publication_id_is_an_error_result_and_runs_nothing():
+    table, store = router()
+    result = run_router(store, "hn", now=NOW.timestamp(), task="monitor-stories", publication_id="nope", story_transport=StoryModel())
+    assert result["status"] == "error" and "nope" in result["reason"]
+    assert not [k for k in table.items if str(k[1]).startswith("LOCK#") or str(k[1]).startswith("ROUTERUN#")]
+    other = run_router(store, "hn", now=NOW.timestamp(), task="route", publication_id=PUBLICATION)
+    assert other["status"] == "error"
 
 
 # --- the editorial gate the router runs on each idea ---------------------------------------------------------------------
