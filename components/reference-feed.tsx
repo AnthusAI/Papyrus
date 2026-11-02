@@ -65,6 +65,8 @@ export type ReferenceFeedProps = {
   now: number;
   onOpen: (lineageId: string) => void;
   onRate: (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null) => Promise<void> | void;
+  /** Saves a star rating (null clears it). Without it, and without a shared store that rates stars, the cards show no stars. */
+  onSetStars?: (reference: ReferenceRecord, stars: number | null) => Promise<void> | void;
   onVisitRated: (lineageId: string) => void;
   onSortChange: (sort: FeedSort) => void;
   onShowChange: (show: FeedShow) => void;
@@ -282,6 +284,7 @@ export function FeedCard({
   now,
   onOpen,
   onRate,
+  onSetStars,
   predictionLoading,
   predictionStatus,
   onRetryPrediction,
@@ -301,6 +304,7 @@ export function FeedCard({
   now: number;
   onOpen: () => void;
   onRate: ReferenceFeedProps["onRate"];
+  onSetStars?: ReferenceFeedProps["onSetStars"];
   predictionLoading: boolean;
   predictionStatus?: PredictionStatus | undefined;
   onRetryPrediction?: (() => void) | undefined;
@@ -322,9 +326,11 @@ export function FeedCard({
     saved: () => answer,
     seed: () => ({ note: "", reasonCode: null }),
     confirms: () => auto,
+    ...(onSetStars ? { saveStars: async (_id: string, next: number | null) => { await onSetStars(reference, next); }, savedStars: () => reference.starRating ?? null } : {}),
   });
   const store = ratings ?? local;
   const rating = store.get(item.lineageId);
+  const starValue = store.stars(item.lineageId);
   const chosen = rating.pending ?? answer;
   const host = referenceSourceHost(reference);
   const site = preview?.siteName ?? host ?? "Unknown source";
@@ -381,6 +387,7 @@ export function FeedCard({
               : predictionLoading || predictionStatus?.state === "loading" ? { state: "loading" } : { state: "none" }}
           reason={rating.note ?? ""}
           reasonRequiredFor="reject"
+          stars={starValue === undefined ? undefined : { value: starValue, onChange: (tapped) => { if (!disabledReason) store.setStars(item.lineageId, tapped); }, feedback: store.starsFeedback(item.lineageId) }}
           statusOverlay
         />
       </div>
@@ -488,6 +495,7 @@ export function ReferenceFeed({
   now,
   onOpen,
   onRate,
+  onSetStars,
   onShowChange,
   onSortChange,
   onVisitRated,
@@ -526,6 +534,7 @@ export function ReferenceFeed({
       onOpen={() => onOpen(item.lineageId)}
       onRate={async (reference, choice, reasonCode) => { onVisitRated(item.lineageId); await onRate(reference, choice, reasonCode); }}
       onRetryPrediction={onRetryPrediction ? () => onRetryPrediction(item.lineageId) : undefined}
+      onSetStars={onSetStars}
       predictionLoading={predictionLoading}
       predictionStatus={predictionStatuses?.get(item.lineageId)}
       preview={previews.get(item.lineageId)}

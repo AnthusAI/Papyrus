@@ -111,6 +111,8 @@ export function createLocalPreviewReferences(): ReferenceRecord[] {
       curationActorKind: editor ? "human" : plan.actor === "auto:rule" ? "rule" : "cyclotron",
       importedAt: isoTimestampHoursBeforeBase(plan.hoursAgo + 50),
       updatedAt: at,
+      // One rated, one rated low, the rest unrated: the preview shows filled and empty stars (the shape is the difference).
+      ...(index === 0 ? { starRating: 5, starRatedAt: at, starRatedBy: "preview-editor" } : index === 1 ? { starRating: 2, starRatedAt: at, starRatedBy: "preview-editor" } : {}),
     };
   });
   const sampled = curationStatuses.map((curationStatus, index): ReferenceRecord => ({
@@ -126,6 +128,7 @@ export function createLocalPreviewReferences(): ReferenceRecord[] {
     curationStatusReason: curationStatus === "rejected" ? "Duplicate of an earlier filing." : null,
     importedAt: isoTimestampHoursBeforeBase(index * 5),
     updatedAt: isoTimestampHoursBeforeBase(index * 5),
+    ...(index === 1 ? { starRating: 4, starRatedAt: isoTimestampHoursBeforeBase(5), starRatedBy: "preview-editor" } : {}),
   }));
   return [...sampled, ...autoAccepted];
 }

@@ -87,7 +87,8 @@ def settle_curation_flag(client: Any, run: dict[str, Any], site: str) -> dict[st
         waiting = [row for row in run["skipped"] if row["reason"] in ("nothing_to_add", *SAID_NOTHING_MORE)]
         rejected_now = [row for row in run["invalid"] if row.get("reason") in REJECTED_FOR_ADDING_NOTHING]
         no_candidates = run["inputs"]["candidates"] == 0
-        if run.get("stoppedBy") == "file_error" or not (waiting or rejected_now or no_candidates):
+        rated = run.get("ratedNoIdea") or []
+        if run.get("stoppedBy") == "file_error" or not (waiting or rejected_now or no_candidates or rated):
             return {"status": "not_needed"}
         if run.get("stoppedBy") in ("time", "cost") or run.get("suggestionsWaiting"):
             return {"status": "not_needed", "note": f"Not raised: the run stopped by {run['stoppedBy']}." if run.get("stoppedBy") in ("time", "cost") else "Not raised: suggested links are still being written."}
@@ -105,10 +106,15 @@ def curation_flag_text(run: dict[str, Any], skipped: list[dict[str, Any]]) -> tu
 
     ``skipped`` holds the rows that kept the run from filing anything: a Reference with nothing to connect to (``nothing_to_add``), one whose draft said no more
     than its source (``SAID_NOTHING_MORE``, ``REJECTED_FOR_ADDING_NOTHING``), and a pack with only titles."""
+    rated = run.get("ratedNoIdea") or []
+    rated_ask = ""
+    if rated:
+        named = "; ".join(f"{row['title'] or row['referenceId']} ({row['stars']} stars: {row.get('explanation') or row['reason']})" for row in rated[:SKIPPED_TITLES_SHOWN])
+        rated_ask = f" You rated {len(rated)} {'Reference' if len(rated) == 1 else 'References'} highly and no idea came of {'it' if len(rated) == 1 else 'them'}: {named}."
     if not skipped:
         pending = run["inputs"].get("notAccepted", 0)
         waiting = f" {pending} pending References are waiting to be accepted." if pending else ""
-        return ("No ideas today: no accepted References are waiting to be written about.", f"Accept References to give the ideas something to work from.{waiting}")
+        return ("No ideas today: no accepted References are waiting to be written about.", f"Accept References to give the ideas something to work from.{waiting}{rated_ask}")
     said_nothing = [row for row in skipped if row.get("reason") in (*SAID_NOTHING_MORE, *REJECTED_FOR_ADDING_NOTHING)]
     singles = [row for row in skipped if row not in said_nothing and "found" in row and "referencesWithSummary" not in row["found"]]   # a skipped pack has no accept reason or links of its own
     packs = [row for row in skipped if row not in singles and row not in said_nothing]
@@ -135,7 +141,7 @@ def curation_flag_text(run: dict[str, Any], skipped: list[dict[str, Any]]) -> tu
         ask += " One is written again as soon as there is something new to connect it to: a comment, a link, an explanation on a link, or a related Reference."
     if packs:
         ask += " A theme is written from the summaries of its References, and too few of them have one yet; it is looked at again on the next run."
-    return (f"No ideas today: {' and '.join(parts)}, so the ideas would only have summarised them.", ask.strip())
+    return (f"No ideas today: {' and '.join(parts)}, so the ideas would only have summarised them.", (ask + rated_ask).strip())
 
 
 def feedback_from_steering(notes: list[dict[str, Any]], prior_ideas: dict[str, list[str]]) -> list[dict[str, Any]]:

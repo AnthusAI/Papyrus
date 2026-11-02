@@ -1780,6 +1780,28 @@ function NewsDeskDashboard({
     });
   }
 
+  /** An editor's star rating (null clears it). It sits on the Reference beside the vote, never changes the status, and is not a Cyclotron label. */
+  async function runReferenceStars(reference: ReferenceRecord, stars: number | null): Promise<void> {
+    if (!canEdit) throw new Error("Your session does not have permission to rate references.");
+    const record = (now: string): ReferenceRecord => ({
+      ...(referencesRef.current.find((entry) => entry.id === reference.id) ?? reference),
+      starRating: stars,
+      starRatedAt: stars === null ? null : now,
+      starRatedBy: stars === null ? null : authState.label,
+    });
+    if (dashboard.isDemo) {
+      applyReferenceRecord(record(new Date().toISOString()));
+      return;
+    }
+    const response = await dataClient.mutations.setReferenceStars(
+      { referenceId: reference.id, stars, actorLabel: authState.label },
+      { authMode: USER_POOL_AUTH_MODE },
+    );
+    const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+    if (errors?.length) throw new Error(errors[0]?.message ?? "Your rating could not be saved.");
+    applyReferenceRecord(record(new Date().toISOString()));
+  }
+
   function runReferenceQualityRating(reference: ReferenceRecord, rating: number) {
     const current = resolveReferenceCurationDisplayState(reference, graph);
     const nextStatus = rating >= 3 ? "accepted" : "rejected";
@@ -3162,6 +3184,7 @@ function NewsDeskDashboard({
             onCorrectCapture={dashboard.isDemo ? undefined : (input) => correctReferenceCapture(input)}
             onReview={(reference, action, options) => runReferenceCurationAction(reference, action, options?.note, options?.reasonCode,
               options?.decisionRelationId ? { decisionRelationId: options.decisionRelationId, shareable: options.shareable === true } : undefined)}
+            onSetStars={runReferenceStars}
             predictionState="ready"
             referenceAttachments={referenceAttachments}
             references={references}
@@ -3265,6 +3288,7 @@ function NewsDeskDashboard({
             onReview={(reference, action, options) => runReferenceCurationAction(reference, action, options?.note, options?.reasonCode,
               options?.decisionRelationId ? { decisionRelationId: options.decisionRelationId, shareable: options.shareable === true } : undefined,
               options?.sectionId)}
+            onSetStars={runReferenceStars}
             referenceAttachments={referenceAttachments}
             references={references}
             loadAutoAccepted={dashboard.isDemo && !isLocalPreviewEnabled() ? undefined : loadAutoAcceptedReferencePage}
