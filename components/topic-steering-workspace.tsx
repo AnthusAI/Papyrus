@@ -62,6 +62,7 @@ import {
   type KnowledgeQueryResponse,
   type NewsroomRecordPage,
   loadCyclotronStatus,
+  loadAutoAcceptedReferencePage,
   loadCyclotronShadowAgreement,
   loadSiteSectionAgreement,
   requestCyclotronPriming,
@@ -3187,6 +3188,7 @@ function NewsDeskDashboard({
               options?.sectionId)}
             referenceAttachments={referenceAttachments}
             references={references}
+            loadAutoAccepted={dashboard.isDemo && !isLocalPreviewEnabled() ? undefined : loadAutoAcceptedReferencePage}
             loading={!dashboard.isDemo && !hasHydratedReferences}
             onCorrectCapture={dashboard.isDemo ? undefined : (input) => correctReferenceCapture(input)}
             savedCopy={savedFeedCopy}

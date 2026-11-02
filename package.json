@@ -78,6 +78,7 @@
     "test:oauth-redirect-urls": "tsx scripts/test-oauth-redirect-urls.ts",
     "test:infra-site-config": "tsx scripts/test-infra-site-config.ts",
     "test:prospectus-site-identity": "tsx scripts/test-prospectus-site-identity.ts",
+    "test:auto-accepted-list": "tsx scripts/test-auto-accepted-list.ts && tsx scripts/test-auto-accepted-list-ui.ts && cucumber-js --profile autoAcceptedList",
     "test:messages-page": "tsx --test scripts/test-conversation-feed.ts && tsx scripts/test-messages-page.ts && cucumber-js --profile messagesPage",
     "test:newsroom-ux-review": "tsx scripts/test-newsroom-ux-review.ts && cucumber-js --profile newsroomUxReview",
     "test:needs-me-links": "tsx scripts/test-needs-me-links.ts && cucumber-js --profile needsMeLinks",

@@ -6,6 +6,7 @@ import { hasEditorRights } from "../lib/staff-groups";
 
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
+import { AUTO_ACCEPTED_PAGE_SIZE, autoAcceptedFromRecords, autoAcceptedServerFilter, collectAutoAcceptedPage, type AutoAcceptedPage } from "../lib/auto-accepted-references";
 import { createLocalPreviewRealPublishedVersions, createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
@@ -2047,6 +2048,37 @@ function loadAllNewsroomReferences(): Promise<ReferenceRecord[]> {
   return loadAllPages((nextToken) => loadNewsroomReferencePage({ nextToken }));
 }
 
+/** How many rows one database read looks at while the "Accepted automatically" list walks the accepted partition for matches. */
+const AUTO_ACCEPTED_READ_SIZE = 200;
+
+/**
+ * One page of the "Accepted automatically" list, newest acceptance first (lib/auto-accepted-references.ts). It queries the accepted
+ * partition of the curation-status index with the actor filter applied by the database; it never loads the whole table, and it needs no index
+ * of its own.
+ */
+export async function loadAutoAcceptedReferencePage(
+  options: { nextToken?: string | null; limit?: number; corpusId?: string } = {},
+): Promise<AutoAcceptedPage> {
+  const limit = options.limit ?? AUTO_ACCEPTED_PAGE_SIZE;
+  if (isLocalPreviewEnabled()) {
+    const everything = autoAcceptedFromRecords(createLocalPreviewReferences());
+    const start = options.nextToken ? Number(options.nextToken) || 0 : 0;
+    const items = everything.slice(start, start + limit);
+    const next = start + items.length;
+    return { items, nextToken: next < everything.length ? String(next) : null, hasMore: next < everything.length };
+  }
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) {
+    return { items: autoAcceptedFromRecords(testMock.references), nextToken: null, hasMore: false };
+  }
+  const filter = autoAcceptedServerFilter(options.corpusId);
+  return collectAutoAcceptedPage(
+    (token) => loadReferencePageByStatus({ status: "accepted", limit: AUTO_ACCEPTED_READ_SIZE, nextToken: token, filter }),
+    { nextToken: options.nextToken ?? null, limit },
+  );
+}
+
 export function normalizeNewsroomReferencePageOrder(value?: string | null): NewsroomReferencePageOrder {
   return value?.trim() === "imported" ? "imported" : "published";
 }
@@ -3138,13 +3170,16 @@ async function loadReferencePageByStatus({
   limit = NEWSROOM_PAGE_LIMIT,
   nextToken,
   corpusId,
+  filter: suppliedFilter,
 }: {
   status: ReferenceStatus;
   limit?: number;
   nextToken?: string | null;
   corpusId?: string;
+  /** Replaces the default server filter (current, in the References feed, this corpus). */
+  filter?: Record<string, unknown>;
 }): Promise<NewsroomRecordPage<ReferenceRecord>> {
-  const filter = buildReferenceServerFilter(corpusId);
+  const filter = suppliedFilter ?? buildReferenceServerFilter(corpusId);
   return runReferenceIndexedQuery({
     query: LIST_REFERENCES_BY_CURATION_STATUS_AND_UPDATED_AT_QUERY,
     field: "listReferencesByCurationStatusAndUpdatedAt",

@@ -132,3 +132,39 @@ Feature: A confident prediction nobody voted on is accepted automatically, once 
     And the monitor "hn" delivered 3 pending References the Cyclotron judged relevant
     When the operator runs references auto-accept for "distinctive" as a dry run
     Then the backfill lists 35 deliveries from "ttab" and nothing was written
+
+  Scenario: An automatic acceptance moves the Newsroom's reference counts as an editor's Accept does
+    Given the editors accepted 40 References the Cyclotron was 90% sure were relevant, each within 2 days
+    And a pending Reference delivered 5 days ago that the Cyclotron judged relevant with 95% confidence
+    When the router runs its automatic acceptance
+    Then the Reference is accepted by "auto:cyclotron"
+    And the Newsroom summary was told 1 References moved from pending to accepted in "knowledge-corpus-anth-us"
+
+  Scenario: Nothing accepted means nothing changes in the Newsroom summary
+    Given the editors accepted 40 References the Cyclotron was 90% sure were relevant, each within 2 days
+    And a pending Reference delivered 1 day ago that the Cyclotron judged relevant with 95% confidence
+    When the router runs its automatic acceptance
+    Then the Reference stays pending
+    And the Newsroom summary was not changed
+
+  Scenario: A rule monitor's delivery moves the counts too
+    Given the monitor delivers by a fixed rule that takes every collected item
+    And a pending Reference the router is about to deliver for "anth-us"
+    When the router delivers the item
+    Then the Reference is accepted by "auto:rule"
+    And the Newsroom summary was told 1 References moved from pending to accepted in "knowledge-corpus-anth-us"
+
+  Scenario: The backfill tells the summary once for the whole pass
+    Given the site "distinctive" whose monitor "ttab" delivered 35 pending References by its rule
+    And an editor already rejected one of them
+    When the operator runs references auto-accept for "distinctive"
+    Then 34 deliveries are accepted by "auto:rule" and the editor's Reject stands
+    And the Newsroom summary was told 34 References moved from pending to accepted in "knowledge-corpus-distinctive"
+
+  Scenario: An unreachable summary never undoes an acceptance
+    Given the Newsroom summary cannot be reached
+    And the editors accepted 40 References the Cyclotron was 90% sure were relevant, each within 2 days
+    And a pending Reference delivered 5 days ago that the Cyclotron judged relevant with 95% confidence
+    When the router runs its automatic acceptance
+    Then the Reference is accepted by "auto:cyclotron"
+    And the Reference stays accepted

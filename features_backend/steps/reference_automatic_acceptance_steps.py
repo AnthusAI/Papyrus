@@ -35,6 +35,7 @@ class AutoClient:
 
     def __init__(self):
         self.rows, self.relations, self.messages, self.written, self.incoming = {}, {}, [], [], {}
+        self.summary, self.summary_down = [], False   # the NewsroomSummary deltas sent, and whether the summary store is unreachable
 
     def list_semantic_relations_by_object_state(self, key):
         return list(self.incoming.get(key.split("#")[1], []))
@@ -54,6 +55,12 @@ class AutoClient:
     def update_record(self, model, payload):
         self.written.append((model, payload))
         self.rows[payload["id"]].update(payload)
+
+    def update_newsroom_summary(self, delta, *, actor_label=None, reason=None):
+        if self.summary_down:
+            raise RuntimeError("the summary store is unreachable")
+        self.summary.append(delta)
+        return {}
 
     def upsert(self, model, payload):
         self.written.append((model, payload))
@@ -335,3 +342,30 @@ def step_backfill_done(context, count, actor):
     assert len(accepted) == count and all(row["curationStatusUpdatedBy"] == actor for row in accepted), len(accepted)
     assert held.client.rows[held.rejected]["curationStatus"] == "rejected"
     assert held.backfill["accepted"] == count
+
+
+# --- the incremental Newsroom summary --------------------------------------------------------------------------------------------
+
+
+@given("the Newsroom summary cannot be reached")
+def step_summary_down(context):
+    world(context).client.summary_down = True
+
+
+@then("the Newsroom summary was told {count:d} References moved from pending to accepted in \"{corpus}\"")
+def step_summary_moved(context, count, corpus):
+    deltas = world(context).client.summary
+    assert len(deltas) == 1, deltas
+    delta = deltas[0]
+    assert delta["referenceStatusDeltas"] == {"pending": -count, "accepted": count}, delta
+    assert delta["facetDeltas"]["references"]["statusByCorpus"] == {corpus: {"pending": -count, "accepted": count}}, delta
+
+
+@then("the Newsroom summary was not changed")
+def step_summary_untouched(context):
+    assert world(context).client.summary == [], world(context).client.summary
+
+
+@then("the Reference stays accepted")
+def step_stays_accepted(context):
+    assert target_row(context)["curationStatus"] == "accepted" and target_row(context)["curationStatusUpdatedBy"] == "auto:cyclotron"

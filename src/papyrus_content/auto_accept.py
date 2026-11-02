@@ -152,6 +152,26 @@ def reason_text(*, confidence: float, learned: Mapping[str, Any], precision: flo
             f"target {precision:.0%}), and nobody voted within {wait}, the {quantile_:.0%} quantile of how long editors take. An editor can still Reject it.")
 
 
+def record_summary_after_accepts(client: Any, corpus_id: str, accepted: int, *, reason: str) -> bool:
+    """Move ``accepted`` References from pending to accepted in the incremental NewsroomSummary, as an editor's Accept does (reviewReferenceCuration).
+
+    Without this the Newsroom's reference counts drift until the next rebuild. One delta per pass, not one per Reference. A failure never
+    undoes the acceptances (the summary is a count, and a rebuild repairs it); it is reported and False is returned.
+    """
+    if accepted <= 0:
+        return True
+    try:
+        client.update_newsroom_summary(
+            {"source": "incremental",
+             "referenceStatusDeltas": {"pending": -accepted, "accepted": accepted},
+             "facetDeltas": {"references": {"statusByCorpus": {corpus_id: {"pending": -accepted, "accepted": accepted}}}}},
+            actor_label=ACTOR_LABEL, reason=reason)
+        return True
+    except Exception as error:  # noqa: BLE001 - the References are already accepted
+        print(json.dumps({"autoAccept": "summary-failed", "corpusId": corpus_id, "accepted": accepted, "reason": str(error)[:200]}))
+        return False
+
+
 def accept_reference_automatically(client: Any, reference: Mapping[str, Any], *, reason: str, evidence: Mapping[str, Any], now: str,
                                    actor: str = AUTO_ACTOR) -> bool:
     """Accept one still-pending Reference, recording the vote on it. False when it is no longer pending or an editor touched it."""
@@ -235,6 +255,8 @@ def run_auto_accept(client: Any, publication: Mapping[str, Any], policy: Mapping
                 confidence=float(verdict.confidence), learned=learned, precision=policy["precision"], delay_seconds=delay,
                 quantile_=policy["latencyQuantile"])):
             result["accepted"] += 1
+    if not dry_run:
+        result["summaryUpdated"] = record_summary_after_accepts(client, corpus_id, result["accepted"], reason="references auto-accept")
     if dry_run:
         result["status"] = "dry-run"
     return result
@@ -248,12 +270,15 @@ def rule_reason(monitor_id: str, rule_text: str) -> str:
             f"relevance prediction and the match is the acceptance. An editor can still Reject it.")
 
 
-def accept_by_rule(client: Any, reference: Mapping[str, Any], *, monitor_id: str, rule: Any, now: str) -> bool:
+def accept_by_rule(client: Any, reference: Mapping[str, Any], *, monitor_id: str, rule: Any, now: str, record_summary: bool = True) -> bool:
     """Accept one just-delivered (still pending) Reference of a ``decisions: "direct"`` monitor, naming the monitor and its rule."""
     from .monitoring_intake import _rule_text
-    return accept_reference_automatically(
+    accepted = accept_reference_automatically(
         client, reference, now=now, actor=RULE_ACTOR, reason=rule_reason(monitor_id, _rule_text(rule)),
         evidence={"monitorId": monitor_id, "rule": rule if isinstance(rule, dict) else None})
+    if accepted and record_summary:   # the backfill passes False and records one delta for the whole pass
+        record_summary_after_accepts(client, str(reference.get("corpusId") or ""), 1, reason=f"{monitor_id} monitor rule")
+    return accepted
 
 
 def direct_monitors(client: Any, rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -296,6 +321,8 @@ def run_rule_backfill(client: Any, publication: Mapping[str, Any], *, now: datet
             continue
         result["candidates"] += 1
         result["references"].append({"referenceId": row["id"], "title": row.get("title"), "monitorId": monitor})
-        if not dry_run and accept_by_rule(client, row, monitor_id=monitor, rule=monitors[monitor]["rule"], now=moment):
+        if not dry_run and accept_by_rule(client, row, monitor_id=monitor, rule=monitors[monitor]["rule"], now=moment, record_summary=False):
             result["accepted"] += 1
+    if not dry_run:
+        result["summaryUpdated"] = record_summary_after_accepts(client, corpus_id, result["accepted"], reason="references auto-accept rule backfill")
     return result
