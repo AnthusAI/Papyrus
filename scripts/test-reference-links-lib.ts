@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifyAddInput, closeMatchText, editorLinkedReferenceLineages, publishedAddedText, relatedEdgeWords, relatedEntriesFromRelations, suggestFailureText, suggestSkippedText, symmetricSubjectFirst, type RelatedItem } from "../lib/reference-links";
+import { classifyAddInput, closeMatchText, editorLinkedReferenceLineages, explanationByline, linkExplanationOf, publishedAddedText, relatedEdgeWords, relatedEntriesFromRelations, suggestFailureText, suggestSkippedText, symmetricSubjectFirst, type RelatedItem } from "../lib/reference-links";
 
 const item = (kind: "concept" | "reference", lineageId: string): RelatedItem => ({ kind, lineageId, title: lineageId, hashtag: null, nodeKey: null, nodeKind: null, host: null, sourceUri: null, sourcePublishedAt: null, addedAt: null });
 
@@ -35,7 +35,7 @@ test("Linked by editors keeps only current human related_to rows from References
     { id: "b", relationState: "current", predicate: "mentions", subjectKind: "reference", subjectLineageId: "r2", objectKind: "semanticNode", objectLineageId: "c" },
     { id: "c", relationState: "current", predicate: "related_to", subjectKind: "reference", subjectLineageId: "r3", objectKind: "semanticNode", objectLineageId: "c", metadata: { provenance: "suggested" } },
   ];
-  assert.deepEqual(editorLinkedReferenceLineages("c", rows), [{ relationId: "a", lineageId: "r1" }]);
+  assert.deepEqual(editorLinkedReferenceLineages("c", rows), [{ relationId: "a", lineageId: "r1", explanation: null }]);
   assert.deepEqual(symmetricSubjectFirst("b", "a"), ["a", "b"]);
 });
 
@@ -48,4 +48,27 @@ test("A skip reason from the backend is shown in plain words, and an unknown one
 test("A failed Suggest more is plain: the missing knowledge index has its sentence, anything else is generic", () => {
   assert.equal(suggestFailureText(new Error("Suggestions need the knowledge index.")), "Suggestions need the knowledge index");
   assert.equal(suggestFailureText(new Error("GraphQL: Lambda:Unhandled at resolver suggestReferenceLinks")), "Suggestions could not be made right now. Try again in a moment.");
+});
+
+const link = (relationState: string, metadata: Record<string, unknown> | string) => ({ relationState, metadata });
+
+test("An accepted or hand-made link carries the editor's words; a suggestion, a rejection, a machine link and blank words carry none", () => {
+  const accepted = linkExplanationOf(link("current", { decision: "accepted", decidedBy: "sub-1", decidedAt: "2026-11-02T09:00:00Z", note: "  Both read the same filing.  " }));
+  assert.deepEqual(accepted, { text: "Both read the same filing.", by: "editor", at: "2026-11-02" });
+  assert.equal(explanationByline(accepted!), "Written by an editor on 2026-11-02");
+  assert.deepEqual(linkExplanationOf(link("current", JSON.stringify({ provenance: "human", note: "By hand." }))), { text: "By hand.", by: "editor", at: null });
+  assert.equal(explanationByline({ text: "x", by: "editor", at: null }), "Written by an editor");
+  assert.equal(linkExplanationOf(link("suggested", { decision: "accepted", decidedBy: "sub-1", note: "Not yet decided." })), null);
+  assert.equal(linkExplanationOf(link("rejected", { decision: "rejected", decidedBy: "sub-1", note: "Different harbour." })), null);
+  assert.equal(linkExplanationOf(link("current", { decision: "accepted", decidedBy: "auto:vector", note: "A rule." })), null);
+  assert.equal(linkExplanationOf(link("current", { decision: "accepted", decidedBy: "sub-1", note: "   " })), null);
+  assert.equal(linkExplanationOf(link("current", "not json")), null);
+});
+
+test("Rows and the concept page's list carry the explanation of the link they came from", () => {
+  const meta = { provenance: "human", decision: "accepted", decidedBy: "sub-1", decidedAt: "2026-11-01T00:00:00Z", note: "Same vendor." };
+  const rows = [{ id: "a", relationState: "current", predicate: "related_to", subjectKind: "reference", subjectLineageId: "me", objectKind: "semanticNode", objectLineageId: "c1", metadata: meta }];
+  const [entry] = relatedEntriesFromRelations({ referenceLineageId: "me", relations: rows, resolve: (kind, id) => item(kind, id) });
+  assert.deepEqual(entry.explanation, { text: "Same vendor.", by: "editor", at: "2026-11-01" });
+  assert.deepEqual(editorLinkedReferenceLineages("c1", rows), [{ relationId: "a", lineageId: "me", explanation: { text: "Same vendor.", by: "editor", at: "2026-11-01" } }]);
 });

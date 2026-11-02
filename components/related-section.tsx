@@ -1,9 +1,9 @@
 "use client";
 
-import { CheckIcon, HashIcon, LinkIcon, Loader2Icon, SparklesIcon } from "lucide-react";
+import { CheckIcon, HashIcon, LinkIcon, Loader2Icon, PencilIcon, PlusIcon, QuoteIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  classifyAddInput, closeMatchText, publishedAddedText, relatedEdgeWords, suggestFailureText, suggestSkippedText,
+  classifyAddInput, closeMatchText, explanationByline, publishedAddedText, relatedEdgeWords, suggestFailureText, suggestSkippedText,
   type RelatedEntry, type RelatedItem, type SuggestionLabel,
 } from "../lib/reference-links";
 import { cn } from "@/lib/utils";
@@ -47,7 +47,7 @@ function DatesLine({ item }: { item: RelatedItem }) {
   return <span className="text-xs text-muted-foreground" data-related-dates>{publishedAddedText(item.sourcePublishedAt, item.addedAt)}</span>;
 }
 
-export function ReferenceCard({ edge, href, item, suggestion }: { edge?: string; href?: string | null; item: RelatedItem; suggestion?: ReactNode }) {
+export function ReferenceCard({ edge, explanation, href, item, suggestion }: { edge?: string; explanation?: ReactNode; href?: string | null; item: RelatedItem; suggestion?: ReactNode }) {
   return (
     <div className={cn(suggestion ? "rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-card)]" : TILE, "grid gap-y-1 px-3 py-2")} data-related-reference-card={item.lineageId}>
       <span className="text-sm font-semibold leading-5 text-foreground" data-related-title>
@@ -58,6 +58,7 @@ export function ReferenceCard({ edge, href, item, suggestion }: { edge?: string;
         {edge ? <span data-related-edge>{edge}</span> : null}
       </span>
       <DatesLine item={item} />
+      {explanation}
       {suggestion}
     </div>
   );
@@ -69,6 +70,107 @@ function ConceptChip({ item }: { item: RelatedItem }) {
       <HashIcon aria-hidden="true" className="size-3.5" />
       <span data-related-hashtag>{item.hashtag ?? item.title}</span>
     </span>
+  );
+}
+
+const EXPLANATION_BUTTON = "inline-flex items-center gap-1.5 rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-control)] px-2.5 py-1 text-xs font-semibold text-foreground outline-none hover:bg-[var(--feed-control)]/70 focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-[var(--feed-quiet,0.6)]";
+const EXPLANATION_BLOCK = "grid w-full gap-y-1.5 rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-card)] p-2";
+
+/**
+ * The words an editor wrote when they accepted or made a link, shown on that link with who wrote them. An editor adds or changes them in place; a
+ * viewer without editor access reads them. The words are meaning, not decoration: the idea writer reads them too (PPY-89c85a). `editing` is held by
+ * the caller so it can give a link with words, or one being edited, a row of its own.
+ */
+function LinkExplanation({ editable, editing, entry, onEditingChange, onSave }: {
+  editable: boolean;
+  editing: boolean;
+  entry: RelatedEntry;
+  onEditingChange: (editing: boolean) => void;
+  onSave: (entry: RelatedEntry, text: string) => Promise<void>;
+}) {
+  const explanation = entry.explanation ?? null;
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const open = () => { setDraft(explanation?.text ?? ""); setError(null); onEditingChange(true); };
+  const close = () => { setError(null); onEditingChange(false); };
+  const save = async () => {
+    const text = draft.trim();
+    if (text === (explanation?.text ?? "")) { close(); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(entry, text);
+      onEditingChange(false);
+    } catch (failure) {
+      setError(failureText(failure, "The explanation could not be saved."));
+    } finally {
+      setSaving(false);
+    }
+  };
+  if (editing && editable) {
+    return (
+      <div className={EXPLANATION_BLOCK} data-related-explanation={entry.relationId} data-related-explanation-editing>
+        <span className={cn(LABEL, "inline-flex items-center gap-1 text-muted-foreground")}><QuoteIcon aria-hidden="true" className="size-3.5" />Explanation</span>
+        <AutoGrowTextarea
+          aria-label="Explain why these are linked"
+          autoFocus
+          className={cn(TILE, "min-h-9 w-full border-0 px-3 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring")}
+          data-related-explanation-input
+          disabled={saving}
+          onChange={event => setDraft(event.target.value)}
+          placeholder="Why are these linked? Say it in your own words."
+          rows={2}
+          value={draft}
+        />
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <button className={EXPLANATION_BUTTON} data-related-explanation-save disabled={saving} onClick={() => void save()} type="button">
+            {saving ? <Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" /> : <CheckIcon aria-hidden="true" className="size-3.5" />}Save
+          </button>
+          <button className={EXPLANATION_BUTTON} data-related-explanation-cancel disabled={saving} onClick={close} type="button"><XIcon aria-hidden="true" className="size-3.5" />Cancel</button>
+          {error ? <span className="text-xs text-destructive" role="alert">{error}</span> : null}
+        </div>
+      </div>
+    );
+  }
+  if (!explanation) {
+    return editable ? (
+      <button className={EXPLANATION_BUTTON} data-related-explanation-add={entry.relationId} onClick={open} type="button"><PlusIcon aria-hidden="true" className="size-3.5" />Add explanation</button>
+    ) : null;
+  }
+  return (
+    <div className={EXPLANATION_BLOCK} data-related-explanation={entry.relationId}>
+      <span className={cn(LABEL, "inline-flex items-center gap-1 text-muted-foreground")}><QuoteIcon aria-hidden="true" className="size-3.5" />Explanation</span>
+      <p className="whitespace-pre-wrap break-words text-sm leading-5 text-foreground" data-related-explanation-text>{explanation.text}</p>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <span data-related-explanation-byline>{explanationByline(explanation)}</span>
+        {editable ? <button className={EXPLANATION_BUTTON} data-related-explanation-edit={entry.relationId} onClick={open} type="button"><PencilIcon aria-hidden="true" className="size-3.5" />Edit</button> : null}
+      </div>
+    </div>
+  );
+}
+
+type SaveExplanation = (entry: RelatedEntry, text: string) => Promise<void>;
+
+function ConceptEntry({ editable, entry, onSave }: { editable: boolean; entry: RelatedEntry; onSave: SaveExplanation }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <div className={cn("flex flex-wrap items-center gap-1.5", entry.explanation || editing ? "w-full" : "")} data-related-concept-entry={entry.relationId}>
+      <ConceptChip item={entry.item} />
+      <LinkExplanation editable={editable} editing={editing} entry={entry} onEditingChange={setEditing} onSave={onSave} />
+    </div>
+  );
+}
+
+function ExplainedReferenceCard({ editable, edge, entry, href, onSave }: { editable: boolean; edge?: string; entry: RelatedEntry; href?: string | null; onSave: SaveExplanation }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <ReferenceCard
+      edge={edge}
+      explanation={<LinkExplanation editable={editable} editing={editing} entry={entry} onEditingChange={setEditing} onSave={onSave} />}
+      href={href}
+      item={entry.item}
+    />
   );
 }
 
@@ -237,6 +339,10 @@ export function RelatedSection({ disabledReason = null, hrefForReference, lineag
     await store.decide({ relationId: entry.relationId, decision: choice, ...(reason ? { note: reason } : {}) });
     await reload();
   };
+  const explain: SaveExplanation = async (entry, text) => {
+    await store.decide({ relationId: entry.relationId, decision: "accept", note: text });
+    await reload();
+  };
   const suggestMore = async () => {
     setSuggesting(true);
     setSuggestNote(null);
@@ -255,14 +361,16 @@ export function RelatedSection({ disabledReason = null, hrefForReference, lineag
     await store.create({ subjectLineageId: lineageId, objectKind: item.kind === "concept" ? "semanticNode" : "reference", objectLineageId: item.lineageId, predicate: "related_to" });
     await reload();
   };
-  const renderReference = (entry: RelatedEntry) => (
+  const renderReference = (entry: RelatedEntry) => entry.state === "suggested" ? (
     <ReferenceCard
       edge={relatedEdgeWords(entry.predicate, entry.direction)}
       href={hrefForReference?.(entry.item.lineageId) ?? null}
       item={entry.item}
       key={entry.relationId}
-      suggestion={entry.state === "suggested" ? <><SuggestionMarks entry={entry} /><SuggestedDecision disabled={disabled} entry={entry} onDecide={decide} /></> : undefined}
+      suggestion={<><SuggestionMarks entry={entry} /><SuggestedDecision disabled={disabled} entry={entry} onDecide={decide} /></>}
     />
+  ) : (
+    <ExplainedReferenceCard edge={relatedEdgeWords(entry.predicate, entry.direction)} editable={!disabled} entry={entry} href={hrefForReference?.(entry.item.lineageId) ?? null} key={entry.relationId} onSave={explain} />
   );
   return (
     <section className={cn(TILE, "grid gap-y-3 bg-[var(--feed-footer,var(--feed-control))] p-3")} data-related-section={lineageId}>
@@ -271,7 +379,7 @@ export function RelatedSection({ disabledReason = null, hrefForReference, lineag
       {state === "error" ? <p className="text-xs text-destructive" role="alert">{error}</p> : null}
       <div className="grid gap-y-2" data-related-concepts>
         <span className={cn(LABEL, "text-muted-foreground")}>Concepts</span>
-        {confirmedConcepts.length ? <div className="flex flex-wrap gap-1.5">{confirmedConcepts.map(entry => <ConceptChip item={entry.item} key={entry.relationId} />)}</div> : state === "ready" ? <p className="text-xs text-muted-foreground">No concepts linked yet.</p> : null}
+        {confirmedConcepts.length ? <div className="flex flex-wrap gap-1.5">{confirmedConcepts.map(entry => <ConceptEntry editable={!disabled} entry={entry} key={entry.relationId} onSave={explain} />)}</div> : state === "ready" ? <p className="text-xs text-muted-foreground">No concepts linked yet.</p> : null}
         {suggestedConcepts.map(entry => (
           <div className="grid gap-y-1.5 rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-card)] p-2" data-related-suggested={entry.relationId} key={entry.relationId}>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><ConceptChip item={entry.item} /><SuggestionMarks entry={entry} /></div>
@@ -315,6 +423,10 @@ export function LinkedByEditors({ conceptLineageId, disabledReason = null, hrefF
     await store.create({ subjectLineageId: item.lineageId, objectKind: "semanticNode", objectLineageId: conceptLineageId, predicate: "related_to" });
     await reload();
   };
+  const explain: SaveExplanation = async (entry, text) => {
+    await store.decide({ relationId: entry.relationId, decision: "accept", note: text });
+    await reload();
+  };
   return (
     <section className="grid gap-y-2" data-wiki-section="linked-by-editors">
       <h2>Linked by editors</h2>
@@ -322,7 +434,7 @@ export function LinkedByEditors({ conceptLineageId, disabledReason = null, hrefF
       {state === "error" ? <p className="wiki-empty" role="alert">{error}</p> : null}
       {state === "ready" && !entries.length ? <p className="wiki-empty">No References linked by editors yet.</p> : null}
       <div className="grid gap-y-2" data-linked-by-editors-list>
-        {entries.map(entry => <ReferenceCard href={hrefForReference?.(entry.item.lineageId) ?? null} item={entry.item} key={entry.relationId} />)}
+        {entries.map(entry => <ExplainedReferenceCard editable={!disabledReason} entry={entry} href={hrefForReference?.(entry.item.lineageId) ?? null} key={entry.relationId} onSave={explain} />)}
       </div>
       <AddLinkBox disabled={Boolean(disabledReason)} mode="concept-side" onPick={addLink} search={{ concepts: store.searchConcepts, references: store.searchReferences }} />
       {disabledReason ? <p className="text-xs text-muted-foreground">{disabledReason}</p> : null}

@@ -367,9 +367,128 @@ const scenarios: Record<string, () => Promise<void>> = {
     console.log("Related scenario passed: skipNotes");
   },
 
+  async explanationsShown() {
+    await run("", [375, 1440], async (page) => {
+      const concept = page.locator('[data-related-concept-entry="preview-link-1"]');
+      await concept.waitFor();
+      assert.ok((await concept.locator("[data-related-explanation-text]").innerText()).includes("voice cloning for harbour announcements"), "the words show under the concept chip");
+      assert.equal(await concept.locator("[data-related-explanation-byline]").innerText(), "Written by an editor on 2026-10-30", "who and when, in words");
+      assert.equal(await concept.locator("[data-related-explanation] svg").count() >= 1, true, "a Lucide quote icon");
+      const card = page.locator('[data-related-reference-card="preview-reference-lineage-1"]');
+      assert.equal(await card.locator("[data-related-explanation-text]").innerText(), "The minutes are the council vote that this Reference reports on.");
+      assert.equal(await card.locator("[data-related-explanation-byline]").innerText(), "Written by an editor on 2026-10-31");
+      assert.equal(await page.locator("[data-related-suggested] [data-related-explanation]").count(), 0, "a suggestion has no explanation");
+      assert.equal(await page.locator('[data-related-decision] [data-related-explanation-add]').count(), 0);
+      assert.equal(await concept.locator("[data-related-explanation-edit]").innerText(), "Edit", "the button says what it does");
+    });
+    console.log("Related scenario passed: explanationsShown");
+  },
+
+  /** Edit in place: the words change, the decision call keeps the link accepted, and the page shows the new words and who wrote them. */
+  async explanationsEdited() {
+    await run("", [375, 1440], async (page) => {
+      const card = page.locator('[data-related-reference-card="preview-reference-lineage-1"]');
+      await card.locator("[data-related-explanation-edit]").click();
+      const input = card.locator("[data-related-explanation-input]");
+      assert.equal(await input.inputValue(), "The minutes are the council vote that this Reference reports on.");
+      assert.equal(await input.evaluate((element) => element.tagName), "TEXTAREA");
+      await input.fill("The minutes record the vote on the dredging contract.");
+      await card.locator("[data-related-explanation-save]").click();
+      await card.locator("[data-related-explanation-edit]").waitFor();
+      assert.equal(await card.locator("[data-related-explanation-text]").innerText(), "The minutes record the vote on the dredging contract.");
+      assert.match(await card.locator("[data-related-explanation-byline]").innerText(), /^Written by an editor on \d{4}-\d{2}-\d{2}$/);
+      assert.deepEqual(await calls(page), [{ type: "decide", relationId: "preview-link-2", decision: "accept", note: "The minutes record the vote on the dredging contract." }]);
+    });
+    console.log("Related scenario passed: explanationsEdited");
+  },
+
+  /** Cancel changes nothing; clearing the words saves an empty note and leaves the offer to add some. */
+  async explanationsCleared() {
+    await run("", [375], async (page) => {
+      const concept = page.locator('[data-related-concept-entry="preview-link-1"]');
+      await concept.locator("[data-related-explanation-edit]").click();
+      await concept.locator("[data-related-explanation-input]").fill("Changed my mind");
+      await concept.locator("[data-related-explanation-cancel]").click();
+      assert.ok((await concept.locator("[data-related-explanation-text]").innerText()).includes("harbour announcements"));
+      assert.deepEqual(await calls(page), []);
+      await concept.locator("[data-related-explanation-edit]").click();
+      await concept.locator("[data-related-explanation-input]").fill("   ");
+      await concept.locator("[data-related-explanation-save]").click();
+      await concept.locator("[data-related-explanation-add]").waitFor();
+      assert.deepEqual(await calls(page), [{ type: "decide", relationId: "preview-link-1", decision: "accept", note: "" }]);
+    });
+    console.log("Related scenario passed: explanationsCleared");
+  },
+
+  /** Accepting a suggestion with a reason makes the reason its explanation. */
+  async explanationsFromReason() {
+    await run("", [375], async (page) => {
+      const suggested = page.locator('[data-related-suggested="preview-link-3"]');
+      await suggested.locator("[data-review-reason] textarea").fill("Both are about the same synthetic voices.");
+      await suggested.locator('[data-review-choice="accept"]').click();
+      const accepted = page.locator('[data-related-concept-entry="preview-link-3"]');
+      await accepted.locator("[data-related-explanation-text]").waitFor();
+      assert.equal(await accepted.locator("[data-related-explanation-text]").innerText(), "Both are about the same synthetic voices.");
+    });
+    console.log("Related scenario passed: explanationsFromReason");
+  },
+
+  /** A link with no words offers Add explanation. */
+  async explanationsOnConceptPage() {
+    await run("?concept=1", [375, 1440], async (page) => {
+      const list = page.locator("[data-linked-by-editors-list]");
+      await list.locator("[data-related-reference-card]").first().waitFor();
+      assert.ok((await list.locator('[data-related-reference-card="preview-reference-lineage-3"] [data-related-explanation-text]').innerText()).includes("audit prices the voice-cloning contract"));
+      const bare = list.locator('[data-related-reference-card="preview-reference-lineage-2"]');
+      assert.equal(await bare.locator("[data-related-explanation-text]").count(), 0);
+      await bare.locator("[data-related-explanation-add]").click();
+      await bare.locator("[data-related-explanation-input]").fill("The hearing is where the concept first came up.");
+      await bare.locator("[data-related-explanation-save]").click();
+      await bare.locator("[data-related-explanation-text]").waitFor();
+      assert.deepEqual(await calls(page), [{ type: "decide", relationId: "preview-link-6", decision: "accept", note: "The hearing is where the concept first came up." }]);
+    });
+    console.log("Related scenario passed: explanationsOnConceptPage");
+  },
+
+  async explanationViewer() {
+    await run("?references=1&viewer=1", [390], async (page) => {
+      const related = page.locator("[data-related-section]");
+      await related.waitFor();
+      await related.locator("[data-related-explanation-text]").first().waitFor();
+      assert.ok(await related.locator("[data-related-explanation-text]").count() >= 2, "the words are readable");
+      assert.equal(await related.locator("[data-related-explanation-edit], [data-related-explanation-add], [data-related-explanation-input]").count(), 0, "read-only for a viewer");
+    });
+    console.log("Related scenario passed: explanationViewer");
+  },
+
+  async explanationShots() {
+    if (shots) fs.mkdirSync(shots, { recursive: true });
+    for (const [width, height] of [[390, 844], [1440, 900]]) {
+      for (const dark of [false, true]) {
+        const { browser, page, errors } = await setup("?references=1", width, height, dark);
+        try {
+          const related = page.locator("[data-related-section]");
+          await related.waitFor();
+          await related.locator("[data-related-explanation-text]").first().waitFor();
+          const name = `${width}x${height}-${dark ? "dark" : "light"}`;
+          await related.scrollIntoViewIfNeeded();
+          if (shots) await page.screenshot({ path: `${shots}/explanation-showing-${name}.png`, fullPage: true });
+          await related.locator('[data-related-concept-entry="preview-link-1"] [data-related-explanation-edit]').click();
+          await related.locator("[data-related-explanation-input]").waitFor();
+          if (shots) await page.screenshot({ path: `${shots}/explanation-editing-${name}.png`, fullPage: true });
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "nothing scrolls sideways");
+          assert.deepEqual(errors, []);
+        } finally { await browser.close(); }
+      }
+    }
+    console.log("Related scenario passed: explanationShots");
+  },
+
   async design() {
     await run("", [375, 1440], async (page) => {
       await page.locator("[data-related-suggested]").waitFor();
+      await page.locator("[data-related-explanation-edit]").first().click();
+      await page.locator("[data-related-explanation-input]").waitFor();
       const offenders = await page.locator("[data-related-section], [data-related-section] *").evaluateAll((elements) => elements.flatMap((element) => {
         const style = getComputedStyle(element);
         const edges = ["top", "right", "bottom", "left"].some((edge) => parseFloat(style.getPropertyValue(`border-${edge}-width`)) > 0 && style.getPropertyValue(`border-${edge}-style`) !== "none");

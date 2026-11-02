@@ -114,7 +114,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
       const entries: RelatedEntry[] = [];
       for (const found of linked) {
         const item = resolve("reference", found.lineageId);
-        if (item) entries.push({ relationId: found.relationId, state: "current", provenance: "human", predicate: "related_to", direction: "incoming", item, similarity: null, label: null });
+        if (item) entries.push({ relationId: found.relationId, state: "current", provenance: "human", predicate: "related_to", direction: "incoming", item, similarity: null, label: null, explanation: found.explanation });
       }
       return entries;
     },
