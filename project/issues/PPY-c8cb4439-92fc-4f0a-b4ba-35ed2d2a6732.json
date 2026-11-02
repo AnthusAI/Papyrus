@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c8cb4439-92fc-4f0a-b4ba-35ed2d2a6732",
+  "title": "References feed loads every Reference and attachment before showing anything",
+  "description": "On Machines on Machines (about 7,700 References, 13,000 attachments) the newsroom's References page shows only the skeleton for up to about 2.5 minutes. loadEditorReferencesData pages the whole Reference and ReferenceAttachment tables, and the merged status loader asks each status for about 13 rows per request. The page waits for all of it. The indexes that make this unnecessary exist: listReferencesByFeedStateAndPrediction and its arrival twin, docs/reference-feed-indexes.md. If the load fails, the catch sets actionState but the loading flag stays true, so the skeleton never ends. Other sites have the same cost at smaller size: Shipped about 3,000 References, Threat Intelligence about 2,500.",
+  "type": "bug",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T21:54:01.054769Z",
+  "updated_at": "2026-11-02T21:54:01.055169Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
