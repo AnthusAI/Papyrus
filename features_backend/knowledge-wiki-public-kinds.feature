@@ -26,6 +26,16 @@ Feature: The public wiki publishes the subjects of a publication and nothing els
     Then the wiki has pages for "Acme Loom" and "Aaron Cohen" only
     And the page for "Aaron Cohen" keeps the entity key "personauthor--aaroncohen"
 
+  Scenario: A concept an editor invented by typing a hashtag has no page until the vocabulary names its kind
+    Given an accepted entity "Fake Website Networks" (editor_concept)
+    When the wiki sync runs with no vocabulary
+    Then the wiki has pages for "Acme Loom" and "Beta Spool" only
+
+  Scenario: A vocabulary that names the kind publishes the editor's concept
+    Given an accepted entity "Fake Website Networks" (editor_concept)
+    When the wiki sync runs with a vocabulary of the kinds "maker, editor_concept"
+    Then the wiki has pages for "Acme Loom" and "Fake Website Networks" only
+
   Scenario: The bookkeeping kinds stay private even when a vocabulary names them
     When the wiki sync runs with a vocabulary of the kinds "maker, commentConcept, qualityRating"
     Then the wiki has pages for "Acme Loom" only

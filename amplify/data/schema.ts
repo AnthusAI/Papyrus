@@ -692,8 +692,22 @@ const definitions = {
       objectLineageId: a.id().required(),
       predicate: a.string().required(),
       note: a.string(),
+      newConceptName: a.string(),
     })
     .returns(a.ref("ReferenceLinkResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  DescribeConceptResult: a.customType({
+    ok: a.boolean().required(),
+    lineageId: a.string().required(),
+    description: a.string(),
+  }),
+
+  describeConcept: a
+    .mutation()
+    .arguments({ lineageId: a.id().required(), description: a.string() })
+    .returns(a.ref("DescribeConceptResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(functionHandler("categoryAction", categoryAction)),
 

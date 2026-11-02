@@ -4,7 +4,7 @@ A site's semantic graph also holds nodes that are bookkeeping, not subjects: the
 under, quality ratings, relevance decisions, coverage questions, editorial forms. They are accepted nodes like any other,
 so a wiki that publishes every accepted node publishes them. These kinds are never public, whatever a vocabulary says.
 
-Paper authors (``personAuthor``) are public only when the site's vocabulary names the kind. A site that gives the sync
+Paper authors (``personAuthor``) and concepts editors invented (``editor_concept``) are public only when the site's vocabulary names the kind. A site that gives the sync
 its vocabulary publishes the kinds that vocabulary declares and nothing else; with no vocabulary the sync publishes
 every kind except the bookkeeping ones and the authors.
 """
@@ -25,8 +25,9 @@ from ..options import normalize_string
 INTERNAL_KINDS = frozenset(
     kind_key(kind) for kind in ("commentConcept", "qualityRating", "relevanceDecision", "coverageQuestion", "editorialForm")
 )
-#: Hidden unless the vocabulary names them.
-OPT_IN_KINDS = frozenset({kind_key("personAuthor")})
+#: Hidden unless the vocabulary names them. ``editor_concept`` is a concept an editor invented by typing its hashtag: a real concept for the Related section,
+#: suggestions and idea packs, but nothing publishes it until the site's vocabulary names the kind.
+OPT_IN_KINDS = frozenset({kind_key("personAuthor"), kind_key("editor_concept")})
 #: Kinds that name a person: a compacted name (``AaronCohen``) is spaced again.
 PERSON_KINDS = frozenset({kind_key("personAuthor"), "person", "author"})
 
