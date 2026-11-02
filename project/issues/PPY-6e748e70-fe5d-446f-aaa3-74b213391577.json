@@ -1,0 +1,20 @@
+{
+  "id": "PPY-6e748e70-fe5d-446f-aaa3-74b213391577",
+  "title": "Inventory every Papyrus operation that uses AWS today and assign it a home",
+  "description": "Go through AGENTS.md, docs/, skills and the CLI's own boto3 use. Classify each operation: existing CLI, new CLI plus server API, pipeline, or break-glass with a reason. Output docs/operating-without-aws.md. It orders the remaining tasks of this epic. Known so far: router health, router pause and resume, route-row repair, Cyclotron swap, knowledge-run status and start, seed/unpublish, logs, projection, SSM.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T16:37:20.104154Z",
+  "updated_at": "2026-11-02T16:37:20.104185Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

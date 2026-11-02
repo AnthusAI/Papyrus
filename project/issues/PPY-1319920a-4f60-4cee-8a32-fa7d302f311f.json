@@ -1,0 +1,20 @@
+{
+  "id": "PPY-1319920a-4f60-4cee-8a32-fa7d302f311f",
+  "title": "papyrus monitors overview and page: read monitoring through the signed-in site API",
+  "description": "Add read-only CLI commands over the existing monitoringOverview and monitoringPage queries (amplify/functions/monitoring-view/schema.ts), the same API lib/monitoring-client.ts uses. Options: --scope publication|all (all is admin-only, enforced by the server), list and cursor for pages, --json. Uses the user's papyrus login, never boto3 or an AWS profile, with no IAM fallback. A signed-out or non-staff user gets a clear refusal. No server changes. Gherkin scenarios plus unit tests; document it on p.apyr.us.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T16:37:20.018119Z",
+  "updated_at": "2026-11-02T16:37:20.018151Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
