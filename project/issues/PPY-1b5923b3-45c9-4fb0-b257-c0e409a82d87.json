@@ -15,9 +15,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b8ae8b0d-9501-4d70-a59a-9f698b89933f",
+      "author": "home",
+      "text": "Backfilled 2026-11-02 with papyrus references backfill-publication-dates (PR #1012; provenance on the curation card per #1013). Pilobolus 122 scanned/1 new/115 monitor kept; Distinctive 114/6/51 (52 PDFs skipped); Shipped 2901/1/2894; Data Parade 424/68/198 (114 unknown, 39 fetch failures); Threat Intelligence 1580/153/1153 (101 unknown, 88 failures); p.apyr.us (knowledge-corpus-ai-ml-research) 5123/77/3730 (107 unknown, 164 failures, 1045 PDFs skipped). Anth.us waits for Ryan's OK.",
+      "created_at": "2026-11-02T00:36:23.161128Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-01T18:16:51.926350Z",
-  "updated_at": "2026-11-01T18:16:57.497348Z",
+  "updated_at": "2026-11-02T00:36:23.161682Z",
   "closed_at": null,
   "agent": {
     "platform": "claude-code",

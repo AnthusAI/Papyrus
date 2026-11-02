@@ -3,7 +3,7 @@
   "title": "Ship slice 1: release, change set, dry run and first real run",
   "description": "1. Merge to develop, then main after green (merge-to-develop-fix-there); release.\n2. Build and upload the router zip; create a papyrus-monitoring change set (code + RouterIdeaPolicy fields); Ryan reads and executes it.\n3. Dry run on Anth.us: papyrus ideas monitor-stories --dry-run; must show >= 1 pack. Paste pack signals in the ticket.\n4. Invoke monitor-stories for hn and web-distinctive; read the per-site log lines; report ideas filed / refused, Jev lane used (generated.check.judgment), cost.\nAcceptance: ideas filed on at least Anth.us, each citing >= 2 References, all in the Idea stage.",
   "type": "sub-task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -19,10 +19,23 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "23b6964f-b7ac-4ec4-9603-5bce4c99c637",
+      "author": "home",
+      "text": "Shipped 2026-11-01/02. Releases 5.69.0 → 5.69.1 → 5.70.0; router change sets context-packs-2, router-5691, router-5700 (code 1f34435f, fan-out per publication). Production fixes found by the real runs: Markus+linkify in the router zip (#1007), pending reads bounded by time (#1007), summary-only vectors for monitor-delivered References (#1008), link mutations in the deployed schema (#1009), per-publication fan-out + embedding hardening (#1011), publication-date provenance on the curation card (#1013). Run 2026-11-02 01:09 UTC: Anth.us 10 attempted / 6 ideas filed / 2 failed the citation check / 2 duplicates / 0 refused by the gate, 58 indexed, 175 suggestions, $0.0088; Data Parade 1 filed, 9 indexed, 17 suggestions; Distinctive 2 attempted (1 check, 1 duplicate), 12 indexed, 35 suggestions; Threat Intelligence 5 indexed, 11 suggestions; Shipped, Pilobolus nothing new; no timeouts. Packs: 0 so far — the indexes were empty until this run; the cluster signal has vectors from the next run on.",
+      "created_at": "2026-11-02T01:16:20.893486Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude-code",
+        "model": "claude-opus-5-5",
+        "name": "main-session"
+      }
+    }
+  ],
   "created_at": "2026-11-01T18:16:47.099204Z",
-  "updated_at": "2026-11-01T18:16:55.386802Z",
-  "closed_at": null,
+  "updated_at": "2026-11-02T01:16:21.163859Z",
+  "closed_at": "2026-11-02T01:16:21.163587Z",
   "agent": {
     "platform": "claude-code",
     "model": "claude-opus-5-5",
