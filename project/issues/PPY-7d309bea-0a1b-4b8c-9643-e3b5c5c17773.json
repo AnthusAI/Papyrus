@@ -1,0 +1,28 @@
+{
+  "id": "PPY-7d309bea-0a1b-4b8c-9643-e3b5c5c17773",
+  "title": "Wiki pages need something to say before they are published",
+  "description": "Found while investigating the 2026-11-02 Machines on Machines junk (PPY-5b5a5d, PPY-84b0dd). Even with the vocabulary filter (v5.72.0), a page is made for every accepted entity of a vocabulary kind, and one with no reviewed description gets a stub line (\"X is listed here as a product.\") plus empty knowledge blocks. The first wiki publish of a site with many AI-accepted generated entities can still be a long list of stubs. Decide a rule from the site's own data, not a fixed cap: for example publish a page only when the entity has a reviewed description, or when its mentions (distinct published items) are more than the site's learned typical for entities of that kind; keep everything else as private drafts. Needs Ryan's decision on what a page must have. Not covered by the preview gate, which only makes a person look. Gherkin specs.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "780653d9-05a0-4c6f-908a-180e3abf174b",
+      "author": "home",
+      "text": "Found while investigating the 2026-11-02 junk: the cause was a missing kind filter (fixed in 5.72.0), but stub pages remain possible for vocabulary kinds. See description.",
+      "created_at": "2026-11-02T21:51:13.796628Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-02T21:47:18.386008Z",
+  "updated_at": "2026-11-02T21:51:13.796942Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
