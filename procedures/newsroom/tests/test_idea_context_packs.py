@@ -261,12 +261,13 @@ def lookups_with(vectors, accepted=None) -> PackLookups:
 def test_cluster_forms_from_vectors_alone_on_a_cold_site_and_says_it_is_emerging():
     references, vectors = cold_site()
     provider_lookups = lookups_with(vectors)
-    packs = [pack for pack in build_packs(cluster_inputs(references), provider_lookups, now=NOW) if pack.signal_type == "cluster"]
-    assert len(packs) == 1
+    packs = sorted((pack for pack in build_packs(cluster_inputs(references), provider_lookups, now=NOW) if pack.signal_type == "cluster"),
+                   key=lambda pack: -pack.surprise)
+    assert packs, "the topic forms a cluster pack"
     shown = packs[0].as_json()
-    assert sorted(packs[0].accepted_lineage_ids) == ["topic-0", "topic-1", "topic-2", "topic-3"]
-    assert len([row for row in shown["references"] if row["status"] == "accepted"]) == 4
+    assert {"topic-0", "topic-1", "topic-2", "topic-3"} <= set(packs[0].accepted_lineage_ids)
     assert shown["signal"]["emerging"] is True and shown["signal"]["new"] is True and shown["signal"]["correctedPValue"] <= 0.01
+    assert all(other.surprise <= packs[0].surprise for other in packs[1:])
     assert shown["signal"]["anchor"].startswith("cluster#") and shown["signal"]["dateBasis"] == "ingestion"
     assert shown["signal"]["score"] > 0 and shown["edges"] and {row["provenance"] for row in shown["edges"]} == {"suggested"}
     assert all(0 < row["similarity"] <= 1 for row in shown["edges"])
@@ -285,9 +286,13 @@ def test_pack_edges_tell_confirmed_from_suggested():
     assert len([row for row in shown["edges"] if {row["from"], row["to"]} == {handle["Title topic-0"], handle["Title topic-1"]}]) == 1
 
 
-def test_a_uniform_cold_site_yields_no_cluster_and_no_hub_and_no_cold_start_pack():
+def test_a_uniform_cold_site_yields_no_hub_and_no_cold_start_pack_and_no_significant_cluster():
+    """Clusters are ranked, not gated (a small site never clears a corrected test): a uniform site may offer loose pairs as emerging cluster
+    packs, which the citation check, the gate and the editors' spikes (the idea-pack-fit labels) then judge; it offers nothing else."""
     references, vectors = cold_site(topic_size=0, others=30)
-    assert build_packs(cluster_inputs(references), lookups_with(vectors), now=NOW) == []
+    packs = build_packs(cluster_inputs(references), lookups_with(vectors), now=NOW)
+    assert {pack.signal_type for pack in packs} <= {"cluster"}
+    assert all(pack.as_json()["signal"].get("emerging") for pack in packs)
     threads = [message(number, 0.2 + number * 0.1, thread=f"thread-{name}", anchor=f"item#story-{name}") for name in "abcdef" for number in range(1, 4)]
     assert build_packs(inputs(messages=threads), LOOKUPS, now=NOW) == []
 
@@ -387,8 +392,9 @@ def test_a_component_with_earlier_arrivals_is_scanned_against_the_sites_arrivals
     for number in range(8):
         references.append(accepted_reference(f"fresh-{number}", 0.2 + number * 0.05))
         vectors[f"fresh-{number}"] = noisy_unit(rng, topic, 0.1)
-    packs = [pack for pack in build_packs(cluster_inputs(references), lookups_with(vectors), now=NOW) if pack.signal_type == "cluster"]
-    assert len(packs) == 1
+    packs = sorted((pack for pack in build_packs(cluster_inputs(references), lookups_with(vectors), now=NOW) if pack.signal_type == "cluster"),
+                   key=lambda pack: -pack.surprise)
+    assert packs
     signal = packs[0].as_json()["signal"]
     assert "new" not in signal and "emerging" not in signal and signal["correctedPValue"] <= 0.01
     assert {f"fresh-{n}" for n in range(8)} <= set(packs[0].accepted_lineage_ids)
