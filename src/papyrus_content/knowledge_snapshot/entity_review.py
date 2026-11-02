@@ -15,7 +15,7 @@ from typing import Any
 from .actors import Actor, decode_review
 from .keys import contains_email, normalize_name, kind_key
 from .model import LINK_EXTRACTOR
-from .publish_run import STATUS_ACCEPTED, STATUS_REJECTED, is_item_mention, json_object
+from .publish_run import STATUS_ACCEPTED, STATUS_REJECTED, is_extractor_mention, json_object
 
 REVIEW_STATUSES = ("accepted", "generated", "rejected")
 
@@ -60,7 +60,7 @@ def accept_patches(node: Mapping[str, Any], mention_rows: Iterable[Mapping[str, 
         for row in mention_rows:
             metadata = json_object(row.get("metadata"))
             if (
-                is_item_mention(row)
+                is_extractor_mention(row)
                 and row.get("objectLineageId") == node.get("lineageId")
                 and metadata.get("confirmed") is not True
                 and metadata.get("linkSource", LINK_EXTRACTOR) == LINK_EXTRACTOR

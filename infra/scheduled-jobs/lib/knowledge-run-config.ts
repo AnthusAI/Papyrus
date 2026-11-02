@@ -36,6 +36,19 @@ export type MonitorStoriesSettings = {
   limit?: number;
 };
 
+/**
+ * The `referenceDocuments` block of the `knowledgeRun` block, as written: the site's References with extracted text become corpus documents
+ * (docs/knowledge-cloud-run.md "Reference documents"). Opt-in. The texts are read from
+ * `s3://<mediaBucket>/corpora/<corpus key>/extracted/<extractor>/raw/<reference id>/extracted_text_raw.md`.
+ */
+export type ReferenceDocumentsSettings = {
+  enabled: boolean;
+  /** The CMS media bucket that holds the extracted texts; the task role may read exactly the prefix above in it. */
+  mediaBucket: string;
+  /** Which extraction's texts to read; default "markitdown". */
+  extractor?: string;
+};
+
 /** The `knowledgeRun` block of a publication's infra/site.json, as written. */
 export type KnowledgeRunSettings = {
   schedule?: string;
@@ -78,6 +91,8 @@ export type KnowledgeRunSettings = {
    * items the site's monitors found, any source, ranked by the relevance Cyclotron's verdict, and files them as draft Proposals. Absent means no step.
    */
   monitorStories?: MonitorStoriesSettings;
+  /** Opt in to Reference documents: the corpus's References with extracted text join the corpus as documents (never monitor records). */
+  referenceDocuments?: ReferenceDocumentsSettings;
   /**
    * Hosts the AI drafts (trend-drafts and monitor-stories) must never cite, such as a competing publication. A host matches itself and its subdomains.
    * The site lists hosts explicitly: Papyrus does not classify hosts by kind (docs/idea-pipeline.md#excluded-source-hosts).
@@ -119,6 +134,8 @@ export type KnowledgeRunConfig = {
   monitorWeeks?: number;
   monitorSuggestions: number;
   monitorStories?: { limit: number };
+  /** Set only when the site opted in and `enabled` is true. `prefix` is the only part of the bucket the task role may touch. */
+  referenceDocuments?: { mediaBucket: string; extractor: string; prefix: string };
   excludedSourceHosts?: string[];
   trendSnapshotMaxAgeDays: number;
   openAiKeyParameter: string;
@@ -176,6 +193,22 @@ function optionalMonitorStories(value: unknown): MonitorStoriesSettings | undefi
   return { limit: optionalInteger(record.limit, "monitorStories.limit", 1, MAX_MONITOR_STORIES_LIMIT) };
 }
 
+const EXTRACTOR_PATTERN = /^[a-z][a-z0-9-]{0,30}$/;
+export const DEFAULT_REFERENCE_EXTRACTOR = "markitdown";
+
+function optionalReferenceDocuments(value: unknown): ReferenceDocumentsSettings | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) fail("referenceDocuments", "must be an object such as {\"enabled\": true, \"mediaBucket\": \"...\"}");
+  const record = value as Record<string, unknown>;
+  rejectUnknownKeys(record, ["enabled", "mediaBucket", "extractor"], "referenceDocuments");
+  if (typeof record.enabled !== "boolean") fail("referenceDocuments.enabled", "must be true or false");
+  return {
+    enabled: record.enabled,
+    mediaBucket: requireString(record.mediaBucket, "referenceDocuments.mediaBucket", SITE_BUCKET_PATTERN, "S3 bucket name"),
+    extractor: optionalString(record.extractor, "referenceDocuments.extractor", EXTRACTOR_PATTERN, "lowercase extractor name such as markitdown"),
+  };
+}
+
 const HOST_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
 
 function optionalHosts(value: unknown): string[] | undefined {
@@ -194,9 +227,9 @@ function optionalPlugins(value: unknown): string[] | undefined {
   return [...new Set(value as string[])].sort();
 }
 
-function rejectUnknownKeys(record: Record<string, unknown>, allowed: string[]): void {
+function rejectUnknownKeys(record: Record<string, unknown>, allowed: string[], parent?: string): void {
   for (const key of Object.keys(record)) {
-    if (!allowed.includes(key)) fail(key, `is not a known field (known: ${allowed.join(", ")})`);
+    if (!allowed.includes(key)) fail(parent ? `${parent}.${key}` : key, `is not a known field (known: ${allowed.join(", ")})`);
   }
 }
 
@@ -207,7 +240,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   rejectUnknownKeys(record, [
     "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "corpusKey", "reuseImageRepository", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
-    "monitorSources", "monitorWeeks", "monitorSuggestions", "monitorStories", "excludedSourceHosts", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
+    "monitorSources", "monitorWeeks", "monitorSuggestions", "monitorStories", "referenceDocuments", "excludedSourceHosts", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
 
   const scheduleState = record.scheduleState;
@@ -283,6 +316,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     monitorWeeks: optionalInteger(record.monitorWeeks, "monitorWeeks", 1, 260),
     monitorSuggestions: optionalInteger(record.monitorSuggestions, "monitorSuggestions", 0, 20),
     monitorStories: optionalMonitorStories(record.monitorStories),
+    referenceDocuments: optionalReferenceDocuments(record.referenceDocuments),
     excludedSourceHosts: optionalHosts(record.excludedSourceHosts),
     trendSnapshotMaxAgeDays: optionalInteger(record.trendSnapshotMaxAgeDays, "trendSnapshotMaxAgeDays", 0, 7),
     openAiKeyParameter: optionalString(record.openAiKeyParameter, "openAiKeyParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
@@ -331,6 +365,15 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
     monitorWeeks: settings.monitorWeeks,
     monitorSuggestions: settings.monitorSuggestions ?? 0,
     monitorStories: settings.monitorStories ? { limit: settings.monitorStories.limit ?? DEFAULT_MONITOR_STORIES_LIMIT } : undefined,
+    ...(settings.referenceDocuments?.enabled
+      ? {
+          referenceDocuments: {
+            mediaBucket: settings.referenceDocuments.mediaBucket,
+            extractor: settings.referenceDocuments.extractor ?? DEFAULT_REFERENCE_EXTRACTOR,
+            prefix: `corpora/${settings.corpusKey ?? publication}/extracted/${settings.referenceDocuments.extractor ?? DEFAULT_REFERENCE_EXTRACTOR}/raw/`,
+          },
+        }
+      : {}),
     excludedSourceHosts: settings.excludedSourceHosts,
     trendSnapshotMaxAgeDays: settings.trendSnapshotMaxAgeDays ?? DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS,
     openAiKeyParameter: settings.openAiKeyParameter ?? `/papyrus/${publication}/openai-api-key`,

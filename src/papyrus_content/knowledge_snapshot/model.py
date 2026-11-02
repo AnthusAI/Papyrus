@@ -16,6 +16,7 @@ LINK_EXTRACTOR = "extractor"
 LINK_MONITOR = "monitor"
 KIND_ITEM = "item"
 KIND_MONITOR_RECORD = "monitor-record"
+KIND_REFERENCE_DOCUMENT = "reference-document"  # a Reference whose extracted text is a corpus document: a dated, page-bearing source, unlike a record
 UNACCEPTED_HIDE = "hide"
 UNACCEPTED_UNNAMED = "unnamed"
 

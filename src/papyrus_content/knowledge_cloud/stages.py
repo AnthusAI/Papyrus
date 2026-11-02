@@ -172,16 +172,25 @@ class Run:
         """``--monitor-records FILE`` for a command that counts the records, or nothing when the site has no monitor source."""
         return ["--monitor-records", str(self.monitor_records)] if self.config.monitor_sources else []
 
+    @property
+    def reference_documents(self) -> Path:
+        """The Reference documents ``corpus-sync`` wrote for this week (a site that sets ``referenceDocuments``)."""
+        return self.run_dir / "reference-documents.json"
+
+    def reference_options(self) -> list[str]:
+        """``--reference-documents FILE`` for a command that links or counts the Reference documents, or nothing when the site has none."""
+        return ["--reference-documents", str(self.reference_documents)] if self.config.reference_documents_bucket else []
+
     def import_options(self) -> list[str]:
         """The monitor options of the commands that import the records: the records, the ledger that lets a run skip what it wrote before, and
         ``--monitor-full`` (``KNOWLEDGE_MONITOR_FULL=true``) to import every record again."""
         if not self.config.monitor_sources:
-            return []
-        return [*self.monitor_options(), "--monitor-ledger", str(self.monitor_ledger), *(["--monitor-full"] if self.config.monitor_full else [])]
+            return self.reference_options()
+        return [*self.monitor_options(), *self.reference_options(), "--monitor-ledger", str(self.monitor_ledger), *(["--monitor-full"] if self.config.monitor_full else [])]
 
     def prepare_site(self) -> None:
         """The site checkout plus the plugin check, for every stage that writes to the site."""
-        self.pull(site=True, run=bool(self.config.monitor_sources))
+        self.pull(site=True, run=bool(self.config.monitor_sources or self.config.reference_documents_bucket))
         self.verify_plugins()
 
     def nothing_to_do(self, *, needs_documents: bool = False) -> dict | None:
@@ -319,7 +328,7 @@ def knowledge_options(run: Run) -> list[str]:
     options += beats_options(run)
     if run.config.concept_kinds:
         options += ["--concept-kinds", run.config.concept_kinds]
-    return options + run.monitor_options()
+    return options + run.monitor_options() + run.reference_options()
 
 
 def backend_options(run: Run) -> list[str]:
@@ -345,6 +354,12 @@ def corpus_sync(run: Run) -> dict:
             "--monitor-sources", ",".join(run.config.monitor_sources),
             *(["--monitor-weeks", str(run.config.monitor_weeks)] if run.config.monitor_weeks is not None else []),  # optional; absent means all history
             "--corpus-key", run.config.corpus_key, "--as-of", run.config.monday.isoformat(), "--monitor-records-out", str(run.monitor_records),
+        ]
+    if run.config.reference_documents_bucket:  # the corpus's References with extracted text are documents too (records stay data)
+        export += [
+            *([] if run.config.monitor_sources else ["--corpus-key", run.config.corpus_key]),  # one key for both
+            "--reference-documents-bucket", run.config.reference_documents_bucket,
+            "--reference-documents-extractor", run.config.reference_documents_extractor, "--reference-documents-out", str(run.reference_documents),
         ]
     run.sh(*export)
     documents = len(list((run.corpus / "raw" / "papyrus").glob("*.md")))
@@ -496,7 +511,7 @@ def ai_review(run: Run) -> dict:
     labels = review.vocabulary_labels((run.config_dir / "vocabulary.yml").read_text())
 
     def mentions_of(node: dict) -> list[dict]:
-        return [row for row in c.relations_of_nodes(client, [node]) if c.is_item_mention(row)]
+        return [row for row in c.relations_of_nodes(client, [node]) if c.is_extractor_mention(row)]
 
     patches: list[dict] = []
     decisions: list[review.Decision] = []
@@ -605,8 +620,8 @@ def archive(run: Run) -> dict:
 def wiki_sync(run: Run) -> dict:
     if (idle := run.nothing_to_do()) is not None:
         return idle
-    run.pull(site=True, run=bool(run.config.monitor_sources))
-    sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options()]
+    run.pull(site=True, run=bool(run.config.monitor_sources or run.config.reference_documents_bucket))
+    sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options(), *run.reference_options()]
     sync += beats_options(run)
     sync += ["--vocabulary", str(run.config_dir / VOCABULARY_FILE), "--retire"]  # pages of kinds the vocabulary does not declare come down
     run.sh(*sync)  # the dry run: its plan, with every page it would retire, is in the task log

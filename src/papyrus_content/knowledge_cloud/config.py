@@ -86,6 +86,8 @@ class CloudRunConfig:
     monitor_weeks: int | None  # None: all history
     monitor_suggestions: int
     monitor_full: bool
+    reference_documents_bucket: str | None  # the media bucket whose extracted texts make the corpus's References documents; None: off
+    reference_documents_extractor: str
     excluded_source_hosts: tuple[str, ...]
     openai_parameter: str
     work_dir: Path
@@ -139,6 +141,8 @@ class CloudRunConfig:
             monitor_weeks=int(text) if (text := (environment.get("KNOWLEDGE_MONITOR_WEEKS") or "").strip()) else None,
             monitor_suggestions=int((environment.get("KNOWLEDGE_MONITOR_SUGGESTIONS") or "").strip() or 0),
             monitor_full=(environment.get("KNOWLEDGE_MONITOR_FULL") or "").strip().lower() == "true",
+            reference_documents_bucket=(environment.get("KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET") or "").strip() or None,
+            reference_documents_extractor=(environment.get("KNOWLEDGE_REFERENCE_DOCUMENTS_EXTRACTOR") or "").strip() or "markitdown",
             excluded_source_hosts=normalize_hosts(environment.get("KNOWLEDGE_EXCLUDED_SOURCE_HOSTS")),
             openai_parameter=(environment.get("KNOWLEDGE_OPENAI_KEY_PARAMETER") or f"/papyrus/{publication}/openai-api-key").strip(),
             work_dir=Path((environment.get("KNOWLEDGE_WORK_DIR") or "/work").strip()),

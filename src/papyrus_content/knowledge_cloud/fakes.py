@@ -120,6 +120,12 @@ class FakeShell:
                     for n in range(1, self.records + 1)
                 ]
                 records.write_text(json.dumps({"schemaVersion": 1, "asOf": "2026-10-26", "sources": ["huggingface"], "records": rows}))
+            if "--reference-documents-out" in args:  # the export also writes the Reference documents of a site that sets referenceDocuments
+                documents = Path(args[args.index("--reference-documents-out") + 1])
+                documents.parent.mkdir(parents=True, exist_ok=True)
+                rows = [{"referenceId": "reference-1", "lineageId": "reference-1", "title": "A paper", "url": "https://example.test/paper.pdf", "publishedAt": "2026-10-01T00:00:00Z"}]
+                documents.write_text(json.dumps({"schemaVersion": 1, "referenceDocuments": rows}))
+                (raw / "ref-reference-1.md").write_text("# A paper")
         elif args[:4] == ["papyrus", "knowledge", "wiki", "sync"] and "--retired-out" in args:
             Path(args[args.index("--retired-out") + 1]).write_text(json.dumps(self.retired))
         elif args[:2] == ["biblicus", "init"]:

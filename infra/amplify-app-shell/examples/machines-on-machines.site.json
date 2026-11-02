@@ -61,7 +61,17 @@
     "monitorStories": {
       "limit": 3
     },
+    "referenceDocuments": {
+      "enabled": true,
+      "mediaBucket": "amplify-d260vp72hqglnc-ma-papyrusmediabucket0dab24-uow8zgyn0ttn",
+      "extractor": "markitdown"
+    },
     "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
-    "openAiKeyParameter": "/papyrus/shipped/openai-api-key"
+    "openAiKeyParameter": "/papyrus/shipped/openai-api-key",
+    "stageTimeouts": {
+      "typed-extraction": 43200,
+      "publish-run": 14400,
+      "publish-relations": 14400
+    }
   }
 }

@@ -28,7 +28,7 @@ from ..relation_types import normalize_relation_type_key
 from .actors import ACTOR_AI, Actor, ReviewMarks, decode_review
 from .cluster_records import CLUSTER_KIND, cluster_proposal_id, proposal_record
 from .keys import contains_email, entity_key, kind_key, normalize_name
-from .model import LINK_EXTRACTOR, LINK_FRONT_MATTER, PublishedItem
+from .model import KIND_REFERENCE_DOCUMENT, LINK_EXTRACTOR, LINK_FRONT_MATTER, PublishedItem
 from .run_input import ClusterRun, TypedItem
 
 ACTOR = "Papyrus knowledge publish-run"
@@ -40,6 +40,8 @@ STATUS_ACCEPTED = "accepted"
 STATUS_GENERATED = "generated"
 STATUS_REJECTED = "rejected"
 LINK_METADATA_KIND = "knowledge.item_mention"
+REFERENCE_KIND = "reference"
+REFERENCE_MENTION_METADATA = "knowledge.reference_mention"
 RELATION_METADATA_KIND = "knowledge.node_relation"
 RESOLUTION_ACTOR_NAME = "extractor resolution"
 
@@ -153,13 +155,14 @@ def mention_record(
     extractor_state: str | None = None,
     run_id: str | None = None,
 ) -> dict:
-    metadata: dict[str, Any] = {"kind": LINK_METADATA_KIND, "linkSource": source, "confirmed": confirmed}
+    from_reference = item.kind == KIND_REFERENCE_DOCUMENT  # an entity extracted from a Reference's text cites the Reference, not an item
+    metadata: dict[str, Any] = {"kind": REFERENCE_MENTION_METADATA if from_reference else LINK_METADATA_KIND, "linkSource": source, "confirmed": confirmed}
     if extractor_state:
         metadata["extractorState"] = extractor_state
     return semantic_relation_record(
         {
             "predicate": MENTIONS,
-            "subjectKind": ITEM_KIND,
+            "subjectKind": REFERENCE_KIND if from_reference else ITEM_KIND,
             "subjectId": item.item_id,
             "subjectLineageId": item.key,
             "subjectVersionNumber": None,
@@ -184,6 +187,22 @@ def is_item_mention(row: Mapping[str, Any]) -> bool:
         and row.get("objectKind") == NODE_KIND
         and row.get("relationState", "current") == "current"
     )
+
+
+def is_reference_mention(row: Mapping[str, Any]) -> bool:
+    """A mention the extractor made in a Reference document's text (not a monitor record's link, which has its own marker)."""
+    return (
+        row.get("predicate") == MENTIONS
+        and row.get("subjectKind") == REFERENCE_KIND
+        and row.get("objectKind") == NODE_KIND
+        and row.get("relationState", "current") == "current"
+        and json_object(row.get("metadata")).get("kind") == REFERENCE_MENTION_METADATA
+    )
+
+
+def is_extractor_mention(row: Mapping[str, Any]) -> bool:
+    """A link the review confirms or rejects with its entity: from a published item, or from a Reference document."""
+    return is_item_mention(row) or is_reference_mention(row)
 
 
 def _usable(kind: str, name: str, plan: PublishPlan, where: str) -> bool:
@@ -401,6 +420,7 @@ def plan_publish_run(
     confirm_resolved: bool = False,
     front_matter_actor_name: str | None = None,
     records: list | None = None,
+    reference_documents: list[PublishedItem] | None = None,
     record_rows: list[dict] | None = None,
     record_rows_for: Callable[[list], list[dict]] | None = None,
     ledger: Any = None,
@@ -428,7 +448,7 @@ def plan_publish_run(
     if run is not None:
         plan.warnings.extend(run.warnings)
         if run.entities:
-            plan_extractor(run.entities, items, index, confirmed, run.run_id, plan, corpus_id=corpus_id, now=now, confirm_resolved=confirm_resolved)
+            plan_extractor(run.entities, [*items, *(reference_documents or [])], index, confirmed, run.run_id, plan, corpus_id=corpus_id, now=now, confirm_resolved=confirm_resolved)
         if run.clusters:
             if not corpus_id:
                 raise ValueError("Importing clusters needs --corpus-key or --corpus-id (a steering proposal belongs to a corpus).")
