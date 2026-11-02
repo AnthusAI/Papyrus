@@ -84,6 +84,8 @@ SEMANTIC_RELATION_FIELDS = (
     "objectVersionKey score confidence rank classifierId modelVersion reviewRecommended sourceSnapshotId "
     "importRunId importedAt createdAt updatedAt newsroomFeedKey metadata"
 )
+# Only the suggestion-index backfill reads the two index fields: every other read keeps working on a backend that has not deployed them.
+SEMANTIC_RELATION_OPEN_SUGGESTION_FIELDS = f"{SEMANTIC_RELATION_FIELDS} openSuggestionKey openSuggestionScore"
 MESSAGE_FIELDS = (
     "id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel "
     "threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget "
@@ -512,6 +514,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "field": "listSemanticRelationsByNewsroomFeedAndCreatedAt",
         "partitionKey": "newsroomFeedKey",
         "fields": SEMANTIC_RELATION_FIELDS,
+    },
+    "semanticRelationsByNewsroomFeedWithOpenSuggestionFields": {
+        "field": "listSemanticRelationsByNewsroomFeedAndCreatedAt",
+        "partitionKey": "newsroomFeedKey",
+        "fields": SEMANTIC_RELATION_OPEN_SUGGESTION_FIELDS,
     },
     "semanticRelationsBySubjectState": {
         "field": "listSemanticRelationsBySubjectState",

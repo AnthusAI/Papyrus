@@ -2021,6 +2021,8 @@ const definitions = {
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
       newsroomFeedKey: a.string(),
+      openSuggestionKey: a.string(),
+      openSuggestionScore: a.float(),
       metadata: a.json(),
     })
     .secondaryIndexes((index) => [
@@ -2033,6 +2035,7 @@ const definitions = {
       index("importRunId").sortKeys(["importedAt"]).queryField("listSemanticRelationsByImportRunAndImportedAt"),
       index("relationTypeKey").sortKeys(["importedAt"]).queryField("listSemanticRelationsByTypeAndImportedAt"),
       index("relationDomain").sortKeys(["importedAt"]).queryField("listSemanticRelationsByDomainAndImportedAt"),
+      index("openSuggestionKey").sortKeys(["openSuggestionScore"]).queryField("listSemanticRelationsByOpenSuggestionAndScore"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),

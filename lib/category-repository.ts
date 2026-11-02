@@ -409,6 +409,9 @@ export type SemanticRelationRecord = {
   createdAt?: string | null;
   updatedAt?: string | null;
   newsroomFeedKey?: string | null;
+  /** Set only while the row is an open link suggestion (the Needs me queue's index); null once it is decided. */
+  openSuggestionKey?: string | null;
+  openSuggestionScore?: number | null;
   metadata?: unknown;
 };
 

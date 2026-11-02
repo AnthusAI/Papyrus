@@ -126,6 +126,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [python-cli-and-testing.md](python-cli-and-testing.md): Poetry setup, CLI recipes, sandbox seeding and BDD suites.
 - [schema-and-api-alignment.md](schema-and-api-alignment.md): fix schema drift by deploying, never by shims.
 - [reference-feed-indexes.md](reference-feed-indexes.md): the two indexes the newsroom References page pages through, the keys every writer keeps, and the backfill.
+- [reference-link-suggestion-index.md](reference-link-suggestion-index.md): the sparse index that serves the Needs me link-suggestion queue most likely first, who keeps its two fields, the backfill, and the rollout order.
 - [local-dev-431-troubleshooting.md](local-dev-431-troubleshooting.md): `HTTP 431` from oversized localhost cookies.
 
 ## Archive

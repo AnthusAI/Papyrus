@@ -1,6 +1,6 @@
 import { loadAllPages } from "../lib/newsroom-all-pages";
 import { semanticStateKey } from "../lib/semantic-graph";
-import { lineagesOfSuggestionRows, suggestionsFromRows, type LinkSuggestionPage, type SuggestionRow } from "../lib/link-suggestions";
+import { readSuggestionPage } from "../lib/link-suggestions";
 import {
   conceptItem, editorLinkedReferenceLineages, referenceItem, relatedEntriesFromRelations,
   type RelatedEntry, type RelatedItem, type RelationRow, type SuggestionLabel,
@@ -19,20 +19,6 @@ const DECIDE_REFERENCE_LINK_MUTATION =
   "mutation DecideReferenceLink($relationId: ID!, $decision: String!, $reasonCode: String, $note: String) { decideReferenceLink(relationId: $relationId, decision: $decision, reasonCode: $reasonCode, note: $note) { ok relationId relationState decision } }";
 const SUGGEST_REFERENCE_LINKS_MUTATION =
   "mutation SuggestReferenceLinks($input: AWSJSON!) { suggestReferenceLinks(input: $input) }";
-
-const SUGGESTED_LINKS_QUERY = `
-  query ListSuggestedReferenceLinks($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelSemanticRelationFilterInput) {
-    listSemanticRelationsByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id relationState predicate subjectKind subjectLineageId objectKind objectLineageId score createdAt importedAt metadata }
-      nextToken
-    }
-  }
-`;
-/** The feed key every reference-link row is written under (amplify/functions/category-action/reference-links.ts). */
-const REFERENCE_LINK_FEED_KEY = "reference-links";
-/** How many open suggestions one page of the queue aims for. The filter runs after DynamoDB reads a page, so a page reads on until it has this many or the feed ends. */
-const SUGGESTION_PAGE_SIZE = 50;
-const SUGGESTION_READ_LIMIT = 200;
 
 const LINK_STATES = ["current", "suggested"] as const;
 
@@ -56,7 +42,7 @@ function parseSuggestions(raw: unknown): SuggestOutcome {
   return { labels, skipped: body.skipped ?? null };
 }
 
-/** The newsroom's related-links store: reads SemanticRelation rows by state key and writes only through the link mutations. */
+/** The newsroom's related-links store: reads SemanticRelation rows by state key (and the open suggestions from their own index) and writes only through the link mutations. */
 export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
   let concepts: Promise<SemanticNodeRecord[]> | null = null;
   let references: Promise<ReferenceRecord[]> | null = null;
@@ -80,19 +66,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
   };
   return {
     async listSuggested(cursor) {
-      const rows: SuggestionRow[] = [];
-      let next = cursor;
-      do {
-        const data = await runGraphql<{ listSemanticRelationsByNewsroomFeedAndCreatedAt?: { items?: Array<SuggestionRow | null>; nextToken?: string | null } }>(SUGGESTED_LINKS_QUERY, {
-          newsroomFeedKey: REFERENCE_LINK_FEED_KEY, sortDirection: "DESC", limit: SUGGESTION_READ_LIMIT, nextToken: next, filter: { relationState: { eq: "suggested" } },
-        });
-        const connection = data.listSemanticRelationsByNewsroomFeedAndCreatedAt;
-        rows.push(...(connection?.items ?? []).filter((row): row is SuggestionRow => Boolean(row)));
-        next = connection?.nextToken ?? null;
-      } while (next && rows.length < SUGGESTION_PAGE_SIZE);
-      const resolve = await resolveAll(lineagesOfSuggestionRows(rows));
-      const page: LinkSuggestionPage = { suggestions: suggestionsFromRows(rows, resolve), cursor: next };
-      return page;
+      return readSuggestionPage(runGraphql, cursor, resolveAll);
     },
     async listForReference(referenceLineageId) {
       const relations = (await relationsAround("reference", referenceLineageId, "both")) as RelationRow[];
