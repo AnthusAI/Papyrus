@@ -26,7 +26,7 @@ LATEST_KEY = f"{PUBLIC_DATA_DIRECTORY}/latest.json"
 PUBLIC_DATA_SETTINGS_KEY = "publicData"
 SEARCH_COMPONENT_KEY = "_plugins/papyrus-search@1.js"
 SEARCH_COMPONENT_SOURCE = Path(__file__).parent / "public_assets" / "papyrus-search.js"
-SUMMARY_FIELD_NAMES = ("description", "summary", "excerpt", "blurb")
+SUMMARY_FIELD_NAMES = ("description", "summary", "excerpt", "blurb", "dek", "deck", "standfirst")
 HIDDEN_FROM_FEED_VALUES = {"false", "0", "no", "off"}
 
 
