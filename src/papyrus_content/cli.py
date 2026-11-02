@@ -303,6 +303,7 @@ PORTED_COMMANDS = frozenset(
         "references:decide-relevance",
         "references:enrich-images",
         "references:curate",
+        "references:backfill-publication-dates",
         "references:decide-site-sections",
         "references:export-relevance-recording",
         "references:freeze-priming-held-out",
@@ -663,6 +664,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:curate":
         from .reference_curation import references_curate
         references_curate(flags)
+    elif route == "references:backfill-publication-dates":
+        from .reference_curation import references_backfill_publication_dates
+        references_backfill_publication_dates(flags)
     elif route == "references:enrich-images":
         from .reference_images import references_enrich_images
         references_enrich_images(flags)

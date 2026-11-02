@@ -13,8 +13,9 @@ for path in (REPO_ROOT / "src", REPO_ROOT / "procedures" / "newsroom" / "tests")
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from curation_support import MemoryClient, Summarizer, article_html, page, reference, services as build_services  # noqa: E402
+from curation_support import NOW, MemoryClient, Summarizer, article_html, page, reference, services as build_services  # noqa: E402
 from papyrus_content import reference_curation as curation  # noqa: E402
+from papyrus_content.reference_curation_store import new_card, read_card, write_card  # noqa: E402
 
 DATED_ARTICLE_URL = "https://news.example.org/dated"
 ADDED_AT = "2026-11-01T08:00:00Z"
@@ -211,3 +212,117 @@ def _(context):
 @then("no resurfaced pack exists")
 def _(context):
     assert pack_of(context, "resurfaced") is None
+
+
+# --- the publication-date backfill ----------------------------------------------------------------------------------------
+
+
+def backfill_url(name):
+    return f"https://news.example.org/{name}"
+
+
+def backfill_state(context):
+    if not hasattr(context, "backfill_refs"):
+        context.backfill_refs, context.backfill_pages = [], {}
+    return context.backfill_refs, context.backfill_pages
+
+
+@given('Reference "{name}" has a page that declares the Open Graph article published time "{value}"')
+def _(context, name, value):
+    refs, pages = backfill_state(context)
+    refs.append(reference(name, sourceUri=backfill_url(name)))
+    pages[backfill_url(name)] = page(article_html(extra_head=f"<meta property='article:published_time' content='{value}'>"))
+
+
+@given('Reference "{name}" already has the publication date "{value}" from a monitor')
+def _(context, name, value):
+    backfill_state(context)[0].append(reference(name, sourceUri=backfill_url(name), sourcePublishedAt=value))
+
+
+@given('Reference "{name}" has a page that cannot be fetched')
+def _(context, name):
+    backfill_state(context)[0].append(reference(name, sourceUri=backfill_url(name)))
+
+
+@given('Reference "{name}" already has a publication date recorded on its curation card')
+def _(context, name):
+    backfill_state(context)[0].append(reference(name, sourceUri=backfill_url(name)))
+    context.backfill_resolved = [*getattr(context, "backfill_resolved", []), name]
+
+
+def run_backfill(context, dry_run):
+    from papyrus_content.link_exploration import Exploration
+
+    refs, pages = backfill_state(context)
+    context.client = MemoryClient(refs)
+    for name in getattr(context, "backfill_resolved", []):
+        done = next(ref for ref in refs if ref["id"] == f"{name}-v1")
+        card = new_card(done)
+        card["publicationDate"] = {"source": "pdf", "precision": "day", "resolvedAt": "2026-10-01T00:00:00Z"}
+        write_card(context.client, done, card, NOW)
+    context.writes_before = context.client.writes
+
+    def explorer(url, context=None, **kwargs):
+        found = pages.get(url)
+        if found is None:
+            return Exploration(False, None, failure="timeout", direct_failure="timeout")
+        return Exploration(True, url, None, "direct", readable=False, response=found if kwargs.get("keep_response") else None)
+
+    context.backfill = curation.backfill_publication_dates(context.client, corpus_id="knowledge-corpus-site", dry_run=dry_run, explorer=explorer,
+                                                           now=lambda: NOW)
+
+
+@when("the publication date backfill runs")
+def _(context):
+    run_backfill(context, False)
+
+
+@when("the publication date backfill runs as a dry run")
+def _(context):
+    run_backfill(context, True)
+
+
+def backfilled(context, name):
+    return context.client.get_record("Reference", f"{name}-v1")
+
+
+@then('Reference "{name}" has the publication date "{value}" resolved from "{source}"')
+def _(context, name, value, source):
+    row = backfilled(context, name)
+    assert row["sourcePublishedAt"] == value
+    assert read_card(context.client, row)["publicationDate"]["source"] == source
+
+
+@then('Reference "{name}" records its publication date as resolved from "{source}"')
+def _(context, name, source):
+    assert (read_card(context.client, backfilled(context, name)) or {}).get("publicationDate", {}).get("source") == source
+
+
+@then('Reference "{name}" is unchanged and counted as a fetch failure')
+def _(context, name):
+    assert backfilled(context, name) == reference(name, sourceUri=backfill_url(name))
+    assert context.backfill["counts"]["fetchFailures"] == 1
+
+
+@then('Reference "{name}" is skipped')
+def _(context, name):
+    assert next(item for item in context.backfill["items"] if item["referenceId"] == f"{name}-v1")["outcome"] == "already_resolved"
+
+
+@then("no summary was written and no curation card exists for any of them")
+def _(context):
+    assert not context.client.tables["ModelAttachment"]
+    for row in context.client.tables["ReferenceAttachment"].values():
+        card = json.loads(row["metadata"])
+        assert card["summary"] == {"status": "not_run"} and card["capture"] == {"status": "not_run"}
+
+
+@then('the dry run lists Reference "{name}" with the date "{value}" from "{source}"')
+def _(context, name, value, source):
+    item = next(item for item in context.backfill["items"] if item["referenceId"] == f"{name}-v1")
+    assert (item["date"], item["source"]) == (value, source)
+
+
+@then("the dry run wrote nothing")
+def _(context):
+    assert context.client.writes == context.writes_before

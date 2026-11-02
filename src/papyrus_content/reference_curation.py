@@ -26,6 +26,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from .ids import hash_short
+from .knowledge_snapshot.parallel import DEFAULT_WORKERS, map_with_clients, worker_count
 from .link_exploration import explore
 from .options import normalize_string, parse_options, resolve_mutation_apply
 from .publication_dates import normalize_html_date, publication_date_resolution_record
@@ -479,3 +480,112 @@ def references_curate(flags: list[str]) -> None:
         return
     counts = result["counts"]
     print("references\tcurate\t" + "\t".join(f"{key}={value}" for key, value in counts.items()) + ("\tdry-run" if not apply else ""))
+
+
+# --- publication dates only (the cheap backfill) ----------------------------------------------------------------------
+
+
+class _RecordingClient:
+    """Stands in for the client during ``--dry-run``: the date stage's update is kept, not sent."""
+
+    def __init__(self) -> None:
+        self.updates: list[dict[str, Any]] = []
+
+    def update_record(self, model: str, row: dict[str, Any]) -> None:
+        self.updates.append(row)
+
+
+def backfill_publication_date(client: Any, reference: dict[str, Any], *, capture: Callable[..., Capture] = capture_source,
+                              explorer: Callable[..., Any] = explore, now: Callable[[], datetime] = utc_now, dry_run: bool = False) -> dict[str, Any]:
+    """Resolve one Reference's publication date and nothing else (no summary, no GROBID). The date goes on ``Reference.sourcePublishedAt``
+    and its provenance on the curation card (``card["publicationDate"]``); a Reference with no card gets a minimal one from ``new_card``.
+    ``outcome`` is one of ``resolved`` (a date came from the page), ``monitor`` (the date the monitor supplied is recorded as such),
+    ``unknown`` (the page declares none), ``fetch_failed``, ``skipped_pdf`` or ``already_resolved``. A page is fetched only when the
+    Reference has no date at all."""
+    result: dict[str, Any] = {"referenceId": reference["id"], "outcome": "already_resolved"}
+    card = read_card(client, reference)
+    if card and card.get("publicationDate"):
+        return result
+    source_uri = normalize_string(reference.get("sourceUri")) or ""
+    if source_uri.lower().split("?")[0].split("#")[0].endswith(".pdf"):
+        return {**result, "outcome": "skipped_pdf"}
+    if normalize_string(reference.get("sourcePublishedAt")):
+        captured = Capture(False, "not_needed")
+    else:
+        captured = capture(source_uri, title=str(reference.get("title") or ""), explorer=explorer)
+        if captured.source_kind == "pdf":
+            return {**result, "outcome": "skipped_pdf"}
+        if not captured.ok:
+            return {**result, "outcome": "fetch_failed", "failure": captured.failure}
+    working = dict(reference)
+    card = card or new_card(reference)
+    stamp = now()
+    _publication_date_stage(_RecordingClient() if dry_run else client, working, card, captured, stamp)
+    resolution = card.get("publicationDate")
+    if not resolution:
+        return {**result, "outcome": "unknown"}
+    if not dry_run:
+        write_card(client, reference, card, stamp)
+    return {**result, "outcome": "monitor" if resolution["source"] == "monitor" else "resolved", "date": working.get("sourcePublishedAt"),
+            "source": resolution["source"], "precision": resolution["precision"]}
+
+
+def backfill_publication_dates(client: Any, *, corpus_id: str, dry_run: bool = False, workers: int = DEFAULT_WORKERS,
+                               client_factory: Callable[[], Any] | None = None, capture: Callable[..., Capture] = capture_source,
+                               explorer: Callable[..., Any] = explore, now: Callable[[], datetime] = utc_now) -> dict[str, Any]:
+    """Every current http(s) Reference of the corpus without a ``publicationDateResolution`` gets the date stage and no other."""
+    references = select_references(client, corpus_id=corpus_id, status="all")
+    items = map_with_clients(
+        references, lambda worker, reference: backfill_publication_date(worker, reference, capture=capture, explorer=explorer, now=now, dry_run=dry_run),
+        client=client, client_factory=client_factory, workers=workers)
+    counts: dict[str, Any] = {"scanned": len(references), "alreadyResolved": 0, "resolved": 0, "resolvedBySource": {}, "keptMonitorDate": 0,
+                              "unknown": 0, "fetchFailures": 0, "skippedPdf": 0}
+    for item in items:
+        outcome = item["outcome"]
+        if outcome == "resolved":
+            counts["resolved"] += 1
+            counts["resolvedBySource"][item["source"]] = counts["resolvedBySource"].get(item["source"], 0) + 1
+        else:
+            counts[{"already_resolved": "alreadyResolved", "monitor": "keptMonitorDate", "unknown": "unknown", "fetch_failed": "fetchFailures",
+                    "skipped_pdf": "skippedPdf"}[outcome]] += 1
+    return {"corpusId": corpus_id, "dryRun": dry_run, "counts": counts, "items": items}
+
+
+def references_backfill_publication_dates(flags: list[str]) -> None:
+    """papyrus references backfill-publication-dates --corpus-id ID [--parallel N] [--dry-run] [--json]
+
+    For every current Reference of the corpus with no ``metadata.publicationDateResolution``, capture the page the way curation does
+    and run only the publication-date stage (no summary, no GROBID, no model cost). PDFs and non-http(s) sources are left alone. Writes
+    unless ``--dry-run``, which prints what it would set (reference id, date, source, precision).
+    """
+    from .graphql_authoring import create_authoring_client
+
+    options = parse_options(flags)
+    for name in ("corpus-id", "corpus", "parallel"):
+        if options.get(name) is True:
+            raise ValueError(f"--{name} needs a value.")
+    corpus = normalize_string(options.get("corpus-id")) or normalize_string(options.get("corpus"))
+    if not corpus:
+        raise ValueError("papyrus references backfill-publication-dates needs --corpus-id <corpus id>.")
+    corpus_id = corpus if corpus.startswith("knowledge-corpus-") else f"knowledge-corpus-{corpus}"
+    apply = resolve_mutation_apply(options, "references backfill-publication-dates")
+    workers = worker_count(options.get("parallel"))
+    client, _ = create_authoring_client()
+    result = backfill_publication_dates(client, corpus_id=corpus_id, dry_run=not apply, workers=workers,
+                                        client_factory=(lambda: create_authoring_client()[0]) if workers > 1 else None)
+    if options.get("json"):
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return
+    if not apply:
+        for item in result["items"]:
+            if item["outcome"] in {"resolved", "monitor"}:
+                print(f"would-set\t{item['referenceId']}\t{item['date']}\t{item['source']}\t{item['precision']}")
+    counts = result["counts"]
+    if not counts["scanned"]:
+        print(f"No current http(s) References found in corpus {corpus_id}. Check the corpus id (it is knowledge-corpus-<publication key>; "
+              "`papyrus references list` shows the corpusId of a Reference).")
+        return
+    by_source = ",".join(f"{source}={number}" for source, number in sorted(counts["resolvedBySource"].items())) or "none"
+    print(f"scanned={counts['scanned']}\talreadyResolved={counts['alreadyResolved']}\tresolved={counts['resolved']} ({by_source})\t"
+          f"keptMonitorDate={counts['keptMonitorDate']}\tunknown={counts['unknown']}\tfetchFailures={counts['fetchFailures']}\t"
+          f"skippedPdf={counts['skippedPdf']}" + ("\tdry-run" if not apply else ""))
