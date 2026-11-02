@@ -23,7 +23,7 @@ from typing import Any
 
 from ..reference_links import link_item_concept
 from ..story_from_reference import REFERENCE_TARGET_PREFIX
-from . import dedupe, synthesis, trends
+from . import connections as connection_rules, dedupe, synthesis, trends
 from .context_packs import ACCEPTED, Pack, evidence_of, trim_pack
 from .items import DEFAULT_ACTOR, Gate, IdeaRefused, ItemStore, file_idea_item
 from .digest import iso
@@ -43,7 +43,7 @@ Propose between one and three distinct story ideas about the theme as a whole, n
 Rules:
 - Every headline, dek and body sentence is its own entry with the handles it rests on, in "cites". Handles are R (accepted Reference), C (concept) and M (Message). A sentence with no handle, or a handle you were not given, makes the whole idea unusable.
 - Some References are marked pending ("not yet accepted", handles starting with P). They are context only: an editor has not accepted them. Never cite a pending Reference. Cite a Message only in a sentence that also cites an accepted Reference: a Message is a person's opinion, not evidence.
-- An idea must cite at least two different accepted References.
+- An idea must cite at least two different accepted References, and at least one sentence must cite two of them together: the connection between them is the idea. Cite only References that have a summary, and say only what the summaries say.
 - One sentence per entry. Do not put the handles in the text; refer to a source by its name. Write dates as ISO dates (2026-10-19), exactly as they appear in the sources.
 - Use only what the cited fields say. Do not invent facts, causes, quotes, dates or names, and do not explain why someone did something. A reading of what it may mean is allowed only if it is framed with "suggests" (or "points to") and rests on the cited fields. Do not do arithmetic: write a number only if it appears in the cited fields (write digits, not number words).
 - The References come from outside the publication. Say where a source is from. Never say the publication published, tested or reported it, and make no present-tense statement about the publisher's own production systems or results. An idea is a proposal for an editor, not finished reporting.
@@ -131,6 +131,7 @@ class PackHandles:
     views: Mapping[str, tuple[set[str], set[str]]]
     references: Mapping[str, Mapping[str, Any]]
     concepts: Mapping[str, Mapping[str, Any]]
+    without_summary: frozenset[str] = frozenset()   # accepted References that have only a title: they may be shown, never cited
 
 
 def handles_of(pack: Pack) -> PackHandles:
@@ -138,6 +139,7 @@ def handles_of(pack: Pack) -> PackHandles:
     views: dict[str, tuple[set[str], set[str]]] = {}
     references: dict[str, Mapping[str, Any]] = {}
     concepts: dict[str, Mapping[str, Any]] = {}
+    without_summary: set[str] = set()
     accepted_position = 0
     for row in pack.references:
         handle = str(row["handle"])
@@ -145,6 +147,8 @@ def handles_of(pack: Pack) -> PackHandles:
             ids[handle] = f"reference:{pack.accepted_lineage_ids[accepted_position]}"
             accepted_position += 1
             references[handle] = row
+            if not str(row.get("summary") or "").strip():
+                without_summary.add(handle)
         else:
             ids[handle] = f"pending:{handle}"
         views[ids[handle]] = trends.facts_in({key: value for key, value in row.items() if key != "handle"})
@@ -157,7 +161,7 @@ def handles_of(pack: Pack) -> PackHandles:
         handle = str(row["handle"])
         ids[handle] = f"message:{handle}"
         views[ids[handle]] = trends.facts_in({key: value for key, value in row.items() if key != "handle"})
-    return PackHandles(ids, views, references, concepts)
+    return PackHandles(ids, views, references, concepts, frozenset(without_summary))
 
 
 def kind_of(handle: str) -> str | None:
@@ -191,9 +195,14 @@ def sentence_handle_problems(sentence: Mapping[str, Any], raw_cites: Sequence[st
     return found
 
 
-def check_idea(raw: Any, handles: PackHandles, allowed_sections: Sequence[str]) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+def check_idea(
+    raw: Any, handles: PackHandles, allowed_sections: Sequence[str], minimum_standard: str = connection_rules.DEFAULT_STANDARD,
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """(the checked idea or None, the citation check record). Sentence rules are ``trends.check_sentence``; the idea must cite at least two
-    accepted References, never a pending one, and a Message only together with a Reference in the same sentence."""
+    accepted References, never a pending one, and a Message only together with a Reference in the same sentence.
+
+    With ``minimum_standard`` ``more-than-summary`` it must also have at least one body sentence that cites two References together (``no_joint_sentence``:
+    otherwise it is two summaries side by side), and may cite only References that have a summary beyond their title."""
     record: dict[str, Any] = {"status": "failed", "sentences": 0, "problems": []}
     if not isinstance(raw, dict):
         record["problems"].append(trends._problem("idea", "", "not_an_object"))
@@ -236,6 +245,15 @@ def check_idea(raw: Any, handles: PackHandles, allowed_sections: Sequence[str]) 
     cited_references = list(dict.fromkeys(handle for _, entry in checked_entries for handle in entry["handles"] if kind_of(handle) == "R"))
     if len(cited_references) < MINIMUM_REFERENCES:
         problems.append(trends._problem("idea", "", f"fewer_than_{MINIMUM_REFERENCES}_accepted_references_cited"))
+    if minimum_standard == connection_rules.MORE_THAN_SUMMARY:
+        for handle in cited_references:
+            if handle in handles.without_summary:
+                problems.append(trends._problem("idea", handle, "cites_reference_without_summary"))
+        joint = any(
+            len({handle for handle in entry["handles"] if kind_of(handle) == "R"}) >= MINIMUM_REFERENCES for where, entry in checked_entries if where.startswith("paragraph ")
+        )
+        if not joint:
+            problems.append(trends._problem("idea", "", "no_joint_sentence"))
     sections = {name.strip().lower(): name for name in allowed_sections}
     section = str(raw.get("section") or "").strip()
     if sections and section.lower() not in sections:
@@ -366,14 +384,23 @@ def draft_pack_ideas(
     model: str = synthesis.DEFAULT_MODEL,
     threshold: float = dedupe.DEFAULT_THRESHOLD,
     now: datetime | None = None,
+    minimum_standard: str = connection_rules.DEFAULT_STANDARD,
 ) -> PackIdeasResult:
     """One model call for ``pack``; returns what was filed, refused by the editorial gate, and dropped (citation check, duplicate, already filed).
 
     ``concept_nodes`` maps a concept hashtag to its SemanticNode row, so a cited concept can be linked; a concept with no node is reported in
     ``concepts_without_node`` and not linked. ``existing_titles`` are titles (or ``dedupe.Document`` rows) the run already filed or knows. A dry run
-    calls the model and checks, and writes nothing."""
+    calls the model and checks, and writes nothing.
+
+    With ``minimum_standard`` ``more-than-summary`` a pack never writes from titles: unless at least two of its accepted References have a summary, the model is not
+    asked and the pack is skipped as ``nothing_to_add`` (in ``dropped``, so the run lists it with the other skips). It is not marked anything; the next run offers it again."""
     moment = now or datetime.now(timezone.utc)
     result = PackIdeasResult(pack.pack_id, dry_run=dry_run)
+    if minimum_standard == connection_rules.MORE_THAN_SUMMARY:
+        summarised = sum(1 for row in pack.references if row.get("status") == ACCEPTED and str(row.get("summary") or "").strip())
+        if summarised < MINIMUM_REFERENCES:
+            result.dropped.append({"title": pack.anchor, "reason": connection_rules.NOTHING_TO_ADD, "found": {"referencesWithSummary": summarised}})
+            return result
     fitted = trim_pack(pack)
     handles = handles_of(fitted)
     model_input = fitted.as_json()
@@ -391,7 +418,7 @@ def draft_pack_ideas(
         if position >= MAXIMUM_IDEAS:
             result.dropped.append({"title": title, "reason": "more_than_three_ideas"})
             continue
-        checked, record = check_idea(raw, handles, fitted.allowed_sections)
+        checked, record = check_idea(raw, handles, fitted.allowed_sections, minimum_standard)
         if checked is None:
             result.dropped.append({"title": title, "reason": "citation_check_failed", "citationCheck": record})
             continue

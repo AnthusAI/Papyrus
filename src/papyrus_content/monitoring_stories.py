@@ -5,9 +5,12 @@ that has none yet: the library behind ``papyrus ideas monitor-stories`` (``ideas
 ``limit=None``, so nothing but a real constraint stops it. A draft is a private Item at the ``idea`` stage; one soft review request per
 publication and run asks the editors to look, and links the Idea column of the Stories board. Nothing is published, and a Reference is never drafted twice.
 
-It is on for every publication. A publication's router entry turns it off with ``"monitorStories": {"enabled": false}``, and shapes it with two more
+It is on for every publication. A publication's router entry turns it off with ``"monitorStories": {"enabled": false}``, and shapes it with three more
 keys (no numeric knob):
 
+* ``minimumStandard`` (default ``"more-than-summary"``): an idea is filed only if it rests on something the newsroom already knows beyond its source (an editor's
+  accept reason, a comment, a related Reference), and a Reference with nothing to add is skipped before the model is asked. ``"summary"`` is the old behaviour,
+  kept only so the replay can compare the two; it is removed after the replay (``ideas/connections.py``).
 * ``singleItem`` (default true): draft a single idea for an accepted Reference that the signals single out.
 * ``contextPacks`` (default ``{"enabled": true}``): ``enabled`` builds context packs from the newsroom's own activity (Messages, accepts) and drafts up to
   three theme ideas from each; ``signals`` lists the signals to use, from the closed set ``conversation``, ``acceptance``, ``hub``, ``cluster``,
@@ -45,7 +48,8 @@ from typing import Any
 # The drafting modules are imported inside the functions: this module is imported by every router invocation, and only the daily
 # monitor-stories task needs them.
 
-POLICY_KEYS = ("enabled", "store", "singleItem", "contextPacks", "suggestions", "vectorIndexArn", "storageBucketName")
+POLICY_KEYS = ("enabled", "store", "singleItem", "contextPacks", "suggestions", "vectorIndexArn", "storageBucketName", "minimumStandard")
+MINIMUM_STANDARDS = ("more-than-summary", "summary")   # ideas/connections.MINIMUM_STANDARDS; repeated here because this module is imported by every router invocation
 VECTOR_INDEX_ARN = re.compile(r"arn:aws:s3vectors:[a-z0-9-]+:\d{12}:bucket/[A-Za-z0-9.-]+/index/[A-Za-z0-9.-]+")
 BUCKET_NAME = re.compile(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]")
 PACK_KEYS = ("enabled", "signals")
@@ -65,7 +69,7 @@ def validate_monitor_stories(publication_id: str, raw: Any) -> dict[str, Any]:
     ``singleItem`` defaults to true. ``contextPacks`` defaults to ``{"enabled": true, "signals": None}``; ``signals`` is None (every signal that has
     data) or a non-empty list from ``PACK_SIGNALS``."""
     defaults = {"enabled": True, "store": "items", "singleItem": True, "contextPacks": {"enabled": True, "signals": None}, "suggestions": {"enabled": True},
-                "vectorIndexArn": None, "storageBucketName": None}
+                "vectorIndexArn": None, "storageBucketName": None, "minimumStandard": "more-than-summary"}
     if raw is None:
         return defaults
     if not isinstance(raw, dict):
@@ -84,7 +88,11 @@ def validate_monitor_stories(publication_id: str, raw: Any) -> dict[str, Any]:
     single_item = raw.get("singleItem", True)
     if not isinstance(single_item, bool):
         raise ValueError(f"router publication {publication_id} monitorStories.singleItem must be true or false")
-    return {"enabled": enabled, "store": store, "singleItem": single_item, "contextPacks": validate_context_packs(publication_id, raw.get("contextPacks")),
+    standard = raw.get("minimumStandard", "more-than-summary")
+    if standard not in MINIMUM_STANDARDS:
+        raise ValueError(f"router publication {publication_id} monitorStories.minimumStandard must be {' or '.join(MINIMUM_STANDARDS)}")
+    return {"enabled": enabled, "store": store, "singleItem": single_item, "minimumStandard": standard,
+            "contextPacks": validate_context_packs(publication_id, raw.get("contextPacks")),
             "suggestions": validate_suggestions(publication_id, raw.get("suggestions")),
             "vectorIndexArn": validate_text_setting(publication_id, "vectorIndexArn", raw.get("vectorIndexArn"), VECTOR_INDEX_ARN),
             "storageBucketName": validate_text_setting(publication_id, "storageBucketName", raw.get("storageBucketName"), BUCKET_NAME)}
@@ -211,7 +219,8 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         context=context, json_store=None, idea_store=ItemStore(client, legacy=lambda: legacy_story_drafts(client), gate=gate), review_client=client,
         transport=transport, limit=None, dry_run=False, now=now, fetch=fetch or monitor_stories.fetch_source,
         explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer, out_of_time=out_of_time,
-        maximum_cost_usd=max(maximum_cost_usd - vectors["costUsd"], 0.0), read_workers=READ_WORKERS, automation_handled=handled_references, signal_run=signal_run)
+        maximum_cost_usd=max(maximum_cost_usd - vectors["costUsd"], 0.0), read_workers=READ_WORKERS, automation_handled=handled_references, signal_run=signal_run,
+        minimum_standard=policy["minimumStandard"])
     inputs, usage = run["inputs"], run.get("usage") or {}
     packs = run.get("packs") or []
     return {
@@ -221,6 +230,7 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         "attempted": run["attempted"], "failedTheCheck": len(run["invalid"]),
         "refusedByEditorialCheck": sum(1 for entry in run["invalid"] if entry.get("reason") == "editorial_check_failed"), "duplicates": len(run["duplicates"]),
         "handledByAutomation": inputs.get("handledByAutomation", 0), "costUsd": round((usage.get("costUsd") or 0) + vectors["costUsd"], 6) if (usage.get("costUsd") is not None or vectors["costUsd"]) else None, **vector_line,
+        "nothingToAdd": run.get("nothingToAdd", 0), "connectionsUsed": run.get("connectionsUsed", {}), "curationFlag": (run.get("curationFlag") or {}).get("status"),
         "packs": len(packs), "ideasFromPacks": sum(1 for draft in run["drafts"] if draft.get("origin") == "context-pack"),
         "packsSkippedNoNewEvidence": run.get("packsSkippedNoNewEvidence", 0),
         "packDetails": [{"signal": pack["signal"], "anchor": pack["anchor"], "correctedPValue": pack["correctedPValue"], "ideas": pack["ideas"]} for pack in packs if pack["attempted"]],

@@ -53,6 +53,70 @@ def request_human_review(client: Any, run: dict[str, Any], ideas: list[dict[str,
     return review
 
 
+CURATION_SUBJECT_PREFIX = "ideas-curation:"
+SKIPPED_TITLES_SHOWN = 5   # a sentence in a card, not a limit on the work: the card names the first few so an editor knows where to start
+
+
+def settle_curation_flag(client: Any, run: dict[str, Any], site: str) -> dict[str, Any]:
+    """The one curation flag of a publication's monitor-story run (docs/idea-context-packs.md, "More than a summary"). Never raises.
+
+    * The run filed ideas: an open flag of this publication is acknowledged (ideas are flowing again).
+    * The run filed nothing because a Reference had nothing to add (``nothing_to_add``) or there were no candidates at all: ONE flag, mode ``flag``
+      (Notification Center, acknowledge only), is raised, unless one is already open for this publication. It says what would help: accept reasons missing,
+      suggested links waiting in Related, the first skipped titles. It is quiet when the run stopped for another reason or failed to file.
+    """
+    subject = f"{CURATION_SUBJECT_PREFIX}{site}"
+    if client is None:
+        return {"status": "not_raised", "note": "No review client was given."}
+    try:
+        opened = [request for request in review_requests.list_reviews(client, state="open", raised_by=RAISED_BY, mode="flag", subject_id=subject, sweep=False)]
+        if run["drafts"]:
+            acknowledged = []
+            for request in opened:
+                review_requests.answer_review(client, request["id"], decision="acknowledge", by=RAISED_BY, feedback=f"Ideas are flowing again: run {run['runId']} filed {len(run['drafts'])}.")
+                acknowledged.append(request["id"])
+            return {"status": "acknowledged" if acknowledged else "not_needed", "requestIds": acknowledged}
+        skipped = [row for row in run["skipped"] if row["reason"] == "nothing_to_add"]
+        no_candidates = run["inputs"]["candidates"] == 0
+        if run.get("stoppedBy") == "file_error" or not (skipped or no_candidates):
+            return {"status": "not_needed"}
+        if opened:
+            return {"status": "already_open", "requestId": opened[0]["id"]}
+        reason, ask = curation_flag_text(run, skipped)
+        request = review_requests.raise_review(client, subject={"type": "batch", "id": subject}, mode="flag", reason=reason, ask=ask, raised_by=RAISED_BY)
+        return {"status": "raised", "requestId": request["id"], "reason": reason}
+    except Exception as error:  # noqa: BLE001 - the run is done; a site without review requests must not fail it
+        return {"status": "not_raised", "error": f"{type(error).__name__}: {error}"[:300]}
+
+
+def curation_flag_text(run: dict[str, Any], skipped: list[dict[str, Any]]) -> tuple[str, str]:
+    """(the reason, the ask) of the curation flag: what the run could not connect, and what would help most. Says "ideas", never a stage word."""
+    if not skipped:
+        pending = run["inputs"].get("notAccepted", 0)
+        waiting = f" {pending} pending References are waiting to be accepted." if pending else ""
+        return ("No ideas today: no accepted References are waiting to be written about.", f"Accept References to give the ideas something to work from.{waiting}")
+    singles = [row for row in skipped if "found" in row and "referencesWithSummary" not in row["found"]]   # a skipped pack has no accept reason or links of its own
+    packs = [row for row in skipped if row not in singles]
+    parts, help_with = [], []
+    if singles:
+        parts.append(f"{len(singles)} accepted {'Reference' if len(singles) == 1 else 'References'} had nothing to connect to")
+        unreasoned = sum(not row["found"].get("acceptReason") for row in singles)
+        waiting_links = sum(bool(row["found"].get("suggestedLinks")) for row in singles)
+        if unreasoned:
+            help_with.append(f"add a reason when you accept ({unreasoned} of {len(singles)} have none)")
+        if waiting_links:
+            help_with.append(f"confirm the suggested links waiting in Related ({waiting_links} {'has' if waiting_links == 1 else 'have'} close matches)")
+        help_with.append("comment on the ones you care about")
+    if packs:
+        parts.append(f"{len(packs)} {'theme' if len(packs) == 1 else 'themes'} had only titles to go on")
+    titles = [str(row["title"]) for row in singles[:SKIPPED_TITLES_SHOWN] if row.get("title")]
+    more = f", and {len(singles) - len(titles)} more" if len(singles) > len(titles) else ""
+    ask = ("What would help most: " + "; ".join(help_with) + "." if help_with else "") + (f" Waiting: {'; '.join(titles)}{more}." if titles else "")
+    if packs:
+        ask += " A theme is written from the summaries of its References, and too few of them have one yet; it is looked at again on the next run."
+    return (f"No ideas today: {' and '.join(parts)}, so the ideas would only have summarised them.", ask.strip())
+
+
 def feedback_from_steering(notes: list[dict[str, Any]], prior_ideas: dict[str, list[str]]) -> list[dict[str, Any]]:
     """Reviewer feedback entries from steering notes. A batch's note applies to each idea the batch held (``prior_ideas``: batch id to titles)."""
     entries = []

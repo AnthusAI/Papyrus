@@ -1451,6 +1451,9 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferences"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByNewsroomFeedAndCreatedAt"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateSemanticRelation"
+              # The curation flag of a run that files nothing (ideas/review.py settle_curation_flag): find this publication's open flag, and acknowledge it when ideas flow again.
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReviewRequests"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateReviewRequest"
           # The vector pass of the daily monitor-stories task: sync (list, write) the eight sites' indexes and query them for suggestions. A parameter left at its default names no index.
           - Sid: FanOutMonitorStories
             Effect: Allow

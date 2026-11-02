@@ -11,9 +11,12 @@ The lookups:
 
 * ``concepts``: every accepted, current SemanticNode, keyed by its lineage id and its id, with the name, kind, description and hashtag
   (``knowledge_snapshot.keys.concept_hashtag``); ``concept_nodes`` maps a hashtag to its row, so ``draft_pack_ideas`` can link a cited concept.
-* ``summaries``: a Reference's summary, read only for the References a pack shows. It is the text of the ``reference_summary_<N>_tokens`` Message
-  linked to the Reference (the highest token budget, the newest), else ``attachment_summary(lineage)`` when the caller can read the metadata
-  attachment (the router has no storage grant, so it passes none and a Reference without a summary Message has an empty summary).
+* ``summaries``: a Reference's summary, read only for the References a pack (or a single idea) shows. The first that exists of: the text of the
+  ``reference_summary_<N>_tokens`` Message linked to the Reference (the highest token budget, the newest); ``attachment_summary(lineage)`` when the caller can
+  read the metadata attachment (the router has no storage grant, so it passes none); the ``curation`` attachment's ``metadata.summary.text``; the
+  ``preview`` attachment's ``metadata.description`` when it is more than the title. The last two are database rows, not storage, and are the chain the
+  vector index uses (``vector_index._fallback_summary_payload``). A Reference with none has an empty summary, and a pack never writes from titles (it is
+  skipped as ``nothing_to_add``).
 * ``vector_provider``: the vector index provider the router run holds when the publication has a ``vectorIndexArn`` (``monitoring_vectors.vector_provider_for``);
   without one the hub signal still runs on edges and concepts and the cluster signal is skipped with a logged reason.
 * ``mission``, ``policy`` and ``allowed_sections``: from the same context ``load_context`` gives the single-item path.
@@ -21,6 +24,7 @@ The lookups:
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
@@ -43,10 +47,12 @@ AttachmentSummary = Callable[[str], str]
 class ReferenceSummaries(Mapping):
     """Summaries by Reference lineage id, each read the first time a pack asks for it (a Reference no pack shows is never read)."""
 
-    def __init__(self, client: Any, attachment_summary: AttachmentSummary | None = None) -> None:
+    def __init__(self, client: Any, attachment_summary: AttachmentSummary | None = None, titles: Mapping[str, str] | None = None) -> None:
         self.client = client
         self.attachment_summary = attachment_summary
+        self.titles = titles or {}
         self.found: dict[str, str] = {}
+        self.attachment_error: str | None = None
 
     def __getitem__(self, lineage_id: str) -> str:
         if lineage_id not in self.found:
@@ -63,7 +69,32 @@ class ReferenceSummaries(Mapping):
         return self[lineage_id] or default
 
     def read(self, lineage_id: str) -> str:
-        return self.from_message(lineage_id) or (self.attachment_summary(lineage_id) if self.attachment_summary else "")
+        return self.from_message(lineage_id) or (self.attachment_summary(lineage_id) if self.attachment_summary else "") or self.from_attachments(lineage_id)
+
+    def from_attachments(self, lineage_id: str) -> str:
+        """The curation attachment's summary, else the preview attachment's description (when it is more than the title). Database rows only; a role that
+        cannot read them is noted once in ``attachment_error`` and the chain ends empty."""
+        lister = getattr(self.client, "list_reference_attachments_by_lineage", None)
+        if lister is None or self.attachment_error:
+            return ""
+        try:
+            attachments = [row for row in lister(lineage_id) if row.get("status") != "deleted"]
+        except Exception as error:  # noqa: BLE001 - no grant is "no summary", noted once
+            self.attachment_error = type(error).__name__
+            return ""
+        for attachment in attachments:
+            if attachment.get("role") == "curation":
+                summary = attachment_metadata(attachment).get("summary")
+                text = " ".join(str(summary.get("text") or "").split()) if isinstance(summary, dict) else ""
+                if text:
+                    return text
+        title = " ".join(str(self.titles.get(lineage_id) or "").split()).casefold()
+        for attachment in attachments:
+            if attachment.get("role") == "preview":
+                description = " ".join(str(attachment_metadata(attachment).get("description") or "").split())
+                if description and description.casefold() != title:
+                    return description
+        return ""
 
     def from_message(self, lineage_id: str) -> str:
         relations = self.client.list_semantic_relations_by_object_state(f"reference#{lineage_id}#current")
@@ -78,6 +109,16 @@ class ReferenceSummaries(Mapping):
             if summary and message.get("messageKind") in SUMMARY_MESSAGE_KINDS and message.get("status") in (None, "", "active"):
                 return summary
         return ""
+
+
+def attachment_metadata(attachment: Mapping[str, Any]) -> dict[str, Any]:
+    raw = attachment.get("metadata")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            return {}
+    return raw if isinstance(raw, dict) else {}
 
 
 def concept_catalogue(client: Any) -> tuple[dict[str, ConceptInfo], dict[str, dict[str, Any]]]:
@@ -102,12 +143,12 @@ def concept_catalogue(client: Any) -> tuple[dict[str, ConceptInfo], dict[str, di
 
 
 def load_pack_lookups(client: Any, context: Mapping[str, Any], *, attachment_summary: AttachmentSummary | None = None,
-                      vector_provider: Any = None) -> tuple[PackLookups, dict[str, dict[str, Any]]]:
+                      vector_provider: Any = None, titles: Mapping[str, str] | None = None) -> tuple[PackLookups, dict[str, dict[str, Any]]]:
     """(the lookups the pack builders are given, the concept nodes by hashtag). ``context`` is ``ideas.context.load_context``'s result.
     ``vector_provider`` (``get_vector`` / ``query_by_vector``) is what the cluster signal reads; None skips that signal."""
     concepts, concept_nodes = concept_catalogue(client)
     lookups = PackLookups(
-        concepts=concepts, summaries=ReferenceSummaries(client, attachment_summary), mission=str(context.get("mission") or ""),
+        concepts=concepts, summaries=ReferenceSummaries(client, attachment_summary, titles), mission=str(context.get("mission") or ""),
         policy=str(context.get("policy") or ""), allowed_sections=tuple(str(section["title"]) for section in context.get("sections") or ()),
         vector_provider=vector_provider,
     )
@@ -124,6 +165,7 @@ class SignalRun:
     single_items: bool
     concept_nodes: Mapping[str, Mapping[str, Any]]
     gate: Any = None
+    summaries: Any = None   # the ``ReferenceSummaries`` the packs read; the single-item path reads the same chain
 
     def queue(self, candidates: list[MonitoredItem]) -> list[QueueEntry]:
         """The packs and the scored single-item candidates in one ordered queue. A candidate with no evidence is not in it."""
@@ -144,10 +186,11 @@ def prepare_signal_run(
 ) -> SignalRun:
     """The one read pass and the packs of ``site``. ``signals`` is the closed set the publication asked for (None: every signal that has data)."""
     inputs = load_signal_inputs(client, site=site, now=now, out_of_time=out_of_time)
-    lookups, concept_nodes = load_pack_lookups(client, context, attachment_summary=attachment_summary, vector_provider=vector_provider)
+    lookups, concept_nodes = load_pack_lookups(client, context, attachment_summary=attachment_summary, vector_provider=vector_provider,
+                                               titles={row.lineage_id: row.title for row in inputs.accepted})
     built = [pack for pack in build_packs(inputs, lookups, now=now) if signals is None or pack.signal_type in signals]
     suppression = suppress_repeats(rank_packs(built), inputs.ideas)
     return SignalRun(
         inputs=inputs, packs=suppression.kept, packs_skipped_no_new_evidence=suppression.packsSkippedNoNewEvidence, single_items=single_items,
-        concept_nodes=concept_nodes, gate=gate,
+        concept_nodes=concept_nodes, gate=gate, summaries=lookups.summaries,
     )
