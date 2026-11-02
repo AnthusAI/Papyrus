@@ -3,7 +3,7 @@
   "title": "Ideas from context packs: themes, links, concepts and two dates",
   "description": "Generated ideas come from ranked context packs built by deterministic, statistical signals over recent human activity (Messages, comments, votes with reasons, published stories), the knowledge graph (related_to links between References and from References to concept wiki entries, shown as hashtags) and vector suggestions that editors accept or reject. Every Reference carries two dates: original publication and ingestion.\n\nWhy: on 2026-11-01 monitor-stories filed 0 ideas on all seven sites; it only drafts from accepted, monitor-delivered, undrafted References and reads none of the curation signals. Ideas should be about themes, not single items.\n\nRyan's decisions (2026-11-01):\n1. Tagging a Reference with a concept means it relates to that concept: a related_to edge (reference -> semanticNode). No new predicate.\n2. Pending References may appear in packs as 'not yet accepted' context, never as cited evidence.\n3. Single-item ideas keep running beside packs, to find individual items worth a post, but are chosen by signals; both are balanced by the same signal score.\n4. Accept/Reject everywhere (References, link and concept suggestions, ideas) offers the optional reason; reasons train the site Cyclotrons; one shared Accept/Reject-with-reason component.\n\nStories: S1 ideas flow again (packs + signal-ranked single items; router release only), S2 links/concepts/suggestions + shared decision UI (site batch deploy), S3 two dates, S4 learning (with PPY-c6aced). Full design in the first comment; docs/idea-context-packs.md once S1.0 lands. Related: PPY-9ff95b (automation), PPY-c6aced (Cyclotron learning loop), PPY-781d26 (Messages from people).\n\nAcceptance criteria for the epic: every story closed with its checks met; every site files theme ideas from its own signals with config only; Gherkin specs for every behaviour change.",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -29,8 +29,8 @@
     }
   ],
   "created_at": "2026-11-01T18:13:38.202448Z",
-  "updated_at": "2026-11-01T18:17:27.115186Z",
-  "closed_at": null,
+  "updated_at": "2026-11-02T02:09:29.267698Z",
+  "closed_at": "2026-11-02T02:09:29.267663Z",
   "agent": {
     "platform": "claude-code",
     "model": "claude-opus-5-5",
