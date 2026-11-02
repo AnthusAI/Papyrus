@@ -1,0 +1,20 @@
+{
+  "id": "PPY-96c5405f-334d-4a53-a34e-0f648fab3db5",
+  "title": "Idea runs offer a set of variations",
+  "description": "After PR 1042 merges. The writer gets other Stories and Concepts as well as References, and offers one variation per distinct connection that has a real point, each passing the so-what check; as many as the material supports, often one, no fixed number. RouterIdeaPolicy needs StoryVariation access. Replay before shipping.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T13:41:30.663790Z",
+  "updated_at": "2026-11-02T13:41:30.663821Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

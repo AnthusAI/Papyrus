@@ -115,6 +115,10 @@ REVIEW_REQUEST_FIELDS = (
     "id subject mode reason ask raisedBy raisedAt deadline state answer links history appliedIn updatedAt"
 )
 REVIEW_READ_MARK_FIELDS = "id requestId userKey readAt"
+STORY_VARIATION_FIELDS = (
+    "id storyLineageId variationNumber status point headline deck bodyMarkus section connections origin basedOnVariationIds requestMessageId "
+    "pointCheck runId model createdBy decidedBySub decidedByLabel decidedAt decisionReason createdAt updatedAt"
+)
 REVIEW_RECIPIENT_RULE_FIELDS = "id scope key roles emails updatedBy updatedAt"
 EDITORIAL_CHECK_SETTINGS_FIELDS = "id settings"
 USER_ROLE_ASSIGNMENT_FIELDS = (
@@ -198,6 +202,7 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "Automation": {"field": "listAutomations", "fields": AUTOMATION_FIELDS},
     "ReviewRequest": {"field": "listReviewRequests", "fields": REVIEW_REQUEST_FIELDS},
     "ReviewReadMark": {"field": "listReviewReadMarks", "fields": REVIEW_READ_MARK_FIELDS},
+    "StoryVariation": {"field": "listStoryVariations", "fields": STORY_VARIATION_FIELDS},
     "ReviewRecipientRule": {"field": "listReviewRecipientRules", "fields": REVIEW_RECIPIENT_RULE_FIELDS},
     "EditorialCheckSettings": {"field": "listEditorialCheckSettings", "fields": EDITORIAL_CHECK_SETTINGS_FIELDS},
     "UserRoleAssignment": {"field": "listUserRoleAssignments", "fields": USER_ROLE_ASSIGNMENT_FIELDS},
@@ -496,6 +501,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "field": "listSemanticRelationsByObjectState",
         "partitionKey": "objectStateKey",
         "fields": SEMANTIC_RELATION_FIELDS,
+    },
+    "storyVariationsByStoryAndNumber": {
+        "field": "listStoryVariationsByStoryAndNumber",
+        "partitionKey": "storyLineageId",
+        "partitionType": "ID",
+        "fields": STORY_VARIATION_FIELDS,
     },
     "semanticRelationsByNewsroomFeedAndCreatedAt": {
         "field": "listSemanticRelationsByNewsroomFeedAndCreatedAt",

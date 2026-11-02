@@ -1,0 +1,20 @@
+{
+  "id": "PPY-656e1d28-5bd3-40b0-9b64-6a997c58cddb",
+  "title": "p.apyr.us page for Story variations",
+  "description": "Document the feature on the product site when the view ships.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4b070c63-26c9-4782-8bbc-42aab52b9e51",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T13:41:31.039638Z",
+  "updated_at": "2026-11-02T13:41:31.039671Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

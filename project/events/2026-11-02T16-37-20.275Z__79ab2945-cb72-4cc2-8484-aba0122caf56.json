@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "79ab2945-cb72-4cc2-8484-aba0122caf56",
+  "issue_id": "PPY-2df137c5-d3bd-4aa2-8ff3-6ccf068c701b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T16:37:20.275Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Router control from the CLI: pause, resume and capped sweep, admin-only and audited",
+    "description": "Narrow admin-only mutations for enabling and disabling a monitor and running a capped route sweep, recorded with who did it. Replaces the set_enabled and enable_one scripts. Mutations follow the CLI convention of writing unless --dry-run. Needs Ryan's review of the permission scope before deploy.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2069d636-fffc-4ceb-bc06-45efe10f0c7b",
+    "labels": []
+  }
+}
