@@ -31,7 +31,7 @@ from types import SimpleNamespace
 from ...markus_export import EXPORTED_TYPES
 from ...markus_renderer.convert import convert_text_in_process
 from ...markus_renderer.shell import BodyParts, PageContext, SiteChrome, render_page
-from ...renditions import RenditionCatalog
+from ...renditions import PrefixedRenditionStore, RenditionCatalog
 
 from ..model import ItemSummary, ProjectedItem, SiteIndex
 from ..plugins import plugin_static_files
@@ -153,6 +153,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 else:
                     raise ValueError(f"islands.prerender names {path!r}, which is not a file of the static directory")
         super().__init__(settings, files, **kwargs)
+        if standard.base_path and self._renditions is not None:
+            self._renditions = PrefixedRenditionStore(self._renditions, standard.base_path)   # renditions live under urls.basePath, like pages
         self._static_directory = static_directory
         self._hook_sites: list[HookSite] = []
         self._pipeline_cache = None
@@ -344,6 +346,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def _entry(self, summary: ItemSummary) -> StandardEntry | None:
         return entry_for_summary(summary, self.standard, self.policy, self.hooks.derive, self.hooks.item_filter)
+
+    def _image_url_root(self) -> str | None:
+        """Under ``urls.basePath`` images are addressed from the base path (``/articles/assets/responsive/...``), as the stylesheets are; at the root they stay relative to the page."""
+        return "/" + self.policy.root if self.standard.base_path else None
 
     def _pipeline(self):
         pipeline = super()._pipeline()

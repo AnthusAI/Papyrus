@@ -59,7 +59,3 @@ Feature: A standard site projected under a base path
   Scenario: A base path must be a lowercase path
     When the settings of a site with base path "/Posts here" are read
     Then they are refused with a message that names "urls.basePath"
-
-  Scenario: The image pipeline does not take a base path yet
-    When the settings of a site with base path "/posts" and an images section are read
-    Then they are refused with a message that names "urls.basePath"

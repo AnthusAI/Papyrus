@@ -233,6 +233,10 @@ class MarkusSiteProjector:
         images = self._settings.images
         return images.pipeline if images is not None else None
 
+    def _image_url_root(self) -> str | None:
+        """The root image URLs are written from; ``None`` writes them relative to the page (a site at the bucket root)."""
+        return None
+
     def _image_builder(self, text: str) -> StoredRenditionImageBuilder | None:
         pipeline = self._pipeline()
         if pipeline is None:
@@ -249,7 +253,7 @@ class MarkusSiteProjector:
                 # ``figure.dark.png`` next to ``figure.png`` pairs automatically.
                 sources.extend(dark_sibling_candidates(request.src))
         catalog.prefetch(sources)
-        return StoredRenditionImageBuilder(pipeline, catalog)
+        return StoredRenditionImageBuilder(pipeline, catalog, url_root=self._image_url_root())
 
     def _fragment(self, text: str, depth: int, *, transform=None) -> str:
         return render_fragment_text(

@@ -44,13 +44,14 @@ def projection_configured(environ: Mapping[str, str] | None = None) -> bool:
     return (environment.get(PUBLICATION_KIND_ENV) or "").strip() == S3_PROJECTION_KIND
 
 
-def load_projector(environ: Mapping[str, str] | None = None) -> SiteProjector:
+def load_projector(environ: Mapping[str, str] | None = None, *, renditions: Any = None) -> SiteProjector:
+    """The site projector of the environment. ``renditions`` (a rendition store) replaces the site bucket's, for a local projection; such a projector is not kept."""
     environment = os.environ if environ is None else environ
     module_name = (environment.get(SITE_PROJECTOR_ENV) or "").strip()
     static_directory = (environment.get(SITE_STATIC_DIRECTORY_ENV) or "").strip()
     plugins = plugin_names_from_environment(environment)
     cache_key = (module_name, static_directory, plugins)
-    cached = _projector_by_configuration.get(cache_key)
+    cached = _projector_by_configuration.get(cache_key) if renditions is None else None
     if cached is not None:
         return cached
     if module_name:
@@ -59,10 +60,11 @@ def load_projector(environ: Mapping[str, str] | None = None) -> SiteProjector:
         bucket = (environment.get(SITE_BUCKET_ENV) or "").strip()
         projector = MarkusSiteProjector.from_static_directory(
             Path(static_directory) if static_directory else None,
-            renditions=S3RenditionStore(bucket) if bucket else None,
+            renditions=renditions if renditions is not None else S3RenditionStore(bucket) if bucket else None,
             plugins=plugins,
         )
-    _projector_by_configuration[cache_key] = projector
+    if renditions is None:
+        _projector_by_configuration[cache_key] = projector
     return projector
 
 

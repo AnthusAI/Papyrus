@@ -156,11 +156,6 @@ def read_bad_base(context, base: str) -> None:
     read_settings(context, {"site": {"name": "Example"}, "urls": {"basePath": base}})
 
 
-@when('the settings of a site with base path "{base}" and an images section are read')
-def read_base_with_images(context, base: str) -> None:
-    read_settings(context, {"site": {"name": "Example"}, "urls": {"basePath": base}, "images": {}})
-
-
 def read_settings(context, settings: dict) -> None:
     work = Path(tempfile.mkdtemp(prefix="based-settings-"))
     context.based_error = None

@@ -28,6 +28,14 @@ from .projection.runtime import (
 )
 from .projection.plugins import PLUGIN_PAGE_PREFIXES, PLUGINS_ENV, plugin_names_from_environment, plugin_names_from_outputs
 from .projection.checkout import warn_if_checkout_is_behind
+from .renditions import (
+    DirectoryRenditionStore,
+    PrefixedRenditionStore,
+    base_path_from_static_directory,
+    make_directory_renditions,
+    media_originals_enabled,
+    settings_from_static_directory,
+)
 from .projection.directory_source import DirectoryContentSource
 from .projection.source import PublishedContentSource
 from .projection.writers import LocalDirectoryWriter
@@ -95,6 +103,25 @@ def _context_for(client, options: dict) -> ProjectionContext:
     return context
 
 
+def _local_renditions(environment: dict[str, str], content_directory: Path, output_directory: Path) -> DirectoryRenditionStore | None:
+    """For a content directory projected into ``--out``: the renditions of its images, made into ``--out`` (under ``urls.basePath``) before the pages are.
+
+    The cloud makes them at upload; here the images are the files of the directory, at the paths the stories use
+    (``assets/draft-unsectioned-<hash>/chart.png``). With a site bucket set (``--bucket``) its renditions are read instead.
+    """
+    if (environment.get(SITE_BUCKET_ENV) or "").strip():
+        return None
+    static = (environment.get(SITE_STATIC_DIRECTORY_ENV) or "").strip()
+    static_directory = Path(static) if static else None
+    settings = settings_from_static_directory(static_directory)
+    if settings is None:
+        return None
+    store = DirectoryRenditionStore(output_directory)
+    prefixed = PrefixedRenditionStore(store, base_path_from_static_directory(static_directory))
+    make_directory_renditions(settings, prefixed, content_directory, originals=media_originals_enabled(static_directory))
+    return store
+
+
 def _build_context(client, options: dict) -> ProjectionContext:
     environment = _projection_environment(options)
     output_directory = normalize_string(options.get("out"))
@@ -104,7 +131,7 @@ def _build_context(client, options: dict) -> ProjectionContext:
             raise ValueError("--from-dir needs --out DIR.")
         return ProjectionContext(
             source=DirectoryContentSource(Path(from_directory)),
-            projector=load_projector(environment),
+            projector=load_projector(environment, renditions=_local_renditions(environment, Path(from_directory), Path(output_directory))),
             writer=LocalDirectoryWriter(Path(output_directory)),
             keep_state=False,
         )

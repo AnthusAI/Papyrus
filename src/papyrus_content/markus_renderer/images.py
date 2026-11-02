@@ -487,8 +487,12 @@ class ImageBuilder:
         *,
         content_dir: Path,
         out_dir: Path,
+        url_root: str | None = None,
     ) -> None:
         self.pipeline = pipeline
+        #: Where emitted hrefs are rooted: ``None`` (the default) writes them relative to the page (``../`` per
+        #: level of depth); a root such as ``/articles/`` writes them root-relative, for a site under a base path.
+        self.url_root = url_root
         self.content_dir = content_dir.resolve()
         self.source_dir = pipeline.resolved_source_dir(content_dir)
         self.cache_dir = pipeline.resolved_cache_dir(content_dir)
@@ -837,7 +841,7 @@ class ImageBuilder:
             if self._page_images < self.pipeline.eager_first:
                 loading = "eager"
             self._page_images += 1
-        prefix = "../" * depth
+        prefix = self.url_root if self.url_root is not None else "../" * depth
 
         if src.lower().startswith(("http://", "https://")):
             return self._figure(
