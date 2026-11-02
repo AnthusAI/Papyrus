@@ -215,3 +215,14 @@ def step_records_import(context):
 @then("no topic model or typed extraction ran")
 def step_no_topics(context):
     assert not called(context, "biblicus", "analyze", "topics") and not called(context, "biblicus", "extract", "typed-entities")
+
+
+@then("every entity kind in the vocabulary has only a key and one label, so the extractor accepts it")
+def step_kinds_valid(context):
+    import yaml
+
+    typed = called(context, "biblicus", "extract", "typed-entities")[0]
+    document = yaml.safe_load(Path(typed[typed.index("--vocabulary") + 1]).read_text())
+    for group in ("entity_kinds", "relation_types"):
+        for entry in document[group]:
+            assert set(entry) == {"key", "label"} and isinstance(entry["label"], str), entry

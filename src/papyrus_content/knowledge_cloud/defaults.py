@@ -13,15 +13,15 @@ VOCABULARY_FILE = "vocabulary.yml"
 OUTPUTS_FILE = "amplify_outputs.json"
 
 #: The closed vocabulary of a publication that has not written one: the four kinds almost any subject has. ``label`` is the only
-#: instruction the extraction model gets for a kind, so each is short and plain.
+#: instruction the extraction model gets for a kind, so each is short and plain. A label with a comma is quoted: unquoted, YAML splits the flow mapping at the comma and Biblicus rejects the vocabulary.
 DEFAULT_VOCABULARY = """\
 version: 1
 publication: {publication}
 entity_kinds:
-  - {{key: organization, label: company, lab, institution or other organization}}
-  - {{key: product, label: product, service, model or software}}
+  - {{key: organization, label: "company, lab, institution or other organization"}}
+  - {{key: product, label: "product, service, model or software"}}
   - {{key: person, label: named person}}
-  - {{key: topic, label: subject, technique or concept}}
+  - {{key: topic, label: "subject, technique or concept"}}
 relation_types:
   - {{key: made_by, label: made by}}
   - {{key: built_on, label: built on}}

@@ -52,6 +52,8 @@ def run_shell(args: list[str], *, cwd: Path, env: Mapping[str, str], stdout: Pat
     else:
         result = subprocess.run(args, cwd=cwd, env=dict(env), check=False)
     if result.returncode != 0:
+        if stdout is not None:  # a command that fails on stdout (Biblicus's failure envelope) would otherwise leave no reason in the task log
+            print(f"{args[0]} failed; its standard output:\n{stdout.read_text(errors='replace')[-4000:]}", file=sys.stderr, flush=True)
         raise StageFailed(f"`{args[0]} {args[1] if len(args) > 1 else ''}` exited with {result.returncode}")
 
 
