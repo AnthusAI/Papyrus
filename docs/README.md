@@ -6,6 +6,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 
 - **Feature names**: [feature-names.md](feature-names.md), the names we use for Cited Trends, the Knowledge Map, Stage Bots, Review Requests and the rest, with where each lives in code and which demonstration site shows it.
 - **Orient**: [../README.md](../README.md), [../AGENTS.md](../AGENTS.md), [code-map.md](code-map.md), [how-papyrus-works.md](how-papyrus-works.md).
+- **Operate without an AWS login**: [operating-without-aws.md](operating-without-aws.md), where each operation belongs: signed-in CLI, pipeline or break-glass.
 - **Ship a change**: [releasing.md](releasing.md), [site-hosting.md](site-hosting.md#deploy-on-merge-to-main), [verification.md](verification.md).
 - **Start a new site**: [../README.md#start-a-new-papyrus-site](../README.md#start-a-new-papyrus-site), [building-a-papyrus-static-site.md](building-a-papyrus-static-site.md), [../infra/amplify-app-shell/README.md](../infra/amplify-app-shell/README.md), [google-oauth-setup.md](google-oauth-setup.md).
 - **Copy a site's data into a new site**: [site-copy.md](site-copy.md), `papyrus ops site copy` (dry run by default; rewrite rules, owners, media, verify).
