@@ -95,7 +95,8 @@ def step_address_replaced(context):
 @given("a hub pack whose edge carries the editor's explanation '{words}'")
 def step_hub_pack(context, words):
     references, edges, _ = support.explained_hub(words)
-    context.agent_pack = [pack for pack in build_packs(support.cluster_inputs(references, edges), PackLookups(), now=support.NOW) if pack.signal_type == "hub"][0]
+    pack = [pack for pack in build_packs(support.cluster_inputs(references, edges), PackLookups(), now=support.NOW) if pack.signal_type == "hub"][0]
+    context.agent_pack = pack_support.summarised(pack, *[row["handle"] for row in pack.references if row["status"] == "accepted"])   # a pack is written from summaries
     context.agent_client = pack_support.backend(context.agent_pack)
     context.agent_transport = pack_support.transport_of(pack_support.idea("Two releases from one vendor", ["R1", "R2"]))
     context.explained_words = words
