@@ -86,3 +86,10 @@ Feature: The router keeps each site's vector index current and writes suggestion
     Given the router package modules computed from this repository
     Then they include the vector pass, the suggestions and the calibration
     And the knowledge-query package files are added to the package without its command line
+
+  Scenario: Texts the embeddings endpoint would refuse are dropped or cut, and a refusal says why
+    Given a batch of texts to embed with one empty text, one whitespace-only text and one longer than the input limit
+    When the batch is embedded
+    Then the empty and whitespace-only texts are dropped and counted
+    And the long text is cut to a safe length and counted
+    And a request the endpoint refuses with 400 fails with the endpoint's own message and never the key
