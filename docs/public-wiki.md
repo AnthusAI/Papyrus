@@ -52,7 +52,7 @@ All commands act on the backend the CLI is configured for. Both are dry runs unt
 ### `papyrus knowledge wiki sync`
 
 ```bash
-papyrus knowledge wiki sync [--section wiki] [--apply] [--json]
+papyrus knowledge wiki sync [--section wiki] [--vocabulary FILE | --public-kinds a,b] [--retire [--retired-out FILE]] [--apply] [--json]
 papyrus knowledge wiki sync --beats-category-set <set id> [--topics-section topics] [--subtopic-min-items 30] [--items-per-topic 20] [--topic-sections posts,essays] [--topics-url '/topics/{slug}/'] --apply
 papyrus knowledge wiki sync --beats-config web/scoring.json --apply
 ```
@@ -67,9 +67,20 @@ What happens to a page that already exists:
 | A draft page whose entity changed | The draft is updated in place. |
 | A published page whose entity changed | A pending revision: a new draft version of the same lineage (`<lineage>-v2`), marked current. The live page is untouched until the revision is published. A second change updates that draft rather than adding versions. |
 | Nothing changed | Nothing is written. |
-| An entity that is no longer accepted | A warning. The page is left as it is; unpublish it by hand if it should go. |
+| An entity that is no longer accepted, or whose kind is no longer public | A warning, and the page is left as it is. With `--retire` the page is retired (see "Public kinds"). |
 
 The sync removes the `review` stamp from any text it writes, so changed text can never keep the stamp of the text it replaced.
+
+#### Public kinds
+
+A site's graph holds nodes that are not subjects: paper authors, the editorial concepts a comment is filed under, quality ratings, relevance decisions, coverage questions, editorial forms. The wiki publishes only the entity kinds of the site's vocabulary:
+
+- `--vocabulary FILE` (the Biblicus `vocabulary.yml` the extraction uses) or `--public-kinds a,b` names the kinds that get a page. A vocabulary that declares no `entity_kinds` is refused.
+- `commentConcept`, `qualityRating`, `relevanceDecision`, `coverageQuestion` and `editorialForm` are never public, even when a vocabulary names them.
+- With neither flag every kind is public except those five and `personAuthor`. Paper authors get pages only when the vocabulary names `personAuthor`. A person's name stored without spaces (`AaronCohen`) is shown spaced (`Aaron Cohen`); the entity key is unchanged.
+- The knowledge snapshot takes the same `--vocabulary` / `--public-kinds`: it gives no link to an entity without a page and leaves the bookkeeping kinds out of its entities. The cloud knowledge run passes the run state's `config/vocabulary.yml` to the snapshot, the archive and the wiki sync.
+
+`--retire` takes down the pages nothing generates any more (an entity rejected, or a kind that left the vocabulary). A retired page is unpublished (its live page is removed), kept as a draft, and marked `retired: true` in its front matter; `wiki publish --all-drafts` skips a marked page, and the sync clears the mark if the entity becomes eligible again. A dry run lists every page it would retire (`retire<TAB>wiki/<slug><TAB>live: taken down`). `--retired-out FILE` (with `--apply`) writes the source item ids of the pages that were live, a JSON list the projection stage hands to `papyrus ops content project --unpublished-items FILE`, because a bulk projection never deletes the pages of an unpublished item. The cloud run passes `--retire` every time.
 
 #### Front matter of an entity page
 

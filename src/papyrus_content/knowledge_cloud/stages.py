@@ -31,6 +31,7 @@ TREND_WEEKS = "26"
 ENTITY_HREF = "/wiki/{slug}/"
 DELETION_FLAG = "--allow-deletions"
 ARCHIVE_DIRECTORY = "_data/knowledge/history"
+RETIRED_FILE = "retired-wiki-items.json"
 FORBIDDEN_FLAGS = (DELETION_FLAG, "--reconcile", "--replace")  # a run only writes: no cleanup, no replacing an archived week
 
 
@@ -313,6 +314,7 @@ def knowledge_options(run: Run) -> list[str]:
         "--static-dir", str(run.static_dir),
         "--entity-href", ENTITY_HREF,
         "--as-of", run.config.monday.isoformat(),
+        "--vocabulary", str(run.config_dir / VOCABULARY_FILE),  # only the vocabulary's kinds get wiki pages and links
     ]
     options += beats_options(run)
     if run.config.concept_kinds:
@@ -606,11 +608,20 @@ def wiki_sync(run: Run) -> dict:
     run.pull(site=True, run=bool(run.config.monitor_sources))
     sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options()]
     sync += beats_options(run)
-    run.sh(*sync)
-    run.sh(*sync, "--apply")  # drafts only
+    sync += ["--vocabulary", str(run.config_dir / VOCABULARY_FILE), "--retire"]  # pages of kinds the vocabulary does not declare come down
+    run.sh(*sync)  # the dry run: its plan, with every page it would retire, is in the task log
+    run.run_dir.mkdir(parents=True, exist_ok=True)
+    run.sh(*sync, "--apply", "--retired-out", str(run.run_dir / RETIRED_FILE))  # drafts only
     # --no-trigger: publishing must not project; the projection stage does that once, under the lease, last.
     run.sh("papyrus", "knowledge", "wiki", "publish", *backend_options(run), "--all-drafts", "--actor", "ai", "--apply", "--no-trigger")
-    return {}
+    run.push(run=True)  # the retired pages, for the projection stage
+    return {"retired": len(retired_items(run))}
+
+
+def retired_items(run: Run) -> list[str]:
+    """The source item ids of the wiki pages this run took down: the projection removes their pages."""
+    path = run.run_dir / RETIRED_FILE
+    return json.loads(path.read_text()) if path.exists() else []
 
 
 def projection(run: Run) -> dict:
@@ -620,7 +631,19 @@ def projection(run: Run) -> dict:
     arguments = ["papyrus", "ops", "content", "project", "--all", "--static-dir", str(run.static_dir), "--bucket", run.config.site_bucket, "--json"]
     assert not set(FORBIDDEN_FLAGS) & set(arguments)  # the #565 guard stays on; a bad run must never delete pages
     run.install_pinned_papyrus()
-    run.shell(arguments, cwd=run.work, env={**run.command_env(), "PYTHONPATH": str(run.pinned)}, stdout=run.work / "projection.json")
+    environment = {**run.command_env(), "PYTHONPATH": str(run.pinned)}
+    taken_down = retired_items(run)
+    if taken_down:
+        # A bulk projection never deletes the pages of an unpublished item, so the retired pages go first, in one pass. The pinned
+        # release may predate `--unpublished-items`; the image's own papyrus does it (the bulk projection after it re-renders with the pin).
+        listed = run.work / RETIRED_FILE
+        listed.write_text(json.dumps(taken_down))
+        run.shell(
+            ["papyrus", "ops", "content", "project", "--unpublished-items", str(listed), "--static-dir", str(run.static_dir), "--bucket", run.config.site_bucket, "--json"],
+            cwd=run.work, env=run.command_env(), stdout=run.work / "retired-projection.json",
+        )
+        print(f"retired wiki pages projected away ({len(taken_down)}): {(run.work / 'retired-projection.json').read_text().strip()[:2000]}", flush=True)
+    run.shell(arguments, cwd=run.work, env=environment, stdout=run.work / "projection.json")
     raw = (run.work / "projection.json").read_text()
     print(f"projection report: {raw.strip()}", flush=True)  # the report is the evidence of what a run wrote and deleted
     return first_json_object(raw)
