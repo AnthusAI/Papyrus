@@ -270,7 +270,7 @@ export function linkSuggestionItems(suggestions: readonly LinkSuggestion[], deci
       importance: suggestion.similarity ?? 0,
       uncertainty: uncertaintyOf(undefined),
       decisionState: choiceState(made?.choice),
-      defaultOutcome: "If you leave it, the link is not made and the suggestion keeps waiting. Nothing learns from it until someone decides.",
+      defaultOutcome: "If you leave it, the link is not made and the suggestion keeps waiting.",
       hardGate: false,
       askedForReview: true,
       payload: { kind: "link", suggestion, note: made?.note ?? null },

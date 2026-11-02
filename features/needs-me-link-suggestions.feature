@@ -1,7 +1,7 @@
 @brand-agnostic @needs-me-link-fixtures
 Feature: Link suggestions wait in "What needs me", ranked most likely first, so editors can review them in bulk
   The vector index suggests links: between two References, or from a Reference to a concept. Each is an open suggestion that an editor
-  may Accept or Reject, and every answer, with its optional reason, teaches the site's Cyclotron. Deciding one at a time from the
+  may Accept or Reject, and every answer keeps its optional explanation with the link. Deciding one at a time from the
   Related section of each Reference meant nobody reviewed them, so they are now also items in the Needs me feed. Each suggestion is a
   card of the type "Link suggestion" and the Links pill counts them. They are ranked by the close match the index recorded, 0.91 before
   0.84, and a suggestion with no close match comes last. The index records no probability, so a suggestion has no prediction and is never
