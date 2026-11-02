@@ -23,6 +23,42 @@ papyrus stories versions --story <lineage>
 
 A new version keeps the previous version's board stage. Add `--stage <stage>` (or `--advance` for the next stage before publication) to save the draft and move the stage in one recorded step.
 
+### Saving a draft with its pictures
+
+A draft that uses pictures can carry them in the same command. Put the picture files in a folder next to the draft and
+pass `--images <folder>`:
+
+```bash
+papyrus stories save-version --story <lineage> --body-file draft.md --images ./pictures \
+  --reason "added the architecture diagram" --author-label "ChatGPT" [--dry-run]
+```
+
+Every local picture the text uses is uploaded exactly as the newsroom editor's "Insert image" does it: a `MediaAsset`
+row on the new version (id `media-<version id>-<first 10 hex of sha256 of the stored path>`, the same id the editor and
+the Markus import derive) and an S3 object at `media/assets/<story slug>/<file name>`. The saved text then points at
+those stored paths. What counts as a picture:
+
+- an `::image{src="..."}` line, or a Markdown `![...](...)`, whose `src` is a relative path that resolves to a file inside the folder (web addresses, absolute paths, and paths the folder does not hold are left alone; the latter are listed as `image-unresolved`);
+- its dark version, if any: a file named like the light one with `.dark` before the extension (`figure.png`, `figure.dark.png`), or the file named by `srcDark="..."`. It is uploaded too and the `::image{}` line gets an explicit `srcDark` with the stored path. `srcDark="none"` keeps pairing off. A Markdown `![]()` has no `srcDark`, so its dark file is uploaded but only an `::image{}` line can show it.
+
+Everything is checked before any write: at most 10 MB per file; a PNG, JPEG, GIF, WebP, AVIF or SVG picture; and a dark
+version whose width-to-height ratio is within 0.5% of the light one's. A rejection names each bad file and saves
+nothing. `--dry-run` prints one line per file (light or dark, source file, media id, stored path, size, and which light
+picture a dark one belongs to) and writes nothing, to the backend or to S3. Running the command again with the same
+files reuses the same stored paths and media ids, so it adds no duplicate rows or objects (the objects are compared by
+sha256 and only re-uploaded when the picture changed); like any save, it does record another draft version.
+
+Both sign-in lanes work, and they reach S3 differently:
+
+| Lane | Rows (`MediaAsset`) | S3 objects |
+| --- | --- | --- |
+| `PAPYRUS_GRAPHQL_AUTH=iam` | IAM-signed GraphQL | the AWS credentials of the caller (bucket from `--bucket`, `PAPYRUS_MEDIA_BUCKET` or `amplify_outputs.json`) |
+| `PAPYRUS_GRAPHQL_AUTH=user` (`papyrus login`) | Cognito user token; the `editor` or `admin` group may write `MediaAsset` | the signed-in ID token is traded for temporary credentials from the site's Cognito identity pool, the way the browser editor uploads; the group's `media/*` write rule applies |
+
+The user lane needs the identity pool id: `--identity-pool-id`, `PAPYRUS_IDENTITY_POOL_ID`, or `auth.identity_pool_id` in
+`amplify_outputs.json`. The `createModelAttachmentUpload` presigned-URL mutation cannot serve this command: it only
+issues keys under `newsroom/payloads` and `media/payloads`, never `media/assets`.
+
 To move a story between board stages without saving a draft:
 
 ```bash

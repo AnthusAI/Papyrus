@@ -19,7 +19,7 @@ See docs/story-reporting.md for the agent workflow.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Callable
 
 from .content_item_lifecycle import CONTENT_ITEM_STAGES, require_content_item_stage
 from .ids import hash_short, safe_id
@@ -125,6 +125,15 @@ def repair_story_versions(client, lineage_id: str, *, apply: bool = False) -> li
     return updates
 
 
+def planned_version_record_id(client, lineage_id: str) -> str:
+    """The id `save_story_version` will give the next version of this story (for dry runs)."""
+    versions = story_versions(client, lineage_id)
+    if not versions:
+        raise ValueError(f"No story found for lineage {lineage_id}.")
+    next_number = max(int(row.get("versionNumber") or 1) for row in versions) + 1
+    return next_version_record_id(lineage_id, next_number, {row["id"] for row in versions})
+
+
 def next_version_record_id(lineage_id: str, version_number: int, taken_ids: set[str]) -> str:
     """The record id for a new version: `<lineage>-v<n>`, skipping ids already used in the lineage.
 
@@ -147,8 +156,12 @@ def save_story_version(
     change_reason: str,
     now: str | None = None,
     stage: str | None = None,
+    media_rows: Callable[[str], list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
-    """Records the next draft version of a story and marks the previous latest version superseded."""
+    """Records the next draft version of a story and marks the previous latest version superseded.
+
+    ``media_rows`` maps the new version's id to the ``MediaAsset`` rows to store on it (``stories save-version --images``).
+    """
     now = now or utc_now_iso()
     versions = story_versions(client, lineage_id)
     if not versions:
@@ -195,6 +208,8 @@ def save_story_version(
     if stage:
         record["stage"] = require_content_item_stage(stage)
     client.create_record("Item", compact_dict(record))
+    for row in (media_rows(record_id) if media_rows else []):
+        client.upsert("MediaAsset", row)
     _carry_media_forward(client, record_id, envelope, versions)
     for row in versions:
         if row.get("versionState") == "current" or row["id"] == latest["id"]:
