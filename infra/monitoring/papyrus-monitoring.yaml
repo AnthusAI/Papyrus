@@ -492,6 +492,35 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
 
+  SearchProviderFailingMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CollectorLogGroup
+      FilterPattern: '{ $.monitor = "search_provider_failing" }'
+      MetricTransformations:
+        - MetricNamespace: Papyrus/Monitoring
+          MetricName: SearchProviderFailing
+          MetricValue: "1"
+          DefaultValue: 0
+
+  SearchProviderFailingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-monitoring-search-provider-failing
+      AlarmDescription: >-
+        A web-search provider refused the collector's key (authentication) or reported its plan used up (for example Tavily 432 or
+        Perplexity 401). The collector logs one search_provider_failing line per provider and kind for each run; read them for the
+        provider, kind and monitor, then renew the key or plan or drop the provider from WebSearchProviders. A day window, so a
+        monitor that runs once a day stays in alarm until the provider answers again.
+      Namespace: Papyrus/Monitoring
+      MetricName: SearchProviderFailing
+      Statistic: Sum
+      Period: 86400
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
   RouterLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:

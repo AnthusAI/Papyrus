@@ -666,3 +666,219 @@ def test_without_local_criteria_the_proposal_says_so(tmp_path):
     from papyrus_content import monitoring_web_queries as wq
 
     assert wq.criteria_text("distinctive", tmp_path) is None
+
+
+# --- paid searches: never asked twice, counted, and watched (features_backend/monitoring-web-search-spend.feature) ---------------
+
+def payload_keys(tavily):
+    return [(c["query"], c.get("start_date"), c.get("end_date")) for c in tavily.calls]
+
+
+def busy_two_days():
+    return FakeTavily(*[article(n, day(-(n % 2))) for n in range(60)])
+
+
+def test_a_split_never_asks_for_the_dates_it_already_asked():
+    tavily = busy_two_days()
+    table = web_table()
+    set_high_water(table, "ai agents", NOW)
+
+    collect(table, tavily)
+
+    keys = payload_keys(tavily)
+    assert len(keys) == len(set(keys)) == 2   # the parent range, then the earlier day; the later day is the parent again
+
+
+def test_a_carried_pass_asks_exactly_what_one_uninterrupted_pass_would_ask():
+    articles = [article(n, day(-(n % 14))) for n in range(70)]
+    whole = FakeTavily(*articles)
+    table = web_table("ai agents", "open models")
+    set_high_water(table, "ai agents", NOW - 14 * DAY)
+    collect(table, whole)
+
+    split = FakeTavily(*articles)
+    table = web_table("ai agents", "open models")
+    set_high_water(table, "ai agents", NOW - 14 * DAY)
+    ticks = iter(range(0, 1000))
+    first = collect(table, split, budget_seconds=3, clock=lambda: float(next(ticks)))
+    assert first["status"] == "partial"
+    runs = 1
+    while state(table).get("resume"):
+        collect(table, split, now=NOW + 60 * runs)
+        runs += 1
+
+    assert runs > 1 and sorted(payload_keys(split)) == sorted(payload_keys(whole))
+    assert len(payload_keys(split)) == len(set(payload_keys(split)))
+
+
+def test_a_page_that_could_not_be_written_in_time_is_read_next_run_without_asking_again():
+    tavily = FakeTavily(*[article(n, day(-1)) for n in range(5)])
+    table = web_table()
+    set_high_water(table, "ai agents", NOW - DAY)
+
+    first = collect(table, tavily, budget_seconds=3, clock=lambda: 1000.0 if tavily.calls else 0.0)   # out of time once it has an answer
+
+    assert first["status"] == "partial" and len(tavily.calls) == 1 and not discs(table)
+    assert state(table)["resume"]["web"][0]["page"]
+    second = collect(table, tavily, now=NOW + 60)
+    assert second["status"] == "complete" and len(tavily.calls) == 1 and len(discs(table)) == 5   # read from the cursor, not asked
+    assert "resume" not in state(table)
+
+
+def test_the_run_and_the_receipt_count_paid_searches_by_provider_for_the_run_and_for_the_pass():
+    tavily = FakeTavily(*[article(n, day(-(n % 14))) for n in range(70)])
+    table = web_table("ai agents", "open models")
+    set_high_water(table, "ai agents", NOW - 14 * DAY)
+    ticks = iter(range(0, 1000))
+
+    first = collect(table, tavily, budget_seconds=3, clock=lambda: float(next(ticks)))
+    second = collect(table, tavily, now=NOW + 60)
+
+    assert first["searches"]["run"]["requests"] == len(tavily.calls) - second["searches"]["run"]["requests"]
+    assert second["searches"]["pass"]["requests"] == len(tavily.calls)
+    assert first["searches"]["pass"]["requests"] == first["searches"]["run"]["requests"]
+    receipt = rows(table, "RUN#")[-1]
+    assert receipt["searches"] == second["searches"]
+
+
+def test_a_provider_refusing_its_key_or_out_of_plan_is_logged_for_the_alarm_and_not_asked_again(capsys):
+    from test_web_search import FakeHttp
+    from papyrus_content.monitoring_web import search_fetch
+    from papyrus_content.web_search import HttpStatusError, PerplexityProvider, SearchChain, TavilyProvider
+    from test_web_search import make
+    tavily = FakeHttp(*[HttpStatusError(432, "{}")] * 10)
+    perplexity = FakeHttp(*[{"results": [{"url": "https://example.org/story-1", "title": "S", "snippet": "S", "date": day(-1)}]}] * 10)
+    chain = SearchChain(["tavily", "perplexity"], remember_refusals=True,
+                        providers={"tavily": make(TavilyProvider, tavily, TAVILY_API_KEY="k"),
+                                   "perplexity": make(PerplexityProvider, perplexity, PERPLEXITY_API_KEY="k")})
+    table = web_table("ai agents", "open models", "agents news")
+
+    result = collect(table, search_fetch({}, chain))
+
+    assert len(tavily.calls) == 1 and len(perplexity.calls) == 3   # Tavily was asked once, then passed over for the run
+    assert result["searches"]["run"]["providers"] == {"perplexity": 3}
+    assert result["searches"]["run"]["failures"] == {"tavily:plan_exhausted:432": 3}
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
+    assert [l for l in lines if l.get("monitor") == "search_provider_failing"] == [
+        {"monitor": "search_provider_failing", "monitorId": MONITOR, "provider": "tavily", "kind": "plan_exhausted", "status": 432}]
+
+
+def test_when_every_provider_is_refused_the_run_fails_once_and_waits_for_the_next_scheduled_time(capsys):
+    from test_web_search import FakeHttp, make
+    from papyrus_content.monitoring_web import search_fetch
+    from papyrus_content.web_search import HttpStatusError, PerplexityProvider, SearchChain, TavilyProvider
+    tavily, perplexity = FakeHttp(*[HttpStatusError(432, "{}")] * 10), FakeHttp(*[HttpStatusError(401, "{}")] * 10)
+    chain = SearchChain(["tavily", "perplexity"], remember_refusals=True,
+                        providers={"tavily": make(TavilyProvider, tavily, TAVILY_API_KEY="k"),
+                                   "perplexity": make(PerplexityProvider, perplexity, PERPLEXITY_API_KEY="k")})
+    table = web_table("ai agents", "open models")
+
+    result = collect(table, search_fetch({}, chain))
+
+    assert result["status"] == "failed" and len(tavily.calls) == len(perplexity.calls) == 1
+    assert state(table)["nextDueAt"] == NOW + 3600 and "resume" not in state(table)   # not due again for the interval: no hammering
+    kinds = {(l["provider"], l["kind"]) for l in (json.loads(x) for x in capsys.readouterr().out.splitlines() if x.startswith("{"))
+             if l.get("monitor") == "search_provider_failing"}
+    assert kinds == {("tavily", "plan_exhausted"), ("perplexity", "auth")}
+
+
+# --- a fixed time of day (features_backend/monitoring-run-at.feature) --------------------------------------------------------------
+
+RUN_AT = {"time": "02:00", "timeZone": "America/New_York"}
+
+
+def instant(text: str, zone: str = "America/New_York") -> int:
+    from zoneinfo import ZoneInfo
+    return int(datetime.fromisoformat(text).replace(tzinfo=ZoneInfo(zone)).timestamp())
+
+
+def test_the_next_run_is_the_next_two_am_in_new_york():
+    from papyrus_content.monitoring_cloud import next_run_at
+    assert next_run_at(RUN_AT, instant("2026-10-28 01:30")) == instant("2026-10-28 02:00")
+    assert next_run_at(RUN_AT, instant("2026-10-28 02:00")) == instant("2026-10-29 02:00")   # strictly after
+    assert next_run_at(RUN_AT, instant("2026-10-28 02:07")) == instant("2026-10-29 02:00")
+    assert next_run_at(RUN_AT, instant("2026-10-28 23:59")) == instant("2026-10-29 02:00")
+
+
+def test_the_run_time_holds_across_both_daylight_saving_changes():
+    from papyrus_content.monitoring_cloud import next_run_at
+    hours = 3600
+    # fall back (2026-11-01): the day is 25 hours long, 02:00 is still 02:00 on the clock
+    assert next_run_at(RUN_AT, instant("2026-10-31 02:07")) == instant("2026-11-01 02:00") and \
+        instant("2026-11-01 02:00") - instant("2026-10-31 02:00") == 25 * hours
+    assert next_run_at(RUN_AT, instant("2026-11-01 02:07")) == instant("2026-11-02 02:00")
+    # spring forward (2026-03-08): 02:00 does not exist, the run is the first moment after the gap
+    spring = next_run_at(RUN_AT, instant("2026-03-07 02:07"))
+    assert datetime.fromtimestamp(spring, timezone.utc).isoformat() == "2026-03-08T07:00:00+00:00"   # 03:00 EDT
+    assert next_run_at(RUN_AT, spring + 600) == instant("2026-03-09 02:00")
+
+
+def test_run_at_is_validated():
+    base = monitor_config("anth-us", enabled=True)
+    assert _validate_config({**base, "runAt": RUN_AT})["runAt"] == RUN_AT
+    assert "runAt" not in _validate_config(base)
+    for bad in ({"time": "25:00", "timeZone": "America/New_York"}, {"time": "02:00", "timeZone": "Mars/Base"}, {"time": "2am"},
+                "02:00", {"time": "02:00", "timeZone": "America/New_York", "extra": 1}):
+        with pytest.raises(ValueError):
+            _validate_config({**base, "runAt": bad})
+
+
+def run_at_table():
+    return web_table(**{"runAt": RUN_AT, "intervalSeconds": 86400})
+
+
+def test_a_finished_pass_is_next_due_at_the_next_two_am_not_a_day_later():
+    when = instant("2026-10-28 02:03")
+    table = run_at_table()
+    result = collect(table, FakeTavily(article(1, day(-1, when))), now=when)
+    assert result["status"] == "complete" and state(table)["nextDueAt"] == instant("2026-10-29 02:00")   # not 02:03
+
+
+def test_a_wake_a_minute_early_does_not_start_a_second_pass_that_morning():
+    table = run_at_table()
+    store = DynamoStore(table)
+    early = instant("2026-10-29 01:59") + 30
+    store.put_state(MONITOR, {"pk": f"MONITOR#{MONITOR}", "sk": "STATE", "nextDueAt": instant("2026-10-29 02:00")})
+    result = collect(table, FakeTavily(), now=early)
+    assert result["status"] == "complete" and state(table)["nextDueAt"] == instant("2026-10-30 02:00")
+
+
+def test_a_pass_stopped_by_time_resumes_on_the_five_minute_wake_and_only_then_waits_for_the_next_two_am():
+    when = instant("2026-10-28 02:03")
+    tavily = FakeTavily(*[article(n, day(-(n % 14), when)) for n in range(70)])
+    table = run_at_table()
+    set_high_water(table, "ai agents", when - 14 * DAY)
+    ticks = iter(range(0, 1000))
+
+    first = collect(table, tavily, now=when, budget_seconds=3, clock=lambda: float(next(ticks)))
+    asked = len(tavily.calls)
+    assert first["status"] == "partial" and state(table)["nextDueAt"] == when   # due at once: the next 5 minute wake resumes it
+
+    second = collect(table, tavily, now=when + 300)
+
+    assert second["status"] == "complete" and state(table)["nextDueAt"] == instant("2026-10-29 02:00")
+    assert second["searches"]["pass"]["requests"] == len(tavily.calls) and len(tavily.calls) > asked
+    keys = payload_keys(tavily)
+    assert len(keys) == len(set(keys))
+
+
+def test_the_template_alarms_on_a_search_provider_refusing_its_key_and_takes_the_chain_from_one_parameter():
+    import re
+    import yaml
+    from pathlib import Path
+
+    class Loader(yaml.SafeLoader):
+        pass
+    Loader.add_multi_constructor("!", lambda loader, suffix, node: None)
+    template = yaml.load((Path(__file__).resolve().parents[3] / "infra" / "monitoring" / "papyrus-monitoring.yaml").read_text(), Loader)
+    resources = template["Resources"]
+    filter_ = resources["SearchProviderFailingMetricFilter"]["Properties"]
+    alarm = resources["SearchProviderFailingAlarm"]["Properties"]
+
+    assert filter_["FilterPattern"] == '{ $.monitor = "search_provider_failing" }'
+    metric = filter_["MetricTransformations"][0]
+    assert (alarm["Namespace"], alarm["MetricName"]) == (metric["MetricNamespace"], metric["MetricName"])
+    assert alarm["AlarmName"] == "papyrus-monitoring-search-provider-failing" and alarm["Threshold"] == 1
+    pattern = template["Parameters"]["WebSearchProviders"]["AllowedPattern"]
+    assert re.match(pattern, "tavily,perplexity") and re.match(pattern, "") and not re.match(pattern, "tavily,bogus")
+    assert "WEB_SEARCH_PROVIDERS" in resources["CollectorFunction"]["Properties"]["Environment"]["Variables"]
