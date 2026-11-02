@@ -1086,11 +1086,12 @@ def short(error: Exception) -> str:
 
 # --- AppSync access and delivery --------------------------------------------------------------------
 
-def make_appsync_client(endpoint: str):
+def make_appsync_client(endpoint: str, tenant_id: str | None = None):
     os.environ.setdefault("PAPYRUS_GRAPHQL_AUTH", "iam")
     from .graphql_authoring import PapyrusGraphQLAuthoringClient
     from .graphql_http import iam_signed_graphql_headers
-    return PapyrusGraphQLAuthoringClient(endpoint=endpoint, header_factory=lambda body: iam_signed_graphql_headers(endpoint, body))
+    return PapyrusGraphQLAuthoringClient(endpoint=endpoint, tenant_id=tenant_id,
+                                         header_factory=lambda body: iam_signed_graphql_headers(endpoint, body))
 
 
 def editorial_context_receipt(client, publication: dict) -> dict:

@@ -37,11 +37,45 @@ is decided once. Only `web-distinctive` routes on its own: it has its own Cyclot
 | `text` | the search text |
 | `rationale` | why the query exists (the drafter's reason, or the editor's) |
 | `origin` | `drafted` (model) or `editor` |
+| `scope`, `sectionId`, `sectionTitle`, `flags` | drafted queries only: `scope` is `section` or `site`; a section query holds the `NewsroomSection` id (and its title when drafted, for reading), the site query has none. `flags` says when a section was drafted from little (`no-section-mission`, `title-only`) |
 | `createdBy`, `createdAt` | who made it (model name or editor subject) |
 | `approvedBy`, `approvedAt` | who accepted it; a query is searched only once approved. The first queries carry `approvedBy: "Ryan (review delegated to Claude, 2026-10-28)"`; editors can retire or edit any query later, and every change stays an Accept/Reject card |
 | `status` | `active`, `paused` or `retired`; only `active` is searched; `retired` keeps its history |
 | `highWater` | the last date the query was searched through (its own high-water mark; replaces the monitor-wide mark) |
 | `history[]` | append-only edit history: `{at, by, change, before, after, reason}` (a row of its own per entry once long) |
+
+## Queries per section
+
+A monitor searches **one query per enabled `NewsroomSection` plus one for the whole site**, so the number of queries is the number of
+enabled sections plus one (Ryan, 2026-11-02; it replaced eight to fifteen topic queries drafted from the whole site). There is no
+minimum or maximum. A section's query is drafted by gpt-6-luna from that section's own `editorialMission`, `editorialPolicy`,
+`assignmentGuidance` and `killCriteria`; the site's from the publication's mission and policy. A section with no mission is still
+drafted (from its policy and guidance, or from its title alone) and flagged, so the count stays exact and an editor can check it.
+A site with no mission and no policy cannot get a site query: the command refuses it.
+
+`papyrus monitors web-queries --publication <id> | --all` is a dry run: per site it prints the old queries to retire and the new ones
+to add, the queries kept, and the paid searches a day that result (one per active query). `--execute` writes: retired queries get
+`status: retired` and a history entry and keep every field including `highWater` (nothing is deleted); new queries are written
+without an approver, so they are **not searched until approved**: pass `--approved-by NAME` with `--execute` to approve the new
+ones (and any kept drafted ones still awaiting approval) in the same step. Without an approver a site is not searched at all until
+someone approves its queries. Run it outside the collector's window: the collector writes a query record back at the end of a pass.
+
+The queries are drafted once; no schedule regenerates them. A later run keeps every drafted query whose scope is still needed and
+asks the model only about what is missing, so a section added since gets its query and nothing else changes. A renamed section
+keeps its query (the record holds the section id). A drafted query whose section is no longer enabled is retired. Editor-written
+queries (`origin: editor`) are never touched unless `--retire-editor` is given. Machines on Machines stores its sections with
+tenant-scoped ids; the `p-apyr-us` monitor (which finds for that backend) reads its sections for that tenant and records the bare
+section id (`config/web-monitors.json`, `routerPublication`).
+
+**First search of a new query.** A new query has no `highWater`, so its first pass is one request with Tavily's own default recency
+(or the config's `startDate`, when one is set: leave it unset, or the first pass of every new query reads back to that day) at
+`search_depth: basic` and 20 results, and the mark is then set to the start of that pass. Nothing is read in bulk, and a URL a
+retired query already collected is skipped.
+
+**Paid searches a day.** A pass makes one request per active approved query; a window whose answer fills a page (20 results) is split
+by date, so a busy query on a two-day window can take up to three requests. The expected number is the number of queries; the real
+number is the sum of `requests` and `credits` on that day's `QRUN#` records. Yield by section is a join: each `QRUN#` names its
+`queryId`, and the `QUERY#` record names its `sectionId`.
 
 A query's `highWater` moves to the start of a pass that read it to its end. A new query starts from its `startDate` or the
 provider's default recency; a paused query resumes from its old `highWater`, so nothing between is lost.
