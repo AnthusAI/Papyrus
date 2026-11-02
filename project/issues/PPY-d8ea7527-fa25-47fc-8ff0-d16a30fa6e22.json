@@ -1,0 +1,20 @@
+{
+  "id": "PPY-d8ea7527-fa25-47fc-8ff0-d16a30fa6e22",
+  "title": "References feed: read message counts only for the cards shown",
+  "description": "The feed's message counts still read every reference conversation thread (loadReferenceConversationCounts). loadReferenceConversationCountsFor(lineageIds) now exists (aliased anchor-index reads); wire useReferenceMessageCounts to it for the shown cards. Found on PPY-c8cb44.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T22:37:54.126405Z",
+  "updated_at": "2026-11-02T22:37:54.126752Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -2,6 +2,7 @@
 
 import { loadReferenceReviewDetails } from "../lib/reference-review-details";
 import { loadAllPages } from "../lib/newsroom-all-pages";
+import { feedReaderFromRecords, type FeedStreamReader } from "../lib/reference-feed-pages";
 import { hasEditorRights } from "../lib/staff-groups";
 
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
@@ -448,7 +449,7 @@ const MODEL_ATTACHMENTS_BY_OWNER_QUERY = `
 
 /** Matches Reference model fields in amplify/data/resource.ts (no metadata on Reference). */
 const REFERENCE_RECORD_GRAPHQL_FIELDS =
-  "id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt";
+  "id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey discoveredByMonitorId updatedAt";
 
 const LIST_REFERENCES_BY_LINEAGE_AND_VERSION_QUERY = `
   query ListReferencesByLineageAndVersion($lineageId: ID!, $limit: Int, $nextToken: String) {
@@ -2013,40 +2014,156 @@ export async function runGraphql<T extends Record<string, unknown>>(
   return (response.data ?? {}) as T;
 }
 
-export async function loadEditorReferencesData(): Promise<{
-  references: ReferenceRecord[];
-  referenceAttachments: ReferenceAttachmentRecord[];
-}> {
+/** How many rows one read of the whole-set list asks for. */
+const ALL_REFERENCES_READ_SIZE = 200;
+
+/**
+ * Every current Reference, status by status, each read a full page at a time. Only the consumers that really need the whole set ask
+ * for it (the List view, the Assignments graph), and only when they are opened: the feed never does. Attachments are not part of it.
+ */
+export async function loadAllEditorReferences(): Promise<ReferenceRecord[]> {
   configureAmplifyClient();
   const testMock = getTestEditorNewsroomMock();
-  if (testMock?.references || testMock?.referenceAttachments) {
-    const referenceAttachments = (testMock.referenceAttachments ?? [])
-      .slice()
-      .sort((left, right) => left.sortKey.localeCompare(right.sortKey));
-    if (testMock.references) {
-      return {
-        references: testMock.references,
-        referenceAttachments,
-      };
-    }
-    return {
-      references: await loadAllNewsroomReferences(),
-      referenceAttachments,
-    };
-  }
-  const [references, referenceAttachments] = await Promise.all([
-    loadAllNewsroomReferences(),
-    listUserPoolModel<ReferenceAttachmentRecord>("ReferenceAttachment"),
-  ]);
-  return {
-    references,
-    referenceAttachments: referenceAttachments.sort((left, right) => left.sortKey.localeCompare(right.sortKey)),
-  };
+  if (testMock?.references) return testMock.references;
+  if (isLocalPreviewEnabled()) return createLocalPreviewReferences();
+  const perStatus = await Promise.all(REFERENCE_STATUS_KEYS.map((status) => loadAllPages((token) => loadReferencePageByStatus({
+    status, limit: ALL_REFERENCES_READ_SIZE, nextToken: token,
+  }))));
+  const seen = new Set<string>();
+  return perStatus.flat().filter((reference) => (seen.has(reference.id) ? false : (seen.add(reference.id), true)));
 }
 
-/** Every reference, page by page: the References feed ranks the whole set, so stopping at the first page hid most of it. */
-function loadAllNewsroomReferences(): Promise<ReferenceRecord[]> {
-  return loadAllPages((nextToken) => loadNewsroomReferencePage({ nextToken }));
+/** The corpora whose partitions the feed reads: the site's KnowledgeCorpus rows (a handful), read once per session. */
+let feedCorpusIds: Promise<string[]> | null = null;
+export function discardFeedCorpusIds() { feedCorpusIds = null; }
+export function loadReferenceFeedCorpusIds(extra: readonly string[] = []): Promise<string[]> {
+  feedCorpusIds ??= (async () => {
+    configureAmplifyClient();
+    const testMock = getTestEditorNewsroomMock();
+    if (testMock?.references) return [...new Set(testMock.references.map((reference) => reference.corpusId))];
+    if (isLocalPreviewEnabled()) return [...new Set(createLocalPreviewReferences().map((reference) => reference.corpusId))];
+    const corpora = await listUserPoolModel<{ id: string }>("KnowledgeCorpus");
+    return corpora.map((corpus) => corpus.id);
+  })().catch((error) => { feedCorpusIds = null; throw error; });
+  return feedCorpusIds.then((ids) => [...new Set([...ids, ...extra])]);
+}
+
+const LIST_REFERENCES_BY_FEED_STATE_AND_PREDICTION_QUERY = `
+  query ListReferencesByFeedStateAndPrediction($feedStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
+    listReferencesByFeedStateAndPrediction(feedStateKey: $feedStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+      items { ${REFERENCE_RECORD_GRAPHQL_FIELDS} }
+      nextToken
+    }
+  }
+`;
+
+const LIST_REFERENCES_BY_FEED_STATE_AND_ARRIVAL_QUERY = `
+  query ListReferencesByFeedStateAndArrival($feedStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
+    listReferencesByFeedStateAndArrival(feedStateKey: $feedStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+      items { ${REFERENCE_RECORD_GRAPHQL_FIELDS} }
+      nextToken
+    }
+  }
+`;
+
+/** One page of one feed partition, in feed order. No filter, so the database returns exactly `limit` rows (or the end). */
+export const readReferenceFeedStream: FeedStreamReader = async ({ feedStateKey, sort, limit, nextToken }) => {
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) return feedReaderFromRecords(testMock.references)({ feedStateKey, sort, limit, nextToken });
+  if (isLocalPreviewEnabled()) return feedReaderFromRecords(createLocalPreviewReferences())({ feedStateKey, sort, limit, nextToken });
+  const field = sort === "best" ? "listReferencesByFeedStateAndPrediction" : "listReferencesByFeedStateAndArrival";
+  const data = await runGraphql<Record<string, { items?: Array<ReferenceRecord | null> | null; nextToken?: string | null } | null>>(
+    sort === "best" ? LIST_REFERENCES_BY_FEED_STATE_AND_PREDICTION_QUERY : LIST_REFERENCES_BY_FEED_STATE_AND_ARRIVAL_QUERY,
+    { feedStateKey, sortDirection: "DESC", limit, nextToken },
+  );
+  const connection = data[field];
+  if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+  return { items: (connection.items ?? []).filter(Boolean) as ReferenceRecord[], nextToken: connection.nextToken ?? null };
+};
+
+/** Up to this many indexed reads ride in one GraphQL request. */
+const ALIAS_BATCH_SIZE = 25;
+
+/**
+ * Several indexed reads of one query in one request (aliased fields): one round trip for a batch of cards instead of one per card.
+ * Each key is one database query; a key whose result has a next page is returned in `more` for the caller to read on its own.
+ */
+async function runAliasedIndexReads<T>(input: {
+  field: string;
+  keyType: string;
+  keyArg: string;
+  keys: readonly string[];
+  selection: string;
+  limit: number;
+  extraArgs?: string;
+}): Promise<{ results: Map<string, T[]>; more: string[] }> {
+  const results = new Map<string, T[]>();
+  const more: string[] = [];
+  for (let offset = 0; offset < input.keys.length; offset += ALIAS_BATCH_SIZE) {
+    const chunk = input.keys.slice(offset, offset + ALIAS_BATCH_SIZE);
+    const variables = chunk.map((_, index) => `$k${index}: ${input.keyType}`).join(", ");
+    const fields = chunk.map((_, index) => (
+      `r${index}: ${input.field}(${input.keyArg}: $k${index}, limit: ${input.limit}${input.extraArgs ? `, ${input.extraArgs}` : ""}) { items { ${input.selection} } nextToken }`
+    )).join("\n      ");
+    const data = await runGraphql<Record<string, { items?: Array<T | null> | null; nextToken?: string | null } | null>>(
+      `query BatchRead(${variables}) {\n      ${fields}\n    }`,
+      Object.fromEntries(chunk.map((key, index) => [`k${index}`, key])),
+    );
+    chunk.forEach((key, index) => {
+      const connection = data[`r${index}`];
+      results.set(key, ((connection?.items ?? []).filter(Boolean)) as T[]);
+      if (connection?.nextToken) more.push(key);
+    });
+  }
+  return { results, more };
+}
+
+const REFERENCE_ATTACHMENT_SELECTION = "id referenceId referenceLineageId referenceVersionNumber referenceVersionKey role sortKey storagePath sourceUri filename mediaType byteSize sha256 etag importRunId importedAt metadata";
+
+/** The attachments of several References in one request, for the cards on screen. A Reference with more than one page reads the rest alone. */
+export async function loadReferenceAttachmentsForLineages(lineageIds: readonly string[]): Promise<ReferenceAttachmentRecord[]> {
+  const ids = [...new Set(lineageIds.filter(Boolean))];
+  if (!ids.length) return [];
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.referenceAttachments) {
+    return testMock.referenceAttachments.filter((attachment) => ids.includes(attachment.referenceLineageId));
+  }
+  configureAmplifyClient();
+  const { results, more } = await runAliasedIndexReads<ReferenceAttachmentRecord>({
+    field: "listReferenceAttachmentsByReferenceLineageAndSortKey",
+    keyType: "ID!",
+    keyArg: "referenceLineageId",
+    keys: ids,
+    selection: REFERENCE_ATTACHMENT_SELECTION,
+    limit: 100,
+    extraArgs: "sortDirection: ASC",
+  });
+  const rest = await Promise.all(more.map((lineageId) => loadReferenceAttachmentsForLineageId(lineageId)));
+  const byId = new Map<string, ReferenceAttachmentRecord>();
+  for (const attachment of [...results.values()].flat().concat(rest.flat())) byId.set(attachment.id, attachment);
+  return [...byId.values()].sort((left, right) => left.sortKey.localeCompare(right.sortKey));
+}
+
+/** Message counts for the given References only (their conversation threads by anchor), in one request. */
+export async function loadReferenceConversationCountsFor(lineageIds: readonly string[]): Promise<Map<string, number>> {
+  const ids = [...new Set(lineageIds.filter(Boolean))];
+  const counts = new Map<string, number>();
+  if (!ids.length) return counts;
+  const { results } = await runAliasedIndexReads<MessageThreadRecord>({
+    field: "listMessageThreadsByAnchorAndUpdatedAt",
+    keyType: "String!",
+    keyArg: "primaryAnchorKey",
+    keys: ids.map((id) => `reference#${id}`),
+    selection: "id status messageCount primaryAnchorLineageId",
+    limit: 10,
+    extraArgs: "sortDirection: DESC",
+  });
+  for (const [key, threads] of results) {
+    const thread = threads.find((entry) => entry.status !== "deleted");
+    if (thread && (thread.messageCount ?? 0) > 0) counts.set(key.slice("reference#".length), thread.messageCount ?? 0);
+  }
+  return counts;
 }
 
 /** How many rows one database read looks at while the "Accepted automatically" list walks the accepted partition for matches. */
@@ -2250,18 +2367,52 @@ async function loadReferencePageByFallbackList(options: NewsroomReferencePageOpt
  * One Reference's current relations (its prediction among them), read by the subject index. The feed calls this for the References
  * it shows and nothing else: there is no read of the newsroom's whole relation feed, so no page budget to run out of.
  */
-export async function loadEditorReferencePredictions(lineageId: string): Promise<SemanticRelationRecord[]> {
+export function loadEditorReferencePredictions(lineageId: string): Promise<SemanticRelationRecord[]> {
   configureAmplifyClient();
   const testMock = getTestEditorNewsroomMock();
   if (testMock?.semanticRelations) {
-    return testMock.semanticRelations.filter((relation) => relation.subjectKind === "reference" && relation.subjectLineageId === lineageId);
+    return Promise.resolve(testMock.semanticRelations.filter((relation) => relation.subjectKind === "reference" && relation.subjectLineageId === lineageId));
   }
-  return loadSemanticRelationsByState({
-    field: "listSemanticRelationsBySubjectState",
-    keyName: "subjectStateKey",
-    keyValue: `reference#${lineageId}#current`,
-    query: LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY,
+  return new Promise((resolve, reject) => {
+    predictionQueue.push({ lineageId, resolve, reject });
+    predictionTimer ??= setTimeout(flushPredictionQueue, 30);
   });
+}
+
+// The cards of a page ask for their predictions together: one request carries the indexed reads of every card that asked within a
+// moment, instead of one request per card.
+type PredictionWaiter = { lineageId: string; resolve: (relations: SemanticRelationRecord[]) => void; reject: (error: unknown) => void };
+let predictionQueue: PredictionWaiter[] = [];
+let predictionTimer: ReturnType<typeof setTimeout> | null = null;
+const RELATION_SELECTION = "id relationState predicate relationTypeId relationTypeKey relationDomain subjectKind subjectId subjectLineageId subjectVersionNumber objectKind objectId objectLineageId objectVersionNumber subjectStateKey objectStateKey objectSubjectStateKey predicateObjectStateKey subjectVersionKey objectVersionKey score confidence rank classifierId modelVersion reviewRecommended sourceSnapshotId importRunId importedAt createdAt updatedAt newsroomFeedKey metadata";
+
+async function flushPredictionQueue() {
+  const waiting = predictionQueue;
+  predictionQueue = [];
+  predictionTimer = null;
+  const lineageIds = [...new Set(waiting.map((entry) => entry.lineageId))];
+  try {
+    const { results, more } = await runAliasedIndexReads<SemanticRelationRecord>({
+      field: "listSemanticRelationsBySubjectState",
+      keyType: "String!",
+      keyArg: "subjectStateKey",
+      keys: lineageIds.map((id) => `reference#${id}#current`),
+      selection: RELATION_SELECTION,
+      limit: 100,
+      extraArgs: "sortDirection: DESC",
+    });
+    const longer = new Set(more);
+    for (const entry of waiting) {
+      const key = `reference#${entry.lineageId}#current`;
+      if (longer.has(key)) {
+        // A Reference with more relations than one page reads the rest on its own.
+        loadSemanticRelationsByState({ field: "listSemanticRelationsBySubjectState", keyName: "subjectStateKey", keyValue: key, query: LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY })
+          .then(entry.resolve, entry.reject);
+      } else entry.resolve(results.get(key) ?? []);
+    }
+  } catch (error) {
+    for (const entry of waiting) entry.reject(error);
+  }
 }
 
 /** Selected-reference details use indexes, not the bounded global activity feed. */

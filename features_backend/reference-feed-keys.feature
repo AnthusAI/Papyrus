@@ -101,3 +101,65 @@ Feature: The References page pages through two indexes whose keys every writer k
     And the "fresh" Reference already records an accept probability of 0.4
     When the feed key backfill runs for that corpus
     Then the "fresh" Reference still records an accept probability of 0.4
+
+  Scenario Outline: Every way of creating a Reference is in the feed
+    The feed reads References only through their feed keys, so a Reference created without them would be invisible there. Whatever the
+    source of a new Reference (a monitor, an editor's console, an email, a chat message, the command line, an import, an accession or a
+    citation in a paper) and whichever publication it is for, it starts out pending, so it must be in the unrated feed of its own corpus
+    the moment it exists. It has an arrival time and sorts as one half until the Cyclotron decides it.
+
+    Given a publication whose corpus key is "<corpus>"
+    When a Reference is created by "<path>"
+    Then the new Reference is in the unrated feed of "<corpus>"
+    And the new Reference has an arrival time and sorts as one half
+
+    Examples:
+      | path                                              | corpus     |
+      | papyrus references import (CLI)                   | alpha-site |
+      | papyrus references import (CLI)                   | beta-site  |
+      | monitor delivery                                  | alpha-site |
+      | monitor delivery                                  | beta-site  |
+      | email submission                                  | alpha-site |
+      | email submission                                  | beta-site  |
+      | named import (cursor:...)                         | alpha-site |
+      | Slack / console chat Reference.create             | alpha-site |
+      | Slack / console chat Reference.create             | beta-site  |
+      | console intake mutation (intakePendingReferences) | alpha-site |
+      | console intake mutation (intakePendingReferences) | beta-site  |
+      | GROBID cited reference                            | alpha-site |
+      | GROBID cited reference                            | beta-site  |
+      | accession replacement                             | alpha-site |
+      | accession next version                            | beta-site  |
+
+  Scenario: A new version of a Reference stays in the feed with its original prediction and arrival
+    Given a corpus whose References have these versions
+      | version | arrived                  | accept probability |
+      | 1       | 2026-11-01T00:00:00.000Z | 0.9                |
+    When the Reference is imported again with a changed title
+    Then the first version is in no feed
+    And the second version is in the unrated feed
+    And the second version still records an accept probability of 0.9 and the arrival "2026-11-01T00:00:00.000Z"
+
+  Scenario Outline: A vote from a chat message moves the Reference between the feeds
+    Given a pending Reference in a corpus
+    When a chat message asks to "<action>" it
+    Then the vote is written with feed state "<feed>"
+
+    Examples:
+      | action  | feed     |
+      | accept  | rated    |
+      | reject  | rated    |
+      | reopen  | unrated  |
+      | archive | no feed  |
+
+  Scenario: One backfill run covers every corpus of a publication
+    Given a backend with a pending Reference with no feed keys in each of the corpora "alpha-site", "beta-site" and "gamma-site"
+    When the feed key backfill runs for all corpora
+    Then the backfill covered 3 corpora
+    And each Reference is in the unrated feed of its own corpus
+
+  Scenario: A backfill run can be limited to named corpora
+    Given a backend with a pending Reference with no feed keys in each of the corpora "alpha-site", "beta-site" and "gamma-site"
+    When the feed key backfill runs for the corpus keys "alpha-site,beta-site"
+    Then the backfill covered 2 corpora
+    And the "gamma-site" corpus Reference still has no feed keys

@@ -195,9 +195,9 @@ for (const text of [
 
 // Paging: scripts/test-newsroom-all-pages.ts drives the loader the feed uses with three overlapping pages and a looping token.
 Given("a newsroom with more References than one page of the backend's list holds", function () { this.pagingResult = ""; });
-When("the editor opens the References feed", async function () { this.pagingResult = await run("scripts/test-newsroom-all-pages.ts"); });
+When("the editor opens the List view", async function () { this.pagingResult = await run("scripts/test-newsroom-all-pages.ts"); });
 for (const then of [
-  "the feed reads page after page until the backend says there are no more",
+  "the list reads page after page until the backend says there are no more",
   "each Reference appears once even when two pages overlap",
   "a page token that repeats stops the read with a message instead of looping",
 ]) Then(then, function () { assert.match(this.pagingResult, /newsroom all-pages: ok/); });
@@ -230,3 +230,27 @@ for (const then of [
   "the window is the newest pages of unanswered items plus the answered ones that arrived since, and it only ever grows",
   "a later page is ranked after everything already placed, while a new arrival waits behind the new-items pill",
 ]) Then(then, function () { assert.match(this.predictionResult, /(^|\n)ℹ fail 0/); });
+
+// Indexed paging, with a synthetic site of 7,000 References in three corpora: the browser scenarios "indexed", "indexedStates" and "sources".
+Given("a synthetic site of 7,000 References in three corpora, behind a backend that logs every request", function () { this.indexedResult = ""; });
+When("the editor opens the References feed at 375 and 1440 pixels", { timeout: 300_000 }, async function () { this.indexedResult = await browser("indexed"); });
+When("the editor opens the References feed and waits without scrolling, then scrolls to the end", { timeout: 300_000 }, async function () { this.indexedResult = await browser("indexed"); });
+When("the first read is slow, empty, or refused once", { timeout: 300_000 }, async function () { this.indexedResult = await browser("indexedStates"); });
+When("References that arrived by a monitor, a manual Add and email are listed under Newest", { timeout: 300_000 }, async function () { this.indexedResult = await browser("sources"); });
+for (const then of [
+  "the requests are one read of the corpora, one indexed page of 24 for each corpus, and one batch of attachments for the 24 cards, and no other",
+  "no request walks a whole table or the whole attachment table, and none asks for fewer than a page",
+  "the first 24 cards are the top of the merged order of every corpus, highest original confidence first",
+  "no further request is made while the page is not scrolled",
+  "scrolling to the end loads the next 24 cards by itself, with attachments for those 24 cards only and none read twice",
+  "one scroll costs at most one more round of indexed reads",
+]) Then(then, function () { assert.match(this.indexedResult, /Reference feed scenario passed: indexed\b/); });
+for (const then of [
+  "a slow read shows card skeletons and never the empty message",
+  "an empty site shows the empty message and no skeleton",
+  "a refused read shows what went wrong in words with a Retry button, never a skeleton that does not end, and Retry reads again and shows the cards",
+]) Then(then, function () { assert.match(this.indexedResult, /Reference feed scenario passed: indexedStates/); });
+for (const then of [
+  "they appear in one list in arrival order, newest first",
+  "each has the same Accept and Reject controls whatever its source",
+]) Then(then, function () { assert.match(this.indexedResult, /Reference feed scenario passed: sources/); });
