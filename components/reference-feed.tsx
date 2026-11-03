@@ -16,6 +16,7 @@ import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import type { PredictionStatus, PredictionStatuses } from "../lib/reference-predictions";
 import { cn } from "@/lib/utils";
 import { predictionFromDecision, type ReviewChoice } from "./reference-review-card";
+import { CreateStoryButton } from "./create-story-button";
 import { DecisionControl } from "./decision-control";
 import { CaptureBadge } from "./reference-capture-panel";
 import { AutoAcceptedBadge } from "./auto-accepted-badge";
@@ -65,6 +66,8 @@ export type ReferenceFeedProps = {
   now: number;
   onOpen: (lineageId: string) => void;
   onRate: (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null) => Promise<void> | void;
+  /** The preview workspace: Create Story builds its draft locally instead of calling the backend. */
+  demo?: boolean;
   /** Saves a star rating (null clears it). Without it, and without a shared store that rates stars, the cards show no stars. */
   onSetStars?: (reference: ReferenceRecord, stars: number | null) => Promise<void> | void;
   onVisitRated: (lineageId: string) => void;
@@ -284,6 +287,7 @@ export function FeedCard({
   now,
   onOpen,
   onRate,
+  demo = false,
   onSetStars,
   predictionLoading,
   predictionStatus,
@@ -304,6 +308,7 @@ export function FeedCard({
   now: number;
   onOpen: () => void;
   onRate: ReferenceFeedProps["onRate"];
+  demo?: boolean;
   onSetStars?: ReferenceFeedProps["onSetStars"];
   predictionLoading: boolean;
   predictionStatus?: PredictionStatus | undefined;
@@ -368,6 +373,20 @@ export function FeedCard({
       >
         <ReferenceCardHeader capture={capture} lead={lead} messageCount={messageCount} now={now} preview={preview} reference={reference} titleId={titleId} />
       </button>
+
+      <div className="bg-[var(--feed-footer)] px-4 pt-3" data-feed-create-story>
+        <CreateStoryButton
+          demo={demo}
+          disabled={Boolean(disabledReason)}
+          automatic={auto}
+          // A confirmation of an automatic acceptance waits for an optional reason first; Create Story asks none, so the second call records it.
+          onAccept={() => { store.choose(item.lineageId, "accept"); if (auto) store.choose(item.lineageId, "accept"); }}
+          preview={{ title, url: reference.sourceUri ?? null, summary: showDek ? dek : null, imageUrl: preview?.imageUrl ?? null, site: preview?.siteName ?? host ?? null }}
+          referenceId={reference.id}
+          stable
+          status={status}
+        />
+      </div>
 
       <div className="relative bg-[var(--feed-footer)] px-4 pb-4 pt-3" data-feed-actions>
         <DecisionControl
@@ -495,6 +514,7 @@ export function ReferenceFeed({
   now,
   onOpen,
   onRate,
+  demo,
   onSetStars,
   onShowChange,
   onSortChange,
@@ -532,6 +552,7 @@ export function ReferenceFeed({
       messageCount={messageCounts?.get(item.lineageId)}
       now={now}
       onOpen={() => onOpen(item.lineageId)}
+      demo={demo}
       onRate={async (reference, choice, reasonCode) => { onVisitRated(item.lineageId); await onRate(reference, choice, reasonCode); }}
       onRetryPrediction={onRetryPrediction ? () => onRetryPrediction(item.lineageId) : undefined}
       onSetStars={onSetStars}

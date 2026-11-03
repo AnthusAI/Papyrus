@@ -81,6 +81,9 @@ place items there by hand until those agents exist.
 - **Edition placement is unchanged.** `EditionItem` still places a published
   item in an edition; it is layout, not lifecycle.
 
+A person can also start a Story from any Reference with one tap (**Create Story**, [reference curation pipeline](reference-curation-pipeline.md#create-story-ppy-3c11bd)):
+it is an Item at the `copywriting` stage that skips the idea stage, linked to the Reference.
+
 ## Story types and sections
 
 A story is an `Item` of a story type, and the type is its own attribute, separate from

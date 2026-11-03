@@ -762,6 +762,13 @@ const schema = a.schema({
     .authorization((allow) => [allow.groups(contentWriteGroups)])
     .handler(functionHandler("contentActions", contentActions)),
 
+  createStoryFromReference: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
   unpublishItem: a
     .mutation()
     .arguments({ input: a.json().required() })

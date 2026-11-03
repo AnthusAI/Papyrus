@@ -266,6 +266,8 @@ const scenarios: Record<string, () => Promise<void>> = {
         const input = panel.locator("[data-capture-upload-input]");
         assert.equal(await input.getAttribute("accept"), "application/pdf");
         // A verdict comes first, as with pasted text; choosing a file without one does nothing.
+        // Scrolled to the middle first: the Create Story control above makes the page taller, and the fixed Previous / Next bar must not sit on the target.
+        await panel.locator("[data-capture-upload-choose]").evaluate((element) => element.scrollIntoView({ block: "center" }));
         await panel.locator("[data-capture-upload-choose]").click({ force: true });
         assert.ok(await panel.locator("[data-capture-upload-reason]").isVisible());
         await panel.locator("[data-capture-assessment=incomplete]").click();
@@ -621,7 +623,9 @@ const scrolledOffsets = (page: Page) => page.evaluate(() => {
   const offsets: number[] = [];
   for (let node: HTMLElement | null = document.querySelector<HTMLElement>("[data-reference-detail-scroll]"); node; node = node.parentElement) offsets.push(node.scrollTop);
   offsets.push(document.scrollingElement?.scrollTop ?? 0);
-  return Math.max(...offsets);
+  // One pixel is the rounding of a smooth scroll to a card of fractional height, not a scrolled pane.
+  const most = Math.max(...offsets);
+  return most <= 1 ? 0 : most;
 });
 /** PAPYRUS_DETAIL_NAV_SHOTS_DIR=<dir> saves a screenshot at the 390 and 1440 pixel widths. */
 const shoot = async (page: Page, width: number, name: string) => {

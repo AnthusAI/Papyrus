@@ -377,12 +377,34 @@ Paths that make a story from a Reference, and what each writes:
 | `story_from_story_draft` (an approved `story_draft` Proposal filed before ideas became Items; new ideas are Items that move through the stages) | the draft's own cited body | post only | `based_on` for each `reference:` target |
 | `papyrus stories create --reference ID` and the Tactus `papyrus_create_story(based_on_references=...)` | the story's summary, as before | none | `based_on` |
 | `papyrus assignments run-copywriting` (reporting packet to draft) | the packet's own facts, copy-checked | none | `based_on` for the packet's accepted References |
+| The editor's **Create Story** (Reference card and detail; `createStoryFromReference`, `story_from_reference.create_story_from_reference`) | the Reference's generated summary, then `Source: [title](address), site.`; the source line alone when there is no summary | the preview, for any type (below) | `based_on` |
 
 Stories made before this rule: `papyrus items link-references --site KEY [--role consulted|cited|based_on] [--dry-run]` finds each
 story whose body (or front matter `sources`) links to the `sourceUri` of a Reference of the site, comparing addresses without
 tracking parameters, fragment, `www.` and trailing slash. A story that matches one Reference is `based_on` it; one that matches
-several cites them. Safe to repeat. No UI action makes a story from a Reference yet; when one does, it calls
-`create_story_from_references`.
+several cites them. Safe to repeat.
+
+### Create Story (PPY-3c11bd)
+
+Every Reference card and detail has a **Create Story** action (Lucide `FilePlus2`; "As a post" beside it). One tap calls the `createStoryFromReference` mutation
+(content-actions Lambda, content-write groups), which calls `create_story_from_reference`, which calls `create_story_from_references`, and the editor opens the Story.
+
+* **The Story**: type `article` (or `post`), stage `copywriting`, section only when the site has exactly one enabled section, title from the Reference.
+* **The text**: the Reference's generated summary (the idea pipeline's summary chain: the `reference_summary_<N>_tokens` Message, the `curation` attachment, the
+  preview description), then the source line. No summary: the source line only. Never invented text. This is a deliberate exception to "never seeded from the
+  Reference's text": the summary is our generated words, and the copy guard still applies, so a summary that shares 12 or more words in a row with the captured
+  text is left out (`seededFrom.summary: withheld`) and the Story starts from the source line.
+* **The image**: the preview already found for the Reference, for any story type (the rule above is widened for this action only), as a remote credited address,
+  recorded in the front matter (`seededImage`: `url`, `credit`, `page`, `hosted: false`). It is another site's picture: the editor shows a plain note that the
+  rights must be checked before publishing (`components/seeded-from-reference-note.tsx`, shown while `seededFrom` is in the front matter).
+* **The link**: `based_on`, so the Story appears under "Stories based on this Reference" and in the Story's References. A Reference that already has a Story is not
+  given a second silently (`created: false, existing: [...]`); "Create another" sends `again`.
+* **The vote**: creating a Story never changes the status by itself. The button, not the backend, records the editor's Accept for a *pending* Reference through the
+  Accept path (a human vote, no reason, which trains the Cyclotron like any other vote; Ryan, 2026-11-02: "if I create the story myself from the reference, then
+  yes, I accept the story"). A rejected Reference is not overturned and its button says so; an accepted one needs nothing.
+* **The idea pipeline**: a Story `based_on` the Reference removes it from the single-item candidates (`hasStory`), so it is not also drafted as an idea.
+
+The p.apyr.us documentation should gain a short "Create a Story from a Reference" page (follow-up PPY-3c11bd).
 
 ## 7. Not done here
 
