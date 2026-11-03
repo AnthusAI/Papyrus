@@ -48,6 +48,13 @@ function slugFromHeadline(headline: string): string {
   return headline.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+/** Sample ratings the preview Stories already carry (a Story's private 1-5 stars), so the board, the drawer and the editor show some. */
+const PREVIEW_STORY_STARS: Readonly<Record<string, number>> = {
+  "copywriting-0": 4,
+  "published-0": 5,
+  "idea-1": 2,
+};
+
 export function createLocalPreviewContentItemVersions(): ContentItemVersionRecord[] {
   const stageKeys = contentItemStageKeys(getContentItemStageDefinitions());
   return stageKeys.flatMap((stageKey, stageIndex) => {
@@ -68,6 +75,7 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
         section: headlineIndex === 0 ? "news" : "features",
         updatedAt: isoTimestampHoursBeforeBase(stageIndex * 3 + headlineIndex),
         versionCreatedBy: stageKey === "idea" && headlineIndex === 0 ? "AI" : "Preview editor",
+        starRating: PREVIEW_STORY_STARS[`${stageKey}-${headlineIndex}`] ?? null,
       };
     });
   });
@@ -186,6 +194,7 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
     versionNumber: version.versionNumber,
     aliases: [],
     everPublished: version.status === "published",
+    starRating: version.starRating ?? null,
   };
 }
 

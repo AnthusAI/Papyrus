@@ -1,7 +1,9 @@
 """The ``::include{kind="references"}`` component: a grid of Reference cards drawn from the home-page snapshot.
 
 ``select`` names one of three orderings of the snapshot's References (``recent`` and ``confident`` take accepted ones, ``recommended``
-takes the ones not yet accepted). Several includes on one page share a :class:`~.page_ledger.PageLedger`: the first component to
+takes the ones not yet accepted). ``confident`` and ``recommended`` use the shared order, an editor's rating and then the Cyclotron's confidence
+(``home_page/ordering.py``); ``recent`` is newest accepted first. ``bucket="day"`` or ``bucket="week"`` puts the newest bucket first and the shared
+order inside each bucket, on any selection. Several includes on one page share a :class:`~.page_ledger.PageLedger`: the first component to
 place a Reference keeps it, and a later one refills up to its ``count`` from its own ordering. ``count`` defaults to
 ``homePage.references.defaultCount``. A missing or empty snapshot draws the ``empty`` text, or nothing when there is none.
 """
@@ -12,6 +14,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from ...home_page.export import clip_summary
+from ...home_page.ordering import BUCKETS, order_in_buckets, order_public_records
 from ...home_page.settings import HomePageSettings
 from . import home_page_components as parts
 from .knowledge_components import esc, safe_href
@@ -23,11 +26,10 @@ THREADS_ATTRIBUTES = {"select", "count", "layout", "heading", "empty"}
 THREAD_SELECTIONS = ("recent",)
 THREAD_LAYOUTS = ("list", "grid")
 THREAD_LEDGER_PREFIX = "thread:"
-ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty"}
+ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket"}
 SELECTIONS = ("recent", "confident", "recommended")
 CARDS = ("tile", "row")
 DEFAULT_COUNT = 6
-MISSING_CONFIDENCE = 0.5
 LEDGER_PREFIX = "reference:"
 NOT_CONFIGURED = "homePage is not configured in projection.json"
 
@@ -49,6 +51,8 @@ def check(attributes: Mapping, source: str) -> None:
         raise ValueError(f"{source}: ::include references needs select to be one of {', '.join(SELECTIONS)}, got {attributes.get('select')!r}")
     if "count" in attributes and not str(attributes["count"]).isdigit():
         raise ValueError(f"{source}: ::include references count must be a whole number, got {attributes['count']!r}")
+    if "bucket" in attributes and attributes["bucket"] not in BUCKETS:
+        raise ValueError(f"{source}: ::include references bucket must be one of {', '.join(BUCKETS)}, got {attributes['bucket']!r}")
     if attributes.get("card", "tile") not in CARDS:
         raise ValueError(f"{source}: ::include references card must be one of {', '.join(CARDS)}, got {attributes['card']!r}")
     if "more" in attributes and not safe_href(attributes["more"]):
@@ -66,22 +70,19 @@ def _text(record: Mapping, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-def _confidence(record: Mapping) -> float:
-    value = record.get("confidence")
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else MISSING_CONFIDENCE
-
-
-def ordered(records: list[Mapping], selection: str) -> list[Mapping]:
-    """The records of one selection in its order; ties fall to the newest arrival, then to the key."""
+def ordered(records: list[Mapping], selection: str, bucket: str | None = None) -> list[Mapping]:
+    """The records of one selection in its order. ``recent`` is newest accepted first (then newest arrival, then key); ``confident`` and ``recommended``
+    are the shared order of ``home_page/ordering.py``. With a ``bucket`` the newest bucket comes first and the shared order applies inside each."""
     wanted = "recommended" if selection == "recommended" else "accepted"
     chosen = [record for record in records if isinstance(record, Mapping) and record.get("status") == wanted and record.get("key")]
-    chosen.sort(key=lambda record: _text(record, "key"))
-    chosen.sort(key=lambda record: _text(record, "arrivedAt"), reverse=True)
+    if bucket:
+        return order_in_buckets(chosen, bucket)
     if selection == "recent":
+        chosen.sort(key=lambda record: _text(record, "key"))
+        chosen.sort(key=lambda record: _text(record, "arrivedAt"), reverse=True)
         chosen.sort(key=lambda record: _text(record, "acceptedAt"), reverse=True)
-    else:
-        chosen.sort(key=_confidence, reverse=True)
-    return chosen
+        return chosen
+    return order_public_records(chosen)
 
 
 def _in_section(record: Mapping, section: str, labels: Mapping[str, str]) -> bool:
@@ -98,7 +99,7 @@ def select_references(
 ) -> list[Mapping[str, Any]]:
     """The References one include places: its ordering, minus what the page already shows, up to ``count``; each one is claimed in the ledger."""
     records = (document or {}).get("references") or []
-    candidates = ordered(records, attributes["select"])
+    candidates = ordered(records, attributes["select"], attributes.get("bucket"))
     if attributes.get("section"):
         candidates = [record for record in candidates if _in_section(record, attributes["section"], section_labels or {})]
     count = int(attributes["count"]) if "count" in attributes else default_count

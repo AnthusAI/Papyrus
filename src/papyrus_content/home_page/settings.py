@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from .export import PUBLIC_REFERENCE_FIELDS, REQUIRED_PUBLISHED_FIELDS
+from .export import ALWAYS_PUBLISHED_FIELDS, PUBLIC_REFERENCE_FIELDS, REQUIRED_PUBLISHED_FIELDS
 
 LAYOUTS = ("latest", "sections")
 THREAD_AUTHOR_POLICIES = ("handle", "none", "anonymous")
@@ -101,7 +101,7 @@ def _fields(value: Any) -> tuple[str, ...]:
     missing = [name for name in REQUIRED_PUBLISHED_FIELDS if name not in value]
     if missing:
         raise ValueError(f"homePage.references.fields must include {', '.join(missing)}")
-    return tuple(name for name in PUBLIC_REFERENCE_FIELDS if name in value)
+    return tuple(name for name in PUBLIC_REFERENCE_FIELDS if name in value or name in ALWAYS_PUBLISHED_FIELDS)
 
 
 def _section_names(value: Any) -> tuple[str, ...] | None:

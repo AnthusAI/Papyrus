@@ -88,6 +88,8 @@ export type EditableArticle = {
   everPublished: boolean;
   /** The type of the live published version of this Story's lineage, when there is one. It can differ from `type` after a new version changed the type. */
   publishedType?: string | null;
+  /** The editors' private 1-5 rating of the Story; null when nobody rated it. */
+  starRating?: number | null;
 };
 
 export type ArticlesBackend = {
@@ -98,6 +100,8 @@ export type ArticlesBackend = {
     unpublishItem: typeof unpublishItem;
     moveStoryStage: typeof moveStoryStage;
     createStoryFromReference: typeof createStoryFromReference;
+    /** Saves an editor's rating of a Story (any version id of it; null clears it). A plain update: no new version, nothing republished. */
+    setItemStars: (itemId: string, stars: number | null) => Promise<void>;
   };
   listRows: () => Promise<NewsroomArticleRow[]>;
   loadArticle: (id: string) => Promise<EditableArticle>;
@@ -319,7 +323,15 @@ export async function loadEditableArticle(client: ArticlesDataClient, id: string
     aliases: Array.isArray(record.aliases) ? record.aliases.map(String) : [],
     everPublished: status === "published",
     publishedType,
+    starRating: typeof record.starRating === "number" ? record.starRating : null,
   };
+}
+
+/** An editor's star rating of a Story, saved by `setItemStars` onto its working record. It changes no stage and publishes nothing. */
+export async function setItemStars(itemId: string, stars: number | null): Promise<void> {
+  const response = await generateClient<Schema>().mutations.setItemStars({ itemId, stars }, { authMode: "userPool" });
+  const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+  if (errors?.length) throw new Error(errors[0]?.message ?? "Your rating could not be saved.");
 }
 
 export function createLiveArticlesBackend(): ArticlesBackend {
@@ -329,7 +341,7 @@ export function createLiveArticlesBackend(): ArticlesBackend {
     return client;
   };
   return {
-    actions: { deriveMarkus, saveItemDraft, publishItem, unpublishItem, moveStoryStage, createStoryFromReference },
+    actions: { deriveMarkus, saveItemDraft, publishItem, unpublishItem, moveStoryStage, createStoryFromReference, setItemStars },
     listRows: () => loadArticleRows(dataClient()),
     loadArticle: (id) => loadEditableArticle(dataClient(), id),
   };

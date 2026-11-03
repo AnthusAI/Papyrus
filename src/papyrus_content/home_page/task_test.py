@@ -145,3 +145,24 @@ def test_the_cli_refuses_to_write_without_the_sites_settings(tmp_path):
     with pytest.raises(ValueError, match="Refusing to write"):
         home_page_snapshot(["--site", "example", "--out", str(tmp_path / "out"), "--static-dir", str(tmp_path / "missing")])
     assert not (tmp_path / "out").exists()
+
+
+def test_a_rating_that_only_reorders_the_page_rewrites_the_file_and_the_pages_that_read_it(site):
+    """No public field changes, only the rank: the snapshot bytes change, so the digest of every page that places a references include changes."""
+    client = FixtureClient()
+    run(site, client)
+    before = json.loads(site.writer.get("_data/home-page/references.json"))
+    for row in client.rows():
+        if row["title"] == "Accepted one":
+            row.update({"starRating": 5, "starRatedAt": "2026-10-31T09:00:00.000Z", "starRatedBy": "editor-who-rated@example.test"})
+    site.writer.operations.clear()
+    report = run(site, client)
+    after = json.loads(site.writer.get("_data/home-page/references.json"))
+    strip = lambda document: [{key: value for key, value in record.items() if key != "rank"} for record in document["references"]]  # noqa: E731
+    assert strip(after) == strip(before), "no public field changed"
+    assert [record["rank"] for record in after["references"]] != [record["rank"] for record in before["references"]]
+    assert report["written"] == ["_data/home-page/references.json"]
+    assert "ranked/index.html" in report["rewritten"], report
+    assert set(report["rewritten"]) <= set(site.projector.home_page_reader_keys())
+    assert "front/index.html" in report["rewritten"]
+    assert all(b"starRating" not in content and b"editor-who-rated" not in content for content in site.tree.values()), "no published file mentions a rating"

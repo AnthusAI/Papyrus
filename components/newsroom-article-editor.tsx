@@ -58,6 +58,8 @@ import { graphqlEditorialBackend } from "../lib/editorial-checks-client";
 import { demoEditorialBackend } from "../lib/editorial-checks-demo";
 import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
+import { StarRating } from "./star-rating";
+import { useStoryStars, type StoryStarsController } from "./use-story-stars";
 import { EditorialPreviewPopover, type PreviewPopoverTarget } from "./editorial-preview-popover";
 import { MarkusBodyEditor, type MarkusBodyEditorHandle } from "./markus-body-editor";
 import { MarkusIrPreview } from "./markus-ir-preview";
@@ -111,11 +113,19 @@ function failureMessage(error: unknown): string {
 
 const NO_DESK_VALUE = "__no-desk__";
 
-export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { articleId: string; demo: boolean; embedded?: boolean }) {
+export function NewsroomArticleEditor({ articleId, demo, embedded = false, starsController }: {
+  articleId: string;
+  demo: boolean;
+  embedded?: boolean;
+  /** The rating store of the surface this editor sits in (the board's), so the card, the drawer and this editor show one rating. Without it the editor keeps its own. */
+  starsController?: StoryStarsController;
+}) {
   const session = useOptionalNewsDeskClient();
   const blocked = !(demo || isLocalPreviewEnabled()) && articlesAccessBlocked(session?.shell.phase);
   const previewMode = demo || isLocalPreviewEnabled();
   const backend: ArticlesBackend = useMemo(() => resolveArticlesBackend(previewMode), [previewMode]);
+  const ownStars = useStoryStars((itemId, stars) => backend.actions.setItemStars(itemId, stars));
+  const stars = starsController ?? ownStars;
   const [activeArticleId, setActiveArticleId] = useState(articleId);
   useEffect(() => { setActiveArticleId(articleId); }, [articleId]);
   const isNew = articleId === "new";
@@ -127,6 +137,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const [savedType, setSavedType] = useState<string | null>(null);
   const [publishedType, setPublishedType] = useState<string | null>(null);
   const [aliases, setAliases] = useState<string[]>([]);
+  /** The rating the Story had when it was loaded; the store shows what was tapped since. */
+  const [savedStars, setSavedStars] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationState>({ status: "checking" });
   const [bodyIr, setBodyIr] = useState<unknown>(null);
@@ -167,6 +179,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
         setEditor(stateFromArticle(article));
         setLineageId(article.lineageId ?? null);
         setAliases(article.aliases);
+        setSavedStars(article.starRating ?? null);
         setEverPublished(article.everPublished);
         setSavedType(article.type);
         setPublishedType(article.publishedType ?? (article.everPublished ? article.type : null));
@@ -548,6 +561,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
         // so nothing moves when the article arrives. The heights live in newsroom-organizer.css (data-skeleton-*).
         <div aria-label="Loading article" aria-busy="true" className="space-y-4" data-newsroom-article-skeleton role="status">
           <div className="rounded-md bg-muted" data-skeleton-toolbar />
+          {!isNew ? <div className="max-w-md rounded-md bg-muted" data-skeleton-stars /> : null}
           <div className="grid gap-6">
             <div className="rounded-md bg-muted" data-skeleton-fields />
             <div className="h-10 w-72 max-w-full rounded-md bg-muted" data-skeleton-tabs />
@@ -689,6 +703,17 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
           {notice ? (
             <div data-newsroom-article-notice>
               <NewsroomOpsStatusBanner tone={notice.tone}>{notice.text}</NewsroomOpsStatusBanner>
+            </div>
+          ) : null}
+
+          {editor.id !== null ? (
+            <div className="max-w-md" data-newsroom-article-stars>
+              <StarRating
+                feedback={stars.feedback(lineageId ?? editor.id)}
+                label="Rating · optional"
+                onChange={(tapped) => stars.tap(lineageId ?? editor.id!, editor.id!, savedStars, tapped)}
+                value={stars.value(lineageId ?? editor.id, savedStars)}
+              />
             </div>
           ) : null}
 

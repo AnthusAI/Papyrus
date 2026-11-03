@@ -148,6 +148,17 @@ def private_change(context) -> None:
     context.site.receive([PRIVATE_RECORD], 0)
 
 
+@when("a Reference is rated")
+def reference_rated(context) -> None:
+    context.site.receive([{"eventName": "MODIFY", "dynamodb": {"OldImage": {"curationStatus": {"S": "accepted"}}, "NewImage": {"curationStatus": {"S": "accepted"}, "starRating": {"N": "5"}}}}], 0)
+
+
+@when("a Reference changes only who rated it")
+def rater_changed(context) -> None:
+    rated = {"curationStatus": {"S": "accepted"}, "starRating": {"N": "5"}}
+    context.site.receive([{"eventName": "MODIFY", "dynamodb": {"OldImage": {**rated, "starRatedBy": {"S": "a"}, "starRatedAt": {"S": "t1"}}, "NewImage": {**rated, "starRatedBy": {"S": "b"}, "starRatedAt": {"S": "t2"}}}}], 0)
+
+
 @when("a Reference is accepted and creating the schedule fails")
 def accepted_and_failing(context) -> None:
     context.site.scheduler.fail = True

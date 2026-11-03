@@ -91,6 +91,14 @@ def test_an_edit_to_a_private_field_is_not_a_change():
     assert not handler_module.record_changed(record(old={**ACCEPTED, "curationStatusReason": "x"}, new={**ACCEPTED, "curationStatusReason": "y"}))
 
 
+def test_rating_changing_or_clearing_a_rating_is_a_change_but_who_rated_and_when_is_not():
+    assert handler_module.record_changed(record(old=ACCEPTED, new={**ACCEPTED, "starRating": {"N": "5"}}))
+    assert handler_module.record_changed(record(old={**ACCEPTED, "starRating": {"N": "5"}}, new={**ACCEPTED, "starRating": {"N": "2"}}))
+    assert handler_module.record_changed(record(old={**ACCEPTED, "starRating": {"N": "5"}}, new=ACCEPTED)), "clearing a rating changes the order"
+    rated = {**ACCEPTED, "starRating": {"N": "5"}, "starRatedBy": {"S": "a"}, "starRatedAt": {"S": "t1"}}
+    assert not handler_module.record_changed(record(old=rated, new={**rated, "starRatedBy": {"S": "b"}, "starRatedAt": {"S": "t2"}}))
+
+
 def test_insert_and_remove_are_changes_and_other_events_are_not():
     assert handler_module.record_changed(record("INSERT", new=PENDING))
     assert handler_module.record_changed(record("REMOVE", old=PENDING))

@@ -349,6 +349,13 @@ const definitions = {
     status: a.string().required(),
   }),
 
+  ItemStarsActionResult: a.customType({
+    ok: a.boolean().required(),
+    itemId: a.id().required(),
+    lineageId: a.id().required(),
+    stars: a.integer(),
+  }),
+
   ReferenceQualityActionResult: a.customType({
     ok: a.boolean().required(),
     referenceId: a.id().required(),
@@ -504,6 +511,20 @@ const definitions = {
       actorLabel: a.string(),
     })
     .returns(a.ref("ReferenceStarsActionResult"))
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  setItemStars: a
+    .mutation()
+    .arguments({
+      itemId: a.id().required(),
+      stars: a.integer(),
+      actorSub: a.string(),
+      actorLabel: a.string(),
+    })
+    .returns(a.ref("ItemStarsActionResult"))
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
@@ -2135,6 +2156,9 @@ const definitions = {
       layout: a.json(),
       editorial: a.json(),
       updatedAt: a.datetime(),
+      starRating: a.integer(),
+      starRatedAt: a.datetime(),
+      starRatedBy: a.string(),
       tags: a.hasMany("ItemTag", "itemId"),
       mediaAssets: a.hasMany("MediaAsset", "itemId"),
       ...(includeEditions ? { editionItems: a.hasMany("EditionItem", "itemId") } : {}),

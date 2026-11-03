@@ -152,7 +152,7 @@ PUBLISHED_EDITION_ITEM_FIELDS = (
 )
 ITEM_FIELDS = (
     f"{VERSION_FIELDS} id tenantId tenantSlug type status typeStatus stage slug shortSlug section sectionStatus title headline deck body "
-    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata"
+    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata starRating starRatedAt starRatedBy"
 )
 PUBLISHED_ITEM_FIELDS = (
     "id tenantId tenantSlug sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
@@ -675,7 +675,7 @@ mutation Delete{model_name}($input: Delete{model_name}Input!) {{
 MUTATIONS = {model: _model_mutations(model) for model in LIST_DEFINITIONS}
 
 
-# Reference fields newer than some deployed sites. One router serves sites on different versions, so a site whose
+# Reference and Item fields newer than some deployed sites (Stories got the same three star fields a Reference has). One router serves sites on different versions, so a site whose
 # schema does not have these yet is read without them instead of failing every Reference read.
 NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starFeedKey")
 _UNDEFINED_NEWER_FIELD = re.compile(r"FieldUndefined: Field '(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")' in type")

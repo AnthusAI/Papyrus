@@ -24,6 +24,8 @@ export interface NativeBoardIssue extends KanbanIssue {
   excerpt?: string;
   /** The quiet path shown where a board would print the ID, e.g. `articles/my-slug` or `assignments/write-it`. */
   displayId: string;
+  /** A Story's private 1-5 rating (null unrated); undefined when the card was not read from an Item row, so it cannot be rated here. */
+  starRating?: number | null;
 }
 
 function slugify(text: string): string {
@@ -104,7 +106,7 @@ export function projectContentItemBoard(records: {
       title: version.headline || version.title || version.slug, nativeStatus: stage, status: `${contentItemType}/${stage}`,
       priority: stage === "idea" ? IDEA_ORIGIN_PRIORITIES[ideaOrigin(version)] : 2, description: workCount ? `${workCount} assignment${workCount === 1 ? "" : "s"} on this ${contentItemType}.` : undefined,
       updated_at: version.updatedAt ?? undefined, href: `/newsroom/articles/${encodeURIComponent(version.id)}`,
-      excerpt: contentItemExcerpt(version), displayId: contentItemDisplayId(version),
+      excerpt: contentItemExcerpt(version), displayId: contentItemDisplayId(version), starRating: version.starRating,
     };
   });
 }
