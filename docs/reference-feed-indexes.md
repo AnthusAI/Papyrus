@@ -21,11 +21,11 @@ Both are partitioned by `feedStateKey`.
 - `listReferencesByFeedStateAndPrediction` (sort key `predictionSortKey`), read descending: **Best bets**. Highest P(accept) first, ties newest first.
 - `listReferencesByFeedStateAndArrival` (sort key `feedArrivalAt`), read descending: **Newest**.
 
-The page reads `<corpusId>#unrated` for "Unrated only" and both partitions for "Include rated", merging the two streams with the same comparator.
+The page reads `<corpusId>#unrated` for "Unrated" and both partitions for "All", merging the two streams with the same comparator.
 
 ## What the page reads
 
-On open, the References page reads the site's `KnowledgeCorpus` ids (a handful, once per session) and then one page of 24 from each partition, in parallel: `<corpus>#unrated` for "Unrated only", plus `<corpus>#rated` for "Include rated". `lib/reference-feed-pages.ts` merges the partitions into one list in feed order, so a site with several corpora shows them in one feed. Scrolling near the end reads the next round (a partition is read again only when its buffer has run dry). Attachments for the cards shown are read in one batched request, and predictions in one batched request per page, never for a Reference not shown. Nothing reads a whole table: the List view and the Assignments and Search pages read every Reference only when opened (`loadAllEditorReferences`).
+On open, the References page reads the site's `KnowledgeCorpus` ids (a handful, once per session) and then one page of 24 from each partition, in parallel: `<corpus>#unrated` for "Unrated", plus `<corpus>#rated` for "All". `lib/reference-feed-pages.ts` merges the partitions into one list in feed order, so a site with several corpora shows them in one feed. Scrolling near the end reads the next round (a partition is read again only when its buffer has run dry). Attachments for the cards shown are read in one batched request, and predictions in one batched request per page, never for a Reference not shown. Nothing reads a whole table: the List view and the Assignments and Search pages read every Reference only when opened (`loadAllEditorReferences`).
 
 A failed read shows the error with a Retry; an empty site shows the empty message; a slow read shows skeletons. A Reference with no `feedStateKey` is not in either partition, so it is not in the feed: run the backfill below before a site gets this page.
 

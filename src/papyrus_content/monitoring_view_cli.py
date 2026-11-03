@@ -15,7 +15,7 @@ from typing import Any
 from . import signed_in_lane as lane
 from .signed_in_lane import SIGN_IN, Refusal
 
-LISTS = ("runs", "routerRuns", "items", "emailSubmissions")
+LISTS = ("runs", "routerRuns", "items", "emailSubmissions", "cyclotronStatus")
 SCOPES = ("publication", "all")
 
 OVERVIEW_QUERY = "query MonitoringOverview($scope: String) { monitoringOverview(scope: $scope) }"
@@ -27,7 +27,7 @@ def add_arguments(sub) -> None:
     overview.add_argument("--scope", choices=SCOPES, default="publication", help="publication (default) or all (admins only)")
     overview.add_argument("--site", help="Which signed-in site, such as shipped.anth.us (needed when several are signed in)")
     overview.add_argument("--json", action="store_true", help="Print the raw response")
-    page = sub.add_parser("page", help="Read-only: one page of a monitoring list through your `papyrus login` session")
+    page = sub.add_parser("page", help="Read-only: one page of a monitoring list through your `papyrus login` session (--list cyclotronStatus: this site's Cyclotron classifier status)")
     page.add_argument("--list", dest="list_name", required=True, choices=LISTS)
     page.add_argument("--cursor", help="Continue after this cursor (from the overview or a previous page)")
     page.add_argument("--held", action="store_true", help="Only held email submissions (emailSubmissions)")
@@ -78,7 +78,18 @@ def _email_line(row: dict) -> str:
     return f"{_clip(row.get('observedAt'), 25)}  {_clip(row.get('status'), 12)}  {'held ' if held == 'quarantined' else ''}{_clip(row.get('subject'))}"
 
 
-LINES = {"runs": _run_line, "routerRuns": _router_line, "items": _item_line, "emailSubmissions": _email_line}
+def _status_line(row: dict) -> str:
+    """One classifier snapshot of this site's publication, in the words the newsroom home page uses: a missing number is "not measured"."""
+    status = row.get("status") or {}
+    cyclotron, alignment = status.get("cyclotron") or {}, status.get("alignment") or {}
+    accuracy = alignment.get("accuracy")
+    agreement = f"{round(accuracy * 100)}%" if isinstance(accuracy, (int, float)) else "not measured"
+    change = (status.get("lastChange") or {}).get("at")
+    return (f"{_clip(row.get('output'), 28)}  as of {_clip(row.get('asOf'), 25)}  retrained {cyclotron.get('refits', 0)}x  "
+            f"last change {_clip(change or 'none', 25)}  agreement {agreement}  labels {alignment.get('labels', 0)}")
+
+
+LINES = {"runs": _run_line, "routerRuns": _router_line, "items": _item_line, "emailSubmissions": _email_line, "cyclotronStatus": _status_line}
 
 
 def summarize_overview(data: dict) -> str:

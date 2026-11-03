@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e5126ac3-75ff-4a89-bb95-ed03773ad62b",
+  "title": "Reference search: one box, words and meaning together, on the References page",
+  "description": "Phase 1 (Ryan approved 2026-11-02). One search box on the newsroom References page runs keyword and semantic search together and returns normal Reference cards, rated or not, so an editor can find a Reference again. Backend: searchReferences query on the knowledgeQuery Lambda (in-memory inverted index over title, authors, source URL, externalItemId, filled incrementally from listReferencesByVersionStateAndUpdatedAt; query_by_vector over reference_summary vectors; Reciprocal Rank Fusion; opaque cursor). Frontend: box above Sort and Show, ?q= in the URL, Relevance sort label, Matched: labels. CLI: papyrus references search. Not in scope: rejected vectors, S3 cached index, body-word search, top-bar search, /newsroom/search.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T03:53:06.102500Z",
+  "updated_at": "2026-11-03T03:53:06.102559Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -16,6 +16,7 @@ import type { ReferencePreview } from "../lib/reference-preview";
 import { referenceLineageId } from "../lib/newsroom-references";
 import { loadNotificationSnapshot, saveNotificationSnapshot } from "../lib/reference-feed-cache";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
+import type { HomeCyclotronState } from "../lib/hosted-cyclotron-status";
 import { SITE_BRAND } from "../lib/site-brand";
 import { FIXTURE_IDEAS, FIXTURE_EMAIL_DETAILS, FIXTURE_HELD_EMAILS, FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
 import { useReferenceLinksStore } from "./reference-links-context";
@@ -50,6 +51,8 @@ export type NotificationApi = {
   loadLinkSuggestions?: (cursor: string | null) => Promise<LinkSuggestionPage>;
   /** Decides a suggested link. Optional: without it the related-links store's decide, the Related section's own call, is used. */
   decideLink?: (relationId: string, decision: "accept" | "reject", reason: string) => Promise<void>;
+  /** The Cyclotron classifier status of this site's own publication (one small read). Optional: without it the home page shows no classifier panel. */
+  loadCyclotronStatus?: () => Promise<HomeCyclotronState>;
 };
 
 const liveApi: NotificationApi = {
@@ -72,6 +75,7 @@ const liveApi: NotificationApi = {
   },
   loadEmail: async (receiptId) => (await import("../lib/monitoring-client")).loadMonitoringEmailSubmission(receiptId),
   decideEmail: async (receiptId, decision, reason) => (await import("../lib/monitoring-client")).decideMonitoringEmailSubmission(receiptId, decision, reason),
+  loadCyclotronStatus: async () => (await import("../lib/monitoring-client")).loadCyclotronStatusRows(),
 };
 
 /** The demo and the real-data preview answer in memory with the same rules as the live data API; nothing leaves the page. */
@@ -90,6 +94,11 @@ const demoApi: NotificationApi = {
   loadHeldEmails: async () => FIXTURE_HELD_EMAILS,
   loadEmail: async (receiptId) => FIXTURE_EMAIL_DETAILS[receiptId] ?? { state: "unavailable" },
   decideEmail: async (_receiptId, decision) => ({ ok: true, already: false, quarantine: { state: decision === "accept" ? "released" : "discarded", decision: null, failure: null } }),
+  // The sample is the onboarding classifier that has made one decision and has never been retrained.
+  loadCyclotronStatus: async () => {
+    const { DEMO_CYCLOTRON_STATUS } = await import("../lib/relevance-status");
+    return { state: "ready", rows: [{ monitorId: "demo", publicationId: "demo", output: "demo-relevance", asOf: DEMO_CYCLOTRON_STATUS.asOf, checkedAt: DEMO_CYCLOTRON_STATUS.asOf, status: DEMO_CYCLOTRON_STATUS }] };
+  },
 };
 
 type ContainerProps = {
@@ -176,6 +185,17 @@ export function NotificationCenter({
     }
     return { requests: preview === "caught-up" ? [] : fixture.requests };
   }, [fixture, preview]);
+
+  // The classifier's status is one small read, once per visit (a snapshot only changes when the Cyclotron completes decisions). A failure never touches the feed.
+  const [cyclotron, setCyclotron] = useState<HomeCyclotronState | undefined>(api.loadCyclotronStatus ? { state: "loading" } : undefined);
+  useEffect(() => {
+    if (!api.loadCyclotronStatus) { setCyclotron(undefined); return; }
+    let cancelled = false;
+    api.loadCyclotronStatus()
+      .then((loaded) => { if (!cancelled) setCyclotron(loaded); })
+      .catch(() => { if (!cancelled) setCyclotron({ state: "unavailable" }); });
+    return () => { cancelled = true; };
+  }, [api]);
 
   const keep = useCallback((key: string) => setStay((current) => (current.has(key) ? current : new Set(current).add(key))), []);
 
@@ -385,7 +405,7 @@ export function NotificationCenter({
 
   return (
     <NeedsMeView
-      below={below} captureTeaserLine={teaserLine} demo={demo} entries={entries} error={error} legacyAuto={legacyAuto}
+      below={below} captureTeaserLine={teaserLine} cyclotron={cyclotron} demo={demo} entries={entries} error={error} legacyAuto={legacyAuto}
       loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason} onSetStars={onSetReferenceStars}
       moreLinks={linksCursor !== null} loadingMoreLinks={linksLoadingMore} onLoadMoreLinks={loadMoreLinks}
       predictionLoading={predictionLoading} recent={recent} referenceAttachments={referenceAttachments}

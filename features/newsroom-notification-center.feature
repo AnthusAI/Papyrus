@@ -1,6 +1,6 @@
 @brand-agnostic @notification-center-fixtures
-Feature: The Notification Center answers "What needs me?" with one feed that mixes everything that may need a person
-  The console home is a single feed in the style of the References feed: flat tones and rounded cards, no borders or lines. It mixes
+Feature: The newsroom home answers "What needs me?" with one feed that mixes everything that may need a person
+  The newsroom home is not a navigation destination called Needs me: it is the page the newsroom wordmark opens, and the navigation lists only the work places. Its page title and browser title say the newsroom home, and its heading "What needs me?" describes the queue below it. The home is a single feed in the style of the References feed: flat tones and rounded cards, no borders or lines. It mixes
   References, batches of generated story ideas, story reviews, held email, captures that may be cut off, and flags. Hard gates come first. After them the
   order is the value of the editor's input: how unsure the Cyclotron is, times how much the item matters, with no change for age, and with
   no more than two items of one type in a row while another type waits. The order is taken once when the editor arrives and then left
@@ -99,3 +99,22 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     Then none of them has a border, an outline or a rule, and the controls are tone fills in rounded rectangles
     And the bar has one search field and no second search button
     And on a phone the bar shows the search field and the account button only, with no cut-off page title, because the page's own heading names it and Settings is in the account menu
+
+  Scenario: The navigation has no Needs me entry and the wordmark returns to the newsroom home
+    Given the newsroom navigation on a desktop and on a phone
+    When the editor looks at the sidebar, the bottom tabs, the More menu and the wordmark
+    Then none of them lists a Needs me entry or a second link to the home page, and the bottom tabs are Stories, References and Messages with Chat and More
+    And the wordmark in the sidebar, and the wordmark in the top bar that a phone shows, both open the newsroom home
+    And the page title says Newsroom home, while the queue's own heading still asks "What needs me?" and the deep links under needs-me keep working
+
+  Scenario: The home page says only what is true about a vote on every site
+    Given the newsroom shell at 375 and 1440 pixels
+    When the editor has decided nothing this week and reads the home page banner
+    Then the banner says each answer is saved as a label for the Cyclotron, and no sentence says an answer retrains the classifier or reorders the feed
+
+  Scenario: The phone's bottom tabs stay centred whatever their number, and More links to the public site
+    Given the newsroom shell at 375 and 1440 pixels
+    When the editor looks at bottom tabs of three, four and five, and opens the More menu on a phone
+    Then every row of tabs has equal space on its left and right
+    And the More menu ends with a plain link, with a globe icon, to the public site, the address the top-bar wordmark used before
+    And on a desktop screen there is no link to the public site in the sidebar, so a collapsed or expanded sidebar leaves the editor with the account menu and the address bar only

@@ -20,7 +20,7 @@ export async function verifyMobileChat(page, origin) {
       const r = el.getBoundingClientRect(), nav = el.closest('nav')?.getBoundingClientRect();
       return !!nav && r.top >= nav.top && r.bottom <= nav.bottom && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('button') === el;
     }), true, "Chat is an unobstructed navigation item, not a content overlay");
-    assert.equal(await page.locator('.organizer-bottom-nav > ul > li').count(), 5);
+    assert.equal(await page.locator('.organizer-bottom-nav > ul > li').count(), 4, "Stories, References, Chat and More: the newsroom home is the wordmark, not a tab");
     await page.touchscreen.tap(target.x + target.width / 2, target.y + target.height / 2);
     await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
     await composer.waitFor();
@@ -114,14 +114,14 @@ export async function verifyMobileChat(page, origin) {
   await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
   const beforePublic = await page.evaluate(() => history.length);
   await page.goto(`${origin}/public`);
-  await page.getByRole("heading", { name: "Notification Center" }).waitFor();
+  await page.getByRole("heading", { name: "Newsroom home" }).waitFor();
   assert.equal(await page.evaluate(() => history.length), beforePublic + 1, "public navigation adds only its own entry");
   assert.equal(await page.evaluate(() => localStorage.getItem("papyrus:console-open")), "true");
   assert.equal(await trigger.count(), 0);
   assert.equal(await page.locator('.papyrus-console').count(), 0);
   const beforeUnavailable = await page.evaluate(() => history.length);
   await page.goto(`${origin}/?unauthorized=1`);
-  await page.getByRole("heading", { name: "Notification Center" }).waitFor();
+  await page.getByRole("heading", { name: "Newsroom home" }).waitFor();
   assert.equal(await page.evaluate(() => history.length), beforeUnavailable + 1, "unavailable chat adds no hidden history entry");
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await trigger.count(), 0);

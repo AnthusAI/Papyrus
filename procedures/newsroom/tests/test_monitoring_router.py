@@ -128,6 +128,18 @@ class FakeTable:
         return [v for k, v in sorted(self.items.items()) if k[1].startswith(prefix)]
 
 
+def status_snapshot(pub, as_of="2026-11-02T10:00:00.000Z", refits=0, labels=0):
+    """A cyclotron-status/v1 snapshot as the lab answers the `status` operation for one publication."""
+    return {"schema": "cyclotron-status/v1", "asOf": as_of,
+            "cyclotron": {"id": f"{pub}-relevance", "classifier": "relevant", "version": 3, "refits": refits, "fingerprint": f"fp-{pub}"},
+            "alignment": {"window": 200, "labels": labels, "accuracy": None, "precision": None, "recall": None,
+                          "positiveLabel": "include", "measuredOn": "reviews selected by the cyclotron"},
+            "calibration": {"saysSure": None, "isRight": None, "gapPoints": None, "curve": []},
+            "reviewRate": {"state": "onboarding", "rate": 1, "reason": "Getting started", "auditFloor": 0.05, "confidenceThreshold": None,
+                           "override": None, "nextCheckAfterDecisions": 99, "nextStep": None, "expectedReviewsPerWeek": None},
+            "lastChange": None, "pending": {"decisionsAwaitingReview": 0, "staleSince": None}}
+
+
 class FakeCyclotron:
     """Scriptable machine API: records every call; decisions share one id per item."""
 
@@ -137,6 +149,7 @@ class FakeCyclotron:
         self.confidence = {}                  # (itemId, pub) -> confidence the machine API reports
         self.post_override, self.poll_override = {}, {}
         self.feedback_override = None
+        self.status_answers = {}              # pub -> (status, body) for the read-only `status` operation; default is a fresh snapshot
         self.pending_polls = 0
         self.polls_needed = 0                 # each job answers "running" this many times before it completes
         self.job_gets = {}
@@ -204,6 +217,8 @@ class FakeCyclotron:
         pub = path.split("/")[3]
         if method == "POST":
             data = json.loads(body)
+            if data["operation"] == "status":
+                return self.status_answers.get(pub) or (200, status_snapshot(pub))
             if data["operation"] == "feedback":
                 return self.feedback_override or (200, {"status": "recorded", "feedbackId": "fb-" + data["requestId"][:8]})
             if pub in self.post_override:
@@ -2777,3 +2792,99 @@ def test_router_can_deliver_to_every_configured_publication_api():
         for suffix in ("VectorIndexArn", "StorageBucketName"):
             if site + suffix in parameters or api == "MachinesOnMachinesApiId":
                 assert f"{site}{suffix}" in parameters and text.count(f"${{{site}{suffix}}}") + text.count(f"!Ref {site}{suffix}") >= 1, site + suffix
+
+
+# --- the read-only cyclotron-status task ---------------------------------------------------------------
+
+def status_run(table, store, cyclotron, **kwargs):
+    return go(table, store, cyclotron, task="cyclotron-status", **kwargs)
+
+
+def status_rows(table):
+    return {k[1].removeprefix("CYCLOTRONSTATUS#"): v for k, v in table.items.items() if k[1].startswith("CYCLOTRONSTATUS#")}
+
+
+def test_the_status_task_keeps_one_row_per_publication_in_the_monitors_own_partition(table):
+    store, cyclotron = setup_router(table)
+    result = status_run(table, store, cyclotron)
+    assert result["status"] == "complete" and {r["status"] for r in result["publications"].values()} == {"written"}
+    rows = status_rows(table)
+    assert sorted(rows) == sorted(PUBS)
+    for pub, row in rows.items():
+        assert row["pk"] == "MONITOR#hn" and row["publicationId"] == pub and row["output"] == f"{pub}-relevance"
+        assert row["status"]["cyclotron"]["id"] == f"{pub}-relevance"   # this publication's snapshot, nobody else's
+        assert row["asOf"] == "2026-11-02T10:00:00.000Z" and row["checkedAt"]
+
+
+def test_the_status_task_sends_the_contract_status_body_and_nothing_but_status_calls(table):
+    store, cyclotron = setup_router(table)
+    status_run(table, store, cyclotron)
+    assert len(cyclotron.calls) == 3
+    for method, path, body in cyclotron.calls:
+        assert method == "POST" and path.startswith("/machine/bindings/") and path.endswith("/operations")
+        assert body == {"contractVersion": mr.CONTRACT_VERSION, "operation": "status", "payload": {}}
+
+
+def test_a_503_is_no_snapshot_yet_for_that_publication_and_never_a_lab_pause_or_a_stopped_sweep(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.status_answers["anth-us"] = (503, {"detail": "no verified publication status snapshot yet"})
+    result = status_run(table, store, cyclotron)
+    assert result["publications"]["anth-us"] == {"status": "no_snapshot"}
+    assert sorted(status_rows(table)) == ["p-apyr-us", "threat-intelligence"]
+    assert ("MONITOR#hn", mr.LAB_BACKOFF_SK) not in table.items
+    swept = go(table, store, cyclotron, now=2100)   # the deciding sweep that follows is not paused
+    assert swept["status"] != "stopped" and len(cyclotron.posts()) > 3
+
+
+def test_a_status_refusal_or_a_reply_that_is_not_a_snapshot_is_recorded_for_that_publication_and_stops_nothing(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.status_answers["anth-us"] = (500, {"detail": "boom"})
+    cyclotron.status_answers["p-apyr-us"] = (200, {"pendingOutputs": ["x"]})
+    result = status_run(table, store, cyclotron)
+    assert result["publications"]["anth-us"]["status"] == "unavailable"
+    assert result["publications"]["p-apyr-us"] == {"status": "unavailable", "reason": "not a status snapshot"}
+    assert sorted(status_rows(table)) == ["threat-intelligence"]
+
+
+def test_a_newer_snapshot_replaces_the_row_and_the_old_one_is_kept_when_the_lab_has_no_snapshot(table):
+    store, cyclotron = setup_router(table)
+    status_run(table, store, cyclotron)
+    cyclotron.status_answers["anth-us"] = (200, status_snapshot("anth-us", as_of="2026-11-02T12:00:00.000Z", refits=1, labels=12))
+    cyclotron.status_answers["p-apyr-us"] = (503, {"detail": "no verified publication status snapshot yet"})
+    status_run(table, store, cyclotron, now=3000)
+    rows = status_rows(table)
+    assert rows["anth-us"]["asOf"] == "2026-11-02T12:00:00.000Z" and rows["anth-us"]["status"]["cyclotron"]["refits"] == 1
+    assert rows["p-apyr-us"]["asOf"] == "2026-11-02T10:00:00.000Z"   # still the last real snapshot, with its own asOf, never relabelled as fresh
+
+
+def test_the_status_task_honours_a_pause_the_lab_already_asked_for_and_does_not_call_it(table):
+    store, cyclotron = setup_router(table)
+    table.put_item({"pk": "MONITOR#hn", "sk": mr.LAB_BACKOFF_SK, "until": 9999, "strikes": 1, "status": 503, "retryAfter": 60})
+    result = status_run(table, store, cyclotron)
+    assert result["status"] == "skipped" and result["reason"] == "lab_backoff" and cyclotron.calls == [] and status_rows(table) == {}
+
+
+def test_the_status_task_has_its_own_lock_so_a_sweep_and_a_status_read_never_wait_for_each_other(table):
+    store, cyclotron = setup_router(table)
+    assert store.acquire_router_lock("hn", "sweep", now=2000)   # a routing sweep is running
+    result = status_run(table, store, cyclotron)
+    assert result["status"] == "complete" and len(status_rows(table)) == 3
+    assert store.acquire_router_lock("hn", "status", now=2000, sk=mr.CYCLOTRON_STATUS_LOCK_SK)   # released after the run
+
+
+def test_the_status_task_takes_no_decision_and_writes_no_receipt(table):
+    store, cyclotron = setup_router(table)
+    before = set(table.items)
+    status_run(table, store, cyclotron)
+    added = {k[1].split("#")[0] for k in set(table.items) - before}
+    assert added == {"CYCLOTRONSTATUS"}
+
+
+def test_the_stack_schedules_the_status_task_hourly_for_hn_and_distinctive_without_retries():
+    resources = _template()["Resources"]
+    inputs = {name: r["Properties"]["Target"]["Input"] for name, r in resources.items() if r["Type"] == "AWS::Scheduler::Schedule"}
+    found = {json.loads(inputs[name])["monitorId"]: resources[name]["Properties"] for name in inputs
+             if isinstance(inputs[name], str) and json.loads(inputs[name]).get("task") == "cyclotron-status"}
+    assert sorted(found) == ["hn", "web-distinctive"]
+    for properties in found.values():
+        assert properties["ScheduleExpression"].endswith(" * * ? *)") and properties["Target"]["RetryPolicy"]["MaximumRetryAttempts"] == 0
