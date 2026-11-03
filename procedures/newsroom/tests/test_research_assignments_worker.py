@@ -22,6 +22,13 @@ class Backend:
     def __init__(self, rows):
         self.rows = {row["id"]: dict(row) for row in rows}
         self.events = []
+        self.relations, self.history = {}, {}
+
+    def list_semantic_relations_by_subject_state(self, state_key):
+        return self.relations.get(state_key, [])
+
+    def list_assignment_events_by_assignment_and_created_at(self, assignment_id):
+        return self.history.get(assignment_id, [])
 
     def list_assignments_by_type_status_and_created_at(self, type_key):
         return [dict(row) for row in self.rows.values() if row["assignmentTypeKey"] == type_key]
@@ -65,6 +72,52 @@ def test_open_research_assignments_with_a_story_run_oldest_first_and_finish():
     assert research.asked[0]["corpus-key"] == "example-site" and research.asked[0]["actor-label"] == WORKER_LABEL
     assert {row["status"] for row in backend.rows.values()} == {"completed"} and result["ran"] == ["assignment-1", "assignment-2"]
     assert [event["eventType"] for event in backend.events if event["assignmentId"] == "assignment-1"] == ["claim", "research.completed"]
+
+
+def produces_relation(number):
+    return {"relationTypeKey": "produces", "subjectKind": "assignment", "subjectId": f"assignment-{number}", "objectKind": "message", "objectId": "message-1", "relationState": "current"}
+
+
+@pytest.mark.parametrize("evidence", ["relation", "event", "intake_failed_event"])
+def test_an_open_assignment_that_already_has_a_packet_is_completed_with_a_note_and_not_researched(evidence):
+    backend, research = Backend([assignment(1), assignment(2)]), Research()
+    if evidence == "relation":
+        backend.relations["assignment#assignment-1#current"] = [produces_relation(1)]
+    else:
+        backend.history["assignment-1"] = [{"eventType": "research.multi.completed" if evidence == "event" else "research.multi.intake_failed"}]
+    result = run(backend, research)
+    assert [asked["assignment"] for asked in research.asked] == ["assignment-2"]
+    assert backend.rows["assignment-1"]["status"] == "completed" and "completedAt" in backend.rows["assignment-1"] and result["alreadyDone"] == ["assignment-1"]
+    note = next(event["note"] for event in backend.events if event["assignmentId"] == "assignment-1")
+    assert "packet already exists" in note and result["ran"] == ["assignment-2"]
+
+
+def test_a_superseded_packet_relation_does_not_count():
+    backend, research = Backend([assignment(1)]), Research()
+    backend.relations["assignment#assignment-1#current"] = [{**produces_relation(1), "relationState": "superseded"}]
+    run(backend, research)
+    assert [asked["assignment"] for asked in research.asked] == ["assignment-1"]
+
+
+def test_the_worker_tells_the_research_to_leave_the_status_to_it():
+    backend, research = Backend([assignment(1)]), Research()
+    run(backend, research)
+    assert research.asked[0]["leave-status"] is True
+
+
+def test_a_failure_note_keeps_the_real_reason_and_drops_the_terminal_sign_in_advice():
+    backend = Backend([assignment(1), assignment(2)])
+
+    def research(client, options, **_):
+        if options["assignment"] == "assignment-1":
+            return {"action": "failed", "error": "GraphQL request failed: 401 Unauthorized: Permission denied\nYour AWS session may have expired or lack access. Run `aws sso login --profile <profile>` and retry."}
+        raise RuntimeError("Check your newsroom identity/publication permissions with `papyrus auth status`; renew with `papyrus login` if needed.")
+
+    run(backend, research)
+    notes = {event["assignmentId"]: event["note"] for event in backend.events if event["eventType"] == "research.failed"}
+    assert notes["assignment-1"] == "GraphQL request failed: 401 Unauthorized: Permission denied"
+    assert notes["assignment-2"] == "The research did not finish."
+    assert "aws sso login" not in " ".join(notes.values()) and "papyrus login" not in " ".join(notes.values())
 
 
 def test_the_assignment_is_marked_running_before_the_research_starts():
@@ -232,7 +285,7 @@ def worker_grants():
     return found
 
 
-def recorded_fields_of_a_full_run(monkeypatch):
+def recorded_fields_of_a_full_run(monkeypatch, tenant_id=None):
     """The fields one assignment's whole run asks of the publication API, on the real client with its transport replaced: the pass, the claim, the context pack, the
     two model calls, the packet and its intake. The backend answers like a small real one (what is created can be read back)."""
     import functools
@@ -245,11 +298,16 @@ def recorded_fields_of_a_full_run(monkeypatch):
 
     recorded, stored = set(), {}
     story = {"id": "item-1", "lineageId": "story-1", "versionState": "current", "versionNumber": 1, "type": "post", "stage": "assignment", "headline": "A story",
-             "section": None, "bodyMarkus": "Body", "status": "draft"}
+             "section": None, "bodyMarkus": "Body", "status": "draft", "tenantId": tenant_id}
     corpus = {"id": "knowledge-corpus-example-site", "role": "canonical", "name": "Example"}
-    doctrine = {"id": "d", "lineageId": "d", "versionNumber": 1, "versionState": "current", "type": "doctrine", "status": "private", "body": ["Doctrine"]}
+    doctrine = {"id": "d", "lineageId": "d", "versionNumber": 1, "versionState": "current", "type": "doctrine", "status": "private", "body": ["Doctrine"], "tenantId": tenant_id}
     row = assignment(1)
     stored.setdefault("Assignment", {})[row["id"]] = row
+
+    bodies, pending = {}, []
+    partition_models = {"listSemanticRelationsByObjectState": ("SemanticRelation", "objectStateKey"),
+                        "listSemanticRelationsBySubjectState": ("SemanticRelation", "subjectStateKey"),
+                        "listModelAttachmentsByOwnerRoleAndSortKey": ("ModelAttachment", "ownerId")}
 
     def respond(query, variables=None):
         variables = variables or {}
@@ -259,13 +317,23 @@ def recorded_fields_of_a_full_run(monkeypatch):
         if kind == "Mutation" and write and "input" in variables:
             stored.setdefault(write.group(2), {}).setdefault(variables["input"]["id"], {}).update(variables["input"])
         if field == "createModelAttachmentUpload":
-            return {field: {"uploadId": "u1", "uploadUrl": "https://s3.example/put", "method": "PUT", "requiredHeaders": {}, "storagePath": "p"}}
+            pending.append(f"https://s3.example/payload-{len(bodies) + len(pending)}")
+            return {field: {"uploadId": f"u{len(pending)}", "uploadUrl": pending[-1], "method": "PUT", "requiredHeaders": {}, "storagePath": pending[-1]}}
+        if field == "completeModelAttachmentUpload":
+            attachment = {**variables, "id": f"attachment-{len(stored.get('ModelAttachment', {}))}", "storagePath": pending.pop(0), "status": "active"}
+            stored.setdefault("ModelAttachment", {})[attachment["id"]] = attachment
+            return {field: attachment}
+        if field == "createModelAttachmentDownload":
+            return {field: {"downloadUrl": stored["ModelAttachment"][variables["attachmentId"]]["storagePath"], "method": "GET", "requiredHeaders": {}}}
         if kind == "Mutation":
             return {field: {"id": "x"}}
-        served = {"listAssignmentsByTypeStatusAndCreatedAt": [row], "listItemsByLineageAndVersion": [story], "itemBySlug": [doctrine],
+        served = {"listAssignmentsByTypeStatusAndCreatedAt": [row], "listItemsByLineageAndVersion": [story], "itemBySlug": [doctrine], "itemByTenantSlug": [doctrine],
                   "listKnowledgeCorporaByRoleAndName": [corpus]}
         if field in served:
             return {field: {"items": served[field], "nextToken": None}}
+        if field in partition_models:
+            model, key = partition_models[field]
+            return {field: {"items": [entry for entry in stored.get(model, {}).values() if entry.get(key) == variables[key]], "nextToken": None}}
         if field.startswith("get"):
             return {field: stored.get(field[3:], {}).get(variables.get("id"))}
         return {field: {"items": [], "nextToken": None}}
@@ -273,27 +341,42 @@ def recorded_fields_of_a_full_run(monkeypatch):
     class Upload:
         status = 200
 
+        def __init__(self, body=b""):
+            self.body = body
+
         def __enter__(self):
             return self
 
         def __exit__(self, *failure):
             return False
 
-    monkeypatch.setattr(urllib.request, "urlopen", lambda request: Upload())
-    client = PapyrusGraphQLAuthoringClient(endpoint=tr.ENDPOINT, tenant_id=None, header_factory=lambda body: {})
+        def read(self):
+            return self.body
+
+    def transport(request):
+        if request.data is not None:
+            bodies[request.full_url] = request.data
+            return Upload()
+        return Upload(bodies[request.full_url])
+
+    monkeypatch.setattr(urllib.request, "urlopen", transport)
+    client = PapyrusGraphQLAuthoringClient(endpoint=tr.ENDPOINT, tenant_id=tenant_id, header_factory=lambda body: {})
     client.graphql = respond
     done = functools.partial(research_module.research_multi, llm=multi.FakeLlm(), providers=multi.two_providers())
     result = run_research_assignments(client, {**PUBLICATION, "appsyncEndpoint": tr.ENDPOINT}, now=NOW, out_of_time=lambda: False, research=done, clock=lambda: NOW)
-    assert result["ran"] == ["assignment-1"], result
+    assert result["ran"] == ["assignment-1"], (result, stored.get("AssignmentEvent"))
+    assert "research.multi.intake_failed" not in [event["eventType"] for event in stored["AssignmentEvent"].values()]
+    assert stored["Reference"] and ("Mutation", "createSemanticRelation") in recorded and ("Mutation", "updateReference") in recorded
     return recorded
 
 
-def test_every_field_a_full_run_asks_for_is_granted_to_the_research_workers_role(monkeypatch):
+@pytest.mark.parametrize("tenant_id", [None, "example-tenant"])
+def test_every_field_a_full_run_asks_for_is_granted_to_the_research_workers_role(monkeypatch, tenant_id):
     monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
-    asked = recorded_fields_of_a_full_run(monkeypatch)
+    asked = recorded_fields_of_a_full_run(monkeypatch, tenant_id)
     granted = worker_grants()
     assert {("Mutation", "updateAssignment"), ("Mutation", "createAssignmentEvent"), ("Mutation", "createMessage")} <= asked
-    assert asked <= granted, sorted(asked - granted)
+    print(sorted(asked)); assert asked <= granted, sorted(asked - granted)
 
 
 def test_the_worker_has_its_own_function_and_schedule_and_the_key_policies_name_its_role():
