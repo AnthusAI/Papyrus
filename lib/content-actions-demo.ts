@@ -1,4 +1,5 @@
 import { ContentActionFailure } from "./content-actions-client";
+import { defaultStoryType } from "./site-story-types";
 import { isLocalPreviewEnabled } from "./local-preview";
 import type {
   DeriveMarkusInput,
@@ -122,6 +123,8 @@ export function createDemoArticlesBackend(): ArticlesBackend {
           const record: DemoArticleRecord = {
             ...existing,
             id,
+            type: input.type,
+            publishedType: existing.publishedType ?? (existing.everPublished ? existing.type : null),
             slug: existing.slug,
             section: input.section,
             title: titleFromYaml(input.frontMatterYaml, existing.slug),
@@ -139,6 +142,11 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         if (existing && input.expectedContentHash !== null && input.expectedContentHash !== existing.contentHash) {
           throw new ContentActionFailure([
             { code: "conflict", message: "The item changed since it was loaded.", line: null },
+          ]);
+        }
+        if (existing && existing.status === "published" && existing.type !== input.type) {
+          throw new ContentActionFailure([
+            { code: "type-locked", message: `This story is live as the type ${existing.type}. Save it as a new version to change its type: the live address moves only when that version is published.`, line: null },
           ]);
         }
         if (existing && existing.everPublished && existing.slug !== input.slug) {
@@ -181,15 +189,17 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         const record = requireRecord(id);
         const changed = record.status !== "published" || record.publishedContentHash !== record.contentHash;
         const versionNumber = changed ? (record.versionNumber ?? 0) + 1 : record.versionNumber;
+        const typeChangedFrom = changed && record.publishedType && record.publishedType !== record.type ? record.publishedType : undefined;
         records.set(id, {
           ...record,
           status: "published",
+          publishedType: null,
           everPublished: true,
           publishedContentHash: record.contentHash,
           versionNumber,
           updatedAt: new Date().toISOString(),
         });
-        return { ok: true, changed, publishedId: `published-${id}`, versionNumber };
+        return { ok: true, changed, publishedId: `published-${id}`, versionNumber, ...(typeChangedFrom ? { typeChangedFrom } : {}) };
       },
       async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
         return { ok: true, changed: true, stage: input.stage };
@@ -213,11 +223,11 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         ].join("\n") + "\n";
         const id = `demo-article-new-${(created += 1)}`;
         records.set(id, {
-          id, type: input.itemType ?? "article", slug: `from-reference-${created}`, section: null, title: hint.title, status: "draft", frontMatterYaml, bodyMarkus,
+          id, type: input.itemType ?? defaultStoryType(), slug: `from-reference-${created}`, section: null, title: hint.title, status: "draft", frontMatterYaml, bodyMarkus,
           contentHash: demoContentHash(frontMatterYaml, bodyMarkus), publishedContentHash: null, versionNumber: null, everPublished: false, updatedAt: new Date().toISOString(),
         });
         storiesFromReference.set(input.referenceId, [...already, id]);
-        return { ok: true, created: true, itemId: id, lineageId: id, title: hint.title, itemType: input.itemType ?? "article", stage: "copywriting", summary: summaryState, image: hint.imageUrl ? "seeded" : "none", imageCredit: hint.imageUrl && hint.site ? `Image: ${hint.site}` : null };
+        return { ok: true, created: true, itemId: id, lineageId: id, title: hint.title, itemType: input.itemType ?? defaultStoryType(), stage: "copywriting", summary: summaryState, image: hint.imageUrl ? "seeded" : "none", imageCredit: hint.imageUrl && hint.site ? `Image: ${hint.site}` : null };
       },
       async unpublishItem(id: string): Promise<UnpublishItemResult> {
         const record = requireRecord(id);
@@ -273,6 +283,7 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         versionNumber: record.versionNumber,
         aliases: [],
         everPublished: record.everPublished,
+        publishedType: record.publishedType ?? (record.everPublished ? record.type : null),
       };
     },
   };

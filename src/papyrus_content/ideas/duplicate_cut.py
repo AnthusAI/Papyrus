@@ -17,7 +17,7 @@ from typing import Any, Mapping, Sequence
 from ..auto_accept import DEFAULT_PRECISION, learn_threshold
 from ..story_from_reference import _current_versions
 from . import dedupe
-from .context import STORY_TYPES
+from ..content_item_lifecycle import is_story_item_type
 from .items import generated_of
 from .labels import decided_ideas
 
@@ -58,7 +58,7 @@ def _text(item: Mapping[str, Any]) -> str:
 
 def scored_decisions(client: Any, scorer_factory: dedupe.ScorerFactory = dedupe.WordScorer) -> list[tuple[float, bool]]:
     """``(similarity, was_duplicate)`` for every decided idea that has something earlier to resemble."""
-    items = [item for item in _current_versions(client.list_records("Item")) if item.get("type") in STORY_TYPES and str(item.get("title") or "").strip()]
+    items = [item for item in _current_versions(client.list_records("Item")) if is_story_item_type(item.get("type")) and str(item.get("title") or "").strip()]
     decided = [(item, generated, decision) for item, generated, decision in decided_ideas(client)]
     if not decided:
         return []

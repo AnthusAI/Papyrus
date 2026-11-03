@@ -165,14 +165,18 @@ const scenarios: Record<string, () => Promise<void>> = {
     } finally { await browser.close(); }
   },
 
-  /** The post is one more button beside it, never a dialog or a dropdown; Lucide icons only. */
-  async a_post_without_a_dialog() {
+  /** Create Story is one action: one button per card, no "as a post" companion, no dialog or dropdown, Lucide icons only. The type is set in the Story. */
+  async one_action() {
     const { browser, page, errors } = await setup();
     try {
       await card(page, "r0").waitFor();
+      assert.equal(await card(page, "r0").locator("[data-create-story] button").count(), 1, "one button");
+      assert.equal(await card(page, "r0").locator("[data-create-story-post]").count(), 0, "no second button for a post");
+      assert.ok(!/as a post/i.test(await page.locator("body").innerText()), "nothing on the page offers a post");
       assert.equal(await card(page, "r0").locator("[data-create-story] select, [role=dialog]").count(), 0);
-      await card(page, "r0").locator("[data-create-story-post]").click();
+      await card(page, "r0").locator("[data-create-story-button]").click();
       await page.waitForFunction(() => ((window as unknown as { fixturePushed: string[] }).fixturePushed ?? []).length === 1);
+      assert.match((await pushed(page))[0]!, /\/newsroom\/articles\/demo-article-new-1/, "the Story opens, where its type can be changed");
       assert.equal(await page.locator("[role=dialog]").count(), 0, "no dialog");
       for (const icon of await card(page, "r3").locator("[data-create-story] svg").all()) assert.ok(await icon.evaluate((svg) => [...svg.classList].some((name) => name.startsWith("lucide"))), "Lucide icons only");
       assert.deepEqual(errors, []);

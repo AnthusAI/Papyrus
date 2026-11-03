@@ -109,6 +109,40 @@ class ContentActionsHandlerTest(unittest.TestCase):
         self.assertEqual(unpublished, {"ok": True, "changed": True})
         self.assertNotIn(published["publishedId"], self.client.tables.get("PublishedItem", {}))
 
+    def test_a_live_story_cannot_change_type_by_saving_in_place(self) -> None:
+        item = self.call("saveItemDraft", save_payload())["item"]
+        self.call("publishItem", {"id": item["id"]})
+        refused = self.call("saveItemDraft", save_payload(id=item["id"], type="post", expectedContentHash=item["contentHash"]))
+        self.assertFalse(refused["ok"])
+        self.assertEqual(refused["errors"][0]["code"], "type-locked")
+        self.assertIn("new version", refused["errors"][0]["message"])
+        self.assertEqual(self.client.tables["Item"][item["id"]]["type"], "article", "the live row was not touched")
+
+    def test_a_new_version_can_change_the_type_and_the_live_page_waits_for_publish(self) -> None:
+        item = self.call("saveItemDraft", save_payload())["item"]
+        self.call("publishItem", {"id": item["id"]})
+        saved = self.call("saveItemDraft", save_payload(id=item["id"], type="post", newVersion=True, expectedContentHash=item["contentHash"], bodyMarkus="Changed\n"))
+        self.assertTrue(saved["ok"])
+        self.assertEqual(self.client.tables["Item"][saved["item"]["id"]]["type"], "post")
+        self.assertEqual(self.client.tables["Item"][saved["item"]["id"]]["typeStatus"], "post#draft")
+        live = self.client.tables["PublishedItem"]["published-" + item["id"]]
+        self.assertEqual(live["type"], "article", "the live row keeps its type until the new version is published")
+        moved = self.call("publishItem", {"id": saved["item"]["id"]})
+        self.assertEqual(moved["typeChangedFrom"], "article")
+        self.assertEqual(self.client.tables["PublishedItem"]["published-" + item["id"]]["type"], "post")
+
+    def test_a_new_version_refuses_a_system_type(self) -> None:
+        item = self.call("saveItemDraft", save_payload())["item"]
+        refused = self.call("saveItemDraft", save_payload(id=item["id"], type="wiki_page", newVersion=True, expectedContentHash=item["contentHash"]))
+        self.assertFalse(refused["ok"])
+        self.assertIn("not a Story", refused["errors"][0]["message"])
+
+    def test_publishing_the_same_type_reports_no_type_change(self) -> None:
+        item = self.call("saveItemDraft", save_payload())["item"]
+        self.call("publishItem", {"id": item["id"]})
+        saved = self.call("saveItemDraft", save_payload(id=item["id"], newVersion=True, expectedContentHash=item["contentHash"], bodyMarkus="Changed\n"))
+        self.assertNotIn("typeChangedFrom", self.call("publishItem", {"id": saved["item"]["id"]}))
+
     def test_publish_missing_item_is_not_found(self) -> None:
         result = self.call("publishItem", {"id": "item-missing"})
         self.assertFalse(result["ok"])

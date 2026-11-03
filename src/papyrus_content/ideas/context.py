@@ -6,13 +6,12 @@ import math
 from datetime import datetime, timedelta
 from typing import Any
 
-from ..content_item_lifecycle import STORY_ITEM_TYPES
+from ..content_item_lifecycle import is_story_item_type
 from ..newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND
 from ..section_ids import is_type_shaped
 from ..tenancy import rows_for_tenant
 from .digest import CORPUS_PREFIX, corpus_key, parse_time
 
-STORY_TYPES = {*STORY_ITEM_TYPES, "story"}  # "story" is kept as it was; PPY-221289 tracks the rest of this list
 IN_FLIGHT_STATUSES = {"draft", "review", "in_review", "scheduled"}
 STORY_FIELDS = "id lineageId versionState type status stage section title deck headline publishedAt updatedAt tenantId"
 STORIES_QUERY = f"""
@@ -94,7 +93,7 @@ def sections_for(client: Any, stories: list[dict[str, Any]]) -> list[dict[str, s
 
 
 def load_context(client: Any, *, now: datetime, story_days: int | None = None) -> dict[str, Any]:
-    rows = [row for row in list_stories(client) if row.get("versionState") == "current" and row.get("type") in STORY_TYPES]
+    rows = [row for row in list_stories(client) if row.get("versionState") == "current" and is_story_item_type(row.get("type"))]
     all_stories = [story_entry(row) for row in rows]
     cutoff = None if story_days is None else now - timedelta(days=story_days)
     stories = [

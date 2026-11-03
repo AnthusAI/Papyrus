@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { STORY_ITEM_TYPES, isStoryItemType, storyItemTypeFilter, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
+import { SYSTEM_ITEM_TYPES, isStoryItemType, storyItemTypeFilter, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { projectContentItemBoard } from "../lib/newsroom-board";
 import { collectFilteredPage, type FilteredPage } from "../lib/story-stage-paging";
 
@@ -10,9 +10,10 @@ function fakePartition(rows: ContentItemVersionRecord[]) {
     const start = nextToken ? Number(nextToken) : 0;
     const end = Math.min(start + scanLimit, rows.length);
     requests.push(end - start);
-    const filter = storyItemTypeFilter() as { type?: { eq: string }; or?: Array<{ type: { eq: string } }> };
-    const allowed = new Set((filter.or ?? [filter]).map(clause => clause.type!.eq));
-    return { items: rows.slice(start, end).filter(row => allowed.has(row.type)), nextToken: end < rows.length ? String(end) : null };
+    // The query filter is `type ne <system type>` for every system type; the fake applies it after the read, as DynamoDB does.
+    const filter = storyItemTypeFilter() as { and: Array<{ type: { ne: string } }> };
+    const excluded = new Set(filter.and.map(clause => clause.type.ne));
+    return { items: rows.slice(start, end).filter(row => !excluded.has(row.type)), nextToken: end < rows.length ? String(end) : null };
   };
   return { fetchPage, requests };
 }
@@ -23,11 +24,18 @@ const version = (id: string, type: string, stage: string, status = "draft"): Con
 const scenario = process.argv[2] ?? "all";
 const runs: Record<string, () => Promise<void>> = {
   async types() {
-    assert.deepEqual([...STORY_ITEM_TYPES], ["article", "post"], "articles and posts are the story types");
-    assert.equal(isStoryItemType("article"), true);
-    assert.equal(isStoryItemType("post"), true);
-    for (const type of ["wiki_page", "doctrine", "page", "", null, undefined]) assert.equal(isStoryItemType(type as string), false, `${String(type)} is not a story`);
-    assert.deepEqual(storyItemTypeFilter(), { or: [{ type: { eq: "article" } }, { type: { eq: "post" } }] }, "the query filter names the story types");
+    assert.deepEqual([...SYSTEM_ITEM_TYPES], ["wiki_page", "doctrine", "page", "newsletter_issue"], "the system set is fixed: these are not stories");
+    for (const type of ["article", "post", "guide", "case_study", "brief"]) assert.equal(isStoryItemType(type), true, `${type} is a story type: nothing but the system set decides`);
+    for (const type of ["wiki_page", "doctrine", "page", "newsletter_issue", "", null, undefined]) assert.equal(isStoryItemType(type as string), false, `${String(type)} is not a story`);
+    assert.deepEqual(storyItemTypeFilter(), { and: SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })) }, "the query filter excludes the system set and names no story type");
+  },
+  async new_type() {
+    // A site's own type (`guide`) reaches the board with no engine change, in a stage column and in Published.
+    const issues = projectContentItemBoard({ contentItemVersions: [
+      version("wiki-1", "wiki_page", "copywriting"), version("guide-1", "guide", "copywriting"), version("post-1", "post", "copywriting"),
+      version("guide-p", "guide", "published", "published"), version("issue-p", "newsletter_issue", "published", "published"),
+    ] });
+    assert.deepEqual(issues.map(issue => issue.nativeId).sort(), ["guide-1", "guide-p", "post-1"], "a new type is on the board; system types are not");
   },
   async copywriting() {
     const issues = projectContentItemBoard({ contentItemVersions: [version("wiki-1", "wiki_page", "copywriting"), version("story-1", "article", "copywriting")] });

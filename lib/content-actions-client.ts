@@ -27,14 +27,24 @@ export type SavedItemSummary = {
   versionNumber: number | null;
 };
 export type SaveItemDraftResult = { ok: true; item: SavedItemSummary };
-export type PublishItemResult = { ok: true; changed: boolean; publishedId: string; versionNumber: number | null };
+export type PublishItemResult = {
+  ok: true;
+  changed: boolean;
+  publishedId: string;
+  versionNumber: number | null;
+  /** The projection built no page for this Item: its type has no `urls.types` entry and its section no route. Published is recorded; nothing is live. */
+  noPublicPage?: boolean;
+  /** The Story was live as this type and was published as another: its address moved, and the old one redirects. */
+  typeChangedFrom?: string;
+  url?: string;
+};
 export type UnpublishItemResult = { ok: true; changed: boolean };
 export type MoveStoryStageInput = { lineageId: string; stage: string; reason?: string | null };
 export type MoveStoryStageResult = { ok: true; changed: boolean; stage: string };
 
 export type CreateStoryFromReferenceInput = {
   referenceId: string;
-  /** `article` (the default) or `post`. */
+  /** A Story type of the site. Omitted, the site's default type (`storyTypes.default`, else `article`). */
   itemType?: string;
   /** Make another story although this Reference already has one. */
   again?: boolean;

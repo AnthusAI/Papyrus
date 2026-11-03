@@ -31,7 +31,7 @@ from .link_exploration import canonical_url
 from .publishing import ItemFields, item_id_for, save_item
 from .record_helpers import slugify
 from .reference_images import PREVIEW_ROLE
-from .content_item_lifecycle import STORY_ITEM_TYPES
+from .story_types import default_story_type, require_story_type
 from .story_reporting import BASED_ON, current_reference, latest_story_version, link_reference_to_story, stories_based_on_reference, story_references
 
 #: The item types whose image is seeded from the Reference's preview image.
@@ -200,7 +200,7 @@ def create_story_from_references(
     title: str,
     actor: str,
     body_markus: str | None = None,
-    item_type: str = "article",
+    item_type: str | None = None,
     front_matter: dict[str, Any] | None = None,
     item_id: str | None = None,
     source_text_reader: SourceTextReader | None = None,
@@ -216,6 +216,7 @@ def create_story_from_references(
     """
     if not references:
         raise ValueError("A story based on a Reference needs at least one Reference.")
+    item_type = item_type or default_story_type()
     rows = []
     for reference in references:
         row = current_reference(client, reference["id"]) or reference
@@ -282,7 +283,7 @@ def story_from_story_draft(
     *,
     actor: str,
     section: str | None = None,
-    item_type: str = "article",
+    item_type: str | None = None,
     source_text_reader: SourceTextReader | None = None,
     now: str | None = None,
 ) -> dict[str, Any]:
@@ -465,7 +466,7 @@ def create_story_from_reference(
     reference_id: str,
     *,
     actor: str,
-    item_type: str = "article",
+    item_type: str | None = None,
     again: bool = False,
     summary_of: Callable[[str], str] | None = None,
     source_text_reader: SourceTextReader | None = None,
@@ -473,7 +474,7 @@ def create_story_from_reference(
 ) -> dict[str, Any]:
     """The editor's one-tap Create Story: a draft story at the copywriting stage, started from this Reference, linked to it, ready to write.
 
-    * type ``item_type`` (``article`` by default; any of ``STORY_ITEM_TYPES``), stage ``copywriting``, a section only when the site has exactly one;
+    * type ``item_type`` (the site's default Story type when none is given, ``storyTypes.default`` in its ``projection.json``, else ``article``), stage ``copywriting``, a section only when the site has exactly one;
     * the title is the Reference's title; the body is the Reference's generated summary (``summary_of``, the summary chain of the idea pipeline) followed by the
       source link and attribution, or the source line alone when no summary exists. Nothing else is written, and no text is invented;
     * the Reference's preview image, if the page declared one, is the first line: a remote address (never copied to our media) with a credit to its site, recorded
@@ -484,8 +485,7 @@ def create_story_from_reference(
     A summary that repeats ``COPIED_RUN_WORDS`` words of the captured text is left out (``summary: "withheld"``), the same copy guard as every other path.
     This never changes the Reference's curation status; the editor's Accept is a vote the caller records through the existing review path.
     """
-    if item_type not in STORY_ITEM_TYPES:
-        raise ValueError(f"A story is one of {', '.join(STORY_ITEM_TYPES)}, not {item_type!r}.")
+    item_type = require_story_type(item_type) if item_type else default_story_type()
     reference = current_reference(client, reference_id)
     if reference is None:
         raise ValueError(f"Reference not found: {reference_id}")

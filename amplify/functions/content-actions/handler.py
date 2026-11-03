@@ -34,6 +34,7 @@ from papyrus_content.publishing import (
     ItemFields,
     PublishError,
     publish_item,
+    published_item_id_for,
     save_item,
     unpublish_item,
 )
@@ -153,6 +154,9 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
         url = public_item_url(os.environ, report.item_paths)
         if url:
             response["url"] = url
+        if report.ok and not report.item_paths:
+            # Published is recorded, but the site has no page for this Item (a type with no urls.types entry and no section route, or a link-only section).
+            response["noPublicPage"] = True
     if not report.ok:
         message = "; ".join(report.errors)
         schedule_projection_task(task, message)
@@ -257,14 +261,18 @@ def save_item_draft_action(arguments: dict, actor: str, approved_by: str | None 
         existing = client.get_record("Item", arguments["id"])
         if existing is None:
             raise PublishError("not-found", "That story was not found.")
-        record = save_story_version(
-            client,
-            existing.get("lineageId") or existing["id"],
-            front_matter_yaml=arguments.get("frontMatterYaml"),
-            body_markus=arguments.get("bodyMarkus") or "",
-            actor=actor,
-            change_reason=arguments.get("changeReason") or "edited in the newsroom",
-        )
+        try:
+            record = save_story_version(
+                client,
+                existing.get("lineageId") or existing["id"],
+                front_matter_yaml=arguments.get("frontMatterYaml"),
+                body_markus=arguments.get("bodyMarkus") or "",
+                actor=actor,
+                change_reason=arguments.get("changeReason") or "edited in the newsroom",
+                item_type=arguments.get("type") or None,
+            )
+        except ValueError as error:
+            raise PublishError("story-not-saved", str(error)) from error
         return {
             "ok": True,
             "item": {
@@ -275,6 +283,14 @@ def save_item_draft_action(arguments: dict, actor: str, approved_by: str | None 
                 "versionNumber": record.get("versionNumber"),
             },
         }
+    if arguments.get("id"):
+        live = client.get_record("Item", arguments["id"])
+        if live is not None and live.get("status") == "published" and live.get("type") != arguments["type"]:
+            # Saving in place republishes the page at once, which would move its address under readers without anyone choosing it.
+            raise PublishError(
+                "type-locked",
+                f"This story is live as the type {live.get('type')}. Save it as a new version to change its type: the live address moves only when that version is published.",
+            )
     fields = ItemFields(
         type=arguments["type"],
         slug=arguments["slug"],
@@ -324,6 +340,8 @@ def site_triggers_for(client, item_id: str) -> dict:
 
 def publish_item_action(arguments: dict, actor: str, approved_by: str | None = None) -> dict:
     client, _claims = create_authoring_client()
+    candidate = client.get_record("Item", arguments["id"]) or {}
+    live = client.get_record("PublishedItem", published_item_id_for(candidate.get("lineageId") or arguments["id"]))
     result = publish_item(client, arguments["id"], actor=actor, approved_by=approved_by)
     response = {
         "ok": True,
@@ -331,6 +349,9 @@ def publish_item_action(arguments: dict, actor: str, approved_by: str | None = N
         "publishedId": result.published_item_id,
         "versionNumber": result.version_number,
     }
+    if result.changed and live is not None and live.get("type") and live.get("type") != candidate.get("type"):
+        # The type decides the address (urls.types), so the live page moves; the projection leaves a redirect from the old address.
+        response["typeChangedFrom"] = live["type"]
     if result.changed:
         response.update(site_triggers_for(client, arguments["id"]))
     response.update(
@@ -399,7 +420,7 @@ def create_story_from_reference_action(arguments: dict, actor: str) -> dict:
     summaries = ReferenceSummaries(client)
     try:
         result = create_story_from_reference(
-            client, arguments["referenceId"], actor=actor, item_type=arguments.get("itemType") or "article", again=bool(arguments.get("again")), summary_of=summaries.read,
+            client, arguments["referenceId"], actor=actor, item_type=arguments.get("itemType") or None, again=bool(arguments.get("again")), summary_of=summaries.read,
         )
     except ValueError as error:
         return {"ok": False, "errors": [{"code": "story-not-created", "message": str(error), "line": None}]}

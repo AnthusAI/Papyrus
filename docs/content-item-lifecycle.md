@@ -87,15 +87,42 @@ it is an Item at the `copywriting` stage that skips the idea stage, linked to th
 ## Story types and sections
 
 A story is an `Item` of a story type, and the type is its own attribute, separate from
-the section. `STORY_ITEM_TYPES` is the one list: `["article", "post"]` in
-`lib/content-item-lifecycle.ts`, mirrored in `src/papyrus_content/content_item_lifecycle.py`
-(add a type in both; the editor's Type menu, the Stories board queries and the idea context read it).
-Other Item types (`wiki_page`, `doctrine`, `page`) are not stories: the Stories board asks for story types in its
-queries (`loadNewsroomContentItemStagePage` and `loadNewsroomPublishedContentItemVersions`)
-and never counts the rest. A stage query filters after DynamoDB reads a page, so a
-column keeps reading until it has a page of stories (`lib/story-stage-paging.ts`).
-`ideas/context.py` keeps its own `{"article", "story"}`-shaped set built from the same list plus the old `story`
-(PPY-221289 tracks the rest of that list).
+the section. Papyrus lists no story types. Four Item types are not stories, the fixed **system set**
+`SYSTEM_ITEM_TYPES = ["wiki_page", "doctrine", "page", "newsletter_issue"]` (`lib/content-item-lifecycle.ts`, mirrored in
+`src/papyrus_content/content_item_lifecycle.py`; `scripts/test-story-types.ts` and `procedures/newsroom/tests/test_story_types.py` keep the two equal),
+and **every other type is a story type**, so a site's own new type (`guide`, `case_study`) needs no engine change. The Stories board's queries
+(`loadNewsroomContentItemStagePage` and `loadNewsroomPublishedContentItemVersions`) filter with `type ne` for each system type and never count those; a stage
+query filters after DynamoDB reads a page, so a column keeps reading until it has a page of stories (`lib/story-stage-paging.ts`). The idea context and the
+duplicate cut use `is_story_item_type`, the same rule.
+
+**A site defines the types it offers** in `web/projection.json`, the file the projector already reads:
+
+```json
+"storyTypes": { "default": "article", "types": ["article", "post"] }
+```
+
+Both keys are optional. With no `storyTypes` the default is `article` (a fallback only) and the offered types are the default plus every type the site gives
+a URL base in `urls.types`. The newsroom gets the same file through `withPapyrus`, which copies the few settings it needs (`storyTypes`, `urls`, `listings.types`)
+into `NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES` at build time (`lib/site-story-types.ts`); Python reads it from `PAPYRUS_SITE_STATIC_DIR`
+(`src/papyrus_content/story_types.py`: the content-actions Lambda has it as `site_static/`, a local run exports the variable as the home-page commands do).
+`scripts/fixtures/story-types-cases.json` holds the cases both languages' tests run. A system type in `storyTypes` fails the projection settings.
+
+**The default type** is what **Create Story** and the idea pipeline file under (`default_story_type()`; the content item created by `papyrus stories create`
+and monitor promotion too). **Create Story is one action**: it makes a Story of the default type and opens it, and the **Type** field in the Story editor
+(buttons, one per offered type, plus the page) changes it. The type is not locked after creation; it follows versioning:
+
+- **Save as new version** carries the type: the new version has the new type, and the published version keeps the type it was published with, so the live address
+  does not move.
+- **Save draft** saves in place; on a published Story that republishes at once, so the engine refuses to change the type that way (`type-locked`) and the editor turns
+  Save draft and Publish off and points at Save as new version.
+- **Publishing** a version of another type moves the live page to the address of the new type (`urls.types`); the projection leaves a redirect from the old address
+  (the redirect store of the site), and the publish result says `typeChangedFrom`. The editor shows both addresses before that happens. Publishing a version whose
+  type has no page would remove the live page, so the editor turns Publish off in that case (unpublish is the explicit way).
+
+**A type with no public URL.** A page is built for a Story only when its section is declared in `urls.sections`, or its type has a `urls.types` entry, or it has
+no section and its type is projected at all (`article`, `page`, and the types in `listings.types` or `urls.types`). A Story of any other type, or in a section
+the site does not declare, is recorded as published but gets no page. The editor says so under the Type field ("No public URL"), and the publish result carries
+`noPublicPage` so the notice after Publishing says nothing is live.
 
 **A section is a topic.** `Item.section` holds the id of a `NewsroomSection` (`agent-security`) or nothing. It never holds the
 name of the type (`articles`) or a placeholder (`unsectioned`), and the type never has to match it. Where it is written:

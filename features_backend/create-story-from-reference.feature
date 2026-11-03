@@ -1,6 +1,7 @@
 Feature: An editor creates a Story from any Reference in one tap
   The Reference card and detail have a Create Story action. One tap makes a draft Story at the copywriting stage, linked to the Reference, and opens it in the
-  article editor ready to write. The Story is an article unless the editor chose a post. Its title is the Reference's title. Its text starts from the summary the
+  article editor ready to write. The Story is of the site's default type (an article unless the site's projection.json says otherwise); the editor changes
+  its type in the Story. Its title is the Reference's title. Its text starts from the summary the
   newsroom already generated for the Reference, followed by the source link and who it came from; a Reference with no summary starts with the source link alone,
   and no text is ever invented. The one thing taken from the Reference besides that is the picture the newsroom already found for it, which stays a remote address
   credited to its site and recorded with the page it came from. It is another site's picture, so the editor sees a plain note to check the rights before
@@ -36,9 +37,18 @@ Feature: An editor creates a Story from any Reference in one tap
     When an editor creates a Story from the Reference
     Then the Story's body has no image
 
-  Scenario: The editor can make a post instead
-    When an editor creates a post from the Reference
-    Then the Story is a post
+  Scenario: The Story is of the site's default type
+    Given the site's default Story type is "guide"
+    When an editor creates a Story from the Reference
+    Then the Story is a guide
+
+  Scenario: A Story is an article when the site names no default
+    When an editor creates a Story from the Reference
+    Then the Story is an article
+
+  Scenario: A type that is not a Story is refused
+    When an editor asks for a Story of the type "wiki_page"
+    Then no Story is made and the editor is told that type is not a Story
 
   Scenario: Creating a Story never changes the Reference's status
     When an editor creates a Story from the Reference

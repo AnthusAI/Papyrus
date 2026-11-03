@@ -20,11 +20,12 @@ from ...home_page.settings import HomePageSettings, home_page_settings_from_mapp
 from .grouping import valid_group_by
 from .redirects import RedirectRule, rule_from_mapping
 from .select import Selection, selection_from_mapping
+from ...story_types import story_types_from_mapping
 
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage",
+    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes",
 )
 URL_STYLES = ("html", "directory", "clean")
 SITEMAP_STYLES = ("single", "index")
@@ -624,6 +625,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         except ValueError as error:
             raise ValueError(f"site.dateFormat is not a valid strftime pattern: {error}") from error
 
+    story_types_from_mapping(raw)  # the Story types the newsroom offers (storyTypes): a bad one fails the projection settings, not the editor
     urls = dict(raw.get("urls") or {})
     _only(urls, {"style", "sections", "types", "basePath"}, "urls")
     style = urls.get("style", "html")

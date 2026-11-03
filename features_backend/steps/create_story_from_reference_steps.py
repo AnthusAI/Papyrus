@@ -23,7 +23,7 @@ from test_create_story_from_reference import SOURCE_TEXT, SUMMARY, URL, backend 
 
 def held(context) -> SimpleNamespace:
     if not hasattr(context, "cs"):
-        context.cs = SimpleNamespace(client=None, summary=SUMMARY, result=None, first=None, sections=(), preview=True, status="pending")
+        context.cs = SimpleNamespace(error=None, client=None, summary=SUMMARY, result=None, first=None, sections=(), preview=True, status="pending")
     return context.cs
 
 
@@ -93,11 +93,20 @@ def _created_before(context):
     state.first = run(state)
 
 
-@when("an editor creates a post from the Reference")
-def _post(context):
+@when('an editor asks for a Story of the type "{item_type}"')
+def _asks_for_type(context, item_type):
     state = held(context)
     build(state)
-    state.result = run(state, item_type="post")
+    try:
+        run(state, item_type=item_type)
+    except ValueError as error:
+        state.error = str(error)
+
+
+@then("no Story is made and the editor is told that type is not a Story")
+def _not_a_story(context):
+    state = held(context)
+    assert "not a Story" in state.error and not state.client.tables.get("Item"), state.error
 
 
 @when("the editor creates a Story from the Reference again")
@@ -162,9 +171,10 @@ def _no_image(context):
     assert "::image" not in story(held(context))["bodyMarkus"]
 
 
-@then("the Story is a post")
-def _is_post(context):
-    assert story(held(context))["type"] == "post"
+@then("the Story is a {item_type}")
+@then("the Story is an {item_type}")
+def _is_type(context, item_type):
+    assert story(held(context))["type"] == item_type
 
 
 @then("the Reference's status is still {status}")

@@ -30,13 +30,16 @@ LEGACY_CONTENT_ITEM_STAGE_REPLACEMENTS = {
     "report": "reporting",
     "editor_select": "reporting",
 }
-DEFAULT_CONTENT_ITEM_FORMAT = "article"
-#: The Item types that are stories; the same list as STORY_ITEM_TYPES in lib/content-item-lifecycle.ts (add a type in both).
-STORY_ITEM_TYPES = ("article", "post")
+#: The type a Story gets when the site's `projection.json` names no default (`storyTypes.default`). A fallback only: see `story_types.default_story_type`.
+FALLBACK_STORY_TYPE = "article"
+#: The Item types that are not Stories: the fixed system set, the same list as SYSTEM_ITEM_TYPES in lib/content-item-lifecycle.ts (change both).
+#: Every other type is a Story type, so a site's own new type needs no engine change. `newsletter_issue` is the default issue type of the newsletter plugin.
+SYSTEM_ITEM_TYPES = ("wiki_page", "doctrine", "page", "newsletter_issue")
 
 
 def is_story_item_type(item_type: str | None) -> bool:
-    return item_type in STORY_ITEM_TYPES
+    """Every Item type outside the system set is a Story type."""
+    return bool(item_type) and item_type not in SYSTEM_ITEM_TYPES
 
 
 def require_content_item_stage(stage: str) -> str:
@@ -68,9 +71,12 @@ def build_new_content_item_version(
     stage: str,
     actor_label: str,
     now: str,
+    item_type: str | None = None,
 ) -> dict[str, Any]:
     section = section_key or None  # a story with no section stores none (a section is a topic, never a placeholder)
-    content_item_format = DEFAULT_CONTENT_ITEM_FORMAT
+    from .story_types import default_story_type
+
+    content_item_format = item_type or default_story_type()
     return {
         "id": f"{lineage_id}-v1",
         "lineageId": lineage_id,
