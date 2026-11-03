@@ -10,7 +10,7 @@ import {
   filterByStars,
   orderFeedItems,
   takeFeedOrderSnapshot,
-  visibleFeedItems,
+  visibleFeedItems, filterByCaptured,
 } from "../lib/reference-feed-ranking";
 import { choose } from "../components/use-feed-preferences";
 import { withoutSiteName } from "../lib/newsroom-references";
@@ -92,6 +92,9 @@ test("Unrated hides answered items except those answered this visit; All adds th
   assert.deepEqual(ids(visibleFeedItems(all, "best", "rated")), ["no", "yes"], "Predictions with no prediction: newest first");
   assert.deepEqual(ids(visibleFeedItems(all, "newest", "rated", new Set(["open"]))), ["no", "open", "yes"], "an answer cleared this visit stays");
   assert.ok(visibleFeedItems(all, "best", "all").find((item) => item.lineageId === "yes")!.rated);
+  assert.deepEqual(ids(visibleFeedItems(all, "newest", "accepted")), ["yes"], "Reviewed Accepted lists the accepted alone, never the rejected");
+  assert.deepEqual(ids(filterByCaptured(items([reference("a", { captureState: "full" }), reference("b", { captureState: "thin" }), reference("c")]), "yes")), ["a"]);
+  assert.deepEqual(ids(filterByCaptured(items([reference("a", { captureState: "full" }), reference("b", { captureState: "thin" }), reference("c")]), "no")).sort(), ["b", "c"], "thin and empty are not captured");
 });
 
 test("An old unrated item stays in the one list, placed by its original confidence, never dropped, and its rating works", () => {

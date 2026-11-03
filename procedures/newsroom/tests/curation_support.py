@@ -109,6 +109,8 @@ class MemoryClient:
             return [copy.deepcopy(r) for r in self.tables.setdefault("ModelAttachment", {}).values() if r.get("ownerId") == key_value]
         if index_name == "semanticRelationsBySubjectState":
             return [copy.deepcopy(r) for r in self.tables.setdefault("SemanticRelation", {}).values() if r.get("subjectStateKey") == key_value]
+        if index_name == "referenceAttachmentsByReferenceLineageAndSortKey":
+            return [copy.deepcopy(r) for r in self.tables.setdefault("ReferenceAttachment", {}).values() if r.get("referenceLineageId") == key_value]
         assert index_name == "itemsByLineageAndVersion", index_name
         return [copy.deepcopy(r) for r in self.tables.setdefault("Item", {}).values() if r.get("lineageId") == key_value]
 

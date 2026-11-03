@@ -105,7 +105,7 @@ assert.deepEqual(ids(swapped.feed), ["b", "a"]);
 const everything: NeedsMeItem[] = [
   item("1", "reference"), item("2", "reference", { decisionState: "accepted" }), item("3", "idea_batch"), item("4", "stage_review"), item("5", "held_email"), item("6", "incomplete_capture"), item("7", "flag"), item("8", "concept_proposal"),
 ];
-assert.deepEqual(countNeedsMe(everything), { all: 7, references: 1, ideas: 1, stories: 1, email: 1, captures: 1, links: 0, other: 2 });
+assert.deepEqual(countNeedsMe(everything), { all: 7, references: 1, ideas: 1, stories: 1, email: 1, captures: 1, tocapture: 0, links: 0, other: 2 });
 assert.deepEqual(everything.filter((entry) => matchesFilter(entry, "other")).map((entry) => entry.id), ["7", "8"]);
 assert.equal(waitingTextFor(countNeedsMe(everything)), "1 idea batch, 1 reference, 1 story review, 1 held email, 1 capture to check and 2 other items waiting for you");
 assert.equal(waitingTextFor(countNeedsMe([])), "All caught up");
@@ -159,5 +159,33 @@ assert.deepEqual(conceptProposalItems([{ id: "c", title: "t", summary: null, pro
 // A decided held email stays in place for the visit, showing its answer; a decided one from before does not return.
 const decidedMail = buildNeedsMeItems({ ...{ references: [], decisions: undefined, previews: new Map(), captures: undefined, visitRated: new Set(), requests: [], stay: new Set<string>(), storyTitles: {}, storyExcerpts: {}, deletedStories: new Set<string>() }, emails: [email], emailsDecided: new Map([["receipt-held-1", "reject" as const]]) });
 assert.equal(decidedMail[0].decisionState, "rejected");
+
+// Accepted References we could not collect: the type, the words, the order (stars, then newest; unstarred after), and who is left out.
+const accepted = (id: string, fields: Partial<ReferenceRecord> = {}): ReferenceRecord => ({
+  id, lineageId: id, versionNumber: 1, versionState: "current", corpusId: "c", externalItemId: id, title: `Title ${id}`, sourceUri: `https://example.test/${id}`,
+  curationStatus: "accepted", feedStateKey: "c#rated", feedArrivalAt: "2026-10-27T10:00:00.000Z", ...fields,
+} as ReferenceRecord);
+const blocked = { state: "none", words: null, estimated: false, source: "curation", curation: "capture_failed", reason: "blocked", flags: [], assessment: null } as CaptureStatus;
+const wanted = [
+  accepted("plain", { feedArrivalAt: "2026-10-27T11:00:00.000Z" }),
+  accepted("old-star", { starRating: 5, feedArrivalAt: "2026-10-20T10:00:00.000Z" }),
+  accepted("new-star", { starRating: 5, feedArrivalAt: "2026-10-26T10:00:00.000Z" }),
+  accepted("mid-star", { starRating: 3, feedArrivalAt: "2026-10-27T09:00:00.000Z" }),
+  accepted("gone", { feedArrivalAt: "2026-10-25T10:00:00.000Z" }),
+];
+const need = buildNeedsMeItems({
+  references: [], decisions: undefined, previews: new Map(), captures: new Map([["new-star", blocked]]), visitRated: new Set(), requests: [], stay: new Set<string>(), storyTitles: {}, storyExcerpts: {}, deletedStories: new Set<string>(), emails: [], emailsDecided: new Map(),
+  captureNeeded: wanted, capturedNow: new Set(["gone"]),
+});
+assert.deepEqual(need.map((entry) => entry.type), ["capture_needed", "capture_needed", "capture_needed", "capture_needed"], "four are listed; the one captured in this visit is not");
+const needRanked = rankNeedsMe(need, { threshold: NO_THRESHOLD });
+assert.deepEqual(ids(needRanked.feed), ["capture#new-star", "capture#old-star", "capture#mid-star", "capture#plain"], "most stars first, newest first within a level, an unstarred one after every starred one");
+const newStar = need.find((entry) => entry.id === "capture#new-star")!;
+assert.equal(newStar.decisionState, "open");
+assert.match(newStar.dek ?? "", /^We could not collect this\. Upload a PDF or paste the text\. The site refused our request/, "plain words, and why when the reason is known");
+assert.equal(need.find((entry) => entry.id === "capture#plain")!.dek, "We could not collect this. Upload a PDF or paste the text.");
+assert.equal(countNeedsMe(need).tocapture, 4);
+assert.deepEqual(need.filter((entry) => matchesFilter(entry, "tocapture")).length, 4);
+assert.equal(waitingTextFor(countNeedsMe(need)), "4 references to capture waiting for you");
 
 console.log("needs me ranking: ok");

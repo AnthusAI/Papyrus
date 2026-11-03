@@ -1,0 +1,1034 @@
+{
+ "description": "Shared vectors for the stored capture state (lib/reference-capture.ts storedCaptureState and src/papyrus_content/reference_capture_state.py capture_state). Each case lists a Reference's attachments and the state both implementations store, with the default teaser line of 250 words.",
+ "vectors": [
+  {
+   "name": "no attachments is none",
+   "attachments": [],
+   "expected": "none"
+  },
+  {
+   "name": "only the address is none",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    }
+   ],
+   "expected": "none"
+  },
+  {
+   "name": "a card still running with no text is running",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "running",
+      "capture": {
+       "status": "not_run"
+      },
+      "signals": {},
+      "labels": [],
+      "current": {}
+     }
+    }
+   ],
+   "expected": "running"
+  },
+  {
+   "name": "a failed capture is none",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "capture_failed",
+      "capture": {
+       "status": "failed",
+       "reason": "blocked"
+      },
+      "signals": {},
+      "labels": [],
+      "current": {}
+     }
+    }
+   ],
+   "expected": "none"
+  },
+  {
+   "name": "a long captured text is full",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "exactly the default teaser line is full",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 250
+      },
+      "signals": {
+       "wordCount": 250
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "one word under the line is thin",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 249
+      },
+      "signals": {
+       "wordCount": 249
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "a short captured text is thin",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 100
+      },
+      "signals": {
+       "wordCount": 100
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "a long text ending with a subscribe phrase is thin",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200,
+       "paywallMarkers": [
+        {
+         "inTail": true
+        }
+       ]
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "a long text that mentions subscribing in the middle is full",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200,
+       "paywallMarkers": [
+        {
+         "inTail": false
+        }
+       ]
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "a long text that only lacks a final full stop is full",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200,
+       "endingPattern": "no_terminal_punctuation"
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "an ellipsis ending is thin",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200,
+       "endingPattern": "ellipsis"
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "a page that says it is not free is thin",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200,
+       "structuredAccessibleForFree": false
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "a text far below the declared word count is thin",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200,
+       "wordCountRatioToDeclared": 0.4,
+       "declaredWordCount": 3000
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "an editor saying complete makes a doubtful text full",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200,
+       "paywallMarkers": [
+        {
+         "inTail": true
+        }
+       ]
+      },
+      "labels": [
+       {
+        "kind": "capture_completeness",
+        "assessment": "complete",
+        "labeledAt": "2026-11-01T00:00:00Z"
+       }
+      ],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "an editor saying complete makes a short text full",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 100
+      },
+      "signals": {
+       "wordCount": 100
+      },
+      "labels": [
+       {
+        "kind": "capture_completeness",
+        "assessment": "complete",
+        "labeledAt": "2026-11-01T00:00:00Z"
+       }
+      ],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "an editor saying incomplete makes a long text thin",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200
+      },
+      "labels": [
+       {
+        "kind": "capture_completeness",
+        "assessment": "incomplete",
+        "labeledAt": "2026-11-01T00:00:00Z"
+       }
+      ],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "an editor saying incorrect makes a long text thin",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200
+      },
+      "labels": [
+       {
+        "kind": "capture_completeness",
+        "assessment": "incorrect",
+        "labeledAt": "2026-11-01T00:00:00Z"
+       }
+      ],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "the latest capture label wins",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200
+      },
+      "labels": [
+       {
+        "kind": "capture_completeness",
+        "assessment": "incomplete",
+        "labeledAt": "2026-11-01T00:00:00Z"
+       },
+       {
+        "kind": "capture_completeness",
+        "assessment": "complete",
+        "labeledAt": "2026-11-01T00:00:00Z"
+       }
+      ],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "a label of another kind is ignored",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 1200
+      },
+      "signals": {
+       "wordCount": 1200
+      },
+      "labels": [
+       {
+        "kind": "other",
+        "assessment": "incomplete"
+       }
+      ],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "an editor's pasted text is full whatever its length",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "completed",
+       "wordCount": 80
+      },
+      "signals": {
+       "wordCount": 80
+      },
+      "labels": [
+       {
+        "kind": "capture_completeness",
+        "assessment": "incomplete",
+        "labeledAt": "2026-11-01T00:00:00Z"
+       }
+      ],
+      "current": {
+       "textSortKey": "curation-edit-0001-text"
+      },
+      "editedSignals": {
+       "wordCount": 80
+      }
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "an uploaded PDF text is full",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "ready",
+      "capture": {
+       "status": "failed",
+       "reason": "blocked"
+      },
+      "signals": {},
+      "labels": [
+       {
+        "kind": "capture_completeness",
+        "assessment": "incomplete",
+        "labeledAt": "2026-11-01T00:00:00Z"
+       }
+      ],
+      "current": {
+       "textSortKey": "curation-edit-0001-text",
+       "textVia": "editor_pdf"
+      },
+      "editedSignals": {
+       "wordCount": 3000
+      }
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "an assessment cannot create text",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "capture_failed",
+      "capture": {
+       "status": "failed",
+       "reason": "blocked"
+      },
+      "signals": {},
+      "labels": [
+       {
+        "kind": "capture_completeness",
+        "assessment": "complete",
+        "labeledAt": "2026-11-01T00:00:00Z"
+       }
+      ],
+      "current": {}
+     }
+    }
+   ],
+   "expected": "none"
+  },
+  {
+   "name": "an old extracted text of many words is full",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "x1",
+     "role": "extracted_text",
+     "sortKey": "002-text",
+     "storagePath": "s3://bucket/text.txt",
+     "importedAt": "2026-10-01T00:00:00Z",
+     "metadata": {
+      "textLength": 12000
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "an old extracted text of few words is thin",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "x1",
+     "role": "extracted_text",
+     "sortKey": "002-text",
+     "storagePath": "s3://bucket/text.txt",
+     "importedAt": "2026-10-01T00:00:00Z",
+     "metadata": {
+      "textLength": 600
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "an old extracted text of unknown length is thin",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "x1",
+     "role": "extracted_text",
+     "sortKey": "002-text",
+     "storagePath": "s3://bucket/text.txt",
+     "importedAt": "2026-10-01T00:00:00Z",
+     "metadata": {}
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "an old extracted text of zero characters is none",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "x1",
+     "role": "extracted_text",
+     "sortKey": "002-text",
+     "storagePath": "s3://bucket/text.txt",
+     "importedAt": "2026-10-01T00:00:00Z",
+     "metadata": {
+      "textLength": 0
+     }
+    }
+   ],
+   "expected": "none"
+  },
+  {
+   "name": "the raw extraction counts when there is no filtered text",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "x1",
+     "role": "extracted_text_raw",
+     "sortKey": "002-text",
+     "storagePath": "s3://bucket/text.txt",
+     "importedAt": "2026-10-01T00:00:00Z",
+     "metadata": {
+      "textLength": 12000
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "an extracted text beats a card with no text",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "capture_failed",
+      "capture": {
+       "status": "failed",
+       "reason": "blocked"
+      },
+      "signals": {},
+      "labels": [],
+      "current": {}
+     }
+    },
+    {
+     "id": "x1",
+     "role": "extracted_text",
+     "sortKey": "002-text",
+     "storagePath": "s3://bucket/text.txt",
+     "importedAt": "2026-10-01T00:00:00Z",
+     "metadata": {
+      "textLength": 12000
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "the newest filtered extracted text is the one read",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "old",
+     "role": "extracted_text",
+     "sortKey": "002-text",
+     "storagePath": "s3://bucket/text.txt",
+     "importedAt": "2026-09-01T00:00:00Z",
+     "metadata": {
+      "textLength": 12000
+     }
+    },
+    {
+     "id": "new",
+     "role": "extracted_text",
+     "sortKey": "002-text",
+     "storagePath": "s3://bucket/text.txt",
+     "importedAt": "2026-10-05T00:00:00Z",
+     "metadata": {
+      "textLength": 300
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "a card stored as a JSON string is read",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": "{\"kind\": \"reference-curation\", \"status\": \"ready\", \"capture\": {\"status\": \"completed\", \"wordCount\": 1200}, \"signals\": {\"wordCount\": 1200}, \"labels\": [], \"current\": {\"textSortKey\": \"curation-text\"}}"
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "an assessment on a failed card does not change an extracted text",
+   "attachments": [
+    {
+     "id": "src",
+     "role": "source",
+     "sortKey": "001-source",
+     "sourceUri": "https://example.com/a",
+     "metadata": {}
+    },
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "capture_failed",
+      "capture": {
+       "status": "failed"
+      },
+      "signals": {},
+      "labels": [
+       {
+        "kind": "capture_completeness",
+        "assessment": "incomplete",
+        "labeledAt": "2026-11-01T00:00:00Z"
+       }
+      ],
+      "current": {}
+     }
+    },
+    {
+     "id": "x1",
+     "role": "extracted_text",
+     "sortKey": "002-text",
+     "storagePath": "s3://bucket/text.txt",
+     "importedAt": "2026-10-01T00:00:00Z",
+     "metadata": {
+      "textLength": 12000
+     }
+    }
+   ],
+   "expected": "thin"
+  }
+ ]
+}

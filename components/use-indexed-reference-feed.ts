@@ -16,10 +16,12 @@ import {
   type ReferenceSearchShow,
   type ReferenceSearchSort,
 } from "../lib/reference-search";
-import type { FeedMinStars } from "../lib/reference-feed-ranking";
+import type { FeedCaptured, FeedMinStars } from "../lib/reference-feed-ranking";
 import {
   FEED_READ_PAGE_SIZE,
   MergedFeedReader,
+  acceptedRows,
+  capturedRows,
   feedStateKeys,
   liveStarRows,
   starFeedKeys,
@@ -55,6 +57,7 @@ export function useIndexedReferenceFeed({
   sort,
   show,
   minStars = 0,
+  captured = "any",
   pageSize = FEED_READ_PAGE_SIZE,
 }: {
   enabled: boolean;
@@ -63,6 +66,8 @@ export function useIndexedReferenceFeed({
   show: FeedStreamShow;
   /** The fewest stars to show; 0 is Any. */
   minStars?: FeedMinStars;
+  /** Captured: pages are filtered as they are read (`capturedRows`); Any reads them as they are. */
+  captured?: FeedCaptured;
   pageSize?: number;
 }) {
   const [records, setRecords] = useState<ReferenceRecord[]>([]);
@@ -98,8 +103,8 @@ export function useIndexedReferenceFeed({
       const byStars = sort === "quality" || minStars > 0;
       if (byStars && !current.readStarStream) throw new Error("This site cannot read References by stars.");
       const next = byStars
-        ? new MergedFeedReader({ keys: starFeedKeys(corpusIds, minStars), sort, read: liveStarRows(current.readStarStream!, show), pageSize })
-        : new MergedFeedReader({ keys: feedStateKeys(corpusIds, show), sort, read: current.readStream, pageSize });
+        ? new MergedFeedReader({ keys: starFeedKeys(corpusIds, minStars), sort, read: capturedRows(liveStarRows(current.readStarStream!, show), captured), pageSize })
+        : new MergedFeedReader({ keys: feedStateKeys(corpusIds, show), sort, read: capturedRows(acceptedRows(current.readStream, show), captured), pageSize });
       reader.current = next;
       const first = await next.more(pageSize);
       if (mine !== generation.current) return;
@@ -113,7 +118,7 @@ export function useIndexedReferenceFeed({
     } finally {
       if (mine === generation.current) busy.current = false;
     }
-  }, [minStars, pageSize, show, sort]);
+  }, [captured, minStars, pageSize, show, sort]);
 
   useEffect(() => {
     if (!active) {
@@ -170,6 +175,7 @@ export function useReferenceSearchFeed({
   show,
   sort = "relevance",
   minStars = 0,
+  captured = "any",
   read,
   pageSize = SEARCH_PAGE_SIZE,
 }: {
@@ -179,6 +185,8 @@ export function useReferenceSearchFeed({
   sort?: ReferenceSearchSort;
   /** The fewest stars a match must have; 0 is Any. */
   minStars?: FeedMinStars;
+  /** Captured: the site's search keeps the matches whose content we hold in full (Yes) or the rest (No). */
+  captured?: FeedCaptured;
   read: ReferenceSearchReader | undefined;
   pageSize?: number;
 }) {
@@ -215,7 +223,7 @@ export function useReferenceSearchFeed({
     setHasMore(false);
     setReadAt(Date.now());
     try {
-      const page = await readRef.current!({ query, show, sort, minStars: minimum, limit: pageSize, cursor: null });
+      const page = await readRef.current!({ query, show, sort, minStars: minimum, captured, limit: pageSize, cursor: null });
       if (mine !== generation.current) return;
       if (bothLanesFailed(page.lanes)) throw new Error("Neither word search nor meaning search could run. Try again in a moment.");
       const seen = new Set<string>();
@@ -233,7 +241,7 @@ export function useReferenceSearchFeed({
     } finally {
       if (mine === generation.current) busy.current = false;
     }
-  }, [minimum, pageSize, query, show, sort]);
+  }, [captured, minimum, pageSize, query, show, sort]);
 
   useEffect(() => {
     if (!active) {
@@ -257,7 +265,7 @@ export function useReferenceSearchFeed({
     setLoadingMore(true);
     setMoreError(null);
     try {
-      const page = await readRef.current({ query, show, sort, minStars: minimum, limit: pageSize, cursor: cursor.current });
+      const page = await readRef.current({ query, show, sort, minStars: minimum, captured, limit: pageSize, cursor: cursor.current });
       if (mine !== generation.current) return;
       setRecords((existing) => {
         const known = new Set(existing.map(lineageOf));
@@ -278,7 +286,7 @@ export function useReferenceSearchFeed({
     } finally {
       if (mine === generation.current) { busy.current = false; setLoadingMore(false); }
     }
-  }, [minimum, pageSize, query, show, sort]);
+  }, [captured, minimum, pageSize, query, show, sort]);
 
   const retry = useCallback(() => {
     if (status === "error" || notice) void start();
@@ -290,15 +298,15 @@ export function useReferenceSearchFeed({
 
 /**
  * The search box's state: the submitted query (also in the URL as `?q=`, followed by the browser's Back and Forward), the Show and Sort choices that
- * belong to the search (it opens on All and on Relevance, and neither is saved), the saved minimum of stars it shares with the feed, and the results.
+ * belong to the search (it opens on All and on Relevance, and neither is saved), the saved minimum of stars and Captured it shares with the feed, and the results.
  * Clearing the search leaves the saved Sort, Show and minimum as they were.
  */
-export function useFeedSearch({ enabled, read, onChange, minStars = 0 }: { enabled: boolean; read: ReferenceSearchReader | undefined; onChange?: () => void; minStars?: FeedMinStars }) {
+export function useFeedSearch({ enabled, read, onChange, minStars = 0, captured = "any" }: { enabled: boolean; read: ReferenceSearchReader | undefined; onChange?: () => void; minStars?: FeedMinStars; captured?: FeedCaptured }) {
   const [query, setQuery] = useState("");
   const [show, setShow] = useState<ReferenceSearchShow>("all");
   const [sort, setSort] = useState<ReferenceSearchSort>("relevance");
   const searching = enabled && Boolean(read) && query !== "";
-  const feed = useReferenceSearchFeed({ enabled: searching, query, show, sort, minStars, read });
+  const feed = useReferenceSearchFeed({ enabled: searching, query, show, sort, minStars, captured, read });
   useEffect(() => {
     const fromUrl = () => setQuery(searchQueryFromLocation(window.location.search));
     fromUrl();

@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from .ids import hash_short
+from .reference_capture_state import sync_capture_state
 from .model_attachments import build_model_payload_attachment, download_attachment_buffer, model_attachment_id, upload_attachment_body
 
 PIPELINE_VERSION = "reference-curation-v1"
@@ -99,6 +100,9 @@ def write_card(client: Any, reference: dict[str, Any], card: dict[str, Any], now
         "role": CARD_ATTACHMENT_TYPE, "sortKey": CARD_SORT_KEY, "sourceUri": None, "filename": "curation.json", "mediaType": "application/json",
         "importedAt": iso(now), "metadata": json.dumps(card, sort_keys=True),
     })
+    # Every path that changes captured text or the card writes the card (the curation run at its start and end, an editor's paste, corrected
+    # text, PDF upload or assessment), so this is where the Reference's stored capture state is kept right (docs/reference-curation-pipeline.md).
+    sync_capture_state(client, reference, card)
 
 
 def compute_status(card: dict[str, Any]) -> str:

@@ -106,7 +106,7 @@ export function useReferenceCapture(reference: ReferenceRecord, attachments: rea
   const error = textSortKey || mine ? null : fallback.key === fallbackKey ? fallback.error : null;
   const loadedWords = text !== null ? countWords(text) : null;
   const base = captureStatus(attachments, teaserLine, loadedWords);
-  const status: CaptureStatus = mine ? { ...base, state: base.state === "none" || base.state === "running" ? (loadedWords !== null && loadedWords < teaserLine ? "thin" : "full") : base.state, words: loadedWords, estimated: false, assessment: mine.assessment, summaryStale: true, ...(loadedWords !== null && loadedWords < teaserLine ? { thinBy: "length" as const } : {}) } : base;
+  const status: CaptureStatus = mine ? { ...base, state: "full", edited: true, words: loadedWords, estimated: false, assessment: mine.assessment, summaryStale: true, thinBy: undefined } : base;
   const summary = card?.summary?.status === "completed" && card.summary.text ? card.summary.text : current?.summary ?? null;
   const rows = card ? grobidRows(current?.grobid, card) : structuredRows(attachments);
 

@@ -43,6 +43,8 @@ export type CaptureStatus = {
   /** The editor's own verdict on the capture, when they gave one. */
   assessment?: string | null;
   summaryStale?: boolean;
+  /** The card's current text is one an editor pasted, corrected or uploaded (a person captured it). */
+  edited?: boolean;
   /** Why a thin capture is thin: too few words, or signs in the text that it is cut off or paywalled. */
   thinBy?: "length" | "signals";
 };
@@ -194,12 +196,13 @@ export function captureStatus(attachments: readonly ReferenceAttachmentRecord[],
   if (card && cardHasText) {
     const words = loadedWords ?? cardWords;
     const flags = completenessFlags(card.editedSignals ?? card.signals);
-    const thin = words !== null && words < teaserLine;
     const edited = Boolean(card.current?.textSortKey?.startsWith("curation-edit"));
+    // Text a person supplied is not judged by length: a short paste is what they chose to give us.
+    const thin = !edited && words !== null && words < teaserLine;
     // A complete text an editor vouched for is not second-guessed by the signals. A long text that merely ends without a full stop
     // (a byline, a footnote, a list) is listed as a fact but is not on its own a reason to ask for a capture check.
     const doubtful = !edited && assessment !== "complete" && flags.length > 0 && !thin ? flags.some((flag) => /ends with|stops with|no longer|not free|cut|declares/.test(flag)) : false;
-    return { state: thin || doubtful ? "thin" : "full", words, estimated: false, source: "curation", curation: card.status, reason: null, flags, assessment, summaryStale, ...(thin ? { thinBy: "length" as const } : doubtful ? { thinBy: "signals" as const } : {}) };
+    return { state: thin || doubtful ? "thin" : "full", words, estimated: false, source: "curation", curation: card.status, reason: null, flags, assessment, summaryStale, edited, ...(thin ? { thinBy: "length" as const } : doubtful ? { thinBy: "signals" as const } : {}) };
   }
   if (primaryTextAttachment(attachments)) {
     const words = loadedWords ?? estimatedWords(attachments);
@@ -208,6 +211,55 @@ export function captureStatus(attachments: readonly ReferenceAttachmentRecord[],
   }
   if (card && card.status === "running") return { state: "running", words: null, estimated: false, source: "curation", curation: "running", reason: null, flags: [], assessment, summaryStale };
   return { state: "none", words: null, estimated: false, source: "none", curation: card?.status ?? null, reason: card?.capture.reason ?? null, flags: [], assessment, summaryStale };
+}
+
+// --- the stored state ---------------------------------------------------------------------------------------------
+
+export const CAPTURE_STATES: readonly CaptureState[] = ["full", "thin", "none", "running"];
+
+/** The stored `Reference.captureState` as a state: empty, missing or unknown is `none` (a monitor-discovered Reference has only its address). */
+export function normalizeCaptureState(value: string | null | undefined): CaptureState {
+  return (CAPTURE_STATES as readonly string[]).includes(value ?? "") ? value as CaptureState : "none";
+}
+
+/**
+ * The state stored on the Reference (`Reference.captureState`). This rule decides today; no capture classifier exists yet
+ * (docs/reference-curation-pipeline.md). It is `captureStatus`'s state with the editor's word on top:
+ *   - text a person pasted, corrected or uploaded (`edited`) is `full`: the assessment that comes with a replacement is about the machine's
+ *     capture, and the person has now captured it;
+ *   - otherwise an editor's assessment `complete` counts as `full`, whatever the length or signals;
+ *   - `incomplete` or `incorrect` counts as `thin`, so it asks for a person again;
+ *   - no text (`none`) or a capture still `running` keeps that state: an assessment cannot create text.
+ * The stored copy uses `DEFAULT_TEASER_WORDS` for the teaser line, where the browser's cards use the corpus-learned line (`teaserWords`), so a
+ * card can differ by a few words near the line. The Python twin is `capture_state` in src/papyrus_content/reference_capture_state.py; both are
+ * tested against scripts/fixtures/capture-state-vectors.json.
+ */
+export function storedCaptureState(status: CaptureStatus): CaptureState {
+  if (status.state === "none" || status.state === "running") return status.state;
+  if (status.edited) return "full";
+  if (status.assessment === "complete") return "full";
+  if (status.assessment === "incomplete" || status.assessment === "incorrect") return "thin";
+  return status.state;
+}
+
+/**
+ * The status a card shows, so its badge never disagrees with the Captured filter: the stored rule's state, with the reason in words when
+ * an editor's assessment, not the text, made it thin.
+ */
+export function displayedCaptureStatus(status: CaptureStatus): CaptureStatus {
+  const state = storedCaptureState(status);
+  if (state === status.state) return status;
+  if (state === "thin") {
+    const flags = status.flags?.length ? status.flags : [`An editor marked this capture ${status.assessment === "incorrect" ? "incorrect" : "incomplete"}.`];
+    return { ...status, state, flags, thinBy: "signals" };
+  }
+  const { thinBy: _thinBy, ...rest } = status;
+  return { ...rest, state };
+}
+
+/** The state to store for a Reference from its attachments. */
+export function captureStateOfAttachments(attachments: readonly ReferenceAttachmentRecord[]): CaptureState {
+  return storedCaptureState(captureStatus(attachments, DEFAULT_TEASER_WORDS));
 }
 
 /** Capture status for every Reference lineage that has attachments, using one corpus-wide teaser line. */

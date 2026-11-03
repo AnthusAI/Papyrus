@@ -11,7 +11,7 @@ const searchScenario = () => (run ??= promisify(execFile)(process.execPath, ["--
 
 for (const given of [
   "a synthetic site with unrated, accepted and rejected References",
-  "a browser that saved Rated as its Show choice",
+  "a browser that saved Reviewed Yes as its choice",
   "a synthetic site where meaning search is unavailable",
 ]) Given(given, function () { this.searchResult = ""; });
 for (const when of [
@@ -19,27 +19,27 @@ for (const when of [
   "the editor searches for a word that is in one unrated Reference's title",
   "the editor searches for a concept that a Reference's summary is about but its words do not contain",
   "the editor searches for a phrase that one Reference matches by its title and by meaning",
-  "the editor searches, narrows Show to Unrated, and then clears the search",
+  "the editor searches, narrows Reviewed to No, and then clears the search",
   "the editor opens the References page with ?q= and a name",
-  "the editor searches for words nothing contains, and then for a name that only a rated Reference has while Show is Unrated",
+  "the editor searches for words nothing contains, and then for a name that only a rated Reference has while Reviewed is No",
   "the editor searches for a word in one title",
   "the editor searches for a phrase that more than one page of References match and scrolls to the end",
   "the editor accepts the third card of a search",
 ]) When(when, { timeout: 300_000 }, async function () { this.searchResult = await searchScenario(); });
 for (const then of [
   "the rejected Reference by that author is the one card, showing its Reject, with \"Matched: author\"",
-  "the search box is above Sort and Show, the address carries ?q=, and nothing scrolls sideways at 375 pixels",
+  "the search box is above Sort and Reviewed, the address carries ?q=, and nothing scrolls sideways at 375 pixels",
   "that Reference is listed with \"Matched: title\", with the same Accept and Reject controls as in the feed",
   "there is no large lead card and no new-items pill",
   "that Reference is listed with \"Matched: meaning\"",
   "that Reference is the first card and says \"Matched: title and meaning\"",
   "the cards that match only by words or only by meaning follow it, each saying how",
-  "Sort reads Relevance in place of Predictions and Newest, and Show opened on All",
-  "choosing Unrated during the search did not change the saved choice",
-  "clearing the search brings back Sort, the saved Show of Rated, and a plain address",
+  "Sort reads Relevance in place of Predictions and Newest, and Reviewed opened on Any",
+  "choosing Reviewed No during the search did not change the saved choice",
+  "clearing the search brings back Sort, the saved Reviewed of Yes, and a plain address",
   "the search box holds that name and its results are listed",
   "the first says no References match what was typed, in words",
-  "the second says \"No unrated matches\" and offers a Show all button that lists the match",
+  "the second says \"No matches with Reviewed No\" and offers a Show Reviewed Any button that lists the match",
   "the word results stay, with a line saying the search used words only because meaning search is unavailable",
   "a Retry button searches again, and when both parts then work the line goes",
   "when both word search and meaning search are unavailable the feed's own error appears with its Retry",

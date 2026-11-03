@@ -55,6 +55,7 @@ import { NewsroomOpsOverview } from "./components/newsroom-ops-overview";
 import { FIXTURE_IDEAS, FIXTURE_EMAIL_DETAILS, FIXTURE_HELD_EMAILS, FIXTURE_REVIEW_REQUESTS } from "./lib/review-fixture";
 import { answerUpdate, applyReviewUpdate } from "./lib/review-requests";
 import { homeCyclotronStateFrom } from "./lib/hosted-cyclotron-status";
+import { captureNeededSourceFromRecords, readCaptureNeeded } from "./lib/capture-needed";
 
 const params = new URLSearchParams(location.search);
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -164,8 +165,39 @@ const confirmed = Array.from({ length: 10 }, (_, index) => ({ id: "done-" + inde
 const sure = { id: "reference-sure-v1", lineageId: "reference-sure", versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: "sure", title: "A source the Cyclotron is sure about", sourceUri: "https://example.org/sure", curationStatus: "pending", createdAt: recently, importedAt: recently };
 const mixedReferences = [...references, sure, ...confirmed];
 const mixedDecisions = new Map([["reference-a", decision], ["reference-sure", { ...decision, confidence: 0.99 }], ...confirmed.map((reference) => [reference.lineageId, { ...decision, confidence: 0.9 }])]);
+// Accepted References whose content we could not collect (?capture=1): the real reader over records held in memory, so what is excluded (running, rejected, captured) is the real rule.
+const heldRecord = (id, fields) => ({ id: id + "-v1", lineageId: id, versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: id, title: fields.title, sourceUri: "https://example.org/" + id, curationStatus: "accepted", importedAt: fields.arrived, ...fields });
+const captureRecords = [
+  heldRecord("s5-new", { title: "Five stars, newest", arrived: "2026-10-26T10:00:00Z", starRating: 5, captureState: "none" }),
+  heldRecord("s5-old", { title: "Five stars, older", arrived: "2026-10-20T10:00:00Z", starRating: 5, captureState: "thin" }),
+  heldRecord("s5-running", { title: "Five stars, still capturing", arrived: "2026-10-27T10:00:00Z", starRating: 5, captureState: "running" }),
+  heldRecord("s5-rejected", { title: "Five stars, rejected", arrived: "2026-10-27T11:00:00Z", starRating: 5, captureState: "none", curationStatus: "rejected" }),
+  heldRecord("s4", { title: "Four stars", arrived: "2026-10-25T10:00:00Z", starRating: 4, captureState: "none" }),
+  heldRecord("s2", { title: "Two stars", arrived: "2026-10-24T10:00:00Z", starRating: 2 }),
+  heldRecord("plain-new", { title: "No stars, newest", arrived: "2026-10-27T12:00:00Z", captureState: "none" }),
+  heldRecord("plain-captured", { title: "No stars, captured", arrived: "2026-10-27T13:00:00Z", captureState: "full" }),
+];
+const blockedCard = { id: "card-s5-new", referenceId: "s5-new-v1", referenceLineageId: "s5-new", role: "curation", sortKey: "003-curation", importedAt: "2026-10-26T11:00:00Z", metadata: JSON.stringify({ kind: "reference-curation", status: "capture_failed", capture: { status: "failed", reason: "blocked" }, signals: {}, labels: [], current: {} }) };
+if (params.has("capture")) {
+  Object.assign(api, {
+    loadCaptureNeeded: async () => {
+      if (params.get("capture") === "fail") throw new Error("The star index is not deployed.");
+      const references = await readCaptureNeeded(captureNeededSourceFromRecords(captureRecords.map((record) => ({ ...record, feedStateKey: undefined }))));
+      return { references, attachments: references.some((reference) => reference.lineageId === "s5-new") ? [blockedCard] : [] };
+    },
+  });
+}
 function Fixture() {
   const [rated, setRated] = useState(mixedReferences);
+  if (params.has("capture")) {
+    const onCorrectCapture = async (input) => {
+      window.calls.push({ type: "capture", referenceId: input.referenceId, text: input.text, assessment: input.assessment });
+      const record = captureRecords.find((entry) => entry.id === input.referenceId);
+      if (record && (input.text !== undefined || input.pdfAttachmentId !== undefined)) record.captureState = "full";
+      return { ok: true };
+    };
+    return <NotificationCenter actorLabel="Ed Itor" api={api} decisions={new Map()} demo={false} humanCuratedReferenceLineageIds={new Set()} onCorrectCapture={onCorrectCapture} references={references} />;
+  }
   if (params.has("mixed")) {
     // A rating is saved onto the Reference, as the live page does, so a reopened Reference shows its answer and reason.
     const onRateReference = async (reference, choice, reasonCode, note) => {
@@ -303,6 +335,61 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await page.locator('[data-needs-me-card="reference"]').count(), 2);
       assert.equal(await page.locator('[data-notification-filter="references"]').getAttribute("aria-pressed"), "true");
       assert.ok((await noHorizontalScroll(page)) <= 0, `no horizontal scroll at ${width}px`);
+    });
+  },
+
+  /**
+   * Accepted References we could not collect: three listed, best first (stars, then newest), with the words and the reason, a See all, a pill, the
+   * order explained, a direct way to paste or upload, and a captured one leaving the list at once. A failed read leaves the rest of the page alone.
+   */
+  async captureNeeded() {
+    await run("?capture=1", [375, 1440], async (page, width) => {
+      const needs = page.locator('[data-needs-me-card="capture_needed"]');
+      await needs.first().waitFor();
+      assert.equal(await needs.count(), 3, "a few by default");
+      const titles = () => needs.evaluateAll((nodes) => nodes.map((node) => node.querySelector("[data-feed-title]")?.textContent));
+      assert.deepEqual(await titles(), ["Five stars, newest", "Five stars, older", "Four stars"], "most stars first, then newest; running, rejected and captured ones are left out");
+      const first = needs.first();
+      assert.ok((await first.innerText()).includes("We could not collect this. Upload a PDF or paste the text. The site refused our request."), "plain words, and why when it is known");
+      assert.ok((await needs.nth(1).innerText()).includes("We could not collect this. Upload a PDF or paste the text."));
+      assert.match(await page.locator("[data-notification-summary]").innerText(), /\b3 references to capture\b.*waiting for you/);
+      const see = page.locator("[data-capture-needed-see-all]");
+      assert.match((await see.getAttribute("href")) ?? "", /\/newsroom\/references\?reviewed=accepted&captured=no&sort=quality&minStars=0/, "See all opens Reviewed Accepted, Captured No, Sort Quality");
+      assert.equal(await page.locator("[data-capture-needed-strip] svg").count() >= 1, true, "a Lucide icon");
+      const borders = await page.locator("[data-capture-needed-strip], [data-capture-needed-strip] *, [data-capture-needed-open]").evaluateAll((elements) => elements.filter((element) => parseFloat(getComputedStyle(element).borderTopWidth) > 0 && getComputedStyle(element).borderTopStyle !== "none").length);
+      assert.equal(borders, 0, "no borders");
+      await page.locator('[data-notification-filter="tocapture"]').click();
+      assert.equal(await page.locator("[data-notification-filter=tocapture] [data-notification-filter-count]").innerText(), "3");
+      assert.equal(await page.locator('[data-needs-me-card]:not([data-needs-me-card="capture_needed"])').count(), 0, "the pill narrows to this type");
+      await page.locator("[data-needs-me-recipe-toggle]").click();
+      assert.ok((await page.locator("[data-needs-me-recipe]").innerText()).includes("Accepted but not collected"), "How this is ordered says it");
+      await page.locator("[data-needs-me-recipe-toggle]").click();
+      assert.ok((await noHorizontalScroll(page)) <= 0, "no horizontal scroll at " + width + "px");
+
+      // Opening one opens the capture controls; saving pasted text sets the capture and the Reference leaves the list without a reload.
+      await first.locator("[data-capture-needed-open]").click();
+      const pane = await detail(page).first().waitFor().then(() => detail(page).first());
+      assert.ok((await pane.innerText()).includes("We could not collect this."), "the detail says what is wanted");
+      assert.equal(await pane.locator('[data-capture-panel="none"]').count(), 1, "our captured record says nothing was captured");
+      await pane.locator("[data-capture-correct]").click();
+      assert.equal(await pane.locator("[data-capture-none-hint]").count(), 1, "with nothing captured the form says Incomplete is the usual verdict");
+      await pane.locator('[data-capture-assessment="incomplete"]').click();
+      await pane.locator("[data-capture-correction-text]").fill("The whole article, pasted by a person.");
+      await pane.locator("[data-capture-correction-save]").click();
+      await page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "capture"));
+      assert.deepEqual((await calls(page)).filter((call) => call.type === "capture").map((call) => [(call as { referenceId?: string }).referenceId, (call as { text?: string }).text, (call as { assessment?: string }).assessment]), [["s5-new-v1", "The whole article, pasted by a person.", "incomplete"]]);
+      await page.waitForFunction(() => !document.querySelector('[data-feed-card="capture#s5-new"]'));
+      assert.deepEqual(await titles(), ["Five stars, older", "Four stars"], "it left the list");
+      // The next one is read in, and joins behind the page's usual "new item" button, so nothing moves under the editor's hand.
+      await page.locator("[data-feed-new-items]").click();
+      assert.deepEqual(await titles(), ["Five stars, older", "Four stars", "Two stars"], "and the next one took its place");
+    });
+
+    // A site whose read fails (no star index, say) lists none, and the rest of the page is untouched.
+    await run("?capture=fail", [375, 1440], async (page) => {
+      await page.locator('[data-feed-card="reference-a"]').waitFor();
+      assert.equal(await page.locator('[data-needs-me-card="capture_needed"]').count(), 0);
+      assert.equal(await page.locator("[data-capture-needed-strip]").count(), 0);
     });
   },
 

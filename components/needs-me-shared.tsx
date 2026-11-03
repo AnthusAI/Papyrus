@@ -7,10 +7,12 @@ import type { ReviewChoice } from "./reference-review-card";
 
 /** References and captures are rated like the References feed: a reason code is asked for on Reject. */
 export function isReferenceLike(item: Pick<NeedsMeEntry, "type">): boolean {
-  return item.type === "reference" || item.type === "incomplete_capture";
+  return item.type === "reference" || item.type === "incomplete_capture" || item.type === "capture_needed";
 }
 
-export function decidedChoiceOf(item: Pick<NeedsMeEntry, "decisionState">): ReviewChoice | null {
+export function decidedChoiceOf(item: Pick<NeedsMeEntry, "decisionState" | "type">): ReviewChoice | null {
+  // An accepted Reference that needs a person to capture it is open as a task, but its Accept is already given.
+  if (item.type === "capture_needed") return "accept";
   return item.decisionState === "accepted" ? "accept" : item.decisionState === "rejected" ? "reject" : null;
 }
 

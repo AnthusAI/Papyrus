@@ -92,6 +92,13 @@ const PREVIEW_AUTO_ACCEPTED: ReadonlyArray<{ title: string; host: string; hoursA
   { title: "A bakery that outlasted four recessions", host: "market-gazette.example.test", hoursAgo: 55, actor: "auto:cyclotron", confidence: 0.9 },
 ];
 
+/**
+ * What the preview holds of each sample Reference (`Reference.captureState`, the rule in lib/reference-capture.ts): some captured, some cut off,
+ * some only an address, one still being captured, so the Captured filter and the home page's capture list have something to show.
+ */
+const PREVIEW_AUTO_CAPTURE_STATES: readonly string[] = ["none", "thin", "full", "none", "running", "full", "thin"];
+const PREVIEW_CAPTURE_STATES: readonly string[] = ["none", "none", "full", "none", "none"];
+
 function previewAutoAcceptedReason(plan: (typeof PREVIEW_AUTO_ACCEPTED)[number]): string {
   if (plan.actor === "auto:rule") {
     return `Accepted automatically by the ${plan.monitor} monitor's rule (every collected item): it delivers only items that match the rule, so there is no relevance prediction and the match is the acceptance. An editor can still Reject it.`;
@@ -120,6 +127,7 @@ export function createLocalPreviewReferences(): ReferenceRecord[] {
       curationStatusReason: editor ? "Primary source for the zoning story." : previewAutoAcceptedReason(plan),
       curationActorKind: editor ? "human" : plan.actor === "auto:rule" ? "rule" : "cyclotron",
       importedAt: isoTimestampHoursBeforeBase(plan.hoursAgo + 50),
+      captureState: PREVIEW_AUTO_CAPTURE_STATES[index] ?? "full",
       updatedAt: at,
       // One rated, one rated low, the rest unrated: the preview shows filled and empty stars (the shape is the difference).
       ...(index === 0 ? { starRating: 5, starRatedAt: at, starRatedBy: "preview-editor" } : index === 1 ? { starRating: 2, starRatedAt: at, starRatedBy: "preview-editor" } : {}),
@@ -137,6 +145,7 @@ export function createLocalPreviewReferences(): ReferenceRecord[] {
     curationStatusKey: curationStatus,
     curationStatusReason: curationStatus === "rejected" ? "Duplicate of an earlier filing." : null,
     importedAt: isoTimestampHoursBeforeBase(index * 5),
+    captureState: PREVIEW_CAPTURE_STATES[index] ?? "none",
     updatedAt: isoTimestampHoursBeforeBase(index * 5),
     ...(index === 1 ? { starRating: 4, starRatedAt: isoTimestampHoursBeforeBase(5), starRatedBy: "preview-editor" } : {}),
   }));

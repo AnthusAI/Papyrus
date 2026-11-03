@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownWideNarrowIcon, AwardIcon, CheckCheckIcon, CircleDashedIcon, ClockIcon, InfoIcon, ListChecksIcon, Loader2Icon, MessageSquareIcon, RefreshCwIcon, SearchIcon, SparklesIcon, StarIcon, StarOffIcon, XIcon } from "lucide-react";
+import { ArrowDownWideNarrowIcon, AwardIcon, CheckCheckIcon, CheckIcon, CircleDashedIcon, ClockIcon, FileCheckIcon, FileXIcon, FilesIcon, InfoIcon, ListChecksIcon, Loader2Icon, MessageSquareIcon, RefreshCwIcon, SearchIcon, SparklesIcon, StarIcon, StarOffIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import type { ReferenceRecord } from "../lib/category-repository";
 import { REFERENCE_REJECTION_REASON_CODES, isAutoAccepted, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
@@ -8,6 +8,7 @@ import {
   referenceDisplayTime,
   type FeedItem,
   type FeedMinStars,
+  type FeedCaptured,
   type FeedShow,
   type FeedSort,
 } from "../lib/reference-feed-ranking";
@@ -23,7 +24,7 @@ import { DecisionControl } from "./decision-control";
 import { CaptureBadge } from "./reference-capture-panel";
 import { AutoAcceptedBadge } from "./auto-accepted-badge";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
-import type { CaptureStatus } from "../lib/reference-capture";
+import { displayedCaptureStatus, normalizeCaptureState, type CaptureStatus } from "../lib/reference-capture";
 import { messageCountLabel } from "../lib/conversation";
 import { referenceDatesText } from "../lib/reference-links";
 
@@ -69,10 +70,34 @@ const MIN_STARS: Array<{ key: FeedMinStars; label: string; spoken: string }> = [
 export function minStarsPhrase(minStars: FeedMinStars): string {
   return minStars === 5 ? "5 stars" : `${minStars} or more stars`;
 }
+/** What found nothing, in words, when Minimum stars or Captured is in force (`query` is null outside a search). */
+export function emptyFilterSentence({ captured, minStars, query }: { captured: FeedCaptured; minStars: FeedMinStars; query: string | null }): string {
+  const stars = minStars > 0 ? minStarsPhrase(minStars) : null;
+  const held = captured === "yes" ? "has been captured" : captured === "no" ? "is missing its content" : null;
+  if (query !== null) {
+    const parts = [stars ? `with ${stars}` : null, held ? `that ${captured === "yes" ? "we have" : "we have not"} captured` : null].filter(Boolean);
+    return `Nothing matches “${query}”${parts.length ? ` ${parts.join(" and ")}` : ""}.`;
+  }
+  const parts = [stars ? `has ${stars}` : null, held].filter(Boolean);
+  return `Nothing here ${parts.join(" and ")}.`;
+}
+/**
+ * Reviewed: whether a Reference has been accepted or rejected. The saved values keep their old names (`unrated`, `all`, `rated`) so nobody's
+ * choice resets; only the words changed. Yes is `rated`, No is `unrated`.
+ */
+export const REVIEWED_LABELS: Record<FeedShow, string> = { all: "Any", accepted: "Accepted", rated: "Yes", unrated: "No" };
 const SHOWS: Array<{ key: FeedShow; label: string; Icon: typeof SparklesIcon }> = [
-  { key: "unrated", label: "Unrated", Icon: CircleDashedIcon },
-  { key: "all", label: "All", Icon: CheckCheckIcon },
-  { key: "rated", label: "Rated", Icon: ListChecksIcon },
+  { key: "all", label: REVIEWED_LABELS.all, Icon: CheckCheckIcon },
+  { key: "accepted", label: REVIEWED_LABELS.accepted, Icon: CheckIcon },
+  { key: "rated", label: REVIEWED_LABELS.rated, Icon: ListChecksIcon },
+  { key: "unrated", label: REVIEWED_LABELS.unrated, Icon: CircleDashedIcon },
+];
+/** Captured: whether the newsroom holds the content. No is every Reference we could not collect in full, including one still being captured. */
+export const CAPTURED_LABELS: Record<FeedCaptured, string> = { any: "Any", yes: "Yes", no: "No" };
+const CAPTUREDS: Array<{ key: FeedCaptured; label: string; Icon: typeof SparklesIcon }> = [
+  { key: "any", label: CAPTURED_LABELS.any, Icon: FilesIcon },
+  { key: "yes", label: CAPTURED_LABELS.yes, Icon: FileCheckIcon },
+  { key: "no", label: CAPTURED_LABELS.no, Icon: FileXIcon },
 ];
 
 export const PILL = "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
@@ -97,6 +122,9 @@ export type ReferenceFeedProps = {
   /** The Minimum stars row. Without it the feed has no such row (a page that does not read by stars). */
   onMinStarsChange?: (minStars: FeedMinStars) => void;
   minStars?: FeedMinStars;
+  /** The Captured row. Without `onCapturedChange` the feed has no such row. */
+  captured?: FeedCaptured;
+  onCapturedChange?: (captured: FeedCaptured) => void;
   /** The visible list, already ordered by the chosen sort and filtered by the chosen Show. */
   items: FeedItem[];
   /** How many References already have an answer, for the empty text. */
@@ -309,7 +337,7 @@ export function ReferenceCardHeader({ capture, lead = false, matched, messageCou
                 <SearchIcon aria-hidden="true" className="size-3" />Matched: {matched}
               </span>
             ) : null}
-            {capture ? <CaptureBadge status={capture} /> : null}
+            {capture ? <CaptureBadge status={displayedCaptureStatus(capture)} /> : storedCaptureBadge(reference.captureState)}
             {messageCount > 0 ? (
               <span aria-label={messageCountLabel(messageCount)} className="inline-flex items-center gap-1 tabular-nums" data-feed-message-count={messageCount} role="img">
                 <MessageSquareIcon aria-hidden="true" className="size-3.5" />
@@ -465,6 +493,13 @@ export function FeedCard({
   );
 }
 
+/** A card whose attachments are not loaded yet still says what the Reference itself records when it was not captured in full. */
+function storedCaptureBadge(stored: string | null | undefined) {
+  const state = normalizeCaptureState(stored);
+  if (!stored || state === "full") return null;
+  return <CaptureBadge status={{ state, words: null, estimated: false, source: "none" }} />;
+}
+
 /** The plain-words recipe. */
 function RankingPopover() {
   const [open, setOpen] = useState(false);
@@ -508,8 +543,9 @@ function RankingPopover() {
             <li><strong>Predictions</strong> puts the items the Cyclotron is most sure you will Accept first. It goes by confidence alone: an Accept at 90% ranks above an Accept at 60%, and the ones it expects you to Reject most surely come last. Items with no prediction sit in the middle. Age does not change this order.</li>
             <li><strong>Newest</strong> puts the items that arrived most recently first.</li>
             <li><strong>Quality</strong> puts the items you gave the most stars first, newest first within each number of stars. Only items with stars are in it. <strong>Minimum stars</strong> keeps the items with at least 3, 4 or 5 stars in whichever sort you chose. Stars are your own interest: the Cyclotron never sees them.</li>
-            <li><strong>Unrated</strong> shows items nobody has answered yet. <strong>All</strong> adds the ones you have already accepted or rejected to the same list, showing your answer, in the same sort. <strong>Rated</strong> lists just those answered ones, in the same sort, so you can find one again; Predictions there still goes by the Cyclotron&apos;s original confidence, not by your answer. Nothing is hidden because it is old.</li>
-            <li><strong>Search</strong> looks for your words in titles, authors, links and ids, and for meaning in the summaries, at the same time, over every Reference whether or not it has been answered. Results are ordered by how well they match (Relevance) unless you choose Newest or Quality, and each says how it matched. Show starts on All for a search; clearing the search brings back your own Sort and Show.</li>
+            <li><strong>Reviewed</strong> is whether someone has accepted or rejected an item. <strong>No</strong> shows items nobody has answered yet. <strong>Any</strong> adds the ones you have already accepted or rejected to the same list, showing your answer, in the same sort. <strong>Accepted</strong> lists just the ones you accepted, never a rejected one. <strong>Yes</strong> lists just those answered ones, in the same sort, so you can find one again; Predictions there still goes by the Cyclotron&apos;s original confidence, not by your answer. Nothing is hidden because it is old.</li>
+            <li><strong>Captured</strong> is whether we hold the item&apos;s content. <strong>Yes</strong> keeps the ones we collected in full. <strong>No</strong> keeps the ones we could not: a page that blocked us, a capture that came back cut off, or one still being collected. Choose Reviewed Accepted and Captured No to find the items you accepted that someone should paste or upload. It works in any sort, and it does not change the order.</li>
+            <li><strong>Search</strong> looks for your words in titles, authors, links and ids, and for meaning in the summaries, at the same time, over every Reference whether or not it has been answered. Results are ordered by how well they match (Relevance) unless you choose Newest or Quality, and each says how it matched. Reviewed starts on Any for a search; clearing the search brings back your own Sort and Reviewed. Captured and Minimum stars apply to a search too.</li>
             <li><strong>Your answers stay put.</strong> A card you rate stays where it is for this visit, and new items wait behind a button until you ask for them.</li>
           </ol>
         </div>
@@ -612,6 +648,8 @@ export function ReferenceFeed({
   onSortChange,
   onMinStarsChange,
   minStars = 0,
+  captured = "any",
+  onCapturedChange,
   onVisitRated,
   items,
   ratedCount,
@@ -637,6 +675,8 @@ export function ReferenceFeed({
 }: ReferenceFeedProps) {
   const searching = Boolean(search?.query);
   const minStarsLabelId = useId();
+  const reviewedLabelId = useId();
+  const capturedLabelId = useId();
 
   const renderCard = (item: FeedItem, lead: boolean) => (
     <FeedCard
@@ -687,7 +727,7 @@ export function ReferenceFeed({
 
 
   return (
-    <div className="@container space-y-5" data-reference-feed data-feed-sort={sort} data-feed-show={show} data-feed-min-stars={minStars} data-feed-searching={searching || undefined} {...FEED_SURFACE_PROPS}>
+    <div className="@container space-y-5" data-reference-feed data-feed-sort={sort} data-feed-show={show} data-feed-min-stars={minStars} data-feed-captured={captured} data-feed-searching={searching || undefined} {...FEED_SURFACE_PROPS}>
       {search ? <FeedSearchBox onClear={search.onClear} onSubmit={search.onSubmit} query={search.query} /> : null}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -706,19 +746,22 @@ export function ReferenceFeed({
               </button>
             ))}
           </div>
-          <div aria-label="Show" className="inline-flex rounded-full bg-[var(--feed-card)] p-1" data-feed-control="show" role="group">
-            {SHOWS.map(({ key, label, Icon }) => (
-              <button
-                aria-pressed={show === key}
-                className={cn(PILL, "px-3.5", show === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground")}
-                data-feed-show-button={key}
-                key={key}
-                onClick={() => onShowChange(key)}
-                type="button"
-              >
-                <Icon aria-hidden="true" className="size-4" />{label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1" data-feed-control="show">
+            <span className="whitespace-nowrap text-sm text-muted-foreground" id={reviewedLabelId}>Reviewed</span>
+            <div aria-labelledby={reviewedLabelId} className="inline-flex rounded-full bg-[var(--feed-card)] p-1" role="group">
+              {SHOWS.map(({ key, label, Icon }) => (
+                <button
+                  aria-pressed={show === key}
+                  className={cn(PILL, "px-3.5", show === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground")}
+                  data-feed-show-button={key}
+                  key={key}
+                  onClick={() => onShowChange(key)}
+                  type="button"
+                >
+                  <Icon aria-hidden="true" className="size-4" />{label}
+                </button>
+              ))}
+            </div>
           </div>
           {onMinStarsChange ? (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1" data-feed-control="min-stars">
@@ -734,6 +777,25 @@ export function ReferenceFeed({
                     type="button"
                   >
                     {key ? <StarIcon aria-hidden="true" className="size-4" /> : null}{label}<span className="sr-only">{spoken}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {onCapturedChange ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1" data-feed-control="captured">
+              <span className="whitespace-nowrap text-sm text-muted-foreground" id={capturedLabelId}>Captured</span>
+              <div aria-labelledby={capturedLabelId} className="inline-flex rounded-full bg-[var(--feed-card)] p-1" role="group">
+                {CAPTUREDS.map(({ key, label, Icon }) => (
+                  <button
+                    aria-pressed={captured === key}
+                    className={cn(PILL, "px-3.5", captured === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground")}
+                    data-feed-captured-button={key}
+                    key={key}
+                    onClick={() => onCapturedChange(key)}
+                    type="button"
+                  >
+                    <Icon aria-hidden="true" className="size-4" />{label}
                   </button>
                 ))}
               </div>
@@ -771,27 +833,36 @@ export function ReferenceFeed({
           </>
         ) : hasMore || loadingMore ? (
           <FeedMoreSentinel hasMore={hasMore} itemCount={0} loadingMore={loadingMore} onLoadMore={onLoadMore} />
-        ) : minStars > 0 && onMinStarsChange ? (
-          // The minimum is the likeliest reason for an empty list, so it is named, with a way to take it off.
-          <div className="flex flex-col items-center gap-3 rounded-[20px] bg-[var(--feed-card)] p-10 text-center text-sm text-muted-foreground" data-feed-empty data-feed-min-stars-empty>
-            <p>{searching ? `Nothing matches “${search?.query}” with ${minStarsPhrase(minStars)}.` : `Nothing here has ${minStarsPhrase(minStars)}.`}</p>
-            <button className={cn(PILL, "bg-[var(--feed-control)] text-foreground")} data-feed-min-stars-clear onClick={() => onMinStarsChange(0)} type="button">
-              <StarOffIcon aria-hidden="true" className="size-4" />Show any stars
-            </button>
+        ) : (minStars > 0 && onMinStarsChange) || (captured !== "any" && onCapturedChange) ? (
+          // A filter is the likeliest reason for an empty list, so each one in force is named, with a way to take it off.
+          <div className="flex flex-col items-center gap-3 rounded-[20px] bg-[var(--feed-card)] p-10 text-center text-sm text-muted-foreground" data-feed-empty data-feed-filter-empty {...(minStars > 0 ? { "data-feed-min-stars-empty": true } : {})} {...(captured !== "any" ? { "data-feed-captured-empty": true } : {})}>
+            <p>{emptyFilterSentence({ captured, minStars, query: searching ? search?.query ?? "" : null })}</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {minStars > 0 && onMinStarsChange ? (
+                <button className={cn(PILL, "bg-[var(--feed-control)] text-foreground")} data-feed-min-stars-clear onClick={() => onMinStarsChange(0)} type="button">
+                  <StarOffIcon aria-hidden="true" className="size-4" />Show any stars
+                </button>
+              ) : null}
+              {captured !== "any" && onCapturedChange ? (
+                <button className={cn(PILL, "bg-[var(--feed-control)] text-foreground")} data-feed-captured-clear onClick={() => onCapturedChange("any")} type="button">
+                  <FilesIcon aria-hidden="true" className="size-4" />Show any Captured
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : searching ? (
           show === "all" ? empty(`No References match “${search?.query}”.`) : (
             <div className="flex flex-col items-center gap-3 rounded-[20px] bg-[var(--feed-card)] p-10 text-center text-sm text-muted-foreground" data-feed-empty data-feed-search-empty>
-              <p>{`No ${show} matches`}</p>
+              <p>{`No matches with Reviewed ${REVIEWED_LABELS[show]}`}</p>
               <button className={cn(PILL, "bg-[var(--feed-control)] text-foreground")} data-feed-show-all onClick={() => onShowChange("all")} type="button">
-                <CheckCheckIcon aria-hidden="true" className="size-4" />Show all
+                <CheckCheckIcon aria-hidden="true" className="size-4" />Show Reviewed Any
               </button>
             </div>
           )
         ) : sort === "quality" ? empty("No References have stars yet. Rate a Reference with stars and it will be listed here.")
         : empty(show === "rated"
-          ? "Nothing rated yet. Accept or reject a reference and it will be listed here."
-          : ratedCount && show === "unrated" ? "You are all caught up. Choose All to see your answers." : "No references yet.")
+          ? "Nothing reviewed yet. Accept or reject a reference and it will be listed here."
+          : ratedCount && show === "unrated" ? "You are all caught up. Choose Any under Reviewed to see your answers." : "No references yet.")
       )}
     </div>
   );

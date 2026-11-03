@@ -86,6 +86,7 @@ function PdfUploadForm({ capture, onDone, onCancel }: { capture: CaptureView; on
   return (
     <div className="space-y-3 rounded-2xl bg-[var(--feed-control)] p-3" data-capture-upload-form>
       <p className="text-sm font-medium">Upload the PDF you downloaded. Its text replaces the capture, and the capture is kept.</p>
+      {capture.status.state === "none" ? <p className="text-xs text-muted-foreground" data-capture-none-hint>Nothing was captured, so Incomplete is the usual verdict. It is still your call, and it trains the completeness check.</p> : null}
       <AssessmentChoice onChange={setAssessment} value={assessment} />
       <label className="block text-sm font-medium">
         Note (optional)
@@ -158,6 +159,7 @@ function CorrectionForm({ capture, onDone }: { capture: CaptureView; onDone: () 
           value={text}
         />
       </label>
+      {capture.status.state === "none" ? <p className="text-xs text-muted-foreground" data-capture-none-hint>Nothing was captured, so Incomplete is the usual verdict. It is still your call, and it trains the completeness check.</p> : null}
       <AssessmentChoice onChange={setAssessment} value={assessment} />
       <label className="block text-sm font-medium">
         Note (optional)

@@ -1825,6 +1825,10 @@ const definitions = {
       // "<corpusId>#stars#<n>" for a current, not archived Reference an editor has starred (null otherwise): one partition per star level,
       // read newest first by `feedArrivalAt` for the Quality sort and the minimum-stars filter.
       starFeedKey: a.string(),
+      // How much of this Reference's content the newsroom holds: "full", "thin", "none" or "running". Empty means "none". A stored copy of the
+      // capture rule in lib/reference-capture.ts (docs/reference-curation-pipeline.md), read by the Captured filter and the home page's list
+      // of accepted References that still need a person to capture them. No index.
+      captureState: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [
