@@ -107,6 +107,12 @@ The section as a topic is still there: `select.sections` (collections, `tagSelec
 its type), and `select.types` / `notTypes` select by type. A topic listing is a collection with `"select": {"sections": ["agent-security"]}`;
 there is no other topic page. A type that is not `article` or `page` is projected when `urls.types` names it, as when `listings.types` does.
 
+**Which types the newsroom offers.** `storyTypes` (`{"default": "article", "types": ["article", "post"]}`, both optional) names the Story types an editor can choose in
+the newsroom and the type a new Story gets. Without it the offered types are `article` plus every type in `urls.types`. It does not decide where pages live: a type
+the site offers but gives no `urls.types` entry (and no `listings.types` entry) is published nowhere, and the editor says "No public URL" under the Type field. See
+[content item lifecycle](content-item-lifecycle.md#story-types-and-sections). Changing a published Story's type moves its page to the new type's base and leaves a
+redirect from the old address.
+
 `aliases` on a section lists other stored `section` values that mean the same section, for data written before the ids were used
 (`"aws": { "base": "aws", "aliases": ["AWS"] }`). It lets a site key its sections on ids while the stored values are migrated.
 

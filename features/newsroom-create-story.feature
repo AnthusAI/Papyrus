@@ -1,7 +1,8 @@
 @create-story
 Feature: An editor creates a Story from a Reference in one tap
   The Reference card and the Reference detail have a Create Story action. One tap makes a draft Story linked to the Reference and opens it in the article
-  editor, ready to write; a small "As a post" button beside it makes a post instead, with no dialog. Making a Story from a Reference the editor has not
+  editor, ready to write. Create Story is one action: it makes a Story of the site's default type, and the type is a field the editor sets in the
+  Story, so the card has no companion button for any one type. Making a Story from a Reference the editor has not
   decided also records the editor's own Accept, as the Accept button does, with no reason asked, and the button says so. A rejected Reference is not
   overturned, and its button says that its vote stays. A Reference that already has a Story is not given a second one silently: a second tap offers the
   existing Story, and "Create another" is a deliberate choice. In the editor, a plain note says the draft is a starting draft from the Reference's summary
@@ -32,10 +33,10 @@ Feature: An editor creates a Story from a Reference in one tap
     When the editor taps Create Story twice on the same card and then taps Create another
     Then the second tap offers the existing Story and only the deliberate choice makes a second one
 
-  Scenario: A post is one more button, never a dialog
+  Scenario: Create Story is one action with no button for a post
     Given a References page with a pending, a rejected and an accepted Reference
-    When the editor taps "As a post" on a card
-    Then the Story opens with no dialog and only Lucide icons
+    When the editor looks at a card
+    Then there is one Create Story button, no button for a post, no dialog and only Lucide icons
 
   Scenario: The detail pane has the same action
     Given a References page with a pending, a rejected and an accepted Reference

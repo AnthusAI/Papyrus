@@ -12,21 +12,20 @@ export type ContentItemStageDefinition = {
 };
 
 /**
- * The Item types that are stories. A story's type is its own attribute, separate from its section (a topic): "article" and "post".
- * Add a type here, and in STORY_ITEM_TYPES in src/papyrus_content/content_item_lifecycle.py. Every other Item type (wiki_page, doctrine, page, and so on) is not a
- * story and never appears on the Stories board or in a story count.
+ * The Item types that are not Stories: the fixed system set, the same list as SYSTEM_ITEM_TYPES in src/papyrus_content/content_item_lifecycle.py (change both;
+ * scripts/test-story-types.ts and procedures/newsroom/tests/test_story_types.py keep them equal). Every other Item type is a Story type, so a site's own new type
+ * (`guide`, `case-study`) needs no engine change. A system type never appears on the Stories board or in a story count. Which Story types a site offers editors,
+ * and which one is its default, come from the site's projection.json (lib/site-story-types.ts).
  */
-export const STORY_ITEM_TYPES: readonly string[] = ["article", "post"];
+export const SYSTEM_ITEM_TYPES: readonly string[] = ["wiki_page", "doctrine", "page", "newsletter_issue"];
 
 export function isStoryItemType(type: string | null | undefined): boolean {
-  return typeof type === "string" && STORY_ITEM_TYPES.includes(type);
+  return typeof type === "string" && type !== "" && !SYSTEM_ITEM_TYPES.includes(type);
 }
 
-/** The GraphQL `filter` that keeps only story Items, for the Item and PublishedItem list queries. */
+/** The GraphQL `filter` that keeps only story Items, for the Item and PublishedItem list queries: the type is not any system type. */
 export function storyItemTypeFilter(): Record<string, unknown> {
-  return STORY_ITEM_TYPES.length === 1
-    ? { type: { eq: STORY_ITEM_TYPES[0] } }
-    : { or: STORY_ITEM_TYPES.map(type => ({ type: { eq: type } })) };
+  return { and: SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })) };
 }
 
 export const PUBLISHED_STAGE_KEY = "published";

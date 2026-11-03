@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCheckIcon, CircleDashedIcon, ClockIcon, InfoIcon, ListChecksIcon, Loader2Icon, MessageSquareIcon, RefreshCwIcon, SparklesIcon } from "lucide-react";
+import { ArrowDownWideNarrowIcon, CheckCheckIcon, CircleDashedIcon, ClockIcon, InfoIcon, ListChecksIcon, Loader2Icon, MessageSquareIcon, RefreshCwIcon, SearchIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import type { ReferenceRecord } from "../lib/category-repository";
 import { REFERENCE_REJECTION_REASON_CODES, isAutoAccepted, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
@@ -106,6 +106,20 @@ export type ReferenceFeedProps = {
   /** True when the cards are a saved copy that is being refreshed. */
   stale?: boolean;
   visitRated: ReadonlySet<string>;
+  /** The search box. Without it the feed has none (the demo and the saved copy). While `search.query` is set the cards are search results. */
+  search?: ReferenceFeedSearch;
+};
+
+export type ReferenceFeedSearch = {
+  /** The query being searched ("" when not searching). */
+  query: string;
+  onSubmit: (query: string) => void;
+  onClear: () => void;
+  /** How each result matched, by lineage id ("title, author", "meaning"). */
+  matches: ReadonlyMap<string, string>;
+  /** Set when one lane could not run: said in words, with a way to run the search again. */
+  notice?: string | null;
+  onRetry?: () => void;
 };
 
 /** Columns follow the width the feed has (a container query, not the screen), so they stay put while a detail pane holds its place beside it. */
@@ -230,9 +244,11 @@ export function FeedImage({ host, lead, name, src }: { host: string | null; lead
  * The standard Reference header: its picture, source, headline, dek and age. The feed card wraps it in the button that opens the
  * Reference, and the Messages page shows it under a conversation as the thing the conversation is about. No decision controls.
  */
-export function ReferenceCardHeader({ capture, lead = false, messageCount = 0, now, preview, reference, titleId }: {
+export function ReferenceCardHeader({ capture, lead = false, matched, messageCount = 0, now, preview, reference, titleId }: {
   capture?: CaptureStatus | undefined;
   lead?: boolean;
+  /** Search results only: how this Reference matched ("title, author", "meaning"), said in words on the card. */
+  matched?: string | undefined;
   messageCount?: number;
   now: number;
   preview: ReferencePreview | undefined;
@@ -265,6 +281,11 @@ export function ReferenceCardHeader({ capture, lead = false, messageCount = 0, n
               {age && host ? <span aria-hidden="true"> · </span> : null}
               {host}
             </span>
+            {matched ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--feed-control)] px-2 py-0.5 font-medium text-foreground" data-feed-matched>
+                <SearchIcon aria-hidden="true" className="size-3" />Matched: {matched}
+              </span>
+            ) : null}
             {capture ? <CaptureBadge status={capture} /> : null}
             {messageCount > 0 ? (
               <span aria-label={messageCountLabel(messageCount)} className="inline-flex items-center gap-1 tabular-nums" data-feed-message-count={messageCount} role="img">
@@ -286,6 +307,7 @@ export function FeedCard({
   disabledReason,
   item,
   lead,
+  matched,
   now,
   onOpen,
   onRate,
@@ -307,6 +329,8 @@ export function FeedCard({
   disabledReason: string | null;
   item: FeedItem;
   lead: boolean;
+  /** Search results only: how this Reference matched. */
+  matched?: string | undefined;
   now: number;
   onOpen: () => void;
   onRate: ReferenceFeedProps["onRate"];
@@ -373,7 +397,7 @@ export function FeedCard({
         onClick={onOpen}
         type="button"
       >
-        <ReferenceCardHeader capture={capture} lead={lead} messageCount={messageCount} now={now} preview={preview} reference={reference} titleId={titleId} />
+        <ReferenceCardHeader capture={capture} lead={lead} matched={matched} messageCount={messageCount} now={now} preview={preview} reference={reference} titleId={titleId} />
       </button>
 
       <div className="bg-[var(--feed-footer)] px-4 pt-3" data-feed-create-story>
@@ -461,6 +485,7 @@ function RankingPopover() {
             <li><strong>Best bets</strong> puts the items the Cyclotron is most sure you will Accept first. It goes by confidence alone: an Accept at 90% ranks above an Accept at 60%, and the ones it expects you to Reject most surely come last. Items with no prediction sit in the middle. Age does not change this order.</li>
             <li><strong>Newest</strong> puts the items that arrived most recently first.</li>
             <li><strong>Unrated</strong> shows items nobody has answered yet. <strong>All</strong> adds the ones you have already accepted or rejected to the same list, showing your answer, in the same sort. <strong>Rated</strong> lists just those answered ones, in the same sort, so you can find one again; Best bets there still goes by the Cyclotron&apos;s original confidence, not by your answer. Nothing is hidden because it is old.</li>
+            <li><strong>Search</strong> looks for your words in titles, authors, links and ids, and for meaning in the summaries, at the same time, over every Reference whether or not it has been answered. Results are ordered by how well they match (Relevance) and each says how it matched. Show starts on All for a search; clearing the search brings back your own Sort and Show.</li>
             <li><strong>Your answers stay put.</strong> A card you rate stays where it is for this visit, and new items wait behind a button until you ask for them.</li>
           </ol>
         </div>
@@ -494,6 +519,45 @@ function FeedMoreSentinel({ hasMore, itemCount, loadingMore, onLoadMore }: { has
         <button className="rounded-full px-3 py-1 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" data-feed-load-more onClick={onLoadMore} type="button">Load more items</button>
       )}
     </div>
+  );
+}
+
+/** The search box above Sort and Show: Enter runs the search, the X clears it. A flat fill, no border. */
+function FeedSearchBox({ onClear, onSubmit, query }: { onClear: () => void; onSubmit: (query: string) => void; query: string }) {
+  const [draft, setDraft] = useState(query);
+  useEffect(() => { setDraft(query); }, [query]);
+  return (
+    <form
+      aria-label="Search References"
+      className="relative flex w-full items-center"
+      data-feed-search
+      onSubmit={(event) => { event.preventDefault(); if (draft.trim()) onSubmit(draft); else onClear(); }}
+      role="search"
+    >
+      <SearchIcon aria-hidden="true" className="pointer-events-none absolute left-4 size-4 text-muted-foreground" />
+      <input
+        aria-label="Search References"
+        autoComplete="off"
+        className="min-h-11 w-full rounded-full bg-[var(--feed-card)] pl-11 pr-12 text-base text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring sm:text-sm [&::-webkit-search-cancel-button]:appearance-none"
+        data-feed-search-input
+        enterKeyHint="search"
+        onChange={(event) => setDraft(event.target.value)}
+        placeholder="Search References by words or meaning"
+        type="search"
+        value={draft}
+      />
+      {draft || query ? (
+        <button
+          aria-label="Clear search"
+          className="absolute right-1.5 inline-flex size-9 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-[var(--feed-control)] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          data-feed-search-clear
+          onClick={() => { setDraft(""); onClear(); }}
+          type="button"
+        >
+          <XIcon aria-hidden="true" className="size-4" />
+        </button>
+      ) : null}
+    </form>
   );
 }
 
@@ -543,7 +607,9 @@ export function ReferenceFeed({
   sort,
   stale = false,
   visitRated,
+  search,
 }: ReferenceFeedProps) {
+  const searching = Boolean(search?.query);
 
   const renderCard = (item: FeedItem, lead: boolean) => (
     <FeedCard
@@ -553,6 +619,7 @@ export function ReferenceFeed({
       item={item}
       key={item.lineageId}
       lead={lead}
+      matched={searching ? search?.matches.get(item.lineageId) : undefined}
       messageCount={messageCounts?.get(item.lineageId)}
       now={now}
       onOpen={() => onOpen(item.lineageId)}
@@ -581,11 +648,17 @@ export function ReferenceFeed({
 
 
   return (
-    <div className="@container space-y-5" data-reference-feed data-feed-sort={sort} data-feed-show={show} {...FEED_SURFACE_PROPS}>
+    <div className="@container space-y-5" data-reference-feed data-feed-sort={searching ? "relevance" : sort} data-feed-show={show} data-feed-searching={searching || undefined} {...FEED_SURFACE_PROPS}>
+      {search ? <FeedSearchBox onClear={search.onClear} onSubmit={search.onSubmit} query={search.query} /> : null}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div aria-label="Sort" className="inline-flex rounded-full bg-[var(--feed-card)] p-1" data-feed-control="sort" role="group">
-            {SORTS.map(({ key, label, Icon }) => (
+            {searching ? (
+              // A search is ordered by how well each Reference matches; the saved Sort comes back when the search is cleared.
+              <span className={cn(PILL, "bg-[var(--feed-control)] px-3.5 text-foreground")} data-feed-sort-relevance>
+                <ArrowDownWideNarrowIcon aria-hidden="true" className="size-4" />Relevance
+              </span>
+            ) : SORTS.map(({ key, label, Icon }) => (
               <button
                 aria-pressed={sort === key}
                 className={cn(PILL, "px-3.5", sort === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground")}
@@ -623,6 +696,17 @@ export function ReferenceFeed({
         </div>
       </div>
       {stale ? <p className="text-xs text-muted-foreground sm:hidden" role="status"><Loader2Icon aria-hidden="true" className="mr-1 inline size-3.5 animate-spin" />Showing your last view while it updates</p> : null}
+      {searching && search?.notice ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[20px] bg-[var(--feed-card)] px-4 py-3 text-sm text-foreground" data-feed-search-notice role="status">
+          <InfoIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+          <span>{search.notice}</span>
+          {search.onRetry ? (
+            <button className={cn(PILL, "bg-[var(--feed-control)] text-foreground")} data-feed-search-retry onClick={search.onRetry} type="button">
+              <RefreshCwIcon aria-hidden="true" className="size-4" />Retry
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {error && !items.length ? <FeedReadError error={error} onRetry={onRetry} /> : loading ? <ReferenceFeedSkeleton /> : (
         items.length ? (
@@ -633,6 +717,15 @@ export function ReferenceFeed({
           </>
         ) : hasMore || loadingMore ? (
           <FeedMoreSentinel hasMore={hasMore} itemCount={0} loadingMore={loadingMore} onLoadMore={onLoadMore} />
+        ) : searching ? (
+          show === "all" ? empty(`No References match “${search?.query}”.`) : (
+            <div className="flex flex-col items-center gap-3 rounded-[20px] bg-[var(--feed-card)] p-10 text-center text-sm text-muted-foreground" data-feed-empty data-feed-search-empty>
+              <p>{`No ${show} matches`}</p>
+              <button className={cn(PILL, "bg-[var(--feed-control)] text-foreground")} data-feed-show-all onClick={() => onShowChange("all")} type="button">
+                <CheckCheckIcon aria-hidden="true" className="size-4" />Show all
+              </button>
+            </div>
+          )
         ) : empty(show === "rated"
           ? "Nothing rated yet. Accept or reject a reference and it will be listed here."
           : ratedCount && show === "unrated" ? "You are all caught up. Choose All to see your answers." : "No references yet.")

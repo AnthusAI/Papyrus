@@ -22,6 +22,7 @@ from ..machine_writes import machine_write
 from ..publishing import ItemFields, item_id_for, save_item, utc_now_iso
 from ..record_helpers import slugify
 from ..section_ids import match_section
+from ..story_types import default_story_type
 from ..story_from_reference import REFERENCE_TARGET_PREFIX, SourceTextReader, _current_versions, check_body_against_references, reference_lineages_of_targets
 from ..story_reporting import BASED_ON, current_reference, link_reference_to_story
 
@@ -173,7 +174,7 @@ def file_idea_item(
             front["sources"] = sources
         save_item(
             client,
-            ItemFields(type="article", slug=slugify(title)[:80].strip("-") or item_id, section=section, front_matter_yaml=yaml.safe_dump(front, sort_keys=False, allow_unicode=True, width=1000),
+            ItemFields(type=default_story_type(), slug=slugify(title)[:80].strip("-") or item_id, section=section, front_matter_yaml=yaml.safe_dump(front, sort_keys=False, allow_unicode=True, width=1000),
                        body_markus=body, aliases=[], id=item_id, overrides={"stage": IDEA_STAGE}, machine_write=machine_write(run_id, "idea-pipeline")),
             actor=actor, now=now,
         )

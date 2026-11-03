@@ -781,6 +781,16 @@ const definitions = {
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(functionHandler("knowledgeQuery", knowledgeQuery)),
 
+  // The References page search box: words and meaning together over every Reference, rated or not (docs/reference-search.md). Same Lambda as knowledgeQuery.
+  searchReferences: a
+    .query()
+    .arguments({
+      input: a.json().required(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("knowledgeQuery", knowledgeQuery)),
+
   updateNewsroomSummary: a
     .mutation()
     .arguments({

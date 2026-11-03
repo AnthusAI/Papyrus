@@ -13,7 +13,9 @@ import { fileURLToPath } from "node:url";
  * - cap static generation at 2 workers x 3 pages (override with PAPYRUS_STATIC_GENERATION_WORKERS / _CONCURRENCY) and retry
  *   failed pages 3 times, so pre-building the reader pages stays under Cognito guest-credential throttles,
  * - inside an Amplify build, skip Next's type-check and lint (CI never runs in Amplify; see amplifyBuildChecks),
- * - carry Papyrus's own server-external packages and image settings.
+ * - carry Papyrus's own server-external packages and image settings,
+ * - copy the Story-type settings of the site's `web/projection.json` (`storyTypes`, `urls`, `listings.types`) into NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES, which
+ *   lib/site-story-types.ts reads: the newsroom and the Python code read one file.
  */
 const SERVER_EXTERNAL = [
   "aws-amplify",
@@ -98,6 +100,28 @@ export function amplifyBuildChecks(nextConfig = {}, env = process.env) {
   };
 }
 
+/** The part of a site's projection.json the newsroom needs to know its Story types and where they are published; the text is inlined into the browser bundle. */
+export function projectionTypesSlice(projection) {
+  const object = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+  const urls = object(projection.urls);
+  const groups = (entries, keep) => Object.fromEntries(Object.entries(object(entries)).map(([name, entry]) => [name, keep(object(entry))]));
+  return {
+    storyTypes: projection.storyTypes,
+    urls: {
+      types: groups(urls.types, (entry) => ({ ...(entry.base === undefined ? {} : { base: entry.base }) })),
+      sections: groups(urls.sections, (entry) => ({ ...(entry.base === undefined ? {} : { base: entry.base }), ...(entry.aliases === undefined ? {} : { aliases: entry.aliases }) })),
+    },
+    listings: { types: object(projection.listings).types },
+  };
+}
+
+/** NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES for the site at `root`: nothing when it has no projection.json (the Story types then fall back to `article`). */
+export function projectionTypesEnvironment(root, projectionPath = "web/projection.json") {
+  const file = path.join(root, projectionPath);
+  if (!fs.existsSync(file)) return {};
+  return { NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES: JSON.stringify(projectionTypesSlice(JSON.parse(fs.readFileSync(file, "utf8")))) };
+}
+
 const EMPTY_THEME = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../lib/empty-theme.css");
 
 export function withPapyrus(nextConfig = {}, options = {}) {
@@ -117,6 +141,7 @@ export function withPapyrus(nextConfig = {}, options = {}) {
     expireTime: READER_EXPIRE_TIME_SECONDS,
     ...nextConfig,
     ...amplifyBuildChecks(nextConfig),
+    env: { ...projectionTypesEnvironment(root, options.projectionPath), ...nextConfig.env },
     transpilePackages: mergeTranspilePackages(nextConfig.transpilePackages),
     serverExternalPackages: [...new Set([...(nextConfig.serverExternalPackages ?? []), ...SERVER_EXTERNAL])],
     outputFileTracingIncludes: mergeOutputFileTracingIncludes(nextConfig.outputFileTracingIncludes),

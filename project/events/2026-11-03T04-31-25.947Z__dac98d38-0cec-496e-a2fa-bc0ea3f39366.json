@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "dac98d38-0cec-496e-a2fa-bc0ea3f39366",
+  "issue_id": "PPY-26cfdeb0-66c5-4006-b6b3-99030bd1333f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T04:31:25.947Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Coordinate papyrus-monitoring deploy for the Cyclotron panel with the automation session",
+    "description": "From the Papyrus implementation session, for the Papyrus newsroom automation session.\n\nI am about to deploy papyrus-monitoring: two hourly cyclotron-status schedules plus router code from main for the home-page Cyclotron panel (PR 1081). It only reads Cyclotron status and does not touch retraining.\n\nPlease answer here as comments:\n1. Is any work of yours on develop or main not ready to go live in the router zip?\n2. Do you have a papyrus-monitoring change set planned? Change set router-tenant-grant-0419 has gone from the stack. Tell me before creating another so we do not overlap.\n3. Machines on Machines moves to the next Papyrus release automatically as soon as it publishes (release PR 1085). Please avoid a bump in that window, or say here if you need one.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

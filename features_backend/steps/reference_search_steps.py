@@ -1,0 +1,281 @@
+"""Steps for the References page search (``papyrus_knowledge_query.reference_search``). Synthetic data, in-memory site and vector index."""
+import re
+import shlex
+import sys
+import tempfile
+from pathlib import Path
+
+import pytest
+from behave import given, when, then
+
+from papyrus_knowledge_query import reference_search as rs
+from procedures.newsroom.tests.test_monitoring_view_cli import Env, graphql_answer
+from procedures.newsroom.tests.test_reference_search import FakeSite, FakeVectors, row
+
+UNRATED_ROW = "Persistent notebooks for agents"
+
+
+def _site(context, rows, page=100, vectors=None):
+    rs.clear_meaning_cache()
+    context.site = FakeSite(rows, page=page)
+    context.vectors = vectors
+    context.index = rs.ReferenceWordIndex()
+
+
+def _search(context, query, show="all", **extra):
+    context.result = rs.search_references({"query": query, "show": show, **extra}, graphql=context.site.graphql, vectors=context.vectors, index=context.index)
+    return context.result
+
+
+def _ids(result):
+    return [item["reference"]["lineageId"] for item in result["items"]]
+
+
+@given('a site with an unrated, an accepted and a rejected Reference, the rejected one by "Marta Okafor"')
+def three_states(context):
+    _site(context, [
+        row("rejected", "Notes on tool use in practice", state="rated", authors=["Marta Okafor"], curationStatus="rejected"),
+        row("accepted", "Retrieval for long documents", state="rated", curationStatus="accepted"),
+        row("unrated", UNRATED_ROW, state="unrated"),
+    ])
+
+
+@when('an editor searches all References for "{query}"')
+def search_all(context, query):
+    _search(context, query)
+
+
+@when('an editor searches unrated References for "{query}"')
+def search_unrated(context, query):
+    _search(context, query, show="unrated")
+
+
+@then("the rejected Reference is the only result, found by words in its authors")
+def only_rejected(context):
+    assert _ids(context.result) == ["rejected"]
+    item = context.result["items"][0]
+    assert item["matchedBy"] == ["keyword"] and item["matchedFields"] == ["authors"]
+    assert item["reference"]["curationStatus"] == "rejected"
+
+
+@then("it carries its whole record, so the page can draw an ordinary card")
+def whole_record(context):
+    reference = context.result["items"][0]["reference"]
+    for name in ("id", "lineageId", "title", "authors", "sourceUri", "curationStatus", "feedStateKey", "versionNumber"):
+        assert name in reference, name
+
+
+@then("the unrated Reference is the only result, found by words in its title")
+def only_unrated(context):
+    assert _ids(context.result) == ["unrated"]
+    assert context.result["items"][0]["matchedFields"] == ["title"]
+
+
+@then("choosing rated References instead finds nothing for that word")
+def rated_finds_nothing(context):
+    assert _search(context, "notebooks", show="rated")["items"] == []
+
+
+@given('a site where a Reference about agent recall has no words in common with "long-term remembering"')
+def recall_site(context):
+    vectors = FakeVectors([("recall", 0.05), ("far1", 0.6), ("far2", 0.61), ("far3", 0.62)])
+    _site(context, [row("recall", "Recall in assistants that run for months", state="rated")], vectors=vectors)
+
+
+@then("that Reference is a result, found by meaning and not by words")
+def found_by_meaning(context):
+    assert _ids(context.result) == ["recall"]
+    item = context.result["items"][0]
+    assert item["matchedBy"] == ["meaning"] and item["matchedFields"] == []
+
+
+@then("the vector index was asked for summary vectors in the unrated, accepted and rejected states, at most 100")
+def asked_filter(context):
+    assert context.vectors.top_ks == [100]
+    assert context.vectors.filters == [{"$and": [{"vectorKind": {"$eq": "reference_summary"}}, {"curationStatus": {"$in": ["pending", "accepted", "rejected"]}}]}]
+
+
+@given("a site with one Reference whose title has the words and whose summary has the meaning, one with only the words, and one with only the meaning")
+def both_site(context):
+    vectors = FakeVectors([("meaning", 0.05), ("both", 0.06), ("far1", 0.5), ("far2", 0.51)])
+    _site(context, [
+        row("both", "Agent memory, revisited", updated="2026-11-01T10:00:01.000Z"),
+        row("words", "Agent memory in brief", updated="2026-11-01T10:00:02.000Z"),
+        row("meaning", "Recollection in software", updated="2026-11-01T10:00:03.000Z"),
+    ], vectors=vectors)
+
+
+@then("the Reference found both ways is first and says it was found by words and by meaning")
+def both_first(context):
+    assert _ids(context.result)[0] == "both" and context.result["items"][0]["matchedBy"] == ["keyword", "meaning"]
+
+
+@then("the Reference found only by words is next, and the one found only by meaning is last")
+def words_then_meaning(context):
+    assert _ids(context.result) == ["both", "words", "meaning"]
+    assert [item["matchedBy"] for item in context.result["items"][1:]] == [["keyword"], ["meaning"]]
+
+
+@given("a site where the vector index cannot be reached")
+def vectors_down(context):
+    _site(context, [row("unrated", UNRATED_ROW)], vectors=FakeVectors(error=RuntimeError("connection reset by peer")))
+
+
+@then("the word results are returned")
+def word_results(context):
+    assert _ids(context.result) == ["unrated"]
+
+
+@then("the answer says the word search worked and the meaning search failed, in a sentence that is safe to show")
+def lanes_say(context):
+    lanes = context.result["lanes"]
+    assert lanes["keyword"] == {"status": "ok"}
+    assert lanes["meaning"] == {"status": "failed", "message": "Meaning search could not be reached."}
+    assert "connection reset" not in str(lanes)
+
+
+class _DownSite:
+    calls = []
+
+    @staticmethod
+    def graphql(query, variables):
+        raise RuntimeError("AppSync is unreachable")
+
+
+@given("a site where neither the References nor the vector index can be reached")
+def all_down(context):
+    rs.clear_meaning_cache()
+    context.site, context.vectors, context.index = _DownSite(), FakeVectors(error=RuntimeError("down")), rs.ReferenceWordIndex()
+
+
+@then("no cards are returned and both searches are reported as failed")
+def nothing(context):
+    assert context.result["items"] == []
+    assert context.result["lanes"]["keyword"]["status"] == context.result["lanes"]["meaning"]["status"] == "failed"
+
+
+@given("a site with 60 References that share a phrase")
+def sixty(context):
+    _site(context, [row(f"r{n:02d}", f"Shared phrase number {n}", updated=f"2026-11-01T10:{n:02d}:00.000Z", state=("rated", "unrated")[n % 2]) for n in range(60)], page=25)
+
+
+@when("an editor reads every page of 24 for that phrase, following the cursor each time")
+def read_pages(context):
+    seen, cursor, pages = [], None, 0
+    while True:
+        result = _search(context, "shared phrase", **({"cursor": cursor} if cursor else {}))
+        seen += _ids(result)
+        pages += 1
+        cursor = result["nextCursor"]
+        if not cursor:
+            break
+    context.seen, context.pages, context.cursor = seen, pages, rs.encode_cursor(24, "shared phrase", "all")
+
+
+@then("every Reference appears exactly once and the last page has no cursor")
+def exactly_once(context):
+    assert len(context.seen) == len(set(context.seen)) == 60 and context.pages == 3 and context.result["nextCursor"] is None
+
+
+@then("a cursor from a different search or show choice is refused")
+def foreign_cursor(context):
+    for query, show in (("another phrase", "all"), ("shared phrase", "rated")):
+        with pytest.raises(rs.SearchError):
+            rs.search_references({"query": query, "show": show, "cursor": context.cursor}, graphql=context.site.graphql, vectors=None, index=context.index)
+
+
+@given("a site whose search has already read its References once")
+def read_once(context):
+    _site(context, [row("z", "Settled", updated="2026-11-01T09:00:00.000Z"), row("a", "Old title", updated="2026-11-01T10:00:00.000Z"),
+                    row("b", "Another", updated="2026-11-01T10:30:00.000Z")], page=100)
+    _search(context, "another")
+    context.site.calls.clear()
+
+
+@when("a Reference's title changes and an editor searches for its new title")
+def title_changes(context):
+    context.site.rows[0] = row("a", "Fresh title", updated="2026-11-01T10:30:05.000Z", version=2)
+    context.fresh = _search(context, "fresh")
+    context.rows_read = context.index.rows_read
+
+
+@then("it is found under the new title and not the old one")
+def new_title(context):
+    assert _ids(context.fresh) == ["a"] and _search(context, "old")["items"] == []
+
+
+@then("only References changed since the last read were read, with a short overlap")
+def only_changed(context):
+    assert context.site.calls[0]["updatedAt"] == {"ge": "2026-11-01T10:28:00.000Z"}
+    assert context.rows_read == 3 + 2   # the first read took all three; this one took the changed Reference and the one inside the overlap, not the settled one
+
+
+@given("a site with 5 current References, one of them archived, read two at a time")
+def five(context):
+    _site(context, [row("a", "Alpha"), row("b", "Beta"), row("c", "Gamma", state=None), row("d", "Delta"), row("e", "Epsilon")], page=2)
+
+
+@when("an editor searches for the first time")
+def first_search(context):
+    _search(context, "alpha")
+
+
+@then("every page was read, the archived Reference is left out, and the time it took is logged")
+def cold_build(context):
+    assert len(context.site.calls) == 3 and len(context.index) == 4 and context.index.built_in_ms is not None
+    assert context.index.search("gamma", "all") == []
+
+
+@given("the search is asked for by someone in the reader group")
+def reader(context):
+    context.event = {"info": {"fieldName": "searchReferences"}, "identity": {"groups": ["reader"]}}
+
+
+@then("the search is refused with a Not Authorized message")
+def refused(context):
+    with pytest.raises(rs.SearchError, match="Not Authorized"):
+        rs.require_editor(context.event)
+
+
+@then("the deployed schema allows only the editor and admin groups to ask, and no guest or identity-pool access")
+def schema_groups(context):
+    for name in ("schema.ts", "resource.ts"):
+        source = (context.repo_root / "amplify" / "data" / name).read_text()
+        block = source[source.index("  searchReferences: a"):]
+        block = block[: block.index("\n\n")]
+        assert 'allow.groups(categoryWriteGroups)' in block and ".query()" in block, name
+        assert "guest" not in block and "authenticated" not in block and "publicApiKey" not in block, name
+    assert re.search(r'const categoryWriteGroups = \["editor", "admin"\];', (context.repo_root / "amplify/data/schema.ts").read_text())
+
+
+@given("a signed-in editor with no AWS credentials and no AWS library, who can search References")
+def signed_in(context):
+    temporary = tempfile.TemporaryDirectory()
+    context.add_cleanup(temporary.cleanup)
+    context.monkeypatch = pytest.MonkeyPatch()
+    context.add_cleanup(context.monkeypatch.undo)
+    context.env = Env(Path(temporary.name), context.monkeypatch)
+    from procedures.newsroom.tests.test_references_search_cli import RESULT
+    context.env.answer = graphql_answer("searchReferences", RESULT)
+
+
+@when('the editor searches References from the command line with "papyrus {command}"')
+def run_cli(context, command):
+    words = shlex.split(command)
+    assert words[:2] == ["references", "search"]
+    context.cli = context.env.run(words[1:], context.monkeypatch, group=("references",))
+
+
+@then("the command succeeds and lists each Reference with how it matched")
+def lists(context):
+    code, out, err = context.cli
+    assert code == 0 and err == "" and "Matched: title, author and meaning" in out and "Matched: meaning" in out
+
+
+@then("every request sent was a query, never a mutation, and carried the editor's sign-in token and no AWS signature")
+def queries_only(context):
+    assert context.env.requests
+    for _method, body, headers in context.env.requests:
+        assert body["query"].lstrip().startswith("query ") and "mutation" not in body["query"].lower()
+        assert headers["Authorization"] and not [name for name in headers if name.lower().startswith("x-amz")]
+    assert not [name for name in ("boto3", "botocore") if sys.modules.get(name) is not None]

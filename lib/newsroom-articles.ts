@@ -10,13 +10,23 @@ import {
   type ContentActionError,
 } from "./content-actions-client";
 import { createDemoArticlesBackend } from "./content-actions-demo";
-import { STORY_ITEM_TYPES } from "./content-item-lifecycle";
+import { defaultStoryType, siteStoryTypes } from "./site-story-types";
 
 export type ArticleStatus = "draft" | "published";
-export type ArticleType = "article" | "post" | "page";
 
-/** The types the editor offers: every story type (the one list in content-item-lifecycle) and the page. */
-export const ARTICLE_TYPES: ArticleType[] = [...(STORY_ITEM_TYPES as readonly ArticleType[]), "page"];
+/** An Item that is not a Story, which the editor can still edit. It is offered beside the site's Story types. */
+export const PAGE_TYPE = "page";
+
+/** The types the editor offers for an Item of `currentType`: the site's Story types (its projection.json), the page, and the Item's own type when it is neither. */
+export function editorTypeChoices(currentType: string | null | undefined, offered: readonly string[] = siteStoryTypes().types): string[] {
+  return [...new Set([...offered, PAGE_TYPE, ...(currentType ? [currentType] : [])])];
+}
+
+/** `case_study` as "Case study". */
+export function typeLabel(type: string): string {
+  const words = type.replace(/[-_]+/g, " ").trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : type;
+}
 
 export type NewsroomArticleRow = {
   id: string;
@@ -74,6 +84,8 @@ export type EditableArticle = {
   versionNumber: number | null;
   aliases: string[];
   everPublished: boolean;
+  /** The type of the live published version of this Story's lineage, when there is one. It can differ from `type` after a new version changed the type. */
+  publishedType?: string | null;
 };
 
 export type ArticlesBackend = {
@@ -137,7 +149,7 @@ export function locateError(error: ContentActionError, frontMatterYaml: string |
 export function emptyArticle(): NewsroomArticleEditorState {
   return {
     id: null,
-    type: "article",
+    type: defaultStoryType(),
     section: "",
     slug: "",
     frontMatterYaml: "title: \n",
@@ -214,12 +226,20 @@ export type ArticlesDataClient = {
         input: { typeStatus: string },
         options: ListOptions,
       ) => Promise<ListPage<PublishedItemSummary>>;
+      get: (
+        input: { id: string },
+        options: { authMode: "userPool" },
+      ) => Promise<{ data?: Record<string, unknown> | null; errors?: { message?: string }[] | null }>;
     };
   };
 };
 
-const NEWSROOM_ARTICLE_TYPE_STATUSES = ["article#draft", "article#published", "page#draft", "page#published"];
-const NEWSROOM_PUBLISHED_TYPE_STATUSES = ["article#published", "page#published"];
+/** The list asks for each of the site's Story types and the page: the Item index is keyed on `<type>#<status>`. */
+function listedTypes(): string[] {
+  return [...new Set([...siteStoryTypes().types, PAGE_TYPE])];
+}
+const articleTypeStatuses = () => listedTypes().flatMap((type) => [`${type}#draft`, `${type}#published`]);
+const publishedTypeStatuses = () => listedTypes().map((type) => `${type}#published`);
 
 async function collectPages<T>(
   fetchPage: (options: ListOptions) => Promise<ListPage<T>>,
@@ -241,12 +261,12 @@ async function collectPages<T>(
 
 export async function loadArticleRows(client: ArticlesDataClient): Promise<NewsroomArticleRow[]> {
   const itemGroups = await Promise.all(
-    NEWSROOM_ARTICLE_TYPE_STATUSES.map((typeStatus) =>
+    articleTypeStatuses().map((typeStatus) =>
       collectPages((options) => client.models.Item.listItemsByTypeStatusAndPublishedAt({ typeStatus }, options)),
     ),
   );
   const publishedGroups = await Promise.all(
-    NEWSROOM_PUBLISHED_TYPE_STATUSES.map((typeStatus) =>
+    publishedTypeStatuses().map((typeStatus) =>
       collectPages((options) =>
         client.models.PublishedItem.listPublishedItemsByTypeStatusAndPublishedAt({ typeStatus }, options),
       ),
@@ -272,6 +292,14 @@ export async function loadEditableArticle(client: ArticlesDataClient, id: string
   if (!record) throw new Error("That article was not found.");
   const metadata = parseJsonObject(record.metadata);
   const status: ArticleStatus = record.status === "published" ? "published" : "draft";
+  const lineage = typeof record.lineageId === "string" ? record.lineageId : String(record.id);
+  let publishedType: string | null = null;
+  try {
+    const published = await client.models.PublishedItem?.get?.({ id: `published-${lineage}` }, { authMode: "userPool" });
+    publishedType = typeof published?.data?.type === "string" ? published.data.type : null;
+  } catch {
+    publishedType = null; // the type of the live version only sharpens a warning
+  }
   return {
     id: String(record.id),
     lineageId: typeof record.lineageId === "string" ? record.lineageId : null,
@@ -285,6 +313,7 @@ export async function loadEditableArticle(client: ArticlesDataClient, id: string
     versionNumber: typeof record.versionNumber === "number" ? record.versionNumber : null,
     aliases: Array.isArray(record.aliases) ? record.aliases.map(String) : [],
     everPublished: status === "published",
+    publishedType,
   };
 }
 

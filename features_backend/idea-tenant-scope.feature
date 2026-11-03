@@ -28,3 +28,10 @@ Feature: A backend whose editorial records carry a tenant is written as that ten
     Given an index with no vectors and 3 note Messages
     When the router's index sync runs over no References
     Then no note Message was read
+
+  Scenario: The editorial context is checked against the tenant of the client that asked for it
+    Given an editorial context whose publication carries the tenant "example-tenant"
+    When a store built for a client of the tenant "example-tenant" reads it in a process with no tenant set
+    Then the context is returned
+    When a store built with no tenant reads it in a process with no tenant set
+    Then it is refused because the editorial context tenant does not match

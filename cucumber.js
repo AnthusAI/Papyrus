@@ -80,6 +80,11 @@ module.exports = {
     require: ["features/step_definitions/reference-feed.steps.js"],
     format: ["summary"],
   },
+  referenceSearch: {
+    paths: ["features/newsroom-reference-search.feature"],
+    require: ["features/step_definitions/reference-search.steps.js"],
+    format: ["summary"],
+  },
   conversations: {
     paths: ["features/newsroom-conversations.feature"],
     require: ["features/step_definitions/conversations.steps.js"],
@@ -114,6 +119,11 @@ module.exports = {
   alexa: {
     paths: ["features/alexa-*.feature"],
     require: ["features/step_definitions/alexa-*.steps.js"],
+    format: ["summary"],
+  },
+  storyTypeEditor: {
+    paths: ["features/newsroom-story-type-editor.feature"],
+    require: ["features/step_definitions/story-type-editor.steps.js"],
     format: ["summary"],
   },
   createStory: {

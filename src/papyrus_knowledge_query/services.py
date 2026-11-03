@@ -429,6 +429,10 @@ class S3VectorsProvider:
             raise RuntimeError("boto3 is required for S3VectorsProvider") from exc
         return boto3.client("s3vectors", region_name=self.region_name)
 
+    def embed_text(self, text: str) -> list[float]:
+        """The query embedding for ``text`` (one OpenAI call); the vector can then go to ``query_by_vector`` with any metadata filter."""
+        return self._embed(text)
+
     def _embed(self, text: str) -> list[float]:
         api_key = _resolve_openai_api_key()
         if not api_key:

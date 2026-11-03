@@ -60,6 +60,12 @@ def step_copy(context):
     file(context, body="Our view. " + SOURCE_TEXT + "\n")
 
 
+@then('the Item is a "{item_type}"')
+def step_type(context, item_type):
+    [item] = items(context)
+    assert item["type"] == item_type and item["typeStatus"] == f"{item_type}#draft", item
+
+
 @then("the Item is at the idea stage and is a draft")
 def step_stage(context):
     [item] = items(context)

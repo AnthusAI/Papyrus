@@ -61,7 +61,8 @@ import { captureStatusesByLineage } from "../lib/reference-capture";
 import { buildFeedItems, feedLeadId, referenceArrivalTime, scoreFeedItem, type FeedItem } from "../lib/reference-feed-ranking";
 import type { PredictionStatuses } from "../lib/reference-predictions";
 import { useFeedWindow } from "./use-feed-window";
-import { useIndexedReferenceFeed, type IndexedFeedSource } from "./use-indexed-reference-feed";
+import { useFeedSearch, useIndexedReferenceFeed, type IndexedFeedSource } from "./use-indexed-reference-feed";
+import { pathWithSearch, type ReferenceSearchReader } from "../lib/reference-search";
 import { referenceDek, referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { chooseSyntheticRejects, withSyntheticRejects } from "../lib/local-preview-synthetic-rejects";
@@ -155,6 +156,8 @@ type NewsroomReferencesViewProps = {
   loading?: boolean;
   /** Reads one page of the "Accepted automatically" list from the database (newest first). Without it the list is built from the loaded References. */
   loadAutoAccepted?: AutoAcceptedReader;
+  /** The search box's reader when the feed is not read from the indexes (the demo): it searches the page's own References. */
+  searchReader?: ReferenceSearchReader;
   /**
    * Present when the feed reads itself from the feed-state indexes, a page at a time, as the reader scrolls. The view then ignores
    * `loading`, asks `onFeedRecords` to take each page's records into the page's own list, and says which Reference ids are shown
@@ -462,6 +465,7 @@ export function NewsroomReferencesView({
   onCorrectCapture,
   savedCopy = null,
   loadAutoAccepted,
+  searchReader,
 }: NewsroomReferencesViewProps) {
   const pathname = usePathname();
   const sessionImport = useReferenceImport(disabled);
@@ -474,8 +478,19 @@ export function NewsroomReferencesView({
 
   const { sort: feedSort, setSort: setFeedSort, show: feedShow, setShow: setFeedShow } = useFeedPreferences();
   const serverMode = Boolean(feedSource);
-  const indexed = useIndexedReferenceFeed({ enabled: serverMode, source: feedSource, sort: feedSort, show: feedShow });
-  const loading = serverMode ? indexed.status === "loading" || indexed.status === "idle" : loadingProp;
+  // The search box (docs/reference-search.md). A search replaces the feed's pages with the site's ranked results; the saved Sort and Show are untouched
+  // (a search opens on All, and clearing it brings the saved choices back).
+  const [caughtUp, setCaughtUp] = useState(false);
+  const stopCaughtUp = useCallback(() => setCaughtUp(false), []);
+  const searchRead = feedSource?.search ?? searchReader;
+  const search = useFeedSearch({ enabled: Boolean(searchRead), read: searchRead, onChange: stopCaughtUp });
+  const { searching, query: searchQuery } = search;
+  const searchFeed = search.feed;
+  const indexedFeed = useIndexedReferenceFeed({ enabled: serverMode && !searching, source: feedSource, sort: feedSort, show: feedShow });
+  const indexed = searching ? searchFeed : indexedFeed;
+  // The cards come from the pages of a reader (the indexes, or a search) rather than from the page's own list.
+  const resultsMode = serverMode || searching;
+  const loading = resultsMode ? indexed.status === "loading" || indexed.status === "idle" : loadingProp;
   useEffect(() => {
     if (serverMode && indexed.status === "ready") onFeedRecords?.(indexed.records);
     // `onFeedRecords` is the host's setter; the records are what changes.
@@ -529,8 +544,8 @@ export function NewsroomReferencesView({
   const allItems = useMemo(() => buildFeedItems(canonicalReferences, decisions), [canonicalReferences, decisions]);
   const managedPredictions = Boolean(predictionStatuses);
   const feedWindowState = useFeedWindow({
-    allItems: serverMode ? NO_FEED_ITEMS : allItems,
-    blocked: serverMode || loading || showingSavedCopy || previewSkeleton,
+    allItems: resultsMode ? NO_FEED_ITEMS : allItems,
+    blocked: resultsMode || loading || showingSavedCopy || previewSkeleton,
     predictionStatuses,
     predictionsPending: predictionState === "loading",
     onRequestPredictions,
@@ -540,19 +555,19 @@ export function NewsroomReferencesView({
   });
   // Server mode: the feed is the index's own order, page by page. A Reference an editor rates stays where it is for the visit.
   const [revealed, setRevealed] = useState<string[]>([]);
-  useEffect(() => { setRevealed([]); }, [feedSort, feedShow]);
+  useEffect(() => { setRevealed([]); }, [feedSort, feedShow, searchQuery, search.show]);
   const indexedLineages = useMemo(() => new Set(indexed.records.map(referenceLineageId)), [indexed.records]);
   const arrivals = useMemo(() => {
-    if (!serverMode || indexed.status !== "ready") return [] as ReferenceRecord[];
+    if (!serverMode || searching || indexed.status !== "ready") return [] as ReferenceRecord[];
     const shown = new Set(revealed);
     return canonicalReferences.filter((reference) => {
       const lineage = referenceLineageId(reference);
       return normalizeReferenceCurationStatus(reference.curationStatus) === "pending" && !indexedLineages.has(lineage) && !shown.has(lineage)
         && (referenceArrivalTime(reference) ?? 0) > indexed.readAt;
     }).sort((left, right) => (referenceArrivalTime(right) ?? 0) - (referenceArrivalTime(left) ?? 0));
-  }, [canonicalReferences, indexed.readAt, indexed.status, indexedLineages, revealed, serverMode]);
+  }, [canonicalReferences, indexed.readAt, indexed.status, indexedLineages, revealed, searching, serverMode]);
   const serverItems = useMemo(() => {
-    if (!serverMode) return NO_FEED_ITEMS;
+    if (!resultsMode) return NO_FEED_ITEMS;
     const current = new Map(canonicalReferences.map((reference) => [referenceLineageId(reference), reference] as const));
     const seen = new Set<string>();
     const items: FeedItem[] = [];
@@ -566,24 +581,24 @@ export function NewsroomReferencesView({
       items.push(typeof original === "number" ? { ...item, probability: original } : item);
     }
     return items;
-  }, [canonicalReferences, decisions, indexed.records, revealed, serverMode]);
+  }, [canonicalReferences, decisions, indexed.records, resultsMode, revealed]);
   const shownIdsKey = serverItems.map((item) => item.lineageId).join("\u0000");
   useEffect(() => {
-    if (!serverMode || !serverItems.length) return;
+    if (!resultsMode || !serverItems.length) return;
     const ids = serverItems.map((item) => item.lineageId);
     onShownIds?.(ids);
     onRequestPredictions?.(ids);
     // `shownIdsKey` stands for the ids.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shownIdsKey, serverMode]);
-  const feedItems = serverMode ? serverItems : feedWindowState.items;
+  }, [shownIdsKey, resultsMode]);
+  const feedItems = resultsMode ? serverItems : feedWindowState.items;
   // The large lead card is a pick among cards still to answer: Rated has none.
-  const feedLead = feedShow === "rated" ? undefined : serverMode ? feedLeadId(serverItems) : feedWindowState.leadId;
-  const hasMoreItems = serverMode ? indexed.hasMore : feedWindowState.hasMore;
-  const loadingMoreItems = serverMode ? indexed.loadingMore : feedWindowState.loadingMore;
-  const loadMoreItems = serverMode ? () => { void indexed.loadMore(); } : feedWindowState.loadMore;
+  const feedLead = searching || feedShow === "rated" ? undefined : resultsMode ? feedLeadId(serverItems) : feedWindowState.leadId;   // a search has no lead card
+  const hasMoreItems = resultsMode ? indexed.hasMore : feedWindowState.hasMore;
+  const loadingMoreItems = resultsMode ? indexed.loadingMore : feedWindowState.loadingMore;
+  const loadMoreItems = resultsMode ? () => { void indexed.loadMore(); } : feedWindowState.loadMore;
   const showNewItems = serverMode ? () => setRevealed((current) => [...arrivals.map(referenceLineageId), ...current]) : feedWindowState.showNewItems;
-  const newItemCount = serverMode ? arrivals.length : feedWindowState.newCount;
+  const newItemCount = searching ? 0 : serverMode ? arrivals.length : feedWindowState.newCount;
   const ratedCount = useMemo(
     () => (serverMode ? ratedTotal ?? serverItems.filter((item) => item.rated).length : allItems.filter((item) => item.rated).length),
     [allItems, ratedTotal, serverItems, serverMode],
@@ -681,7 +696,6 @@ export function NewsroomReferencesView({
     return ids;
   }, [feedOrderIds, filteredReferences, selectedReference, view]);
   useEffect(() => { queueRef.current = queue; }, [queue]);
-  const [caughtUp, setCaughtUp] = useState(false);
   const selectedIndex = selectedReference ? queue.indexOf(referenceLineageId(selectedReference)) : -1;
   const queuePosition = selectedIndex >= 0 ? selectedIndex + 1 : null;
   const previousLineageId = caughtUp ? queue[queue.length - 1] ?? null : selectedIndex > 0 ? queue[selectedIndex - 1] : null;
@@ -710,7 +724,7 @@ export function NewsroomReferencesView({
     setCaughtUp(false);
     setSelectedLineageId(lineageId);
     if (typeof window !== "undefined") {
-      const nextPath = buildReferenceDetailPath(lineageId, demo);
+      const nextPath = pathWithSearch(buildReferenceDetailPath(lineageId, demo), searchQuery);
       if (`${window.location.pathname}${window.location.search}` !== nextPath) {
         window.history.pushState(null, "", nextPath);
       }
@@ -735,7 +749,7 @@ export function NewsroomReferencesView({
     setCaughtUp(false);
     setSelectedLineageId("");
     if (typeof window !== "undefined") {
-      const indexPath = getNewsroomNavHref("/newsroom/references", demo);
+      const indexPath = pathWithSearch(getNewsroomNavHref("/newsroom/references", demo), searchQuery);
       window.history.replaceState(null, "", indexPath);
     }
   };
@@ -941,13 +955,13 @@ export function NewsroomReferencesView({
             <div className="px-1.5 pb-6 pt-1.5 pr-2.5">
               <ReferenceFeed
                 disabledReason={feedDisabledReason}
-                loading={previewSkeleton || (serverMode ? loading : loading && !references.length)}
+                loading={previewSkeleton || (resultsMode ? loading : loading && !references.length)}
                 messageCounts={messageCounts}
                 now={mountedAt}
                 onOpen={selectReference}
                 onRate={rateFromFeed}
                 demo={demo}
-                onShowChange={(next) => { setFeedShow(next); setCaughtUp(false); }}
+                onShowChange={(next) => { if (searching) search.setShow(next); else setFeedShow(next); setCaughtUp(false); }}
                 onSortChange={(next) => { setFeedSort(next); setCaughtUp(false); }}
                 onVisitRated={markVisitRated}
                 items={feedItems}
@@ -958,18 +972,26 @@ export function NewsroomReferencesView({
                 hasMore={hasMoreItems}
                 loadingMore={loadingMoreItems}
                 onLoadMore={loadMoreItems}
-                error={serverMode ? indexed.error ?? indexed.moreError : null}
-                onRetry={serverMode ? indexed.retry : undefined}
+                error={resultsMode ? indexed.error ?? indexed.moreError : null}
+                onRetry={resultsMode ? indexed.retry : undefined}
                 previews={previews}
                 captures={showCaptures ? captureStatuses : undefined}
                 leadId={feedLead}
                 scrollTarget={scrollTarget}
                 ratings={ratings}
                 selectedLineageId={selectedLineageId}
-                stale={!serverMode && (showingSavedCopy || (loading && references.length > 0))}
-                show={feedShow}
+                stale={!resultsMode && (showingSavedCopy || (loading && references.length > 0))}
+                show={searching ? search.show : feedShow}
                 sort={feedSort}
                 visitRated={visitRated}
+                search={searchRead ? {
+                  query: searchQuery,
+                  onSubmit: search.submit,
+                  onClear: search.clear,
+                  matches: searchFeed.matches,
+                  notice: searchFeed.notice,
+                  onRetry: searchFeed.retry,
+                } : undefined}
               />
             </div>
           </ScrollArea>

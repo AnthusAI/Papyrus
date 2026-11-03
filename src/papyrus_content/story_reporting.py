@@ -36,6 +36,7 @@ from .publishing import (
     utc_now_iso,
 )
 from .record_helpers import compact_dict, to_aws_json
+from .story_types import require_story_type
 
 STORY_THREAD_KIND = "story_reporting"
 STORY_MESSAGE_KINDS = ("note", "research_packet", "reporting_context_packet", "draft_note", "editor_note")
@@ -159,10 +160,13 @@ def save_story_version(
     stage: str | None = None,
     media_rows: Callable[[str], list[dict[str, Any]]] | None = None,
     machine_write: dict[str, str] | None = None,
+    item_type: str | None = None,
 ) -> dict[str, Any]:
     """Records the next draft version of a story and marks the previous latest version superseded.
 
     ``media_rows`` maps the new version's id to the ``MediaAsset`` rows to store on it (``stories save-version --images``).
+    ``item_type`` gives the new version another Story type (the type is a field of the version, not of the lineage); the published version keeps the
+    type it was published with, so the live address does not move until the new version is published.
     """
     now = now or utc_now_iso()
     versions = story_versions(client, lineage_id)
@@ -172,7 +176,7 @@ def save_story_version(
     next_number = max(int(row.get("versionNumber") or 1) for row in versions) + 1
     record_id = next_version_record_id(lineage_id, next_number, {row["id"] for row in versions})
     fields = ItemFields(
-        type=latest["type"],
+        type=require_story_type(item_type, "The Story type") if item_type and item_type != latest["type"] else latest["type"],
         slug=latest["slug"],
         section=latest.get("section"),
         front_matter_yaml=front_matter_yaml,
@@ -207,6 +211,7 @@ def save_story_version(
         "metadata": to_aws_json(metadata),
         "contentHash": _source_content_hash(fields),
         "publishedAt": None,
+        "type": fields.type,
     }
     if stage:
         record["stage"] = require_content_item_stage(stage)

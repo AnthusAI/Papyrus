@@ -16,6 +16,11 @@ Feature: Generated story ideas are Items at the idea stage
     And the Item is linked to the Reference as "based_on"
     And the Item's body has no drafting bookkeeping line
 
+  Scenario: An idea is filed under the site's default Story type
+    Given the site's default Story type is "guide"
+    When the pipeline files an idea citing the Reference
+    Then the Item is a "guide"
+
   Scenario: The same idea is never filed twice
     When the pipeline files an idea citing the Reference
     And the pipeline files an idea citing the Reference

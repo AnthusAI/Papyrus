@@ -130,3 +130,48 @@ def step_sync(context):
 @then("no note Message was read")
 def step_none_read(context):
     assert context.tenant.read == [], context.tenant.read
+
+
+@given('an editorial context whose publication carries the tenant "{tenant}"')
+def step_context_with_tenant(context, tenant):
+    context.editorial_pack = {"publication": {"tenantId": tenant}}
+
+
+def _read_editorial_context(context, tenant):
+    from unittest import mock
+
+    from papyrus_content import editorial_checks, editorial_model_context
+
+    def execute(_query, _variables):
+        return {"getEditorialContext": "{}", "listKnowledgeCorporaByRoleAndName": {"items": [{"id": "knowledge-corpus-x", "name": "x", "role": "canonical"}], "nextToken": None}}
+
+    store = editorial_checks.GraphQLEditorialStore(execute=execute, tenant_id=tenant)
+    context.editorial_result, context.editorial_error = None, None
+    with mock.patch.dict("os.environ", {}, clear=False) as environment, \
+            mock.patch.object(editorial_model_context, "checked_context", return_value=context.editorial_pack):
+        environment.pop("PAPYRUS_TENANT_ID", None)
+        try:
+            context.editorial_result = store.get_editorial_context(None)
+        except ValueError as error:
+            context.editorial_error = error
+
+
+@when('a store built for a client of the tenant "{tenant}" reads it in a process with no tenant set')
+def step_store_of_tenant_reads(context, tenant):
+    _read_editorial_context(context, tenant)
+
+
+@when("a store built with no tenant reads it in a process with no tenant set")
+def step_store_without_tenant_reads(context):
+    _read_editorial_context(context, None)
+
+
+@then("the context is returned")
+def step_context_returned(context):
+    assert context.editorial_error is None, context.editorial_error
+    assert context.editorial_result == context.editorial_pack
+
+
+@then("it is refused because the editorial context tenant does not match")
+def step_context_refused(context):
+    assert "tenant mismatch" in str(context.editorial_error)
