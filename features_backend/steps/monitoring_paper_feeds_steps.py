@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 import sys
 
 from behave import given, then, when
@@ -267,3 +268,18 @@ def step_text(context):
 @then("the request names the feed as its source")
 def step_source(context):
     assert context.request["values"]["source"] == "feed"
+
+
+@given("the paper monitors in the monitoring stack template")
+def step_stack_template(context):
+    text = (Path(__file__).resolve().parents[2] / "infra" / "monitoring" / "papyrus-monitoring.yaml").read_text()
+    context.template_blocks = {match.group(1): match.group(0) for match in re.finditer(r"^  (\w+Schedule):\n(?:(?:    .*|)\n)*", text, re.M)}
+
+
+@then("papers-arxiv-ai, papers-arxiv-security and papers-huggingface each have a schedule running the collector every 6 hours and a schedule running the router hourly, each naming its monitor")
+def step_paper_schedules(context):
+    for name, monitor_id in (("PapersArxivAi", "papers-arxiv-ai"), ("PapersArxivSecurity", "papers-arxiv-security"), ("PapersHuggingface", "papers-huggingface")):
+        collect, route = context.template_blocks[f"{name}CollectSchedule"], context.template_blocks[f"{name}RouteSchedule"]
+        assert "rate(6 hours)" in collect and "CollectorFunction.Arn" in collect and f'"monitorId":"{monitor_id}"' in collect
+        assert re.search(r"cron\(\d+ \* \* \* \? \*\)", route) and "RouterFunction.Arn" in route and f'"monitorId":"{monitor_id}"' in route
+
