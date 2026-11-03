@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ce63a823-fa73-4b1f-ba21-8f687d832979",
+  "issue_id": "PPY-18656b5d-5dc0-4530-9ce4-a054dc9bbb0e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T04:10:47.189Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Knowledge-query OpenAI key: fall back to shared SSM path",
+    "description": "Semantic search failed with ParameterNotFound: knowledge-query used only path from AMPLIFY_SSM_ENV_CONFIG; key lives at sharedPath. Fix in PR #1082 (path, then sharedPath on ParameterNotFound only). Same single-path pattern remains in src/papyrus_content/amplify_ssm_secrets.py:65 and amplify/functions/shared/amplify-secrets.ts:55.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
