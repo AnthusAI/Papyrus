@@ -21,6 +21,7 @@ const REQUIRED_FIELDS: Record<string, string[]> = {
 const REQUIRED_INDEXES = [
   'index("feedStateKey").sortKeys(["predictionSortKey"]).queryField("listReferencesByFeedStateAndPrediction")',
   'index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival")',
+  'index("starFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByStarFeedAndArrival")',
 ];
 
 function extractFieldNames(source: string, modelName: string): Set<string> {

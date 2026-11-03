@@ -3,7 +3,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
   References open as a feed in a responsive grid, like a news app: a larger lead card, then cards with a picture, a title, a one-line
   dek, the source and its age, the Cyclotron's prediction (Accept or Reject with its confidence and an icon) and the editor's own
   Accept and Reject. The feed is one list with two choices, each a pair of buttons with an icon and words, never a drop-down and never
-  tabs. Sort is Best bets, the default, or Newest. Best bets is the Cyclotron's own confidence that the editor will Accept, highest
+  tabs. Sort is Predictions, the default, or Newest. Predictions is the Cyclotron's own confidence that the editor will Accept, highest
   first, whatever the age: the items it expects the editor to Accept most surely come first, the items with no prediction sit in the
   middle, and the strongest predicted Rejects come last. Newest is the latest arrival first. Show is Unrated, the default, or
   All, which adds the References that already have a human answer to the same list in the same sort, each showing its
@@ -22,7 +22,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     And a title shows without the site name a page tacks on its end, such as " | Brookings" or " | Poverty and Development | Al Jazeera"
     And nothing scrolls sideways and there are no drop-downs
 
-  Scenario: Best bets goes by the Cyclotron's original confidence, whatever the age
+  Scenario: Predictions goes by the Cyclotron's original confidence, whatever the age
     Given References of very different ages with predictions
     When the feed is ranked
     Then an old strong Accept still ranks above a new weaker one, and an old Reject never rises above a new Accept
@@ -62,10 +62,10 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then it stays in the one list where its original confidence puts it, and last when sorted by Newest, with no Earlier section and no tabs
     And an old card can be rated and stays where it is
 
-  Scenario: Best bets is the default, Newest sorts by date, and Unrated is the default
+  Scenario: Predictions is the default, Newest sorts by date, and Unrated is the default
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor opens the feed at 375 and 1440 pixels
-    Then Best bets and Unrated are pressed, and each choice is a pair of buttons with an icon and words
+    Then Predictions and Unrated are pressed, and each choice is a pair of buttons with an icon and words
     And choosing Newest orders the cards by arrival, newest first, whatever the predictions say
 
   Scenario: All adds the answered cards with their votes, and both choices are remembered
@@ -78,7 +78,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Given a feed with References that were accepted automatically or by an editor
     When the editor chooses Rated
     Then only the answered cards are listed, in the active sort, each showing its recorded vote, with no large lead card
-    And Best bets there goes by the Cyclotron's original confidence and Newest by arrival, never by the editor's answer
+    And Predictions there goes by the Cyclotron's original confidence and Newest by arrival, never by the editor's answer
     And the answered cards are read from the rated partitions alone, a page at a time, and a vote changed there leaves the card where it is
     And a site with nothing rated yet says "Nothing rated yet" in plain words, and the page remembers Rated for this browser
 
@@ -125,7 +125,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
   Scenario: The ranking is explained in plain words with this site's own numbers
     Given the feed is open
     When the editor opens how this feed is ranked
-    Then it explains Best bets, Newest, Unrated, All and why a rated card stays put
+    Then it explains Predictions, Newest, Unrated, All and why a rated card stays put
     And it says that age does not change the order
 
   Scenario: The detail pane reads top to bottom: what the item is, then the rating, then what was captured

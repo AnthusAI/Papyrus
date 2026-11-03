@@ -5,7 +5,7 @@ import { chromium, type Page } from "playwright";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
-declare global { interface Window { requests: Array<{ kind: string; sort?: string; limit?: number; ids?: string[] }>; site: any[]; searches: Array<{ query: string; show: string; limit: number; cursor: string | null }> } }
+declare global { interface Window { requests: Array<{ kind: string; sort?: string; limit?: number; ids?: string[]; key?: string }>; site: any[]; searches: Array<{ query: string; show: string; limit: number; cursor: string | null; sort?: string; minStars?: number | null }> } }
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const origin = "http://reference-feed.test";
@@ -41,7 +41,8 @@ import { useFeedSearch, useIndexedReferenceFeed } from "./components/use-indexed
 import { previewSearch } from "./lib/reference-search";
 import { scoreFeedItem, feedLeadId } from "./lib/reference-feed-ranking";
 import { predictionSortKeyFor } from "./lib/reference-feed-keys";
-import { compareFeedRecords } from "./lib/reference-feed-pages";
+import { compareFeedRecords, feedReaderFromRecords, starReaderFromRecords } from "./lib/reference-feed-pages";
+import { useFeedControls } from "./components/use-feed-controls";
 
 const params = new URLSearchParams(location.search);
 const NOW = Date.parse("2026-10-27T12:00:00Z");
@@ -259,8 +260,8 @@ const searchReader = async (input) => {
   return previewSearch(SEARCH_SITE, input, { meaning: SEARCH_MEANING, lanes: searchLanes() });
 };
 function SearchHarness() {
-  const { sort, setSort, show, setShow } = useFeedPreferences();
-  const search = useFeedSearch({ enabled: true, read: searchReader });
+  const controls = useFeedControls({ searchRead: searchReader });
+  const { search } = controls;
   const [answers, setAnswers] = useState({});
   const items = useMemo(() => search.feed.records.map((record) => scoreFeedItem({ ...record, curationStatus: answers[record.lineageId] ?? record.curationStatus }, undefined)), [search.feed.records, answers]);
   return <ReferenceFeed
@@ -275,18 +276,78 @@ function SearchHarness() {
     onOpen={() => undefined}
     onRate={async (reference, choice) => { window.calls.push({ type: "rate", id: reference.lineageId, choice }); setAnswers((current) => ({ ...current, [reference.lineageId]: choice === "accept" ? "accepted" : "rejected" })); }}
     onRetry={search.feed.retry}
-    onShowChange={search.searching ? search.setShow : setShow}
-    onSortChange={setSort}
+    onShowChange={controls.setShow}
+    onSortChange={controls.setSort}
     onVisitRated={() => undefined}
     previews={new Map()}
     ratedCount={1}
     search={{ query: search.query, onSubmit: search.submit, onClear: search.clear, matches: search.feed.matches, notice: search.feed.notice, onRetry: search.feed.retry }}
-    show={search.searching ? search.show : show}
-    sort={sort}
+    show={controls.show}
+    sort={controls.sort}
     visitRated={new Set()}
   />;
 }
-createRoot(document.getElementById("root")).render(params.has("search") ? <SearchHarness /> : params.has("indexed") ? <IndexedHarness /> : params.has("page-loading") ? <ReferencesPageLoading /> : params.has("paged") ? <PagedHarness /> : <Harness />);
+
+// The Quality sort and the minimum of stars: a synthetic site read through the same hooks the page uses (the feed-state index, the star
+// partitions, and the search), in memory like the local preview. Archived and superseded References keep their star key, as the real index does.
+function buildQualitySite() {
+  const day = (days) => new Date(NOW - days * DAY).toISOString();
+  const row = (id, stars, state, days, extra = {}) => ({ ...make(id, { title: "Quality topic " + id, curationStatus: state === "unrated" ? "pending" : state, createdAt: day(days), sourcePublishedAt: day(days), ...(stars ? { starRating: stars } : {}), ...extra }) });
+  const rows = [
+    row("five-new", 5, "accepted", 1), row("five-old", 5, "unrated", 6), row("four-new", 4, "rejected", 2, { corpusId: "d" }), row("four-old", 4, "unrated", 7),
+    row("three", 3, "accepted", 3), row("two", 2, "accepted", 4, { corpusId: "d" }), row("one", 1, "unrated", 5),
+    row("plain-new", 0, "unrated", 0.5), row("plain-old", 0, "unrated", 8),
+    row("archived-five", 5, "archived", 0.2), row("superseded-four", 4, "unrated", 0.3, { versionState: "superseded" }),
+  ].filter((reference) => !(params.has("noFive") && reference.starRating === 5 && reference.curationStatus !== "archived"));
+  if (params.has("ghosts")) {
+    for (let index = 0; index < 60; index += 1) rows.push(row("ghost-" + index, 5, "archived", 0.001 * (index + 1)));
+  }
+  return rows;
+}
+const QUALITY_SITE = buildQualitySite();
+const qualityFeedRead = feedReaderFromRecords(QUALITY_SITE);
+const qualityStarRead = starReaderFromRecords(QUALITY_SITE);
+const qualitySource = {
+  loadCorpusIds: async () => ["c", "d"],
+  readStream: async (query) => { window.requests.push({ kind: "index", key: query.feedStateKey, sort: query.sort, limit: query.limit }); return qualityFeedRead(query); },
+  readStarStream: async (query) => { window.requests.push({ kind: "stars", key: query.feedStateKey, sort: query.sort, limit: query.limit }); return qualityStarRead(query); },
+};
+const qualitySearch = async (input) => {
+  window.searches.push({ query: input.query, show: input.show, limit: input.limit, cursor: input.cursor, sort: input.sort, minStars: input.minStars });
+  return previewSearch(QUALITY_SITE, input);
+};
+function QualityHarness() {
+  const controls = useFeedControls({ searchRead: qualitySearch });
+  const { search, minStars } = controls;
+  const feed = useIndexedReferenceFeed({ enabled: !search.searching, source: qualitySource, sort: controls.saved.sort, show: controls.saved.show, minStars });
+  const active = search.searching ? search.feed : feed;
+  const items = useMemo(() => active.records.map((record) => scoreFeedItem(record, undefined)), [active.records]);
+  return <ReferenceFeed
+    error={active.error ?? active.moreError}
+    hasMore={active.hasMore}
+    items={items}
+    leadId={undefined}
+    loading={active.status === "loading" || active.status === "idle"}
+    loadingMore={active.loadingMore}
+    minStars={minStars}
+    now={NOW}
+    onLoadMore={() => { void active.loadMore(); }}
+    onMinStarsChange={controls.setMinStars}
+    onOpen={() => undefined}
+    onRate={async () => undefined}
+    onRetry={active.retry}
+    onShowChange={controls.setShow}
+    onSortChange={controls.setSort}
+    onVisitRated={() => undefined}
+    previews={new Map()}
+    ratedCount={1}
+    search={{ query: search.query, onSubmit: search.submit, onClear: search.clear, matches: search.feed.matches, notice: search.feed.notice, onRetry: search.feed.retry }}
+    show={controls.show}
+    sort={controls.sort}
+    visitRated={new Set()}
+  />;
+}
+createRoot(document.getElementById("root")).render(params.has("quality") ? <QualityHarness /> : params.has("search") ? <SearchHarness /> : params.has("indexed") ? <IndexedHarness /> : params.has("page-loading") ? <ReferencesPageLoading /> : params.has("paged") ? <PagedHarness /> : <Harness />);
 ` },
   }).then((result) => result.outputFiles[0].text);
   return bundle;
@@ -638,12 +699,12 @@ const scenarios: Record<string, () => Promise<void>> = {
     });
   },
 
-  /** Best bets by default, Newest by date; Unrated by default, All adds the answered cards; both choices are remembered. */
+  /** Predictions by default, Newest by date; Unrated by default, All adds the answered cards; both choices are remembered. */
   async sorting() {
     await run("?auto", [375, 1440], async (page) => {
       await cards(page).first().waitFor();
       const pressed = (kind: string, key: string) => page.locator(`[data-feed-${kind}-button=${key}]`).getAttribute("aria-pressed");
-      assert.equal(await pressed("sort", "best"), "true", "Best bets is the default");
+      assert.equal(await pressed("sort", "best"), "true", "Predictions is the default");
       assert.equal(await pressed("show", "unrated"), "true", "Unrated is the default");
       for (const kind of ["sort", "show"]) {
         for (const button of await page.locator(`[data-feed-${kind}-button]`).all()) {
@@ -681,7 +742,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await card(page, "editor-accepted").getAttribute("data-feed-rated"), "accept", "a rated card still shows its recorded vote");
       assert.equal(await page.locator("[data-feed-lead]").count(), 0, "and has no lead card");
       await page.locator("[data-feed-sort-button=best]").click();
-      assert.equal((await order(page)).length, 3, "Best bets also works with rated cards");
+      assert.equal((await order(page)).length, 3, "Predictions also works with rated cards");
       assert.equal(await page.locator("[data-feed-show-button=rated] svg").count(), 1, "a Lucide icon beside the words");
       await page.reload();
       await cards(page).first().waitFor();
@@ -700,7 +761,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await skeleton.getAttribute("aria-label"), "Loading references");
       assert.ok((await skeleton.locator(".animate-pulse").count()) > 10);
       assert.equal(await cards(page).count(), 0);
-      assert.equal(await page.locator("[data-feed-sort-button]").count(), 2, "the feed's controls are already on the page");
+      assert.equal(await page.locator("[data-feed-sort-button]").count(), 3, "the feed's controls are already on the page");
       assert.equal(await page.locator("[data-feed-show-button]").count(), 3);
       assert.ok(!/checking|credentials/i.test(await page.locator("body").innerText()));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
@@ -745,7 +806,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await button.click();
       const panel = page.locator("[data-feed-ranking-panel]");
       const text = await panel.innerText();
-      for (const expected of ["A feed run by algorithms you control", "Best bets", "Newest", "Unrated", "All", "Your answers stay put", "Age does not change"]) {
+      for (const expected of ["A feed run by algorithms you control", "Predictions", "Newest", "Unrated", "All", "Your answers stay put", "Age does not change"]) {
         assert.ok(text.includes(expected), `the popover says: ${expected}`);
       }
       const box = (await panel.boundingBox())!;
@@ -822,7 +883,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await cards(page).count(), 24, "one page of cards");
       const attachments = first.find((request) => request.kind === "attachments") as unknown as { ids: string[] };
       assert.equal(attachments.ids.length, 24, "attachments for the 24 cards shown, not the 13,000 in the table");
-      // Best bets across all three corpora, highest original P first, newest on ties: the top of the merged partitions.
+      // Predictions across all three corpora, highest original P first, newest on ties: the top of the merged partitions.
       const shown = await order(page) as string[];
       const expected = await page.evaluate(() => window.site
         .filter((row: any) => row.feedStateKey.endsWith("#unrated"))
@@ -975,12 +1036,14 @@ const scenarios: Record<string, () => Promise<void>> = {
       await submit(page, "memory");
       await card(page, "both").waitFor();
       assert.equal(await page.locator("[data-feed-sort-relevance]").innerText(), "Relevance");
-      assert.equal(await page.locator("[data-feed-sort-button]").count(), 0, "no Best bets or Newest while searching");
+      assert.equal(await page.locator("[data-feed-sort-button=relevance]").getAttribute("aria-pressed"), "true", "Relevance is the chosen sort");
+      assert.deepEqual(await page.locator("[data-feed-sort-button]").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("data-feed-sort-button"))), ["relevance", "newest", "quality"], "no Predictions while searching");
       assert.equal(await page.locator("[data-feed-show-button=all]").getAttribute("aria-pressed"), "true", "the search opens on All");
       assert.equal((await searches(page))[0]!.show, "all");
       await page.locator("[data-feed-show-button=unrated]").click();
       await page.waitForFunction(() => window.searches.length === 2);
       assert.equal((await searches(page))[1]!.show, "unrated");
+      await page.waitForFunction(() => document.querySelectorAll("[data-feed-card]").length === 1);
       assert.deepEqual(await order(page), ["both"]);
       assert.equal(await page.evaluate(() => localStorage.getItem("papyrus:reference-feed:show")), "rated", "choosing Show during a search does not change the saved one");
       await page.locator("[data-feed-search-clear]").click();
@@ -1061,6 +1124,163 @@ const scenarios: Record<string, () => Promise<void>> = {
       await card(page, target).locator("[data-review-choice=accept]").click();
       await page.waitForFunction((id) => document.querySelector(`[data-feed-card="${id}"]`)?.getAttribute("data-feed-rated") === "accept", target);
       assert.deepEqual((await order(page)).slice(0, before.length), before, "no card moved");
+    });
+  },
+
+  /**
+   * The Quality sort and the Minimum stars row (features/newsroom-reference-quality.feature): the star partitions are read and merged, Show and Sort
+   * move with the choices as the rules say, the choices are saved, and a search takes the same row. Fixture site only.
+   */
+  async quality() {
+    const shotDir = process.env.QUALITY_SHOTS;
+    if (shotDir) fs.mkdirSync(shotDir, { recursive: true });
+    const sortButton = (page: Page, key: string) => page.locator(`[data-feed-sort-button=${key}]`);
+    const showButton = (page: Page, key: string) => page.locator(`[data-feed-show-button=${key}]`);
+    const minButton = (page: Page, key: string) => page.locator(`[data-feed-min-stars-button="${key}"]`);
+    const pressed = async (button: ReturnType<typeof sortButton>) => (await button.getAttribute("aria-pressed")) === "true";
+    const waitOrder = async (page: Page, expected: string[]) => {
+      await page.waitForFunction((ids) => JSON.stringify(Array.from(document.querySelectorAll("[data-feed-card]")).map((element) => element.getAttribute("data-feed-card"))) === JSON.stringify(ids), expected);
+      assert.deepEqual(await order(page), expected);
+    };
+    const requests = (page: Page) => page.evaluate(() => window.requests.slice());
+    const searches = (page: Page) => page.evaluate(() => window.searches.slice());
+    const stored = (page: Page, key: string) => page.evaluate((name) => localStorage.getItem(`papyrus:reference-feed:${name}`), key);
+    const noSideScroll = async (page: Page) => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal scroll");
+    const QUALITY = ["five-new", "five-old", "four-new", "four-old", "three", "two", "one"];
+
+    await run("?quality=1", [375, 1440], async (page, width) => {
+      await cards(page).first().waitFor();
+      // The controls: a third sort, and a labelled row of minimums with a star and a number, none of them with a border.
+      assert.deepEqual(await page.locator("[data-feed-sort-button]").evaluateAll((buttons) => buttons.map((button) => button.textContent)), ["Predictions", "Newest", "Quality"]);
+      const row = page.locator("[data-feed-control=min-stars]");
+      assert.ok((await row.innerText()).startsWith("Minimum stars"));
+      assert.deepEqual(await page.locator("[data-feed-min-stars-button]").evaluateAll((buttons) => buttons.map((button) => (button.textContent ?? "").trim())), ["Any", "3+ stars or more", "4+ stars or more", "5 stars"]);
+      assert.deepEqual(await page.locator("[data-feed-min-stars-button]").evaluateAll((buttons) => buttons.map((button) => button.querySelectorAll("svg").length)), [0, 1, 1, 1], "a star icon with the number; Any has none");
+      assert.equal(await pressed(sortButton(page, "best")) && await pressed(showButton(page, "unrated")) && await pressed(minButton(page, "0")), true, "Predictions, Unrated and Any by default");
+      const borders = await page.locator("[data-feed-control=min-stars], [data-feed-control=min-stars] *").evaluateAll((elements) => elements.map((element) => {
+        const style = getComputedStyle(element);
+        return ["Top", "Right", "Bottom", "Left"].map((side) => style.getPropertyValue(`border-${side.toLowerCase()}-width`)).join(" ");
+      }));
+      assert.ok(borders.every((value) => value === "0px 0px 0px 0px"), "no borders on the new controls: " + borders.join(" | "));
+      await noSideScroll(page);
+      if (shotDir) await page.screenshot({ path: `${shotDir}/quality-controls-${width}.png` });
+
+      // Quality: most stars first, newest first within a star level; only starred, never an archived or superseded Reference. Show moves to All, in view.
+      await sortButton(page, "quality").click();
+      await waitOrder(page, QUALITY);
+      assert.equal(await pressed(showButton(page, "all")), true, "Unrated moved to All, visibly");
+      assert.equal(await pressed(sortButton(page, "quality")), true);
+      const read = (await requests(page)).filter((request) => request.kind === "stars").map((request) => request.key);
+      assert.deepEqual([...new Set(read)].sort(), ["c", "d"].flatMap((corpus) => [1, 2, 3, 4, 5].map((n) => `${corpus}#stars#${n}`)).sort(), "every star level of every corpus");
+      assert.equal(await cards(page).count(), 7);
+      assert.equal(await stored(page, "show"), "all", "the move is saved like any choice of Show");
+      if (shotDir) await page.screenshot({ path: `${shotDir}/quality-sort-${width}.png` });
+
+      // Show is the editor's afterwards.
+      await showButton(page, "unrated").click();
+      await waitOrder(page, ["five-old", "four-old", "one"]);
+      await showButton(page, "rated").click();
+      await waitOrder(page, ["five-new", "four-new", "three", "two"]);
+      await showButton(page, "all").click();
+      await waitOrder(page, QUALITY);
+
+      // 4+ on Newest merges the 5 and 4 star partitions by arrival, and reads no other level.
+      await sortButton(page, "newest").click();
+      const before = (await requests(page)).length;
+      await minButton(page, "4").click();
+      await waitOrder(page, ["five-new", "four-new", "five-old", "four-old"]);
+      assert.equal(await pressed(minButton(page, "4")), true);
+      const merged = (await requests(page)).slice(before).filter((request) => request.kind === "stars").map((request) => request.key);
+      assert.deepEqual([...new Set(merged)].sort(), ["c#stars#4", "c#stars#5", "d#stars#4", "d#stars#5"]);
+      assert.equal((await requests(page)).slice(before).filter((request) => request.kind === "index").length, 0, "the feed-state index is not read for a minimum");
+      if (shotDir) await page.screenshot({ path: `${shotDir}/quality-minimum-${width}.png` });
+      await minButton(page, "5").click();
+      await waitOrder(page, ["five-new", "five-old"]);
+      await minButton(page, "3").click();
+      await waitOrder(page, ["five-new", "four-new", "three", "five-old", "four-old"]);
+
+      // A minimum survives a reload, with Sort and Show.
+      await minButton(page, "4").click();
+      await waitOrder(page, ["five-new", "four-new", "five-old", "four-old"]);
+      await page.reload();
+      await minButton(page, "4").waitFor();
+      await page.waitForFunction(() => document.querySelector("[data-feed-min-stars-button='4']")?.getAttribute("aria-pressed") === "true");
+      assert.equal(await pressed(sortButton(page, "newest")), true);
+      assert.equal(await pressed(showButton(page, "all")), true);
+      await waitOrder(page, ["five-new", "four-new", "five-old", "four-old"]);
+
+      // Predictions takes the minimum back to Any.
+      await sortButton(page, "best").click();
+      await page.waitForFunction(() => document.querySelector("[data-feed-min-stars-button='0']")?.getAttribute("aria-pressed") === "true");
+      assert.equal(await pressed(sortButton(page, "best")), true);
+      assert.equal(await stored(page, "min-stars"), "0");
+      await page.waitForFunction(() => document.querySelectorAll("[data-feed-card]").length === 9);
+      // And a minimum takes Predictions to Newest, and Unrated to All.
+      await showButton(page, "unrated").click();
+      await page.waitForFunction(() => document.querySelector("[data-feed-show-button='unrated']")?.getAttribute("aria-pressed") === "true");
+      await minButton(page, "3").click();
+      await waitOrder(page, ["five-new", "four-new", "three", "five-old", "four-old"]);
+      assert.equal(await pressed(sortButton(page, "newest")), true, "a minimum moves Predictions to Newest");
+      assert.equal(await pressed(showButton(page, "all")), true, "and Unrated to All");
+      await noSideScroll(page);
+    });
+
+    // A minimum that finds nothing is named, with a way to take it off.
+    await run("?quality=1&noFive=1", [375, 1440], async (page, width) => {
+      await cards(page).first().waitFor();
+      await minButton(page, "5").click();
+      await page.locator("[data-feed-min-stars-empty]").waitFor();
+      assert.equal((await page.locator("[data-feed-min-stars-empty]").innerText()).replace(/\n+/g, " / "), "Nothing here has 5 stars. / Show any stars");
+      if (shotDir) await page.screenshot({ path: `${shotDir}/quality-empty-${width}.png` });
+      await page.locator("[data-feed-min-stars-clear]").click();
+      await cards(page).first().waitFor();
+      assert.equal(await pressed(minButton(page, "0")), true);
+      assert.equal(await page.locator("[data-feed-min-stars-empty]").count(), 0);
+    });
+
+    // A search takes the same row, and has Newest and Quality of its own, opened on Relevance and not saved.
+    await run("?quality=1", [375, 1440], async (page, width) => {
+      await cards(page).first().waitFor();
+      await page.locator("[data-feed-search-input]").fill("quality topic");
+      await page.locator("[data-feed-search-input]").press("Enter");
+      await page.waitForFunction(() => document.querySelectorAll("[data-feed-card]").length === 9);
+      assert.deepEqual(await page.locator("[data-feed-sort-button]").evaluateAll((buttons) => buttons.map((button) => button.textContent)), ["Relevance", "Newest", "Quality"]);
+      assert.equal(await pressed(sortButton(page, "relevance")), true, "a search opens on Relevance");
+      await sortButton(page, "newest").click();
+      await waitOrder(page, ["plain-new", "five-new", "four-new", "three", "two", "one", "five-old", "four-old", "plain-old"]);
+      assert.deepEqual((await searches(page)).at(-1), { query: "quality topic", show: "all", limit: 24, cursor: null, sort: "newest", minStars: null });
+      await sortButton(page, "quality").click();
+      await waitOrder(page, [...QUALITY, "plain-new", "plain-old"]);
+      assert.equal((await searches(page)).at(-1)!.sort, "quality");
+      if (shotDir) await page.screenshot({ path: `${shotDir}/quality-search-${width}.png` });
+      await minButton(page, "4").click();
+      await waitOrder(page, ["five-new", "five-old", "four-new", "four-old"]);
+      assert.deepEqual({ sort: (await searches(page)).at(-1)!.sort, minStars: (await searches(page)).at(-1)!.minStars }, { sort: "quality", minStars: 4 });
+      assert.equal(await pressed(sortButton(page, "quality")), true, "the search keeps its own sort");
+      assert.equal(await stored(page, "min-stars"), "4", "the minimum is the shared saved one");
+      await minButton(page, "0").click();
+      await page.waitForFunction(() => document.querySelectorAll("[data-feed-card]").length === 9);
+      // Unrated while searching, then Quality or a minimum: Show moves to All.
+      await showButton(page, "unrated").click();
+      await page.waitForFunction(() => document.querySelector("[data-feed-show-button='unrated']")?.getAttribute("aria-pressed") === "true");
+      await minButton(page, "3").click();
+      assert.equal(await pressed(showButton(page, "all")), true, "a minimum moves the search's Unrated to All");
+      await page.waitForFunction(() => document.querySelector("[data-feed-search-input]") !== null);
+      // Clearing the search brings back the saved choices.
+      await page.locator("[data-feed-search-clear]").click();
+      await sortButton(page, "best").waitFor().catch(() => undefined);
+      assert.equal(await pressed(minButton(page, "3")), true);
+      assert.equal(await pressed(sortButton(page, "newest")), true, "the saved Predictions moved to Newest with the minimum");
+      assert.equal(await page.locator("[data-feed-sort-relevance]").count(), 0);
+    });
+
+    // A page of star rows that all filter away does not stop the feed: scrolling goes on until the live rows come.
+    await run("?quality=1&ghosts=1", [375], async (page) => {
+      await cards(page).first().waitFor();
+      await sortButton(page, "quality").click();
+      await waitOrder(page, QUALITY);
+      const reads = (await requests(page)).filter((request) => request.kind === "stars" && request.key === "c#stars#5").length;
+      assert.ok(reads >= 3, "three pages of the 5 star partition were read to get past 60 archived rows, got " + reads);
     });
   },
 

@@ -33,7 +33,7 @@ Feature: One search box on the References page finds a Reference again, whatever
   Scenario: Sort reads Relevance and Show opens on All without changing what the editor saved
     Given a browser that saved Rated as its Show choice
     When the editor searches, narrows Show to Unrated, and then clears the search
-    Then Sort reads Relevance in place of Best bets and Newest, and Show opened on All
+    Then Sort reads Relevance in place of Predictions and Newest, and Show opened on All
     And choosing Unrated during the search did not change the saved choice
     And clearing the search brings back Sort, the saved Show of Rated, and a plain address
 

@@ -79,7 +79,7 @@ export const NO_SNAPSHOT_SENTENCE =
   "The Cyclotron has not reported on this site's classifier yet. A status appears here after the classifier's first completed decisions.";
 export const UNAVAILABLE_SENTENCE = "The classifier's status could not be read right now. Try again in a minute.";
 export const NOT_MEASURED = "Not measured yet";
-export const NO_RETRAINING_SENTENCE = "No retraining has happened yet.";
+export const NO_RETRAINING_SENTENCE = "Not cycled yet.";
 
 function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
@@ -105,8 +105,8 @@ function formatDay(value: string | null | undefined, timeZone?: string): string 
 }
 
 const CHANGE_WORDS: Record<NonNullable<CyclotronStatus["lastChange"]>["kind"], string> = {
-  refit: "retrained on reviews",
-  promoted: "improved",
+  refit: "cycled on reviews",
+  promoted: "new version promoted",
   dropped: "tried a change and kept the current approach",
   definition: "questions or examples changed",
 };
@@ -138,13 +138,13 @@ export function describeClassifier(row: HostedStatusRow, options: { timeZone?: s
     retraining = NO_RETRAINING_SENTENCE;
   } else {
     const parts: string[] = [];
-    parts.push(refits === 0 ? "No retraining on reviews has happened yet." : `Retrained ${plural(refits, "time")}.`);
+    parts.push(refits === 0 ? "Not cycled on reviews yet." : `Cycled ${plural(refits, "time")}.`);
     if (change) {
       const day = formatDay(change.at, timeZone);
-      const summary = (change.plainSummary ?? change.summary ?? "").trim();
+      const summary = (change.plainSummary ?? change.summary ?? "").trim().replace(/\.+$/, "");
       parts.push(`Last change${day ? ` ${day}` : " (date not recorded)"}: ${CHANGE_WORDS[change.kind] ?? "changed"}${summary ? `, ${summary}` : ""}.`);
     } else {
-      parts.push("The date of the last retraining was not recorded.");
+      parts.push("The date of the last cycle was not recorded.");
     }
     retraining = parts.join(" ");
   }

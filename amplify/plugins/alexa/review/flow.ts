@@ -1,7 +1,7 @@
 /**
  * Reviewing References by voice: the editor hears one Reference at a time (title, subtitle, summary), says accept or reject (with
- * a reason) or skip, and the skill moves on. Two queues: "best bets" (the Cyclotron's P(accept), highest first, as the newsroom's
- * Best bets sort) and "needs my help" (the References the Cyclotron is least sure about, as the newsroom's "What needs me").
+ * a reason) or skip, and the skill moves on. Two queues: "predictions" (the Cyclotron's P(accept), highest first, as the newsroom's
+ * Predictions sort) and "needs my help" (the References the Cyclotron is least sure about, as the newsroom's "What needs me").
  *
  * The queue lives in the session (ids and titles only); each Reference's text is fetched when it is read. Votes go through the
  * newsroom's own mutation under the editor's token (review/newsroom.ts).
@@ -21,7 +21,7 @@ import { NewsroomRefusedError, type NewsroomReview, type ReviewCandidate, type R
 
 export type ReviewQueueKind = "best" | "help";
 
-export const QUEUE_NAMES: Record<ReviewQueueKind, string> = { best: "best bets", help: "needs your help" };
+export const QUEUE_NAMES: Record<ReviewQueueKind, string> = { best: "predictions", help: "needs your help" };
 
 /** How many unrated References a queue reads to order (the needs-my-help order needs them all in view). */
 export const QUEUE_SCAN_LIMIT = 300;
@@ -68,7 +68,7 @@ export function inReview(handlerInput: HandlerInput): boolean {
   return reviewState(handlerInput) !== undefined;
 }
 
-/** The queue in its order. Best bets: P(accept) highest first. Needs my help: most uncertain first. Ties: newest first, then id. */
+/** The queue in its order. Predictions: P(accept) highest first. Needs my help: most uncertain first. Ties: newest first, then id. */
 export function orderQueue(candidates: readonly ReviewCandidate[], kind: ReviewQueueKind): ReviewCandidate[] {
   const probability = (candidate: ReviewCandidate) => candidate.probability ?? UNDECIDED_PROBABILITY;
   const key = kind === "best" ? probability : (candidate: ReviewCandidate) => uncertaintyOf(probability(candidate));
@@ -339,14 +339,14 @@ export function reviewHelp(handlerInput: HandlerInput): Response {
   return say(
     handlerInput,
     sentence(
-      `${where}Say accept, or reject and why. Skip moves on without answering. Undo takes back your last answer. You can also ask why this one, who published it, how many are left, or say send it to my phone. Say best bets or needs my help to switch lists, or stop.`,
+      `${where}Say accept, or reject and why. Skip moves on without answering. Undo takes back your last answer. You can also ask why this one, who published it, how many are left, or say send it to my phone. Say predictions or needs my help to switch lists, or stop.`,
     ),
     sentence(SHORT_PROMPT),
   );
 }
 
 export function notReviewing(handlerInput: HandlerInput): Response {
-  return say(handlerInput, sentence("We're not reviewing anything right now. Say needs my help, or best bets, to start."), sentence("Say needs my help, best bets, or headlines."));
+  return say(handlerInput, sentence("We're not reviewing anything right now. Say needs my help, or predictions, to start."), sentence("Say needs my help, predictions, or headlines."));
 }
 
 export function stopReview(handlerInput: HandlerInput): Response {

@@ -58,7 +58,7 @@ const outcomes = [
     "both read as accepted, and the editor can still change either",
   ]],
   ["popover", [
-    "it explains Best bets, Newest, Unrated, All and why a rated card stays put",
+    "it explains Predictions, Newest, Unrated, All and why a rated card stays put",
     "it says that age does not change the order",
   ]],
   ["cached", [
@@ -157,12 +157,12 @@ for (const [name, texts] of outcomes) {
 
 // "the editor opens the feed at 375 and 1440 pixels" opens every scenario that uses it; the outcomes below each run their own browser scenario.
 When("the feed is ranked", { timeout: 60_000 }, async function () { this.feedResult = await ranking(); });
-Then("an old strong Accept still ranks above a new weaker one, and an old Reject never rises above a new Accept", function () { assert.match(this.feedResult, /Best bets is the Cyclotron's own confidence: age never changes it/); });
-Then("ties go to the newest item and then to a stable order", function () { assert.match(this.feedResult, /Ties in Best bets go to the newest item/); });
+Then("an old strong Accept still ranks above a new weaker one, and an old Reject never rises above a new Accept", function () { assert.match(this.feedResult, /Predictions is the Cyclotron's own confidence: age never changes it/); });
+Then("ties go to the newest item and then to a stable order", function () { assert.match(this.feedResult, /Ties in Predictions go to the newest item/); });
 Then("a card rated this visit does not move any other card", function () { assert.match(this.feedResult, /The feed order is taken once and kept, in both sorts/); });
 Then("it stays in the one list where its original confidence puts it, and last when sorted by Newest, with no Earlier section and no tabs", async function () { assert.ok((await browser("aged")).includes("passed: aged")); });
 Then("an old card can be rated and stays where it is", async function () { assert.ok((await browser("aged")).includes("passed: aged")); });
-Then("Best bets and Unrated are pressed, and each choice is a pair of buttons with an icon and words", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+Then("Predictions and Unrated are pressed, and each choice is a pair of buttons with an icon and words", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("choosing Newest orders the cards by arrival, newest first, whatever the predictions say", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("the answered cards join the same list in the active sort, each showing its recorded vote", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("the page remembers Newest and All for this browser, with no tabs on the page", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
@@ -172,7 +172,7 @@ for (const text of [
   "the answered cards are read from the rated partitions alone, a page at a time, and a vote changed there leaves the card where it is",
   "a site with nothing rated yet says \"Nothing rated yet\" in plain words, and the page remembers Rated for this browser",
 ]) Then(text, async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
-Then("Best bets there goes by the Cyclotron's original confidence and Newest by arrival, never by the editor's answer", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+Then("Predictions there goes by the Cyclotron's original confidence and Newest by arrival, never by the editor's answer", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 When("the editor chooses All and reloads the page", function () { this.feedResult = ""; });
 Then("the pictures are lazy, in a fixed frame and requested with no referrer", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("a missing or failing picture shows a soft gradient tile with the source's mark and name", async function () { assert.ok((await browser("images")).includes("passed: images")); });

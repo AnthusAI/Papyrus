@@ -6,10 +6,12 @@ import {
   extendFeedOrderSnapshot,
   feedLeadId,
   feedWindow,
+  filterByStars,
   laterPageItems,
   takeFeedOrderSnapshot,
   visibleFeedItems,
   type FeedItem,
+  type FeedMinStars,
   type FeedOrderSnapshot,
   type FeedShow,
   type FeedSort,
@@ -34,6 +36,7 @@ export function useFeedWindow({
   onRequestPredictions,
   sort,
   show,
+  minStars = 0,
   visitRated,
 }: {
   allItems: FeedItem[];
@@ -45,6 +48,8 @@ export function useFeedWindow({
   onRequestPredictions?: ((lineageIds: string[]) => void) | undefined;
   sort: FeedSort;
   show: FeedShow;
+  /** The fewest stars to show (0 is Any). The Quality sort shows starred References only. */
+  minStars?: FeedMinStars;
   visitRated: ReadonlySet<string>;
 }) {
   const [pages, setPages] = useState(1);
@@ -80,10 +85,10 @@ export function useFeedWindow({
 
   const stable = snapshot.current ? applyFeedOrderSnapshot(snapshot.current, live, sort, show) : null;
   const unstable = useMemo(() => visibleFeedItems(live, sort, show, visitRated), [live, sort, show, visitRated]);
-  const items = stable?.items ?? unstable;
+  const items = filterByStars(stable?.items ?? unstable, sort, minStars);
   return {
     items,
-    leadId: stable ? stable.leadId : feedLeadId(items),
+    leadId: stable ? (stable.leadId && items.some((item) => item.lineageId === stable.leadId) ? stable.leadId : undefined) : feedLeadId(items),
     newCount: stable?.newCount ?? 0,
     hasMore: windowItems.length < allItems.length,
     loadingMore: pendingOlder.length > 0,

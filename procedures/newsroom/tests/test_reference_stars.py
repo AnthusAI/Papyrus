@@ -36,16 +36,18 @@ def with_ratings(signals, *ratings):
 
 
 def test_a_rating_is_stored_beside_the_vote_and_the_newest_wins():
-    assert reference_stars.star_fields(4, rated_by="an editor", rated_at="2026-11-02T10:00:00Z") == {"starRating": 4, "starRatedAt": "2026-11-02T10:00:00Z", "starRatedBy": "an editor"}
+    assert reference_stars.star_fields(4, corpus_id="knowledge-corpus-demo", rated_by="an editor", rated_at="2026-11-02T10:00:00Z") == {
+        "starRating": 4, "starRatedAt": "2026-11-02T10:00:00Z", "starRatedBy": "an editor", "starFeedKey": "knowledge-corpus-demo#stars#4"}
     assert reference_stars.latest_stars({"starRating": 4, "starRatedAt": "2026-11-02T10:00:00Z", "starRatedBy": "an editor"}) == {"stars": 4, "ratedAt": "2026-11-02T10:00:00Z", "ratedBy": "an editor"}
-    assert reference_stars.star_fields(None) == {"starRating": None, "starRatedAt": None, "starRatedBy": None}   # clearing clears who and when too
+    assert reference_stars.star_fields(None, corpus_id="knowledge-corpus-demo") == {   # clearing clears who, when and the star partition too
+        "starRating": None, "starRatedAt": None, "starRatedBy": None, "starFeedKey": None}
     assert reference_stars.latest_stars({"starRating": None}) is None and reference_stars.latest_stars({}) is None and reference_stars.latest_stars(None) is None
 
 
 @pytest.mark.parametrize("bad", [0, 6, -1, 2.5, True, "3"])
 def test_a_rating_is_a_whole_number_from_one_to_five(bad):
     with pytest.raises(ValueError):
-        reference_stars.star_fields(bad)
+        reference_stars.star_fields(bad, corpus_id="knowledge-corpus-demo")
 
 
 def test_stars_never_become_part_of_a_vote_or_a_cyclotron_label():

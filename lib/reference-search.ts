@@ -4,6 +4,7 @@
  */
 import type { ReferenceRecord } from "./category-repository";
 import { referenceFeedKeys } from "./reference-feed-keys";
+import { starsOf } from "./reference-feed-pages";
 
 export type ReferenceSearchShow = "unrated" | "rated" | "all";
 export type ReferenceSearchLane = { status: "ok" | "failed"; message?: string };
@@ -13,7 +14,18 @@ export type ReferenceSearchPage = {
   nextCursor: string | null;
   lanes: { keyword: ReferenceSearchLane; meaning: ReferenceSearchLane };
 };
-export type ReferenceSearchInput = { query: string; show: ReferenceSearchShow; limit: number; cursor: string | null };
+/** Relevance keeps the site's fused order; Newest is by arrival; Quality is stars first (an unstarred match last, so a search never loses one), then newest. */
+export type ReferenceSearchSort = "relevance" | "newest" | "quality";
+/** The fewest stars a match must have (3, 4 or 5); null or absent is Any. */
+export type ReferenceSearchMinStars = 3 | 4 | 5 | null;
+export type ReferenceSearchInput = {
+  query: string;
+  show: ReferenceSearchShow;
+  limit: number;
+  cursor: string | null;
+  sort?: ReferenceSearchSort;
+  minStars?: ReferenceSearchMinStars;
+};
 export type ReferenceSearchReader = (input: ReferenceSearchInput) => Promise<ReferenceSearchPage>;
 
 export const SEARCH_PAGE_SIZE = 24;
@@ -115,6 +127,12 @@ export function previewSearch(
   }
   const rank = (match: ReferenceSearchMatch) => (match.matchedBy.length === 2 ? 0 : match.matchedBy[0] === "keyword" ? 1 : 2);
   matches.sort((left, right) => rank(left) - rank(right) || (right.reference.feedArrivalAt ?? "").localeCompare(left.reference.feedArrivalAt ?? "") || left.reference.id.localeCompare(right.reference.id));
+  const arrival = (match: ReferenceSearchMatch) => match.reference.feedArrivalAt ?? "";
+  const kept = input.minStars ? matches.filter((match) => starsOf(match.reference) >= input.minStars!) : matches;
+  // Stable sorts, as the site's: a tie keeps the relevance order.
+  if (input.sort === "newest") kept.sort((left, right) => arrival(right).localeCompare(arrival(left)));
+  else if (input.sort === "quality") kept.sort((left, right) => starsOf(right.reference) - starsOf(left.reference) || arrival(right).localeCompare(arrival(left)));
+  matches.splice(0, matches.length, ...kept);
   const start = input.cursor ? Number(input.cursor) || 0 : 0;
   const page = matches.slice(start, start + input.limit);
   const next = start + page.length;

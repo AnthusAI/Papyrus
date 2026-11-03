@@ -195,7 +195,7 @@ The MVP Ryan set on 2026-10-31: a linked editor reviews the newsroom's unrated R
 title, where it is from, the subtitle and the summary; the Echo Show shows the reference card (`apl/reference.ts`) with Accept,
 Reject and Skip buttons; the editor says accept, or reject and why, or skip; the answer is recorded and the next one follows.
 
-**Two lists.** *Best bets*: unrated References by the Cyclotron's P(accept), highest first, the newsroom's Best bets sort. *Needs my
+**Two lists.** *Predictions*: unrated References by the Cyclotron's P(accept), highest first, the newsroom's Predictions sort. *Needs my
 help*: by uncertainty `1 - |2P - 1|`, the newsroom's "What needs me" rule. Both share the newsroom's own functions
 (`lib/reference-feed-ranking.ts`, `lib/needs-me-ranking.ts`), compiled into the package with `lib/reference-policy.ts`,
 `lib/newsroom-references.ts` and `lib/relevance-decisions.ts` (`packages/papyrus/scripts/stage.mjs`). Without a named list the
@@ -239,7 +239,7 @@ What editors will say, and what happens:
 
 | They say | The skill |
 | --- | --- |
-| "what needs my help", "best bets", "review references", "show me references" | Starts that list (needs my help if unnamed) |
+| "what needs my help", "predictions", "review references", "show me references" | Starts that list (needs my help if unnamed) |
 | "accept", "keep it", "yes", "thumbs up" | Accepts, then the next one |
 | "reject because it's a press release", "no it's off topic", "reject" | Rejects with the reason (asks why if none) |
 | "skip", "not sure", "come back to it", "next" | Moves on, nothing recorded |

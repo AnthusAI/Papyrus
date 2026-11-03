@@ -18,7 +18,7 @@ export const helpIntent: IntentModule = {
             `${dependencies.config.skillName} reads you its latest published stories.`,
             "Say a number to hear a story, like the second one.",
             "Say next or previous to move between stories, repeat to hear one again, or headlines for the list.",
-            "Editors can also say needs my help, or best bets, to review references.",
+            "Editors can also say needs my help, or predictions, to review references.",
             "Say stop to leave. What would you like?",
           ]
             .map(sentence)

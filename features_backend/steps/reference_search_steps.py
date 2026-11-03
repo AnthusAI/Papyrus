@@ -50,6 +50,76 @@ def search_unrated(context, query):
     _search(context, query, show="unrated")
 
 
+STAR_TITLES = ["alpha", "beta", "gamma", "delta", "epsilon"]
+
+
+@given("a site of five References that share a word, with stars of 5, 3, none, 5 and 2 and arrivals one day apart, oldest first")
+def star_site(context):
+    stars = [5, 3, None, 5, 2]
+    _site(context, [
+        row(name, f"Topic {name}", arrival=f"2026-11-0{number}T10:00:00.000Z", starRating=rating)
+        for number, (name, rating) in enumerate(zip(STAR_TITLES, stars), start=1)
+    ])
+
+
+@when('an editor searches all References for "{query}" ordered newest first')
+def search_newest(context, query):
+    _search(context, query, sort="newest")
+
+
+@when('an editor searches all References for "{query}" ordered by quality')
+def search_quality(context, query):
+    _search(context, query, sort="quality")
+
+
+@when('an editor searches all References for "{query}" ordered newest first with at least {stars:d} stars')
+def search_newest_minimum(context, query, stars):
+    _search(context, query, sort="newest", minStars=stars)
+
+
+@when('an editor searches all References for "{query}" ordered by quality with at least {stars:d} stars, two at a time')
+def search_quality_paged(context, query, stars):
+    context.paged = {"query": query, "sort": "quality", "minStars": stars}
+    context.first_page = _search(context, query, sort="quality", minStars=stars, limit=2)
+
+
+@then("the results are the five References, latest arrival first")
+def results_newest(context):
+    assert _ids(context.result) == ["epsilon", "delta", "gamma", "beta", "alpha"], _ids(context.result)
+
+
+@then("the results are the two 5-star References newest first, then 3 stars, then 2 stars, then the one with no stars")
+def results_quality(context):
+    assert _ids(context.result) == ["delta", "alpha", "beta", "epsilon", "gamma"], _ids(context.result)
+
+
+@then("the results are the two 5-star References, newest first")
+def results_five(context):
+    assert _ids(context.result) == ["delta", "alpha"], _ids(context.result)
+
+
+@then("a minimum of 2 stars is refused, because only 3, 4 and 5 are minimums")
+def minimum_refused(context):
+    with pytest.raises(rs.SearchError):
+        _search(context, "topic", minStars=2)
+
+
+@then("the next page continues that ordering")
+def next_page_continues(context):
+    cursor = context.first_page["nextCursor"]
+    assert _ids(context.first_page) == ["delta", "alpha"] and cursor
+    second = _search(context, context.paged["query"], sort="quality", minStars=3, limit=2, cursor=cursor)
+    assert _ids(second) == ["beta"] and second["nextCursor"] is None, _ids(second)
+
+
+@then("the same cursor is refused for another ordering or minimum")
+def cursor_refused_elsewhere(context):
+    cursor = context.first_page["nextCursor"]
+    for extra in ({"sort": "newest", "minStars": 3}, {"sort": "quality", "minStars": 4}, {"sort": "quality"}):
+        with pytest.raises(rs.SearchError):
+            _search(context, context.paged["query"], limit=2, cursor=cursor, **extra)
+
+
 @then("the rejected Reference is the only result, found by words in its authors")
 def only_rejected(context):
     assert _ids(context.result) == ["rejected"]

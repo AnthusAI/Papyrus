@@ -42,7 +42,7 @@ def held(context) -> SimpleNamespace:
 
 
 def rate(row, stars, who="an editor"):
-    row.update(reference_stars.star_fields(stars, rated_by=who, rated_at=STAMP))
+    row.update(reference_stars.star_fields(stars, corpus_id="knowledge-corpus-example-site", rated_by=who, rated_at=STAMP))
 
 
 @given("an editor rated a Reference {stars:d} stars")
@@ -59,7 +59,7 @@ def _rate_again(context, stars):
 
 @when("the editor clears the rating")
 def _clear(context):
-    held(context).row.update(reference_stars.star_fields(None))
+    held(context).row.update(reference_stars.star_fields(None, corpus_id="knowledge-corpus-example-site"))
 
 
 @then("the Reference records {stars:d} stars with who rated and when")
@@ -81,7 +81,7 @@ def _none(context):
 @when("an editor rates a Reference {stars:d} stars")
 def _refused(context, stars):
     try:
-        reference_stars.star_fields(stars)
+        reference_stars.star_fields(stars, corpus_id="knowledge-corpus-example-site")
     except ValueError as error:
         held(context).error = str(error)
 

@@ -71,6 +71,30 @@ Feature: The References page search finds a Reference again by its words and by 
     Then every Reference appears exactly once and the last page has no cursor
     And a cursor from a different search or show choice is refused
 
+  Scenario: A search can be ordered newest first
+    Editors rate References with stars while they curate and come back to find the good ones. A search keeps its relevance order unless the editor
+    asks for another: Newest orders the matches by when each arrived. Stars never decide what matches, only the order.
+    Given a site of five References that share a word, with stars of 5, 3, none, 5 and 2 and arrivals one day apart, oldest first
+    When an editor searches all References for "topic" ordered newest first
+    Then the results are the five References, latest arrival first
+
+  Scenario: A search can be ordered by quality
+    Given a site of five References that share a word, with stars of 5, 3, none, 5 and 2 and arrivals one day apart, oldest first
+    When an editor searches all References for "topic" ordered by quality
+    Then the results are the two 5-star References newest first, then 3 stars, then 2 stars, then the one with no stars
+
+  Scenario: A search can ask for a minimum of stars
+    Given a site of five References that share a word, with stars of 5, 3, none, 5 and 2 and arrivals one day apart, oldest first
+    When an editor searches all References for "topic" ordered newest first with at least 4 stars
+    Then the results are the two 5-star References, newest first
+    And a minimum of 2 stars is refused, because only 3, 4 and 5 are minimums
+
+  Scenario: A cursor is only good for the ordering and minimum it was made for
+    Given a site of five References that share a word, with stars of 5, 3, none, 5 and 2 and arrivals one day apart, oldest first
+    When an editor searches all References for "topic" ordered by quality with at least 3 stars, two at a time
+    Then the next page continues that ordering
+    And the same cursor is refused for another ordering or minimum
+
   Scenario: A Reference updated a moment ago is found without reading the others again
     Given a site whose search has already read its References once
     When a Reference's title changes and an editor searches for its new title

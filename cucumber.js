@@ -85,6 +85,11 @@ module.exports = {
     require: ["features/step_definitions/reference-search.steps.js"],
     format: ["summary"],
   },
+  referenceQuality: {
+    paths: ["features/newsroom-reference-quality.feature"],
+    require: ["features/step_definitions/reference-quality.steps.js"],
+    format: ["summary"],
+  },
   conversations: {
     paths: ["features/newsroom-conversations.feature"],
     require: ["features/step_definitions/conversations.steps.js"],

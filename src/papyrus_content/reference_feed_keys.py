@@ -3,8 +3,10 @@
 The page asks two indexes on ``Reference`` for a page at a time instead of loading every Reference:
 
 * ``listReferencesByFeedStateAndPrediction``: partition ``feedStateKey``, sort ``predictionSortKey``. Read newest-key-first it is
-  "Best bets": the Cyclotron's ORIGINAL P(accept) highest first, ties newest first.
+  "Predictions": the Cyclotron's ORIGINAL P(accept) highest first, ties newest first.
 * ``listReferencesByFeedStateAndArrival``: partition ``feedStateKey``, sort ``feedArrivalAt``. Read descending it is "Newest".
+* ``listReferencesByStarFeedAndArrival``: partition ``starFeedKey`` (``<corpusId>#stars#<n>``, one per star level), sort ``feedArrivalAt``.
+  The Quality sort and the minimum-stars filter merge the levels they want.
 
 ``feedStateKey`` is ``<corpusId>#unrated`` for a pending Reference and ``<corpusId>#rated`` for an accepted or rejected one. A Reference
 that is not the current version, or is archived, has no key and is in neither feed. The prediction is a value on the Reference, written
@@ -15,6 +17,7 @@ The TypeScript twin is lib/reference-feed-keys.ts; scripts/fixtures/reference-fe
 """
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
@@ -63,6 +66,18 @@ def feed_state_key(reference: Mapping[str, Any]) -> str | None:
     return f"{reference['corpusId']}#{'unrated' if status == 'pending' else 'rated'}"
 
 
+def star_feed_key(corpus_id: Any, stars: Any) -> str | None:
+    """The star partition a Reference is in: ``<corpusId>#stars#<n>`` for a whole star rating of 1 to 5, None when it has none or no corpus.
+
+    Not part of ``feed_keys``: callers spread those keys on partial patches whose input may lack ``starRating``, which would wrongly clear it.
+    A star write sets it; the index is sparse, so an unstarred Reference is in no star partition. It ignores the feed state: the reader drops
+    a row with no ``feedStateKey`` (archived or superseded) instead.
+    """
+    if not corpus_id or isinstance(stars, bool) or not isinstance(stars, (int, float)) or not math.isfinite(stars) or stars != int(stars) or not 1 <= stars <= 5:
+        return None
+    return f"{corpus_id}#stars#{int(stars)}"
+
+
 def prediction_sort_key(probability: float | None, arrival: str, reference_id: str) -> str:
     chosen = UNDECIDED_PROBABILITY if probability is None else min(1.0, max(0.0, float(probability)))
     return f"{chosen:.6f}#{arrival}#{reference_id}"
@@ -84,6 +99,12 @@ def original_prediction_fields(reference: Mapping[str, Any], *, label: str | Non
     probability = accept_probability(label, positive_label, confidence)
     return {"predictedAcceptProbability": probability, "predictionDecidedAt": _instant(decided_at) or decided_at,
             **feed_keys(reference, probability=probability)}
+
+
+def stale_star_feed_key(reference: Mapping[str, Any]) -> dict[str, Any]:
+    """``{"starFeedKey": wanted}`` when the stored star partition differs from what the Reference's stars and corpus say, else empty."""
+    wanted = star_feed_key(reference.get("corpusId"), reference.get("starRating"))
+    return {} if reference.get("starFeedKey") == wanted else {"starFeedKey": wanted}
 
 
 def stale_feed_keys(reference: Mapping[str, Any]) -> dict[str, Any]:

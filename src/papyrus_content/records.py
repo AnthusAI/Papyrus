@@ -8,7 +8,7 @@ from typing import Any, Callable
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, strip_unsupported_payload_fields
 from .ids import hash_short
 from .model_attachments import expand_private_payload_records, upload_attachment_body
-from .reference_feed_keys import feed_keys, prediction_sort_key
+from .reference_feed_keys import feed_keys, prediction_sort_key, star_feed_key
 
 
 APPEND_ONLY_EXISTING_NOOP_MODELS = frozenset(
@@ -108,13 +108,16 @@ KEPT_FEED_FIELDS = ("predictedAcceptProbability", "predictionDecidedAt", "predic
 
 
 def _feed_keys_for_new_version(next_reference: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
-    """A new version of a Reference is in the feed like the one it replaces: the original prediction and arrival carry over."""
+    """A new version of a Reference is in the feed like the one it replaces: the original prediction, arrival and an editor's stars carry over."""
     carried = {key: current[key] for key in ("predictedAcceptProbability", "predictionDecidedAt", "feedArrivalAt") if current.get(key) is not None}
     keys = feed_keys({**next_reference, **carried})
     if carried.get("feedArrivalAt"):
         keys["feedArrivalAt"] = carried["feedArrivalAt"]
         keys["predictionSortKey"] = prediction_sort_key(carried.get("predictedAcceptProbability"), carried["feedArrivalAt"], str(next_reference["id"]))
-    return {**carried, **keys}
+    stars = {key: current[key] for key in ("starRating", "starRatedAt", "starRatedBy") if current.get(key) is not None}
+    if stars.get("starRating") is not None:
+        stars["starFeedKey"] = star_feed_key(next_reference.get("corpusId"), stars["starRating"])
+    return {**carried, **keys, **stars}
 
 
 def build_record_change_from_current(
