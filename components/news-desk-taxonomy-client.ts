@@ -3,6 +3,7 @@
 import { loadReferenceReviewDetails } from "../lib/reference-review-details";
 import { loadAllPages } from "../lib/newsroom-all-pages";
 import { feedReaderFromRecords, type FeedStreamReader } from "../lib/reference-feed-pages";
+import { PREVIEW_SEARCH_MEANING, parseSearchPage, previewSearch, type ReferenceSearchReader } from "../lib/reference-search";
 import { hasEditorRights } from "../lib/staff-groups";
 
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
@@ -2080,6 +2081,25 @@ export const readReferenceFeedStream: FeedStreamReader = async ({ feedStateKey, 
   const connection = data[field];
   if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
   return { items: (connection.items ?? []).filter(Boolean) as ReferenceRecord[], nextToken: connection.nextToken ?? null };
+};
+
+/**
+ * The References page search box: one `searchReferences` query (words and meaning together, rated or not; docs/reference-search.md). It reads
+ * a page of 24 cards; the opaque cursor continues it. Local preview and the test mock search the records they hold instead.
+ */
+export const searchReferences: ReferenceSearchReader = async (input) => {
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) return previewSearch(testMock.references, input);
+  if (isLocalPreviewEnabled()) return previewSearch(createLocalPreviewReferences(), input, { meaning: PREVIEW_SEARCH_MEANING });
+  const client = generateClient<Schema>();
+  const query = client.queries.searchReferences as unknown as (
+    args: { input: string },
+    options: { authMode: typeof USER_POOL_AUTH_MODE },
+  ) => Promise<{ data?: unknown; errors?: unknown[] | null }>;
+  const response = await query({ input: JSON.stringify(input) }, { authMode: USER_POOL_AUTH_MODE });
+  assertNoGraphQLErrors(response.errors);
+  return parseSearchPage(response.data);
 };
 
 /** Up to this many indexed reads ride in one GraphQL request. */

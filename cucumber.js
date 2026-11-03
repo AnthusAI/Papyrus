@@ -75,6 +75,11 @@ module.exports = {
     require: ["features/step_definitions/reference-feed.steps.js"],
     format: ["summary"],
   },
+  referenceSearch: {
+    paths: ["features/newsroom-reference-search.feature"],
+    require: ["features/step_definitions/reference-search.steps.js"],
+    format: ["summary"],
+  },
   conversations: {
     paths: ["features/newsroom-conversations.feature"],
     require: ["features/step_definitions/conversations.steps.js"],

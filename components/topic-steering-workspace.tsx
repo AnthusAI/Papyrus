@@ -42,6 +42,7 @@ import {
   loadAllEditorReferences,
   loadReferenceFeedCorpusIds,
   readReferenceFeedStream,
+  searchReferences,
   discardFeedCorpusIds,
   loadReferenceAttachmentsForLineages,
   loadEditorProcedureData,
@@ -103,6 +104,7 @@ import { useReferencePredictions } from "../lib/use-reference-predictions";
 import { buildFeedItems, feedWindow } from "../lib/reference-feed-ranking";
 import { loadFeedSnapshot, saveFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
 import { referencePreviewsByLineage } from "../lib/reference-preview";
+import { PREVIEW_SEARCH_MEANING, previewSearch, type ReferenceSearchReader } from "../lib/reference-search";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
@@ -916,10 +918,16 @@ function NewsDeskDashboard({
   const feedSource = useMemo<IndexedFeedSource>(() => ({
     loadCorpusIds: () => loadReferenceFeedCorpusIds(Object.keys(summary?.facets?.references?.byCorpus ?? {})),
     readStream: readReferenceFeedStream,
+    search: searchReferences,
   }), [summary?.facets?.references?.byCorpus]);
   const [referencesRealtimeStatus, setReferencesRealtimeStatus] = useState<RealtimeSubscriptionStatus>("idle");
   const [referencesRealtimeError, setReferencesRealtimeError] = useState<string | null>(null);
   const referencesRef = useRef(references);
+  // The demo has no site to ask: its search box looks through the References the page holds, by words (the local preview adds a stand-in for meaning).
+  const demoSearch = useMemo<ReferenceSearchReader | undefined>(
+    () => (dashboard.isDemo ? async (input) => previewSearch(referencesRef.current, input, isLocalPreviewEnabled() ? { meaning: PREVIEW_SEARCH_MEANING } : {}) : undefined),
+    [dashboard.isDemo],
+  );
   const referenceReviewsPending = useRef(new Map<string, Promise<void>>());
   const [selectedReviewRead, setSelectedReviewRead] = useState<{ lineageId: string; state: "loading" | "ready" | "error"; error: string | null }>({ lineageId: "", state: "ready", error: null });
   const [selectedReviewAttempt, setSelectedReviewAttempt] = useState(0);
@@ -3292,6 +3300,7 @@ function NewsDeskDashboard({
             referenceAttachments={referenceAttachments}
             references={references}
             loadAutoAccepted={dashboard.isDemo && !isLocalPreviewEnabled() ? undefined : loadAutoAcceptedReferencePage}
+            searchReader={demoSearch}
             loading={!dashboard.isDemo && !hasHydratedReferences}
             feedSource={canLoadPrivateCorpus ? feedSource : undefined}
             onFeedRecords={takeFeedRecords}

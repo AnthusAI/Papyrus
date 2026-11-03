@@ -8,7 +8,7 @@ TOP_LEVEL_HELP = """\
 Usage: papyrus [--help] [--version] [--backend local|cloud] <group> <command> [options]
 
 Operator groups:
-  references    List or show references (local pod or cloud GraphQL)
+  references    List or show references (local pod or cloud GraphQL); search them by words and meaning (signed in)
   monitors      Monitoring state (overview, page; signed in, read-only) and Hacker News worker checkpoints
   assignments   List newsroom assignments (cloud) or pod stories (local)
   knowledge     Knowledge query and steering utilities
@@ -56,6 +56,14 @@ def build_references_parser() -> argparse.ArgumentParser:
   show_parser = subparsers.add_parser("show", help="Show one reference")
   show_parser.add_argument("reference_id")
   show_parser.add_argument("--backend", choices=["local", "cloud"], default="")
+
+  search_parser = subparsers.add_parser("search", help="Find References by words and meaning, rated or not (signed in, read-only)")
+  search_parser.add_argument("query", nargs="+")
+  search_parser.add_argument("--site", default="")
+  search_parser.add_argument("--show", choices=["unrated", "rated", "all"], default="all")
+  search_parser.add_argument("--limit", type=int, default=24)
+  search_parser.add_argument("--cursor", default="")
+  search_parser.add_argument("--json", action="store_true")
 
   register_parser = subparsers.add_parser("register", help="Register a local pod reference artifact")
   register_parser.add_argument("--url", required=False, default="")
