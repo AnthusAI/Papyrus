@@ -171,3 +171,47 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     Then the planning brief is the assignment's own brief text
     And the planning system text is the plain planning prompt
     And the packet has no context pack record
+
+  Scenario: The editor's direction outranks the Story in the planning and synthesis prompts
+    When the multi-search run is made for the assignment
+    Then the planning and synthesis prompts tell the model that the editor's direction outranks the Story
+    And the brief begins with the editor's direction, labelled as the editor's, before the Story
+
+  Scenario: A run with no Story keeps the plain prompts
+    Given the assignment is a plain multi-search assignment with no Story
+    When the multi-search run is made for the assignment
+    Then the plain prompts carry no direction rules
+
+  Scenario: A run on a Story takes in only the sources a claim cites
+    When the multi-search run is made for the assignment
+    Then the intake is told to take in only the sources a claim cites
+
+  Scenario: A run with no Story takes in every source as before
+    Given the assignment is a plain multi-search assignment with no Story
+    When the multi-search run is made for the assignment
+    Then the intake is not told to take in only cited sources
+
+  Scenario: Cited-only intake registers cited sources once, as pending, and leaves held References alone
+    Given an earlier packet of seven sources, three cited, one of them already held as an accepted Reference
+    When the packet's sources are taken in with the cited-only option
+    Then only the cited sources not already held are registered, as pending References
+    And the held source is reported and left as it is, not registered again
+
+  Scenario: Without cited-only every source is taken in
+    Given an earlier packet of seven sources, three cited, one of them already held as an accepted Reference
+    When the packet's sources are taken in without the cited-only option
+    Then all seven sources are registered
+
+  Scenario: A publication's own corpus needs no entry in the repository's steering file
+    When the corpus key "example" is resolved for the intake against the repository's steering file
+    Then the corpus configuration is built from the backend's canonical corpus with no classifier
+
+  Scenario: A corpus key that is neither listed nor the backend's own still fails
+    When the corpus key "unknown-corpus" is resolved for the intake against the repository's steering file
+    Then resolving it fails with "Unknown --corpus-key: unknown-corpus"
+
+  Scenario: A failure in the intake after the packet is written is recorded, not raised
+    Given the intake fails after the packet is written with "Unknown --corpus-key: ai-ml-research"
+    When the multi-search run is made for the assignment
+    Then the run does not stop with an error and its result says the intake failed with "Unknown --corpus-key: ai-ml-research"
+    And the assignment records an intake failure event instead of a completed event

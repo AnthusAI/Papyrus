@@ -202,9 +202,9 @@ def assignment_layer(situation: Situation) -> tuple[list[Entry], str | None]:
         return [], "no assignment or direction was given"
     asked_by = metadata.get("requestedBy") or assignment.get("createdBy")
     text = _block([
-        _line("Title", assignment.get("title")),
+        "Editor's direction (it outranks the Story):\n" + str(direction).strip() if direction else "",
+        _line("Assignment title", assignment.get("title")),
         _line("Asked by", asked_by),
-        "Editor's direction:\n" + str(direction).strip() if direction else "",
     ])
     return [_entry("assignment", str(assignment.get("id") or "direction"), text)], None
 
