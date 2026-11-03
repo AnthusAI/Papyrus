@@ -18,6 +18,13 @@ Feature: The router keeps each publication's Cyclotron classifier status for the
     Then the first publication has no status row and the other two have one
     And an editor of the first publication's site is served no snapshot
 
+  Scenario: Only this publication's output is kept from the Cyclotron's answer
+    The Cyclotron answers with the binding's envelope and one snapshot per bound output under "classifiers".
+    Given the Cyclotron's answer for the first publication holds only another output's snapshot
+    When the router runs the cyclotron-status task
+    Then the first publication's run says its answer was not a status snapshot
+    And an editor of the first publication's site is served no snapshot
+
   Scenario: A classifier that has never been retrained is kept as it is reported
     Given the Cyclotron reports no refits and no labels for the first publication
     When the router runs the cyclotron-status task

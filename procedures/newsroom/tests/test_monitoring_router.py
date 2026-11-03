@@ -128,8 +128,14 @@ class FakeTable:
         return [v for k, v in sorted(self.items.items()) if k[1].startswith(prefix)]
 
 
+def status_answer(pub, **snapshot):
+    """The lab's answer to the `status` operation: the binding's envelope, with one snapshot per bound output under `classifiers`."""
+    return {"contractVersion": mr.CONTRACT_VERSION, "accountId": "account-1", "bindingId": pub, "bindingRevision": "1", "outputs": [{"id": f"{pub}-relevance"}],
+            "classifiers": {f"{pub}-relevance": status_snapshot(pub, **snapshot)}}
+
+
 def status_snapshot(pub, as_of="2026-11-02T10:00:00.000Z", refits=0, labels=0):
-    """A cyclotron-status/v1 snapshot as the lab answers the `status` operation for one publication."""
+    """One output's cyclotron-status/v1 snapshot."""
     return {"schema": "cyclotron-status/v1", "asOf": as_of,
             "cyclotron": {"id": f"{pub}-relevance", "classifier": "relevant", "version": 3, "refits": refits, "fingerprint": f"fp-{pub}"},
             "alignment": {"window": 200, "labels": labels, "accuracy": None, "precision": None, "recall": None,
@@ -218,7 +224,7 @@ class FakeCyclotron:
         if method == "POST":
             data = json.loads(body)
             if data["operation"] == "status":
-                return self.status_answers.get(pub) or (200, status_snapshot(pub))
+                return self.status_answers.get(pub) or (200, status_answer(pub))
             if data["operation"] == "feedback":
                 return self.feedback_override or (200, {"status": "recorded", "feedbackId": "fb-" + data["requestId"][:8]})
             if pub in self.post_override:
@@ -2840,16 +2846,29 @@ def test_a_status_refusal_or_a_reply_that_is_not_a_snapshot_is_recorded_for_that
     store, cyclotron = setup_router(table)
     cyclotron.status_answers["anth-us"] = (500, {"detail": "boom"})
     cyclotron.status_answers["p-apyr-us"] = (200, {"pendingOutputs": ["x"]})
+    cyclotron.status_answers["threat-intelligence"] = (200, status_snapshot("threat-intelligence"))   # a bare snapshot is not the lab's answer
     result = status_run(table, store, cyclotron)
     assert result["publications"]["anth-us"]["status"] == "unavailable"
     assert result["publications"]["p-apyr-us"] == {"status": "unavailable", "reason": "not a status snapshot"}
-    assert sorted(status_rows(table)) == ["threat-intelligence"]
+    assert result["publications"]["threat-intelligence"] == {"status": "unavailable", "reason": "not a status snapshot"}
+    assert status_rows(table) == {}
+
+
+def test_the_status_task_keeps_only_this_publications_output_from_the_answer(table):
+    store, cyclotron = setup_router(table)
+    answer = status_answer("anth-us")
+    answer["classifiers"]["p-apyr-us-relevance"] = status_snapshot("p-apyr-us")
+    cyclotron.status_answers["anth-us"] = (200, answer)
+    status_run(table, store, cyclotron)
+    assert status_rows(table)["anth-us"]["status"]["cyclotron"]["id"] == "anth-us-relevance"
+    cyclotron.status_answers["anth-us"] = (200, {**answer, "classifiers": {"p-apyr-us-relevance": status_snapshot("p-apyr-us")}})
+    assert status_run(table, store, cyclotron, now=3000)["publications"]["anth-us"] == {"status": "unavailable", "reason": "not a status snapshot"}
 
 
 def test_a_newer_snapshot_replaces_the_row_and_the_old_one_is_kept_when_the_lab_has_no_snapshot(table):
     store, cyclotron = setup_router(table)
     status_run(table, store, cyclotron)
-    cyclotron.status_answers["anth-us"] = (200, status_snapshot("anth-us", as_of="2026-11-02T12:00:00.000Z", refits=1, labels=12))
+    cyclotron.status_answers["anth-us"] = (200, status_answer("anth-us", as_of="2026-11-02T12:00:00.000Z", refits=1, labels=12))
     cyclotron.status_answers["p-apyr-us"] = (503, {"detail": "no verified publication status snapshot yet"})
     status_run(table, store, cyclotron, now=3000)
     rows = status_rows(table)
