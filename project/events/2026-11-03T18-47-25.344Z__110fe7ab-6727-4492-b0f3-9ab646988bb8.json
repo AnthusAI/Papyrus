@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "110fe7ab-6727-4492-b0f3-9ab646988bb8",
+  "issue_id": "PPY-dd6c50f1-9918-46d6-8148-f1f759d14aea",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T18:47:25.344Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Research paper monitors: arXiv and Hugging Face papers through the shared Cyclotron",
+    "description": "Ryan 2026-11-03: restart research papers from scratch, as Hacker News did. New shared monitors read paper sources and the shared Cyclotron decides per site for Machines on Machines, Threat Intelligence and Shipped. RSS or Atom where it exists. arXiv AI: rss.arxiv.org/rss/cs.AI+cs.LG+cs.CL+cs.MA+stat.ML (754 new, 336 cross on 2026-11-03). arXiv security: rss.arxiv.org/rss/cs.CR (65 new, 22 cross). Hugging Face papers: huggingface.co/api/daily_papers, JSON only, about 7-25 a day. Start Hugging Face and security live, run arXiv AI dry first. Tell the Cyclotron session before this reaches its service. Monitor router changes need Ryan to see the change set.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

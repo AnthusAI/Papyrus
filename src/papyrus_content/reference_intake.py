@@ -16,6 +16,7 @@ from typing import Any
 from .catalog import reference_record
 from .model_attachments import build_json_model_payload_attachment, upload_attachment_body
 
+from .reference_identity import IdentityIndex, identity_keys
 from .reference_intake_validation import IntakeError, _actor, canonical_source_url
 
 
@@ -97,8 +98,10 @@ def intake_references(client, arguments: dict, identity: dict) -> dict:
     # Full batch validation precedes all writes. Existing legacy rows participate
     # in URL deduplication without recuration or replacement.
     existing = client.list_records("Reference")
+    identity_index = IdentityIndex(existing)
     results = [
-        find_or_create_source_reference(client, existing, publication=publication, corpus_id=corpus_id, item=item, actor=f"user:{actor}")
+        find_or_create_source_reference(client, existing, publication=publication, corpus_id=corpus_id, item=item, actor=f"user:{actor}",
+                                        identity_index=identity_index)
         for item in items
     ]
     return {"ok": True, "publicationEndpoint": publication, "references": results}
@@ -212,11 +215,16 @@ def intake_email_submission_references(client, arguments: dict, identity: dict, 
     }, identity)
 
 
-def find_or_create_source_reference(client, existing: list[dict], *, publication: str, corpus_id: str, item: dict, actor: str) -> dict:
+def find_or_create_source_reference(client, existing: list[dict], *, publication: str, corpus_id: str, item: dict, actor: str,
+                                    identity_index: IdentityIndex | None = None) -> dict:
     """Returns the current Reference for a source URL in a corpus, creating a pending one when none exists.
 
     ``item`` carries a canonical ``source_uri`` plus ``title``, ``media_type`` and ``ingestion_rationale``;
     ``existing`` is the Reference listing, extended with any record created here.
+
+    A source that is not in this corpus under that exact URL still passes the identity gate (reference_identity.py) at publication scope: when
+    any corpus already holds the same document (another URL form, an arXiv or DOI form, the same address in another corpus) that Reference is
+    returned with ``reusedExisting`` and ``matchedBy``, and nothing is created or changed.
     """
     matches = []
     for row in existing:
@@ -237,6 +245,9 @@ def find_or_create_source_reference(client, existing: list[dict], *, publication
             if first is None:
                 raise IntakeError("The initial intake record is missing.")
             _provenance(client, first, publication)
+    elif (held := (identity_index or IdentityIndex(existing)).existing_for({"sourceUri": item["source_uri"]}, corpus_id=corpus_id)):
+        return {**{k: held.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")},
+                "reusedExisting": True, "matchedBy": sorted(identity_keys({"sourceUri": item["source_uri"]}) & identity_keys(held))}
     else:
         digest = hashlib.sha256(f"{publication}\n{corpus_id}\n{item['source_uri']}".encode()).hexdigest()
         now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -249,6 +260,8 @@ def find_or_create_source_reference(client, existing: list[dict], *, publication
         ref = _create_once(client, "Reference", proposed)
         _provenance(client, ref, publication)
         existing.append(ref)
+        if identity_index is not None:
+            identity_index.add(ref)
         from .reference_images import attach_preview
         attach_preview(client, ref)   # new References only; never raises
     return {k: ref.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")}

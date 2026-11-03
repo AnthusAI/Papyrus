@@ -2237,6 +2237,8 @@ def _plan_grobid_citation_graph_records(
     authors = _normalize_grobid_authors(structured.get("authors"))
     citations = _normalize_grobid_citations(structured.get("citations"))
     existing_lookup = _build_existing_reference_lookup(all_references=all_references, corpus_id=corpus_id)
+    from .reference_identity import IdentityIndex
+    identity_index = IdentityIndex(all_references)
 
     authors_linked = 0
     for index, author in enumerate(authors):
@@ -2291,6 +2293,7 @@ def _plan_grobid_citation_graph_records(
             corpus_id=corpus_id,
             existing_lookup=existing_lookup,
             now=now,
+            identity_index=identity_index,
         )
         if cited_reference.get("isNew"):
             records.append({"modelName": "Reference", "expected": cited_reference["record"]})
@@ -2672,13 +2675,18 @@ def _resolve_or_build_cited_reference_record(
     corpus_id: str,
     existing_lookup: dict[str, dict[str, Any]],
     now: str,
+    identity_index: Any = None,
 ) -> dict[str, Any]:
     external_item_id = _citation_external_item_id(citation)
     existing = existing_lookup.get(external_item_id)
     if existing:
         return {"record": existing, "isNew": False}
-    lineage_id = reference_lineage_id_for(corpus_id, external_item_id)
     source_uri = _citation_source_uri(citation)
+    if identity_index is not None:
+        held = identity_index.existing_for({"sourceUri": source_uri, "doi": citation.get("doi")}, corpus_id=corpus_id)
+        if held:
+            return {"record": held, "isNew": False}
+    lineage_id = reference_lineage_id_for(corpus_id, external_item_id)
     metadata = {
         "citation_auto_created": True,
         "citation_source": "grobid",
@@ -2747,6 +2755,8 @@ def _resolve_or_build_cited_reference_record(
     }
     record.update(feed_keys({**record, "versionState": "current"}))
     existing_lookup[external_item_id] = record
+    if identity_index is not None:
+        identity_index.add(record)
     return {"record": record, "isNew": True}
 
 

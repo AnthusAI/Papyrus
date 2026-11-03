@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e0c718ef-5d0c-4c11-8e95-8bdf57e4ce37",
+  "issue_id": "PPY-24fdf421-e5cb-4b83-856c-92a8ac73fd22",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T17:06:55.595Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "De-duplicate and group References: same document, same story, related",
+    "description": "Ryan 2026-11-03: automated curation needs clustering and de-duplication. The same things arrive repeatedly from different sources because the same searches rerun. Many secondary sources about one thing are expected and legitimate. Use deterministic techniques (URL) plus a de-duplication agent given a programmatically generated context pack from semantic search, to identify groups of possibly duplicated items. Standardize the behaviour specifications of these automated processes, implement and test them.\n\nMEASURED on Machines on Machines, 2026-11-03: 8,832 Reference rows, 7,237 pending. Same canonical URL: 290 groups, 310 extra rows, 288 of those from the May imports; only 19 later copies since October, so the live URL check mostly works. 2,386 rows have no URL. arXiv same paper under different URL forms: 11. Same title, different URL: 190 groups, 410 rows, such as arXiv vs DOI vs OpenReview. Titles that are only URLs hide most same-event coverage (Dillon: 1 by title, at least 6 by similarity). 13,945 scored `related_to` suggestions exist: 25 at or above 0.9, 416 at or above 0.8.\n\nTHREE DIFFERENT ANSWERS, not one \"duplicate\":\nA. Same document: mirror, syndicated copy, arXiv vs DOI, a version. One work; a canonical row, others point to it.\nB. Same story, different source: separate work about one event. Legitimately many. Kept, grouped, shown as coverage of one thing, counted as how much coverage and how independent.\nC. Merely related: existing `related_to`.\nNothing is deleted. Every decision is a reversible relation with its reason and who decided. Editors can split or merge.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

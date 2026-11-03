@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
-from .accession import execute_reference_accession_assignment
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import message_record, semantic_relation_record
 from .content_item_lifecycle import (
@@ -39,9 +40,6 @@ from .options import (
 )
 from .records import apply_record_changes, build_record_changes, build_record_changes_tolerating_optional_models
 from .reference_policy import normalize_reference_curation_status
-from .reference_url_text import run_reference_url_text_extraction
-from .reference_metadata_generation import run_reference_metadata_generation_from_extracted_text
-from .reporting_packet_review import build_reporting_packet_review_plan
 from .publication import publication_corpus_key
 
 RESEARCH_MODES = frozenset({"internal_brief", "source_discovery", "full_research"})
@@ -57,6 +55,22 @@ ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_KINDS = (
 )
 ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_MESSAGE_KINDS = ("note",)
 ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_ASSIGNMENT_TYPES = ("research.*", "reporting.*")
+
+
+
+def writable_run_dir(run_id: str) -> Path:
+    """The directory for one run's files: under the repository's ``.papyrus-runs``, or under the system temporary directory when that place cannot be written
+    (a Lambda's code directory is read-only), so a run that has nothing to do with the disk never dies on it."""
+    preferred = PAPYRUS_ROOT / ".papyrus-runs" / run_id
+    try:
+        preferred.mkdir(parents=True, exist_ok=True)
+        if os.access(preferred, os.W_OK):
+            return preferred
+    except OSError:
+        pass
+    fallback = Path(tempfile.gettempdir()) / ".papyrus-runs" / run_id
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
 
 
 def normalize_research_mode(value: Any) -> str:
@@ -425,8 +439,7 @@ def run_research_assignment(flags: list[str]) -> None:
     run_id = normalize_string(options.get("run-id")) or (
         f"research-{safe_id(assignment_id)[:60]}-{timestamp_for_path()}"
     )
-    run_dir = PAPYRUS_ROOT / ".papyrus-runs" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = writable_run_dir(run_id)
     result_path = run_dir / "research-result.json"
     source_path = run_dir / "research.cloud.tac"
     stdout_path = run_dir / "research.stdout.log"
@@ -613,8 +626,7 @@ def run_reporting_assignment(flags: list[str]) -> None:
     run_id = normalize_string(options.get("run-id")) or (
         f"reporting-{safe_id(assignment_id)[:60]}-{timestamp_for_path()}"
     )
-    run_dir = PAPYRUS_ROOT / ".papyrus-runs" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = writable_run_dir(run_id)
     result_path = run_dir / "reporting-result.json"
     source_path = run_dir / "reporting.cloud.tac"
     stdout_path = run_dir / "reporting.stdout.log"
@@ -1197,8 +1209,7 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
     run_id = normalize_string(options.get("run-id")) or (
         f"research-proposals-{safe_id(assignment_id)[:60]}-{timestamp_for_path()}"
     )
-    run_dir = PAPYRUS_ROOT / ".papyrus-runs" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = writable_run_dir(run_id)
     catalog_path = run_dir / "research-proposals-catalog.json"
     proposals = extract_research_packet_proposals(selected["packet"])
     considered_count = len(proposals)
@@ -1216,6 +1227,10 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
         message=selected["message"],
         packet=selected["packet"],
     )
+    from .reference_identity import IdentityIndex, split_by_identity
+    catalog_items, identity_rows = split_by_identity(IdentityIndex(client.list_records("Reference")), catalog_items,
+                                                     corpus_id=knowledge_corpus_id({"key": corpus_key}))
+    held_rows = [*held_rows, *identity_rows]
     blocked_reason = normalize_string((selected["packet"].get("sourceDiscovery") or {}).get("blockedReason"))
     catalog = {
         "schema_version": 1,
@@ -1259,6 +1274,10 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
     }
     plan = build_reference_catalog_registration_records(catalog_payload, plan_options)
     assert_reference_catalog_plan_safety(plan)
+    # Taking in a research packet adds References; it does not describe the corpus. The plan's corpus row carries this batch's count and dates, and writing it
+    # over an existing corpus erases what the corpus record says about the whole publication.
+    if client.get_record("KnowledgeCorpus", plan_options["corpusId"]):
+        plan["records"] = [entry for entry in plan["records"] if entry["modelName"] != "KnowledgeCorpus"]
     changes = build_record_changes(client, plan["records"])
     registration = {"plan": plan, "changes": changes}
     url_text_result: dict[str, Any] | None = None
@@ -1280,6 +1299,7 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
                 max_count = normalize_non_negative_integer(options.get("url-text-max-count"), "--url-text-max-count")
                 force = parse_boolean_option(options.get("url-text-force"), False, "--url-text-force")
                 corpus_id = knowledge_corpus_id(corpus_config)
+                from .reference_url_text import run_reference_url_text_extraction   # its imports are not in the router zip
                 url_text_result = run_reference_url_text_extraction(
                     client=client,
                     references=refreshed_references,
@@ -1305,6 +1325,7 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
                 refreshed_references = _references_for_changed_ids(client, changed_reference_ids)
                 refreshed_attachments: list[dict[str, Any]] = []
                 corpus_id = knowledge_corpus_id(corpus_config)
+                from .reference_metadata_generation import run_reference_metadata_generation_from_extracted_text   # its imports are not in the router zip
                 metadata_generation_result = run_reference_metadata_generation_from_extracted_text(
                     references=refreshed_references,
                     attachments=refreshed_attachments,
@@ -1902,6 +1923,9 @@ def research_packet_body(packet: dict[str, Any]) -> str:
         lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}] ({c.get('verdict') or 'unverified'}: {'; '.join(str(r) for r in _parse_array(c.get('reasons')))})"
                      for c in unverified)
     open_questions = [q for q in _parse_array(packet.get("openQuestions")) if q]
+    gaps = [g for g in _parse_array((packet.get("factCheck") or {}).get("directionGaps") if isinstance(packet.get("factCheck"), dict) else None) if isinstance(g, dict)]
+    if gaps:
+        lines.extend(["", "Named in the direction, not covered:", *(f"- {g.get('name')}: {g.get('note')}" for g in gaps)])
     if (claims or unverified) and open_questions:
         lines.extend(["", "Open questions:", *(f"- {q}" for q in open_questions)])
     return "\n".join(lines)
@@ -2464,7 +2488,7 @@ def build_assignment_context(flags: list[str]) -> None:
     if not assignment_id:
         raise ValueError("assignments build-context requires --assignment.")
     output_path = options.get("output") or str(
-        PAPYRUS_ROOT / ".papyrus-runs" / timestamp_for_path() / f"assignment-context-{assignment_id}.json"
+        writable_run_dir(timestamp_for_path()) / f"assignment-context-{assignment_id}.json"
     )
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     payload = run_papyrus_cli_json(
@@ -2563,6 +2587,7 @@ def review_reporting_packet(
         or normalize_string(auth_claims.get("sub"))
         or "papyrus-cli"
     )
+    from .reporting_packet_review import build_reporting_packet_review_plan   # its imports are not in the router zip
     plan = build_reporting_packet_review_plan(
         assignment=assignment,
         message={**message, "metadata": load_message_metadata_payload(client, message)},
@@ -2964,3 +2989,69 @@ def _execute_assignment_by_type(
     from .assignment_executors import execute_assignment_by_type
 
     return execute_assignment_by_type(client, assignment_id, options)
+
+
+def _assignment_event_record(
+    *,
+    assignment: dict[str, Any],
+    event_type: str,
+    note: str,
+    actor_label: str,
+    now: str,
+) -> dict[str, Any]:
+    assignment_id = str(assignment["id"])
+    return {
+        "modelName": "AssignmentEvent",
+        "expected": {
+            "id": f"assignment-event-{safe_id(assignment_id)}-{event_type}-{timestamp_for_path(now)}",
+            "assignmentId": assignment_id,
+            "assignmentTypeKey": assignment.get("assignmentTypeKey"),
+            "queueKey": assignment.get("queueKey"),
+            "eventType": event_type,
+            "fromStatus": assignment.get("status"),
+            "toStatus": assignment.get("status"),
+            "actorLabel": actor_label,
+            "note": note,
+            "createdAt": now,
+        },
+    }
+
+
+def _produces_assignment_message_relation(
+    *,
+    assignment: dict[str, Any],
+    message_id: str,
+    now: str,
+    lifecycle: str,
+    message_kind: str,
+    metadata_kind: str,
+    extra_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    assignment_id = str(assignment["id"])
+    metadata = {
+        "lifecycle": lifecycle,
+        "messageKind": message_kind,
+        "metadataKind": metadata_kind,
+        "assignmentTypeKey": assignment.get("assignmentTypeKey"),
+        "queueKey": assignment.get("queueKey"),
+        "workProductKind": message_kind,
+    }
+    if extra_metadata:
+        metadata.update(extra_metadata)
+    return semantic_relation_record(
+        {
+            "predicate": "produces",
+            "subjectKind": "assignment",
+            "subjectId": assignment_id,
+            "subjectLineageId": assignment_id,
+            "objectKind": "message",
+            "objectId": message_id,
+            "objectLineageId": message_id,
+            "rank": 1,
+            "confidence": 1,
+            "reviewRecommended": False,
+            "importRunId": assignment.get("importRunId"),
+            "importedAt": now,
+            "metadata": metadata,
+        }
+    )

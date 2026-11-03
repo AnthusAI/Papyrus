@@ -176,6 +176,29 @@ container). **The procedure runner Lambda has neither, so papers curated there e
 `grobid_timeout`, `grobid_request_failed`, `grobid_empty`, `grobid_parse_failed`. The retryable ones are
 tried again by the next run (`grobid_not_configured` only once a service is configured).
 
+### Citation stubs: archived, and brought back by a monitor
+
+Reading a paper's bibliography creates a pending Reference for every work it cites (`reference_url_text.py`). Nobody chose those, and on a research
+publication they run to thousands and bury the pending feed. They carry the citation graph's markers: `changeReason` `grobid-citation-graph`,
+`curationStatusReason` "auto-created from GROBID citation graph" and `curationStatusUpdatedBy` `papyrus-reference-url-text`.
+
+`papyrus references retire-citation-stubs --corpus-key KEY [--dry-run]` (`reference_citation_stubs.py`) archives, in place, each one that is still exactly
+what the citation graph made: current, pending, those markers and that actor, no star rating (`starRating`, `starRatedAt`, `starRatedBy`, `starFeedKey`) and no
+recorded vote (`curationActorKind`). Anything else is counted as skipped, with the rule that skipped it, and left alone. A Reference with a Cyclotron prediction is
+still retired: a prediction is a guess, not a person's choice. It archives and never deletes. It writes the status, `curationStatusKey`, who, when and why, the reviewed-feed
+key a person's archive writes, and clears `feedStateKey` (`predictionSortKey` and `feedArrivalAt` only sort inside that partition, so the Reference is in neither
+feed). The record, its prediction, its link and every citation relation stay, and it records no vote, so nothing trains the Cyclotron. `--dry-run` prints the same
+tab-separated counts (`scanned`, `eligible`, `withUrl`, `withoutUrl`, `withInboundCitations`, `withPrediction`, `skipped.<reason>`, `written`) and writes nothing; running it again
+selects nothing. The archive is signed `papyrus-retire-citation-stubs`. It does not adjust the newsroom summary's status counters (nor does the automatic reject path).
+
+A monitor that later finds one of these papers goes through `ReferenceIntake`, which reuses a matching Reference whatever its status. When the match was archived
+by that actor, and only then, intake returns it to `pending` (status key, `feedStateKey`, reviewed-feed key; signed `papyrus-monitoring-worker`) before the router
+records the Cyclotron's prediction on it. A rejected Reference, or one a person archived, stays exactly as it is. An archived stub still shows in the
+citation lists of the papers that cite it (the lists read `cites` relations, which this does not touch); it is labelled with its title when the page holds
+the Reference and with its lineage id otherwise, and the link opens it.
+
+Spec: `features_backend/reference-citation-stubs.feature`.
+
 ### Idempotence, leases, retries
 
 A card with status `ready` is left alone. A stage that finished is not repeated; one that failed for a

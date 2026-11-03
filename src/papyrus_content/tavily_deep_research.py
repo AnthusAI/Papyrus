@@ -28,6 +28,8 @@ from .records import apply_record_changes, build_record_changes
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 
 from .assignments_workflow import (
+    _assignment_event_record,
+    _produces_assignment_message_relation,
     _utc_now,
     apply_research_packet,
     intake_research_packet_proposals,
@@ -115,72 +117,6 @@ def load_tavily_task_message(
         return None
     tasks.sort(key=lambda row: str(row.get("createdAt") or ""), reverse=True)
     return tasks[0]
-
-
-def _assignment_event_record(
-    *,
-    assignment: dict[str, Any],
-    event_type: str,
-    note: str,
-    actor_label: str,
-    now: str,
-) -> dict[str, Any]:
-    assignment_id = str(assignment["id"])
-    return {
-        "modelName": "AssignmentEvent",
-        "expected": {
-            "id": f"assignment-event-{safe_id(assignment_id)}-{event_type}-{timestamp_for_path(now)}",
-            "assignmentId": assignment_id,
-            "assignmentTypeKey": assignment.get("assignmentTypeKey"),
-            "queueKey": assignment.get("queueKey"),
-            "eventType": event_type,
-            "fromStatus": assignment.get("status"),
-            "toStatus": assignment.get("status"),
-            "actorLabel": actor_label,
-            "note": note,
-            "createdAt": now,
-        },
-    }
-
-
-def _produces_assignment_message_relation(
-    *,
-    assignment: dict[str, Any],
-    message_id: str,
-    now: str,
-    lifecycle: str,
-    message_kind: str,
-    metadata_kind: str,
-    extra_metadata: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    assignment_id = str(assignment["id"])
-    metadata = {
-        "lifecycle": lifecycle,
-        "messageKind": message_kind,
-        "metadataKind": metadata_kind,
-        "assignmentTypeKey": assignment.get("assignmentTypeKey"),
-        "queueKey": assignment.get("queueKey"),
-        "workProductKind": message_kind,
-    }
-    if extra_metadata:
-        metadata.update(extra_metadata)
-    return semantic_relation_record(
-        {
-            "predicate": "produces",
-            "subjectKind": "assignment",
-            "subjectId": assignment_id,
-            "subjectLineageId": assignment_id,
-            "objectKind": "message",
-            "objectId": message_id,
-            "objectLineageId": message_id,
-            "rank": 1,
-            "confidence": 1,
-            "reviewRecommended": False,
-            "importRunId": assignment.get("importRunId"),
-            "importedAt": now,
-            "metadata": metadata,
-        }
-    )
 
 
 def create_tavily_task_message_records(

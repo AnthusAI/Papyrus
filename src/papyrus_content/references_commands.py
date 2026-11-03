@@ -346,6 +346,49 @@ def references_backfill_feed_keys(flags: list[str]) -> None:
             print(f"references\tbackfill-feed-keys\t{key}\t{value}")
 
 
+def references_retire_citation_stubs(flags: list[str]) -> None:
+    """``papyrus references retire-citation-stubs --corpus-key KEY [--dry-run]``.
+
+    Archives (never deletes) the pending References the GROBID citation graph created on its own and nobody has touched
+    (src/papyrus_content/reference_citation_stubs.py). ``KEY`` is a corpus key (``ai-ml-research``) or a full corpus id
+    (``knowledge-corpus-ai-ml-research``). ``--dry-run`` prints the counts and writes nothing.
+    """
+    from .reference_citation_stubs import retire_citation_stubs
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "references retire-citation-stubs")
+    key = normalize_string(options.get("corpus-key"))
+    if not key or "," in key:
+        raise ValueError("references retire-citation-stubs needs --corpus-key KEY (one corpus).")
+    corpus_id = key if key.startswith("knowledge-corpus-") else f"knowledge-corpus-{key}"
+    client, _ = create_authoring_client()
+    result = retire_citation_stubs(client, corpus_id=corpus_id, dry_run=not apply,
+                                   progress=lambda line: print(f"references\tretire-citation-stubs\tprogress\t{line}") if int(line.split()[0]) % 100 == 0 else None)
+    for name, value in result.items():
+        print(f"references\tretire-citation-stubs\t{name}\t{value}")
+
+
+def references_duplicates(flags: list[str]) -> None:
+    """``papyrus references duplicates [--format text|json] [--groups] [--skip-text-hashes]``
+
+    Read-only. Groups the publication's current References by identity key (URL, arXiv id, DOI, captured text hash) and counts same-title
+    groups as candidates only. It lists the References, and the attachments unless ``--skip-text-hashes``; it writes nothing.
+    """
+    from .reference_duplicates_report import build_duplicates_report, render_text
+
+    options = parse_options(flags)
+    output_format = normalize_string(options.get("format")) or "text"
+    if output_format not in {"text", "json"}:
+        raise ValueError("--format must be text or json.")
+    client, _ = create_authoring_client()
+    references = client.list_records("Reference")
+    attachments = None if options.get("skip-text-hashes") else client.list_records("ReferenceAttachment")
+    report = build_duplicates_report(references, attachments)
+    if output_format == "json":
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(render_text(report, groups=bool(options.get("groups"))))
+
+
 def references_backfill_reviewed_feed_key(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references backfill-reviewed-feed-key")

@@ -254,3 +254,55 @@ Feature: Everything a model writes from sources is fact checked, in layers, befo
     When the claim is checked
     Then the claim is rejected
     And the judge was asked once
+
+  Scenario: An ordinary word that opens a sentence in the summary is not taken for a name
+    Given a research run whose pages say "Councilor Marlow spoke on Tuesday."
+    And the writer produced the claims "Councilor Marlow spoke on Tuesday."
+    And the writer rewrites the summary as "Examine the speech. Councilor Marlow spoke on Tuesday."
+    When the research run is made
+    Then the packet summary is "Examine the speech. Councilor Marlow spoke on Tuesday."
+
+  Scenario: An invented person in the summary is still caught and the angle is left empty
+    Given a research run whose pages say "Councilor Marlow spoke on Tuesday."
+    And the writer produced the claims "Councilor Marlow spoke on Tuesday."
+    And the writer rewrites the summary as "Examine the speech. Jordan Quill spoke on Tuesday."
+    When the research run is made
+    Then the packet summary is "1 of 1 claims were verified against their sources. 0 could not be verified and are listed apart."
+    And the packet angle is empty
+
+  Scenario: A word that opens a sentence in a claim is still checked as a name
+    Given the source "s1" says "Councilor resigned."
+    And a claim "Marlow resigned." citing "s1"
+    When the claims are fact checked without a judge
+    Then the claim is "rejected" because of unmatched terms "Marlow"
+
+  Scenario: A possessive does not hide a name or invent a missing one
+    Given the source "s1" says "The Harbor County State’s Attorney’s Office said a lead was only a lead."
+    And a claim "The Harbor County State Attorney Office said a lead was only a lead." citing "s1"
+    When the claims are fact checked without a judge
+    Then the claim has no unmatched terms
+
+  Scenario: A name in the editor's direction that the sources mention but the packet never wrote about is a gap
+    Given a research run whose pages say "Dana Woodruff filed a court record in Pell County." and "Councilor Marlow spoke on Tuesday."
+    And the writer produced the claims "Pell County has a court record." and "Councilor Marlow spoke on Tuesday."
+    And the editor's direction is "Look into Dana Woodruff and Councilor Marlow."
+    When the research run is made
+    Then the packet names "Dana Woodruff" as a direction gap and the sources mention it
+    And the packet's open questions include "The run has sources that mention Dana Woodruff but wrote nothing on Dana Woodruff."
+    And the research packet body lists "Named in the direction, not covered:" after the claims
+
+  Scenario: A name in the editor's direction that no source mentions is reported as found nothing
+    Given a research run whose pages say "Councilor Marlow spoke on Tuesday."
+    And the writer produced the claims "Councilor Marlow spoke on Tuesday."
+    And the editor's direction is "Look into Councilor Marlow and Rowan Tesk."
+    When the research run is made
+    Then the packet names "Rowan Tesk" as a direction gap and the sources do not mention it
+    And the packet's open questions include "The run found nothing on Rowan Tesk."
+
+  Scenario: Names the packet covers, and a direction without names, give no gap
+    Given a research run whose pages say "Councilor Marlow spoke on Tuesday."
+    And the writer produced the claims "Councilor Marlow spoke on Tuesday."
+    And the editor's direction is "Find the cases. Look into Councilor Marlow."
+    When the research run is made
+    Then the packet has no direction gaps
+

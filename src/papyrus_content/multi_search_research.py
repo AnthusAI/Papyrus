@@ -33,6 +33,8 @@ from urllib.parse import urlparse
 
 from .assignments import assignment_metadata
 from .assignments_workflow import (
+    _assignment_event_record,
+    _produces_assignment_message_relation,
     _utc_now,
     apply_research_packet,
     intake_research_packet_proposals,
@@ -42,7 +44,7 @@ from .assignments_workflow import (
     update_newsroom_summary_after_research_packet_creates,
 )
 from .catalog import message_record
-from .fact_check import Judge, check_claims, literal_check, llm_judge, verified_only
+from .fact_check import Judge, check_claims, direction_gaps, literal_check, llm_judge, verified_only
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 from .ids import hash_short
 from .link_exploration import canonical_url
@@ -51,9 +53,9 @@ from .newsroom_context_pack import DEFAULT_MAX_CHARACTERS, PROFILES, build_conte
 from .model_attachments import parse_jsonish
 from .options import normalize_string, parse_boolean_option, parse_options, resolve_mutation_apply
 from .records import apply_record_changes, build_record_changes
+from .research_assignments_worker import finished_note, without_credential_guidance
 from .steering import default_corpus_key
 from .story_reporting import link_found_references_as_consulted
-from .tavily_deep_research import _assignment_event_record, _produces_assignment_message_relation
 from .web_search import (
     PROVIDERS,
     BedrockProvider,
@@ -442,13 +444,14 @@ def verified_summary(verified: Sequence[Mapping[str, Any]], texts: Mapping[str, 
         return plain_summary(counts), "", "summary_rewrite_failed"
     cited = sorted({source for row in verified for source in row["sources"]})
     hosts = [host for host in (urlparse(urls.get(source, "")).hostname for source in cited) if host]
-    unmatched = literal_check(f"{summary} {angle}", [texts.get(source, "") for source in cited], hosts)
+    cited_texts = [texts.get(source, "") for source in cited]
+    unmatched = [*literal_check(summary, cited_texts, hosts, prose=True), *(literal_check(angle, cited_texts, hosts, prose=True) if angle else [])]
     if unmatched:
         return plain_summary(counts), "", "summary_failed_literal_check: " + ", ".join(row["term"] for row in unmatched)
     return summary, angle, None
 
 
-def fact_check_synthesis(synthesis: dict[str, Any], sources: Sequence[Mapping[str, Any]], llm: Llm, judge: Judge | None) -> dict[str, Any]:
+def fact_check_synthesis(synthesis: dict[str, Any], sources: Sequence[Mapping[str, Any]], llm: Llm, judge: Judge | None, direction: str = "") -> dict[str, Any]:
     """The synthesis after the shared fact check: ``claims`` holds the verified claims, ``unverifiedClaims`` the rest with their reasons, disagreement
     positions that fail the literal check are labelled, the summary is rewritten from verified claims, and ``factCheck`` records the results."""
     texts, urls = fact_check_source_texts(sources)
@@ -473,8 +476,13 @@ def fact_check_synthesis(synthesis: dict[str, Any], sources: Sequence[Mapping[st
                               "literal": result["literal"], "reasons": [r for r in result["reasons"] if r != "no_judge"]})
         disagreements.append({**disagreement, "positions": labelled})
     summary, angle, summary_note = verified_summary(verified_only({"claims": report["claims"]}), texts, urls, report["counts"], llm, synthesis["summary"])
+    covered = [*(c["claim"] for c in verified), *(c["claim"] for c in held),
+               *(text for d in disagreements for text in [d.get("topic", ""), *(p["position"] for p in d["positions"])]), *synthesis["openQuestions"]]
+    gaps = direction_gaps(direction, covered, list(texts.values())) if direction else []
+    open_questions = [*synthesis["openQuestions"], *(gap["note"] for gap in gaps)]
     return {**synthesis, "summary": summary, "recommendedAngle": angle, "claims": verified, "unverifiedClaims": held, "disagreements": disagreements,
-            "factCheck": {**report, "positions": positions, **({"plainSummaryBecause": summary_note} if summary_note else {})}}
+            "openQuestions": open_questions,
+            "factCheck": {**report, "positions": positions, **({"directionGaps": gaps} if gaps else {}), **({"plainSummaryBecause": summary_note} if summary_note else {})}}
 
 
 # --- the run, as a pure function ---------------------------------------------------------------------------------------------------
@@ -502,6 +510,7 @@ def run_multi_search(
     context_pack: Mapping[str, Any] | None = None,
     judge: Judge | None = None,
     out_of_time: Callable[[], bool] | None = None,
+    direction: str = "",
 ) -> dict[str, Any]:
     """Plan, fan out, merge, synthesise, fact check. ``judge`` is the fact check's independent judge; none given, one is made from ``llm``. Returns the raw research packet (what ``apply_research_packet`` takes) under ``packet``
     plus ``contribution``. Raises ``MultiSearchFailed`` with the message to record when no packet can be made."""
@@ -522,7 +531,7 @@ def run_multi_search(
     judge = judge or llm_judge(llm)
     if out_of_time is not None:
         judge = stop_judging_when_short_of_time(judge, out_of_time)
-    synthesis = fact_check_synthesis(synthesis, sources, llm, judge)
+    synthesis = fact_check_synthesis(synthesis, sources, llm, judge, direction)
     packet = build_packet(queries, sources, contribution, synthesis, model=model)
     if context_pack:
         packet["multiSearch"]["contextPack"] = context_pack_summary(context_pack)
@@ -560,7 +569,7 @@ def build_packet(queries, sources, contribution, synthesis, *, model: str = DEFA
     answered = [name for name, row in contribution.items() if row["queriesRun"]]
     return {
         "summary": synthesis["summary"],
-        "recommended_angle": synthesis["recommendedAngle"] or synthesis["summary"][:200],
+        "recommended_angle": synthesis["recommendedAngle"],
         "source_snapshots": snapshots,
         "proposed_references": references,
         "evidence_item_ids": [],
@@ -681,6 +690,36 @@ def curate_found_references(client: PapyrusGraphQLAuthoringClient, assignment_id
     return {"curated": curated, "failed": failed}
 
 
+def take_in_found_references(client: PapyrusGraphQLAuthoringClient, assignment_id: str, story_lineage: str, intake_result: Mapping[str, Any], *,
+                             actor_label: str, curation_services: Any = None) -> dict[str, Any]:
+    """What follows the intake of a research packet's sources, for an assignment that has a Story and a reporter profile: every Reference the intake took in
+    or already held is linked to the Story as ``consulted`` with the assignment that found it, and, for a cited-only intake, the taken-in ones are summarized.
+    It is safe to run twice: a Reference the Story already has, in any role, is left as it is, and a curated Reference is not summarized again."""
+    rows = intake_result.get("references") or []
+    linked = link_found_references_as_consulted(
+        client, story_lineage, [row["referenceId"] for row in rows if row.get("referenceId")],
+        actor=actor_label, note=f"Found by research assignment {assignment_id}", assignment_id=assignment_id)
+    curation: dict[str, Any] | None = None
+    if intake_result.get("citedOnly"):
+        taken_in = [row["referenceId"] for row in rows if row.get("referenceId") and row.get("action") != "held"]
+        try:
+            curation = curate_found_references(client, assignment_id, taken_in, services=curation_services)
+        except Exception as error:   # noqa: BLE001 - no summarizer or store: recorded, the links stay
+            curation = {"curated": [], "failed": [{"referenceId": "", "error": f"{type(error).__name__}: {error}"}]}
+    return {"linked": linked, "curation": curation}
+
+
+def _settle_assignment_status(client: PapyrusGraphQLAuthoringClient, assignment: Mapping[str, Any], status: str, *, event_type: str, note: str, actor_label: str) -> None:
+    """Leaves a finished terminal run's assignment ``completed`` (or ``failed``) the way the research worker would, so the worker does not run it again."""
+    from datetime import datetime, timezone
+
+    from .research_assignments_worker import set_status
+
+    if assignment.get("status") in ("completed", "failed"):
+        return
+    set_status(client, dict(assignment), status, now=datetime.now(timezone.utc), note=note, event_type=event_type, actor_label=actor_label)
+
+
 def research_multi(
     client: PapyrusGraphQLAuthoringClient,
     options: dict[str, Any],
@@ -722,7 +761,8 @@ def research_multi(
                 raise MultiSearchFailed("multi-search needs the editor's direction: this assignment has none")
             brief = pack["user"]
         outcome = run_multi_search(brief, llm=llm or openai_llm(model=model), providers=providers, model=model,
-                                   system_prefix=pack["system"] if pack else "", context_pack=pack, out_of_time=out_of_time)
+                                   system_prefix=pack["system"] if pack else "", context_pack=pack, out_of_time=out_of_time,
+                                   direction=normalize_string(meta.get("direction")) or "" if pack else "")
     except MultiSearchFailed as failure:
         message = str(failure)
         if apply:
@@ -731,6 +771,9 @@ def research_multi(
             event = _assignment_event_record(assignment=assignment, event_type="research.multi.failed", note=message,
                                              actor_label=actor_label, now=now)
             apply_record_changes(client, build_record_changes(client, [*records, event]))
+            if not options.get("leave-status"):
+                _settle_assignment_status(client, assignment, "failed", event_type="research.failed", note=without_credential_guidance(message) or "The research did not finish.",
+                                          actor_label=actor_label)
         return {"action": "failed", "assignmentId": assignment_id, "error": message}
 
     packet = {**outcome["packet"], "research_mode": research_mode}
@@ -764,13 +807,13 @@ def research_multi(
                 "metadata-from-text": options.get("metadata-from-text", "false"),
                 "actor-label": actor_label,
             })
-            if pack:
-                link_found_references_as_consulted(
-                    client, story_lineage, [row["referenceId"] for row in intake_result.get("references") or [] if row.get("referenceId")],
-                    actor=actor_label, note=f"Found by research assignment {assignment_id}", assignment_id=assignment_id)
+            if story_lineage and profile in PROFILES:
+                taken_in_result = take_in_found_references(client, assignment_id, story_lineage, intake_result, actor_label=actor_label,
+                                                           curation_services=curation_services)
+                curation = taken_in_result["curation"]
         except Exception as error:   # noqa: BLE001 - the packet is already written; the failure is recorded on the assignment, not left half-done
             intake_error = f"{type(error).__name__}: {error}"
-        if intake_result and intake_result.get("citedOnly"):
+        if intake_result and intake_result.get("citedOnly") and curation is None:
             taken_in = [row["referenceId"] for row in intake_result.get("references") or [] if row.get("referenceId") and row.get("action") != "held"]
             curation = curate_found_references(client, assignment_id, taken_in, services=curation_services)
     now = _utc_now()
@@ -787,6 +830,9 @@ def research_multi(
     apply_record_changes(client, changes)
     update_newsroom_summary_after_research_packet_creates(client, changes, actor_label=actor_label,
                                                           reason=f"assignments research-multi {assignment_id}")
+    if not options.get("leave-status"):
+        _settle_assignment_status(client, assignment, "completed", event_type="research.completed", note=finished_note(intake_error),
+                                  actor_label=actor_label)
     return {**result, "researchPacketMessageId": (apply_result or {}).get("messageId"),
             "registeredReferenceCount": (intake_result or {}).get("registeredReferenceCount", 0),
             **({"intakeError": intake_error} if intake_error else {}),

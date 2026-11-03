@@ -135,6 +135,7 @@ from .references_commands import (
     references_backfill_feed_keys,
     references_backfill_reviewed_feed_key,
     references_create_doi_backfill_assignment,
+    references_duplicates,
     references_create_identifier_backfill_assignment,
     references_curate_recent,
     references_discover_citation_led,
@@ -314,8 +315,10 @@ PORTED_COMMANDS = frozenset(
         "references:prove-priming-cross-validated",
         "references:prove-site-sections",
         "references:backfill-reviewed-feed-key",
+        "references:duplicates",
         "references:backfill-monitor-deliveries",
         "references:backfill-feed-keys",
+        "references:retire-citation-stubs",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
         "assignments:create-research",
@@ -709,8 +712,13 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_backfill_monitor_deliveries(flags)
     elif route == "references:backfill-reviewed-feed-key":
         references_backfill_reviewed_feed_key(flags)
+    elif route == "references:duplicates":
+        references_duplicates(flags)
     elif route == "references:backfill-feed-keys":
         references_backfill_feed_keys(flags)
+    elif route == "references:retire-citation-stubs":
+        from .references_commands import references_retire_citation_stubs
+        references_retire_citation_stubs(flags)
     elif route == "references:backfill-corpus-storage-paths":
         references_backfill_corpus_storage_paths(flags)
     elif route == "assignments:list":
@@ -1454,6 +1462,21 @@ def plan_reference_catalog_registration(client, options: dict[str, Any]) -> dict
         if skipped:
             print(f"references\tcreate-from-catalog\tskip-existing\t{skipped} duplicates")
         catalog = {**catalog, "items": filtered}
+    from .reference_identity import IdentityIndex, split_by_identity
+    from .ids import reference_lineage_id_for
+
+    registration_corpus_id = knowledge_corpus_id(corpus_config)
+    registration_status = normalize_reference_curation_status(options.get("status"), "pending")
+    skipping_existing = options.get("skip-existing", True) is not False and str(options.get("skip-existing", "true")).lower() != "false"
+    fresh_items, identity_rows = split_by_identity(
+        IdentityIndex(client.list_records("Reference")), catalog_items(catalog), corpus_id=registration_corpus_id, status=registration_status,
+        reimport_lineage_of=None if skipping_existing else lambda item: reference_lineage_id_for(
+            registration_corpus_id, str(item.get("item_id") or item.get("externalItemId") or item.get("id") or "")))
+    if identity_rows:
+        print(f"references\tcreate-from-catalog\tidentity-existing\t{len(identity_rows)} items match a Reference the publication already holds")
+        for row in identity_rows:
+            print(f"references\tcreate-from-catalog\tidentity-existing\t{row.get('action')}\t{row.get('referenceId') or '-'}\t{row.get('status')}\t{row.get('url')}")
+        catalog = {**catalog, "items": fresh_items}
     plan_options = {
         "corpusConfig": corpus_config,
         "corpusId": knowledge_corpus_id(corpus_config),

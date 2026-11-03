@@ -214,9 +214,16 @@ def test_openai_llm_posts_a_schema_and_reads_the_output_text():
 class FakeClient:
     def __init__(self, assignment):
         self.assignment = assignment
+        self.updates, self.events = [], []
 
     def get_record(self, model, record_id):
         return self.assignment if model == "Assignment" else None
+
+    def update_record(self, model, payload):
+        self.updates.append(payload)
+
+    def create_record(self, model, payload):
+        self.events.append(payload)
 
 
 def assignment(type_key="research.multi"):
@@ -291,3 +298,37 @@ def test_creating_a_research_multi_assignment_is_opt_in():
     assert multi["assignmentTypeKey"] == "research.multi" and meta["researchBackend"] == "multi_search"
     assert default["assignmentTypeKey"] == "research.candidate"            # never the default
     assert "researchBackend" not in json.loads(planned[1][0]["expected"]["metadata"])
+
+
+def test_a_terminal_run_leaves_the_assignment_completed_with_the_workers_status_change(wired):
+    client = FakeClient(assignment())
+    ms.research_multi(client, {"assignment": "assignment-1", "actor-label": "Papyrus content CLI"}, llm=FakeLlm(), providers=two_providers())
+    assert [(row["status"], row["queueStatusKey"], "completedAt" in row) for row in client.updates] == [("completed", "research:x:exploratory#completed", True)]
+    assert [(event["eventType"], event["fromStatus"], event["toStatus"], event["actorLabel"]) for event in client.events] == [("research.completed", "open", "completed", "Papyrus content CLI")]
+
+
+def test_a_run_the_worker_started_leaves_the_status_to_the_worker(wired):
+    client = FakeClient(assignment())
+    ms.research_multi(client, {"assignment": "assignment-1", "leave-status": True}, llm=FakeLlm(), providers=two_providers())
+    assert client.updates == [] and client.events == []
+
+
+def test_a_dry_run_changes_no_status(wired):
+    client = FakeClient(assignment())
+    ms.research_multi(client, {"assignment": "assignment-1", "dry-run": True}, llm=FakeLlm(), providers=two_providers())
+    assert client.updates == []
+
+
+def test_a_terminal_run_that_failed_leaves_the_assignment_failed_with_a_plain_reason(wired):
+    client = FakeClient(assignment())
+    providers = {n: FakeProvider(n, default=ProviderFailure(n, "auth", 401)) for n in ("gemini", "openai")}
+    result = ms.research_multi(client, {"assignment": "assignment-1"}, llm=FakeLlm(), providers=providers)
+    assert result["action"] == "failed"
+    assert [row["status"] for row in client.updates] == ["failed"] and client.events[0]["eventType"] == "research.failed"
+    assert "no search provider answered" in client.events[0]["note"]
+
+
+def test_an_assignment_already_completed_is_not_settled_again(wired):
+    client = FakeClient({**assignment(), "status": "completed"})
+    ms.research_multi(client, {"assignment": "assignment-1"}, llm=FakeLlm(), providers=two_providers())
+    assert client.updates == []

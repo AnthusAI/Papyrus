@@ -1,0 +1,20 @@
+{
+  "id": "PPY-694f0381-4c92-41d0-a0bf-ef4db9fd921f",
+  "title": "Show total References by status, from cached counts",
+  "description": "Ryan 2026-11-03: low priority, blocks nothing. DynamoDB has no aggregation queries, so totals by status need an efficient count and cached aggregates.",
+  "type": "task",
+  "status": "open",
+  "priority": 4,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T19:02:37.002802Z",
+  "updated_at": "2026-11-03T19:02:37.003288Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

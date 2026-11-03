@@ -10,6 +10,8 @@ import json
 from .catalog import catalog_item_with_external_item_id, reference_attachment_records, reference_record
 from .ids import hash_short, knowledge_corpus_id
 from .monitoring import Monitor, SourceItem, canonical_url
+from .reference_citation_stubs import is_machine_retired, restored_fields
+from .reference_identity import IdentityIndex
 from .records import apply_record_changes, build_record_changes
 
 
@@ -54,6 +56,11 @@ class ReferenceIntake:
             return ""
         if "query" in d:    # a web-search result
             return f" Found by the web search \u201c{d['query']}\u201d."
+        if "modelId" not in d:    # a paper (a feed entry or a Hugging Face daily paper): the model fields below do not exist
+            parts = [f"{d['upvotes']} upvotes on Hugging Face" if d.get("upvotes") is not None else None,
+                     f"{d['comments']} comment{'' if d['comments'] == 1 else 's'}" if d.get("comments") else None]
+            text = "; ".join(p for p in parts if p)
+            return f" {text[:1].upper()}{text[1:]}." if text else ""
         parts = [d.get("pipelineTag"), f"license {d['license']}" if d.get("license") else None,
                  f"{d['likes']} likes", "built on " + ", ".join(b["modelId"] for b in d["baseModels"][:3]) if d.get("baseModels") else None]
         text = "; ".join(p for p in parts if p)
@@ -89,7 +96,8 @@ class ReferenceIntake:
                     or selected.get("versionState") != "current" or selected.get("sourceUri") != item.canonical_url):
                 raise ValueError("Selected Reference no longer matches the imported candidate")
             matches = [selected]
-        for row in ([] if reference_id else self.client.list_records("Reference")):
+        listing = [] if reference_id else self.client.list_records("Reference")
+        for row in listing:
             if row.get("corpusId") != self.monitor.corpus_id or row.get("versionState") not in {None, "current"}:
                 continue
             try:
@@ -100,6 +108,13 @@ class ReferenceIntake:
                 matches.append(row)
         if len({row.get("lineageId") for row in matches}) > 1:
             raise ValueError("Multiple canonical Reference lineages match; editorial resolution is required")
+        identity_match = None
+        if not matches and not reference_id:
+            gate = IdentityIndex(listing)
+            identity_match = gate.existing_for({"sourceUri": item.canonical_url}, corpus_id=self.monitor.corpus_id) or next(
+                (found for alias in item.aliases if (found := gate.existing_for({"sourceUri": alias}, corpus_id=self.monitor.corpus_id))), None)
+            if identity_match:
+                matches = [identity_match]
         source = catalog_item_with_external_item_id({
             "source_uri": item.canonical_url, "title": item.title, "media_type": item.media_type,
             "published_at": item.published_at, "retrieved_at": provenance["observedAt"],
@@ -132,7 +147,17 @@ class ReferenceIntake:
             reference = self.client.get_record("Reference", proposed["id"])
             if not reference or reference.get("corpusId") != self.monitor.corpus_id:
                 raise ValueError("Reference creation has no verified persisted readback")
-        if matches:
+        restored = False
+        if matches and reference.get("corpusId") == self.monitor.corpus_id and is_machine_retired(reference):
+            # The one exception to "never touch curation": a citation stub the machine archived (reference_citation_stubs.py) returns to
+            # pending when a monitor finds the paper, so it enters the feeds. The row is read again so a person's archive or reopen in the
+            # meantime wins; rejected, or archived by anyone else, never matches is_machine_retired and stays as it is.
+            current = self.client.get_record("Reference", reference["id"])
+            if is_machine_retired(current):
+                fields = restored_fields(current, now=provenance["observedAt"])
+                self.client.update_record("Reference", {"id": current["id"], **fields})
+                reference, restored = {**current, **fields}, True
+        if matches and (not identity_match or identity_match.get("corpusId") == self.monitor.corpus_id):
             # A Reference some monitor already delivered keeps its first monitor; a new revision of the same source item
             # refreshes the stored details. Only these fields are written, so human curation is never touched.
             fields = self._discovery_fields(item, provenance)
@@ -148,7 +173,9 @@ class ReferenceIntake:
             "itemCount": 1, "referenceCount": 1, "relationCount": 0, "warningCount": 0,
         }}
         extras = list(extra_records(reference)) if extra_records else []
-        self.persist([run, *reference_attachment_records(source, reference, context), *extras])
+        attachments = [] if identity_match else reference_attachment_records(source, reference, context)
+        self.persist([run, *attachments, *extras])
         return {"referenceId": reference["id"], "referenceLineageId": reference["lineageId"],
                 "referenceVersion": reference.get("versionNumber") or 1,
-                "referenceReused": bool(matches)}
+                "referenceReused": bool(matches), **({"identityMatched": True} if identity_match else {}),
+                **({"referenceRestored": True} if restored else {})}

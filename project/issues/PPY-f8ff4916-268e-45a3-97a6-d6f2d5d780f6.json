@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f8ff4916-268e-45a3-97a6-d6f2d5d780f6",
+  "title": "Classify every Reference by kind of source, and show the mix on each Story",
+  "description": "Ryan 2026-11-03: curation should try to classify each new Reference by what kind of source it is (primary, secondary, aggregation, insight and commentary, opinion, advocacy, mixed and so on), so editors and agents can see the types and the mix of References on any Story. Suggested engine: a Cyclotron classifier, or just a decision model when there is no feedback to steer with.\n\nPROPOSED SHAPE (for Ryan's check). Two attributes, because one label loses information: an ACLU complaint is a primary document and advocacy.\n- Evidence level: primary (filing, statute, dataset, paper, official record, first-hand), secondary (reporting or review based on others), aggregation (compiles or rewrites others), unknown.\n- Voice: reporting, analysis (insight and commentary), opinion, advocacy, promotional, mixed, unknown.\n\nENGINE. A decision model through a Cyclotron classifier, one shared across sites because source kind is not site-specific, with no LLM as the decision model. Unknown is a real answer; below a confidence it says unknown rather than guessing. Editor corrections on the card become labels for when retraining runs (Cyclotron epic decision-flywheel-1700b73d). Whether a standing classifier can run with no feedback, and whether one can be shared across sites, is a question for the Cyclotron session.\n\nWHERE IT RUNS. A curation stage after capture and summary, in router enrichment and `reference_curation`, using title, host and captured text. Backfill existing References.\n\nWHERE IT IS READ (named per the rule that new meaning names its readers). Reference card, with a correction control. Story page: the mix of its References (\"3 primary, 5 secondary, 2 advocacy\"). Reporter context pack: each Reference labelled. Fact check source strength: flags a claim resting only on advocacy or aggregation, reports the Story's mix, which also corrects counting one party's press release as independent. References list filter. Later: idea ranking.\n\nScreenshots before UI ships. Gherkin specs. p.apyr.us docs task at the end.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T17:03:30.188742Z",
+  "updated_at": "2026-11-03T17:03:30.189140Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -241,9 +241,9 @@ Items, not Stories, and is not a rating path.
 `GraphQLItem`, the type draft previews are built from, does not carry them. `scripts/test-story-stars-api.ts` and `features_backend/story-stars.feature` fail if a
 star reaches published output.
 
-On the newsroom side the Stories board card, the drawer and the Story editor all show `components/star-rating.tsx` (label "Rating · optional"): optimistic, kept in one
+On the newsroom side the drawer and the Story editor show `components/star-rating.tsx` (label "Rating · optional") and the Stories board card shows the rating read-only, one solid star and the number in its top row: optimistic, kept in one
 store (`components/use-story-stars.ts`) so the three show one rating, and a failed save puts the saved rating back with a message. The Kanbus card has no slot for a
-control, so each Story card gets one container that the rating is drawn into (`components/story-board-stars.tsx`). A card read from a published-only row (not from the
+mark, so each Story card gets one container in its top row that the rating is drawn into (`components/story-board-stars.tsx`). A card read from a published-only row (not from the
 Item) has no control, because its rating is not known there; the drawer has it. The board's ordering and the public Story listings do not use the rating yet.
 A schema change: it needs the site backend deployed.
 

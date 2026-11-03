@@ -75,6 +75,7 @@ from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_enrichment import Enricher, copy_curation, decision_inputs, enrich_item, enrich_sk, new_row
 from .reference_capture import SHORT_BODY_CHARACTERS
+from .monitoring_feed import FEED_HOSTS
 from .monitoring_huggingface import hf_accepts, validate_rule
 from .monitoring_vectors import OwedMemory, owed_prefix, owed_sort_key, run_suggest_backlog, watermark_sort_key
 from .monitoring_stories import lambda_openai_key, lambda_story_transport, run_publication as draft_publication_stories, validate_monitor_stories
@@ -188,7 +189,8 @@ POLL_BACKOFF_MAX = COLLECT_CADENCE_SECONDS * POLL_BACKOFF_CADENCES
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
 #: The `source` a Cyclotron item names, by the discovery's sourceType (HN discoveries carry none).
-ITEM_SOURCES = {"email": "email", "huggingface-models": "huggingface", "web-search": "web-search"}
+ITEM_SOURCES = {"email": "email", "huggingface-models": "huggingface", "web-search": "web-search",
+                "huggingface-papers": "huggingface-papers", "feed": "feed"}
 ITEM_SOURCE_NAMES = frozenset({"hacker-news", *ITEM_SOURCES.values()})
 PUBLICATION_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 APPSYNC_HOST = re.compile(r"^[a-z0-9]+\.appsync-api\.[a-z0-9-]+\.amazonaws\.com$")
@@ -527,6 +529,8 @@ def build_item(discovery: dict, enrichment: dict | None = None) -> dict:
     summary, body = str((enrichment or {}).get("summary") or ""), str((enrichment or {}).get("body") or "")
     if not summary and discovery.get("sourceType") == "web-search":
         summary = str((discovery.get("details") or {}).get("snippet") or "")   # the search engine's snippet seeds the summary
+    elif not summary and discovery.get("sourceType") in ("feed", "huggingface-papers"):
+        summary = str((discovery.get("details") or {}).get("abstract") or "")   # a paper's abstract, as its feed gave it, stands in until enrichment summarizes the paper
     values = {"title": title, "url": url, "source": source, "sourceItemUrl": str(discovery.get("sourceItemUrl") or ""),
               **({"summary": summary} if summary else {}),
               "text": compose_text(title, url, summary, body)}
@@ -1125,8 +1129,14 @@ def editorial_context_receipt(client, publication: dict) -> dict:
         return {"contextHash": None, "reason": short(error)[:200]}
 
 
-def source_name_for(source_url: str) -> str:
+def source_name_for(source_url: str, source_type: str | None = None) -> str:
+    """The name shown for a monitor's source. A feed is named for its host (`monitoring_feed.FEED_HOSTS`), and a source type that
+    shares a host with another (Hugging Face papers and models) by its type; everything else by the host of its source URL."""
     host = urlsplit(source_url).hostname
+    if source_type == "feed" or (source_type is None and host in FEED_HOSTS):
+        return FEED_HOSTS.get(host, SOURCE_TYPES["feed"]["name"])
+    if source_type in SOURCE_TYPES:
+        return SOURCE_TYPES[source_type]["name"]
     return next((source["name"] for source in SOURCE_TYPES.values() if source["host"] == host), "Monitor")
 
 
@@ -1170,7 +1180,7 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
     source_url = str(disc.get("sourceUrl") or "")
     monitor = Monitor(str(disc.get("monitorId") or "hn"), publication["corpusKey"], publication["corpusId"],
                       publication["appsyncEndpoint"], Path("/nonexistent"), source_url=source_url,
-                      source_name="Email submission" if disc.get("sourceType") == "email" else source_name_for(source_url))
+                      source_name="Email submission" if disc.get("sourceType") == "email" else source_name_for(source_url, disc.get("sourceType")))
     item = SourceItem(str(disc["sourceId"]), disc["title"], disc["canonicalUrl"], disc["sourceItemUrl"],
                       disc.get("sourcePublishedAt"), disc.get("mediaType") or "text/html", tuple(disc.get("aliases") or ()),
                       disc.get("details") or None)
