@@ -143,20 +143,32 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
     if not vector_index_arn:
         raise RuntimeError("Missing PAPYRUS_S3_VECTOR_INDEX_ARN and custom.knowledgeQuery.s3VectorIndexArn")
 
+    timings: dict[str, float] = {}
+    mark = time.perf_counter()
     all_references = _list_references(services.graph)
+    timings["listReferencesSeconds"] = round(time.perf_counter() - mark, 2)
+    mark = time.perf_counter()
     accepted_references = [reference for reference in all_references if _reference_is_accepted(reference)]
     indexable_references = [reference for reference in all_references if _reference_is_indexable(reference)]
+    wanted_ids = frozenset(options.reference_ids)   # a set: the filter below asks it once per Reference, not once per Reference and id
     references = [
         reference for reference in indexable_references
         if (not options.corpus_id or reference.get("corpusId") == options.corpus_id)
-        and (not options.reference_ids or _reference_matches(reference, options.reference_ids))
+        and (not wanted_ids or _reference_matches(reference, wanted_ids))
     ]
+    if wanted_ids:
+        # The caller's order is the order of work (the router lists the References an editor looks at first), not the order the API happened to list them in.
+        rank = {reference_id: place for place, reference_id in reversed(list(enumerate(options.reference_ids)))}
+        references.sort(key=lambda reference: min((rank[value] for value in _reference_identifiers(reference) if value in rank), default=len(rank)))
+    timings["selectReferencesSeconds"] = round(time.perf_counter() - mark, 2)
     if options.max_references:
         references = references[: options.max_references]
     if options.skip_references:
         references = []
 
+    mark = time.perf_counter()
     existing_vectors = _list_index_vectors(vector_index_arn)
+    timings["listVectorsSeconds"] = round(time.perf_counter() - mark, 2)
     existing_keys = {str(vector.get("key")) for vector in existing_vectors if vector.get("key")}
     existing_reference_keys = _indexed_reference_keys(existing_vectors)
     existing_summary_state = {
@@ -222,6 +234,7 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "failures": [],
         "warnings": [],
         "referenceResults": [],
+        "timings": timings,
     }
     note_messages = _list_note_messages(services.graph) if options.include_notes else []
     prepared_notes = _prepare_note_messages(services, note_messages) if options.include_notes else []
@@ -257,12 +270,14 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         existing_vectors = []
         stats["vectorsDeleted"] = len(existing_vectors)
 
+    mark = time.perf_counter()
     stale = _stale_reference_vectors(existing_vectors, all_references)
     stats["vectorsToDeleteForStatus"] = len(stale["delete"])
     stats["vectorsToRefreshStatus"] = len(stale["refresh"])
     if not options.dry_run:
         _apply_status_reconciliation(vector_index_arn, stale, stats)
         existing_keys -= set(stale["delete"])
+    timings["reconcileSeconds"] = round(time.perf_counter() - mark, 2)
 
     stats["referencesSkippedIndexed"] = 0
     if options.skip_indexed:
@@ -279,6 +294,7 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
 
     pending_vectors: list[dict[str, Any]] = []
     completed = 0
+    mark = time.perf_counter()
     worker_count = max(1, int(options.worker_count or 1))
     if worker_count == 1 or len(references) <= 1:
         prepared_results = (_prepare_reference_for_indexing(services, reference, options) for reference in references)
@@ -302,6 +318,8 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
 
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
+    timings["referencesSeconds"] = round(time.perf_counter() - mark, 2)
+    mark = time.perf_counter()
     if options.include_ontology_vectors and not stats.get("stoppedBy"):
         for candidate in _prepare_ontology_vectors(services):
             stats["vectorsPrepared"] += 1
@@ -353,6 +371,7 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
                     pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
     if pending_vectors and not options.dry_run:
         pending_vectors = _flush_pending_vectors(stats, vector_index_arn, pending_vectors)
+    timings["conceptCardsSeconds"] = round(time.perf_counter() - mark, 2)
     if options.include_link_explanations and not stats.get("stoppedBy"):
         pending_vectors = _sync_link_explanations(
             services.graph, all_references, existing_vectors, pending_vectors, stats, vector_index_arn, options)
@@ -1366,13 +1385,14 @@ def _apply_status_reconciliation(vector_index_arn: str, stale: dict[str, Any], s
             stats["vectorsStatusRefreshed"] += len(rewritten)
 
 
-def _reference_matches(reference: dict[str, Any], reference_ids: tuple[str, ...]) -> bool:
-    values = {
-        str(reference.get("id") or ""),
-        str(reference.get("lineageId") or ""),
-        str(reference.get("externalItemId") or ""),
-    }
-    return any(reference_id in values for reference_id in reference_ids)
+def _reference_identifiers(reference: dict[str, Any]) -> set[str]:
+    return {str(reference.get("id") or ""), str(reference.get("lineageId") or ""), str(reference.get("externalItemId") or "")}
+
+
+def _reference_matches(reference: dict[str, Any], reference_ids: Any) -> bool:
+    """True when the Reference's id, lineage id or external id is one of ``reference_ids``. A set is asked once per Reference; a tuple of thousands of ids used to be
+    walked for every Reference (8,000 ids by 10,000 References is 80 million comparisons, seconds of a small Lambda's CPU before the first read)."""
+    return not _reference_identifiers(reference).isdisjoint(reference_ids)
 
 
 def _list_references(graph: GraphQLKnowledgeGraphProvider) -> list[dict[str, Any]]:

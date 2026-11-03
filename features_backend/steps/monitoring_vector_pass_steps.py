@@ -25,7 +25,8 @@ def state(context):
 
 
 def reset(context):
-    context.vector = SimpleNamespace(policy={}, watermark=tv.Watermark(), rows=[], pending=[], threads=[], pass_=tv.Pass(), out_of_time=lambda: False, result=None, line=None, order=[], table=None)
+    context.vector = SimpleNamespace(policy={}, watermark=tv.Watermark(), rows=[], pending=[], threads=[], pass_=tv.Pass(), out_of_time=lambda: False, result=None, line=None, order=[], table=None,
+                                     owed=tv.Rows(), no_vector=set(), unindexable=set(), workers=1, key="sk-test", fail_index=None)
     tv.vectors.s3vectors_client_missing_reason = lambda region_name=None: None
 
 
@@ -114,16 +115,16 @@ def step_conversation(context, identifier):
 
 
 def time_for(context, suggestions):
-    ticks = iter([False] * (1 + suggestions))   # one look by the index sync, then one before each suggestion; then the time is gone
+    ticks = iter([False] * suggestions)   # one look at the time before each suggestion; then the time is gone
     state(context).out_of_time = lambda: next(ticks, True)
 
 
-@given("the time lasts for the index sync and {count:d} suggestion")
+@given("the time lasts for {count:d} suggestion")
 def step_time_one(context, count):
     time_for(context, count)
 
 
-@given("the time lasts for the index sync and {count:d} suggestions")
+@given("the time lasts for {count:d} suggestions")
 def step_time_many(context, count):
     time_for(context, count)
 
@@ -133,19 +134,29 @@ def step_run_pass(context):
     current = state(context)
     if current.pass_.order:
         current.pass_ = tv.Pass()   # a second pass of the same scenario starts a fresh record of its steps
-    current.result = tv.run_pass(tv.AcceptedClient(current.rows, current.pending, current.threads), current.pass_, current.watermark, policy=current.policy, out_of_time=current.out_of_time)
+    run_with_state(context)
 
 
-@then("the index is synced for the {count:d} References accepted after the watermark before any suggestion is made")
+def run_with_state(context):
+    current = state(context)
+    pass_ = current.pass_
+    pass_.no_vector, pass_.unindexable = current.no_vector, current.unindexable
+    pass_.fail_index = current.fail_index or pass_.fail_index
+    current.result = tv.run_pass(tv.AcceptedClient(current.rows, current.pending, current.threads), pass_, current.watermark, policy=current.policy,
+                                 out_of_time=current.out_of_time, key=current.key, owed=current.owed, workers=current.workers)
+
+
+@then("the index is synced for the {count:d} References accepted after the watermark after the suggestions")
 def step_synced_for(context, count):
     current = state(context)
-    assert current.pass_.order[0] == "index" and len(current.pass_.options.reference_ids) == count, (current.pass_.order, current.pass_.options)
+    assert current.pass_.order[-1] == "index" and len(current.pass_.options.reference_ids) == count, (current.pass_.order, current.pass_.options)
+    assert all(step.startswith("suggest:") for step in current.pass_.order[:-1]), current.pass_.order   # every suggestion came before the sync
 
 
 @then("suggestions are made for those {count:d} References, the older first")
 def step_suggested(context, count):
     current = state(context)
-    assert current.pass_.order == ["index", *[f"suggest:{identifier}" for identifier in ("ref-2", "ref-3")][:count]], current.pass_.order
+    assert suggested_order(context) == [f"suggest:{identifier}" for identifier in ("ref-2", "ref-3")][:count], current.pass_.order
 
 
 @then("suggestions are made for {identifiers} only")
@@ -153,7 +164,11 @@ def step_suggested_only(context, identifiers):
     import re
 
     wanted = re.findall(r'"([^"]+)"', identifiers)
-    assert state(context).pass_.order == ["index", *[f"suggest:{identifier}" for identifier in wanted]], state(context).pass_.order
+    assert suggested_order(context) == [f"suggest:{identifier}" for identifier in wanted], state(context).pass_.order
+
+
+def suggested_order(context):
+    return [step for step in state(context).pass_.order if step.startswith("suggest:")]
 
 
 @then('suggestions are made in the order {identifiers}')
@@ -161,7 +176,7 @@ def step_suggested_order(context, identifiers):
     import re
 
     wanted = re.findall(r'"([^"]+)"', identifiers)
-    assert state(context).pass_.order == ["index", *[f"suggest:{identifier}" for identifier in wanted]], state(context).pass_.order
+    assert suggested_order(context) == [f"suggest:{identifier}" for identifier in wanted], state(context).pass_.order
 
 
 @then("{count:d} suggestions are left")
@@ -301,9 +316,9 @@ def step_router_runs(context):
         patches.undo()
 
 
-@then("the steps ran in the order index sync, drafting, index sync, suggestions")
+@then("the steps ran in the order drafting, suggestions, index sync")
 def step_order_after(context):
-    assert state(context).order == ["index", "drafting", "index", "suggest"], state(context).order
+    assert state(context).order == ["drafting", "suggest", "index"], state(context).order
 
 
 @then("the log line says {count:d} suggestions written and no suggestions left")
@@ -359,9 +374,9 @@ def step_budget_then(context, drafting, vectors):
     assert check(drafting - 1) == (True, True)   # below the drafting limit both are over
 
 
-@then("the steps ran in the order index sync, suggestions, drafting")
+@then("the steps ran in the order suggestions, index sync, drafting")
 def step_order(context):
-    assert state(context).order == ["index", "suggest", "drafting"], state(context).order
+    assert state(context).order == ["suggest", "index", "drafting"], state(context).order
 
 
 @then("the log line says {indexed:d} vectors indexed, {cards:d} concept cards written, {suggestions:d} suggestions written and no suggestions reason")
@@ -555,3 +570,141 @@ def step_old_author_card(context):
     result = suggest_for(client, provider, "reference-a-v1", corpus_id="corpus-1", now="2026-11-01T12:00:00Z")
     offered = [entry["lineageId"] for entry in result["concepts"]]
     assert "node-author" not in offered, offered
+
+
+# --- suggestions do not wait for the index: owed and parked References, the failing sync, the time, several workers -----------------------------------
+
+
+@given('"{identifier}" has no summary vector yet')
+def step_no_vector(context, identifier):
+    state(context).no_vector.add(identifier)
+
+
+@given('"{identifier}" has no summary vector and the sync finds nothing to index for it')
+def step_unindexable(context, identifier):
+    state(context).no_vector.add(identifier)
+    state(context).unindexable.add(identifier)
+
+
+@given("the index sync fails")
+def step_sync_fails(context):
+    state(context).fail_index = "throttled"
+
+
+@given("there is no embedding key")
+def step_no_key(context):
+    state(context).key = None
+
+
+@given("{count:d} workers suggest at once")
+def step_workers(context, count):
+    state(context).workers = count
+
+
+@given("References accepted on {count:d} different days")
+def step_many_days(context, count):
+    state(context).rows = [tv.accepted(number, f"2026-10-{number:02d}T10:00:00Z") for number in range(1, count + 1)]
+
+
+@given("the time lasts for {count:d} windows of suggestions")
+def step_windows(context, count):
+    ticks = iter([False] * count)
+    state(context).out_of_time = lambda: next(ticks, True)
+
+
+@then('the index sync was asked for "{identifier}" only')
+def step_sync_asked(context, identifier):
+    assert state(context).pass_.sync_calls[-1] == (identifier,), state(context).pass_.sync_calls
+
+
+@then('the index sync was asked for "{identifier}" first')
+def step_sync_asked_first(context, identifier):
+    assert state(context).pass_.sync_calls[-1][0] == identifier, state(context).pass_.sync_calls
+
+
+@then('"{identifier}" was suggested for again once it had a vector')
+def step_suggested_again(context, identifier):
+    order = state(context).pass_.order
+    assert order.count(f"suggest:{identifier}") == 2 and order.index("index") < len(order) - 1 and order[-1] == f"suggest:{identifier}", order
+
+
+@then('"{identifier}" is parked with the reason "{reason}"')
+def step_parked(context, identifier, reason):
+    entries = state(context).owed.entries()
+    lineage = f"lineage-{identifier.removeprefix('ref-')}"
+    assert entries[lineage]["r"] == reason, entries
+    assert state(context).result["parkedUnindexable"] >= 1, state(context).result
+
+
+@then("{count:d} Reference is parked")
+def step_parked_count(context, count):
+    assert state(context).result["parkedUnindexable"] == count, state(context).result
+
+
+@when('a Reference "{identifier}" is accepted at "{stamp}" and the vector pass runs again')
+def step_arrival_run(context, identifier, stamp):
+    current = state(context)
+    current.rows.append(tv.accepted(int(identifier.removeprefix("ref-")), stamp))
+    current.pass_ = tv.Pass()
+    run_with_state(context)
+
+
+@when('"{identifier}" is retitled by an editor and the vector pass runs again')
+def step_retitle_run(context, identifier):
+    current = state(context)
+    current.rows = [{**row, "title": "A better title", "curationActorKind": "human"} if row["id"] == identifier else row for row in current.rows]
+    current.no_vector = {identifier}   # it still has no vector when the sync looks again
+    current.unindexable = set()
+    current.pass_ = tv.Pass()
+    run_with_state(context)
+
+
+@when("the vector pass runs again")
+def step_run_again(context):
+    state(context).pass_ = tv.Pass()
+    run_with_state(context)
+
+
+@then("the index sync was not started")
+def step_sync_not_started(context):
+    assert "index" not in state(context).pass_.order, state(context).pass_.order
+
+
+@then("the reason says the index sync failed")
+def step_sync_failed(context):
+    assert "index sync failed" in state(context).result["indexSkippedReason"], state(context).result
+
+
+@then("the reason says there is no embedding key")
+def step_no_key_reason(context):
+    assert state(context).result["indexSkippedReason"] == "openai_not_configured", state(context).result
+
+
+@then("the saved place has moved")
+def step_place_moved(context):
+    assert state(context).watermark.writes, "no watermark was written"
+
+
+@then("{count:d} suggestions are awaiting the index")
+def step_awaiting(context, count):
+    assert state(context).result["awaitingIndex"] == count, state(context).result
+
+
+@then("the result says how many seconds the plan, the suggestions and the sync took")
+def step_timings(context):
+    assert {"planSeconds", "suggestSeconds", "syncSeconds"} <= set(state(context).result["timings"]), state(context).result
+
+
+@then("each Reference was suggested for once")
+def step_once(context):
+    order = suggested_order(context)
+    assert len(order) == len(set(order)) and len(order) > 0, order
+
+
+@then("the saved place for accepted References runs from day {low:d} to day {high:d}")
+def step_place_days(context, low, high):
+    import json
+
+    place = json.loads(state(context).watermark.value)["accepted"]
+    day = lambda text: int(text.split("#")[0][8:10])   # noqa: E731
+    assert (day(place["low"]), day(place["high"])) == (low, high), place

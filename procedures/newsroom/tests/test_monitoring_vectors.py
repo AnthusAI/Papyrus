@@ -83,17 +83,26 @@ class Watermark:
 class Pass:
     """Records the order of the steps and what each was given."""
 
-    def __init__(self, *, characters=0, cards=0, written=0, stop_after=None, fail_index=None):
+    def __init__(self, *, characters=0, cards=0, written=0, stop_after=None, fail_index=None, no_vector=(), unindexable=()):
         self.order, self.options, self.suggested = [], None, []
         self.characters, self.cards, self.written, self.fail_index, self.stop_after = characters, cards, written, fail_index, stop_after
         self.stats_seen = []
+        self.no_vector, self.unindexable = set(no_vector), set(unindexable)   # References with no summary vector yet; those among them the sync finds nothing to index for
+        self.sync_calls = []
 
     def indexer(self, services, options):
         self.order.append("index")
         self.options = options
         if self.fail_index:
             raise RuntimeError(self.fail_index)
-        stats = {"vectorsWritten": self.written + self.cards, "conceptCardsToWrite": self.cards, "embeddingInputCharacters": self.characters}
+        stats = {"vectorsWritten": self.written + self.cards, "conceptCardsToWrite": self.cards, "embeddingInputCharacters": self.characters, "referenceResults": []}
+        self.sync_calls.append(options.reference_ids)
+        for identifier in options.reference_ids:   # the real sync tells what it did with each Reference it was given and found no vector for
+            if identifier in self.no_vector:
+                number = identifier.removeprefix("ref-")
+                stats["referenceResults"].append({"referenceLineageId": f"lineage-{number}", "status": "no_text" if identifier in self.unindexable else "indexed"})
+                if identifier not in self.unindexable:
+                    self.no_vector.discard(identifier)   # it has a vector now
         if options.stop_check:
             reason = options.stop_check(stats)
             if reason:
@@ -103,14 +112,37 @@ class Pass:
     def suggester(self, client, provider, reference_id, **options):
         self.order.append(f"suggest:{reference_id}")
         self.suggested.append((reference_id, options))
+        if reference_id in self.no_vector:
+            return {"referenceId": reference_id, "skipped": "no reference_summary vector is indexed for this Reference", "references": [], "concepts": []}
         return {"referenceId": reference_id, "skipped": None, "references": [{"outcome": "created"}, {"outcome": "kept"}], "concepts": [{"outcome": "updated"}]}
 
 
-def run_pass(client, pass_, watermark, *, policy=None, key="sk-test", out_of_time=lambda: False, maximum_cost_usd=0.5):
+class Rows:
+    """The router table's owed rows (the sharded ``STATE#vectorOwed#`` items) as a dictionary, with the number of writes."""
+
+    def __init__(self):
+        self.rows, self.writes = {}, []
+
+    def memory(self):
+        return vectors.OwedMemory(read=lambda: list(self.rows.values()), write=self.write)
+
+    def write(self, shard, entries):
+        self.rows[shard] = {"entries": entries}
+        self.writes.append(shard)
+
+    def entries(self):
+        merged = {}
+        for row in self.rows.values():
+            merged.update(json.loads(row["entries"]))
+        return merged
+
+
+def run_pass(client, pass_, watermark, *, policy=None, key="sk-test", out_of_time=lambda: False, maximum_cost_usd=0.5, owed=None, workers=1, sync=True):
     return vectors.run_vector_pass(
         client, PUBLICATION, {**POLICY, **(policy or {})}, now=RUN_AT, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd, embedding_key=key,
         read_watermark=watermark.read, write_watermark=watermark.write, services_for=lambda publication, bucket: ("services", bucket),
-        indexer=pass_.indexer, suggester=pass_.suggester, provider_for=lambda arn: ("provider", arn), calibration_loader=lambda client: "calibration")
+        indexer=pass_.indexer, suggester=pass_.suggester, provider_for=lambda arn: ("provider", arn), calibration_loader=lambda client: "calibration",
+        owed=owed.memory() if owed else None, workers=workers, sync=sync)
 
 
 # --- the settings ---------------------------------------------------------------------------------------------------------------------------
@@ -171,7 +203,7 @@ def done(watermark):
     return json.loads(watermark.value)
 
 
-def test_the_index_is_synced_for_the_new_references_then_each_gets_suggestions_newest_first_and_the_watermark_moves():
+def test_each_new_reference_gets_suggestions_oldest_arrival_first_and_the_watermark_moves_then_the_index_is_synced_for_them():
     # A plain timestamp from an older pass: everything up to it is done. ref-1 and ref-2 are newer; ref-3 was accepted before.
     client = AcceptedClient([accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-31T10:00:00Z"), accepted(3, "2026-10-29T10:00:00Z")])
     pass_, watermark = Pass(characters=4_000_000, cards=2, written=5), Watermark("2026-10-29T12:00:00Z")
@@ -179,7 +211,7 @@ def test_the_index_is_synced_for_the_new_references_then_each_gets_suggestions_n
     assert client.asked == [("referencesByCurationStatusKey", "knowledge-corpus-example-site#accepted"), ("referencesByCurationStatusKey", "knowledge-corpus-example-site#pending")]
     assert pass_.options.action == "sync" and sorted(pass_.options.reference_ids) == ["ref-1", "ref-2"] and not pass_.options.skip_references   # ref-3 was before the old watermark
     assert pass_.options.include_concept_cards and not pass_.options.include_ontology_vectors
-    assert pass_.order == ["index", "suggest:ref-1", "suggest:ref-2"]   # new arrivals, oldest of them first: the saved place then moves over a finished prefix
+    assert pass_.order == ["suggest:ref-1", "suggest:ref-2", "index"]   # suggestions do not wait for the sync; new arrivals, oldest of them first: the saved place moves over a finished prefix
     assert all(options["calibration"] == "calibration" and options["corpus_id"] == "knowledge-corpus-example-site" and "cut" not in options for _, options in pass_.suggested)
     assert (result["indexed"], result["conceptCardsWritten"], result["suggestionsWritten"], result["suggestionsSkippedReason"]) == (5, 2, 4, None)
     assert done(watermark)["accepted"]["high"] == "2026-10-31T10:00:00Z#ref-2"
@@ -191,7 +223,7 @@ def test_the_first_pass_takes_every_reference_newest_first_and_a_pass_with_nothi
     watermark = Watermark()
     first = Pass()
     run_pass(client, first, watermark)
-    assert first.order == ["index", "suggest:ref-2", "suggest:ref-1"]   # newest first
+    assert first.order == ["suggest:ref-2", "suggest:ref-1", "index"]   # newest first
     assert done(watermark)["accepted"] == {"high": "2026-10-31T10:00:00Z#ref-2", "low": "2026-10-30T10:00:00Z#ref-1"}
     quiet = Pass(cards=1)
     result = run_pass(client, quiet, watermark)
@@ -228,47 +260,48 @@ def test_suggestions_can_be_turned_off_and_the_index_is_still_kept_current():
     assert done(watermark)["accepted"]["high"] == "2026-10-30T10:00:00Z#ref-1"
 
 
-def test_without_the_openai_key_the_index_is_skipped_with_a_reason_the_watermark_stays_and_suggestions_still_use_the_vectors_that_exist():
+def test_without_the_openai_key_the_index_is_skipped_with_a_reason_and_suggestions_still_use_the_vectors_that_exist_and_move_the_watermark():
     pass_, watermark = Pass(), Watermark()
     result = run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, watermark, key=None)
-    assert result["indexSkippedReason"] == "openai_not_configured" and pass_.order == ["suggest:ref-1"] and watermark.writes == []
+    assert result["indexSkippedReason"] == "openai_not_configured" and pass_.order == ["suggest:ref-1"]
+    assert done(watermark)["accepted"]["high"] == "2026-10-30T10:00:00Z#ref-1"
 
 
-def test_a_failing_index_sync_is_reported_and_leaves_the_watermark_so_the_next_pass_takes_the_same_references():
+def test_a_failing_index_sync_is_reported_and_the_suggestions_made_before_it_stay_done():
     pass_, watermark = Pass(fail_index="throttled"), Watermark()
     result = run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, watermark)
-    assert "index sync failed (RuntimeError: throttled)" in result["indexSkippedReason"] and watermark.writes == []
-    assert pass_.order == ["index", "suggest:ref-1"] and result["suggestionsWritten"] == 2   # suggestions still use whatever vectors exist
+    assert "index sync failed (RuntimeError: throttled)" in result["indexSkippedReason"]
+    assert pass_.order == ["suggest:ref-1", "index"] and result["suggestionsWritten"] == 2 and done(watermark)["accepted"]["high"] == "2026-10-30T10:00:00Z#ref-1"
 
 
-def test_the_embedding_cost_stops_the_index_at_the_cost_bound_and_nothing_after_it_runs():
+def test_the_embedding_cost_stops_the_index_at_the_cost_bound_after_the_suggestions_that_cost_nothing():
     pass_, watermark = Pass(characters=400_000_000), Watermark()   # $2 of embeddings against a $0.50 bound
     result = run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, watermark)
-    assert result["stoppedBy"] == "cost" and pass_.order == ["index"] and watermark.writes == []
-    assert result["suggestionsSkippedReason"] == "stopped by cost while indexing"
+    assert result["stoppedBy"] == "cost" and pass_.order == ["suggest:ref-1", "index"] and result["suggestionsSkippedReason"] is None
+    assert done(watermark)["accepted"]["high"] == "2026-10-30T10:00:00Z#ref-1"
 
 
-def test_running_out_of_time_stops_the_index_and_the_suggestions_and_keeps_the_watermark():
+def test_running_out_of_time_stops_the_suggestions_and_does_not_start_the_index_walk_and_keeps_the_watermark():
     pass_, watermark = Pass(), Watermark()
     result = run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, watermark, out_of_time=lambda: True)
-    assert result["stoppedBy"] == "time" and watermark.writes == []
+    assert result["stoppedBy"] == "time" and watermark.writes == [] and pass_.order == []   # the sync lists the whole index first: it is not started with no time left
     steps = Pass()
     ticks = iter([False, False, True])
     result = run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-30T11:00:00Z"), accepted(3, "2026-10-30T12:00:00Z")]), steps, Watermark(),
                       out_of_time=lambda: next(ticks, True))
-    assert steps.order == ["index", "suggest:ref-3"] and result["stoppedBy"] == "time"   # index check passed, the newest suggested, then the time was gone
+    assert steps.order == ["suggest:ref-3", "suggest:ref-2"] and result["stoppedBy"] == "time"   # two looks at the time passed, two suggestions, then the time was gone
 
 
 def test_a_pass_the_time_stopped_saves_its_place_and_the_next_pass_resumes_below_it_and_finishes():
     rows = [accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-30T10:00:00Z"), accepted(3, "2026-10-30T10:00:00Z")]   # one acceptance time, as in a bulk import
-    watermark, ticks = Watermark(), iter([False, False, False])
+    watermark, ticks = Watermark(), iter([False, False])
     first = Pass()
     result = run_pass(AcceptedClient(rows), first, watermark, out_of_time=lambda: next(ticks, True))
-    assert first.order == ["index", "suggest:ref-3", "suggest:ref-2"] and result["suggestionsRemaining"] == 1   # newest first; ties go by id
+    assert first.order == ["suggest:ref-3", "suggest:ref-2"] and result["suggestionsRemaining"] == 1   # newest first; ties go by id
     assert done(watermark)["accepted"] == {"high": "2026-10-30T10:00:00Z#ref-3", "low": "2026-10-30T10:00:00Z#ref-2"}
     second = Pass()
     result = run_pass(AcceptedClient(rows), second, watermark)
-    assert second.options.reference_ids == ("ref-1",) and second.order == ["index", "suggest:ref-1"] and result["suggestionsRemaining"] == 0
+    assert second.options.reference_ids == ("ref-1",) and second.order == ["suggest:ref-1", "index"] and result["suggestionsRemaining"] == 0
     assert done(watermark)["accepted"]["low"] == "2026-10-30T10:00:00Z#ref-1"
     third = Pass()
     run_pass(AcceptedClient(rows), third, watermark)
@@ -277,24 +310,27 @@ def test_a_pass_the_time_stopped_saves_its_place_and_the_next_pass_resumes_below
 
 def test_a_reference_that_arrives_while_the_backlog_is_unfinished_is_handled_first_at_the_next_pass_and_the_backlog_goes_on_below_its_place():
     old = [accepted(1, "2026-10-01T10:00:00Z"), accepted(2, "2026-10-02T10:00:00Z"), accepted(3, "2026-10-03T10:00:00Z"), accepted(4, "2026-10-04T10:00:00Z")]
-    watermark, ticks = Watermark(), iter([False, False])
+    watermark, ticks = Watermark(), iter([False])
     run_pass(AcceptedClient(old), Pass(), watermark, out_of_time=lambda: next(ticks, True))   # got through ref-4 only
     assert done(watermark)["accepted"] == {"high": "2026-10-04T10:00:00Z#ref-4", "low": "2026-10-04T10:00:00Z#ref-4"}
     arrivals = [*old, accepted(5, "2026-11-01T10:00:00Z"), accepted(6, "2026-11-02T10:00:00Z")]
-    second, ticks = Pass(), iter([False, False, False, False])
+    second, ticks = Pass(), iter([False, False, False])
     run_pass(AcceptedClient(arrivals), second, watermark, out_of_time=lambda: next(ticks, True))
-    assert second.order == ["index", "suggest:ref-5", "suggest:ref-6", "suggest:ref-3"]   # the new ones (oldest of them first) before the backlog, then the backlog newest first
+    assert second.order == ["suggest:ref-5", "suggest:ref-6", "suggest:ref-3"]   # the new ones (oldest of them first) before the backlog, then the backlog newest first
     assert done(watermark)["accepted"] == {"high": "2026-11-02T10:00:00Z#ref-6", "low": "2026-10-03T10:00:00Z#ref-3"}
     third = Pass()
     run_pass(AcceptedClient(arrivals), third, watermark)
-    assert third.order == ["index", "suggest:ref-2", "suggest:ref-1"]
+    assert third.order == ["suggest:ref-2", "suggest:ref-1", "index"]
 
 
 def test_a_stopped_pass_that_got_through_nothing_leaves_the_watermark_and_an_unreadable_one_starts_over():
     watermark = Watermark("{broken")
     pass_ = Pass()
-    run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, watermark, out_of_time=iter([False, True]).__next__)
-    assert watermark.writes == [] and pass_.options.reference_ids == ("ref-1",)
+    run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, watermark, out_of_time=iter([True]).__next__)
+    assert watermark.writes == [] and pass_.order == []
+    pass_ = Pass()
+    run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, Watermark("{broken"))
+    assert pass_.options.reference_ids == ("ref-1",)
     older = Watermark(json.dumps({"accepted": "2026-10-30T10:00:00Z#ref-1"}))   # the shape of the earlier cursor release: no version, so it starts over
     pass_ = Pass()
     run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z")]), pass_, older)
@@ -309,7 +345,7 @@ def test_what_an_editor_looks_at_comes_first_a_human_vote_or_a_conversation_then
     client = AcceptedClient([voted, talked, *bulk], pending, threads=[{"id": "t1", "primaryAnchorKey": "reference#lineage-talked"}, {"id": "t2", "primaryAnchorKey": "item#story"}])
     pass_, watermark = Pass(), Watermark()
     run_pass(client, pass_, watermark)
-    assert pass_.order == ["index", "suggest:ref-1", "suggest:ref-2", "suggest:ref-6", "suggest:ref-5", "suggest:ref-3", "suggest:ref-4"]
+    assert pass_.order == ["suggest:ref-1", "suggest:ref-2", "suggest:ref-6", "suggest:ref-5", "suggest:ref-3", "suggest:ref-4", "index"]
     assert sorted(done(watermark)["done"]) == ["ref-1", "ref-2"]
 
 
@@ -320,7 +356,7 @@ def test_a_reference_that_gains_a_human_vote_after_it_was_suggested_as_bulk_is_s
     rows[0] = {**rows[0], "curationActorKind": "human"}   # an editor voted on ref-1, whose date is inside the done interval
     again = Pass()
     run_pass(AcceptedClient(rows), again, watermark)
-    assert again.order == ["index", "suggest:ref-1"]
+    assert again.order == ["suggest:ref-1", "index"]
     third = Pass()
     run_pass(AcceptedClient(rows), third, watermark)
     assert third.order == ["index"]
@@ -330,7 +366,7 @@ def test_a_plain_timestamp_from_an_older_pass_means_everything_up_to_it_is_done(
     pass_ = Pass()
     run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-30T12:00:00Z")], [{**accepted(3, "2026-10-30T09:00:00Z"), "curationStatus": "pending"}]),
              pass_, Watermark("2026-10-30T11:00:00Z"))
-    assert pass_.order == ["index", "suggest:ref-2"]
+    assert pass_.order == ["suggest:ref-2", "index"]
 
 
 def test_one_reference_whose_suggestions_fail_does_not_stop_the_others():
@@ -342,7 +378,123 @@ def test_one_reference_whose_suggestions_fail_does_not_stop_the_others():
 
     pass_ = Flaky()
     result = run_pass(AcceptedClient([accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-30T11:00:00Z")]), pass_, Watermark())
-    assert pass_.order == ["index", "suggest:ref-2"] and result["suggestionsFailed"] == 1 and result["suggestionsWritten"] == 2
+    assert pass_.order == ["suggest:ref-2", "index"] and result["suggestionsFailed"] == 1 and result["suggestionsWritten"] == 2
+
+
+# --- suggestions do not wait for the index; what has no vector is owed, what cannot have one is parked ----------------------------------------
+
+
+def three_rows():
+    return [accepted(1, "2026-10-30T10:00:00Z"), accepted(2, "2026-10-30T11:00:00Z"), accepted(3, "2026-10-30T12:00:00Z")]
+
+
+def test_a_reference_with_no_vector_is_owed_and_does_not_hold_back_the_ones_behind_it_and_the_sync_is_asked_for_it_then_it_is_suggested_for():
+    rows, owed, watermark = three_rows(), Rows(), Watermark()
+    pass_ = Pass(no_vector={"ref-2"})
+    result = run_pass(AcceptedClient(rows), pass_, watermark, owed=owed)
+    assert pass_.order == ["suggest:ref-3", "suggest:ref-2", "suggest:ref-1", "index", "suggest:ref-2"]   # ref-2 was passed over, indexed, then suggested for at once
+    assert "ref-2" in pass_.sync_calls[0] and done(watermark)["accepted"] == {"high": "2026-10-30T12:00:00Z#ref-3", "low": "2026-10-30T10:00:00Z#ref-1"}
+    assert result["suggestionsRemaining"] == 0 and result["awaitingIndex"] == 0 and owed.entries() == {} and result["suggestionsWithoutVector"] == 1
+
+
+def test_a_reference_the_sync_cannot_index_is_parked_with_its_reason_and_neither_the_sync_nor_the_suggestions_try_it_again_until_it_changes():
+    rows, owed, watermark = three_rows(), Rows(), Watermark()
+    first = Pass(no_vector={"ref-2"}, unindexable={"ref-2"})
+    result = run_pass(AcceptedClient(rows), first, watermark, owed=owed)
+    assert owed.entries() == {"lineage-2": {"r": "no_text", "s": vectors.index_signature(rows[1])}} and result["parkedUnindexable"] == 1
+    assert result["suggestionsRemaining"] == 0 and result["awaitingIndex"] == 0   # a parked Reference is not a suggestion left to write
+    # a new arrival makes the next pass look at the plan again; the parked Reference is not in the sync's list and is not asked for a suggestion
+    later = [*rows, accepted(4, "2026-10-31T10:00:00Z")]
+    second = Pass(no_vector={"ref-2"}, unindexable={"ref-2"})
+    result = run_pass(AcceptedClient(later), second, watermark, owed=owed)
+    assert second.order == ["suggest:ref-4", "index"] and second.sync_calls == [("ref-4",)] and result["parkedUnindexable"] == 1
+    # the Reference changes (an editor retitles it): the parked entry no longer matches, so the sync is asked again
+    later[1] = {**later[1], "title": "A better title", "curationActorKind": "human"}   # also a signal: it is in the plan again
+    third = Pass(no_vector={"ref-2"})
+    result = run_pass(AcceptedClient(later), third, watermark, owed=owed)
+    assert third.sync_calls == [("ref-2",)] and third.order == ["suggest:ref-2", "index", "suggest:ref-2"] and owed.entries() == {}
+
+
+def test_the_parked_references_are_written_once_not_at_every_pass():
+    rows, owed, watermark = three_rows(), Rows(), Watermark()
+    run_pass(AcceptedClient(rows), Pass(no_vector={"ref-1", "ref-2"}, unindexable={"ref-1", "ref-2"}), watermark, owed=owed)
+    written = len(owed.writes)
+    assert 1 <= written <= 2
+    run_pass(AcceptedClient(rows), Pass(no_vector={"ref-1", "ref-2"}, unindexable={"ref-1", "ref-2"}), watermark, owed=owed)
+    assert len(owed.writes) == written   # nothing changed, so nothing was stored
+
+
+def test_the_sync_is_given_the_references_in_the_order_of_the_plan_without_the_parked_ones():
+    voted = {**accepted(1, "2026-09-01T10:00:00Z"), "curationActorKind": "human"}
+    rows = [voted, accepted(2, "2026-10-30T10:00:00Z"), accepted(3, "2026-10-31T10:00:00Z")]
+    owed = Rows()
+    owed.rows[vectors.shard_of("lineage-3")] = {"entries": json.dumps({"lineage-3": {"r": "no_text", "s": vectors.index_signature(rows[2])}})}
+    pass_ = Pass()
+    run_pass(AcceptedClient(rows), pass_, Watermark(), owed=owed)
+    assert pass_.sync_calls == [("ref-1", "ref-2")]   # the person's signal first, then the newest; ref-3 is parked
+
+
+def test_a_publication_whose_suggestions_are_off_still_parks_what_the_sync_cannot_index():
+    rows, owed, watermark = three_rows(), Rows(), Watermark()
+    result = run_pass(AcceptedClient(rows), Pass(), watermark, owed=owed, policy={"suggestions": {"enabled": False}})
+    assert result["suggestionsSkippedReason"] == "suggestions are off in the publication's monitorStories" and done(watermark)["accepted"]["high"] == "2026-10-30T12:00:00Z#ref-3"
+
+
+def test_a_reference_that_is_rejected_or_gone_since_is_no_longer_owed_or_parked():
+    rows, owed = three_rows(), Rows()
+    for lineage, entry in (("lineage-9", {"r": "no_text", "s": "x"}), ("lineage-8", {"r": None, "s": "x"})):
+        owed.rows[vectors.shard_of(lineage)] = {"entries": json.dumps({lineage: entry})}
+    result = run_pass(AcceptedClient(rows), Pass(), Watermark(), owed=owed)
+    assert owed.entries() == {} and result["parkedUnindexable"] == 0 and result["awaitingIndex"] == 0
+
+
+def test_suggestions_made_at_once_by_several_workers_still_move_the_saved_place_over_a_finished_prefix():
+    import threading
+    import time
+
+    rows = [accepted(number, f"2026-10-{number:02d}T10:00:00Z") for number in range(1, 21)]
+    seen, lock = set(), threading.Lock()
+
+    class Slow(Pass):
+        def suggester(self, client, provider, reference_id, **options):
+            with lock:
+                seen.add(threading.get_ident())
+            time.sleep(0.01 if reference_id != "ref-20" else 0.05)   # the newest, first in order, finishes last
+            return super().suggester(client, provider, reference_id, **options)
+
+    ticks = iter([False, False, False])   # three windows of 2 x 3 workers
+    pass_, watermark = Slow(), Watermark()
+    result = run_pass(AcceptedClient(rows), pass_, watermark, workers=3, sync=False, out_of_time=lambda: next(ticks, True))
+    suggested = sorted(identifier.removeprefix("suggest:") for identifier in pass_.order)
+    assert len(suggested) == 18 and len(seen) > 1   # three windows of six, from several threads
+    assert result["suggestionsRemaining"] == 2
+    place = done(watermark)["accepted"]
+    assert place["high"] == "2026-10-20T10:00:00Z#ref-20" and place["low"] == "2026-10-03T10:00:00Z#ref-3"   # newest first: the first eighteen, with no gap
+
+
+def test_the_suggestion_only_task_never_calls_the_index_or_the_embeddings_and_costs_nothing():
+    pass_, watermark, owed = Pass(characters=900_000_000), Watermark(), Rows()
+    result = run_pass(AcceptedClient(three_rows()), pass_, watermark, key=None, sync=False, owed=owed, maximum_cost_usd=float("inf"))
+    assert pass_.order == ["suggest:ref-3", "suggest:ref-2", "suggest:ref-1"] and pass_.sync_calls == []
+    assert result["costUsd"] == 0 and result["indexSkippedReason"] is None and result["suggestionsWritten"] == 6 and result["suggestionsRemaining"] == 0
+
+
+def test_the_suggestion_only_task_owes_a_reference_with_no_vector_to_the_next_sync_and_does_not_ask_for_it_twice():
+    pass_, owed, watermark = Pass(no_vector={"ref-2"}), Rows(), Watermark()
+    result = run_pass(AcceptedClient(three_rows()), pass_, watermark, sync=False, owed=owed)
+    assert pass_.order == ["suggest:ref-3", "suggest:ref-2", "suggest:ref-1"]   # ref-2 is not asked about a second time in the same pass
+    assert owed.entries()["lineage-2"]["r"] is None and result["awaitingIndex"] == 1 and result["suggestionsRemaining"] == 1
+    again = Pass(no_vector={"ref-2"})
+    result = run_pass(AcceptedClient(three_rows()), again, watermark, sync=False, owed=owed)
+    assert again.order == ["suggest:ref-2"] and result["awaitingIndex"] == 1   # the plan is done; only the owed one is asked about, once
+    daily = Pass(no_vector={"ref-2"})
+    result = run_pass(AcceptedClient(three_rows()), daily, watermark, owed=owed)
+    assert daily.sync_calls == [("ref-2",)] and daily.order == ["index", "suggest:ref-2"] and result["awaitingIndex"] == 0 and owed.entries() == {}
+
+
+def test_the_result_says_how_long_each_step_took():
+    result = run_pass(AcceptedClient(three_rows()), Pass(), Watermark(), owed=Rows())
+    assert {"planSeconds", "suggestSeconds", "syncSeconds", "owedSeconds"} <= set(result["timings"])
 
 
 def test_the_embedding_key_and_the_index_arn_are_in_the_environment_only_while_the_index_runs(monkeypatch):
@@ -388,6 +540,49 @@ def test_the_index_sync_stops_between_references_when_asked_and_does_not_start_t
         assert prepared == [] and cards.called and "stoppedBy" not in stats
 
 
+def sync_with(references, options, existing=()):
+    """Runs the real sync over fake listings; returns (stats, the References it prepared in order)."""
+    from papyrus_knowledge_query import vector_index
+    from papyrus_knowledge_query.services import KnowledgeQueryServices
+
+    prepared = []
+
+    def prepare(services, reference, opts):
+        prepared.append(reference["id"])
+        return {"referenceId": reference["id"], "referenceLineageId": reference["lineageId"], "status": "prepared",
+                "candidates": [{"key": f"k-{reference['id']}", "text": "x" * 10, "metadata": {"vectorKind": "reference_passage"}}]}
+
+    with mock.patch.dict("os.environ", {"PAPYRUS_S3_VECTOR_INDEX_ARN": "arn:fake"}), \
+            mock.patch.object(vector_index, "_list_references", return_value=references), mock.patch.object(vector_index, "_list_note_messages", return_value=[]), \
+            mock.patch.object(vector_index, "_prepare_note_messages", return_value=[]), mock.patch.object(vector_index, "_list_index_vectors", return_value=list(existing)), \
+            mock.patch.object(vector_index, "_prepare_reference_for_indexing", side_effect=prepare), mock.patch.object(vector_index, "_prepare_concept_card_vectors", return_value=[]), \
+            mock.patch.object(vector_index, "_embed_and_put_vectors", side_effect=lambda arn, candidates: len(candidates)):
+        stats = vector_index.index_reference_passages(KnowledgeQueryServices(graph=mock.Mock(), corpus_text=object()), options)
+    return stats, prepared
+
+
+def test_the_sync_works_on_the_references_it_is_given_in_the_order_it_is_given_them_not_in_the_order_the_api_listed_them():
+    from papyrus_knowledge_query import vector_index
+
+    references = [{"id": f"r{n}", "lineageId": f"l{n}", "versionState": "current", "curationStatus": "accepted"} for n in range(1, 6)]
+    stats, prepared = sync_with(references, vector_index.VectorIndexOptions(action="sync", worker_count=1, include_ontology_vectors=False, reference_ids=("r4", "l2", "r5")))
+    assert prepared == ["r4", "r2", "r5"] and stats["referencesScanned"] == 3   # a record id and a lineage id both name a Reference
+    assert {"listReferencesSeconds", "listVectorsSeconds", "reconcileSeconds", "referencesSeconds", "conceptCardsSeconds"} <= set(stats["timings"])
+
+
+def test_picking_the_sync_s_references_out_of_thousands_does_not_compare_every_reference_with_every_id():
+    import time
+
+    from papyrus_knowledge_query import vector_index
+
+    ids = tuple(f"ref-{n:05d}" for n in range(8000))
+    references = [{"id": f"ref-{n:05d}", "lineageId": f"lin-{n:05d}", "externalItemId": f"ext-{n}"} for n in range(10_500)]
+    wanted = frozenset(ids)
+    started = time.perf_counter()
+    picked = [reference for reference in references if vector_index._reference_matches(reference, wanted)]
+    assert len(picked) == 8000 and time.perf_counter() - started < 0.5   # the tuple version took two seconds on a fast laptop
+
+
 # --- the router: the order in a run, the log line, the stored watermark ---------------------------------------------------------------------------
 
 
@@ -431,12 +626,12 @@ def idea_sink(monkeypatch):
     monkeypatch.setattr("papyrus_content.ideas.gate.HumanusGate.for_client", classmethod(lambda cls, client, **options: FakeGate()))
 
 
-def test_a_router_run_syncs_the_index_then_suggests_then_drafts_and_the_log_line_names_each_count(idea_sink, monkeypatch):
+def test_a_router_run_suggests_then_syncs_the_index_then_drafts_and_the_log_line_names_each_count(idea_sink, monkeypatch):
     table, store = router_with({**tms.SINGLE_ITEM_ONLY, "vectorIndexArn": ARN, "storageBucketName": BUCKET})
     _, client = world(2)
     order = []
     result, line, _ = run_task(store, client, order, monkeypatch, accepted_rows=[accepted(1, "2026-10-30T10:00:00Z")])
-    assert order == ["index", "suggest", "drafting"]
+    assert order == ["suggest", "index", "drafting"]
     assert (line["indexed"], line["conceptCardsWritten"], line["suggestionsWritten"], line["suggestionsSkippedReason"]) == (3, 1, 2, None)
     assert line["drafted"] == 2 and line["costUsd"] >= 0.002   # the model's spend and the embeddings (400,000 characters) share one meter
     stored = table.get_item({"pk": "MONITOR#hn", "sk": vectors.watermark_sort_key(tms.PUBLICATION)})["Item"]
