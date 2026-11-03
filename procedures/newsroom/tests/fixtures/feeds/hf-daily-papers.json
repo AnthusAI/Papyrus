@@ -1,0 +1,125 @@
+[
+ {
+  "paper": {
+   "id": "2611.03424",
+   "authors": [
+    {
+     "name": "Shanshan Zhong"
+    },
+    {
+     "name": "Chen Xu"
+    },
+    {
+     "name": "Jingjie Ning"
+    },
+    {
+     "name": "Zhengzhong Liu"
+    },
+    {
+     "name": "Aviral Kumar"
+    },
+    {
+     "name": "Chenyan Xiong"
+    }
+   ],
+   "publishedAt": "2026-11-02T00:00:00.000Z",
+   "submittedOnDailyAt": "2026-11-03T00:00:00.000Z",
+   "title": "IdeaTaste: Do LLMs Share the Research Taste of Human Researchers?",
+   "summary": "Research taste, the judgment of what to read, which problems to pursue, and which methods to try, increasingly shapes the work of AI scientists, yet it remains far less understood than their ability to execute research. We introduce IdeaTaste, a benchmark that scores an LLM by how closely the research proposals it writes from a literature snapshot frozen at 2025 match the work the same communities published in 2026. Our experiments span six contemporary language models and four research areas from established to emerging fields, covering more than 90{,}000 proposals in total. LLM agents fall well short of human communities in both the literature they cite and the ideas they state, reaching about 26\\% of the human level on citation matching and only 18\\% on idea matching. Their populations can cite as diversely as a community and take up its tasks and methods, yet rarely arrive at the concrete approaches and research plans it pursues. Neither richer field context nor larger populations substantially close this gap. In blinded expert review, AI proposals trail the 2026 papers least in presentation and most in expected success, echoing their gap in concrete approaches, and those whose ideas no human paper shares fare worst, suggesting weaker directions rather than overlooked opportunities. These results indicate that the main bottleneck in AI research taste lies less in finding the directions a community works on than in turning them into the concrete approaches it goes on to pursue. We release IdeaTaste as an open, continuously updated leaderboard (https://cxcscmu.github.io/IdeaTaste) that benchmarks contemporary AI proposals against future publication cycles.",
+   "upvotes": 15
+  },
+  "publishedAt": "2026-11-01T19:00:00.000Z",
+  "title": "IdeaTaste: Do LLMs Share the Research Taste of Human Researchers?",
+  "summary": "Research taste, the judgment of what to read, which problems to pursue, and which methods to try, increasingly shapes the work of AI scientists, yet it remains far less understood than their ability to execute research. We introduce IdeaTaste, a benchmark that scores an LLM by how closely the research proposals it writes from a literature snapshot frozen at 2025 match the work the same communities published in 2026. Our experiments span six contemporary language models and four research areas from established to emerging fields, covering more than 90{,}000 proposals in total. LLM agents fall well short of human communities in both the literature they cite and the ideas they state, reaching about 26\\% of the human level on citation matching and only 18\\% on idea matching. Their populations can cite as diversely as a community and take up its tasks and methods, yet rarely arrive at the concrete approaches and research plans it pursues. Neither richer field context nor larger populations substantially close this gap. In blinded expert review, AI proposals trail the 2026 papers least in presentation and most in expected success, echoing their gap in concrete approaches, and those whose ideas no human paper shares fare worst, suggesting weaker directions rather than overlooked opportunities. These results indicate that the main bottleneck in AI research taste lies less in finding the directions a community works on than in turning them into the concrete approaches it goes on to pursue. We release IdeaTaste as an open, continuously updated leaderboard (https://cxcscmu.github.io/IdeaTaste) that benchmarks contemporary AI proposals against future publication cycles.",
+  "numComments": 1,
+  "submittedBy": {
+   "name": "zhongshsh",
+   "fullname": "Shanshan Zhong"
+  },
+  "organization": {
+   "name": "CMU-SCS",
+   "fullname": "Carnegie Mellon University School of Computer Science"
+  }
+ },
+ {
+  "paper": {
+   "id": "2611.03097",
+   "authors": [
+    {
+     "name": "Tiansheng Hu"
+    },
+    {
+     "name": "Yichuan Wang"
+    },
+    {
+     "name": "James V. Talwar"
+    },
+    {
+     "name": "Nicholas Tomlin"
+    },
+    {
+     "name": "Chen Zhao"
+    },
+    {
+     "name": "Sewon Min"
+    }
+   ],
+   "publishedAt": "2026-11-02T00:00:00.000Z",
+   "submittedOnDailyAt": "2026-11-03T00:00:00.000Z",
+   "title": "DR Pixel: Page-Native Deep Research with Vision-Language Models",
+   "summary": "Complex documents such as scientific papers contain rich information in tables, figures, and equations; however, existing deep research (DR) agents typically reduce papers to OCR-extracted text. We instead ask whether vision-language models (VLMs) can enable page-native deep research: directly retrieving and reasoning over rendered document page images. We introduce DR Pixel, the first open-source end-to-end multimodal DR agent that uses rendered page images as its sole retrieval and reasoning unit, operating over a corpus of 1.06M pages. To evaluate this setting, we construct DRPixelBench, a benchmark on scientific papers requiring reasoning over text, figures, tables, and equations. Surprisingly, page-native DR already works well without training, outperforming OCR-based baselines across state-of-the-art models like GPT-5.4, Gemini-3.5-Flash, and Qwen3.6-27B, while requiring fewer tool calls. We next turn to DR training. A key challenge is that teacher trajectories for agentic supervised finetuning are noisy, mixing critical reasoning and action steps with redundant or failed attempts. To address this, we introduce counterfactual credit reweighting, a fine-grained credit assignment method that weights individual reasoning and action steps by their counterfactual contribution to the final answer. Our training improves retrieval recall by about 15 points and final accuracy by over 10 points on DRPixelBench, and likewise outperforms the untrained baseline on four existing benchmarks. On out-of-distribution ViDoRe-V3, DR Pixel comes within 1.8 points of an oracle that is given the gold pages directly. Our results suggest that the conventional OCR-then-retrieve pipeline is not only unnecessary but suboptimal: directly retrieving and reasoning over visual document pages makes complex DR both more effective and more efficient.",
+   "upvotes": 3
+  },
+  "publishedAt": "2026-11-01T19:00:00.000Z",
+  "title": "DR Pixel: Page-Native Deep Research with Vision-Language Models",
+  "summary": "Complex documents such as scientific papers contain rich information in tables, figures, and equations; however, existing deep research (DR) agents typically reduce papers to OCR-extracted text. We instead ask whether vision-language models (VLMs) can enable page-native deep research: directly retrieving and reasoning over rendered document page images. We introduce DR Pixel, the first open-source end-to-end multimodal DR agent that uses rendered page images as its sole retrieval and reasoning unit, operating over a corpus of 1.06M pages. To evaluate this setting, we construct DRPixelBench, a benchmark on scientific papers requiring reasoning over text, figures, tables, and equations. Surprisingly, page-native DR already works well without training, outperforming OCR-based baselines across state-of-the-art models like GPT-5.4, Gemini-3.5-Flash, and Qwen3.6-27B, while requiring fewer tool calls. We next turn to DR training. A key challenge is that teacher trajectories for agentic supervised finetuning are noisy, mixing critical reasoning and action steps with redundant or failed attempts. To address this, we introduce counterfactual credit reweighting, a fine-grained credit assignment method that weights individual reasoning and action steps by their counterfactual contribution to the final answer. Our training improves retrieval recall by about 15 points and final accuracy by over 10 points on DRPixelBench, and likewise outperforms the untrained baseline on four existing benchmarks. On out-of-distribution ViDoRe-V3, DR Pixel comes within 1.8 points of an oracle that is given the gold pages directly. Our results suggest that the conventional OCR-then-retrieve pipeline is not only unnecessary but suboptimal: directly retrieving and reasoning over visual document pages makes complex DR both more effective and more efficient.",
+  "numComments": 1,
+  "submittedBy": {
+   "name": "HughieHu",
+   "fullname": "Tiansheng Hu"
+  },
+  "organization": {
+   "name": "Berkeley-NLP",
+   "fullname": "Berkeley-NLP"
+  }
+ },
+ {
+  "paper": {
+   "id": "2610.38293",
+   "authors": [
+    {
+     "name": "Yanbin Yin"
+    },
+    {
+     "name": "Chuyu Xu"
+    },
+    {
+     "name": "Liqin Ye"
+    },
+    {
+     "name": "Jing Peng"
+    },
+    {
+     "name": "Chao Zhang"
+    }
+   ],
+   "publishedAt": "2026-10-28T05:24:11.000Z",
+   "submittedOnDailyAt": "2026-10-30T00:00:00.000Z",
+   "title": "EPSBench: Benchmarking LLM Agents for Earnings Forecasting",
+   "summary": "Quarterly earnings forecasting requires an agent to connect financial evidence to the income-statement line items that produce a company's reported earnings. We introduce EPSBench, a benchmark for studying this ability across 149 firm-quarters from 86 US companies. Agents read a fixed collection of filings, earnings-call transcripts, and news, then estimate company-specific income-statement drivers with cited evidence. A shared accounting calculator converts these estimates into GAAP diluted earnings per share (EPS), providing a common basis for comparing forecast assumptions. We evaluate six models under a common harness, assessing point forecast error relative to date-matched analyst consensus and checking whether their prediction intervals achieve the stated coverage. Three models show no detectable paired difference in point forecast error from consensus, and three have higher error. Across all six models, nominal 80% intervals contain reported EPS in only 37--70% of runs that return an interval, and most misses fall above the upper bound because the forecasts run low. The driver records trace most of the error gap between models to operating-income estimates.",
+   "upvotes": 3
+  },
+  "publishedAt": "2026-10-28T01:24:11.000Z",
+  "title": "EPSBench: Benchmarking LLM Agents for Earnings Forecasting",
+  "summary": "Quarterly earnings forecasting requires an agent to connect financial evidence to the income-statement line items that produce a company's reported earnings. We introduce EPSBench, a benchmark for studying this ability across 149 firm-quarters from 86 US companies. Agents read a fixed collection of filings, earnings-call transcripts, and news, then estimate company-specific income-statement drivers with cited evidence. A shared accounting calculator converts these estimates into GAAP diluted earnings per share (EPS), providing a common basis for comparing forecast assumptions. We evaluate six models under a common harness, assessing point forecast error relative to date-matched analyst consensus and checking whether their prediction intervals achieve the stated coverage. Three models show no detectable paired difference in point forecast error from consensus, and three have higher error. Across all six models, nominal 80% intervals contain reported EPS in only 37--70% of runs that return an interval, and most misses fall above the upper bound because the forecasts run low. The driver records trace most of the error gap between models to operating-income estimates.",
+  "numComments": 3,
+  "submittedBy": {
+   "name": "liqinye",
+   "fullname": "Liqin Ye"
+  },
+  "organization": {
+   "name": "GeorgiaTech",
+   "fullname": "Georgia Institute of Technology"
+  }
+ }
+]

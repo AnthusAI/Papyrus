@@ -11,13 +11,15 @@ CloudFormation stack in account 712236451410, us-east-1, applied with a change s
 
 Each monitor is its own `MONITOR#<id>` partition with its own schedules. `CONFIG.sourceType` names what
 it reads: `hn-rss` (the default, the Hacker News feed), `huggingface-models` (the Hugging Face Hub model list,
-[below](#hugging-face-hub-monitor-huggingface-models)) or `ttab-decisions` (the USPTO TTAB Reading Room
+[below](#hugging-face-hub-monitor-huggingface-models)), `feed` (any RSS or Atom feed on an allowed host, such as arXiv's) and
+`huggingface-papers` (the Hugging Face daily papers), both under [paper monitors](#paper-monitors-feeds-and-hugging-face-daily-papers),
+or `ttab-decisions` (the USPTO TTAB Reading Room
 decision search, `lookbackDays` 1 to 180, `finalDecisionsOnly` true by default, and `precedentialLookbackDays`:
 when set, a second search over that longer window asks only for precedential decisions of any type, because the
 Board can designate a decision precedential months after it issues). A TTAB item also lists the decision's other
 addresses (the TTABVUE PDF, the Reading Room's double-slash path), and intake reuses a Reference stored under
 any of them rather than creating a second one for the same decision. Each source type only
-accepts a `sourceUrl` on its own host. `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
+accepts a `sourceUrl` on its own host (a `feed` on any host in `FEED_HOSTS`). `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
 Cyclotron per publication) or `direct` (deliver every collected item to every configured publication,
 recorded as the monitor's own rule; no Cyclotron block, no feedback). Seed a TTAB monitor with
 `seed_config.py --monitor-id ttab --source-type ttab-decisions --interval-seconds 86400` and
@@ -33,7 +35,7 @@ first pass over a new monitor therefore reads the whole window; a steady pass us
 config caps it: `limit`, `maxItems` and `pagesPerQuery` are retired, and a stored config that still has them loads,
 ignores them and logs one `{"monitor": "ignored_retired_config", "fields": [...]}` line. They can be deleted from the
 table; `seed_config.py` no longer writes them. `pageSize` (Hugging Face and TTAB) is the source API's page size, not a
-total.
+total; a feed is committed 100 entries at a time for the same reason.
 
 Only real constraints bound a pass:
 
@@ -67,6 +69,7 @@ runs out.
 | `hn` | `hn-rss` | `papyrus-monitoring-hn-collect`, every 15 min | `papyrus-monitoring-hn-route`, :07/:22/:37/:52 | cyclotron | anth-us, p-apyr-us, threat-intelligence |
 | `ttab` | `ttab-decisions` | `papyrus-monitoring-ttab-collect`, every 6 h (collects daily) | `papyrus-monitoring-ttab-route`, hourly at :41 | direct | distinctive |
 | `huggingface` | `huggingface-models` | `papyrus-monitoring-huggingface-collect`, every 6 h (collects daily) | `papyrus-monitoring-huggingface-route`, hourly at :17 | direct, with a `rule` | shipped |
+| `papers-arxiv-ai`, `papers-arxiv-security`, `papers-huggingface` | `feed`, `feed`, `huggingface-papers` | one collect schedule each, every 6 h (see [paper monitors](#paper-monitors-feeds-and-hugging-face-daily-papers); not yet seeded) | one route schedule each | cyclotron | per the router config |
 | `web-<publication>` (seven) | `web-search` | `papyrus-monitoring-web-collect`, every 5 min (each monitor runs when due, hourly by default) | `papyrus-monitoring-web-<publication>-route`, hourly | cyclotron (Distinctive: hold), `holdDecisions` | that publication only |
 
 A publication the router delivers to needs its AppSync grants in the router role. The inline policy holds
@@ -361,6 +364,113 @@ Recommended `shipped-huggingface-router.json` (a watchlist name that does not ex
 The exclusions are the recommended block for Shipped: they remove quantisations, merges and wrappers but keep fine-tunes and adapters.
 Check `read.skipped` on the first run; if a legitimate release is being dropped, narrow the pattern that matched it.
 Read the result with the `RUN#` receipt (`read.requests`, `read.stoppedBy`, `read.skipped`, `new`) as in "Reading it", using `MONITOR#huggingface`.
+
+## Paper monitors: feeds and Hugging Face daily papers
+
+Research papers come from two source types. Neither needs a Cyclotron of its own: a paper monitor delivers through the shared
+Cyclotron per publication like `hn` does (`decisions: cyclotron`), so each site decides for itself, and which publications a
+monitor fans out to is the router config (`CONFIG#router`), unchanged. Both name a paper by its arXiv address
+(`https://arxiv.org/abs/<id>`, no version), so the same paper read from arXiv and from Hugging Face is one canonical URL and, at
+intake, one Reference. The source id is the same function of the id for both (`2611.00159` is `2611_00159`, `cs/0112017` is
+`cs--0112017`: a table key allows no dot or slash).
+
+### General feeds (`feed`)
+
+`sourceType: feed` reads an RSS 2.0 or Atom document from the `sourceUrl` in the monitor's config, so a new feed is a new monitor
+config and no code. Safety is that of the Hacker News reader, with one larger limit:
+
+- **https only**, no credentials in the address, and the host must be in `FEED_HOSTS` in `src/papyrus_content/monitoring_feed.py`
+  (today `rss.arxiv.org` and `export.arxiv.org`). Adding a host is one line there, and the deploy ships it; a `sourceUrl` on any other
+  host is refused when the config loads. A feed address may carry a query (the arXiv API's Atom feeds do), unlike the other types.
+- **Size.** 8 MB, not the 2 MB of the Hacker News feed: arXiv's combined daily feed for `cs.AI+cs.LG+cs.CL+cs.MA+stat.ML` was
+  3.59 MB (1,661 entries) on 2026-11-03.
+- **A document that declares a DOCTYPE or an ENTITY is refused**, whatever its size, and so is anything that is not an RSS 2.0
+  channel or an Atom feed (an HTML error page, a cut-off document). The pass fails with a `fetch` error and the next pass reads it
+  again. A feed with no entries is a complete pass.
+
+Each entry is an item. Its source id is the entry's stable id (the arXiv rule below; otherwise the `guid` or Atom `id`, falling
+back to the link, made key-safe and hashed when it had to change), its canonical URL is the entry's link (an Atom entry's
+`rel="alternate"` link), and `details` carries what the feed says: `title`, `publishedAt`, `abstract` (the description or summary,
+as is, at most 20,000 characters), `authors` (at most 50), `categories`. An entry with no title or link is left out, and an
+unreadable date is a missing date, so one odd entry cannot stop a feed of a thousand.
+
+**Reading.** The feed is downloaded once per pass and committed 100 entries at a time. The resume cursor is the source id of the
+last committed entry, not a number, so a feed that was rebuilt between two passes is continued at the right place (an entry that left
+the feed starts the pass over at the top; collected entries are `unchanged`). Like every monitor it reads everything it has not
+collected, with no item cap, bound by the Lambda's time.
+
+**arXiv rule** (per host, `HOST_RULES`; it is not a separate type). arXiv's feed lists `arxiv:announce_type` `new`, `cross`,
+`replace` and `replace-cross`. A revision of an old paper is not news, so `replace` and `replace-cross` are skipped; a feed with no
+announce type (the API's Atom feed) keeps every entry. On 2026-11-03 the five-category feed held 754 `new`, 336 `cross`, 383
+`replace` and 188 `replace-cross`, so 1,090 entries were kept. The paper id is the bare id from the link
+(`arxiv_paper_id` in `monitoring_web.py`), or from a `oai:arXiv.org:2611.00159v1` guid when the link is not an arXiv address.
+The abstract loses the leading `arXiv:2611.00159v1 Announce Type: new` line and the `Abstract:` label and is otherwise stored as is
+(LaTeX included). `details` adds `arxivId` and `announceType`.
+
+**Fingerprint.** Title, canonical URL and publication date: a paper is one discovery, and a later pass finds it `unchanged`.
+
+### Hugging Face daily papers (`huggingface-papers`)
+
+Reads `https://huggingface.co/api/daily_papers` (no key): the papers the community picks each day, newest pick first. Verified live
+on 2026-11-03: `limit` is at most 100 (500 answers 400), each response names the next page in its `Link: <...&p=1>; rel="next"`
+header, a page past the end is an empty list (the last page of a `date=` query too), and `date=YYYY-MM-DD` limits the list to one
+day's picks. The monitor does not use `date`: it pages from the newest row until a page holds a paper it has already collected
+(the high-water mark), the oldest paper on a page was picked before the window, or a page is empty, with the same pacing, rate limit
+handling and time budget as the model source. The window is `lookbackDays` (default 7, up to 366), the one bound the first pass needs:
+the list reaches back years, and a new monitor should not load all of it. A longer history is `lookbackDays` raised for one pass.
+
+| `CONFIG` field | Meaning |
+| --- | --- |
+| `sourceUrl` | exactly `https://huggingface.co/api/daily_papers` |
+| `lookbackDays` (7) | the window, counted from the day a paper was picked |
+| `pageSize` (100, up to 100) | the API's page size (`limit`), not a total |
+| `intervalSeconds` | as for every monitor |
+
+Each row is an item for `paper.id`: title (the paper's own), canonical URL `https://arxiv.org/abs/<id>`, published date (the
+paper's `publishedAt`). `details`: `arxivId`, `title`, `publishedAt`, `submittedOnDailyAt`, `abstract` (`paper.summary`), `authors`
+(names), `upvotes`, `comments` (`numComments`), `submittedBy`, `organization`. A row whose id is not an arXiv id is skipped. The
+fingerprint ignores votes and comments, which move all day, so a paper is decided once; the counts in `details` are as of the first
+time the monitor saw it.
+
+### Three monitors
+
+Config items (`MONITOR#<id>` / `CONFIG`). The arXiv feed is built once per weekday (its `skipDays` are Saturday and Sunday), so six
+hours is frequent enough to catch the build.
+
+```json
+{"pk": "MONITOR#papers-arxiv-ai", "sk": "CONFIG", "sourceType": "feed", "enabled": true, "intervalSeconds": 21600,
+ "sourceUrl": "https://rss.arxiv.org/rss/cs.AI+cs.LG+cs.CL+cs.MA+stat.ML"}
+
+{"pk": "MONITOR#papers-arxiv-security", "sk": "CONFIG", "sourceType": "feed", "enabled": true, "intervalSeconds": 21600,
+ "sourceUrl": "https://rss.arxiv.org/rss/cs.CR"}
+
+{"pk": "MONITOR#papers-huggingface", "sk": "CONFIG", "sourceType": "huggingface-papers", "enabled": true, "intervalSeconds": 21600,
+ "sourceUrl": "https://huggingface.co/api/daily_papers", "lookbackDays": 7, "pageSize": 100}
+```
+
+**Seeding one** (needs an operator with the production profile, as in "Starting Shipped"; `seed_config.py` validates the item with the
+collector's own validator before it writes, so a config the Lambda would refuse is never stored):
+
+```bash
+TABLE=$(aws ssm get-parameter --name /papyrus/monitoring/table-name --query Parameter.Value --output text)
+python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id papers-arxiv-ai --source-type feed \
+    --source-url "https://rss.arxiv.org/rss/cs.AI+cs.LG+cs.CL+cs.MA+stat.ML" --interval-seconds 21600
+python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id papers-arxiv-security --source-type feed \
+    --source-url https://rss.arxiv.org/rss/cs.CR --interval-seconds 21600
+python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id papers-huggingface --source-type huggingface-papers \
+    --interval-seconds 21600            # add --file with lookbackDays / pageSize to change the defaults
+```
+
+A monitor also needs what any monitor needs: a collect schedule and a route schedule in `papyrus-monitoring.yaml` (as for
+`huggingface`, input `{"monitorId": "<id>"}`), and `seed_router_config.py --monitor-id <id> --file router.json` for its publications
+(`decisions: cyclotron` with the shared `cyclotron` block, or `hold` while a site has no Cyclotron). The ids are already in the
+Monitoring page's `MONITOR_IDS` (`monitoring_view.py`), so the page lists them as soon as they have items.
+
+**What the decision sees.** `values.source` is `feed` or `huggingface-papers`, and the abstract is the decision's summary until
+enrichment has a summary of its own: `text` is the title, the address and the abstract, with no fetch of the paper. See "Enrich
+before decide" for why enrichment still runs for these items today and how it behaves for an arXiv address.
+
+**Gherkin.** `monitoring-paper-feeds`. Recorded responses are in `procedures/newsroom/tests/fixtures/feeds`.
 
 ## What it does, and does not do
 
@@ -693,6 +803,14 @@ onto each delivered Reference) -> the post-delivery `papyrus.reference.curate` p
   decision proceeds. Any other outcome is final at once. An unexpected bug is recorded on the row (`errors`) and also proceeds.
   Lambda time is the only other bound: with less than `MIN_REMAINING_SECONDS` left, enrichment continues next run (nothing is
   posted for that item meanwhile). Finished stages are never repeated.
+- **Paper items.** Enrichment has no per-source switch: with an enricher configured, every item of a live router is enriched, and a
+  `feed` or `huggingface-papers` item is no exception. For an arXiv address the capture goes straight to `https://arxiv.org/pdf/<id>`
+  (not the abstract page); without `pypdf` in the router Lambda that ends `capture_failed` (`unreadable`), the summary is skipped
+  (`no_text`) and nothing of the paper reaches the decision. So that the decision still has something to read, `build_item` uses the
+  item's `details.abstract` as the summary when enrichment gave none (as web search does with its snippet), and an enrichment summary,
+  when there is one, replaces it. Once the PDF can be read, enrichment would send the full text and a model summary instead, and
+  fetch one PDF per item from arXiv. Skipping enrichment for items that already carry an abstract needs a router change (a per-source
+  or per-config switch in `enrichment_for`); today's config has none.
 - **The decide payload.** `item.values` = `{title, url, source, sourceItemUrl, summary, text}` where
   `text = title + "\n" + url + "\n\n" + summary + "\n\n" + <full captured text>`. The captured text travels only inside `text`
   (Cyclotron reads only `text`; a separate `body` value would send the article twice and is refused). A part that does not exist (no summary,
@@ -982,7 +1100,7 @@ The editorial gate imports Humanus, and its judgment lane imports the Jev client
 (pydantic and pydantic-core, rpds-py, httpx2, anyio and the rest) as binary wheels for the function (manylinux aarch64, CPython 3.13), at the versions
 `poetry.lock` pins: `build.py --router` computes the closure from the lock, downloads each wheel with `pip download --only-binary`, refuses any whose
 sha256 is not in the lock, and unpacks them in sorted order, so the same lock gives the same `CodeKey`. `--router --host` unpacks this machine's installed
-copies instead, for tests (compiled modules load from the unpacked directory the Lambda uses, not from inside a zip). The collector zip and its hash are unchanged; the email-receiver zip grows with the same closure fix.
+copies instead, for tests (compiled modules load from the unpacked directory the Lambda uses, not from inside a zip). The collector zip is the import closure of `monitoring_cloud`, so `monitoring_feed` and `monitoring_hf_papers` are in it, and in the router zip, without being listed (a test checks both); the wheels change nothing in the collector zip, and the email-receiver zip grows with the same closure fix.
 
 ## Decision-ready events
 
