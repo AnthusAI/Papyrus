@@ -44,7 +44,7 @@ Feature: A web monitor never pays twice for the same search, and says what it pa
 
   Scenario: When every provider is refused the run fails once and waits for its next scheduled time
     Given a web monitor whose first provider is out of plan and whose second provider refuses its key
-    When the web monitor collects
+    When the web monitor collects with its log captured
     Then each provider is asked once and the run fails
     And the monitor is not due again until its interval or its fixed time of day, not at the next five minute wake
     And both refusals are logged for the alarm
