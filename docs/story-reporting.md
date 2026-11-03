@@ -184,6 +184,23 @@ papyrus stories assign-research --story <lineage> --direction "Find the court ru
 
 The assignment is open, its type defaults to `research.multi`, its title to the Story's title, its `instructions` and `metadata.direction` hold the direction, and its `metadata.contextProfile` is `reporter`. An `AssignmentEvent` records the creation. A Story at the `idea` stage moves to `assignment` through the recorded stage move (`stories show` lists it); a Story at any other stage stays where it is. The command does not fire stage-entry triggers; run `papyrus stories fire-triggers` if the stage should start one. `--dry-run` writes nothing.
 
+### Assigning research in the newsroom
+
+The same assignment can be made on the Story page, at every stage of the Story (components `assign-research-box.tsx`, `assign-research-client.ts`, `lib/assign-research.ts`). The Messages view's Work section starts with an Assign research box: one text area for what the research should find out, and one button. An empty direction is refused in words, before anything is written. Only editors and admins reach the editor, and the backend's own groups decide who may write an `Assignment`.
+
+The browser writes the same stored shape as the command: the `Assignment` row (type `research.multi`, `itemLineageId`, the Story's section when it is one of the site's sections, status `open`, queue `research:<section>:exploratory`), the first `AssignmentEvent`, and two `ModelAttachment`s owned by the Assignment. **The Assignment model has no `metadata`, `brief` or `instructions` column** (PR 1110 was a live bug from writing them as columns). The `metadata` attachment (`role` and `sortKey` `metadata`, JSON) holds `direction` and `contextProfile: reporter`, which the context pack and the research run read through `assignment_metadata`; the `assignment_instructions` attachment holds the direction as text. A Story at the `idea` stage then moves to `assignment` through `moveStoryStage`; if that move fails the assignment stays and the box says so. Specs: `features/newsroom-assign-research.feature` (the box), `features_backend/browser-assign-research.feature` (the pack is built from what the browser wrote; the browser's records are recorded in `features_backend/fixtures/browser-assign-research.json` by `scripts/test-assign-research.ts`, and `UPDATE_FIXTURES=1` rewrites it).
+
+The Work section shows each research assignment with the editor's direction, its state in words and with an icon, when it was made, and the packet once it is finished. A worker runs it: [the research-assignments task](monitoring-cloud.md#research-assignments).
+
+| Stored status | Shown as |
+| --- | --- |
+| `open` | Waiting for the research worker |
+| `claimed` | Running |
+| `completed` | Finished, with the packet |
+| `failed` | Failed, with the reason from its latest failed event |
+
+The packet is read from the Assignment: the Message on its `produces` relation, and that Message's `metadata` attachment (`research`). Each claim names its sources by the `rank` of a `source_snapshots` entry, and the card links each claim to the pages it cites. The summary, the recommended angle, the disagreements and the open questions follow. A "Could not verify" list (`unverifiedClaims`: `claim`, `sources`, `reasons`) and a fact-check line (`factCheck`) show when the packet has them and are left out when it does not. Nothing is added to a message thread: Messages come only from people.
+
 `papyrus assignments context-pack` shows what a reporting agent is given. It only reads.
 
 ```bash
