@@ -396,10 +396,10 @@ several cites them. Safe to repeat.
 
 ### Create Story (PPY-3c11bd)
 
-Every Reference card and detail has a **Create Story** action (Lucide `FilePlus2`; "As a post" beside it). One tap calls the `createStoryFromReference` mutation
+Every Reference card and detail has one **Create Story** action (Lucide `FilePlus2`). One tap calls the `createStoryFromReference` mutation
 (content-actions Lambda, content-write groups), which calls `create_story_from_reference`, which calls `create_story_from_references`, and the editor opens the Story.
 
-* **The Story**: type `article` (or `post`), stage `copywriting`, section only when the site has exactly one enabled section, title from the Reference.
+* **The Story**: the site's default Story type (`storyTypes.default` in its `projection.json`, else `article`; the editor changes it in the Story, see [story types](content-item-lifecycle.md#story-types-and-sections)), stage `copywriting`, section only when the site has exactly one enabled section, title from the Reference.
 * **The text**: the Reference's generated summary (the idea pipeline's summary chain: the `reference_summary_<N>_tokens` Message, the `curation` attachment, the
   preview description), then the source line. No summary: the source line only. Never invented text. This is a deliberate exception to "never seeded from the
   Reference's text": the summary is our generated words, and the copy guard still applies, so a summary that shares 12 or more words in a row with the captured

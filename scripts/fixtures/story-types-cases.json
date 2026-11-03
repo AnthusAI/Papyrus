@@ -1,0 +1,13 @@
+[
+  { "name": "a site that declares nothing falls back to the article type", "projection": {}, "expect": { "default": "article", "types": ["article"] } },
+  { "name": "the types a site gives a URL base are offered after the default", "projection": { "urls": { "types": { "post": { "base": "posts" }, "article": { "base": "articles" } } } }, "expect": { "default": "article", "types": ["article", "post"] } },
+  { "name": "storyTypes names the default and the offered types", "projection": { "storyTypes": { "default": "post", "types": ["post", "guide"] }, "urls": { "types": { "article": {} } } }, "expect": { "default": "post", "types": ["post", "guide"] } },
+  { "name": "a default alone is added to the routed types", "projection": { "storyTypes": { "default": "guide" }, "urls": { "types": { "article": {} } } }, "expect": { "default": "guide", "types": ["guide", "article"] } },
+  { "name": "a system type in urls.types is not a Story type", "projection": { "urls": { "types": { "page": {}, "post": {} } } }, "expect": { "default": "article", "types": ["article", "post"] } },
+  { "name": "a duplicate is offered once", "projection": { "storyTypes": { "types": ["article", "article", "post"] } }, "expect": { "default": "article", "types": ["article", "post"] } },
+  { "name": "a system type cannot be the default", "projection": { "storyTypes": { "default": "wiki_page" } }, "expect": { "error": true } },
+  { "name": "a system type cannot be offered", "projection": { "storyTypes": { "types": ["article", "page"] } }, "expect": { "error": true } },
+  { "name": "the default must be among the offered types", "projection": { "storyTypes": { "default": "post", "types": ["article"] } }, "expect": { "error": true } },
+  { "name": "a type name is lowercase", "projection": { "storyTypes": { "types": ["Article"] } }, "expect": { "error": true } },
+  { "name": "an unknown storyTypes setting is refused", "projection": { "storyTypes": { "defualt": "article" } }, "expect": { "error": true } }
+]

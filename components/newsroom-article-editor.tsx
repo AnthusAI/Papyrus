@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, ExternalLinkIcon, ImagePlusIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, ExternalLinkIcon, GlobeLockIcon, ImagePlusIcon, RouteIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ContentActionFailure, type ContentActionError } from "../lib/content-actions-client";
 import { newsroomHref } from "../lib/newsroom-base-path";
 import {
-  ARTICLE_TYPES,
+  editorTypeChoices,
+  typeLabel,
   emptyArticle,
   locateError,
   resolveArticlesBackend,
@@ -49,6 +50,7 @@ import {
 } from "../lib/newsroom-media";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
+import { describeBase, siteStoryTypes, storyAddress } from "../lib/site-story-types";
 import { cn } from "../lib/utils";
 import { applyReplacement, inlineFindings, visibleFindings } from "../lib/editorial-checks";
 import { graphqlEditorialBackend } from "../lib/editorial-checks-client";
@@ -120,6 +122,9 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
   const [editor, setEditor] = useState<NewsroomArticleEditorState | null>(isNew ? emptyArticle() : null);
   const [slugEdited, setSlugEdited] = useState(!isNew);
   const [everPublished, setEverPublished] = useState(false);
+  /** The type this version had when it was loaded, and the type of the live published version of the lineage (they differ after a new version changed the type). */
+  const [savedType, setSavedType] = useState<string | null>(null);
+  const [publishedType, setPublishedType] = useState<string | null>(null);
   const [aliases, setAliases] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [validation, setValidation] = useState<ValidationState>({ status: "checking" });
@@ -162,6 +167,8 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
         setLineageId(article.lineageId ?? null);
         setAliases(article.aliases);
         setEverPublished(article.everPublished);
+        setSavedType(article.type);
+        setPublishedType(article.publishedType ?? (article.everPublished ? article.type : null));
         setSlugEdited(true);
         setLoadError(null);
       })
@@ -401,6 +408,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
             }
           : current,
       );
+      setSavedType(editor.type);
       if (editor.id === null) {
         window.history.replaceState(
           null,
@@ -477,12 +485,16 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
         current ? { ...current, id, status: "published", versionNumber: result.versionNumber } : current,
       );
       setEverPublished(true);
-      setNotice({
-        tone: "ok",
-        text: result.changed
-          ? `Published as version ${result.versionNumber ?? "?"}.`
-          : `Already published; no changes to publish (version ${result.versionNumber ?? "?"}).`,
-      });
+      setSavedType(editor.type);
+      setPublishedType(editor.type);
+      const base = result.changed
+        ? `Published as version ${result.versionNumber ?? "?"}.`
+        : `Already published; no changes to publish (version ${result.versionNumber ?? "?"}).`;
+      setNotice(result.noPublicPage
+        ? { tone: "info", text: `${base} This site built no page for it, so nothing is live: it has no public URL.` }
+        : result.typeChangedFrom
+          ? { tone: "info", text: `${base} It was live as the type ${result.typeChangedFrom}; its address moved, and the old address redirects.` }
+          : { tone: "ok", text: base });
     } catch (error) {
       setNotice({ tone: "error", text: failureMessage(error) });
     } finally {
@@ -545,10 +557,18 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     }
 
     const slugLocked = everPublished;
+    const siteTypes = siteStoryTypes();
+    const typeChoices = editorTypeChoices(editor.type, siteTypes.types);
+    const address = storyAddress(siteTypes, editor.type, editor.section);
+    const liveAddress = publishedType && publishedType !== editor.type ? storyAddress(siteTypes, publishedType, editor.section) : null;
+    /** A live Story saved in place is republished at once, so a new type waits for a new version. */
+    const typeNeedsNewVersion = editor.status === "published" && savedType !== null && editor.type !== savedType;
+    /** Publishing this version would remove the live page: the new type has no page. */
+    const publishWouldRemoveLivePage = liveAddress !== null && address.kind === "none";
     const invalid = validation.status === "invalid" || validation.status === "unavailable";
     const isOlderVersion = latestVersionNumber !== null && editor.versionNumber !== null && editor.versionNumber < latestVersionNumber;
-    const publishBlocked = isOlderVersion || invalid || validation.status === "checking" || busy !== null || !editor.slug.trim();
-    const saveBlocked = isOlderVersion || invalid || busy !== null || !editor.slug.trim() || (!editor.dirty && editor.id !== null);
+    const publishBlocked = isOlderVersion || invalid || validation.status === "checking" || busy !== null || !editor.slug.trim() || typeNeedsNewVersion || publishWouldRemoveLivePage;
+    const saveBlocked = isOlderVersion || invalid || busy !== null || !editor.slug.trim() || (!editor.dirty && editor.id !== null) || typeNeedsNewVersion;
     const stagingUrl = stagingPreviewUrl(
       process.env.NEXT_PUBLIC_PAPYRUS_STAGING_URL,
       editor.type,
@@ -674,25 +694,58 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
               className="min-w-0 space-y-4"
               data-newsroom-article-edit-column
             >
-              <div className="grid gap-3 sm:grid-cols-3">
-                <label className="space-y-1 text-sm font-medium">
+              <div className="grid gap-3" data-feed-flat="" data-feed-surface="" data-newsroom-article-type-field>
+                <div className="space-y-1.5 text-sm font-medium" role="group" aria-label="Type">
                   <span>Type</span>
-                  <Select
-                    onValueChange={(value) => {
-                      if (typeof value === "string") patchEditor({ type: value });
-                    }}
-                    value={editor.type}
-                  >
-                    <SelectTrigger aria-label="Type" className="w-full" data-newsroom-article-type>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ARTICLE_TYPES.map((type) => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </label>
+                  <div className="flex flex-wrap gap-2">
+                    {typeChoices.map((type) => (
+                      <button
+                        aria-pressed={editor.type === type}
+                        className={cn(
+                          "inline-flex min-h-10 items-center gap-1.5 px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring",
+                          isOlderVersion && "opacity-60",
+                        )}
+                        data-newsroom-article-type={type}
+                        disabled={isOlderVersion}
+                        key={type}
+                        onClick={() => patchEditor({ type })}
+                        type="button"
+                      >
+                        {editor.type === type ? <CheckIcon aria-hidden="true" className="size-4" /> : null}
+                        {typeLabel(type)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {address.kind === "none" ? (
+                  <p className="flex items-start gap-2 rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] p-3 text-sm" data-newsroom-article-no-public-url role="status">
+                    <GlobeLockIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                    <span><strong>No public URL.</strong> {address.reason} Publishing records it as published, but the site builds no page for it.</span>
+                  </p>
+                ) : (
+                  <p className="flex items-start gap-2 text-sm text-muted-foreground" data-newsroom-article-address>
+                    <RouteIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                    <span>Published under {describeBase(address.base)}{address.via === "section" ? " (the section decides the address)" : address.via === "root" ? " (no address is declared for this type)" : ""}.</span>
+                  </p>
+                )}
+                {liveAddress && publishedType ? (
+                  <p className="flex items-start gap-2 rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] p-3 text-sm" data-newsroom-article-type-move role="status">
+                    <RouteIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                    <span>
+                      <strong>Live as the type {typeLabel(publishedType)}{liveAddress.kind === "route" ? ` under ${describeBase(liveAddress.base)}` : ""}.</strong>{" "}
+                      {address.kind === "none"
+                        ? `Publishing it as the type ${typeLabel(editor.type)} would remove the live page, so Publish is off. Choose a type the site publishes, or unpublish it.`
+                        : `Publishing it as the type ${typeLabel(editor.type)} moves it under ${describeBase(address.base)}; the old address redirects. Until then the live page does not change.`}
+                    </span>
+                  </p>
+                ) : null}
+                {typeNeedsNewVersion ? (
+                  <p className="rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] p-3 text-sm" data-newsroom-article-type-needs-version role="status">
+                    This Story is live. Use Save as new version to change its type: saving it in place would republish it at once.
+                  </p>
+                ) : null}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 text-sm font-medium">
                   <span>Section</span>
                   <Select

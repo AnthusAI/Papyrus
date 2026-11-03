@@ -7,9 +7,9 @@ import json
 import pytest
 
 from papyrus_content import section_migration
-from papyrus_content.content_item_lifecycle import STORY_ITEM_TYPES, build_new_content_item_version, is_story_item_type
+from papyrus_content.content_item_lifecycle import SYSTEM_ITEM_TYPES, build_new_content_item_version, is_story_item_type
 from papyrus_content.copywriting import _draft_item_for_copywriting
-from papyrus_content.ideas.context import STORY_TYPES, sections_for
+from papyrus_content.ideas.context import sections_for
 from papyrus_content.ideas.items import section_id_of
 from papyrus_content.projection.standard.config import standard_settings_from_mapping
 from papyrus_content.section_ids import is_type_shaped, match_section
@@ -73,10 +73,10 @@ def test_the_ideas_context_does_not_offer_a_type_shaped_value_as_a_section():
     assert sections_for(Client(), stories) == [{"id": "agent-security", "title": "agent-security"}]
 
 
-def test_posts_are_story_types_in_the_one_python_list():
-    assert STORY_ITEM_TYPES == ("article", "post")
-    assert is_story_item_type("post") and not is_story_item_type("wiki_page") and not is_story_item_type("page")
-    assert {"article", "post"} <= STORY_TYPES
+def test_every_type_outside_the_system_set_is_a_story_type():
+    assert SYSTEM_ITEM_TYPES == ("wiki_page", "doctrine", "page", "newsletter_issue")
+    assert all(is_story_item_type(name) for name in ("article", "post", "guide", "case_study"))
+    assert not any(is_story_item_type(name) for name in (*SYSTEM_ITEM_TYPES, "", None))
 
 
 def test_a_new_story_with_no_section_stores_no_section():

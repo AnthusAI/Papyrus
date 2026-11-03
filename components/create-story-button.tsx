@@ -4,7 +4,6 @@ import { FilePlus2Icon, Loader2Icon } from "lucide-react";
 import Link from "next/link";
 import * as navigation from "next/navigation";
 import { useState } from "react";
-import { STORY_ITEM_TYPES } from "../lib/content-item-lifecycle";
 import type { ExistingStory } from "../lib/content-actions-client";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { resolveArticlesBackend } from "../lib/newsroom-articles";
@@ -31,8 +30,8 @@ export type CreateStoryPreview = { title: string; url: string | null; summary: s
 /**
  * One tap makes a Story from a Reference and opens it in the article editor, ready to write (`createStoryFromReference`, PPY-3c11bd).
  *
- * The Story is an article by default; where the site has the post type, a small "as a post" button beside it makes a post instead, with no dialog.
- * Making a Story from a Reference the editor has not decided also accepts it (the editor's own Accept, recorded through the same path as the Accept button, with
+ * Create Story is one action. The Story gets the site's default type (`storyTypes.default` in its projection.json, else `article`) and opens in the editor,
+ * where its type is one of the fields. Making a Story from a Reference the editor has not decided also accepts it (the editor's own Accept, recorded through the same path as the Accept button, with
  * no reason asked); a rejected Reference is not overturned, and the button says so. A Reference that already has a Story is not given a second one silently:
  * the button offers the existing Story, and "Create another" is a deliberate second tap.
  */
@@ -65,15 +64,14 @@ export function CreateStoryButton({
   const [existing, setExisting] = useState<ExistingStory[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const caption = createStoryCaption(status, automatic);
-  const offersPost = STORY_ITEM_TYPES.includes("post");
   const cell = size === "large" ? "min-h-12 text-base" : "min-h-10 text-sm";
 
-  async function create(itemType: string, again = false) {
+  async function create(again = false) {
     if (busy || disabled) return;
     setBusy(true);
     setError(null);
     try {
-      const result = await resolveArticlesBackend(demo).actions.createStoryFromReference({ referenceId, itemType, again, ...(preview ? { preview } : {}) });
+      const result = await resolveArticlesBackend(demo).actions.createStoryFromReference({ referenceId, again, ...(preview ? { preview } : {}) });
       if (!result.created) {
         setExisting(result.existing);
         return;
@@ -101,7 +99,7 @@ export function CreateStoryButton({
 
   return (
     <div className="grid gap-y-1.5" data-create-story data-create-story-status={status}>
-      <div className="flex gap-x-1.5">
+      <div className="flex">
         <button
           aria-busy={busy || undefined}
           className={cn(
@@ -111,23 +109,12 @@ export function CreateStoryButton({
           )}
           data-create-story-button
           disabled={disabled}
-          onClick={() => void create("article")}
+          onClick={() => void create()}
           type="button"
         >
           {busy ? <Loader2Icon aria-hidden="true" className="size-4 animate-spin" /> : <FilePlus2Icon aria-hidden="true" className="size-4" />}
           {caption.label}
         </button>
-        {offersPost ? (
-          <button
-            className={cn("inline-flex items-center justify-center rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-control)]/45 px-3 text-muted-foreground outline-none transition-colors hover:bg-[var(--feed-control)]/70 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring", cell, (disabled || busy) && "opacity-[var(--feed-quiet,0.6)]")}
-            data-create-story-post
-            disabled={disabled}
-            onClick={() => void create("post")}
-            type="button"
-          >
-            As a post
-          </button>
-        ) : null}
       </div>
       {stable ? (
         <p aria-hidden={caption.note ? undefined : true} className={cn(LABEL, "h-4 truncate leading-4 text-muted-foreground")} {...(caption.note ? { "data-create-story-note": "" } : {})}>{caption.note}</p>
@@ -146,7 +133,7 @@ export function CreateStoryButton({
           <button
             className="justify-self-start rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-control)] px-3 py-1.5 font-medium text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
             data-create-story-another
-            onClick={() => void create("article", true)}
+            onClick={() => void create(true)}
             type="button"
           >
             Create another

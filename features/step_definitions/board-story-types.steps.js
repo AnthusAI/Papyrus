@@ -12,7 +12,8 @@ Given("a Copywriting column holding a wiki page and an article", function () { t
 Given("published Items that are a wiki page, a doctrine page, a page and an article", function () { this.result = ""; });
 Given("forty wiki pages, a doctrine page, three articles in Copywriting and one published article", function () { this.result = ""; });
 Given("a stage with 1,362 newer wiki pages ahead of 25 articles", function () { this.result = ""; });
-Given("the story type list", function () { this.result = ""; });
+Given("the system type list", function () { this.result = ""; });
+Given("Items of the site's own type \"guide\" and of the types wiki page, post and newsletter issue", function () { this.result = ""; });
 
 When("the Stories board is built", function () {});
 When("a column asks for its first page of stories", { timeout: 120_000 }, async function () { this.result = await run("paging"); });
@@ -27,5 +28,6 @@ Then("all 25 articles load even though the first requests came back with no stor
 Then("every row of the stage was read once and the column then ends", function () { passed(this, "paging"); });
 Then("a short page that still has a next token is never taken for the end of the column", function () { passed(this, "paging"); });
 Then("a stage with no stories at all ends without looping", function () { passed(this, "paging"); });
-Then("an article and a post are the story types, from that one list", function () { passed(this, "types"); });
-Then("wiki pages, doctrine and pages are not stories", function () { passed(this, "types"); });
+Then("wiki pages, doctrine, pages and newsletter issues are not stories", function () { passed(this, "types"); });
+Then("an article, a post and any other type are stories, and the query excludes only the system types", function () { passed(this, "types"); });
+Then("the guide and the post are cards and the wiki page and the newsletter issue are not", { timeout: 120_000 }, async function () { this.result = await run("new_type"); passed(this, "new_type"); });

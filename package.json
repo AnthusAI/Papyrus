@@ -85,6 +85,7 @@
     "test:auto-accepted-list": "tsx scripts/test-auto-accepted-list.ts && tsx scripts/test-auto-accepted-list-ui.ts && cucumber-js --profile autoAcceptedList",
     "test:messages-page": "tsx --test scripts/test-conversation-feed.ts && tsx scripts/test-messages-page.ts && cucumber-js --profile messagesPage",
     "test:newsroom-board-story-types": "tsx scripts/test-newsroom-board-story-types.ts && cucumber-js --profile boardStoryTypes",
+    "test:story-types": "tsx scripts/test-story-types.ts && tsx scripts/test-story-type-editor.ts && cucumber-js --profile storyTypeEditor && poetry run pytest -q procedures/newsroom/tests/test_story_types.py && poetry run behave features_backend/story-types.feature",
     "test:newsroom-ux-review": "tsx scripts/test-newsroom-ux-review.ts && cucumber-js --profile newsroomUxReview",
     "test:needs-me-links": "tsx scripts/test-needs-me-links.ts && cucumber-js --profile needsMeLinks",
     "test:related-links": "tsx --test scripts/test-reference-links-lib.ts && tsx scripts/test-related-links.ts && cucumber-js --profile referenceRelatedUi",

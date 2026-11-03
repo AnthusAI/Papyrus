@@ -23,9 +23,9 @@ from .knowledge_snapshot.monitor_records import MonitorRecord, record_entities, 
 from .knowledge_snapshot.weeks import parse_day
 from .publishing import item_id_for
 from .record_helpers import slugify
+from .story_types import default_story_type
 
 SECTION = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-ITEM_TYPE = "article"
 MONITOR_RECORD_KEY = "monitorRecord"
 SUGGESTION_WEEKS = 4
 
@@ -89,7 +89,7 @@ def promote_record(client: Any, record: MonitorRecord, *, section: str, actor: s
     if reference is None:
         raise ValueError(f"Reference {record.reference_id} was not found.")
     result = create_story_from_references(
-        client, references=[reference], section=section, slug=slug, title=record.model_id, actor=actor, body_markus=body(record), item_type=ITEM_TYPE,
+        client, references=[reference], section=section, slug=slug, title=record.model_id, actor=actor, body_markus=body(record), item_type=default_story_type(),
         front_matter=front_matter(record), item_id=item_id, source_text_reader=source_text_reader, now=now,
     )
     return {"itemId": item_id, "slug": slug, "section": section, "created": result["created"], "linked": result["linked"]}
