@@ -1,7 +1,7 @@
 Feature: Curation changes reach the home-page pages by themselves, in one debounced run
   A site that turns on the home-page plugin does not wait for someone to run a command. Every change to a Reference that a
-  public page shows or ranks by (its curation status, its place in the feed, its prediction, its version state, its title or
-  its section) arrives on the Reference table's DynamoDB stream. A small trigger function turns a burst of such changes into
+  public page shows or ranks by (its curation status, its place in the feed, its prediction, its version state, its title, its
+  section or an editor's star rating, which orders the pages and is never printed on them) arrives on the Reference table's DynamoDB stream. A small trigger function turns a burst of such changes into
   one home-page-snapshot run at the end of a quiet window: the first change opens the window and schedules the run, the
   changes that follow inside the window find it open and schedule nothing, because the run reads them all. The run writes the
   snapshot only when it changed and re-renders only the pages that read the changed selection.
@@ -43,6 +43,17 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
     Then no home-page snapshot run is scheduled
     When a Message is soft-deleted
     Then one home-page snapshot run is scheduled for 300 seconds later
+
+  Scenario: Rating a Reference schedules one snapshot, because a rating changes the order of the pages
+    Given a trigger function with a 300 second debounce window
+    When a Reference is rated
+    Then one home-page snapshot run is scheduled for 300 seconds later
+
+  Scenario: Changing only who rated a Reference, or when, schedules nothing
+    Given a trigger function with a 300 second debounce window
+    When a Reference changes only who rated it
+    Then no home-page snapshot run is scheduled
+    And no debounce slot is claimed
 
   Scenario: An edit that changes no public field schedules nothing
     Given a trigger function with a 300 second debounce window

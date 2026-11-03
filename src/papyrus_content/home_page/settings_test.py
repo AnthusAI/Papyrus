@@ -24,7 +24,7 @@ def test_every_setting_is_read():
         "freshness": {"debounceSeconds": 60, "intervalHours": 6, "purge": True},
     })
     assert (settings.layout, settings.per_section) == ("sections", 3)
-    assert settings.references.fields == ("key", "status", "title")
+    assert settings.references.fields == ("key", "status", "title", "rank"), "rank is in every snapshot record whatever the list says"
     assert settings.references.corpus == "knowledge-corpus-x"
     assert settings.threads.enabled and settings.threads.authors == "anonymous" and settings.threads.anonymous_label == "Staff"
     assert settings.freshness.interval_hours == 6 and settings.freshness.purge

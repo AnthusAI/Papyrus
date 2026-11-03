@@ -8,7 +8,7 @@ A Papyrus site can show part of its curation to visitors. The first piece is a p
 
 | File | Holds |
 | --- | --- |
-| `_data/home-page/references.json` | `generatedAt`, `corpus`, `fields` (the published field names) and `references`, accepted ones newest-accepted first, then recommended ones newest arrival first |
+| `_data/home-page/references.json` | `generatedAt`, `corpus`, `fields` (the published field names) and `references`, accepted ones newest-accepted first, then recommended ones newest arrival first; each record has a `rank` (see [Ordering](#ordering-human-ratings-then-cyclotron-confidence)) |
 | `_data/home-page/threads.json` | With `homePage.threads.enabled`: `generatedAt` and `threads`, most recently active first (see "Message threads") |
 | `_data/home-page/threads/<key>.json` | With `homePage.threads.enabled`: one file per public thread with its Messages in sequence |
 
@@ -22,11 +22,11 @@ The file lives under the site's URL policy, so `urls.basePath` is honoured (`<ba
 
 ## Public fields
 
-`key` (the first 12 hex characters of the SHA-256 of the lineage id, so no id appears), `status` (`accepted` or `recommended`), `title`, `authors`, `url`, `host`, `mediaType`, `sourceDate`, `sourceUpdatedAt`, `retrievedAt`, `importedAt`, `arrivedAt`, `acceptedAt` (accepted only), `decidedAt`, `section` (the section's title), `reasonCode`, `actor` (`human`, `cyclotron`, `rule`, `agent` or `catalog`; never who), `shareable`, `confidence` (live P(accept), two decimals), `predictedAcceptProbability` (the original prediction), `predictionDecidedAt`, `inboundCitationCount`, `outboundCitationCount`, `versionNumber`, and from the preview attachment `image`, `summary` and `siteName`.
+`key` (the first 12 hex characters of the SHA-256 of the lineage id, so no id appears), `status` (`accepted` or `recommended`), `title`, `authors`, `url`, `host`, `mediaType`, `sourceDate`, `sourceUpdatedAt`, `retrievedAt`, `importedAt`, `arrivedAt`, `acceptedAt` (accepted only), `decidedAt`, `section` (the section's title), `reasonCode`, `actor` (`human`, `cyclotron`, `rule`, `agent` or `catalog`; never who), `shareable`, `confidence` (live P(accept), two decimals), `predictedAcceptProbability` (the original prediction), `predictionDecidedAt`, `inboundCitationCount`, `outboundCitationCount`, `versionNumber`, from the preview attachment `image`, `summary` and `siteName`, and `rank` (a position in the shared order, below; always written, even when `homePage.references.fields` is a list that does not name it).
 
 The allowlist is `PUBLIC_REFERENCE_FIELDS` in `src/papyrus_content/home_page/export.py`. `homePage.references.fields` is `"all"` (every field above, the default) or a list of those names that includes `key` and `status`; any other name is a build error.
 
-Never published, each with its reason in `EXCLUDED_REFERENCE_FIELDS`: identity (who decided, who relayed, an editor's private note, intake provenance), the captured text of the source and its storage details, and internal ids and keys. A unit test proves every field of the Reference model is either published or excluded, exactly once, and the Gherkin scenarios scan an export with the reader-privacy scanner. `summary` is the preview's description clipped at `publicData.summaryCharacters` (default 240) on a sentence boundary. Text is also scrubbed of anything shaped like an email address, a UUID or a site subject, and a Reference whose address would carry one in its path is left out.
+Never published, each with its reason in `EXCLUDED_REFERENCE_FIELDS`: identity (who decided, who relayed, an editor's private note, intake provenance), an editor's star rating and who gave it and when (private editorial signals; they only order the page, see below), the captured text of the source and its storage details, and internal ids and keys. A unit test proves every field of the Reference model is either published or excluded, exactly once, and the Gherkin scenarios scan an export with the reader-privacy scanner. `summary` is the preview's description clipped at `publicData.summaryCharacters` (default 240) on a sentence boundary. Text is also scrubbed of anything shaped like an email address, a UUID or a site subject, and a Reference whose address would carry one in its path is left out.
 
 ## Settings
 
@@ -64,14 +64,33 @@ A home page that interleaves Stories with the Reference grids uses the ordinary 
 
 ## The references include
 
-`::include{kind="references" select="recent|confident|recommended" count="6" [section="Tools"] [card="tile|row"] [heading="..."] [more="/path/"] [empty="..."]}` places Reference cards on an authored page, rendered at projection time from `_data/home-page/references.json`. A site needs the `homePage` setting; without it the include is a build error that names the page file.
+`::include{kind="references" select="recent|confident|recommended" count="6" [bucket="day|week"] [section="Tools"] [card="tile|row"] [heading="..."] [more="/path/"] [empty="..."]}` places Reference cards on an authored page, rendered at projection time from `_data/home-page/references.json`. A site needs the `homePage` setting; without it the include is a build error that names the page file.
 
-- `recent`: accepted, newest accepted first. `confident`: accepted, highest Cyclotron confidence first (none recorded counts as 0.5). `recommended`: not yet accepted, highest confidence first. Ties go to the newest arrival, then the key.
+- `recent`: accepted, newest accepted first. `confident`: accepted, in the shared order of an editor's rating and then the Cyclotron's confidence (below). `recommended`: not yet accepted, in the same shared order. Without a `bucket`, `recent` ignores ratings.
+- `bucket="day"` or `bucket="week"` (any selection): the newest bucket first and the shared order inside each bucket. See [Time buckets](#time-buckets).
 - `count` defaults to `homePage.references.defaultCount` (6). `section` keeps References whose section label (or a configured section name's label) matches.
 - Each page has one ledger. The first component to place a Reference keeps it; a later component skips it and refills up to its `count` from its own ordering. Nothing is shared between pages.
 - A card shows confidence as "93% confidence" with a Lucide `gauge` icon and a five-segment meter drawn by shape (filled or outlined). A recommended card says "Recommended by Cyclotron, not yet accepted" with a `sparkles` icon. Cards use flat tones and rounded corners, with no borders. A component with nothing left draws the `empty` text, or nothing.
 - The Markdown twin keeps the include line as written. A page's digest folds in the snapshot digest, so a changed snapshot rewrites only the pages that place a references include.
 - `pages[].path`, a section `base` or a collection `base` equal to `_data`, `_plugins`, `_papyrus`, `_next` or `api` is a build error. `newsroom` is also reserved on sites whose edge routes the CMS.
+
+## Ordering: human ratings, then Cyclotron confidence
+
+A human rating is a stronger signal than a prediction, so where an editor rated a Reference the rating overrides the Cyclotron's confidence. `confident`, `recommended` and every bucketed include use one order (`src/papyrus_content/home_page/ordering.py`, tested in `ordering_test.py` and `features_backend/home-page-human-ratings.feature`):
+
+1. three, four and five stars, the most stars first;
+2. References nobody rated, the highest Cyclotron confidence first (none recorded counts as 0.5);
+3. one and two stars, the most stars first. A low rating is a real downgrade: it sinks a Reference even when the Cyclotron is sure of it, and a high one lifts a Reference the Cyclotron doubts.
+
+Equal References go to the newest arrival, then to the key. Pending References can be rated too, so `recommended` follows the same order. The star count never appears on a page: it changes order and is not printed. Cyclotron confidence stays public and printed as before.
+
+**The snapshot is public, so the stars are not in it.** `_data/home-page/references.json` is served next to the pages, so anyone can read it. The stars are read from the Reference rows when the snapshot is built and stay there. What is published instead is `rank`, on every record: its position (1 is first) in the shared order over every Reference in the file. A position is not a star count and cannot be turned back into one, though the order itself necessarily shows which References stand above which (that is its purpose). The build orders by `rank`, and because any subset of an ordered list keeps its order, a section filter, a ledger or a bucket still gives the right order. This was chosen over a pre-sorted list because the file's own order (newest accepted first) is a documented contract that other readers rely on, and over a coarse tier because a tier reveals the rating band. A unit test proves every Reference field is published or excluded exactly once, with `starRating`, `starRatedAt` and `starRatedBy` excluded, and the Gherkin scenarios prove that no file a projection wrote mentions a star field or who rated. A snapshot written before ranks existed has none; its References are then ordered as unrated ones, by confidence, newest and key, which is what the build always did.
+
+**Freshness.** A rating that reorders the page changes `rank` values, so the bytes of the snapshot change, and the page digest (which folds in the snapshot's digest) changes for every page that places a references include: `project_stale_listings` re-renders exactly those pages, although no public field changed. A rating that moves nothing changes nothing and rewrites nothing. `starRating` is one of the fields the trigger watches (see [Freshness](#freshness)), so a rating reaches the pages through the same debounce as an accept.
+
+## Time buckets
+
+`bucket="day"` or `bucket="week"` on a references include sorts by recency in buckets: the newest bucket first, and the shared order above inside each bucket. A bucket is a calendar day, or a week that starts on Monday, **in UTC** (the same rule for every site: a site has no configured time zone, and there is no site-level default bucket). The bucket date is the one the selection already orders by: the accepted time (`acceptedAt`), and for a Reference with none (a recommended one) its arrival (`arrivedAt`); a Reference with no usable date sits in the oldest bucket. A rating never moves a Reference to another bucket, because it never changes either date. Any bucket other than `day` or `week` is a build error that names the page (`pages/home.md: ::include references bucket must be one of day, week, got 'month'`). The page ledger works as before: the first component to place a Reference keeps it. `recent` with no bucket keeps its newest-accepted order and ignores ratings. Story listings are not bucketed or rated yet.
 
 ## Message threads
 
@@ -108,7 +127,7 @@ Sites that had handles before the claim records existed run `scripts/backfill-pu
 Curation changes reach the pages without anyone running a command. The backend plugin `home-page` (`backend.plugins: ["home-page"]` in `papyrus.config.ts`) wires four things, and only for a site that lists it: every other site synthesizes exactly what it did before.
 
 1. The DynamoDB stream on the Reference table (old and new images). Reference is a realtime model, so the table already streams old and new images; the plugin only asks for the same specification and consumes the stream, so the table itself is not updated.
-2. A small trigger function, `homePageTrigger` (Python 3.12, arm64, 256 MB, 30 s). It reads batches of up to 100 records (waiting at most 10 seconds to fill one) and ignores a record unless `curationStatus`, `feedStateKey`, `predictionSortKey`, `versionState`, `title` or `curationSectionId` differs between the old and new image. An insert or a removal counts as a change.
+2. A small trigger function, `homePageTrigger` (Python 3.12, arm64, 256 MB, 30 s). It reads batches of up to 100 records (waiting at most 10 seconds to fill one) and ignores a record unless `curationStatus`, `feedStateKey`, `predictionSortKey`, `versionState`, `title`, `curationSectionId` or `starRating` differs between the old and new image (a rating orders the pages without being printed on them; who rated and when are not watched). An insert or a removal counts as a change.
 3. A trailing-edge debounce. The first change in a quiet period claims a slot with a conditional write in the shared projection lock table (partition key `publication`, value `home-page-debounce#<site scope>`, expiring by TTL) and creates a one-off EventBridge Scheduler schedule `papyrus-home-page-snapshot-<site scope>-<epoch>` at the end of the window. It invokes content-actions with `{"projectionTask": {"task": "home-page-snapshot"}}`, runs once and deletes itself. Changes inside the window find the slot taken and schedule nothing, because the run reads them all. If creating the schedule fails the slot is released and the batch is retried by the stream. The site scope is a short hash of the site's content-actions function name, so sites that share an account never share a slot or a schedule name.
 4. The run itself: the snapshot is written only when it changed, and `project_stale_listings` re-renders only the pages whose digest includes the changed selection. A burst of ten accepts costs one run.
 

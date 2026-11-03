@@ -78,3 +78,11 @@ def test_the_threads_document_lists_the_most_recently_active_first_with_counts_a
     assert [(entry["key"], entry["messages"], entry["lastAt"]) for entry in index["threads"]] == [("b", 3, "2026-10-02T00:00:00.000Z"), ("a", 1, "2026-10-01T00:00:00.000Z")]
     assert index["threads"][0]["latest"] == documents["b"]["messages"][-1]
     assert list(documents["b"]) == ["key", "title", "anchor", "messages"]
+
+
+def test_a_change_of_rank_alone_is_a_change_and_the_stamp_alone_is_not():
+    before = snapshot_bytes(build_snapshot([{**record("a", accepted_at="2026-10-01T00:00:00.000Z"), "rank": 1}, {**record("b", accepted_at="2026-10-02T00:00:00.000Z"), "rank": 2}], NOW))
+    swapped = snapshot_bytes(build_snapshot([{**record("a", accepted_at="2026-10-01T00:00:00.000Z"), "rank": 2}, {**record("b", accepted_at="2026-10-02T00:00:00.000Z"), "rank": 1}], NOW))
+    later = snapshot_bytes(build_snapshot([{**record("a", accepted_at="2026-10-01T00:00:00.000Z"), "rank": 1}, {**record("b", accepted_at="2026-10-02T00:00:00.000Z"), "rank": 2}], NOW + timedelta(hours=1)))
+    assert changed_without_generated_at(before, swapped) is True, "an order that changed with no public field changed is rewritten, so the pages that read it are re-rendered"
+    assert changed_without_generated_at(before, later) is False

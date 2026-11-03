@@ -132,6 +132,49 @@ def test_collect_references_returns_accepted_then_recommended_and_nothing_else()
         assert absent not in titles
 
 
+def rate(client, title, stars):
+    row = next(row for row in client.rows() if row["title"].startswith(title))
+    row.update({"starRating": stars, "starRatedAt": "2026-10-31T09:00:00.000Z", "starRatedBy": "editor-who-rated@example.test"})
+
+
+def test_every_record_carries_a_rank_that_is_a_position_and_no_star():
+    client = FixtureClient()
+    for title, stars in (("Accepted one", 5), ("Accepted eight", 2), ("Pending mid", 4)):
+        rate(client, title, stars)
+    records = collect_references(client, client.corpus_id, HomePageSettings())
+    assert sorted(record["rank"] for record in records) == list(range(1, len(records) + 1))
+    by_title = {record["title"]: record["rank"] for record in records}
+    assert by_title["Accepted one"] < by_title["Pending mid"] < by_title["Accepted two"] < by_title["Accepted eight"], "5 stars, 4 stars, unrated and a 2 star Reference the Cyclotron is sure of"
+    text = json.dumps(records)
+    for private in ("starRating", "starRatedAt", "starRatedBy", "editor-who-rated@example.test"):
+        assert private not in text
+    for record in records:
+        assert not [name for name in record if "star" in name.lower()]
+
+
+def test_unrated_records_are_ranked_by_confidence_then_newest_arrival_then_key():
+    client = FixtureClient()
+    records = collect_references(client, client.corpus_id, HomePageSettings())
+    ordered = [record["title"] for record in sorted(records, key=lambda record: record["rank"])]
+    assert ordered[:3] == ["Accepted eight", "Accepted two", "Pending high"]
+
+
+def test_a_fields_list_that_leaves_out_what_the_order_reads_does_not_change_the_order():
+    client = FixtureClient()
+    rate(client, "Accepted one", 5)
+    everything = {record["key"]: record["rank"] for record in collect_references(client, client.corpus_id, HomePageSettings())}
+    narrow = collect_references(client, client.corpus_id, settings_with_fields(["key", "status", "title"]))
+    assert {record["key"]: record["rank"] for record in narrow} == everything
+    assert list(narrow[0]) == ["key", "status", "title", "rank"], "rank is in every record whatever the list says"
+
+
+def test_a_rating_that_moves_nothing_leaves_the_records_exactly_as_they_were():
+    client = FixtureClient()
+    before = collect_references(client, client.corpus_id, HomePageSettings())
+    rate(client, "Accepted eight", 4)   # already first
+    assert collect_references(client, client.corpus_id, HomePageSettings()) == before
+
+
 def test_the_recommended_threshold_is_the_setting():
     client = FixtureClient()
     strict = home_page_settings_from_mapping({"references": {"recommendedThreshold": 0.9}})

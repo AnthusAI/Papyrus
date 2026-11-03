@@ -116,6 +116,8 @@ def test_a_file_that_is_not_a_snapshot_is_an_error_naming_it(body):
         ({"kind": "references", "select": "recent", "card": "hero"}, "card must be one of tile, row"),
         ({"kind": "references", "select": "recent", "more": "javascript:alert(1)"}, "more must be"),
         ({"kind": "references", "select": "recent", "colour": "red"}, "unknown attributes: colour"),
+        ({"kind": "references", "select": "recent", "bucket": "month"}, "bucket must be one of day, week, got 'month'"),
+        ({"kind": "references", "select": "confident", "bucket": ""}, "bucket must be one of day, week"),
     ],
 )
 def test_a_bad_references_include_is_an_error_naming_the_file(attributes, message):
@@ -151,6 +153,12 @@ def test_the_page_digest_input_records_the_attributes_of_a_references_include():
 def test_is_home_page_include_matches_only_references():
     assert home_page_blocks.is_home_page_include({"kind": "references"})
     assert not home_page_blocks.is_home_page_include({"kind": "listing"})
+
+
+@pytest.mark.parametrize("bucket", ["day", "week"])
+def test_a_day_or_week_bucket_is_accepted_on_every_selection(bucket):
+    for select in home_page_blocks.SELECTIONS:
+        home_page_blocks.check({"kind": "references", "select": select, "bucket": bucket}, "page.md")
 
 
 # ------------------------------------------------------------------ selection
@@ -410,3 +418,54 @@ def test_a_page_section_or_collection_path_equal_to_a_reserved_prefix_is_a_build
 def test_a_path_that_only_starts_with_a_reserved_prefix_is_allowed():
     settings = standard_settings_from_mapping({**SITE, "pages": [{"id": "p", "path": "api-notes", "title": "P"}, {"id": "q", "path": "docs/api", "title": "Q"}]})
     assert [page.path for page in settings.pages] == ["api-notes", "docs/api"]
+
+
+# ------------------------------------------------------------------ ratings and buckets
+
+def ranked(*entries):
+    """Records of one snapshot written with ranks: (key, rank, acceptedAt) in the order given."""
+    return document(*(record(key, acceptedAt=accepted, arrivedAt="2026-09-01T00:00:00.000Z", confidence=0.5, rank=rank) for key, rank, accepted in entries))
+
+
+def test_confident_follows_the_rank_a_snapshot_carries_over_the_confidence_it_shows():
+    snapshot = document(
+        record("sure-but-rated-down", acceptedAt="2026-10-01T00:00:00.000Z", confidence=0.99, rank=3),
+        record("rated-up", acceptedAt="2026-10-01T00:00:00.000Z", confidence=0.1, rank=1),
+        record("unrated", acceptedAt="2026-10-01T00:00:00.000Z", confidence=0.5, rank=2),
+    )
+    assert pick(snapshot, select="confident") == ["rated-up", "unrated", "sure-but-rated-down"]
+
+
+def test_recommended_follows_the_rank_too():
+    snapshot = document(record("a", "recommended", rank=2, confidence=0.9), record("b", "recommended", rank=1, confidence=0.6))
+    assert pick(snapshot, select="recommended") == ["b", "a"]
+
+
+def test_recent_without_a_bucket_ignores_the_rank():
+    snapshot = ranked(("old-top", 1, "2026-10-01T00:00:00.000Z"), ("new-bottom", 2, "2026-10-05T00:00:00.000Z"))
+    assert pick(snapshot, select="recent") == ["new-bottom", "old-top"]
+
+
+def test_a_bucket_puts_the_newest_week_first_and_the_rank_decides_inside_a_week():
+    snapshot = ranked(
+        ("last-week-top", 1, "2026-10-20T00:00:00.000Z"), ("this-week-low", 4, "2026-10-27T00:00:00.000Z"),
+        ("last-week-second", 2, "2026-10-21T00:00:00.000Z"), ("this-week-top", 3, "2026-10-28T00:00:00.000Z"),
+    )
+    assert pick(snapshot, select="recent", bucket="week") == ["this-week-top", "this-week-low", "last-week-top", "last-week-second"]
+    assert pick(snapshot, select="recent", bucket="day") == ["this-week-top", "this-week-low", "last-week-second", "last-week-top"]
+
+
+def test_a_bucket_takes_the_arrival_for_a_recommended_reference_and_keeps_the_ledger():
+    snapshot = document(
+        record("old", "recommended", arrivedAt="2026-10-01T00:00:00.000Z", rank=1), record("new-b", "recommended", arrivedAt="2026-10-28T00:00:00.000Z", rank=3),
+        record("new-a", "recommended", arrivedAt="2026-10-29T00:00:00.000Z", rank=2),
+    )
+    ledger = PageLedger()
+    first = home_page_blocks.select_references(snapshot, {"select": "recommended", "bucket": "week", "count": "2"}, ledger)
+    second = home_page_blocks.select_references(snapshot, {"select": "recommended", "bucket": "week", "count": "2"}, ledger)
+    assert keys_of(first) == ["new-a", "new-b"] and keys_of(second) == ["old"], "the first component keeps what it placed; the next refills from its own ordering"
+
+
+def test_a_snapshot_with_no_ranks_orders_as_it_always_did_with_or_without_a_bucket(snapshot):
+    assert pick(snapshot, select="confident", count="10") == ["old", "tie-late", "tie-early", "new", "no-confidence"]
+    assert pick(snapshot, select="recent", bucket="day", count="10") == ["new", "tie-late", "tie-early", "no-confidence", "old"]
