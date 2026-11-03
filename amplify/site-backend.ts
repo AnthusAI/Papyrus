@@ -461,6 +461,15 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   grantNewsroomReadWrite(backend.newsroomSummary.resources.lambda as LambdaFunction);
   const contentActionsLambda = backend.contentActions.resources.lambda as LambdaFunction;
   grantNewsroomReadWriteDelete(contentActionsLambda);
+  // A backend whose editorial records (sections, doctrine, stories) carry a tenant (one copied with --stamp-tenant) is read and written as that tenant:
+  // the editorial check refuses a record whose tenant differs from the Lambda's, so without this a story on such a backend cannot be created or edited.
+  // Set PAPYRUS_TENANT_ID on the site's build (docs/multi-tenancy.md); a site with no tenant sets nothing and is unchanged.
+  const backendTenantId = (process.env.PAPYRUS_TENANT_ID ?? "").trim();
+  if (backendTenantId !== "") {
+    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda]) {
+      (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
+    }
+  }
   if ((activeBrand?.corpusKey ?? "").trim() !== "") {
     // A deploy creates the publication's canonical corpus from the brand when the backend has none.
     contentActionsLambda.addEnvironment("PAPYRUS_PUBLICATION_CORPUS_KEY", (activeBrand?.corpusKey ?? "").trim());

@@ -126,6 +126,7 @@ class VectorIndexOptions:
     worker_count: int = 8
     skip_references: bool = False
     stop_check: Callable[[dict[str, Any]], str | None] | None = None
+    include_notes: bool = True   # the router's pass indexes References and concepts only: reading every note Message's body and relations costs minutes on a big site
     skip_indexed: bool = False   # leave out a Reference whose summary vector is in the index with the Reference's current status: no attachment read, no text read, no hash
     concept_kinds: tuple[str, ...] | None = None   # the publication's allowlist of concept kinds; None: every kind but the bookkeeping ones (concept_kinds.py)
 
@@ -222,8 +223,8 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
         "warnings": [],
         "referenceResults": [],
     }
-    note_messages = _list_note_messages(services.graph)
-    prepared_notes = _prepare_note_messages(services, note_messages)
+    note_messages = _list_note_messages(services.graph) if options.include_notes else []
+    prepared_notes = _prepare_note_messages(services, note_messages) if options.include_notes else []
     eligible_notes = [entry for entry in prepared_notes if entry.get("relation") and _note_body_text(entry)]
     missing_body_notes = [
         entry for entry in prepared_notes
@@ -1378,7 +1379,7 @@ def _list_references(graph: GraphQLKnowledgeGraphProvider) -> list[dict[str, Any
     records: list[dict[str, Any]] = []
     next_token = None
     while True:
-        payload = graph.graphql(LIST_REFERENCES_QUERY, {"limit": 100, "nextToken": next_token})
+        payload = graph.graphql(LIST_REFERENCES_QUERY, {"limit": 1000, "nextToken": next_token})
         connection = payload.get("listReferences") or {}
         records.extend(item for item in connection.get("items") or [] if item)
         next_token = connection.get("nextToken")

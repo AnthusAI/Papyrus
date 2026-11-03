@@ -171,11 +171,11 @@ Feature: Context packs from the newsroom's own activity, and no repeat without n
     When the monitor-stories task runs
     Then the publication is stopped by time with the pack's ideas filed and no single item drafted
 
-  Scenario: A filing error on a pack idea stops the publication before more money is spent
+  Scenario: A filing error on a pack idea is recorded and the run goes on to the single item
     Given a publication with a concept whose accepts jump and a monitored Reference with a lively thread
     And filing a pack idea fails with a missing grant
     When the monitor-stories task runs
-    Then the publication is stopped by the filing error and the single item is not asked for
+    Then the filing error is recorded, the publication is not stopped by it and the single item is still asked for
 
   Scenario: Packs and single items spend from one budget
     Given a publication with a concept whose accepts jump and a monitored Reference with a lively thread
