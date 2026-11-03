@@ -18,6 +18,8 @@ A prompt that says "use only the sources" is not a safeguard. A real research pa
 
 Where the check applies, in the order of the epic: research packets (done), Reference summaries, idea drafts, Story drafts before publishing, then agent conversations on Chatticus. Only research packets are done.
 
+**The judge is asked more than once.** Its answer on the same claim and text changes between runs: 4 of 28 real claims changed verdict across three replays on 2026-11-03, one of them an allegation stated as fact. A claim is `verified` only if all `JUDGE_PASSES` answers agree; the first doubt stops the asking and that answer stands. A claim that already failed the literal check is asked once, because it cannot become verified. This lowers the chance of a wrong `verified` but does not remove it.
+
 ## `check_claims(claims, sources, *, judge=None, urls=None)`
 
 `claims` is a list of `{claim, sources}`; `sources` maps a source id to its text. For research the text is the source's title plus its snippets, because that is all the writer was told to use. `urls` maps source ids to URLs for the source-strength count. It returns `{contract, counts, claims, sourceLoad}`; each claim has `verdict`, `literal.unmatched` (`[{term, kind}]`, kind is `name`, `number` or `quotation`), `judge` (or `null`), `reasons` and `sourceStrength` (`{domains, singleSource}`).

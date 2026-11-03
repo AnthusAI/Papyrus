@@ -379,3 +379,72 @@ def step_pack_lists(context, claim, heading):
     following = [h for h in ("Claims:", "Needs a check (partly supported, or the attribution is unclear), do not rely on:",
                              "Rejected (not supported by its sources), do not rely on:", "Open questions:") if h in text and text.index(h) > text.index(heading)]
     assert not following or text.index(claim) < min(text.index(h) for h in following), text
+
+
+AGREEMENT_SOURCE = "The filing says the city settled in June."
+AGREEMENT_QUOTE = "the city settled in June"
+
+
+def counting_judge(context, answers):
+    context.judge_calls = 0
+
+    def judge(claim, cited, info=None):
+        context.judge_calls += 1
+        return answers[min(context.judge_calls, len(answers)) - 1]
+
+    context.agreement_judge = judge
+
+
+@given("a judge that supports a claim with a real quote and then says on its second answer that attribution was lost")
+def step_judge_doubts(context):
+    context.agreement_claim = "The city settled in June."
+    counting_judge(context, [{"verdict": "supported", "quotes": [AGREEMENT_QUOTE], "attribution_lost": False},
+                             {"verdict": "supported", "quotes": [AGREEMENT_QUOTE], "attribution_lost": True}])
+
+
+@given("a judge that always supports a claim with a real quote")
+def step_judge_always(context):
+    context.agreement_claim = "The city settled in June."
+    counting_judge(context, [{"verdict": "supported", "quotes": [AGREEMENT_QUOTE], "attribution_lost": False}])
+
+
+@given("a judge that always supports a claim that names someone its source does not")
+def step_judge_invented(context):
+    context.agreement_claim = "Rosalind Vance said the city settled in June."
+    counting_judge(context, [{"verdict": "supported", "quotes": [AGREEMENT_QUOTE], "attribution_lost": False}])
+
+
+@when("the claim is checked")
+def step_check_agreement(context):
+    report = fact_check.check_claims([{"claim": context.agreement_claim, "sources": ["1"]}], {"1": AGREEMENT_SOURCE}, judge=context.agreement_judge)
+    context.agreement_verdict = report["claims"][0]["verdict"]
+
+
+@then("the claim needs a check")
+def step_needs_check(context):
+    assert context.agreement_verdict == "needs_check", context.agreement_verdict
+
+
+@then("the claim is verified")
+def step_verified(context):
+    assert context.agreement_verdict == "verified", context.agreement_verdict
+
+
+@then("the claim is rejected")
+def step_rejected(context):
+    assert context.agreement_verdict == "rejected", context.agreement_verdict
+
+
+@then("the judge was asked twice")
+def step_twice(context):
+    assert context.judge_calls == 2, context.judge_calls
+
+
+@then("the judge was asked as many times as a claim needs to pass")
+def step_all_passes(context):
+    assert context.judge_calls == fact_check.JUDGE_PASSES, context.judge_calls
+
+
+@then("the judge was asked once")
+def step_once(context):
+    assert context.judge_calls == 1, context.judge_calls
