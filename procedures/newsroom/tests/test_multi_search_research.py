@@ -60,7 +60,7 @@ class FakeLlm:
     @staticmethod
     def judgement(given):
         """A judge that finds every statement supported, quoting the start of the first source it was given."""
-        return {"verdict": "supported", "quote": given["sources"][0]["text"].split("\n")[0], "explanation": "The source says so.", "attribution_lost": False}
+        return {"verdict": "supported", "quotes": [given["sources"][0]["text"].split("\n")[0]], "claim_is_only_about_source_limits": False, "explanation": "The source says so.", "attribution_lost": False}
 
 
 SHARED = "https://example.org/glide"

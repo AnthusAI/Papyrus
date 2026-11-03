@@ -43,49 +43,72 @@ def step_claim_single_quoted(context, claim, ids):
 
 def scripted_judge(context):
     script = context.fc_script
+    context.fc_seen = {}
 
-    def judge(claim, cited):
+    def judge(claim, cited, info=None):
+        context.fc_seen = dict(info or {})
         if claim in script.get("fails_on", ()):
             raise RuntimeError("model unavailable")
-        return {"verdict": script["verdict"], "quote": script["quote"], "explanation": "Because the source says so.",
-                "attribution_lost": script.get("attribution_lost", False)}
+        answer = script.get("per_claim", {}).get(claim, script)
+        return {"verdict": answer["verdict"], "quotes": answer["quotes"], "explanation": "Because the source says so.",
+                "attribution_lost": answer.get("attribution_lost", False), "claim_is_only_about_source_limits": answer.get("limits_only", False)}
 
     context.fc_judge = judge
 
 
-@given('the judge says "{verdict}" quoting "{quote}"')
-def step_judge(context, verdict, quote):
-    state(context).fc_script = {"verdict": verdict, "quote": quote}
+@given("the judge says \"{verdict}\" quoting {rest}")
+def step_judge(context, verdict, rest):
+    state(context).fc_script = {"verdict": verdict, "quotes": quoted(rest.replace("and reports the attribution lost", "")),
+                                "attribution_lost": "attribution lost" in rest}
     scripted_judge(context)
 
 
 @given('the judge says "{verdict}" with no quote')
 def step_judge_no_quote(context, verdict):
-    state(context).fc_script = {"verdict": verdict, "quote": ""}
+    state(context).fc_script = {"verdict": verdict, "quotes": []}
     scripted_judge(context)
 
 
-@given('the judge says "{verdict}" quoting "{quote}" and reports the attribution lost')
-def step_judge_attribution(context, verdict, quote):
-    state(context).fc_script = {"verdict": verdict, "quote": quote, "attribution_lost": True}
+@given('the judge says "{verdict}" with no quote because the claim is only about the source\'s limits')
+def step_judge_limits(context, verdict):
+    state(context).fc_script = {"verdict": verdict, "quotes": [], "limits_only": True}
+    scripted_judge(context)
+
+
+@given('the judge answers the claim "{claim}" with "{verdict}" quoting "{quote}"')
+def step_judge_per_claim(context, claim, verdict, quote):
+    state(context).fc_script.setdefault("per_claim", {})[claim] = {"verdict": verdict, "quotes": [quote]}
+    scripted_judge(context)
+
+
+@given('the judge answers the claim "{claim}" with "{verdict}" quoting nothing')
+def step_judge_per_claim_nothing(context, claim, verdict):
+    state(context).fc_script.setdefault("per_claim", {})[claim] = {"verdict": verdict, "quotes": []}
     scripted_judge(context)
 
 
 @given('the judge supports every claim quoting "{quote}"')
 def step_judge_every(context, quote):
-    state(context).fc_script = {"verdict": "supported", "quote": quote}
+    state(context).fc_script = {"verdict": "supported", "quotes": [quote]}
     scripted_judge(context)
 
 
 @given('the judge fails on the claim "{claim}" and supports the others quoting "{quote}"')
 def step_judge_fails_on(context, claim, quote):
-    state(context).fc_script = {"verdict": "supported", "quote": quote, "fails_on": [claim]}
+    state(context).fc_script = {"verdict": "supported", "quotes": [quote], "fails_on": [claim]}
     scripted_judge(context)
+
+
+@given('the source "{source_id}" has the title "{title}" and says "{text}"')
+def step_source_titled(context, source_id, title, text):
+    state(context).fc_sources[source_id] = text
+    context.__dict__.setdefault("fc_titles", {})[source_id] = title
 
 
 @when("the claims are fact checked")
 def step_check(context):
-    context.fc_report = fact_check.check_claims(context.fc_claims, context.fc_sources, judge=context.fc_judge, urls={k: k for k in context.fc_sources})
+    context.fc_report = fact_check.check_claims(context.fc_claims, context.fc_sources, judge=context.fc_judge, urls={k: k for k in context.fc_sources},
+                                          titles=getattr(context, "fc_titles", {}))
 
 
 @when("the claims are fact checked without a judge")
@@ -153,10 +176,32 @@ def step_judge_recorded(context, verdict):
     assert result(context, 1)["judge"]["verdict"] == verdict and result(context, 1)["judge"]["quoteVerified"] is False
 
 
-@then("the counts are {verified:d} verified, {unverified:d} unverified, {unchecked:d} unchecked")
-def step_counts(context, verified, unverified, unchecked):
+@then("the counts are {verified:d} verified, {needs:d} needs_check, {rejected:d} rejected, {unchecked:d} unchecked")
+def step_counts(context, verified, needs, rejected, unchecked):
     counts = context.fc_report["counts"]
-    assert (counts["verified"], counts["unverified"], counts["unchecked"]) == (verified, unverified, unchecked), counts
+    assert (counts["verified"], counts["needs_check"], counts["rejected"], counts["unchecked"]) == (verified, needs, rejected, unchecked), counts
+
+
+@then('the judge was shown the title "{title}" and the host "{host}" for "{source_id}"')
+def step_judge_info(context, title, host, source_id):
+    assert context.fc_seen[source_id] == {"title": title, "host": host}, context.fc_seen
+
+
+@then("the judge instructions allow naming a source's publisher from its title and host")
+def step_publisher(context):
+    assert "may name a source's publisher or site from them" in fact_check.JUDGE_SYSTEM
+
+
+@then("the judge instructions say a statement that a source does not say something is supported without a quote when the source is silent")
+def step_limits_prompt(context):
+    text = fact_check.JUDGE_SYSTEM
+    assert "supported when the source really is silent on the point, and it needs no quote" in text and "claim_is_only_about_source_limits" in text
+
+
+@then("the synthesis rules for a Story with a pack say one fact per claim, caveats in their own claim or in open questions, and dates only if in the sources")
+def step_writer_rules(context):
+    rules = ms.SYNTH_DIRECTION_RULES
+    assert "One fact per claim" in rules and "in its own claim or in the open questions" in rules and "only if a title or snippet gives it" in rules
 
 
 @then('claim {number:d} has a domain count of {domains:d} and single source is "{flag}"')
@@ -237,10 +282,10 @@ def step_packet_no_claims(context):
     assert not context.packet["claims"], context.packet["claims"]
 
 
-@then('the packet holds the unverified claim "{claim}" with the reason "{reason}"')
-def step_packet_unverified(context, claim, reason):
+@then('the packet holds the claim "{claim}" as "{verdict}" with the reason "{reason}"')
+def step_packet_unverified(context, claim, verdict, reason):
     rows = [row for row in context.packet["unverifiedClaims"] if row["claim"] == claim]
-    assert rows and any(entry.startswith(reason) for entry in rows[0]["reasons"]), context.packet.get("unverifiedClaims")
+    assert rows and rows[0]["verdict"] == verdict and any(entry.startswith(reason) for entry in rows[0]["reasons"]), context.packet.get("unverifiedClaims")
     assert rows[0]["sources"], rows[0]
 
 
@@ -260,16 +305,16 @@ def step_summary_is(context, text):
     assert context.packet["summary"] == text, context.packet["summary"]
 
 
-@then("the packet carries its fact check counts of {verified:d} verified and {unverified:d} unverified")
-def step_packet_counts(context, verified, unverified):
+@then("the packet carries its fact check counts of {verified:d} verified and {rejected:d} rejected")
+def step_packet_counts(context, verified, rejected):
     counts = context.packet["factCheck"]["counts"]
-    assert (counts["verified"], counts["unverified"]) == (verified, unverified), counts
+    assert (counts["verified"], counts["rejected"]) == (verified, rejected), counts
 
 
-@then("the packet carries its fact check counts of {verified:d} verified and {unverified:d} unverified and {unchecked:d} unchecked")
-def step_packet_counts_unchecked(context, verified, unverified, unchecked):
+@then("the packet carries its fact check counts of {verified:d} verified and {rejected:d} rejected and {unchecked:d} unchecked")
+def step_packet_counts_unchecked(context, verified, rejected, unchecked):
     counts = context.packet["factCheck"]["counts"]
-    assert (counts["verified"], counts["unverified"], counts["unchecked"]) == (verified, unverified, unchecked), counts
+    assert (counts["verified"], counts["rejected"], counts["unchecked"]) == (verified, rejected, unchecked), counts
 
 
 def body_of(context):
@@ -289,16 +334,16 @@ def step_position_plain(context, text):
     assert positions and "unverified" not in positions[0], positions
 
 
-@then('the position "{text}" is labelled unverified because of "{reason}"')
+@then('the position "{text}" is labelled rejected because of "{reason}"')
 def step_position_labelled(context, text, reason):
     positions = [p for d in context.packet["disagreements"] for p in d["positions"] if p["position"] == text]
     assert positions and positions[0]["unverified"] is True and reason in positions[0]["reasons"], positions
 
 
-@then('the research packet body marks the position "{text}" as could not verify')
+@then('the research packet body marks the position "{text}" as rejected')
 def step_body_position(context, text):
     line = next(line for line in body_of(context).splitlines() if text in line)
-    assert "could not verify" in line, line
+    assert "rejected" in line, line
 
 
 @then("the cited-only intake would consider only page 1")
@@ -308,9 +353,11 @@ def step_intake(context):
 
 # --- a later reporter -------------------------------------------------------------------------------------------------------------
 
-@given('a Story whose earlier research packet has the verified claim "{claim}" and the unverified claim "{unverified}"')
-def step_story_packet(context, claim, unverified):
-    packet = {"summary": "Checked.", "claims": [{"claim": claim, "sources": [1]}], "unverifiedClaims": [{"claim": unverified, "sources": [2], "reasons": ["unmatched_terms: Ohio"]}]}
+@given('a Story whose earlier research packet has the verified claim "{claim}", the needs-check claim "{needs}" and the rejected claim "{unverified}"')
+def step_story_packet(context, claim, needs, unverified):
+    packet = {"summary": "Checked.", "claims": [{"claim": claim, "sources": [1]}],
+              "unverifiedClaims": [{"claim": needs, "sources": [1], "verdict": "needs_check", "reasons": ["judge_partly_supported"]},
+                                   {"claim": unverified, "sources": [2], "verdict": "rejected", "reasons": ["unmatched_terms: Ohio"]}]}
     context.pack_entry = {"message": {"id": "message-1", "createdAt": "2026-11-01T00:00:00Z"}, "packet": packet}
 
 
@@ -329,5 +376,6 @@ def step_pack(context):
 def step_pack_lists(context, claim, heading):
     text = context.pack_text
     assert heading in text and text.index(heading) < text.index(claim), text
-    following = [h for h in ("Claims:", "Unverified, do not rely on:", "Open questions:") if h in text and text.index(h) > text.index(heading)]
+    following = [h for h in ("Claims:", "Needs a check (partly supported, or the attribution is unclear), do not rely on:",
+                             "Rejected (not supported by its sources), do not rely on:", "Open questions:") if h in text and text.index(h) > text.index(heading)]
     assert not following or text.index(claim) < min(text.index(h) for h in following), text

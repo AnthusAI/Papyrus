@@ -54,14 +54,14 @@ def test_registered_domains_and_strength():
 
 
 def test_a_judge_answer_that_is_not_a_verdict_leaves_the_claim_unchecked():
-    report = fc.check_claims([{"claim": "A plain claim.", "sources": ["s"]}], {"s": "A plain claim."}, judge=lambda claim, cited: {"nonsense": True})
+    report = fc.check_claims([{"claim": "A plain claim.", "sources": ["s"]}], {"s": "A plain claim."}, judge=lambda claim, cited, info=None: {"nonsense": True})
     assert report["claims"][0]["verdict"] == "unchecked" and report["claims"][0]["reasons"][0].startswith("judge_failed")
 
 
 def test_supported_without_a_quote_is_demoted():
-    judge = lambda claim, cited: {"verdict": "supported", "quote": "", "explanation": "", "attribution_lost": False}
+    judge = lambda claim, cited, info=None: {"verdict": "supported", "quotes": [], "explanation": "", "attribution_lost": False}
     report = fc.check_claims([{"claim": "A plain claim.", "sources": ["s"]}], {"s": "A plain claim."}, judge=judge)
-    assert report["claims"][0]["verdict"] == "unverified" and "quote_not_in_source" in report["claims"][0]["reasons"]
+    assert report["claims"][0]["verdict"] == "rejected" and "quote_not_in_source" in report["claims"][0]["reasons"]
 
 
 def test_the_llm_judge_sends_only_the_claim_and_the_cited_texts_with_a_strict_schema():
@@ -69,11 +69,11 @@ def test_the_llm_judge_sends_only_the_claim_and_the_cited_texts_with_a_strict_sc
 
     def llm(system, user, schema):
         seen.append((system, json.loads(user), schema))
-        return {"verdict": "source_silent", "quote": "", "explanation": "", "attribution_lost": False}
+        return {"verdict": "source_silent", "quotes": [], "explanation": "", "attribution_lost": False}
 
     fc.llm_judge(llm)("A claim.", {"s1": "Some text."})
     system, given, schema = seen[0]
-    assert given == {"statement": "A claim.", "sources": [{"id": "s1", "text": "Some text."}]}
+    assert given == {"statement": "A claim.", "sources": [{"id": "s1", "title": "", "host": "", "text": "Some text."}]}
     assert schema["strict"] and schema["schema"]["properties"]["verdict"]["enum"] == list(fc.JUDGE_VERDICTS) and "written" not in given
 
 
@@ -88,3 +88,8 @@ def test_the_replay_command_reads_a_packet_and_writes_nothing(capsys):
     printed = json.loads(capsys.readouterr().out)
     assert printed["claims"][0]["literal"]["unmatched"] == [{"term": "Orrin", "kind": "name"}] and printed["judge"] is False
     assert not client.method_calls or all(call[0] == "get_record" for call in client.method_calls)
+
+
+def test_quote_pieces_split_at_ellipses():
+    assert fc.quote_pieces("alpha ... beta\u2026gamma") == ["alpha", "beta", "gamma"]
+
