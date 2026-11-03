@@ -241,7 +241,7 @@ def test_a_ttab_reference_nothing_started_for_is_drafted_with_an_automation_conf
     assert lines[PUBLICATION]["drafted"] == 2 and lines[PUBLICATION]["handledByAutomation"] == 0
 
 
-def test_a_filing_error_stops_the_publication_before_more_money_is_spent_and_the_others_go_on():
+def test_the_same_filing_error_twice_in_a_row_stops_the_publication_before_more_money_is_spent_and_the_others_go_on():
     table, store = router(("example-site", "other-site"))
     _, broken = world(4)
     _, fine = world(2)
@@ -250,8 +250,26 @@ def test_a_filing_error_stops_the_publication_before_more_money_is_spent_and_the
     model = StoryModel()
     _, lines = run_task(store, {"example-site": broken, "other-site": fine}, model)
     assert lines["example-site"]["stoppedBy"] == "file_error" and lines["example-site"]["drafted"] == 0
-    assert len(model.drafting) == 1 + 2   # one wasted call on the broken publication, then the other publication's two
+    assert lines["example-site"]["fileErrors"] == 2 and "twice in a row" in lines["example-site"]["fileErrorReason"]
+    assert len(model.drafting) == 2 + 2   # two wasted calls on the broken publication (the first failure is recorded and the next candidate tried), then the other publication's two
     assert lines["other-site"]["drafted"] == 2
+
+
+def test_one_filing_error_is_recorded_and_the_run_goes_on_with_the_next_candidate():
+    table, store = router(("example-site",))
+    _, client = world(3)
+    original, failures = client.graphql, []
+
+    def graphql(query, variables=None):
+        if "fileProposal" in query and not failures:
+            failures.append(1)
+            raise RuntimeError("one record is bad")
+        return original(query, variables)
+
+    client.graphql = graphql
+    _, lines = run_task(store, {"example-site": client}, StoryModel())
+    line = lines["example-site"]
+    assert line["drafted"] == 2 and line["fileErrors"] == 1 and line["stoppedBy"] != "file_error" and "one record is bad" in line["fileError"]
 
 
 def test_a_publication_that_fails_is_logged_and_the_others_go_on():

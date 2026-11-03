@@ -380,8 +380,13 @@ def validate_router_publications(raw: dict) -> list[dict]:
         since = entry.get("criteriaSince")
         if since is not None and (not isinstance(since, (str, int)) or not str(since).strip()):
             raise ValueError(f"router publication {publication_id} has an invalid criteriaSince")
+        tenant = entry.get("tenantId")
+        if tenant is not None:
+            from .tenancy import validate_tenant_id
+            tenant = validate_tenant_id(str(tenant))   # raises on an invalid id: a mistyped tenant must not run unscoped
         publications.append({
             **({"criteriaSince": str(since).strip()} if since is not None else {}),
+            **({"tenantId": tenant} if tenant else {}),
             "publicationId": publication_id, "site": site, "appsyncEndpoint": entry["appsyncEndpoint"],
             **({"userPoolId": pool_id} if pool_id else {}),
             "corpusId": corpus_id, "corpusKey": corpus_id.removeprefix("knowledge-corpus-"),
@@ -1305,7 +1310,10 @@ class Router:
     def client(self, publication: dict):
         endpoint = publication["appsyncEndpoint"]
         if endpoint not in self._clients:
-            self._clients[endpoint] = self.appsync_factory(endpoint)
+            # A backend whose editorial records (sections, doctrine, stories) are stamped with a tenant is written and read as that tenant: the editorial check
+            # refuses a record whose tenant differs from the client's. Only publications that name one pass it; the other factories take the endpoint alone.
+            tenant = publication.get("tenantId")
+            self._clients[endpoint] = self.appsync_factory(endpoint, tenant) if tenant else self.appsync_factory(endpoint)
         return self._clients[endpoint]
 
     def context_for(self, publication: dict) -> dict:
@@ -2500,12 +2508,17 @@ class Router:
                 stop_at = max(self.time_left() - share, MIN_REMAINING_SECONDS)
                 # The vector pass (index, suggestions) comes first but is held to the first half of this share, so a big backlog of vectors cannot starve the drafting;
                 # what it does not finish is saved and continues next run, or after the drafting if time is left.
-                vector_stop_at = stop_at + (self.time_left() - stop_at) / 2
+                # A publication's share, in three parts: the vector pass the first quarter, reading the signals the next sixth, and the rest (more than half) for
+                # drafting, which is what the run is for. What the vector pass does not finish continues after the drafting if time is left.
+                span = self.time_left() - stop_at
+                vector_stop_at = stop_at + span * 0.75
+                signal_stop_at = stop_at + span * (0.75 - 1 / 6)
                 try:
                     result = self.story_drafter(self.client(publication), publication, transport=self.story_transport,
                                                 now=datetime.fromtimestamp(self.now + passes, timezone.utc),   # a pass's run id (and so its review request) is its own
                                                 out_of_time=lambda stop_at=stop_at: self.time_left() < stop_at,
                                                 vector_out_of_time=lambda vector_stop_at=vector_stop_at: self.time_left() < vector_stop_at,
+                                                signal_out_of_time=lambda signal_stop_at=signal_stop_at: self.time_left() < signal_stop_at,
                                                 handled_references=self.automation_handled_references(publication), embedding_key=self.embedding_key,
                                                 retry_memory=self.retry_memory(pid),
                                                 read_watermark=lambda pid=pid: (self.store.get_any(self.monitor_id, watermark_sort_key(pid)) or {}).get("watermark"),

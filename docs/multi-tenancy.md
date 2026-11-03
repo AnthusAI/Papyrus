@@ -61,3 +61,8 @@ What it will not do:
 - It does not rebuild the reader; trigger a rebuild afterwards if needed.
 
 `content import-markus --tenant <id>` also adopts on its own: when `<tenant>.item-<section>-<slug>` is absent but the legacy `item-<section>-<slug>` exists and either belongs to the tenant or has no tenantId and the same slug, the import reuses the legacy id (media ids follow from it) and stamps that item, its media and its published rows as the tenant's, so no duplicate item or slug collision appears.
+
+
+## Machines on Machines and other backends copied with a tenant
+
+A backend copied from a tenant site keeps the tenant on its sections and stories, and the editorial check refuses a record whose tenant is not the client's. Two settings make the backend consistent with its data: the router publication's `tenantId` (see [monitoring in the cloud](monitoring-cloud.md)) and, for the backend's own Lambdas (create a story from a Reference, edit a story, the assignment and category actions), the build variable `PAPYRUS_TENANT_ID` on the site, which `amplify/site-backend.ts` passes to those Lambdas. Rows that carry no tenant (for example the doctrine Items) are invisible to a tenant client until `content adopt-tenant-data --tenant <id>` has adopted them (dry run first).

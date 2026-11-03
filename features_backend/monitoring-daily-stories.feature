@@ -121,12 +121,19 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
     Then the log line for "other-site" says drafted 2 and stoppedBy none
     And the log line for "example-site" says stoppedBy "time"
 
-  Scenario: A draft that cannot be filed stops the publication before more money is spent
+  Scenario: The same filing error twice in a row stops the publication before more money is spent
     Given 4 accepted References that the "hn" monitor delivered
     And the backend refuses to file ideas
     When the router runs its daily monitor stories
-    Then the model was asked exactly once
+    Then the model was asked exactly twice
     And the log line for "example-site" says drafted 0 and stoppedBy "file_error"
+    And the log line for "example-site" says 2 filing errors were recorded and why the run stopped
+
+  Scenario: One filing error is recorded and the run goes on with the next candidate
+    Given 3 accepted References that the "hn" monitor delivered
+    And the backend refuses to file the first idea only
+    When the router runs its daily monitor stories
+    Then the log line for "example-site" says drafted 2 and 1 filing error was recorded
 
   Scenario: A run that names one publication drafts only that publication, under its own lock
     Given 2 accepted References that the "hn" monitor delivered

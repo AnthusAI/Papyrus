@@ -315,7 +315,7 @@ def _sync_index(publication: dict[str, Any], policy: dict[str, Any], newly: list
 
     options = vector_index.VectorIndexOptions(
         action="sync", corpus_id=publication["corpusId"], reference_ids=tuple(str(row["id"]) for row in newly), skip_references=not newly,
-        include_ontology_vectors=False, include_concept_cards=True, stop_check=stop_check)
+        include_ontology_vectors=False, include_concept_cards=True, stop_check=stop_check, skip_indexed=True, include_notes=False)
     try:
         with process_environment(PAPYRUS_S3_VECTOR_INDEX_ARN=policy["vectorIndexArn"], OPENAI_API_KEY=embedding_key):
             stats = (indexer or vector_index.index_reference_passages)(services_for(publication, policy.get("storageBucketName")), options)

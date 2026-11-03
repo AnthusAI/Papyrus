@@ -35,12 +35,13 @@ The real constraints, in the order they can stop a publication (``stoppedBy`` in
   starts from the same ranking (best first) and skips what is already drafted.
 * ``cost``: the model spend of one publication's run, ``MAXIMUM_COST_USD``. At the model's price it is far above what the time budget lets a
   run spend; it is only a backstop against a runaway loop, and a run that reaches it says so.
-* ``file_error``: a draft could not be filed (usually a missing grant). The run stops rather than pay for drafts that cannot be kept.
+* ``file_error``: the same filing error twice in a row (usually a missing grant or a scope mismatch). The run stops rather than pay for drafts that cannot be kept; a single failure is recorded (``fileErrors``) and the run goes on.
 
 Never raises into the router: a publication that fails is logged as ``failed`` and the others go on.
 """
 from __future__ import annotations
 
+import time
 import json
 import os
 import re
@@ -205,7 +206,7 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
                     fetch: Any = None, explorer: Any = REAL_EXPLORER, maximum_cost_usd: float = MAXIMUM_COST_USD,
                     handled_references: Any = (), gate: Any = None, embedding_key: str | None = None,
                     read_watermark: Callable[[], str | None] = lambda: None, write_watermark: Callable[[str], None] = lambda value: None,
-                    retry_memory: Any = None, vector_out_of_time: Callable[[], bool] | None = None) -> dict[str, Any]:
+                    retry_memory: Any = None, vector_out_of_time: Callable[[], bool] | None = None, signal_out_of_time: Callable[[], bool] | None = None) -> dict[str, Any]:
     """Drafts one publication's undrafted accepted monitored References and returns its log record (the shape the router prints).
     ``fetch`` and ``explorer`` default to the real page reader and link explorer; tests pass fakes. ``handled_references`` are the ids of the References
     an Automation has a procedure run recorded or in progress for (the router reads them from its trigger rows); those are left to it. ``retry_memory`` (``ideas/retry_memory.py``)
@@ -220,7 +221,7 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
     from .ideas.signal_queue import prepare_signal_run
     from .ideas.store import legacy_story_drafts
 
-    from .monitoring_vectors import run_vector_pass, vector_provider_for
+    from .monitoring_vectors import run_vector_pass, signal_lineages, vector_provider_for
 
     policy = validate_monitor_stories(publication["publicationId"], publication.get("monitorStories"))
     def vector_pass(stop: Callable[[], bool], spent_usd: float = 0.0) -> dict[str, Any]:
@@ -228,7 +229,10 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
                                read_watermark=read_watermark, write_watermark=write_watermark)
 
     drafting = policy["contextPacks"]["enabled"] or policy["singleItem"]
+    started = time.monotonic()
+    timings: dict[str, float] = {}
     vectors = vector_pass((vector_out_of_time or out_of_time) if drafting else out_of_time)
+    timings["vectorsSeconds"] = round(time.monotonic() - started, 1)
     # Suggestions still to write: the editors' "nothing to connect to" is not yet true of a Reference whose suggestions have not been written.
     suggestions_waiting = bool(vectors["suggestionsRemaining"]) and bool(policy["suggestions"]["enabled"]) and not vectors.get("indexSkippedReason")
     if not drafting:
@@ -237,13 +241,16 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
 
     # Each idea passes the same Humanus gate as `ideas monitor-stories --store items`, through this publication's own API.
     gate = gate if gate is not None else HumanusGate.for_client(client, judgment_key=lambda_judgment_key())
+    mark = time.monotonic()
     context = load_context(client, now=now)
     signal_run = None
     if policy["contextPacks"]["enabled"]:
         signals = policy["contextPacks"]["signals"]
         signal_run = prepare_signal_run(
             client, site=publication["corpusKey"], context=context, now=now, signals=tuple(signals) if signals else None, single_items=policy["singleItem"], gate=gate,
-            vector_provider=vector_provider_for(policy), out_of_time=out_of_time)
+            vector_provider=vector_provider_for(policy), out_of_time=signal_out_of_time or out_of_time)
+    timings["signalsSeconds"] = round(time.monotonic() - mark, 1)
+    mark = time.monotonic()
 
     run = monitor_stories.draft_monitor_stories(
         client=client, site=publication["publicationId"], corpus_key=publication["corpusKey"],
@@ -251,10 +258,15 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         transport=transport, limit=None, dry_run=False, now=now, fetch=fetch or monitor_stories.fetch_source,
         explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer, out_of_time=out_of_time,
         maximum_cost_usd=max(maximum_cost_usd - vectors["costUsd"], 0.0), read_workers=READ_WORKERS, automation_handled=handled_references, signal_run=signal_run,
-        retry_memory=retry_memory, suggestions_waiting=suggestions_waiting)
+        retry_memory=retry_memory, suggestions_waiting=suggestions_waiting, count_pending=False,
+        priority_lineages=signal_lineages(client) | {vote.lineage_id for vote in (signal_run.inputs.votes if signal_run else ())})
+    timings["draftingSeconds"] = round(time.monotonic() - mark, 1)
+    timings.update(run.get("timings") or {})
     if vectors["stoppedBy"] == "time" and not run["stoppedBy"] and not out_of_time():
         # Drafting finished with time to spare: the vector pass picks up where it stopped (its progress was saved) for the time that is left.
+        mark = time.monotonic()
         vectors = merge_vector_passes(vectors, vector_pass(out_of_time, vectors["costUsd"] + (run.get("usage") or {}).get("costUsd", 0.0)))
+        timings["vectorsAfterSeconds"] = round(time.monotonic() - mark, 1)
     vector_line = vector_summary(vectors)
     inputs, usage = run["inputs"], run.get("usage") or {}
     packs = run.get("packs") or []
@@ -269,5 +281,5 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         "packs": len(packs), "ideasFromPacks": sum(1 for draft in run["drafts"] if draft.get("origin") == "context-pack"),
         "packsSkippedNoNewEvidence": run.get("packsSkippedNoNewEvidence", 0),
         "packDetails": [{"signal": pack["signal"], "anchor": pack["anchor"], "correctedPValue": pack["correctedPValue"], "ideas": pack["ideas"]} for pack in packs if pack["attempted"]],
-        "review": (run.get("review") or {}).get("status"), **({"fileError": run["fileError"]} if run.get("fileError") else {}),
+        "timings": timings, "review": (run.get("review") or {}).get("status"), **({"fileError": run["fileError"], "fileErrors": len(run.get("fileErrors") or []), **({"fileErrorReason": run["fileErrorReason"]} if run.get("fileErrorReason") else {})} if run.get("fileError") else {}),
     }

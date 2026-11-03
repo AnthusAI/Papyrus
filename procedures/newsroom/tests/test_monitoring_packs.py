@@ -312,13 +312,13 @@ def test_running_out_of_time_between_the_pack_and_the_item_stops_the_publication
     assert model.order == ["pack"] and line["ideasFromPacks"] == 2 and len(filing.filed) == 2 and len(client.filed) == 0
 
 
-def test_a_filing_error_on_a_pack_idea_stops_the_publication_before_more_money_is_spent(monkeypatch):
+def test_a_filing_error_on_a_pack_idea_is_recorded_and_the_single_item_is_still_drafted(monkeypatch):
     FilingRecorder(monkeypatch, fail_after=0)
     model = RouterModel()
     _, lines = run_packs(pack_world(2, lively=(1,)), model)
     line = pack_lines(lines)
-    assert line["stoppedBy"] == "file_error" and "AccessDenied" in line["fileError"]
-    assert model.order == ["pack"]   # the single item was not asked for
+    assert line["stoppedBy"] != "file_error" and "AccessDenied" in line["fileError"] and line["fileErrors"] == 1
+    assert model.order[0] == "pack" and len(model.order) > 1   # the single item was asked for after the failed pack
 
 
 def test_a_pack_the_model_fails_on_is_recorded_and_the_run_goes_on(monkeypatch):
