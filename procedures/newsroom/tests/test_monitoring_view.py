@@ -695,3 +695,60 @@ def test_the_page_query_goes_through_the_handler_with_the_same_gate():
     assert [r["subject"] for r in result["rows"]] == ["Mail 1"] and result["cursor"] is None
     assert mv.handle({**event, "identity": {"groups": ["reader"]}}, env=env, store_factory=fx.only_hn(store), now=fx.NOW) == {"error": "forbidden"}
     assert mv.handle({**event, "arguments": {"list": "nope"}}, env=env, store_factory=fx.only_hn(store), now=fx.NOW) == {"error": "bad_request"}
+
+
+# --- the Cyclotron classifier status of this site's own publication --------------------------------------------
+
+def status_row(publication, as_of="2026-11-02T10:00:00.000Z", monitor="hn", refits=0):
+    return {"pk": f"MONITOR#{monitor}", "sk": f"CYCLOTRONSTATUS#{publication}", "publicationId": publication,
+            "output": f"{publication}-relevance", "asOf": as_of, "checkedAt": "2026-11-02T10:30:00Z",
+            "status": {"schema": "cyclotron-status/v1", "asOf": as_of,
+                       "cyclotron": {"id": f"{publication}-relevance", "classifier": "relevant", "version": 3, "refits": refits,
+                                     "fingerprint": "fp"}}}
+
+
+def status_store(*extra):
+    return fx.FakeViewStore([*fx.rows(), *extra])
+
+
+def status_event(groups=("editor",), endpoint=fx.APP_ANTH):
+    return {"fieldName": "monitoringPage", "arguments": {"list": "cyclotronStatus", "scope": "publication"},
+            "identity": {"groups": list(groups), "sub": "u1"}}
+
+
+def test_the_status_list_returns_only_the_viewing_sites_publication_even_when_the_run_is_shared():
+    store = status_store(status_row("anth-us"), status_row("p-apyr-us"), status_row("threat-intelligence"))
+    out = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
+    assert [r["publicationId"] for r in out["rows"]] == ["anth-us"]
+    assert out["rows"][0]["status"]["cyclotron"]["id"] == "anth-us-relevance" and out["cursor"] is None
+    other = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}, store_factory=fx.only_hn(store))
+    assert [r["publicationId"] for r in other["rows"]] == ["p-apyr-us"]
+
+
+def test_the_status_list_is_empty_when_no_snapshot_has_been_stored_yet():
+    out = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store()))
+    assert out == {"list": "cyclotronStatus", "rows": [], "cursor": None}
+
+
+def test_the_status_list_lists_each_monitor_that_routes_to_the_site_newest_first_and_ignores_a_row_for_another_publication():
+    stray = status_row("anth-us")
+    stray["publicationId"] = "threat-intelligence"   # a row under this site's key that names another publication is never shown
+    stores = {"hn": fx.FakeViewStore([*fx.rows(), stray]),
+              "web-anth-us": fx.FakeViewStore([*fx.ttab_rows(fx.APP_ANTH, "web-anth-us"),
+                                               status_row("distinctive", as_of="2026-11-02T11:00:00.000Z", monitor="web-anth-us")])}
+    out = mv.cyclotron_status_rows(stores, groups=["editor"], site_endpoint=fx.APP_ANTH)
+    assert [(r["monitorId"], r["publicationId"]) for r in out["rows"]] == [("web-anth-us", "distinctive")]
+
+
+def test_the_status_list_refuses_non_editors_and_the_whole_pipeline_scope():
+    refused = mv.handle(status_event(["reader"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store(status_row("anth-us"))))
+    assert refused["error"] == "forbidden"
+    wide = {**status_event(["admin"]), "arguments": {"list": "cyclotronStatus", "scope": "all"}}
+    assert mv.handle(wide, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store(status_row("anth-us"))))["error"] == "bad_request"
+
+
+def test_the_status_list_reads_one_row_per_monitor_and_nothing_secret_leaves():
+    store = status_store(status_row("anth-us"))
+    out = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
+    blob = json.dumps(out)
+    assert not any(marker in blob for marker in fx.SECRET_MARKERS)

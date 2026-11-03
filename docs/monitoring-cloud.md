@@ -823,6 +823,30 @@ All three keys are optional; with no block, or with `{}`, it runs with those def
 * **Cost.** Reading the votes is one indexed query per voted Reference, and per waiting Reference for candidates, bounded by the run's remaining time (it stops with a logged reason, never fails the run).
 * **IAM.** It needs `listReferencesByCurationStatusKeyAndUpdatedAt` and `updateReference` on each publication's API (`RouterAutoAcceptPolicy`); without them the pass logs `failed` and the run goes on.
 
+## Cyclotron status for the newsroom home page
+
+The newsroom home page (`/newsroom`) shows the Cyclotron classifier behind this site's predictions: when it last changed or was retrained, its latest
+evaluation number and what that number was measured on, and counts such as the reviewed labels. The router keeps what that page reads.
+
+* **The task.** `{"task":"cyclotron-status","monitorId":"hn"}` (also for `web-distinctive`) calls the Cyclotron's read-only `status` operation for each
+  publication the monitor lists, on the machine lane (`POST /machine/bindings/<publicationId>/operations`, body `{"contractVersion", "operation":"status", "payload":{}}`).
+  It runs hourly (`papyrus-monitoring-hn-cyclotron-status` at minute 26, `papyrus-monitoring-web-distinctive-cyclotron-status` at minute 56), without retries.
+  It is its own task: its own lock (`LOCK#cyclotron-status`), no Router, no decision, no feedback, no receipt. A sweep and a status read never wait for each other.
+* **A 503 is not a pause.** The Cyclotron answers 503 "no verified publication status snapshot yet" while a binding has no completed decision. The status task
+  treats that as that publication's "no snapshot yet" and never records a lab backoff, so it cannot stop a sweep. It does honour a pause the lab already asked for.
+* **Where it is kept.** One row per publication in the monitor's partition, `CYCLOTRONSTATUS#<publicationId>`: the whole `cyclotron-status/v1` snapshot, its own `asOf`,
+  the publication's `output` and `checkedAt`. A publication the Cyclotron has no snapshot for has no row; an older row stays until a newer snapshot replaces it, with its own `asOf`.
+  Nothing is written to any site's backend, so this needs no IAM grant and no data-model change.
+* **Who sees what.** The Monitoring view serves it as `monitoringPage(list: "cyclotronStatus")` (publication scope only). A monitor contributes only the row of the publication
+  whose `appsyncEndpoint` is the signed-in site's own, so a shared Cyclotron run never shows another site's classifier. The CLI reads it with
+  `papyrus monitors page --list cyclotronStatus` on the signed-in lane.
+* **Freshness.** A snapshot is only as fresh as the binding's last completed decision, so votes made after it are not in it; the page shows the snapshot's `asOf` and says so.
+  Votes do not train hosted runs today, so expect zero refits and possibly zero labels, which the page says plainly.
+* **Not built yet.** Cyclotron's proposed `report` operation (history over time, and the supporting questions behind a decision) is not published. The seam for it is documented in
+  `lib/hosted-cyclotron-status.ts` and the `extra` slot of `components/home-cyclotron-panel.tsx`; nothing stands in for it.
+
+Specs: `features_backend/monitoring-cyclotron-status.feature` and `features/newsroom-home-cyclotron.feature`.
+
 ## Monitor stories (daily)
 
 Once a day the router files a short, cited story idea for every item the monitors found that an editor (or the [automatic acceptance](#automatic-acceptance)) accepted and that has no idea or story yet.

@@ -66,6 +66,7 @@
     "test:curation-delegation": "tsx scripts/test-curation-delegation.ts",
     "test:curation-section": "tsx scripts/test-curation-section.ts",
     "test:relevance-review-ui": "tsx scripts/test-relevance-review-ui.ts",
+    "test:home-cyclotron": "tsx scripts/test-home-cyclotron.ts && cucumber-js --profile homeCyclotron && poetry run behave features_backend/monitoring-cyclotron-status.feature",
     "test:relevance-status-ui": "tsx scripts/test-relevance-status-ui.ts",
     "test:reference-import-refresh": "tsx scripts/test-reference-import-refresh.ts",
     "test:reference-add-entry": "tsx scripts/test-reference-add-entry.ts",

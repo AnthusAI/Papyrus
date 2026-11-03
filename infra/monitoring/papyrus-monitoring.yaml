@@ -1609,6 +1609,47 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt RouterDeadLetterQueue.Arn
 
+  CyclotronStatusSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-cyclotron-status
+      Description: >-
+        Every hour at minute 26, start the cyclotron-status task for the hn monitor (docs/monitoring-cloud.md#cyclotron-status-for-the-newsroom-home-page). The task reads
+        the Cyclotron's read-only status snapshot for each publication the monitor lists and keeps one row per publication in the monitoring table, for the
+        newsroom home page. It takes its own lock, never decides, and a 503 ("no snapshot yet") is not a lab pause. No retry: the next hour repeats it.
+      ScheduleExpression: cron(26 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"cyclotron-status","monitorId":"hn"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  DistinctiveCyclotronStatusSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-distinctive-cyclotron-status
+      Description: >-
+        Every hour at minute 56, the same cyclotron-status task for Distinctive Mark, which the hn router does not list
+        (docs/monitoring-cloud.md#cyclotron-status-for-the-newsroom-home-page). No retry.
+      ScheduleExpression: cron(56 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"cyclotron-status","monitorId":"web-distinctive"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
   DistinctiveMonitorStoriesSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:

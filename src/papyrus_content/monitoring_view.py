@@ -532,6 +532,26 @@ def monitoring_site_overview(stores: dict, *, groups, site_endpoint, scope, now)
             "otherMonitors": others}
 
 
+CYCLOTRON_STATUS_LIST = "cyclotronStatus"
+CYCLOTRON_STATUS_ROW_PREFIX = "CYCLOTRONSTATUS#"   # written by the router's `cyclotron-status` task (monitoring_router.status_row_sk)
+
+
+def cyclotron_status_rows(stores: dict, *, groups, site_endpoint) -> dict:
+    """The Cyclotron classifier status of THIS site's publication, newest snapshot first. Always publication scope: a monitor whose router
+    config does not list the signed-in site's endpoint contributes nothing, and a monitor that lists several publications contributes only
+    the one row for the publication that owns the endpoint. Small and read-only: one get per monitor, no list is walked."""
+    if not set(groups or []) & EDITOR_GROUPS:
+        raise Forbidden("monitoring is for editors and admins")
+    rows = []
+    for monitor_id, store in stores.items():
+        own = _Routing(store, store, site_endpoint=site_endpoint, scope="publication").own
+        row = store.get(CYCLOTRON_STATUS_ROW_PREFIX + own["publicationId"]) if own else None
+        if row and row.get("publicationId") == own["publicationId"] and isinstance(row.get("status"), dict):
+            rows.append({"monitorId": monitor_id, "publicationId": row["publicationId"], "output": row.get("output"),
+                         "asOf": row.get("asOf"), "checkedAt": row.get("checkedAt"), "status": row["status"]})
+    return {"list": CYCLOTRON_STATUS_LIST, "rows": _newest(rows, "asOf"), "cursor": None}
+
+
 def monitoring_list_page(stores: dict, *, list_name, cursor, groups, site_endpoint, scope, now, held_only=False) -> dict:
     """The next page of one list, across the monitors the cursor still has rows in.
 
@@ -837,6 +857,10 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
             return {"state": "not_configured"}
         if field_name == "monitoringPage":
             try:
+                if args.get("list") == CYCLOTRON_STATUS_LIST:
+                    if scope != "publication":
+                        return {"error": "bad_request"}
+                    return cyclotron_status_rows(stores, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"))
                 return monitoring_list_page(
                     stores, list_name=args.get("list"), cursor=args.get("cursor"), groups=groups,
                     site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"), scope=scope, now=time.time() if now is None else now,

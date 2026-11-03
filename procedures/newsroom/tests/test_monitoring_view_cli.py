@@ -162,3 +162,17 @@ def test_the_module_imports_no_aws_library():
     import papyrus_content.monitoring_view_cli as module
     lines = [line.strip() for line in open(module.__file__) if line.strip().startswith(("import ", "from "))]
     assert not [line for line in lines if "boto" in line]
+
+
+def test_page_reads_this_sites_cyclotron_classifier_status_in_one_line_per_snapshot(env, monkeypatch):
+    status = {"list": "cyclotronStatus", "cursor": None, "rows": [
+        {"monitorId": "hn", "publicationId": "anth-us", "output": "anth-us-relevance", "asOf": "2026-11-02T10:00:00.000Z",
+         "status": {"cyclotron": {"refits": 0}, "alignment": {"accuracy": None, "labels": 0}, "lastChange": None}},
+        {"monitorId": "hn", "publicationId": "anth-us", "output": "anth-us-topic", "asOf": "2026-11-01T10:00:00.000Z",
+         "status": {"cyclotron": {"refits": 2}, "alignment": {"accuracy": 0.834, "labels": 41}, "lastChange": {"at": "2026-10-30T14:05:00.000Z"}}}]}
+    env.answer = graphql_answer("monitoringPage", status)
+    code, out, _ = env.run(["page", "--list", "cyclotronStatus"], monkeypatch)
+    assert code == 0
+    assert env.requests[0][1]["variables"] == {"list": "cyclotronStatus", "cursor": None, "filter": None, "scope": "publication"}
+    assert "retrained 0x  last change none  agreement not measured  labels 0" in out
+    assert "retrained 2x  last change 2026-10-30T14:05:00.000Z  agreement 83%  labels 41" in out

@@ -91,6 +91,35 @@ const api = {
   decideEmail: async (receiptId, decision, reason) => { window.calls.push({ type: "email", receiptId, decision, reason }); return { ok: true, already: false, quarantine: { state: decision === "accept" ? "released" : "discarded", decision: null, failure: null } }; },
 };
 
+// ?cyclotron=snapshot|never|none|unavailable|loading: the classifier panel's synthetic snapshots (no network). Without the parameter the page has no panel.
+function cyclotronStatus(kind) {
+  const base = {
+    schema: "cyclotron-status/v1",
+    cyclotron: { id: "synthetic-relevance", classifier: "relevant", version: 4, refits: 2, fingerprint: "fp" },
+    asOf: "2026-11-02T10:00:00.000Z",
+    alignment: { window: 200, labels: 41, accuracy: 0.83, precision: 0.8, recall: 0.9, positiveLabel: "include", measuredOn: "reviews selected by the cyclotron" },
+    calibration: { saysSure: 0.8, isRight: 0.83, gapPoints: 3, curve: [] },
+    reviewRate: { state: "tapering", rate: 0.5, reason: "Tapering", auditFloor: 0.05, confidenceThreshold: 0.7, override: null, nextCheckAfterDecisions: 40, nextStep: null, expectedReviewsPerWeek: 12 },
+    lastChange: { kind: "refit", fromVersion: 3, toVersion: 4, at: "2026-10-30T14:05:00.000Z", summary: "refit on 41 reviews", labels: 41 },
+    pending: { decisionsAwaitingReview: 3, staleSince: null },
+  };
+  if (kind === "never") {
+    return { ...base, cyclotron: { ...base.cyclotron, refits: 0, version: 1 }, alignment: { ...base.alignment, labels: 0, accuracy: null, precision: null, recall: null },
+      calibration: { saysSure: null, isRight: null, gapPoints: null, curve: [] }, lastChange: null, pending: { decisionsAwaitingReview: 12, staleSince: null },
+      reviewRate: { ...base.reviewRate, state: "onboarding", rate: 1 } };
+  }
+  return base;
+}
+const cyclotronParam = params.get("cyclotron");
+const cyclotronApi = cyclotronParam ? { loadCyclotronStatus: async () => {
+  if (cyclotronParam === "loading") return new Promise(() => {});
+  if (cyclotronParam === "unavailable") return { state: "unavailable" };
+  if (cyclotronParam === "none") return { state: "none" };
+  const status = cyclotronStatus(cyclotronParam);
+  return { state: "ready", rows: [{ monitorId: "hn", publicationId: "synthetic", output: "synthetic-relevance", asOf: status.asOf, checkedAt: "2026-11-02T10:30:00.000Z", status }] };
+} } : {};
+Object.assign(api, cyclotronApi);
+
 const decision = { decisionRelationId: "d1", decisionId: "p1", label: "include", confidence: 0.82, version: null, reviewRecommended: false, reviewReason: "program", reviewDetail: null, classes: ["include", "exclude"], positiveLabel: "include", question: null, reviewControl: "thumbs", cyclotronId: "c", decidedAt: null, provenance: null };
 const references = [
   { id: "reference-a-v1", lineageId: "reference-a", versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: "a", title: "ReadyArt: text-generation model", sourceUri: "https://example.org/a", curationStatus: "pending", importedAt: "2026-10-26T10:00:00Z" },
@@ -123,7 +152,7 @@ createRoot(document.getElementById("root")).render(<Fixture />);
   return bundle;
 }
 
-const fixtureCss = "body{margin:0;font:16px sans-serif}button,textarea{font:inherit}";
+const fixtureCss = "body{margin:0;font:16px sans-serif}button,textarea{font:inherit}" + fs.readFileSync(`${root}node_modules/cyclotron/trace-ui/src/styles/components.css`, "utf8");
 
 export async function setup(options = "", width = 1440, height = 900) {
   const script = await browserBundle();
