@@ -5,6 +5,7 @@ import { CheckIcon, Loader2Icon, RotateCcwIcon, XIcon } from "lucide-react";
 import { UNRECORDED_CONFIDENCE } from "../lib/reference-feed-ranking";
 import { cn } from "@/lib/utils";
 import { AutoGrowTextarea } from "./ui/auto-grow-textarea";
+import { StarRating } from "./star-rating";
 import type { CardPrediction, ReviewChoice } from "./reference-review-card";
 
 /**
@@ -70,6 +71,7 @@ export function DecisionControl({
   showPrediction = true,
   showReason = true,
   size = "compact",
+  stars,
   statusOverlay = false,
   surface = "footer",
 }: {
@@ -100,6 +102,8 @@ export function DecisionControl({
   /** False where the surrounding card owns the reason field. */
   showReason?: boolean;
   size?: "compact" | "large";
+  /** Optional star rating beside Accept and Reject. Present only for a Reference: stars are editorial interest, never a vote. */
+  stars?: { value: number | null; onChange: (stars: number) => void; feedback?: RatingFeedback } | undefined;
   /** Lay the status line over the bottom padding of the nearest positioned ancestor, so it adds no height. */
   statusOverlay?: boolean;
   /** The tone the control sits on, so the bar's centre notch matches it. */
@@ -239,6 +243,8 @@ export function DecisionControl({
           );
         })}
       </div>
+
+      {stars ? <StarRating disabled={disabled} feedback={stars.feedback} onChange={stars.onChange} size={size} value={stars.value} /> : null}
 
       {showReason ? (
         <div className="grid gap-y-1.5" data-review-reason>

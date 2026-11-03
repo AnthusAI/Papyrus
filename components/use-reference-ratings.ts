@@ -17,6 +17,10 @@ export type ItemRating = {
   /** True while a Reject is waiting for its reason. */
   askReason: boolean;
   feedback: RatingFeedback;
+  /** The star rating as touched here: undefined follows the record, null is cleared. */
+  stars?: number | null;
+  /** The last star save failed or is running; kept apart from `feedback`, so a star never replaces the vote's own status line. */
+  starsFeedback?: RatingFeedback;
 };
 
 const EMPTY: ItemRating = { pending: null, askReason: false, feedback: { phase: "idle" } };
@@ -31,6 +35,11 @@ export type RatingController = {
   /** Save a typed reason now (on blur). */
   commitNote: (id: string) => void;
   cancelReason: (id: string) => void;
+  /** The item's star rating (1-5, or null for none), or undefined when this store does not rate stars for it. */
+  stars: (id: string) => number | null | undefined;
+  /** Tap a star to set it; tap the same star again to clear it. Never touches the vote. */
+  setStars: (id: string, stars: number) => void;
+  starsFeedback: (id: string) => RatingFeedback;
 };
 
 /**
@@ -41,7 +50,7 @@ export type RatingController = {
  * A Reject needs a reason (the backend refuses one without): words or a reason code, whichever the surface asks for. With neither it
  * waits as `pending` until one arrives; a typed reason is kept in the store until it is saved and is never dropped by a failed save.
  */
-export function useRatingStore({ save, saved, seed, needsReason, confirms, sticky, saveNote }: {
+export function useRatingStore({ save, saved, seed, needsReason, confirms, sticky, saveNote, saveStars, savedStars }: {
   save: RatingSave;
   saved: (id: string) => ReviewChoice | null;
   seed: (id: string) => { note: string; reasonCode: ReferenceRejectionReasonCode | null };
@@ -59,11 +68,15 @@ export function useRatingStore({ save, saved, seed, needsReason, confirms, stick
   sticky?: (id: string) => boolean;
   /** Saves the reason of an item that is already decided and sticky. Throws a sentence when it cannot. */
   saveNote?: (id: string, note: string) => Promise<void>;
+  /** Saves an item's star rating (null clears it). With it, the item shows stars beside Accept and Reject; stars are editorial interest, never a vote. */
+  saveStars?: (id: string, stars: number | null) => Promise<void>;
+  /** The saved rating of an item, or null; undefined when the item cannot be rated (it is not a Reference). */
+  savedStars?: (id: string) => number | null | undefined;
 }): RatingController {
   const [items, setItems] = useState<Record<string, ItemRating>>({});
   const itemsRef = useRef(items);
-  const latest = useRef({ save, saved, seed, needsReason, confirms, sticky, saveNote });
-  latest.current = { save, saved, seed, needsReason, confirms, sticky, saveNote };
+  const latest = useRef({ save, saved, seed, needsReason, confirms, sticky, saveNote, saveStars, savedStars });
+  latest.current = { save, saved, seed, needsReason, confirms, sticky, saveNote, saveStars, savedStars };
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const inFlight = useRef<Set<string>>(new Set());
   const dirty = useRef<Set<string>>(new Set());
@@ -178,6 +191,40 @@ export function useRatingStore({ save, saved, seed, needsReason, confirms, stick
     if (choice && dirty.current.delete(`note:${id}`)) void commit(id, choice);
   }, [commit]);
 
+  const starsOf = (id: string): number | null | undefined => {
+    const saved = latest.current.savedStars?.(id);
+    if (saved === undefined || !latest.current.saveStars) return undefined;
+    const touched = itemsRef.current[id]?.stars;
+    return touched !== undefined ? touched : saved;
+  };
+  const stars = useCallback((id: string): number | null | undefined => {
+    const saved = latest.current.savedStars?.(id);
+    if (saved === undefined || !latest.current.saveStars) return undefined;
+    const touched = items[id]?.stars;
+    return touched !== undefined ? touched : saved;
+  }, [items]);
+  const starsFeedback = useCallback((id: string): RatingFeedback => items[id]?.starsFeedback ?? { phase: "idle" }, [items]);
+  const starsInFlight = useRef<Set<string>>(new Set());
+  const setStars = useCallback((id: string, tapped: number) => {
+    const current = starsOf(id);
+    if (current === undefined || !latest.current.saveStars) return;
+    if (starsInFlight.current.has(id)) return; // one rating save at a time; the next tap lands when it is done
+    const next = current === tapped ? null : tapped;
+    starsInFlight.current.add(id);
+    patch(id, { stars: next, starsFeedback: { phase: "saving" } });
+    void (async () => {
+      try {
+        await latest.current.saveStars!(id, next);
+        // The record now carries the rating, so the store goes back to following it.
+        patch(id, { stars: undefined, starsFeedback: { phase: "saved" } });
+      } catch (failure) {
+        patch(id, { stars: undefined, starsFeedback: { phase: "error", message: failure instanceof Error ? failure.message : "Your rating could not be saved. Tap a star to try again." } });
+      } finally {
+        starsInFlight.current.delete(id);
+      }
+    })();
+  }, [patch]);
+
   const cancelReason = useCallback((id: string) => patch(id, { pending: null, askReason: false }), [patch]);
 
   // Leaving the page (or closing the view) saves what was typed and not yet saved, rather than dropping it.
@@ -195,5 +242,5 @@ export function useRatingStore({ save, saved, seed, needsReason, confirms, stick
     leaving.current();
   }, []);
 
-  return { get, choose, setReason, setNote, commitNote, cancelReason };
+  return { get, choose, setReason, setNote, commitNote, cancelReason, stars, setStars, starsFeedback };
 }
