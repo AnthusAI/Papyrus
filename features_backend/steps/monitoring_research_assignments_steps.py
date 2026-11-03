@@ -210,14 +210,19 @@ def step_template(context):
     state(context).template = True
 
 
-@when("one assignment is run on the real client with its transport replaced")
+@given("a backend {tenancy} that answers like a small real one")
+def step_tenancy(context, tenancy):
+    state(context).tenant_id = None if tenancy == "with no tenant" else tenancy.split('"')[1]
+
+
+@when("one assignment is run on the real client with its transport replaced, taking in a cited source, linking it to the Story and curating it")
 def step_record(context):
     from _pytest.monkeypatch import MonkeyPatch
 
     patches = MonkeyPatch()
     patches.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
     try:
-        state(context).asked = worker.recorded_fields_of_a_full_run(patches)
+        state(context).asked = worker.recorded_fields_of_a_full_run(patches, getattr(state(context), "tenant_id", None))
     finally:
         patches.undo()
 
@@ -226,6 +231,13 @@ def step_record(context):
 def step_granted(context):
     asked, granted = state(context).asked, worker.worker_grants()
     assert asked <= granted, sorted(asked - granted)
+
+
+@then("the grant has no publish field, no updateItem and nothing that changes a Story's text")
+def step_no_story_writes(context):
+    granted = worker.worker_grants()
+    forbidden = {name for kind, name in granted if kind == "Mutation" and (name.startswith(("publish", "unpublish")) or name in ("updateItem", "createItem", "deleteItem"))}
+    assert not forbidden, sorted(forbidden)
 
 
 @then("the router role has gained no policy")
@@ -274,3 +286,126 @@ def step_unchecked(context):
 @then("the packet is still made")
 def step_packet(context):
     assert state(context).report["counts"]["total"] == 2
+
+
+@given("assignment 1 already produces a research packet message")
+def step_produces(context):
+    current = state(context)
+    current.backend.relations["assignment#assignment-1#current"] = [worker.produces_relation(1)]
+
+
+@given("assignment 1 has a research.multi.completed event from a terminal run")
+def step_event(context):
+    state(context).backend.history["assignment-1"] = [{"eventType": "research.multi.completed"}]
+
+
+@then("assignment 1 is completed with a completion time and a note that its packet already exists")
+def step_already(context):
+    backend = state(context).backend
+    assert backend.rows["assignment-1"]["status"] == "completed" and "completedAt" in backend.rows["assignment-1"]
+    assert "packet already exists" in next(event["note"] for event in backend.events if event["assignmentId"] == "assignment-1")
+
+
+@then("the research ran only for assignment 2")
+def step_only_two(context):
+    assert [asked["assignment"] for asked in state(context).research.asked] == ["assignment-2"]
+
+
+@then("assignment 1 is completed and no research ran")
+def step_one_done_none_ran(context):
+    assert state(context).backend.rows["assignment-1"]["status"] == "completed" and state(context).research.asked == []
+
+
+@given("an open research.multi assignment")
+def step_terminal_assignment(context):
+    import test_multi_search_research as multi
+
+    state(context).multi = multi
+    state(context).terminal_client = multi.FakeClient(multi.assignment())
+
+
+def run_terminal(context, providers):
+    from unittest import mock
+
+    from papyrus_content import multi_search_research as module
+
+    multi, client = state(context).multi, state(context).terminal_client
+    with mock.patch.object(module, "apply_research_packet", return_value={"messageId": "m1"}), \
+         mock.patch.object(module, "intake_research_packet_proposals", return_value={"registeredReferenceCount": 1}), \
+         mock.patch.object(module, "build_record_changes", side_effect=lambda c, records: records), \
+         mock.patch.object(module, "apply_record_changes"), \
+         mock.patch.object(module, "update_newsroom_summary_after_research_packet_creates"):
+        state(context).terminal_result = module.research_multi(client, {"assignment": "assignment-1", "actor-label": "Papyrus content CLI"}, llm=multi.FakeLlm(), providers=providers)
+
+
+@when("the research run is applied from the command line and finishes")
+def step_terminal_finishes(context):
+    run_terminal(context, state(context).multi.two_providers())
+
+
+@when("the research run is applied from the command line and no search provider answers")
+def step_terminal_fails(context):
+    multi = state(context).multi
+    run_terminal(context, {name: multi.FakeProvider(name, default=multi.ProviderFailure(name, "auth", 401)) for name in ("gemini", "openai")})
+
+
+@then("the assignment is completed with a completion time and a research.completed event by the command line's actor")
+def step_terminal_completed(context):
+    client = state(context).terminal_client
+    assert [row["status"] for row in client.updates] == ["completed"] and "completedAt" in client.updates[0]
+    assert [(event["eventType"], event["actorLabel"]) for event in client.events] == [("research.completed", "Papyrus content CLI")]
+
+
+@then("the same status change is not made twice when the worker started the run")
+def step_not_twice(context):
+    from unittest import mock
+
+    from papyrus_content import multi_search_research as module
+
+    multi = state(context).multi
+    client = multi.FakeClient(multi.assignment())
+    with mock.patch.object(module, "apply_research_packet", return_value={"messageId": "m1"}), \
+         mock.patch.object(module, "intake_research_packet_proposals", return_value={"registeredReferenceCount": 1}), \
+         mock.patch.object(module, "build_record_changes", side_effect=lambda c, records: records), \
+         mock.patch.object(module, "apply_record_changes"), \
+         mock.patch.object(module, "update_newsroom_summary_after_research_packet_creates"):
+        module.research_multi(client, {"assignment": "assignment-1", "leave-status": True}, llm=multi.FakeLlm(), providers=multi.two_providers())
+    assert client.updates == [] and client.events == []
+
+
+@then("the assignment is failed with a research.failed event giving the plain reason")
+def step_terminal_failed(context):
+    client = state(context).terminal_client
+    assert [row["status"] for row in client.updates] == ["failed"]
+    assert client.events[0]["eventType"] == "research.failed" and "no search provider answered" in client.events[0]["note"]
+
+
+@then("the research worker will not start it again")
+def step_worker_skips_failed(context):
+    backend = worker.Backend([{**worker.assignment(1), "status": "failed"}])
+    research = worker.Research()
+    worker.run(backend, research)
+    assert research.asked == []
+
+
+@given("a research run that fails with a permission denied reason followed by a line telling the reader to sign in again at a terminal")
+def step_guidance(context):
+    current = state(context)
+    current.backend = worker.Backend([worker.assignment(1)])
+
+    def research(client, options, **_):
+        return {"action": "failed", "error": "GraphQL request failed: 401 Unauthorized: Permission denied\nYour AWS session may have expired or lack access. Run `aws sso login --profile <profile>` and retry."}
+
+    current.research = research
+
+
+@then("the failed event note holds the permission denied reason")
+def step_note_reason(context):
+    note = next(event["note"] for event in state(context).backend.events if event["eventType"] == "research.failed")
+    assert note == "GraphQL request failed: 401 Unauthorized: Permission denied", note
+
+
+@then("the note has no sign-in advice")
+def step_note_clean(context):
+    note = next(event["note"] for event in state(context).backend.events if event["eventType"] == "research.failed")
+    assert "sso login" not in note and "papyrus login" not in note

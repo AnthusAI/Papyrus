@@ -2,7 +2,7 @@
 
 An editor's research assignment is an ``Assignment`` of type ``research.multi`` with ``itemLineageId`` (the Story) and ``contextProfile: reporter`` in its
 metadata attachment. It starts ``open``. This task, per publication, takes the open ones oldest first, marks each ``claimed`` (the newsroom shows that as
-running) with a lease, runs ``research_multi`` on it, and marks it ``completed``, or ``failed`` with the reason. A claim whose lease has run out is failed with a
+running) with a lease, runs ``research_multi`` on it, and marks it ``completed``, or ``failed`` with the reason. An open assignment that already has a research packet (a terminal run made one) is marked ``completed`` without running again. A claim whose lease has run out is failed with a
 reason, so nothing hangs for ever; a failed assignment is never retried on its own, because a run spends search and model calls. An editor can reopen it.
 """
 from __future__ import annotations
@@ -21,6 +21,8 @@ REPORTER_PROFILE = "reporter"
 START_RESERVE_SECONDS = 420     # a run is not started with less time left than this: search and synthesis took about 5 minutes on real runs, and the packet still has to be written
 JUDGE_RESERVE_SECONDS = 240     # the fact check's judge stops asking with less time left than this, so its claims end `unchecked` and the packet is written
 POLICY_KEYS = ("enabled",)
+PACKET_EVENT_TYPES = ("research.multi.completed", "research.multi.intake_failed")
+CREDENTIAL_GUIDANCE_MARKERS = ("aws sso login", "papyrus login", "papyrus auth status")
 
 
 @contextmanager
@@ -65,7 +67,23 @@ def _parse(value: Any) -> datetime | None:
         return None
 
 
-def set_status(client: Any, assignment: dict[str, Any], status: str, *, now: datetime, note: str, event_type: str, claim: bool = False) -> dict[str, Any]:
+def without_credential_guidance(reason: str) -> str:
+    """A failure reason an editor can read: the advice lines meant for someone at a terminal (sign in again with the CLI) are dropped and the real reason stays."""
+    kept = [line for line in str(reason).splitlines() if not any(marker in line.lower() for marker in CREDENTIAL_GUIDANCE_MARKERS)]
+    return "\n".join(kept).strip()
+
+
+def assignment_has_research_packet(client: Any, assignment: dict[str, Any]) -> bool:
+    """Whether a run already made this assignment's packet: it ``produces`` a research packet Message, or it has a finished-run event."""
+    state_key = f"assignment#{assignment['id']}#current"
+    for relation in client.list_semantic_relations_by_subject_state(state_key):
+        if relation.get("relationState") != "superseded" and (relation.get("relationTypeKey") or relation.get("predicate")) == "produces" and relation.get("objectKind") == "message":
+            return True
+    return any(event.get("eventType") in PACKET_EVENT_TYPES for event in client.list_assignment_events_by_assignment_and_created_at(assignment["id"]))
+
+
+def set_status(client: Any, assignment: dict[str, Any], status: str, *, now: datetime, note: str, event_type: str, claim: bool = False,
+               actor_label: str = WORKER_LABEL) -> dict[str, Any]:
     """One status change of an assignment, with its AssignmentEvent. Returns the updated row."""
     stamp = _stamp(now)
     queue = assignment["queueKey"]
@@ -88,7 +106,7 @@ def set_status(client: Any, assignment: dict[str, Any], status: str, *, now: dat
     client.create_record("AssignmentEvent", {
         "id": f"assignment-event-{assignment['id']}-{event_type}-{stamp.replace('-', '').replace(':', '').replace('.', '')}",
         "assignmentId": assignment["id"], "assignmentTypeKey": assignment["assignmentTypeKey"], "queueKey": queue, "eventType": event_type,
-        "fromStatus": assignment.get("status"), "toStatus": status, "actorLabel": WORKER_LABEL, "note": note[:500], "createdAt": stamp,
+        "fromStatus": assignment.get("status"), "toStatus": status, "actorLabel": actor_label, "note": note[:500], "createdAt": stamp,
     })
     return {**assignment, **update}
 
@@ -106,7 +124,7 @@ def run_research_assignments(client: Any, publication: dict[str, Any], *, now: d
         from .multi_search_research import research_multi as research
     clock = clock or (lambda: datetime.now(timezone.utc))
     judge_out_of_time = (lambda: time_left() < JUDGE_RESERVE_SECONDS) if time_left is not None else (lambda: False)
-    result: dict[str, Any] = {"publicationId": publication["publicationId"], "ran": [], "failed": [], "expired": [], "leftOpen": 0, "stoppedBy": None}
+    result: dict[str, Any] = {"publicationId": publication["publicationId"], "ran": [], "failed": [], "expired": [], "alreadyDone": [], "leftOpen": 0, "stoppedBy": None}
     rows = research_assignments_of_stories(client)
     for row in rows:
         if row.get("status") != "claimed":
@@ -123,10 +141,15 @@ def run_research_assignments(client: Any, publication: dict[str, Any], *, now: d
             break
         if assignment_metadata(client, row).get("contextProfile") != REPORTER_PROFILE:
             continue
+        if assignment_has_research_packet(client, row):
+            set_status(client, row, "completed", now=clock(), event_type="research.completed",
+                       note="A research packet already exists for this assignment, so it was marked completed without researching again.")
+            result["alreadyDone"].append(row["id"])
+            continue
         running = set_status(client, row, "claimed", now=now, event_type="claim", note="The research worker started this assignment.", claim=True)
         try:
             with publication_endpoint(publication):
-                outcome = research(client, {"assignment": row["id"], "corpus-key": publication.get("corpusKey"), "actor-label": WORKER_LABEL},
+                outcome = research(client, {"assignment": row["id"], "corpus-key": publication.get("corpusKey"), "actor-label": WORKER_LABEL, "leave-status": True},
                                    out_of_time=judge_out_of_time)
         except Exception as error:   # noqa: BLE001 - one assignment never stops the others
             outcome = {"action": "failed", "error": f"{type(error).__name__}: {error}"}
@@ -134,7 +157,7 @@ def run_research_assignments(client: Any, publication: dict[str, Any], *, now: d
             set_status(client, running, "completed", now=clock(), event_type="research.completed", note="Research finished; the packet is on the assignment.")
             result["ran"].append(row["id"])
         else:
-            set_status(client, running, "failed", now=clock(), event_type="research.failed", note=str(outcome.get("error") or "The research did not finish.")[:400])
+            set_status(client, running, "failed", now=clock(), event_type="research.failed", note=(without_credential_guidance(str(outcome.get("error") or "")) or "The research did not finish.")[:400])
             result["failed"].append(row["id"])
     result["status"] = "stopped" if result["stoppedBy"] else "complete"
     return result

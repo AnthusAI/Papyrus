@@ -53,6 +53,7 @@ from .newsroom_context_pack import DEFAULT_MAX_CHARACTERS, PROFILES, build_conte
 from .model_attachments import parse_jsonish
 from .options import normalize_string, parse_boolean_option, parse_options, resolve_mutation_apply
 from .records import apply_record_changes, build_record_changes
+from .research_assignments_worker import without_credential_guidance
 from .steering import default_corpus_key
 from .story_reporting import link_found_references_as_consulted
 from .web_search import (
@@ -682,6 +683,17 @@ def curate_found_references(client: PapyrusGraphQLAuthoringClient, assignment_id
     return {"curated": curated, "failed": failed}
 
 
+def _settle_assignment_status(client: PapyrusGraphQLAuthoringClient, assignment: Mapping[str, Any], status: str, *, event_type: str, note: str, actor_label: str) -> None:
+    """Leaves a finished terminal run's assignment ``completed`` (or ``failed``) the way the research worker would, so the worker does not run it again."""
+    from datetime import datetime, timezone
+
+    from .research_assignments_worker import set_status
+
+    if assignment.get("status") in ("completed", "failed"):
+        return
+    set_status(client, dict(assignment), status, now=datetime.now(timezone.utc), note=note, event_type=event_type, actor_label=actor_label)
+
+
 def research_multi(
     client: PapyrusGraphQLAuthoringClient,
     options: dict[str, Any],
@@ -732,6 +744,9 @@ def research_multi(
             event = _assignment_event_record(assignment=assignment, event_type="research.multi.failed", note=message,
                                              actor_label=actor_label, now=now)
             apply_record_changes(client, build_record_changes(client, [*records, event]))
+            if not options.get("leave-status"):
+                _settle_assignment_status(client, assignment, "failed", event_type="research.failed", note=without_credential_guidance(message) or "The research did not finish.",
+                                          actor_label=actor_label)
         return {"action": "failed", "assignmentId": assignment_id, "error": message}
 
     packet = {**outcome["packet"], "research_mode": research_mode}
@@ -788,6 +803,9 @@ def research_multi(
     apply_record_changes(client, changes)
     update_newsroom_summary_after_research_packet_creates(client, changes, actor_label=actor_label,
                                                           reason=f"assignments research-multi {assignment_id}")
+    if not options.get("leave-status"):
+        _settle_assignment_status(client, assignment, "completed", event_type="research.completed", note="Research finished; the packet is on the assignment.",
+                                  actor_label=actor_label)
     return {**result, "researchPacketMessageId": (apply_result or {}).get("messageId"),
             "registeredReferenceCount": (intake_result or {}).get("registeredReferenceCount", 0),
             **({"intakeError": intake_error} if intake_error else {}),

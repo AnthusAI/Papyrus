@@ -82,8 +82,46 @@ Feature: The router runs the research assignments editors give Stories, with nob
     And the routing pass lock is free after the research run
     And the research-assignments lock of "a-site" is free again
 
-  Scenario: Everything a full run asks of the backend is granted to the worker's role
+  Scenario Outline: Everything a full run asks of the backend is granted to the worker's role, with or without a tenant
     Given the monitoring template
-    When one assignment is run on the real client with its transport replaced
+    And a backend <tenancy> that answers like a small real one
+    When one assignment is run on the real client with its transport replaced, taking in a cited source, linking it to the Story and curating it
     Then every field it asked for is granted to the research worker's role on any publication API
+    And the grant has no publish field, no updateItem and nothing that changes a Story's text
     And the router role has gained no policy
+
+    Examples:
+      | tenancy                          |
+      | with no tenant                   |
+      | on the tenant "example-tenant"   |
+
+  Scenario: An open assignment that already has a research packet is completed and not researched again
+    Given a backend with the open research assignments 1 and 2 on a Story
+    And assignment 1 already produces a research packet message
+    When the research-assignments pass runs
+    Then assignment 1 is completed with a completion time and a note that its packet already exists
+    And the research ran only for assignment 2
+
+  Scenario: A finished-run event also counts as an existing packet
+    Given a backend with the open research assignments 1 on a Story
+    And assignment 1 has a research.multi.completed event from a terminal run
+    When the research-assignments pass runs
+    Then assignment 1 is completed and no research ran
+
+  Scenario: A terminal research run leaves its assignment completed
+    Given an open research.multi assignment
+    When the research run is applied from the command line and finishes
+    Then the assignment is completed with a completion time and a research.completed event by the command line's actor
+    And the same status change is not made twice when the worker started the run
+
+  Scenario: A terminal research run that fails leaves its assignment failed
+    Given an open research.multi assignment
+    When the research run is applied from the command line and no search provider answers
+    Then the assignment is failed with a research.failed event giving the plain reason
+    And the research worker will not start it again
+
+  Scenario: A failure note keeps the real reason and drops the terminal sign-in advice
+    Given a research run that fails with a permission denied reason followed by a line telling the reader to sign in again at a terminal
+    When the research-assignments pass runs
+    Then the failed event note holds the permission denied reason
+    And the note has no sign-in advice
