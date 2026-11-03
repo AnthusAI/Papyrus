@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import http.client
 import urllib.parse
 from typing import Any, Callable
@@ -653,6 +654,13 @@ mutation Delete{model_name}($input: Delete{model_name}Input!) {{
 MUTATIONS = {model: _model_mutations(model) for model in LIST_DEFINITIONS}
 
 
+# Reference fields newer than some deployed sites. One router serves sites on different versions, so a site whose
+# schema does not have these yet is read without them instead of failing every Reference read.
+NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy")
+_UNDEFINED_NEWER_FIELD = re.compile(r"FieldUndefined: Field '(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")' in type")
+_NEWER_FIELD_SELECTION = re.compile(r"(?<![$\w])(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")\b\s*")
+
+
 class PapyrusGraphQLAuthoringClient:
     def __init__(
         self,
@@ -671,6 +679,7 @@ class PapyrusGraphQLAuthoringClient:
         if self._parsed_endpoint.query:
             self._endpoint_path = f"{self._endpoint_path}?{self._parsed_endpoint.query}"
         self._connection: http.client.HTTPSConnection | None = None
+        self._schema_lacks_newer_reference_fields = False
 
     def _request_headers(self, payload: bytes) -> dict[str, str]:
         if self.header_factory is not None:
@@ -678,6 +687,18 @@ class PapyrusGraphQLAuthoringClient:
         return graphql_request_headers(endpoint=self.endpoint, body=payload)
 
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
+        if self._schema_lacks_newer_reference_fields:
+            query = _NEWER_FIELD_SELECTION.sub("", query)
+        try:
+            return self._send_graphql(query, variables)
+        except GraphQLRequestError as error:
+            # A validation error means the request never ran, so sending it again cannot repeat a write.
+            if self._schema_lacks_newer_reference_fields or not _UNDEFINED_NEWER_FIELD.search(str(error)):
+                raise
+        self._schema_lacks_newer_reference_fields = True
+        return self._send_graphql(_NEWER_FIELD_SELECTION.sub("", query), variables)
+
+    def _send_graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = json.dumps({"query": query, "variables": variables or {}}).encode("utf-8")
         headers = self._request_headers(payload)
         body: dict[str, Any] | None = None

@@ -10,11 +10,11 @@ Two lanes run together and are fused:
   ``updatedAt`` is after the last row seen (less a small overlap), keyed by lineage, so a Reference changed a moment ago is found. A row with no
   ``feedStateKey`` (archived, superseded) is in no feed and is dropped.
 * **Meaning.** The query is embedded and ``QueryVectors`` returns the nearest ``reference_summary`` vectors whose ``curationStatus`` is in what the
-  ``show`` choice asks for, at most S3 Vectors' real limit of 100. The list is cut where the similarity drops most (``cuts.knee_cut_count``).
+  ``show`` choice asks for, at most S3 Vectors' real limit of 100. The list is cut at the bend of the whole similarity curve (``cuts.search_cut_count``), not at its largest single drop.
   Rejected References have no vectors today, so only the words lane can find those.
 
 Fusion is Reciprocal Rank Fusion, ``1 / (60 + rank)`` summed over the lanes a Reference appears in, one entry per lineage. A Reference whose terms
-all appear in its title, authors, URL or id ("strong" word matches) sits above a Reference found only by meaning or by some of the words. If one
+all appear in its title, authors, URL or id ("strong" word matches) sits above every meaning match, and a meaning match above a partial word match. If one
 lane fails the other's results are returned with that lane's status.
 
 The cursor is opaque: an offset plus a hash of the query and filter, so a cursor from another search is refused. The words lane is deterministic;
@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import base64
 import bisect
+import math
 import hashlib
 import json
 import logging
@@ -36,7 +37,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Protocol
 
-from .cuts import knee_cut_count
+from .cuts import search_cut_count
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -74,10 +75,17 @@ LIST_CURRENT_REFERENCES_QUERY = (
 FIELDS = ("title", "authors", "sourceUri", "externalItemId")   # the bit of each field in a match mask is 1 << position
 FIELD_WEIGHT = {"title": 4, "authors": 4, "sourceUri": 1, "externalItemId": 2}
 STOP_WORDS = frozenset(
-    "a an and are as at be but by for from has have in is it its of on or that the this to was were will with".split()
+    ("a an and are as at be but by for from has have in is it its of on or that the this to was were will with "
+     "why how what when where which who whom whose do does did can could should would may might shall am been being had having "
+     "i me my we our you your he she they them their his her there these those than then so if not no about into over under").split()
 )
+# A partial word match (some terms of a long query) is kept only if the terms it holds carry at least this share of the query's distinctive
+# weight (each term weighed by how rare it is in this site's index). Below it the match is a common word or two, which the meaning lane answers better.
+PARTIAL_COVERAGE_FLOOR = 0.5
+LONG_QUERY_TERMS = 3   # a query of fewer distinctive terms keeps every partial match: with two terms, one of them is half the question
 
-# Word-match classes, best first. Classes up to ALL_TERMS_CLASS are "strong": every term was found.
+# Word-match classes, best first. Classes up to ALL_TERMS_CLASS are "strong": every term was found. ALL_TERMS_IN_TITLE means every term is in the title
+# or the authors (a name and a title word count together). Meaning matches rank between the strong classes and partial word matches.
 EXACT_TITLE_PHRASE, ALL_TERMS_IN_TITLE, ALL_TERMS_ACROSS_FIELDS, SOME_TERMS = 0, 1, 2, 3
 ALL_TERMS_CLASS = ALL_TERMS_ACROSS_FIELDS
 
@@ -115,6 +123,7 @@ class WordHit:
     terms_matched: int
     weight: int
     mask: int
+    coverage: float = 1.0   # the share of the query's distinctive (rarity-weighted) terms this Reference holds
 
     def fields(self) -> list[str]:
         return [name for position, name in enumerate(FIELDS) if self.mask & (1 << position)]
@@ -271,36 +280,46 @@ class ReferenceWordIndex:
         phrase = tokenize(query)
         with self._lock:
             per_lineage: dict[str, dict[str, Any]] = {}
-            for term in terms:
+            rarity: list[float] = []   # per term, how distinctive it is here: a word in most titles counts for little, a rare one for a lot
+            total = max(1, len(self._entries))
+            for term_index, term in enumerate(terms):
                 hits: dict[str, int] = {}
                 for token in self._tokens_matching(term):
                     for lineage_id, mask in self._postings[token].items():
                         hits[lineage_id] = hits.get(lineage_id, 0) | mask
+                rarity.append(math.log(1.0 + total / max(1, len(hits))))
                 for lineage_id, mask in hits.items():
-                    record = per_lineage.setdefault(lineage_id, {"masks": [], "mask": 0})
+                    record = per_lineage.setdefault(lineage_id, {"masks": [], "mask": 0, "weight": 0.0})
                     record["masks"].append(mask)
+                    record["weight"] += rarity[term_index]
                     record["mask"] |= mask
-            title_bit = 1
+            title_bit, title_or_author = 1, 1 | 2   # the bits of "title" and "authors" in FIELDS
+            wanted = sum(rarity) or 1.0
             results: list[tuple[tuple, WordHit]] = []
             for lineage_id, record in per_lineage.items():
                 entry = self._entries[lineage_id]
                 if not _shown(entry.row, show):
                     continue
                 masks: list[int] = record["masks"]
+                coverage = min(1.0, record["weight"] / wanted)
                 if len(masks) == len(terms):
-                    if all(mask & title_bit for mask in masks):
-                        match_class = EXACT_TITLE_PHRASE if _contains_phrase(entry.tokens_by_field["title"], phrase) else ALL_TERMS_IN_TITLE
+                    if all(mask & title_bit for mask in masks) and _contains_phrase(entry.tokens_by_field["title"], phrase):
+                        match_class = EXACT_TITLE_PHRASE
+                    elif all(mask & title_or_author for mask in masks):
+                        match_class = ALL_TERMS_IN_TITLE
                     else:
                         match_class = ALL_TERMS_ACROSS_FIELDS
                 else:
+                    if len(terms) >= LONG_QUERY_TERMS and coverage < PARTIAL_COVERAGE_FLOOR:
+                        continue   # a common word or two of a long question: left to the meaning lane
                     match_class = SOME_TERMS
                 weight = sum(FIELD_WEIGHT[name] for position, name in enumerate(FIELDS) if record["mask"] & (1 << position))
-                hit = WordHit(lineage_id, match_class, len(masks), weight, record["mask"])
+                hit = WordHit(lineage_id, match_class, len(masks), weight, record["mask"], coverage)
                 arrival = str(entry.row.get("feedArrivalAt") or entry.row.get("createdAt") or "")
                 results.append(((arrival, lineage_id), hit))
-        # Newest first, then (a stable sort) by class, terms found and field weight: the order within a class is recency.
+        # Newest first, then (a stable sort) by class, share of the distinctive terms found and field weight: the order within a class is recency.
         results.sort(key=lambda item: item[0], reverse=True)
-        results.sort(key=lambda item: (item[1].match_class, -item[1].terms_matched, -item[1].weight))
+        results.sort(key=lambda item: (item[1].match_class, -round(item[1].coverage, 6), -item[1].weight))
         return [hit for _key, hit in results]
 
 
@@ -354,7 +373,7 @@ def meaning_matches(vectors: VectorSearch, query: str, show: str, *, now: Callab
         if lineage_id not in best or similarity > best[lineage_id]:
             best[lineage_id] = similarity
     ordered = sorted(best.items(), key=lambda pair: (-pair[1], pair[0]))
-    kept = ordered[: knee_cut_count([similarity for _lineage, similarity in ordered])]
+    kept = ordered[: search_cut_count([similarity for _lineage, similarity in ordered])]
     with _meaning_cache_lock:
         if len(_meaning_cache) >= MEANING_CACHE_ENTRIES:
             _meaning_cache.pop(min(_meaning_cache, key=lambda cache_key: _meaning_cache[cache_key][0]), None)
@@ -377,23 +396,32 @@ class Fused:
     by_words: bool
     by_meaning: bool
     word_fields: list[str]
+    tier: int = 0   # the word class for a strong match, then MEANING_TIER, then PARTIAL_TIER
+
+
+MEANING_TIER = ALL_TERMS_CLASS + 1
+PARTIAL_TIER = MEANING_TIER + 1
 
 
 def fuse(word_hits: list[WordHit], meaning: list[tuple[str, float]]) -> list[Fused]:
-    """Reciprocal Rank Fusion over the lanes, one entry per lineage; strong word matches first, then the score, then the id (a fixed order)."""
+    """Reciprocal Rank Fusion over the lanes, one entry per lineage. Order: exact title phrase, every term in title or author, every term anywhere,
+    then anything the meaning lane found (alone or with some of the words), then partial word matches alone; within each, the fused score, then the id."""
     by_lineage: dict[str, Fused] = {}
     for rank, hit in enumerate(word_hits, start=1):
         by_lineage[hit.lineage_id] = Fused(
-            hit.lineage_id, 1.0 / (RRF_K + rank), hit.match_class <= ALL_TERMS_CLASS, True, False, hit.fields(),
+            hit.lineage_id, 1.0 / (RRF_K + rank), hit.match_class <= ALL_TERMS_CLASS, True, False, hit.fields(), hit.match_class,
         )
     for rank, (lineage_id, _similarity) in enumerate(meaning, start=1):
         entry = by_lineage.get(lineage_id)
         if entry is None:
-            by_lineage[lineage_id] = Fused(lineage_id, 1.0 / (RRF_K + rank), False, False, True, [])
+            by_lineage[lineage_id] = Fused(lineage_id, 1.0 / (RRF_K + rank), False, False, True, [], MEANING_TIER)
         else:
             entry.score += 1.0 / (RRF_K + rank)
             entry.by_meaning = True
-    return sorted(by_lineage.values(), key=lambda entry: (0 if entry.strong else 1, -entry.score, entry.lineage_id))
+    for entry in by_lineage.values():
+        if not entry.strong:
+            entry.tier = MEANING_TIER if entry.by_meaning else PARTIAL_TIER
+    return sorted(by_lineage.values(), key=lambda entry: (entry.tier, -entry.score, entry.lineage_id))
 
 
 def search_hash(query: str, show: str) -> str:
