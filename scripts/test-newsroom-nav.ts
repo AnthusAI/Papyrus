@@ -10,7 +10,6 @@ const OVERVIEW_SOURCE = readFileSync(path.join(__dirname, "..", "components", "n
 const SHELL_SOURCE = readFileSync(path.join(__dirname, "..", "components", "newsroom-ops-shell.tsx"), "utf8");
 
 const EXPECTED_SECTION_IDS = [
-  "overview",
   "articles",
   "assignments",
   "references",
@@ -54,6 +53,11 @@ function run() {
   assert.match(OVERVIEW_SOURCE, /<NotificationCenter/, "the overview leads with the Notification Center");
   assert.doesNotMatch(OVERVIEW_SOURCE, /Go to|data-newsroom-ops-destination/, "the overview must not repeat navigation cards");
   assert.match(SHELL_SOURCE, /ORGANIZER_NAV_GROUPS\.(flatMap|map)/, "shell sidebar must render the organizer navigation");
+
+  assert.ok(!NEWSROOM_OPS_NAV.some((item) => item.label === "Needs me"), "the home page is not a navigation entry");
+  assert.ok(!ORGANIZER_NAV_GROUPS.flatMap((group) => group.items).some((item) => item.label === "Needs me" || item.path === "/newsroom"), "the organizer navigation has no Needs me entry and no entry for the home page");
+  assert.match(SHELL_SOURCE, /className="organizer-brand" href=\{getNewsroomNavHref\("\/newsroom", demo\)\}/, "the sidebar wordmark returns to the newsroom home");
+  assert.match(SHELL_SOURCE, /className="organizer-masthead" href=\{showNavigation \? getNewsroomNavHref\("\/newsroom", demo\)/, "the top bar wordmark, the only one on a phone, returns to the newsroom home");
 
   console.log("newsroom navigation ok");
 }

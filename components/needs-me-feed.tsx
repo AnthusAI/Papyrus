@@ -219,7 +219,7 @@ export function ShapingStrip({ stats }: { stats: ShapingStats }) {
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-[20px] bg-[var(--feed-card)] px-4 py-3 text-sm" data-shaping-strip role="status">
       <span className="inline-flex items-center gap-1.5 font-semibold"><SlidersHorizontalIcon aria-hidden="true" className="size-4" />You&rsquo;re shaping this</span>
       {none ? (
-        <span className="text-muted-foreground" data-shaping-empty>Nothing decided yet this week. Each answer teaches the Cyclotron and reorders what comes next.</span>
+        <span className="text-muted-foreground" data-shaping-empty>Nothing decided yet this week. Each answer is saved as a label for the Cyclotron.</span>
       ) : (
         <>
           <span className="text-muted-foreground">This week</span>
@@ -445,6 +445,7 @@ export function NeedsMeView({
     <div className="flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-notification-center {...FEED_SURFACE_PROPS}>
       <div className="@container min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto px-1.5 pt-1.5 md:pr-2.5" data-needs-me-main data-needs-me-scroll>
         <header className="space-y-4">
+          {/* The newsroom home: a later component for the top right of this header goes beside the title block below. */}
           <div className="space-y-1.5">
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl" data-notification-title>What needs me?</h1>
             <p className="text-lg text-muted-foreground" data-notification-summary role="status">{waitingTextFor(counts)}</p>

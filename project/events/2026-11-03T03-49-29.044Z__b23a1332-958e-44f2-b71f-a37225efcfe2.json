@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "b23a1332-958e-44f2-b71f-a37225efcfe2",
+  "issue_id": "PPY-148ba67c-5cf1-4905-baec-f7d5f8bd63aa",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T03:49:29.044Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom home without a Needs me nav entry",
+    "description": "Ryan 11-02: the newsroom home is the wordmark's page, with no Needs me navigation entry. PR https://github.com/AnthusAI/Papyrus/pull/1078 (branch feature/newsroom-home-nav, not merged). Removes the entry from sidebar, More menu and bottom tabs; top-bar wordmark opens the home; titles say Newsroom home; banner reworded to 'Each answer is saved as a label for the Cyclotron.' (votes do not retrain the hosted classifier); bottom tabs centre for any count; phone More menu gets a Back to <site> link (desktop has none now). Gherkin in features/newsroom-notification-center.feature. Open: 'The line is learned from the predictions you confirm' in How this is ordered is a computed median threshold, left as is.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "newsroom"
+    ]
+  }
+}

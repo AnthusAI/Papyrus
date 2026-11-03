@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fd951f47-a07f-4163-8214-d561033878ba",
+  "issue_id": "PPY-e9a53dbc-5bed-420f-951e-824fe204e0a7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T03:47:33.842Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Rated only filter on the References feed",
+    "description": "Add a third Show option to the newsroom References feed so an editor can list just the References already rated, to find them again. Labels Unrated / All / Rated (one line at 375 px). Reads only the rated feed partitions a page at a time; no backend change. Best bets = original prediction, Newest = arrival. PR AnthusAI/Papyrus#1079 (feature/references-rated-only). Specs: features/newsroom-reference-feed.feature.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
