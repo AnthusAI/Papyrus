@@ -74,7 +74,7 @@ test("Newest is reverse chronological by arrival, whatever the predictions say",
   assert.deepEqual(ids(orderFeedItems(items(tied), "newest")), ["x", "y"], "ties are deterministic");
 });
 
-test("Unrated only hides answered items except those answered this visit; Include rated adds them in the active sort", () => {
+test("Unrated hides answered items except those answered this visit; All adds them in the active sort", () => {
   const references = [
     reference("open", { createdAt: ago(1) }),
     reference("yes", { createdAt: ago(2), curationStatus: "accepted" }),
@@ -86,6 +86,9 @@ test("Unrated only hides answered items except those answered this visit; Includ
   assert.deepEqual(ids(visibleFeedItems(all, "newest", "unrated")), ["open"]);
   assert.deepEqual(ids(visibleFeedItems(all, "newest", "all")), ["no", "open", "yes"]);
   assert.deepEqual(ids(visibleFeedItems(all, "newest", "unrated", new Set(["yes"]))), ["open", "yes"], "answered this visit: stays");
+  assert.deepEqual(ids(visibleFeedItems(all, "newest", "rated")), ["no", "yes"], "Rated lists the answered items alone");
+  assert.deepEqual(ids(visibleFeedItems(all, "best", "rated")), ["no", "yes"], "Best bets with no prediction: newest first");
+  assert.deepEqual(ids(visibleFeedItems(all, "newest", "rated", new Set(["open"]))), ["no", "open", "yes"], "an answer cleared this visit stays");
   assert.ok(visibleFeedItems(all, "best", "all").find((item) => item.lineageId === "yes")!.rated);
 });
 
@@ -237,13 +240,17 @@ test("The feed order is taken once and kept, in both sorts: new predictions re-r
   assert.equal(ids(refreshed.items)[0], "e");
 });
 
-test("Include rated adds answered cards from the snapshot, in the active sort, with no re-rank", () => {
+test("All adds answered cards from the snapshot, in the active sort, with no re-rank", () => {
   const references = [reference("open", { createdAt: ago(1) }), reference("done", { createdAt: ago(0.5), curationStatus: "accepted" }), reference("old", { createdAt: ago(5) })];
   const live = items(references, new Map([["old", decision("include", 0.9)]]));
   const snapshot = takeFeedOrderSnapshot(live);
   assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "all").items), ["done", "open", "old"]);
   assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "best", "all").items), ["old", "done", "open"]);
   assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "unrated").items), ["open", "old"]);
+  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "rated").items), ["done"], "Rated takes the answered items from the snapshot");
+  assert.equal(applyFeedOrderSnapshot(snapshot, live, "best", "rated").leadId, undefined, "and has no lead card");
+  const answered = items([reference("open", { createdAt: ago(1), curationStatus: "rejected" }), live[1].reference, live[2].reference]);
+  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, answered, "newest", "rated").items), ["done", "open"], "an item answered this visit joins Rated without re-ranking");
 });
 
 const curation = (body: Record<string, unknown>) => attach("a", "curation", { sortKey: "003-curation", metadata: JSON.stringify({ kind: "reference-curation", ...body }) });
