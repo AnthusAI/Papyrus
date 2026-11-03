@@ -280,6 +280,7 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         "nothingToAdd": run.get("nothingToAdd", 0), "alreadyRejected": run.get("alreadyRejected", 0), "retriedWithNewConnections": len(run.get("retriedWithNewConnections") or []), "connectionsUsed": run.get("connectionsUsed", {}), "curationFlag": (run.get("curationFlag") or {}).get("status"),
         "packs": len(packs), "ideasFromPacks": sum(1 for draft in run["drafts"] if draft.get("origin") == "context-pack"),
         "packsSkippedNoNewEvidence": run.get("packsSkippedNoNewEvidence", 0),
+        "variationsOffered": run.get("variationsOffered", 0), "variationCostUsd": (run.get("variationCost") or {}).get("costUsd", 0.0),
         "packDetails": [{"signal": pack["signal"], "anchor": pack["anchor"], "correctedPValue": pack["correctedPValue"], "ideas": pack["ideas"]} for pack in packs if pack["attempted"]],
         "timings": timings, "review": (run.get("review") or {}).get("status"), **({"fileError": run["fileError"], "fileErrors": len(run.get("fileErrors") or []), **({"fileErrorReason": run["fileErrorReason"]} if run.get("fileErrorReason") else {})} if run.get("fileError") else {}),
     }

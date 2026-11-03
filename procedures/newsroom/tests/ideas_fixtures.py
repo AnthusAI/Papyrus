@@ -69,6 +69,7 @@ class FakeClient:
         self.calls: list[tuple[str, Any]] = []
         self.reviews: dict[str, dict[str, Any]] = {}
         self.reject_review_writes = False
+        self.variations: dict[str, dict[str, Any]] = {}   # StoryVariation rows (ideas/variations.py)
 
     def list_records(self, model: str) -> list[dict[str, Any]]:
         self.calls.append(("list_records", model))
@@ -77,19 +78,27 @@ class FakeClient:
         return {"KnowledgeCorpus": self.corpora, "NewsroomSection": self.sections}.get(model, [])
 
     def get_record(self, model: str, record_id: str) -> dict[str, Any] | None:
-        row = self.reviews.get(record_id) if model == "ReviewRequest" else None
+        row = self.variations.get(record_id) if model == "StoryVariation" else (self.reviews.get(record_id) if model == "ReviewRequest" else None)
         return dict(row) if row else None
 
     def create_record(self, model: str, payload: dict[str, Any]) -> None:
+        if model == "StoryVariation":
+            self.variations[payload["id"]] = dict(payload)
+            return
         if self.reject_review_writes:
             raise RuntimeError("Cannot query field createReviewRequest on type Mutation.")
         self.reviews[payload["id"]] = dict(payload)
 
     def update_record(self, model: str, payload: dict[str, Any]) -> None:
+        if model == "StoryVariation":
+            self.variations[payload["id"]].update(payload)
+            return
         self.reviews[payload["id"]] = {**self.reviews[payload["id"]], **payload}
 
     def list_by_index(self, index: str, key: str) -> list[dict[str, Any]]:
         self.calls.append(("list_by_index", key))
+        if index == "storyVariationsByStoryAndNumber":
+            return [dict(row) for row in self.variations.values() if row["storyLineageId"] == key]
         if index == "referencesByCurationStatusKey":
             corpus, _, status = key.rpartition("#")
             return [row for row in self.references if row["corpusId"] == corpus and row["curationStatus"] == status]

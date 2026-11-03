@@ -56,14 +56,19 @@ class Model:
     """Answers each drafting request with the same story and each point check with ``verdict`` (it adds something, unless the test says otherwise), and records
     the requests: ``drafting`` and ``checks`` tell them apart. ``verdict`` may be a function of the check's input."""
 
-    def __init__(self, answer=None, verdict=None) -> None:
+    def __init__(self, answer=None, verdict=None, variations=None) -> None:
         self.answer = answer or story()
         self.verdict = verdict or ADDS
+        self.variations = variations   # what the variation writer answers: None offers nothing more than the idea itself
         self.requests: list[dict] = []
 
     @property
     def drafting(self):
-        return [payload for payload in self.requests if not payload["instructions"].startswith("You are a sceptical editor")]
+        return [payload for payload in self.requests if not payload["instructions"].startswith(("You are a sceptical editor", "You write other versions"))]
+
+    @property
+    def variation_writing(self):
+        return [payload for payload in self.requests if payload["instructions"].startswith("You write other versions")]
 
     @property
     def checks(self):
@@ -73,6 +78,8 @@ class Model:
         self.requests.append(payload)
         if payload["instructions"].startswith("You are a sceptical editor"):
             answer = self.verdict(json.loads(payload["input"])) if callable(self.verdict) else self.verdict
+        elif payload["instructions"].startswith("You write other versions"):
+            answer = self.variations if self.variations is not None else {"variations": []}
         else:
             answer = self.answer
         return {"status": "completed", "output_text": json.dumps(answer), "usage": {"input_tokens": 1000, "output_tokens": 300, "input_tokens_details": {"cached_tokens": 0}}}

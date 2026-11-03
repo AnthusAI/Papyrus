@@ -1484,6 +1484,9 @@ Resources:
               # The curation flag of a run that files nothing (ideas/review.py settle_curation_flag): find this publication's open flag, and acknowledge it when ideas flow again.
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReviewRequests"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateReviewRequest"
+              # The variations an idea run offers with each idea (src/papyrus_content/ideas/variations.py): read the Story's variations first, so a rerun adds nothing, then create them. Never update or delete.
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listStoryVariationsByStoryAndNumber"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createStoryVariation"
           # The vector pass of the daily monitor-stories task: sync (list, write) the eight sites' indexes and query them for suggestions. A parameter left at its default names no index.
           - Sid: FanOutMonitorStories
             Effect: Allow

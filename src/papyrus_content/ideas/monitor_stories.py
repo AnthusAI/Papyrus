@@ -563,6 +563,11 @@ def draft_body(draft: dict[str, Any], item: MonitoredItem, connections: connecti
             neighbour = known[handle].reference
             lines.append(f"{number}. {neighbour.title}{f' ({neighbour.published})' if neighbour.published else ''} {neighbour.url}".rstrip())
     lines.append("")
+    others = [known[handle] for handle in cited if handle in known and known[handle].kind in (connection_rules.STORY_OPTION, connection_rules.CONCEPT_OPTION)]
+    if others:
+        lines += ["## Connected to", ""]
+        lines += [f"- Story: {entry.story.title}" if entry.kind == connection_rules.STORY_OPTION else f"- Concept: {entry.concept.hashtag or entry.concept.name}" for entry in others]
+        lines.append("")
     views = [known[handle] for handle in cited if handle in known and known[handle].kind in (connection_rules.ACCEPT_REASON, connection_rules.MESSAGE, connection_rules.EDITORS_EXPLANATION)]
     if views:
         lines += ["## What editors said", ""]
@@ -645,6 +650,7 @@ def draft_monitor_stories(
     suggestions_waiting: bool = False,
     priority_lineages: Iterable[str] = (),
     count_pending: bool = True,
+    variations: bool = True,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing.
 
@@ -662,6 +668,10 @@ def draft_monitor_stories(
     ``point_check.judge`` (a model judge that fails closed), for a pack idea as well as a single item. ``knowledge`` is what the run knows about the Reference
     (tests and the replay pass their own).
 
+    ``variations`` (on by default) makes each idea the run files also offer variations of itself, different ways to connect the same item to what the newsroom
+    knows (``ideas/variations.py``, docs/story-variations.md): they are written after the idea is filed, checked like the idea, counted in the same cost meter and
+    recorded in ``run['variations']`` (``variationsOffered``, ``variationCost``). A failure there never costs the idea.
+
     ``stoppedBy`` ``time`` or ``cost`` means the candidates were not all looked at, and ``suggestions_waiting`` that the router has not yet written the
     suggested links the connections come from: either way a run that filed nothing says nothing about curation, so it raises no curation flag.
 
@@ -674,6 +684,7 @@ def draft_monitor_stories(
     orders the candidates (an item with no evidence is not in it), a pack goes to ``pack_stories.draft_pack_ideas``, an item to the path below, and
     both share one cost meter, ``out_of_time()``, ``maximum_cost_usd`` and the filing-error stop. The ideas packs filed are in ``drafts`` (``origin``
     ``context-pack``) and in the one review; ``run['packs']`` lists the packs offered and ``packsSkippedNoNewEvidence`` those held back."""
+    from . import variations as variations_module
     from .pack_stories import MAXIMUM_IDEAS as MAXIMUM_PACK_IDEAS, MAXIMUM_OUTPUT_TOKENS as PACK_OUTPUT_TOKENS, SYSTEM_PROMPT as PACK_PROMPT, CostMeter, draft_pack_ideas, handles_of
     memory = retry_memory if retry_memory is not None else (retry_rules.JsonMemory(json_store) if json_store is not None else None)
     memory_errors: dict[str, str] = {}
@@ -743,6 +754,7 @@ def draft_monitor_stories(
     meter = CostMeter()
     if knowledge is None:
         knowledge = default_knowledge(client, signal_run)
+    variation_pass = variations_module.Pass(client, transport, model, meter, run, maximum_cost_usd, dry_run=dry_run, out_of_time=out_of_time) if variations else None
 
     def recall(subject: str) -> Any:
         """What was remembered about a rejection, or None. A memory that cannot be read is no memory: the subject is tried again, and the run says so."""
@@ -931,9 +943,18 @@ def draft_monitor_stories(
                     continue
                 filing_streak["count"] = 0
             run["drafts"].append(record)
+            if variation_pass is not None:
+                variation_pass.offer(
+                    story_lineage_id=record.get("itemLineageId"), item=item, view=view, connections=connections, knowledge=knowledge, raw=raw, draft=draft, record=record,
+                    verdict=verdict, context=context,
+                )
         if run["stoppedBy"] == "file_error":
             break
     run["usage"] = _usage(model, run["modelCalls"])
+    if variation_pass is not None:
+        run.setdefault("variations", [])
+        run["variationsOffered"] = variation_pass.offered
+        run["variationCost"] = {"calls": variation_pass.calls, "costUsd": round(variation_pass.cost, 6)}
     timings["afterCollectSeconds"] = round(time.monotonic() - started - timings["collectSeconds"], 1)
     if not count_pending and "pending" not in list(statuses) and (out_of_time is None or not out_of_time()):
         counts["notAccepted"] = len(collect_references(client, [f"{CORPUS_PREFIX}{corpus_key or site}"], ["pending"], None))   # counted last, and only if the time allows
@@ -1040,8 +1061,11 @@ def render_report(run: dict[str, Any]) -> str:
         f"- Monitored items read ({', '.join(run['statuses'])} only; pending not read: {inputs.get('notAccepted', 0)}): {inputs['inWindow'] - inputs.get('noSourceUri', 0) - inputs.get('pendingNotCandidate', 0) - inputs.get('excludedHost', 0) - inputs.get('handledByAutomation', 0) - inputs.get('hasStory', 0)}; from excluded source hosts (never drafted): {inputs.get('excludedHost', 0)}; handled by an automation (a story based on it, or a procedure run recorded or in progress; never drafted here): {inputs.get('handledByAutomation', 0)}; already has a story based on it: {inputs.get('hasStory', 0)}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; the same address as a drafted or earlier candidate: {inputs.get('sameSource', 0)}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
         f"- Drafts attempted: {run['attempted']} ({'no limit' if run['limit'] is None else 'limit ' + str(run['limit'])}); kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; skipped: {len(run['skipped'])}; duplicates dropped: {len(run['duplicates'])}",
         f"- Model {run['model']}: {usage.get('inputTokens', 0)} input and {usage.get('outputTokens', 0)} output tokens in {usage.get('calls', 0)} call(s), cost ${usage.get('costUsd') if usage.get('costUsd') is not None else 'unknown'}",
-        "",
     ]
+    if run.get("variationCost") is not None:
+        spent = run["variationCost"]
+        lines.append(f"- Variations offered: {run.get('variationsOffered', 0)} for {len(run.get('variations', []))} idea(s), {spent['calls']} model call(s) of the total, cost ${spent['costUsd']}" + (f" (turned off for the rest of the run: {run['variationsDisabled']})" if run.get("variationsDisabled") else ""))
+    lines.append("")
     for number, draft in enumerate(run["drafts"], start=1):
         if draft.get("origin") == "context-pack":
             lines += [f"## {number}. {draft['title']}", "", f"From context pack {draft['packId']}; cites {len(draft['citedReferences'])} accepted References. Citation check: passed.", ""]

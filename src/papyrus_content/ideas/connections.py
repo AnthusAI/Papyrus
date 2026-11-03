@@ -39,10 +39,12 @@ MORE_THAN_SUMMARY = "more-than-summary"   # the one standard; recorded on each i
 
 SOURCE_HANDLE = "I1"
 ACCEPT_REASON, MESSAGE, NEIGHBOUR, EDITORS_EXPLANATION = "acceptReason", "message", "neighbour", "editorsExplanation"
-KINDS = (ACCEPT_REASON, MESSAGE, NEIGHBOUR, EDITORS_EXPLANATION)
-PREFIX = {ACCEPT_REASON: "E", MESSAGE: "M", NEIGHBOUR: "R", EDITORS_EXPLANATION: "X"}
+#: Only a variation writer is shown these two (``with_options``, ideas/variations.py): another Story and a concept the Reference carries. The single-item writer never is.
+STORY_OPTION, CONCEPT_OPTION = "story", "concept"
+KINDS = (ACCEPT_REASON, MESSAGE, NEIGHBOUR, EDITORS_EXPLANATION, STORY_OPTION, CONCEPT_OPTION)
+PREFIX = {ACCEPT_REASON: "E", MESSAGE: "M", NEIGHBOUR: "R", EDITORS_EXPLANATION: "X", STORY_OPTION: "S", CONCEPT_OPTION: "C"}
 KIND_OF_PREFIX = {prefix: kind for kind, prefix in PREFIX.items()}
-HANDLE = re.compile(r"^([EMRX])(\d+)$")
+HANDLE = re.compile(r"^([EMRXSC])(\d+)$")
 #: How the story came to be, not what it is about. Phrases, not single words: "similarity", "monitor" and "knowledge base" are also subjects the sites cover.
 INTERNAL_WORDING = re.compile(
     r"\b(the editors\b|editors'|editors? (accepted|chose|picked|said|noted|see|saw)|accepted (it|this|the item|the reference)|why (it|this) was accepted|by similarity|similarity score|"
@@ -94,6 +96,29 @@ class Neighbour:
 
 
 @dataclass(frozen=True)
+class StoryOption:
+    """Another Story (a current Item that is not an idea or spiked) the Reference could be connected to: it rests on a related Reference, or carries a concept the Reference has."""
+
+    lineage_id: str
+    title: str
+    deck: str
+    stage: str | None
+    via: str   # how it is connected, in plain words, for the editor
+
+
+@dataclass(frozen=True)
+class ConceptOption:
+    """A concept the Reference carries: tagged with it by an editor or by a rule."""
+
+    lineage_id: str
+    name: str
+    hashtag: str
+    description: str
+    by_editor: bool = False
+    explanation: str | None = None
+
+
+@dataclass(frozen=True)
 class Connection:
     handle: str
     kind: str
@@ -101,6 +126,8 @@ class Connection:
     grounding: str           # the words a sentence resting on this handle shares at least one content word with
     reference: Neighbour | None = None
     about: str | None = None   # for an editors' explanation, the neighbour handle it explains
+    story: StoryOption | None = None
+    concept: ConceptOption | None = None
 
     @property
     def label(self) -> str:
@@ -178,6 +205,23 @@ def build_connections(
         "editorsExplanations": len(explained), "suggestedLinks": suggested_links, **({"stars": stars} if stars is not None else {}),
     }
     return Connections(tuple(entries), found, stars)
+
+
+def with_options(connections: Connections, stories: Sequence[StoryOption] = (), concepts: Sequence[ConceptOption] = ()) -> Connections:
+    """The same connections plus the other Stories (``S1..``) and concepts (``C1..``) the Reference could be connected to, for the variation writer only. A
+    Story or a concept grounds no number or date: a figure must come from a source. An editor's explanation of a concept tag is direction, like ``X``."""
+    entries = list(connections.entries)
+    for number, option in enumerate(stories, start=1):
+        handle = f"S{number}"
+        entries.append(Connection(handle, STORY_OPTION, {
+            key: value for key, value in {"handle": handle, "kind": STORY_OPTION, "title": option.title, "deck": option.deck, "stage": option.stage, "link": option.via}.items() if value
+        }, f"{option.title} {option.deck}", story=option))
+    for number, option in enumerate(concepts, start=1):
+        handle = f"C{number}"
+        row = {"handle": handle, "kind": CONCEPT_OPTION, "name": option.name, "hashtag": option.hashtag, "description": option.description,
+               "editorsExplanation": {"writtenBy": "editor", "text": option.explanation} if option.explanation else None}
+        entries.append(Connection(handle, CONCEPT_OPTION, {key: value for key, value in row.items() if value}, f"{option.name} {option.description} {option.explanation or ''}", concept=option))
+    return Connections(tuple(entries), connections.found, connections.rating)
 
 
 def citation_views(connections: Connections) -> tuple[dict[str, str], dict[str, tuple[set[str], set[str]]]]:
@@ -260,6 +304,19 @@ class Knowledge:
         self._confirmed: dict[str, list[tuple[str, str | None]]] | None = None
         self._suggested: dict[str, list[tuple[str, float]]] | None = None
         self.neighbour_cut: float | None = None
+        self._catalogue: dict[str, Any] | None = None
+
+    def concept_catalogue_by_lineage(self) -> dict[str, Any]:
+        """The accepted concepts by lineage id and id (``signal_queue.concept_catalogue``), read once; a read that fails is recorded and means no concepts."""
+        if self._catalogue is None:
+            try:
+                from .signal_queue import concept_catalogue
+
+                self._catalogue = concept_catalogue(self.client)[0]
+            except Exception as error:  # noqa: BLE001 - a role that cannot list concepts must not stop the run
+                self.errors["concepts"] = type(error).__name__
+                self._catalogue = {}
+        return self._catalogue
 
     # Messages
 
@@ -343,6 +400,81 @@ class Knowledge:
         reason = item.accept_reason if getattr(item, "accepted_by_human", False) else None
         neighbours, suggested = self.neighbours_of(item.lineage_id)
         return build_connections(reason, self.messages_of(item.lineage_id), neighbours, suggested_links=suggested, stars=getattr(item, "stars", None))
+
+
+# --- the other ways to connect a Reference (variations: ideas/variations.py) -----------------------------------------------------------
+
+#: A Story that is still an idea, or was declined, is not something to connect another to.
+NOT_A_STORY_STAGES = frozenset({"idea", "spiked"})
+CONCEPT_PREDICATES = ("mentions", "related_to")
+
+
+def _metadata_of(relation: Mapping[str, Any]) -> dict[str, Any]:
+    import json
+
+    raw = relation.get("metadata")
+    try:
+        found = json.loads(raw or "{}") if isinstance(raw, str) else dict(raw or {})
+    except ValueError:
+        return {}
+    return found if isinstance(found, dict) else {}
+
+
+def concept_options(client: Any, lineage_id: str, catalogue: Mapping[str, Any]) -> list[ConceptOption]:
+    """The concepts a Reference carries (a current ``mentions`` or ``related_to`` link to an accepted concept the catalogue knows), editors' tags first. A concept the
+    catalogue does not know has no name to show and is left out. ``catalogue`` is ``signal_queue.concept_catalogue``'s first result."""
+    from .signal_inputs import explanation_of
+
+    found: dict[str, ConceptOption] = {}
+    for relation in client.list_semantic_relations_by_subject_state(f"reference#{lineage_id}#current"):
+        concept = str(relation.get("objectLineageId") or relation.get("objectId") or "")
+        info = catalogue.get(concept)
+        if (relation.get("relationState", "current") != "current" or relation.get("predicate") not in CONCEPT_PREDICATES or relation.get("objectKind") != "semanticNode"
+                or info is None):
+            continue
+        by_editor = relation.get("predicate") == "related_to" and _metadata_of(relation).get("provenance") == "human"
+        explanation = explanation_of(relation) if relation.get("predicate") == "related_to" else None
+        earlier = found.get(concept)
+        if earlier is None or (by_editor and not earlier.by_editor):
+            found[concept] = ConceptOption(concept, info.name, info.hashtag, info.description, by_editor, explanation or (earlier.explanation if earlier else None))
+    return sorted(found.values(), key=lambda option: (not option.by_editor, option.hashtag))
+
+
+def story_options(
+    client: Any, *, neighbours: Sequence[Neighbour], concepts: Sequence[ConceptOption], exclude: Iterable[str] = (), read_concept_stories: bool = True,
+) -> list[StoryOption]:
+    """The other Stories this Reference could be connected to: a Story that rests on a related Reference (a ``uses_evidence`` link), and a Story tagged with a
+    concept the Reference carries. A Story still at the idea stage or spiked is not one. Each Story is found once, by the first way that reaches it. A read that
+    fails leaves that way out. ``read_concept_stories`` False (the run is out of time) skips the concept reads, which page through everything tagged with the concept."""
+    from ..story_reporting import current_story_version
+
+    skip = set(exclude)
+    found: dict[str, StoryOption] = {}
+
+    def add(lineage: str, via: str) -> None:
+        if lineage in skip or lineage in found:
+            return
+        try:
+            row = current_story_version(client, lineage)
+        except Exception:  # noqa: BLE001 - a Story that cannot be read is not an option
+            return
+        title = str(row.get("headline") or row.get("title") or "").strip()
+        if not title or row.get("stage") in NOT_A_STORY_STAGES:
+            return
+        found[lineage] = StoryOption(lineage, title, " ".join(str(row.get("deck") or "").split()), row.get("stage"), via)
+
+    ways = [(f"reference#{neighbour.lineage_id}#current", "uses_evidence", f"Rests on {neighbour.title}") for neighbour in neighbours]
+    if read_concept_stories:
+        ways += [(f"semanticNode#{concept.lineage_id}#current", "related_to", f"Tagged {concept.hashtag}") for concept in concepts]
+    for key, predicate, via in ways:
+        try:
+            relations = client.list_semantic_relations_by_object_state(key)
+        except Exception:  # noqa: BLE001
+            continue
+        for relation in relations:
+            if relation.get("predicate") == predicate and relation.get("subjectKind") == "item" and relation.get("relationState", "current") == "current":
+                add(str(relation.get("subjectLineageId") or relation.get("subjectId") or ""), via)
+    return list(found.values())
 
 
 def human_voted(row: Mapping[str, Any]) -> bool:
