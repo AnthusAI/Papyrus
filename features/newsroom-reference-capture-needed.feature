@@ -10,7 +10,7 @@ Feature: People capture what we could not: accepted References without their con
   a search. A capture an editor doubts counts as not captured, and one an editor says is complete counts as captured. The newsroom home lists
   a few accepted References that need a capture, most stars first and then newest, the unstarred after every starred one, never a rejected one
   or one still being captured, with the words "We could not collect this. Upload a PDF or paste the text." and the reason when it is known, and a
-  See all that opens the References page on Reviewed Accepted, Captured No and Sort Quality without changing what the editor saved. When a person
+  See all that opens the References page on Reviewed Accepted, Captured No and Sort Newest, so the unstarred ones are there too, without changing what the editor saved. When a person
   pastes or uploads the text, the Reference leaves the list without a reload. These scenarios use synthetic References in an isolated browser at
   375 and 1440 pixels and never touch production.
 
@@ -61,7 +61,7 @@ Feature: People capture what we could not: accepted References without their con
     When the editor opens the newsroom home at 375 and 1440 pixels
     Then three are listed, most stars first and newest first within a level, and the running, the rejected and the captured ones are left out
     And each says "We could not collect this. Upload a PDF or paste the text." with the reason when it is known, the header and a To capture pill count them, and How this is ordered says why
-    And See all links to the References page on Reviewed Accepted, Captured No and Sort Quality, nothing scrolls sideways and nothing has a border
+    And See all links to the References page on Reviewed Accepted, Captured No and Sort Newest, nothing scrolls sideways and nothing has a border
 
   Scenario: Pasting the text removes the Reference from the home list without a reload
     Given an isolated newsroom home where accepted References have stars, some are still capturing, one is rejected and one is captured

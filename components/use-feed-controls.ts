@@ -13,7 +13,7 @@ import { useFeedSearch } from "./use-indexed-reference-feed";
  * the minimum of stars and Captured are the saved ones, shared with the feed. The rules between the choices (`choose` in use-feed-preferences.ts) hold in both: a
  * minimum or Quality moves a Reviewed No to Any, and a minimum moves a saved Predictions to Newest.
  *
- * A page address can open the feed on choices of its own (`/newsroom/references?reviewed=yes&captured=no&sort=quality`, see
+ * A page address can open the feed on choices of its own (`/newsroom/references?reviewed=accepted&captured=no&sort=newest`, see
  * `feedChoicesFromSearch`): the home page's "See all" for accepted References that still need a person to capture them. Those choices are a
  * view for this visit. They are never written to the saved choices, and changing a control while one is open changes the view, not the saved choices.
  */
