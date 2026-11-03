@@ -3,10 +3,11 @@
 import { CardSuggestions } from "./card-suggestions";
 import type { ReferenceRecord } from "../lib/category-repository";
 import {
-  CheckIcon, ChevronDownIcon, CircleCheckBigIcon, CircleCheckIcon, CircleXIcon, ClipboardCheckIcon, FileWarningIcon, FlagIcon, InfoIcon, LayoutPanelLeftIcon, LightbulbIcon,
+  CheckIcon, ChevronDownIcon, CircleCheckBigIcon, CircleCheckIcon, CircleXIcon, ClipboardCheckIcon, FileUpIcon, FileWarningIcon, FlagIcon, InfoIcon, LayoutPanelLeftIcon, LightbulbIcon,
   LinkIcon, Loader2Icon, LockIcon, MailIcon, NewspaperIcon, SlidersHorizontalIcon, Undo2Icon, type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { CAPTURE_NEEDED_FEED_PATH } from "../lib/reference-feed-view";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -43,9 +44,9 @@ import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 export type NeedsMeDecision = { choice: ReviewChoice; reasonCode: ReferenceRejectionReasonCode | null; why: string; notThisKind: boolean };
 
 const TYPE_ICON: Record<NeedsMeType, LucideIcon> = {
-  reference: NewspaperIcon, idea_batch: LightbulbIcon, stage_review: ClipboardCheckIcon, held_email: MailIcon, incomplete_capture: FileWarningIcon, concept_proposal: LightbulbIcon, flag: FlagIcon, link_suggestion: LinkIcon,
+  reference: NewspaperIcon, idea_batch: LightbulbIcon, stage_review: ClipboardCheckIcon, held_email: MailIcon, incomplete_capture: FileWarningIcon, capture_needed: FileUpIcon, concept_proposal: LightbulbIcon, flag: FlagIcon, link_suggestion: LinkIcon,
 };
-const TYPE_HUE: Record<NeedsMeType, number> = { reference: 215, idea_batch: 150, stage_review: 270, held_email: 25, incomplete_capture: 45, concept_proposal: 330, flag: 190, link_suggestion: 100 };
+const TYPE_HUE: Record<NeedsMeType, number> = { reference: 215, idea_batch: 150, stage_review: 270, held_email: 25, incomplete_capture: 45, capture_needed: 35, concept_proposal: 330, flag: 190, link_suggestion: 100 };
 
 function cardPrediction(item: NeedsMeEntry, predictionLoading: boolean): CardPrediction {
   if (item.payload.kind === "reference" && item.payload.decision) return predictionFromDecision(item.payload.decision);
@@ -127,6 +128,7 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
   const requestId = item.payload.kind === "ideas" || item.payload.kind === "request" ? item.payload.request.id : undefined;
   const flag = item.type === "flag";
   const ideaBatch = item.payload.kind === "ideas" ? item.payload : null;
+  const captureNeeded = item.type === "capture_needed";
 
   return (
     <article
@@ -178,7 +180,17 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
       </button>
 
       <div className="relative bg-[var(--feed-footer)] p-3" data-feed-actions>
-        {ideaBatch ? (
+        {captureNeeded ? (
+          // The Reference is already accepted: what is wanted is a person's capture, so the footer says so and opens the capture controls.
+          <button
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[16px] bg-[var(--feed-control)] px-3 text-sm font-semibold text-foreground outline-none transition-colors hover:bg-[var(--feed-control)]/70 focus-visible:ring-2 focus-visible:ring-ring"
+            data-capture-needed-open
+            onClick={onOpen}
+            type="button"
+          >
+            <FileUpIcon aria-hidden="true" className="size-4" />Upload a PDF or paste the text
+          </button>
+        ) : ideaBatch ? (
           <IdeaBatchFooter boardHref={ideaBatch.boardHref} count={ideaBatch.ideas.filter((idea) => idea.stage === null || idea.stage === IDEA_STAGE).length} total={ideaBatch.ideas.length} />
         ) : flag ? (
           <FlagFooter busy={rating.feedback.phase === "saving"} disabledReason={disabledReason} done={item.decisionState === "acknowledged"} error={rating.feedback.phase === "error" ? rating.feedback.message ?? null : null} onAcknowledge={() => ratings.choose(item.id, "accept")} />
@@ -242,6 +254,7 @@ export function NeedsMeRecipe({ threshold }: { threshold: ConfidenceThreshold })
       <ol className="list-decimal space-y-2.5 pl-5">
         <li><strong>Hard gates first.</strong> Nothing continues until you decide one.</li>
         <li><strong>Then where your answer matters most.</strong> Each item is scored by how unsure the Cyclotron is, times how much it matters. Age does not change it. A coin toss scores highest; a sure thing scores lowest; no prediction counts as halfway.</li>
+        <li><strong>Accepted but not collected.</strong> A Reference you accepted whose content we could not collect (a page that blocked us, say) is listed under To capture, three at a time, until someone uploads a PDF or pastes the text. Most stars first, then the most recent; one without stars comes after every starred one. See all opens the References page on Reviewed Accepted, Captured No, sorted by Quality. A capture still running is not listed.</li>
         <li><strong>A mix, not a run.</strong> Never more than two of one kind in a row while something else is waiting.</li>
         <li><strong>Confident items do not ask for you.</strong> {threshold.threshold !== null
           ? <>Items the Cyclotron is surer about than {Math.round((1 - threshold.threshold) * 100)}% (the median of the {threshold.examples} predictions you confirmed) wait under Decided automatically. You can overrule any of them.</>
@@ -376,6 +389,7 @@ export function NeedsMeView({
   });
 
   const counts = useMemo(() => countNeedsMe(placed.feed), [placed.feed]);
+  const captureCount = counts.tocapture;
   const visible = placed.feed.filter((item) => matchesFilter(item, filter));
   const queue = visible.map((item) => item.id);
   const selected = byId.get(selectedId) ?? null;
@@ -532,6 +546,12 @@ export function NeedsMeView({
                 />
               ))}
             </div>
+            {captureCount > 0 && (filter === "all" || filter === "tocapture") ? (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-[20px] bg-[var(--feed-card)] px-4 py-3 text-sm" data-capture-needed-strip>
+                <span className="inline-flex items-center gap-2"><FileUpIcon aria-hidden="true" className="size-4 shrink-0" />Accepted References we could not collect: upload a PDF or paste the text, best first.</span>
+                <Link className={cn(PILL, "bg-[var(--feed-control)] text-foreground")} data-capture-needed-see-all href={getNewsroomNavHref(CAPTURE_NEEDED_FEED_PATH, demo)}>See all</Link>
+              </div>
+            ) : null}
             {moreLinks && (filter === "all" || filter === "links") ? (
               <div className="mt-4 flex justify-center">
                 <button

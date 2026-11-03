@@ -33,6 +33,9 @@ import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { NewsroomBoardSkeleton } from "./newsroom-board-skeleton";
 import { NewsroomArticleEditor } from "./newsroom-article-editor";
+import { resolveArticlesBackend } from "../lib/newsroom-articles";
+import { StoryCardStars, useStoryCardSlots } from "./story-board-stars";
+import { useStoryStars } from "./use-story-stars";
 import { NewsroomAssignmentDetail } from "./newsroom-assignment-detail";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
 import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
@@ -79,6 +82,9 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const [supportingRecordsError, setSupportingRecordsError] = useState<string | null>(null);
   const generation = useRef(0);
   const boardBodyRef = useRef<HTMLDivElement | null>(null);
+  const articlesBackend = useMemo(() => resolveArticlesBackend(isLocalPreviewEnabled()), []);
+  const storyStars = useStoryStars((itemId, stars) => articlesBackend.actions.setItemStars(itemId, stars));
+  const storyCardSlots = useStoryCardSlots(boardBodyRef, subject !== "assignment");
   const [typeFilter, setTypeFilter] = useState<string | null>("all");
   const showsContentItems = subject !== "assignment";
   const contentItemColumnKeyPrefix = `${contentItemBoardType()}/`;
@@ -180,10 +186,11 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
           collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn} initialScroll="start"
           selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={item => setSelected(item.id)} ariaLabel={pageTitle}
           emptyMessage={error ? "Records could not be loaded." : "No records in this selection."} />}
+        {subject !== "assignment" ? <StoryCardStars issues={issues} slots={storyCardSlots} controller={storyStars} /> : null}
         {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[]}>
           {issue.kind === "contentItem"
             ? <>
-              <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded />
+              <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded starsController={storyStars} />
               <Link className="organizer-header-button" href={getNewsroomNavHref(issue.href)}>Open full page</Link>
             </>
             : (() => {

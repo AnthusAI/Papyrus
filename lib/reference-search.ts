@@ -4,9 +4,9 @@
  */
 import type { ReferenceRecord } from "./category-repository";
 import { referenceFeedKeys } from "./reference-feed-keys";
-import { starsOf } from "./reference-policy";
+import { matchesCaptured, normalizeReferenceCurationStatus, starsOf, type CapturedChoice } from "./reference-policy";
 
-export type ReferenceSearchShow = "unrated" | "rated" | "all";
+export type ReferenceSearchShow = "unrated" | "rated" | "all" | "accepted";
 export type ReferenceSearchLane = { status: "ok" | "failed"; message?: string };
 export type ReferenceSearchMatch = { reference: ReferenceRecord; matchedBy: Array<"keyword" | "meaning">; matchedFields: string[] };
 export type ReferenceSearchPage = {
@@ -25,6 +25,8 @@ export type ReferenceSearchInput = {
   cursor: string | null;
   sort?: ReferenceSearchSort;
   minStars?: ReferenceSearchMinStars;
+  /** Captured: `yes` keeps matches whose content we hold in full, `no` the rest. Absent is Any. */
+  captured?: CapturedChoice;
 };
 export type ReferenceSearchReader = (input: ReferenceSearchInput) => Promise<ReferenceSearchPage>;
 
@@ -114,6 +116,7 @@ export function previewSearch(
     if (!state) continue;
     if (input.show === "unrated" && !state.endsWith("#unrated")) continue;
     if (input.show === "rated" && !state.endsWith("#rated")) continue;
+    if (input.show === "accepted" && !(state.endsWith("#rated") && normalizeReferenceCurationStatus(record.curationStatus) === "accepted")) continue;
     const fields: Record<string, string[]> = {
       title: words(record.title ?? ""), authors: words((record.authors ?? []).join(" ")), sourceUri: words(record.sourceUri ?? ""), externalItemId: words(record.externalItemId ?? ""),
     };
@@ -128,7 +131,8 @@ export function previewSearch(
   const rank = (match: ReferenceSearchMatch) => (match.matchedBy.length === 2 ? 0 : match.matchedBy[0] === "keyword" ? 1 : 2);
   matches.sort((left, right) => rank(left) - rank(right) || (right.reference.feedArrivalAt ?? "").localeCompare(left.reference.feedArrivalAt ?? "") || left.reference.id.localeCompare(right.reference.id));
   const arrival = (match: ReferenceSearchMatch) => match.reference.feedArrivalAt ?? "";
-  const kept = input.minStars ? matches.filter((match) => starsOf(match.reference) >= input.minStars!) : matches;
+  const starred = input.minStars ? matches.filter((match) => starsOf(match.reference) >= input.minStars!) : matches;
+  const kept = input.captured && input.captured !== "any" ? starred.filter((match) => matchesCaptured(match.reference, input.captured!)) : starred;
   // Stable sorts, as the site's: a tie keeps the relevance order.
   if (input.sort === "newest") kept.sort((left, right) => arrival(right).localeCompare(arrival(left)));
   else if (input.sort === "quality") kept.sort((left, right) => starsOf(right.reference) - starsOf(left.reference) || arrival(right).localeCompare(arrival(left)));

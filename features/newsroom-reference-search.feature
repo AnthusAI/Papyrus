@@ -1,9 +1,9 @@
 @brand-agnostic @reference-feed-fixtures
 Feature: One search box on the References page finds a Reference again, whatever its state
-  The newsroom References page has one search box above Sort and Show. Pressing Enter searches the words of every Reference's title, authors,
-  link and id, and the meaning of its summary, together, over Unrated, Accepted and Rejected References alike, and answers with the ordinary cards
+  The newsroom References page has one search box above Sort and Reviewed. Pressing Enter searches the words of every Reference's title, authors,
+  link and id, and the meaning of its summary, together, over pending, Accepted and Rejected References alike, and answers with the ordinary cards
   the feed shows, each saying in words how it matched: "Matched: title, author", "Matched: meaning" or "Matched: title and meaning". The query
-  is in the address as ?q=. While a search is open, Sort reads Relevance, Show opens on All without changing the choice saved in this browser, and
+  is in the address as ?q=. While a search is open, Sort reads Relevance, Reviewed opens on Any without changing the choice saved in this browser, and
   clearing the search brings the saved choices back. A search has no lead card and no new-items pill, pages with the feed's own infinite scroll,
   and never shows a card twice. These scenarios use synthetic References in an isolated browser at 375 and 1440 pixels and never touch production.
 
@@ -11,7 +11,7 @@ Feature: One search box on the References page finds a Reference again, whatever
     Given a synthetic site with unrated, accepted and rejected References
     When the editor types an author's full name in the search box and presses Enter
     Then the rejected Reference by that author is the one card, showing its Reject, with "Matched: author"
-    And the search box is above Sort and Show, the address carries ?q=, and nothing scrolls sideways at 375 pixels
+    And the search box is above Sort and Reviewed, the address carries ?q=, and nothing scrolls sideways at 375 pixels
 
   Scenario: A word from a title finds an unrated Reference
     Given a synthetic site with unrated, accepted and rejected References
@@ -30,23 +30,23 @@ Feature: One search box on the References page finds a Reference again, whatever
     Then that Reference is the first card and says "Matched: title and meaning"
     And the cards that match only by words or only by meaning follow it, each saying how
 
-  Scenario: Sort reads Relevance and Show opens on All without changing what the editor saved
-    Given a browser that saved Rated as its Show choice
-    When the editor searches, narrows Show to Unrated, and then clears the search
-    Then Sort reads Relevance in place of Predictions and Newest, and Show opened on All
-    And choosing Unrated during the search did not change the saved choice
-    And clearing the search brings back Sort, the saved Show of Rated, and a plain address
+  Scenario: Sort reads Relevance and Reviewed opens on Any without changing what the editor saved
+    Given a browser that saved Reviewed Yes as its choice
+    When the editor searches, narrows Reviewed to No, and then clears the search
+    Then Sort reads Relevance in place of Predictions and Newest, and Reviewed opened on Any
+    And choosing Reviewed No during the search did not change the saved choice
+    And clearing the search brings back Sort, the saved Reviewed of Yes, and a plain address
 
   Scenario: The address opens the page already searching
     Given a synthetic site with unrated, accepted and rejected References
     When the editor opens the References page with ?q= and a name
     Then the search box holds that name and its results are listed
 
-  Scenario: Nothing matches, and nothing matches within the chosen Show
+  Scenario: Nothing matches, and nothing matches within the chosen Reviewed
     Given a synthetic site with unrated, accepted and rejected References
-    When the editor searches for words nothing contains, and then for a name that only a rated Reference has while Show is Unrated
+    When the editor searches for words nothing contains, and then for a name that only a rated Reference has while Reviewed is No
     Then the first says no References match what was typed, in words
-    And the second says "No unrated matches" and offers a Show all button that lists the match
+    And the second says "No matches with Reviewed No" and offers a Show Reviewed Any button that lists the match
 
   Scenario: Meaning search failing still shows the word results
     Given a synthetic site where meaning search is unavailable

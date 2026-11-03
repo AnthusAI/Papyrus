@@ -46,8 +46,9 @@ from .cuts import search_cut_count
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
-SHOW_CHOICES = ("unrated", "rated", "all")
+SHOW_CHOICES = ("unrated", "rated", "accepted", "all")
 SORT_CHOICES = ("relevance", "newest", "quality")
+CAPTURED_CHOICES = ("any", "yes", "no")
 MIN_STARS_CHOICES = (3, 4, 5)   # never "only 3" or "only 2": a minimum is a floor, and the lowest floor worth asking for is 3
 DEFAULT_LIMIT = 24
 MAX_LIMIT = 100
@@ -55,7 +56,7 @@ MAX_QUERY_LENGTH = 500
 RRF_K = 60
 MEANING_TOP_K = 100   # S3 Vectors' real limit for one QueryVectors call
 REFERENCE_SUMMARY_VECTOR_KIND = "reference_summary"
-MEANING_STATUSES = {"unrated": ["pending"], "rated": ["accepted", "rejected"], "all": ["pending", "accepted", "rejected"]}
+MEANING_STATUSES = {"unrated": ["pending"], "rated": ["accepted", "rejected"], "accepted": ["accepted"], "all": ["pending", "accepted", "rejected"]}
 INDEX_PAGE_SIZE = 1000
 REFRESH_OVERLAP = timedelta(minutes=2)
 MEANING_CACHE_SECONDS = 300
@@ -69,7 +70,7 @@ REFERENCE_FIELDS = (
     "title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount "
     "outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy "
     "curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId "
-    "starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt "
+    "starRating starRatedAt starRatedBy captureState newsroomFeedKey reviewedFeedKey feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt "
     "predictionSortKey discoveredByMonitorId updatedAt"
 )
 LIST_CURRENT_REFERENCES_QUERY = (
@@ -346,6 +347,9 @@ def _shown(row: dict[str, Any], show: str) -> bool:
         return key.endswith("#unrated")
     if show == "rated":
         return key.endswith("#rated")
+    if show == "accepted":
+        # The feed-state suffix cannot tell accepted from rejected, so the status decides.
+        return key.endswith("#rated") and str(row.get("curationStatus") or "") == "accepted"
     return bool(key)
 
 
@@ -430,22 +434,24 @@ def fuse(word_hits: list[WordHit], meaning: list[tuple[str, float]]) -> list[Fus
     return sorted(by_lineage.values(), key=lambda entry: (entry.tier, -entry.score, entry.lineage_id))
 
 
-def search_hash(query: str, show: str, sort: str = "relevance", min_stars: int | None = None) -> str:
-    return hashlib.sha256(f"{' '.join(_normalize(query).split())}\u0000{show}\u0000{sort}\u0000{min_stars or ''}".encode("utf-8")).hexdigest()[:16]
+def search_hash(query: str, show: str, sort: str = "relevance", min_stars: int | None = None, captured: str = "any") -> str:
+    base = f"{' '.join(_normalize(query).split())}\u0000{show}\u0000{sort}\u0000{min_stars or ''}"
+    # "any" adds nothing, so a cursor made before the Captured filter existed stays valid.
+    return hashlib.sha256((base if captured == "any" else f"{base}\u0000{captured}").encode("utf-8")).hexdigest()[:16]
 
 
-def encode_cursor(offset: int, query: str, show: str, sort: str = "relevance", min_stars: int | None = None) -> str:
-    raw = json.dumps({"o": offset, "h": search_hash(query, show, sort, min_stars)}, separators=(",", ":")).encode("utf-8")
+def encode_cursor(offset: int, query: str, show: str, sort: str = "relevance", min_stars: int | None = None, captured: str = "any") -> str:
+    raw = json.dumps({"o": offset, "h": search_hash(query, show, sort, min_stars, captured)}, separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 
-def decode_cursor(cursor: str, query: str, show: str, sort: str = "relevance", min_stars: int | None = None) -> int:
+def decode_cursor(cursor: str, query: str, show: str, sort: str = "relevance", min_stars: int | None = None, captured: str = "any") -> int:
     try:
         payload = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
         offset, digest = int(payload["o"]), str(payload["h"])
     except (ValueError, KeyError, TypeError):
         raise SearchError("The cursor is not valid.") from None
-    if digest != search_hash(query, show, sort, min_stars) or offset < 0:
+    if digest != search_hash(query, show, sort, min_stars, captured) or offset < 0:
         raise SearchError("The cursor belongs to a different search.")
     return offset
 
@@ -479,9 +485,15 @@ def parse_min_stars(value: Any) -> int | None:
     return int(number)
 
 
-def order_fused(fused: list[Fused], rows: dict[str, dict[str, Any]], sort: str, min_stars: int | None) -> list[Fused]:
-    """Narrow the fused results to ``min_stars`` and order them by ``sort``. Stable: ties keep the fused (relevance) order."""
-    kept = [entry for entry in fused if min_stars is None or stars_of(rows[entry.lineage_id]) >= min_stars]
+def is_captured(row: dict[str, Any]) -> bool:
+    """Only a stored ``captureState`` of ``full`` is captured; empty, thin, none and running are not (docs/reference-curation-pipeline.md)."""
+    return str(row.get("captureState") or "") == "full"
+
+
+def order_fused(fused: list[Fused], rows: dict[str, dict[str, Any]], sort: str, min_stars: int | None, captured: str = "any") -> list[Fused]:
+    """Narrow the fused results to ``min_stars`` and ``captured`` and order them by ``sort``. Stable: ties keep the fused (relevance) order."""
+    kept = [entry for entry in fused if (min_stars is None or stars_of(rows[entry.lineage_id]) >= min_stars)
+            and (captured == "any" or is_captured(rows[entry.lineage_id]) == (captured == "yes"))]
     if sort == "newest":
         return sorted(kept, key=lambda entry: _arrival_of(rows[entry.lineage_id]), reverse=True)
     if sort == "quality":
@@ -528,7 +540,7 @@ def search_references(
 ) -> dict[str, Any]:
     """``{items: [{reference, matchedBy, matchedFields}], nextCursor, lanes: {keyword: {status}, meaning: {status, message?}}}``.
 
-    ``payload``: ``query``, ``show``, ``limit``, ``cursor`` and, to order or narrow the results, ``sort`` (relevance, newest, quality) and ``minStars`` (3, 4, 5)."""
+    ``payload``: ``query``, ``show``, ``limit``, ``cursor`` and, to order or narrow the results, ``sort`` (relevance, newest, quality) and ``minStars`` (3, 4, 5) and ``captured`` (any, yes, no: yes is a stored ``captureState`` of full)."""
     index = _index if index is None else index
     query = " ".join(str(payload.get("query") or "").split())[:MAX_QUERY_LENGTH]
     show = str(payload.get("show") or "all")
@@ -538,13 +550,16 @@ def search_references(
     if sort not in SORT_CHOICES:
         raise SearchError(f"sort must be one of {', '.join(SORT_CHOICES)}.")
     min_stars = parse_min_stars(payload.get("minStars"))
+    captured = str(payload.get("captured") or "any")
+    if captured not in CAPTURED_CHOICES:
+        raise SearchError(f"captured must be one of {', '.join(CAPTURED_CHOICES)}.")
     try:
         limit = int(payload.get("limit") or DEFAULT_LIMIT)
     except (TypeError, ValueError):
         raise SearchError("limit must be a whole number.") from None
     limit = max(1, min(limit, MAX_LIMIT))
     cursor = payload.get("cursor")
-    offset = decode_cursor(str(cursor), query, show, sort, min_stars) if cursor else 0
+    offset = decode_cursor(str(cursor), query, show, sort, min_stars, captured) if cursor else 0
     lanes: dict[str, dict[str, Any]] = {"keyword": {"status": "ok"}, "meaning": {"status": "ok"}}
     if not query_terms(query):
         return {"items": [], "nextCursor": None, "lanes": lanes}
@@ -581,11 +596,11 @@ def search_references(
                      if (row := index.row(lineage_id)) is not None and _shown(row, show)]
     candidates = fuse(word_hits, shown_meaning)
     rows = {entry.lineage_id: row for entry in candidates if (row := index.row(entry.lineage_id)) is not None}
-    fused = order_fused([entry for entry in candidates if entry.lineage_id in rows], rows, sort, min_stars)
+    fused = order_fused([entry for entry in candidates if entry.lineage_id in rows], rows, sort, min_stars, captured)
     page = fused[offset: offset + limit]
     items = []
     for entry in page:
         matched_by = [lane for lane, found in (("keyword", entry.by_words), ("meaning", entry.by_meaning)) if found]
         items.append({"reference": index.row(entry.lineage_id), "matchedBy": matched_by, "matchedFields": entry.word_fields})
     more = offset + limit < len(fused)
-    return {"items": items, "nextCursor": encode_cursor(offset + limit, query, show, sort, min_stars) if more else None, "lanes": lanes}
+    return {"items": items, "nextCursor": encode_cursor(offset + limit, query, show, sort, min_stars, captured) if more else None, "lanes": lanes}

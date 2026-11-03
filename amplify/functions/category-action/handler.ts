@@ -27,6 +27,7 @@ import {
 import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
 import { referenceFeedArrivalAt, referenceFeedKeys, referenceFeedStateKey, starFeedKeyFor } from "../../../lib/reference-feed-keys";
 import { claimGroups } from "../../../lib/staff-groups";
+import { isStoryItemType } from "../../../lib/content-item-lifecycle";
 import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
 import { createReferenceLink, decideReferenceLink, describeEditorConcept, type ReferenceLinkStore } from "./reference-links";
 
@@ -41,6 +42,7 @@ type DenyCurationDelegationHandler = Schema["denyCurationDelegation"]["functionH
 type GetCurationDelegationStatusHandler = Schema["getCurationDelegationStatus"]["functionHandler"];
 type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functionHandler"];
 type ReferenceStarsHandler = Schema["setReferenceStars"]["functionHandler"];
+type ItemStarsHandler = Schema["setItemStars"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
 type ReferenceNoteHandler = Schema["createReferenceNote"]["functionHandler"];
 type MoveReferenceCorpusHandler = Schema["moveReferenceCorpus"]["functionHandler"];
@@ -73,6 +75,7 @@ type CategoryActionEvent =
   | Parameters<GetCurationDelegationStatusHandler>[0]
   | Parameters<RecordDelegatedCurationHandler>[0]
   | Parameters<ReferenceStarsHandler>[0]
+  | Parameters<ItemStarsHandler>[0]
   | Parameters<ReferenceQualityHandler>[0]
   | Parameters<ReferenceNoteHandler>[0]
   | Parameters<MoveReferenceCorpusHandler>[0]
@@ -151,6 +154,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "getCurationDelegationStatus") return getCurationDelegationStatusAction(event as Parameters<GetCurationDelegationStatusHandler>[0]);
   if (fieldName === "recordDelegatedCuration") return recordDelegatedCuration(event as Parameters<RecordDelegatedCurationHandler>[0]);
   if (fieldName === "setReferenceStars") return setReferenceStars(event as Parameters<ReferenceStarsHandler>[0]);
+  if (fieldName === "setItemStars") return setItemStars(event as Parameters<ItemStarsHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
   if (fieldName === "createReferenceNote") return createReferenceNote(event as Parameters<ReferenceNoteHandler>[0]);
   if (fieldName === "moveReferenceCorpus") return moveReferenceCorpus(event as Parameters<MoveReferenceCorpusHandler>[0]);
@@ -519,6 +523,44 @@ async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
     "update Reference stars",
   );
   return { ok: true, referenceId, stars, status: normalizeOptionalString(reference.curationStatus) ?? "pending" };
+}
+
+/**
+ * An editor's optional 1-5 star rating of a Story (an Item lineage): what to publish, and later how to rank and feature it. Same rules as
+ * `setReferenceStars`: separate from stage changes, the newest rating wins, `stars: null` clears it (and who and when), no reason needed.
+ *
+ * The rating sits on the lineage's newest version, because every new version is copied from it (`src/papyrus_content/item_stars.py`). It is a plain
+ * update of that one row: it creates no version, never touches `stage`, `status`, `updatedAt` or the published copy, so rating a published Story
+ * does not republish it. Stars are private editorial signals and are never copied to `PublishedItem` or any projection.
+ */
+async function setItemStars(event: Parameters<ItemStarsHandler>[0]) {
+  const client = await getDataClient();
+  const itemId = normalizeRequiredString(event.arguments.itemId, "itemId");
+  const stars = normalizeReferenceStars(event.arguments.stars);
+  const item = await getRequiredRecord(client.models.Item, itemId, "Item");
+  if (!isStoryItemType(normalizeOptionalString(item.type) ?? "")) throw new Error("Only Stories can be rated.");
+  const lineageId = normalizeOptionalString(item.lineageId) ?? itemId;
+  const versions: Array<{ id: string; versionNumber?: number | null; versionState?: string | null; versionCreatedAt?: string | null }> = [];
+  let nextToken: string | null | undefined;
+  do {
+    const page = await client.models.Item.listItemsByLineageAndVersion({ lineageId }, { limit: 200, nextToken });
+    if (page.errors?.length) throw new Error(page.errors[0]?.message ?? "Could not read the Story's versions.");
+    versions.push(...(page.data ?? []).filter(Boolean));
+    nextToken = page.nextToken;
+  } while (nextToken);
+  // The working record, as `current_story_version` reads it: the row marked current (the most recently created if there are several), else the highest version.
+  const marked = versions.filter((row) => row.versionState === "current");
+  const pool = marked.length ? marked : versions;
+  const newest = pool.length
+    ? pool.reduce((best, row) => (`${row.versionCreatedAt ?? ""}|${String(row.versionNumber ?? 0).padStart(9, "0")}` > `${best.versionCreatedAt ?? ""}|${String(best.versionNumber ?? 0).padStart(9, "0")}` ? row : best))
+    : { id: itemId };
+  const now = new Date().toISOString();
+  const actor = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom";
+  await requireDataResult(
+    client.models.Item.update({ id: newest.id, ...referenceStarFields(stars, actor, now) }),
+    "update Story stars",
+  );
+  return { ok: true, itemId: newest.id, lineageId, stars };
 }
 
 function normalizeReferenceStars(value: unknown): number | null {
@@ -947,6 +989,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       importedAt: normalizeOptionalString(current.importedAt),
       createdAt: normalizeOptionalString(current.createdAt) ?? now,
       ...(current.starRating ? { starRating: current.starRating, starRatedAt: current.starRatedAt, starRatedBy: current.starRatedBy, starFeedKey: starFeedKeyFor(targetCorpusId, current.starRating) } : {}),
+      ...(current.captureState ? { captureState: current.captureState } : {}),
       curationStatus,
       curationStatusKey: `${targetCorpusId}#${curationStatus}`,
       curationStatusUpdatedAt: normalizeOptionalString(current.curationStatusUpdatedAt) ?? now,

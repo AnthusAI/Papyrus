@@ -6,6 +6,7 @@ import {
   extendFeedOrderSnapshot,
   feedLeadId,
   feedWindow,
+  filterByCaptured,
   filterByStars,
   laterPageItems,
   takeFeedOrderSnapshot,
@@ -13,6 +14,7 @@ import {
   type FeedItem,
   type FeedMinStars,
   type FeedOrderSnapshot,
+  type FeedCaptured,
   type FeedShow,
   type FeedSort,
 } from "../lib/reference-feed-ranking";
@@ -37,6 +39,7 @@ export function useFeedWindow({
   sort,
   show,
   minStars = 0,
+  captured = "any",
   visitRated,
 }: {
   allItems: FeedItem[];
@@ -50,6 +53,8 @@ export function useFeedWindow({
   show: FeedShow;
   /** The fewest stars to show (0 is Any). The Quality sort shows starred References only. */
   minStars?: FeedMinStars;
+  /** Captured (Any, Yes, No): applied to the window's items after the others. */
+  captured?: FeedCaptured;
   visitRated: ReadonlySet<string>;
 }) {
   const [pages, setPages] = useState(1);
@@ -85,7 +90,7 @@ export function useFeedWindow({
 
   const stable = snapshot.current ? applyFeedOrderSnapshot(snapshot.current, live, sort, show) : null;
   const unstable = useMemo(() => visibleFeedItems(live, sort, show, visitRated), [live, sort, show, visitRated]);
-  const items = filterByStars(stable?.items ?? unstable, sort, minStars);
+  const items = filterByCaptured(filterByStars(stable?.items ?? unstable, sort, minStars), captured);
   return {
     items,
     leadId: stable ? (stable.leadId && items.some((item) => item.lineageId === stable.leadId) ? stable.leadId : undefined) : feedLeadId(items),

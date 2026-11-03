@@ -185,6 +185,18 @@ function normalizePolicyToken(value: unknown): string {
     .replace(/^_|_$/g, "");
 }
 
+/** The Captured choice of the References feed and search: `no` is every Reference whose content we do not hold in full. */
+export type CapturedChoice = "any" | "yes" | "no";
+
+/**
+ * Whether a Reference passes the Captured choice. Only `captureState` `full` is captured: `thin`, `running`, `none` and an empty value
+ * (a monitor-discovered Reference has only its address) are all not captured (docs/reference-curation-pipeline.md).
+ */
+export function matchesCaptured(reference: { captureState?: string | null }, captured: CapturedChoice): boolean {
+  if (captured === "any") return true;
+  return (reference.captureState === "full") === (captured === "yes");
+}
+
 /** An editor's stars on a Reference, 1 to 5, or 0 when it has none. */
 export function starsOf(reference: { starRating?: number | null }): number {
   const stars = reference.starRating;

@@ -6,12 +6,13 @@
  *   - "Quality" is the editor's stars, most first, newest first within a star level; only starred References are in it.
  *   - Ties go to the newest item, then to a stable id order.
  *   - "Minimum stars" (Any, 3+, 4+, 5) keeps References with at least that many stars, in whichever sort is chosen.
- *   - "Unrated" shows References nobody has answered; "All" adds the answered ones to the same list.
+ *   - "Reviewed" (Any, Accepted, Yes, No): Accepted shows only the References someone accepted (never a rejected one), Yes shows the References someone has accepted or rejected, No the ones nobody has answered, Any both in one list.
+ *   - "Captured" (Any, Yes, No): Yes shows References whose content we hold in full, No the ones we could not collect (thin, still running, or only an address).
  * Nothing is cut off by age, and age never changes the order of Predictions: the original confidence is what ranks.
  */
 import type { ReferenceRecord } from "./category-repository";
 import type { RelevanceDecisionView } from "./relevance-decisions";
-import { normalizeReferenceCurationStatus, starsOf } from "./reference-policy";
+import { matchesCaptured, normalizeReferenceCurationStatus, starsOf, type CapturedChoice } from "./reference-policy";
 import { referenceLineageId } from "./newsroom-references";
 
 /** The probability that stands for "no prediction". */
@@ -55,13 +56,27 @@ export type FeedItem = {
 };
 
 export type FeedSort = "best" | "newest" | "quality";
-export type FeedShow = "unrated" | "all" | "rated";
+/**
+ * Reviewed (Ryan, 2026-11): whether a Reference has been accepted or rejected. The saved values keep their old names so nobody's choice resets:
+ * `rated` is Reviewed Yes (accepted or rejected), `unrated` is Reviewed No, `all` is Reviewed Any, and `accepted` is Reviewed Accepted: only the
+ * ones someone accepted (`REVIEWED_LABELS` in components/reference-feed.tsx).
+ */
+export type FeedShow = "unrated" | "all" | "rated" | "accepted";
+/** Captured: whether the newsroom holds the content (`Reference.captureState` is `full`). `no` includes a capture still running, a thin one and none. */
+export type FeedCaptured = CapturedChoice;
+export const FEED_CAPTURED: readonly FeedCaptured[] = ["any", "yes", "no"];
+export const DEFAULT_FEED_CAPTURED: FeedCaptured = "any";
 /** The fewest stars to show: 0 is Any. Never "only 3" or "only 2": a minimum is a floor, and the lowest worth asking for is 3. */
 export type FeedMinStars = 0 | 3 | 4 | 5;
 export const FEED_MIN_STARS: readonly FeedMinStars[] = [0, 3, 4, 5];
 export const DEFAULT_FEED_SORT: FeedSort = "best";
 export const DEFAULT_FEED_SHOW: FeedShow = "unrated";
 export const DEFAULT_FEED_MIN_STARS: FeedMinStars = 0;
+
+/** The items the Captured choice lets through, for the pages that hold every Reference in memory (the demo); the indexed feed filters its pages as it reads them (`capturedRows`). */
+export function filterByCaptured(items: FeedItem[], captured: FeedCaptured): FeedItem[] {
+  return captured === "any" ? items : items.filter((item) => matchesCaptured(item.reference, captured));
+}
 
 export function scoreFeedItem(reference: ReferenceRecord, decision: RelevanceDecisionView | undefined): FeedItem {
   const status = normalizeReferenceCurationStatus(reference.curationStatus);
@@ -82,6 +97,10 @@ export function buildFeedItems(references: ReferenceRecord[], decisions: Readonl
     items.push(scoreFeedItem(reference, decisions?.get(referenceLineageId(reference))));
   }
   return items;
+}
+
+function isAcceptedItem(item: FeedItem): boolean {
+  return normalizeReferenceCurationStatus(item.reference.curationStatus) === "accepted";
 }
 
 /** Predictions: highest P(accept) first; ties go to the newest item, then to a stable id order. */
@@ -118,7 +137,7 @@ export function filterByStars(items: FeedItem[], sort: FeedSort, minStars: FeedM
  * lists the answered items, and keeps one whose answer was cleared this visit, so it does not vanish under the editor's hand.
  */
 export function visibleFeedItems(items: FeedItem[], sort: FeedSort, show: FeedShow, visitRated: ReadonlySet<string> = new Set()): FeedItem[] {
-  const keep = (item: FeedItem) => show === "all" || (show === "rated" ? item.rated : !item.rated) || visitRated.has(item.lineageId);
+  const keep = (item: FeedItem) => show === "all" || (show === "rated" ? item.rated : show === "accepted" ? isAcceptedItem(item) : !item.rated) || visitRated.has(item.lineageId);
   return orderFeedItems(items.filter(keep), sort);
 }
 
@@ -165,7 +184,8 @@ export function applyFeedOrderSnapshot(snapshot: FeedOrderSnapshot, live: FeedIt
 } {
   const byId = new Map(live.map((item) => [item.lineageId, item] as const));
   const items = (sort === "newest" ? snapshot.newest : sort === "quality" ? snapshot.quality : snapshot.best)
-    .filter((id) => show === "all" || (show === "rated" ? !snapshot.unrated.has(id) || byId.get(id)?.rated : snapshot.unrated.has(id)))
+    .filter((id) => show === "all" || (show === "rated" ? !snapshot.unrated.has(id) || byId.get(id)?.rated
+      : show === "accepted" ? Boolean(byId.get(id) && isAcceptedItem(byId.get(id)!)) : snapshot.unrated.has(id)))
     .flatMap((id) => { const item = byId.get(id); return item ? [item] : []; });
   const lead = snapshot.lead[sort];
   return {

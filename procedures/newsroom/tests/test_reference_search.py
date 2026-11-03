@@ -466,3 +466,62 @@ def test_the_lambda_answers_searchReferences_by_field_name_and_everything_else_a
     assert lambda_handler.handler({"fieldName": "knowledgeQuery", "arguments": {"input": "{}"}}) == {"asked": "knowledgeQuery"}
     with pytest.raises(rs.SearchError):
         lambda_handler.handler({**event, "identity": {"groups": ["reader"]}})
+
+
+# --- the Captured filter -----------------------------------------------------------------------------------------------------------------------
+
+def captured_site():
+    return FakeSite([
+        row("a", "Topic alpha", arrival="2026-11-01T10:00:00.000Z", captureState="full"),
+        row("b", "Topic beta", arrival="2026-11-02T10:00:00.000Z", captureState="thin"),
+        row("c", "Topic gamma", arrival="2026-11-03T10:00:00.000Z"),
+        row("d", "Topic delta", arrival="2026-11-04T10:00:00.000Z", captureState="running"),
+        row("e", "Topic epsilon", arrival="2026-11-05T10:00:00.000Z", captureState="full"),
+    ], page=10)
+
+
+def test_captured_yes_keeps_only_full_and_no_keeps_thin_none_running_and_empty():
+    site = captured_site()
+    assert sorted(titles(search(site, None, "topic", captured="yes"))) == ["Topic alpha", "Topic epsilon"]
+    assert sorted(titles(search(site, None, "topic", captured="no"))) == ["Topic beta", "Topic delta", "Topic gamma"]
+    assert len(search(site, None, "topic", captured="any")["items"]) == 5
+    assert len(search(site, None, "topic")["items"]) == 5
+    assert len(search(site, None, "topic", captured=None)["items"]) == 5
+
+
+def test_captured_combines_with_the_sort_and_a_minimum():
+    site = FakeSite([row("a", "Topic alpha", starRating=5, captureState="full"), row("b", "Topic beta", starRating=5), row("c", "Topic gamma", starRating=2)], page=10)
+    assert titles(search(site, None, "topic", sort="quality", minStars=5, captured="no")) == ["Topic beta"]
+
+
+def test_an_unknown_captured_choice_is_refused():
+    with pytest.raises(rs.SearchError):
+        search(captured_site(), None, "topic", captured="maybe")
+
+
+def test_the_cursor_belongs_to_one_captured_choice():
+    site = captured_site()
+    page = search(site, None, "topic", captured="no", limit=2)
+    assert page["nextCursor"]
+    assert len(search(site, None, "topic", captured="no", limit=2, cursor=page["nextCursor"])["items"]) == 1
+    with pytest.raises(rs.SearchError):
+        search(site, None, "topic", captured="yes", limit=2, cursor=page["nextCursor"])
+    with pytest.raises(rs.SearchError):
+        search(site, None, "topic", limit=2, cursor=page["nextCursor"])
+    # a cursor made before the filter existed is still valid for "any"
+    old = rs.encode_cursor(2, "topic", "all")
+    assert rs.decode_cursor(old, "topic", "all", "relevance", None, "any") == 2
+
+
+def test_reviewed_accepted_checks_the_status_because_the_feed_state_cannot_tell_accepted_from_rejected():
+    site = FakeSite([
+        row("a", "Topic alpha", state="rated"),
+        row("b", "Topic beta", state="rated", curationStatus="rejected"),
+        row("c", "Topic gamma", state="unrated"),
+    ], page=10)
+    assert sorted(titles(search(site, None, "topic", show="accepted"))) == ["Topic alpha"]
+    assert sorted(titles(search(site, None, "topic", show="rated"))) == ["Topic alpha", "Topic beta"]
+    assert rs.MEANING_STATUSES["accepted"] == ["accepted"]
+    page = search(site, None, "topic", show="all", limit=1)
+    with pytest.raises(rs.SearchError):
+        search(site, None, "topic", show="accepted", limit=1, cursor=page["nextCursor"])

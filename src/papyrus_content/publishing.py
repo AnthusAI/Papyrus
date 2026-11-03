@@ -20,6 +20,7 @@ from .markus_renderer.derive import BodyError, derive_body
 from .projection.stored import PROJECTION_METADATA_KEY, projection_metadata
 from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
 from .content_item_lifecycle import UNTYPED_ITEM_TYPE
+from .item_stars import assert_no_item_stars
 from .wiki_stamp import WIKI_PAGE_ITEM_TYPE, stamp_problems
 
 PUBLISHED_ID_PREFIX = "published-"
@@ -319,6 +320,7 @@ def project_item_to_published(
         )
         for row in media
     ]
+    assert_no_item_stars(published)   # stars are private: they order the newsroom and never reach a published row
     return compact_dict(published), published_media
 
 

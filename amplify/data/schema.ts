@@ -349,6 +349,13 @@ const definitions = {
     status: a.string().required(),
   }),
 
+  ItemStarsActionResult: a.customType({
+    ok: a.boolean().required(),
+    itemId: a.id().required(),
+    lineageId: a.id().required(),
+    stars: a.integer(),
+  }),
+
   ReferenceQualityActionResult: a.customType({
     ok: a.boolean().required(),
     referenceId: a.id().required(),
@@ -504,6 +511,20 @@ const definitions = {
       actorLabel: a.string(),
     })
     .returns(a.ref("ReferenceStarsActionResult"))
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  setItemStars: a
+    .mutation()
+    .arguments({
+      itemId: a.id().required(),
+      stars: a.integer(),
+      actorSub: a.string(),
+      actorLabel: a.string(),
+    })
+    .returns(a.ref("ItemStarsActionResult"))
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
@@ -1804,6 +1825,10 @@ const definitions = {
       // "<corpusId>#stars#<n>" for a current, not archived Reference an editor has starred (null otherwise): one partition per star level,
       // read newest first by `feedArrivalAt` for the Quality sort and the minimum-stars filter.
       starFeedKey: a.string(),
+      // How much of this Reference's content the newsroom holds: "full", "thin", "none" or "running". Empty means "none". A stored copy of the
+      // capture rule in lib/reference-capture.ts (docs/reference-curation-pipeline.md), read by the Captured filter and the home page's list
+      // of accepted References that still need a person to capture them. No index.
+      captureState: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [
@@ -2135,6 +2160,9 @@ const definitions = {
       layout: a.json(),
       editorial: a.json(),
       updatedAt: a.datetime(),
+      starRating: a.integer(),
+      starRatedAt: a.datetime(),
+      starRatedBy: a.string(),
       tags: a.hasMany("ItemTag", "itemId"),
       mediaAssets: a.hasMany("MediaAsset", "itemId"),
       ...(includeEditions ? { editionItems: a.hasMany("EditionItem", "itemId") } : {}),

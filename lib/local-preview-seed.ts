@@ -48,6 +48,13 @@ function slugFromHeadline(headline: string): string {
   return headline.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+/** Sample ratings the preview Stories already carry (a Story's private 1-5 stars), so the board, the drawer and the editor show some. */
+const PREVIEW_STORY_STARS: Readonly<Record<string, number>> = {
+  "copywriting-0": 4,
+  "published-0": 5,
+  "idea-1": 2,
+};
+
 export function createLocalPreviewContentItemVersions(): ContentItemVersionRecord[] {
   const stageKeys = contentItemStageKeys(getContentItemStageDefinitions());
   return stageKeys.flatMap((stageKey, stageIndex) => {
@@ -68,6 +75,7 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
         section: headlineIndex === 0 ? "news" : "features",
         updatedAt: isoTimestampHoursBeforeBase(stageIndex * 3 + headlineIndex),
         versionCreatedBy: stageKey === "idea" && headlineIndex === 0 ? "AI" : "Preview editor",
+        starRating: PREVIEW_STORY_STARS[`${stageKey}-${headlineIndex}`] ?? null,
       };
     });
   });
@@ -83,6 +91,13 @@ const PREVIEW_AUTO_ACCEPTED: ReadonlyArray<{ title: string; host: string; hoursA
   { title: "Council meeting agenda, week 44", host: "council.example.test", hoursAgo: 40, actor: "auto:rule", monitor: "council-agendas" },
   { title: "A bakery that outlasted four recessions", host: "market-gazette.example.test", hoursAgo: 55, actor: "auto:cyclotron", confidence: 0.9 },
 ];
+
+/**
+ * What the preview holds of each sample Reference (`Reference.captureState`, the rule in lib/reference-capture.ts): some captured, some cut off,
+ * some only an address, one still being captured, so the Captured filter and the home page's capture list have something to show.
+ */
+const PREVIEW_AUTO_CAPTURE_STATES: readonly string[] = ["none", "thin", "full", "none", "running", "full", "thin"];
+const PREVIEW_CAPTURE_STATES: readonly string[] = ["none", "none", "full", "none", "none"];
 
 function previewAutoAcceptedReason(plan: (typeof PREVIEW_AUTO_ACCEPTED)[number]): string {
   if (plan.actor === "auto:rule") {
@@ -112,6 +127,7 @@ export function createLocalPreviewReferences(): ReferenceRecord[] {
       curationStatusReason: editor ? "Primary source for the zoning story." : previewAutoAcceptedReason(plan),
       curationActorKind: editor ? "human" : plan.actor === "auto:rule" ? "rule" : "cyclotron",
       importedAt: isoTimestampHoursBeforeBase(plan.hoursAgo + 50),
+      captureState: PREVIEW_AUTO_CAPTURE_STATES[index] ?? "full",
       updatedAt: at,
       // One rated, one rated low, the rest unrated: the preview shows filled and empty stars (the shape is the difference).
       ...(index === 0 ? { starRating: 5, starRatedAt: at, starRatedBy: "preview-editor" } : index === 1 ? { starRating: 2, starRatedAt: at, starRatedBy: "preview-editor" } : {}),
@@ -129,6 +145,7 @@ export function createLocalPreviewReferences(): ReferenceRecord[] {
     curationStatusKey: curationStatus,
     curationStatusReason: curationStatus === "rejected" ? "Duplicate of an earlier filing." : null,
     importedAt: isoTimestampHoursBeforeBase(index * 5),
+    captureState: PREVIEW_CAPTURE_STATES[index] ?? "none",
     updatedAt: isoTimestampHoursBeforeBase(index * 5),
     ...(index === 1 ? { starRating: 4, starRatedAt: isoTimestampHoursBeforeBase(5), starRatedBy: "preview-editor" } : {}),
   }));
@@ -186,6 +203,7 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
     versionNumber: version.versionNumber,
     aliases: [],
     everPublished: version.status === "published",
+    starRating: version.starRating ?? null,
   };
 }
 

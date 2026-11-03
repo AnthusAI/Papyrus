@@ -10,11 +10,11 @@
  */
 import type { ReferenceRecord } from "./category-repository";
 import { referenceFeedKeys, starFeedKeyFor } from "./reference-feed-keys";
-import { starsOf } from "./reference-policy";
+import { matchesCaptured, normalizeReferenceCurationStatus, starsOf, type CapturedChoice } from "./reference-policy";
 
 /** Quality is stars first, then newest: the star partitions are read by arrival and merged by stars (docs/reference-feed-indexes.md). */
 export type FeedStreamSort = "best" | "newest" | "quality";
-export type FeedStreamShow = "unrated" | "all" | "rated";
+export type FeedStreamShow = "unrated" | "all" | "rated" | "accepted";
 
 /** `feedStateKey` is the partition read: a feed-state key for `readStream`, a star key (`<corpusId>#stars#<n>`) for `readStarStream`. */
 export type FeedStreamQuery = { feedStateKey: string; sort: FeedStreamSort; limit: number; nextToken: string | null };
@@ -25,7 +25,7 @@ export type FeedStreamReader = (query: FeedStreamQuery) => Promise<FeedStreamPag
 export const FEED_READ_PAGE_SIZE = 24;
 
 export function feedStateKeys(corpusIds: readonly string[], show: FeedStreamShow): string[] {
-  const states = show === "all" ? ["unrated", "rated"] : [show];
+  const states = show === "all" ? ["unrated", "rated"] : [show === "accepted" ? "rated" : show];
   return [...new Set(corpusIds)].flatMap((corpusId) => states.map((state) => `${corpusId}#${state}`));
 }
 
@@ -42,10 +42,23 @@ export function starFeedKeys(corpusIds: readonly string[], minStars: number): st
 }
 
 /** Whether a row from a star partition belongs under the chosen Show: a row with no `feedStateKey` (archived, superseded) never does. */
-export function shownInFeed(reference: Pick<ReferenceRecord, "feedStateKey">, show: FeedStreamShow): boolean {
+export function shownInFeed(reference: Pick<ReferenceRecord, "feedStateKey" | "curationStatus">, show: FeedStreamShow): boolean {
   const key = reference.feedStateKey;
   if (!key) return false;
+  if (show === "accepted") return key.endsWith("#rated") && normalizeReferenceCurationStatus(reference.curationStatus) === "accepted";
   return show === "all" || key.endsWith(show === "unrated" ? "#unrated" : "#rated");
+}
+
+/**
+ * Reviewed Accepted reads the `#rated` partition, which also holds the rejected, so each page is filtered to the accepted ones as it is read
+ * (the same place as `capturedRows`). Any other Show is the reader itself. Pages can come back short or empty; the reader reads on.
+ */
+export function acceptedRows(read: FeedStreamReader, show: FeedStreamShow): FeedStreamReader {
+  if (show !== "accepted") return read;
+  return async (query) => {
+    const page = await read(query);
+    return { ...page, items: page.items.filter((reference) => shownInFeed(reference, "accepted")) };
+  };
 }
 
 /**
@@ -57,6 +70,20 @@ export function liveStarRows(read: FeedStreamReader, show: FeedStreamShow): Feed
   return async (query) => {
     const page = await read(query);
     return { ...page, items: page.items.filter((reference) => shownInFeed(reference, show)) };
+  };
+}
+
+/**
+ * The Captured choice, applied to each page as it is read (the same place as `liveStarRows`): `yes` keeps the Reference whose `captureState`
+ * is `full`, `no` keeps every other (a thin capture, one still running, none, or no value at all). `any` is the reader itself. A page can
+ * come back short, or empty with a next token, however many rows were dropped; `MergedFeedReader` reads on and the feed's sentinel asks
+ * again, so a long run of filtered rows never ends the list.
+ */
+export function capturedRows(read: FeedStreamReader, captured: CapturedChoice): FeedStreamReader {
+  if (captured === "any") return read;
+  return async (query) => {
+    const page = await read(query);
+    return { ...page, items: page.items.filter((reference) => matchesCaptured(reference, captured)) };
   };
 }
 

@@ -61,7 +61,7 @@ backend deployed (a site release), and the `p.apyr.us` docs page for curation sh
 
 ### Finding the good ones again: Quality and Minimum stars
 
-An editor curating with stars needs to go back for "the most recent, highest quality things". The References page has a third Sort, **Quality** (most stars first, newest first within a star level; only starred References), and a **Minimum stars** row (Any, 3+, 4+, 5), both in the feed and in search results ([reference search](reference-search.md)). They read a sparse index on `Reference`, `starFeedKey` (`<corpusId>#stars#<n>`, sorted by `feedArrivalAt`, query `listReferencesByStarFeedAndArrival`), one partition per star level, merged by the same reader as the feed ([reference feed indexes](reference-feed-indexes.md#the-star-index)). `setReferenceStars` writes `starFeedKey` with the rating (clearing the rating clears the key) and gives a Reference with no `feedArrivalAt` one, since the index sorts by it. Stars are still separate from the vote and from relevance, and still never reach the Cyclotron: this changes what an editor can look up, not what the Cyclotron learns. A new version of a Reference keeps its stars, and moving it to another corpus does too, in the new corpus's partition. Carrying stars over to a new version is not part of this change.
+An editor curating with stars needs to go back for "the most recent, highest quality things". The References page has a third Sort, **Quality** (most stars first, newest first within a star level; only starred References), and a **Minimum stars** row (Any, 3+, 4+, 5), both in the feed and in search results ([reference search](reference-search.md)). They read a sparse index on `Reference`, `starFeedKey` (`<corpusId>#stars#<n>`, sorted by `feedArrivalAt`, query `listReferencesByStarFeedAndArrival`), one partition per star level, merged by the same reader as the feed ([reference feed indexes](reference-feed-indexes.md#the-star-index)). `setReferenceStars` writes `starFeedKey` with the rating (clearing the rating clears the key) and gives a Reference with no `feedArrivalAt` one, since the index sorts by it. Stars are still separate from the vote and from relevance, and still never reach the Cyclotron: this changes what an editor can look up, not what the Cyclotron learns. A new version of a Reference keeps its stars (`records._feed_keys_for_new_version`), and moving it to another corpus does too, in the new corpus's partition. Stories have the same three fields and the same rules, with their own mutation, `setItemStars`, and a carry-over for every Item version path ([content item lifecycle, star ratings](content-item-lifecycle.md#star-ratings-ppy-f1c1fd)). A Reference's rating also orders the public home page (an editor's rating first, then the Cyclotron's confidence), and is never printed there or published: only a position in the order is ([home page](home-page.md#ordering-human-ratings-then-cyclotron-confidence)).
 
 ## Suggested links on the card (PPY-3c11bd follow-up, Ryan 2026-11-02)
 
@@ -319,6 +319,32 @@ decides it by `paper.isPaper`, but it has no access to an uploaded PDF's bytes y
 
 `papyrus_content.reference_curation_store.apply_editor_correction(client, reference, editor=..., text=...,
 grobid=..., assessment=..., note=...)` is the same operation for scripts.
+
+## 4a. `Reference.captureState`: whether a person is still needed (2026-11-03)
+
+Some accepted References are only a title and an address: the page was behind an I'm-not-a-robot gate or a paywall. It is worth human effort (upload a PDF, or select all and paste) to capture the highest-rated ones, so each Reference stores how much of its content we hold, on the Reference itself (`Reference.captureState`, no index): `full`, `thin`, `none` or `running`. **Empty means `none`**: a Reference a monitor discovered has only its address and nothing was captured. Only `full` counts as captured; `thin`, `none`, `running` and empty all read as "not captured". The newsroom's Captured filter, search's `captured` choice and the home page's list of accepted References that still need a capture read it.
+
+**The rule decides today; no capture classifier exists yet.** It takes the same inputs as the card's capture badge (`captureStatus` in `lib/reference-capture.ts`: the curation card, else the older `extracted_text` attachments) and puts the editor's word on top:
+
+1. Text a person pasted, corrected or uploaded (the card's current text is a `curation-edit-*` body) is `full`, whatever its length. The assessment that comes with a replacement is about the machine capture, not the new text.
+2. Otherwise an editor's latest `capture_completeness` label wins: `complete` is `full`; `incomplete` and `incorrect` are `thin`, so it asks for a person again.
+3. Otherwise text is `thin` when it has fewer words than the teaser line or when the card's completeness signals doubt it (a subscribe or sign-in phrase in the tail, an ellipsis or cut-off ending, text no longer than the page's own description, a page that says it is not free, far fewer words than the page declares, a truncated response, scanned PDF pages); a long text that only lacks a final full stop is `full`. Otherwise it is `full`.
+4. No text is `none`. A card that is `running` with no text yet is `running`. An assessment cannot create text, so a label on a Reference with no text leaves it `none`.
+
+**The teaser line.** The browser's cards learn the line from the site's own corpus (a quarter of the median captured length, from ten captures). The stored state cannot see the corpus, so it always uses `DEFAULT_TEASER_WORDS` (250). A card can therefore differ from the stored state by a few words near the line; the filter and the home list use the stored state. The code is `storedCaptureState` / `captureStateOfAttachments` (`lib/reference-capture.ts`) and `capture_state` (`src/papyrus_content/reference_capture_state.py`), both tested against `scripts/fixtures/capture-state-vectors.json`.
+
+**Who keeps it right.** One helper, `sync_capture_state(client, reference, card=None)`, recomputes the state from the card and, only when the card holds no text, from the Reference lineage's attachments, and writes the field only when it differs (never `none`: a stale value is cleared with null). It runs from:
+
+| Path | Where |
+| --- | --- |
+| The curation run (`papyrus references curate`, the `papyrus.reference.curate` procedure), at its start (a Reference with no text yet becomes `running`; one that has text keeps its state) and at its end | `write_card` in `reference_curation_store.py` |
+| An editor's paste, corrected text, uploaded PDF or assessment alone (`correctReferenceCapture`, `apply_editor_correction`) | `write_card` |
+| The publication-date backfill, which rewrites the card | `write_card` |
+| Older captured text: `papyrus references process-fetch-url-text`, `attach-extracted-text`, the text filter, assignment registration, citations (every `extracted_text` / `extracted_text_raw` ReferenceAttachment write) | `apply_record_changes` in `records.py` |
+| A new version of a Reference | `_feed_keys_for_new_version` carries the state to the new version (the card and the text belong to the old version's id, and the newsroom reads attachments by lineage) |
+| Existing References | `papyrus references backfill-feed-keys` (counts `captureStatesChanged`) |
+
+**After a person captures it.** `correctReferenceCapture` stores the text as a new `curation-edit-NNNN-text` body, appends the label, marks the summary `stale` and sets `captureState` to `full` in the same call. **Nothing re-runs automatically**: the summary and, for a paper, GROBID wait for the next curation run (`papyrus references curate`, or the `papyrus.reference.curate` procedure where a publication's router triggers it; no publication's router has procedure triggers today). That run does not recapture over the person's text; it summarizes it.
 
 ## 5. Running it
 
