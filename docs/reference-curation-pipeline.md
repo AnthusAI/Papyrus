@@ -59,6 +59,17 @@ turns three stars or more into an Accept and fewer into a Reject, which is the o
 ([ideas from context packs, "Editor interest"](idea-context-packs.md#editor-interest-stars-messages-and-accept-reasons)). A schema change: it needs the
 backend deployed (a site release), and the `p.apyr.us` docs page for curation should gain a short "stars" section (follow-up PPY-3247f1).
 
+## Suggested links on the card (PPY-3c11bd follow-up, Ryan 2026-11-02)
+
+The Reference feed card and the Needs me Reference card show, under the stars and Accept and Reject, the two most likely suggested concepts and the two most
+likely suggested References for that Reference (`components/card-suggestions.tsx`), each with Accept and Reject. One tap calls `ReferenceLinksStore.decide`, the
+call the Related section makes, so the decision is recorded and trained on exactly as there; it is not a vote on the Reference. The order is the close match the
+vector index recorded, most likely first (`lib/card-suggestions.ts`; the Needs me queue's `compareSuggestions` ranks the same way). Reads are lazy: a card asks
+only once it is on screen, through one loader per store that reads at most two References at a time and never the same one twice
+(`createSuggestionLoader`); the backend has no batch read, so a page of cards is throttled rather than batched. A card with no suggestions shows nothing and keeps
+its height. The list rows are buttons, so suggestions stay in the detail pane's Related section. `CardSuggestions` takes an `action` slot for the add-a-concept box
+(`CreateConceptAction`, PR 1066), to be filled once that is on develop.
+
 ## 2. Curation before review
 
 ```

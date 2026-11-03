@@ -17,6 +17,7 @@ import type { PredictionStatus, PredictionStatuses } from "../lib/reference-pred
 import { cn } from "@/lib/utils";
 import { predictionFromDecision, type ReviewChoice } from "./reference-review-card";
 import { CreateStoryButton } from "./create-story-button";
+import { CardSuggestions } from "./card-suggestions";
 import { DecisionControl } from "./decision-control";
 import { CaptureBadge } from "./reference-capture-panel";
 import { AutoAcceptedBadge } from "./auto-accepted-badge";
@@ -410,6 +411,8 @@ export function FeedCard({
           statusOverlay
         />
       </div>
+
+      <CardSuggestions disabled={Boolean(disabledReason)} inset="bg-[var(--feed-footer)] px-4 pb-4" lineageId={item.lineageId} />
     </article>
   );
 }
