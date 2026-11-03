@@ -1299,26 +1299,26 @@ def papyrus_reference_create(args: dict[str, Any]) -> dict[str, Any]:
     external_item_id = str(
         catalog_item.get("item_id") or catalog_item.get("externalItemId") or catalog_item.get("id") or ""
     ).strip()
-    if skip_existing:
-        existing = _find_existing_reference_for_url(
-            client,
-            corpus_id=corpus_id,
-            external_item_id=external_item_id,
-        )
-        if existing:
-            return {
-                "ok": True,
-                "resource": "Reference",
-                "verb": "create",
-                "applied": False,
-                "skipped": True,
-                "reason": "already_exists",
-                "referenceId": existing.get("id"),
-                "reference": _decode_record_json(existing),
-                "url": normalized_url,
-                "api_calls": ["papyrus.Reference.create"],
-                "error": None,
-            }
+    from papyrus_content.reference_identity import IdentityIndex, identity_keys
+
+    existing = _find_existing_reference_for_url(client, corpus_id=corpus_id, external_item_id=external_item_id) if skip_existing else None
+    if not existing:
+        existing = IdentityIndex(client.list_records("Reference")).existing_for({"sourceUri": normalized_url}, corpus_id=corpus_id)
+    if existing:
+        return {
+            "ok": True,
+            "resource": "Reference",
+            "verb": "create",
+            "applied": False,
+            "skipped": True,
+            "reason": "already_exists",
+            "referenceId": existing.get("id"),
+            "reference": _decode_record_json(existing),
+            "url": normalized_url,
+            "matchedBy": sorted(identity_keys({"sourceUri": normalized_url}) & identity_keys(existing)),
+            "api_calls": ["papyrus.Reference.create"],
+            "error": None,
+        }
 
     plan_options = {
         "corpusConfig": corpus_config,

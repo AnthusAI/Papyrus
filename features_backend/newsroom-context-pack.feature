@@ -197,10 +197,11 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     Then only the cited sources not already held are registered, as pending References
     And the held source is reported and left as it is, not registered again
 
-  Scenario: Without cited-only every source is taken in
+  Scenario: Without cited-only every source the publication does not hold is taken in
     Given an earlier packet of seven sources, three cited, one of them already held as an accepted Reference
     When the packet's sources are taken in without the cited-only option
-    Then all seven sources are registered
+    Then the six sources not already held are registered
+    And the accepted source is reported as existing and left accepted, not registered again
 
   Scenario: A publication's own corpus needs no entry in the repository's steering file
     When the corpus key "example" is resolved for the intake against the repository's steering file

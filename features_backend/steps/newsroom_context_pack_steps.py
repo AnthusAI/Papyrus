@@ -56,6 +56,9 @@ class FakeNewsroom:
             row["storedId"], row["id"] = row["id"], row["id"].split("#", 1)[-1]
         return row
 
+    def list_records(self, model):
+        return copy.deepcopy(list(self.records[model].values()))
+
     def safe_list_records(self, model):
         return [self._bare(model, row) for row in self.records[model].values()]
 
@@ -981,9 +984,17 @@ def step_held(context):
     assert context.intake["consideredSourceCount"] == 7 and context.intake["heldReferenceCount"] == 1
 
 
-@then("all seven sources are registered")
-def step_all_registered(context):
-    assert len(context.registered) == 7
+@then("the six sources not already held are registered")
+def step_six_registered(context):
+    assert len(context.registered) == 6
+    assert "https://example.org/source-3" not in {row["sourceUri"] for row in context.registered}
+
+
+@then("the accepted source is reported as existing and left accepted, not registered again")
+def step_existing(context):
+    existing = [row for row in context.intake["references"] if row["action"] == "existing"]
+    assert [row["referenceId"] for row in existing] == ["held-3"]
+    assert context.store.records["Reference"]["held-3"]["curationStatus"] == "accepted"
 
 
 @when("the corpus key \"{key}\" is resolved for the intake against the repository's steering file")
