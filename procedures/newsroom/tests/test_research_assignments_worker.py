@@ -333,3 +333,28 @@ def test_an_idle_tick_lists_once_and_writes_no_receipt(monkeypatch):
     backend.rows["assignment-1"] = assignment(1)
     run_task(store, {"a-site": backend}, publication_id="a-site")
     assert [key for key in table.items if key[1].startswith("ROUTERUN#")]
+
+
+def test_the_router_zip_can_load_everything_a_research_run_uses_with_nothing_but_the_zip(tmp_path):
+    """The Lambda has boto3 and the zip's own packages. The first live run failed with a missing module that tests with the full repository could not see."""
+    import importlib.util
+    import subprocess
+    import sys
+    import zipfile
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location("monitoring_build", root / "infra/monitoring/build.py")
+    build = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build)
+    archive = tmp_path / "router.zip"
+    build.build_router(archive, target="host")
+    unpacked = tmp_path / "task"
+    zipfile.ZipFile(archive).extractall(unpacked)
+    script = ("import sys; sys.path.insert(0, sys.argv[1]); "
+              "from papyrus_content import multi_search_research, research_assignments_worker, newsroom_context_pack, fact_check; "
+              "from papyrus_content import assignments_workflow, reference_curation, steering, catalog, ids, web_search; "
+              "assert sys.argv[1] in multi_search_research.__file__; print('loaded')")
+    done = subprocess.run([sys.executable, "-I", "-S", "-c", script, str(unpacked)], capture_output=True, text=True, cwd=tmp_path,
+                          env={"PAPYRUS_ROOT": str(unpacked)})
+    assert done.stdout.strip() == "loaded", done.stderr[-800:]
+

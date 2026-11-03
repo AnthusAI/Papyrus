@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
-from .accession import execute_reference_accession_assignment
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import message_record, semantic_relation_record
 from .content_item_lifecycle import (
@@ -39,9 +38,6 @@ from .options import (
 )
 from .records import apply_record_changes, build_record_changes, build_record_changes_tolerating_optional_models
 from .reference_policy import normalize_reference_curation_status
-from .reference_url_text import run_reference_url_text_extraction
-from .reference_metadata_generation import run_reference_metadata_generation_from_extracted_text
-from .reporting_packet_review import build_reporting_packet_review_plan
 from .publication import publication_corpus_key
 
 RESEARCH_MODES = frozenset({"internal_brief", "source_discovery", "full_research"})
@@ -1280,6 +1276,7 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
                 max_count = normalize_non_negative_integer(options.get("url-text-max-count"), "--url-text-max-count")
                 force = parse_boolean_option(options.get("url-text-force"), False, "--url-text-force")
                 corpus_id = knowledge_corpus_id(corpus_config)
+                from .reference_url_text import run_reference_url_text_extraction   # its imports are not in the router zip
                 url_text_result = run_reference_url_text_extraction(
                     client=client,
                     references=refreshed_references,
@@ -1305,6 +1302,7 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
                 refreshed_references = _references_for_changed_ids(client, changed_reference_ids)
                 refreshed_attachments: list[dict[str, Any]] = []
                 corpus_id = knowledge_corpus_id(corpus_config)
+                from .reference_metadata_generation import run_reference_metadata_generation_from_extracted_text   # its imports are not in the router zip
                 metadata_generation_result = run_reference_metadata_generation_from_extracted_text(
                     references=refreshed_references,
                     attachments=refreshed_attachments,
@@ -2563,6 +2561,7 @@ def review_reporting_packet(
         or normalize_string(auth_claims.get("sub"))
         or "papyrus-cli"
     )
+    from .reporting_packet_review import build_reporting_packet_review_plan   # its imports are not in the router zip
     plan = build_reporting_packet_review_plan(
         assignment=assignment,
         message={**message, "metadata": load_message_metadata_payload(client, message)},
@@ -2964,3 +2963,69 @@ def _execute_assignment_by_type(
     from .assignment_executors import execute_assignment_by_type
 
     return execute_assignment_by_type(client, assignment_id, options)
+
+
+def _assignment_event_record(
+    *,
+    assignment: dict[str, Any],
+    event_type: str,
+    note: str,
+    actor_label: str,
+    now: str,
+) -> dict[str, Any]:
+    assignment_id = str(assignment["id"])
+    return {
+        "modelName": "AssignmentEvent",
+        "expected": {
+            "id": f"assignment-event-{safe_id(assignment_id)}-{event_type}-{timestamp_for_path(now)}",
+            "assignmentId": assignment_id,
+            "assignmentTypeKey": assignment.get("assignmentTypeKey"),
+            "queueKey": assignment.get("queueKey"),
+            "eventType": event_type,
+            "fromStatus": assignment.get("status"),
+            "toStatus": assignment.get("status"),
+            "actorLabel": actor_label,
+            "note": note,
+            "createdAt": now,
+        },
+    }
+
+
+def _produces_assignment_message_relation(
+    *,
+    assignment: dict[str, Any],
+    message_id: str,
+    now: str,
+    lifecycle: str,
+    message_kind: str,
+    metadata_kind: str,
+    extra_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    assignment_id = str(assignment["id"])
+    metadata = {
+        "lifecycle": lifecycle,
+        "messageKind": message_kind,
+        "metadataKind": metadata_kind,
+        "assignmentTypeKey": assignment.get("assignmentTypeKey"),
+        "queueKey": assignment.get("queueKey"),
+        "workProductKind": message_kind,
+    }
+    if extra_metadata:
+        metadata.update(extra_metadata)
+    return semantic_relation_record(
+        {
+            "predicate": "produces",
+            "subjectKind": "assignment",
+            "subjectId": assignment_id,
+            "subjectLineageId": assignment_id,
+            "objectKind": "message",
+            "objectId": message_id,
+            "objectLineageId": message_id,
+            "rank": 1,
+            "confidence": 1,
+            "reviewRecommended": False,
+            "importRunId": assignment.get("importRunId"),
+            "importedAt": now,
+            "metadata": metadata,
+        }
+    )
