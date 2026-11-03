@@ -2600,7 +2600,7 @@ export async function loadNewsroomAssignmentPage(options: NewsroomAssignmentPage
 const CONTENT_ITEMS_BY_STAGE_QUERY = `
   query ListItemsByStageAndUpdatedAt($stage: String!, $sortDirection: ModelSortDirection, $filter: ModelItemFilterInput, $limit: Int, $nextToken: String) {
     listItemsByStageAndUpdatedAt(stage: $stage, sortDirection: $sortDirection, filter: $filter, limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy }
+      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating }
       nextToken
     }
   }

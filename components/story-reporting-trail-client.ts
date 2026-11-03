@@ -5,7 +5,9 @@ import type { Schema } from "../amplify/data/resource";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { createLocalPreviewReportingTrail, createLocalPreviewStoriesForReference } from "../lib/local-preview-seed";
 import { EMPTY_STORY_REPORTING_TRAIL, referencesByRole, siteNameOf, stageMovesOf, type ReferenceStory, type StoryReportingTrail, type TrailAssignment, type TrailAttachment, type TrailReference, type TrailThread, type TrailVersion } from "../lib/story-reporting-trail";
+import { researchPacketOf, type ResearchPacketView } from "../lib/research-packet";
 import { configureAmplifyClient } from "./amplify-client-provider";
+import { loadModelPayloadsForOwner } from "./news-desk-taxonomy-client";
 
 type GraphqlResponse = { data?: Record<string, { items?: Record<string, unknown>[] | null; nextToken?: string | null } | null> | null; errors?: { message?: string }[] | null };
 type GraphqlClient = { graphql: (options: Record<string, unknown>) => Promise<GraphqlResponse> };
@@ -64,6 +66,35 @@ async function getPreview(client: GraphqlClient, referenceLineageId: string): Pr
   }
 }
 
+/** The editor's direction, from a research assignment's `metadata` attachment (the Assignment model has no column for it). */
+async function getDirection(assignmentId: string): Promise<string | null> {
+  try {
+    const payloads = await loadModelPayloadsForOwner("assignment", assignmentId, ["metadata"]);
+    const direction = payloads.map(payload => parseMetadata(payload.json ?? payload.text).direction).find(value => typeof value === "string" && value.trim());
+    return typeof direction === "string" ? direction : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The packet a research assignment produced: the Message on its `produces` relation, and that Message's `metadata` attachment. Read-only; no Message thread is touched. */
+async function getPacket(client: GraphqlClient, assignmentId: string): Promise<ResearchPacketView | null> {
+  try {
+    const relations = await listAll(client, "listSemanticRelationsBySubjectState", "id predicate objectKind objectId", ", $subjectStateKey: String!", ", subjectStateKey: $subjectStateKey", { subjectStateKey: `assignment#${assignmentId}#current` });
+    const produced = relations.filter(relation => relation.predicate === "produces" && relation.objectKind === "message").map(relation => String(relation.objectId));
+    for (const messageId of produced) {
+      const payloads = await loadModelPayloadsForOwner("message", messageId, ["metadata"]);
+      for (const payload of payloads) {
+        const packet = researchPacketOf(parseMetadata(payload.json ?? payload.text).research);
+        if (packet) return packet;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** The stories whose `uses_evidence` link names this Reference, each with its working title and stage. */
 export async function loadStoriesBasedOnReference(referenceLineageId: string, demo = false): Promise<ReferenceStory[]> {
   if (demo || isLocalPreviewEnabled()) return createLocalPreviewStoriesForReference(referenceLineageId);
@@ -100,8 +131,10 @@ export async function loadStoryReportingTrail(lineageId: string, itemId: string,
   })).sort((left, right) => right.versionNumber - left.versionNumber);
   const assignments: TrailAssignment[] = await Promise.all(assignmentRows.map(async row => {
     const eventRows = await listAll(client, "listAssignmentEventsByAssignmentAndCreatedAt", "id eventType fromStatus toStatus actorLabel note createdAt", ", $assignmentId: ID!", ", assignmentId: $assignmentId", { assignmentId: row.id }).catch(() => []);
+    const research = row.assignmentTypeKey === "research.multi";
+    const [direction, packet] = research ? await Promise.all([getDirection(String(row.id)), row.status === "completed" ? getPacket(client, String(row.id)) : Promise.resolve(null)]) : [null, null];
     return {
-      id: String(row.id), title: String(row.title ?? ""), assignmentTypeKey: String(row.assignmentTypeKey ?? ""), status: String(row.status ?? ""), assigneeKey: text(row.assigneeKey), summary: text(row.summary), createdAt: String(row.createdAt ?? ""),
+      id: String(row.id), title: String(row.title ?? ""), assignmentTypeKey: String(row.assignmentTypeKey ?? ""), status: String(row.status ?? ""), assigneeKey: text(row.assigneeKey), summary: text(row.summary), createdAt: String(row.createdAt ?? ""), direction, packet,
       events: eventRows.map(event => ({ id: String(event.id), eventType: String(event.eventType ?? ""), fromStatus: text(event.fromStatus), toStatus: text(event.toStatus), actorLabel: text(event.actorLabel), note: text(event.note), createdAt: String(event.createdAt ?? "") })),
     };
   }));

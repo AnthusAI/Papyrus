@@ -23,12 +23,15 @@ export function starsWords(stars: number | null): string {
 export function StarRating({
   disabled = false,
   feedback = { phase: "idle" },
+  label = "Interest · optional",
   onChange,
   size = "compact",
   value,
 }: {
   disabled?: boolean;
   feedback?: RatingFeedback;
+  /** The words above the stars. A Reference is "Interest"; a Story is a "Rating" of what to publish. */
+  label?: string;
   /** Called with the star that was tapped; the caller clears when it is the one already set. */
   onChange: (stars: number) => void;
   size?: "compact" | "large";
@@ -38,7 +41,7 @@ export function StarRating({
   return (
     <div className="grid gap-y-1" data-star-rating data-stars={value ?? 0}>
       <div className="flex items-center justify-between gap-2">
-        <span className={cn(LABEL, "text-muted-foreground")}>Interest · optional</span>
+        <span className={cn(LABEL, "text-muted-foreground")}>{label}</span>
         <span className={cn(LABEL, "inline-flex items-center gap-1 text-muted-foreground")} data-star-rating-words role="status">
           {feedback.phase === "saving" ? <Loader2Icon aria-hidden="true" className="size-3 animate-spin" /> : null}
           {feedback.phase === "error" ? "Not saved" : starsWords(value)}

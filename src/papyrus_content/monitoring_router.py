@@ -70,6 +70,7 @@ from .email_submission_authorization import (
     publication_ids_for_editor,
 )
 from .auto_accept import accept_by_rule, run_auto_accept, validate_auto_accept
+from .research_assignments_worker import run_research_assignments, validate_research_assignments
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_enrichment import Enricher, copy_curation, decision_inputs, enrich_item, enrich_sk, new_row
@@ -111,9 +112,11 @@ REPORT_SCHEMA = "cyclotron-classifier-report/v1"
 REPORT_ROW_LIMIT_BYTES = 300_000
 AUTO_ACCEPT_LOCK_PREFIX = "LOCK#auto-accept#"            # the same for an auto-accept run that names one
 SUGGEST_BACKLOG_LOCK_PREFIX = "LOCK#suggest-backlog#"    # the same for the hourly suggestion backlog task
+RESEARCH_ASSIGNMENTS_LOCK_PREFIX = "LOCK#research-assignments#"   # the same for the editors' research assignments task
 FAN_OUT_TASKS = {"monitor-stories": MONITOR_STORIES_LOCK_PREFIX, "auto-accept": AUTO_ACCEPT_LOCK_PREFIX,
-                 "suggest-backlog": SUGGEST_BACKLOG_LOCK_PREFIX}   # tasks that run once per publication, each in its own invocation
+                 "suggest-backlog": SUGGEST_BACKLOG_LOCK_PREFIX, "research-assignments": RESEARCH_ASSIGNMENTS_LOCK_PREFIX}   # tasks that run once per publication, each in its own invocation
 LEASE_SECONDS = 660                    # longer than the 600 s Lambda timeout
+TASK_LEASE_SECONDS = {"research-assignments": 960}   # a task with its own, longer Lambda timeout (900 s) holds its lock longer
 RECEIPT_TTL_SECONDS = 30 * 86400
 STALE_FINAL_REASON = "job pending longer than the allowed time; reconcile manually"   # an old limit's finals, reopened by hand
 AWAITING = "awaiting"
@@ -404,6 +407,7 @@ def validate_router_publications(raw: dict) -> list[dict]:
             "procedureTriggers": validate_procedure_triggers(publication_id, entry),
             "autoAccept": validate_auto_accept(publication_id, entry.get("autoAccept")),
             "monitorStories": validate_monitor_stories(publication_id, entry.get("monitorStories")),
+            "researchAssignments": validate_research_assignments(publication_id, entry.get("researchAssignments")),
             "openaiKeyParameter": entry.get("openaiKeyParameter")})
     if not publications:
         raise ValueError("router needs at least one publication")
@@ -2601,6 +2605,31 @@ class Router:
             print(json.dumps({"suggestBacklog": result["status"], "monitorId": self.monitor_id, **result}))
         return results
 
+    def research_assignments(self, publication_id: str | None = None) -> dict:
+        """Per publication that turned it on: run the research assignments editors gave Stories in the newsroom (src/papyrus_content/research_assignments_worker.py).
+        Live mode only. Bounded by the Lambda's remaining time: it stops before the deadline and leaves the rest open for the next run."""
+        results: dict = {}
+        if self.config["mode"] != "live":
+            return results
+        for publication in self.publications.values():
+            pid = publication["publicationId"]
+            if publication_id is not None and pid != publication_id:
+                continue
+            if not (publication.get("researchAssignments") or {}).get("enabled"):
+                results[pid] = {"publicationId": pid, "status": "skipped", "reason": "research assignments are off"}
+                continue
+            if self.time_left() < MIN_REMAINING_SECONDS:
+                results[pid] = {"publicationId": pid, "status": "skipped", "reason": "time budget", "stoppedBy": "time"}
+                continue
+            try:
+                results[pid] = run_research_assignments(self.client(publication), publication, now=datetime.fromtimestamp(self.now, timezone.utc),
+                                                        out_of_time=lambda: self.time_left() < MIN_REMAINING_SECONDS, time_left=self.time_left)
+            except Exception as error:  # noqa: BLE001 - never fails the run
+                results[pid] = {"publicationId": pid, "status": "failed", "reason": short(error)}
+        for result in results.values():
+            print(json.dumps({"researchAssignments": result["status"], "monitorId": self.monitor_id, **result}))
+        return results
+
     def retry_memory(self, publication_id: str):
         """The monitor-stories task's memory of rejected drafts (ideas/retry_memory.py), one row per Reference or pack in the router's own table."""
         from .ideas import retry_memory as retry_rules
@@ -2890,11 +2919,13 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         elif task == "suggest-backlog":
             started = [p["publicationId"] for p in config["publications"] if (p.get("monitorStories") or {}).get("vectorIndexArn")
                        and (p.get("monitorStories") or {}).get("enabled", True) and ((p.get("monitorStories") or {}).get("suggestions") or {}).get("enabled", True)]
+        elif task == "research-assignments":
+            started = [p["publicationId"] for p in config["publications"] if (p.get("researchAssignments") or {}).get("enabled")]
         else:
             started = [p["publicationId"] for p in config["publications"] if (p.get("autoAccept") or {}).get("enabled", True)]
         for pid in started:
             fan_out(pid)
-        print(json.dumps({{"monitor-stories": "monitorStories", "suggest-backlog": "suggestBacklog"}.get(task, "autoAccept"): "fanned-out", "monitorId": monitor_id, "publications": started}))
+        print(json.dumps({{"monitor-stories": "monitorStories", "suggest-backlog": "suggestBacklog", "research-assignments": "researchAssignments"}.get(task, "autoAccept"): "fanned-out", "monitorId": monitor_id, "publications": started}))
         return {"monitorId": monitor_id, "runId": run_id, "status": "fanned-out", "publications": started}
     lock_sk = CYCLOTRON_STATUS_LOCK_SK if task == "cyclotron-status" else ROUTER_LOCK_SK
     if publication_id is not None:
@@ -2902,11 +2933,11 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         # locked per publication so the runs of one monitor's publications (each up to the Lambda's 10 minutes) neither wait for each other nor hold up
         # the monitor's route pass.
         if task not in FAN_OUT_TASKS:
-            return {"monitorId": monitor_id, "runId": run_id, "status": "error", "reason": "publicationId is only for the monitor-stories, auto-accept and suggest-backlog tasks"}
+            return {"monitorId": monitor_id, "runId": run_id, "status": "error", "reason": "publicationId is only for the monitor-stories, auto-accept, suggest-backlog and research-assignments tasks"}
         if publication_id not in {p["publicationId"] for p in config["publications"]}:
             return {"monitorId": monitor_id, "runId": run_id, "status": "error", "reason": f"unknown publicationId {publication_id!r} for monitor {monitor_id}"}
         lock_sk = f"{FAN_OUT_TASKS[task]}{publication_id}"
-    if not store.acquire_router_lock(monitor_id, owner, now, sk=lock_sk):
+    if not store.acquire_router_lock(monitor_id, owner, now, lease=TASK_LEASE_SECONDS.get(task, LEASE_SECONDS), sk=lock_sk):
         return {"monitorId": monitor_id, "runId": run_id, "status": "locked"}
     try:
         if task == "reopen-stale-finals":
@@ -2924,21 +2955,25 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                         max_decisions=max_decisions, hold_override=hold_override, previewer=previewer,
                         story_transport=story_transport, story_drafter=story_drafter, embedding_key=embedding_key)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
-                   {"status": "skipped"} if task in ("feedback", "auto-accept", "monitor-stories", "suggest-backlog") else router.collect() if task == "collect" else router.sweep())
-        feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept", "monitor-stories", "suggest-backlog") else router.feedback()
+                   {"status": "skipped"} if task in ("feedback", "auto-accept", "monitor-stories", "suggest-backlog", "research-assignments") else router.collect() if task == "collect" else router.sweep())
+        feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept", "monitor-stories", "suggest-backlog", "research-assignments") else router.feedback()
         auto_accepted = router.auto_accept(publication_id) if task == "auto-accept" else {}   # its own task: the hourly schedule fans it out, one invocation per publication
         monitor_stories = router.monitor_stories(publication_id) if task == "monitor-stories" else {}
         suggest_backlog = router.suggest_backlog(publication_id) if task == "suggest-backlog" else {}
+        research_assignments = router.research_assignments(publication_id) if task == "research-assignments" else {}
         paused_until = router.settle_lab_backoff()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
-                  "feedback": feedback, "autoAccept": auto_accepted, "monitorStories": monitor_stories, "suggestBacklog": suggest_backlog, "errors": outcome.get("errors", []),
+                  "feedback": feedback, "autoAccept": auto_accepted, "monitorStories": monitor_stories, "suggestBacklog": suggest_backlog, "researchAssignments": research_assignments, "errors": outcome.get("errors", []),
                   "waitingForClassifier": outcome.get("waitingForClassifier", []), "posted": router.posted}
+        if task == "research-assignments" and not any(row.get(key) for row in research_assignments.values() for key in ("ran", "failed", "expired", "leftOpen")) \
+                and not any(row.get("status") == "failed" for row in research_assignments.values()):
+            return result   # an idle tick (nothing to run) writes no receipt: it would be 288 rows a day for each publication
         store.put_receipt(monitor_id, {
             "pk": pk(monitor_id), "sk": f"ROUTERUN#{result['startedAt']}#{run_id}", "runId": run_id,
             "startedAt": result["startedAt"], "mode": config["mode"], "status": result["status"],
             "stoppedBy": result["stoppedBy"], "counts": router.counts, "feedback": feedback, "autoAccept": decimalize(auto_accepted),
-            "monitorStories": decimalize(monitor_stories), "suggestBacklog": decimalize(suggest_backlog),
+            "monitorStories": decimalize(monitor_stories), "suggestBacklog": decimalize(suggest_backlog), "researchAssignments": decimalize(research_assignments),
             "errors": result["errors"], "waitingForClassifier": result["waitingForClassifier"], "posted": router.posted,
             **({"labBackoffUntil": _iso(paused_until)} if paused_until else {}), "ttl": int(now + RECEIPT_TTL_SECONDS)})
         return result
@@ -3006,8 +3041,8 @@ def invoke_self(context, payload: dict) -> None:
 
 
 def handler(event, context):
-    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"|"monitor-stories"|"auto-accept"|"suggest-backlog"|"cyclotron-status"}` limits the pass (operator debugging).
-    `{"task": "monitor-stories"|"auto-accept"|"suggest-backlog", "monitorId": "hn", "publicationId": "anth-us"}` runs only that publication, with the whole time budget and its own lock;
+    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"|"monitor-stories"|"auto-accept"|"suggest-backlog"|"research-assignments"|"cyclotron-status"}` limits the pass (operator debugging).
+    `{"task": "monitor-stories"|"auto-accept"|"suggest-backlog"|"research-assignments", "monitorId": "hn", "publicationId": "anth-us"}` runs only that publication, with the whole time budget and its own lock;
     without a publicationId the task only fans out one such invocation per publication."""
     import boto3  # provided by the Lambda runtime
 
@@ -3035,4 +3070,4 @@ def handler(event, context):
                         publication_id=event.get("publicationId"),
                         fan_out=lambda pid: invoke_self(context, {**event, "publicationId": pid}))   # only false lifts the hold, and only for this invocation
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
-    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "suggestBacklog", "waitingForClassifier", "posted", "reason", "publications")}
+    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "suggestBacklog", "researchAssignments", "waitingForClassifier", "posted", "reason", "publications")}

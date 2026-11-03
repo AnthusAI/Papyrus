@@ -942,6 +942,267 @@ Resources:
       MaximumRetryAttempts: 0
       MaximumEventAgeInSeconds: 900
 
+  # The research-assignments task runs in its own function and role. RouterRole already has 20 managed policies, the most a role may have, so its grants cannot grow;
+  # this role holds the same code zip, the same search and model key parameters (the key policies above name both roles) and exactly the fields the task asks for.
+  ResearchWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns: !If
+        - HasBedrockWebSearch
+        - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
+        - !Ref AWS::NoValue
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: research-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: MonitoringTable
+                Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query]
+                Resource:
+                  - !GetAtt MonitoringTable.Arn
+                  - !Sub "${MonitoringTable.Arn}/index/routing"
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${ResearchWorkerLogGroup.Arn}:*"
+              - Sid: FailedInvocations
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt RouterDeadLetterQueue.Arn
+              - Sid: FanOutPerPublication
+                Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-monitoring-research-worker"
+              - Sid: ResearchAssignmentFields
+                Effect: Allow
+                Action: appsync:GraphQL
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getAssignment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getAssignmentEvent"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getMessage"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getModelAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getNewsroomSection"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/itemBySlug"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listAssignmentsByItemLineageAndCreatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listAssignmentsByTypeStatusAndCreatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listKnowledgeCorporaByRoleAndName"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessageThreadsByAnchorAndUpdatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessagesByThreadAndSequence"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listModelAttachmentsByOwnerRoleAndSortKey"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listNewsroomSections"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listPublishedItemsBySectionStatusAndPublishedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferenceAttachmentsByReferenceLineageAndSortKey"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByObjectState"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsBySubjectState"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/completeModelAttachmentUpload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createAssignmentEvent"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createMessage"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createModelAttachmentDownload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createModelAttachmentUpload"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateAssignment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateNewsroomSummary"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateReferenceAttachment"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateSemanticRelation"
+
+  ResearchWorkerOpenAiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasOpenAiSearchKey
+    Properties:
+      Description: Lets the research worker read the one SSM parameter that holds the OpenAI key for web search.
+      Roles: [!Ref ResearchWorkerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadOpenAiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OpenAiSearchKeyParameter}"
+          - Sid: DecryptOpenAiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  ResearchWorkerPerplexitySearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasPerplexityKey
+    Properties:
+      Description: Lets the research worker read the one SSM parameter that holds the Perplexity key for web search.
+      Roles: [!Ref ResearchWorkerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadPerplexitySearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${PerplexityKeyParameter}"
+          - Sid: DecryptPerplexitySearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  ResearchWorkerGeminiSearchKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasGeminiKey
+    Properties:
+      Description: Lets the research worker read the one SSM parameter that holds the Gemini key for web search.
+      Roles: [!Ref ResearchWorkerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadGeminiSearchKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiKeyParameter}"
+          - Sid: DecryptGeminiSearchKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  ResearchWorkerTavilyKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasTavilyKey
+    Properties:
+      Description: Lets the research worker read the one SSM parameter that holds the Tavily key for link search.
+      Roles: [!Ref ResearchWorkerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadTavilyKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TavilyKeyParameter}"
+          - Sid: DecryptTavilyKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  ResearchWorkerBedrockWebSearchPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasBedrockWebSearch
+    Properties:
+      Description: Lets the research worker use Web Search on Amazon Bedrock (provider "bedrock").
+      Roles: [!Ref ResearchWorkerRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: BedrockWebSearch
+            Effect: Allow
+            Action: [bedrock:CallWithBearerToken, "bedrock-websearch:InvokeSearch", "bedrock-websearch:InvokeFetch"]
+            Resource: "*"
+
+  ResearchWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/papyrus-monitoring-research-worker
+      RetentionInDays: 30
+
+  ResearchWorkerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ResearchWorkerLogGroup
+    Properties:
+      FunctionName: papyrus-monitoring-research-worker
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: papyrus_content.monitoring_router.handler
+      MemorySize: 512
+      Timeout: 900   # the task's lock lease (960 s, TASK_LEASE_SECONDS) is longer than this, so one publication's runs never overlap
+      Role: !GetAtt ResearchWorkerRole.Arn
+      DeadLetterConfig:
+        TargetArn: !GetAtt RouterDeadLetterQueue.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref RouterCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MonitoringTable
+          PAPYRUS_ROOT: /var/task
+          PAPYRUS_GRAPHQL_AUTH: iam
+          PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
+          BEDROCK_SEARCH_MODEL: !If [HasBedrockSearchModel, !Ref BedrockSearchModel, !Ref AWS::NoValue]
+
+  ResearchWorkerInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref ResearchWorkerFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: 0
+      MaximumEventAgeInSeconds: 900
+
+  ResearchWorkerScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: invoke-and-dead-letter
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt ResearchWorkerFunction.Arn
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt RouterDeadLetterQueue.Arn
+
+  ResearchAssignmentsSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-research-assignments
+      Description: >-
+        Every 5 minutes, start the research-assignments task for the hn monitor (docs/monitoring-cloud.md#research-assignments). It invokes the worker once per publication that turned
+        researchAssignments on, and each run takes that publication's open research assignments oldest first. No retry: the next run repeats it.
+      ScheduleExpression: rate(5 minutes)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt ResearchWorkerFunction.Arn
+        RoleArn: !GetAtt ResearchWorkerScheduleRole.Arn
+        Input: '{"task":"research-assignments","monitorId":"hn"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
   RouterScheduleRole:
     Type: AWS::IAM::Role
     Properties:

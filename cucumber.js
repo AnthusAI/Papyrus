@@ -136,6 +136,13 @@ module.exports = {
     require: ["features/step_definitions/story-type-editor.steps.js"],
     format: ["summary"],
   },
+  // The research assignment box and the Work section's packets (demo mode). Needs `next dev` on PAPYRUS_BASE_URL.
+  assignResearch: {
+    paths: ["features/newsroom-assign-research.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/story-references.steps.js", "features/step_definitions/assign-research.steps.js"],
+    tags: "",
+    format: ["summary"],
+  },
   createStory: {
     paths: ["features/newsroom-create-story.feature"],
     require: ["features/step_definitions/create-story.steps.js"],
@@ -149,6 +156,11 @@ module.exports = {
   referenceStars: {
     paths: ["features/newsroom-reference-stars.feature"],
     require: ["features/step_definitions/reference-stars.steps.js"],
+    format: ["summary"],
+  },
+  storyStars: {
+    paths: ["features/newsroom-story-stars.feature"],
+    require: ["features/step_definitions/story-stars.steps.js"],
     format: ["summary"],
   },
   autoAcceptedList: {

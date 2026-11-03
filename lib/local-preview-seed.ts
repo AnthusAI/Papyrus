@@ -2,7 +2,9 @@ import type { AssignmentRecord, MessageRecord, ReferenceRecord, SemanticRelation
 import { SHADOW_AGREEMENT_SCHEMA, type ShadowAgreement } from "./cyclotron-suggestions";
 import type { EditableArticle } from "./newsroom-articles";
 import type { MediaAssetRecord } from "./newsroom-media";
-import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailReference, type TrailVersion } from "./story-reporting-trail";
+import type { ResearchAssignmentPlan } from "./assign-research";
+import type { ResearchPacketView } from "./research-packet";
+import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailAssignment, type TrailReference, type TrailVersion } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
@@ -46,6 +48,13 @@ function slugFromHeadline(headline: string): string {
   return headline.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+/** Sample ratings the preview Stories already carry (a Story's private 1-5 stars), so the board, the drawer and the editor show some. */
+const PREVIEW_STORY_STARS: Readonly<Record<string, number>> = {
+  "copywriting-0": 4,
+  "published-0": 5,
+  "idea-1": 2,
+};
+
 export function createLocalPreviewContentItemVersions(): ContentItemVersionRecord[] {
   const stageKeys = contentItemStageKeys(getContentItemStageDefinitions());
   return stageKeys.flatMap((stageKey, stageIndex) => {
@@ -66,6 +75,7 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
         section: headlineIndex === 0 ? "news" : "features",
         updatedAt: isoTimestampHoursBeforeBase(stageIndex * 3 + headlineIndex),
         versionCreatedBy: stageKey === "idea" && headlineIndex === 0 ? "AI" : "Preview editor",
+        starRating: PREVIEW_STORY_STARS[`${stageKey}-${headlineIndex}`] ?? null,
       };
     });
   });
@@ -193,6 +203,7 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
     versionNumber: version.versionNumber,
     aliases: [],
     everPublished: version.status === "published",
+    starRating: version.starRating ?? null,
   };
 }
 
@@ -229,10 +240,60 @@ function previewBasedOnReference(): TrailReference {
   };
 }
 
+const previewAssignments = new Map<string, TrailAssignment[]>();
+
+/** A research assignment made in the local preview: it stays `open`, because no worker runs there. */
+export function recordLocalPreviewAssignment(lineageId: string, plan: ResearchAssignmentPlan): void {
+  const created = String(plan.assignment.createdAt);
+  const assignment: TrailAssignment = {
+    id: plan.assignment.id, title: String(plan.assignment.title), assignmentTypeKey: String(plan.assignment.assignmentTypeKey), status: "open", assigneeKey: null, summary: null,
+    createdAt: created, direction: String(plan.metadata.direction),
+    events: [{ id: plan.event.id, eventType: "created", fromStatus: null, toStatus: "open", actorLabel: "You", note: String(plan.event.note), createdAt: created }],
+  };
+  previewAssignments.set(lineageId, [assignment, ...(previewAssignments.get(lineageId) ?? [])]);
+}
+
+const PREVIEW_PACKET: ResearchPacketView = {
+  summary: "The harbor authority approved the crane contract in March, and two independent filings agree on the cost. Delivery dates differ between the authority and the contractor.",
+  recommendedAngle: "Lead with the cost both filings agree on, then the dispute over delivery dates.",
+  claims: [
+    { claim: "The authority approved a contract for four cranes in March.", sources: [
+      { rank: 1, url: "https://authority.example.org/minutes/march", title: "March board minutes", domain: "authority.example.org" },
+      { rank: 2, url: "https://news.example.net/cranes-approved", title: "Cranes approved for the harbor", domain: "news.example.net" }] },
+    { claim: "The contract is worth 41 million dollars.", sources: [{ rank: 2, url: "https://news.example.net/cranes-approved", title: "Cranes approved for the harbor", domain: "news.example.net" }] },
+  ],
+  disagreements: [{ topic: "Delivery date", positions: [
+    { position: "The authority says the first crane arrives in June.", sources: [{ rank: 1, url: "https://authority.example.org/minutes/march", title: "March board minutes", domain: "authority.example.org" }] },
+    { position: "The contractor says September.", sources: [{ rank: 3, url: "https://contractor.example.com/schedule", title: "Delivery schedule", domain: "contractor.example.com" }] }] }],
+  openQuestions: ["Who pays for the rail spur the cranes need?", "Was the second bidder disqualified?"],
+  unverifiedClaims: [
+    { claim: "The contractor has delivered late on two earlier harbor projects.", verdict: "needs_check", sources: [{ rank: 3, url: "https://contractor.example.com/schedule", title: "Delivery schedule", domain: "contractor.example.com" }], reasons: ["The source only partly supports this"] },
+    { claim: "Mayor Rodney Hale signed the contract in March.", verdict: "rejected", sources: [{ rank: 1, url: "https://authority.example.org/minutes/march", title: "March board minutes", domain: "authority.example.org" }], reasons: ["Not in the cited source: Rodney"] },
+    { claim: "The second bidder withdrew.", verdict: "unchecked", sources: [{ rank: 2, url: "https://news.example.net/cranes-approved", title: "Cranes approved for the harbor", domain: "news.example.net" }], reasons: ["The run ran short of time before this claim was checked"] },
+  ],
+  factCheckSummary: "12 verified, 8 need a check, 8 rejected; 23 rest on one site",
+  sourceCount: 3,
+};
+
+function previewResearchAssignments(): TrailAssignment[] {
+  const at = (hours: number) => isoTimestampHoursBeforeBase(hours);
+  const research = (id: string, status: string, hours: number, direction: string, events: TrailAssignment["events"], packet: ResearchPacketView | null = null): TrailAssignment => ({
+    id, title: "Harbor Cranes Return", assignmentTypeKey: "research.multi", status, assigneeKey: status === "open" ? null : "papyrus-research-worker", summary: null, createdAt: at(hours), direction, packet, events,
+  });
+  const event = (id: string, eventType: string, toStatus: string, hours: number, note: string, fromStatus: string | null = null) => ({ id, eventType, fromStatus, toStatus, actorLabel: eventType === "created" ? "An Editor" : "papyrus-research-worker", note, createdAt: at(hours) });
+  return [
+    research("preview-research-waiting", "open", 1, "Find out whether the contractor has missed deadlines on other harbor work.", [event("w1", "created", "open", 1, "Created research assignment: Harbor Cranes Return")]),
+    research("preview-research-running", "claimed", 3, "Check the cost figure against the authority's budget filings.", [event("r1", "created", "open", 3, "Created research assignment: Harbor Cranes Return"), event("r2", "claim", "claimed", 2.5, "The research worker started this assignment.", "open")]),
+    research("preview-research-failed", "failed", 8, "List the other ports that bought cranes from the same maker.", [event("f1", "created", "open", 8, "Created research assignment: Harbor Cranes Return"), event("f2", "claim", "claimed", 7.5, "The research worker started this assignment.", "open"), event("f3", "research.failed", "failed", 7, "multi-search found no sources: no search provider answered", "claimed")]),
+    research("preview-research-finished", "completed", 20, "Confirm the contract date and amount, and find where the sources disagree.", [event("d1", "created", "open", 20, "Created research assignment: Harbor Cranes Return"), event("d2", "claim", "claimed", 19.5, "The research worker started this assignment.", "open"), event("d3", "research.completed", "completed", 19, "Research finished; the packet is on the assignment.", "claimed")], PREVIEW_PACKET),
+  ];
+}
+
 export function createLocalPreviewReportingTrail(lineageId: string): StoryReportingTrail {
   const saved = previewSavedVersions.get(lineageId) ?? [];
   const references = lineageId === PREVIEW_BASED_ON.storyLineageId ? [previewBasedOnReference()] : [];
-  return { ...EMPTY_STORY_REPORTING_TRAIL, versions: saved, references };
+  const assignments = [...(previewAssignments.get(lineageId) ?? []), ...(lineageId === PREVIEW_BASED_ON.storyLineageId ? previewResearchAssignments() : [])];
+  return { ...EMPTY_STORY_REPORTING_TRAIL, versions: saved, references, assignments };
 }
 
 export function createLocalPreviewStoriesForReference(referenceLineageId: string): ReferenceStory[] {

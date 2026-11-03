@@ -24,6 +24,7 @@ from typing import Any, Callable
 from .content_item_lifecycle import CONTENT_ITEM_STAGES, require_content_item_stage
 from .machine_writes import apply_stamp
 from .ids import hash_short, safe_id
+from .item_stars import carry_item_stars
 from .publishing import (
     ItemFields,
     _derive_or_raise,
@@ -215,6 +216,7 @@ def save_story_version(
     }
     if stage:
         record["stage"] = require_content_item_stage(stage)
+    carry_item_stars(latest, record)   # the editors' rating of the Story belongs to the Story, not to one version
     client.create_record("Item", compact_dict(record))
     for row in (media_rows(record_id) if media_rows else []):
         client.upsert("MediaAsset", row)

@@ -213,6 +213,40 @@ Per AGENTS.md there is no compatibility layer: existing in-flight Assignments
 and draft Items are migrated by a one-time script, not read through dual
 shapes.
 
+## Star ratings (PPY-f1c1fd)
+
+An editor can rate a Story one to five stars at any stage, from Idea through after publication. The rating is a private signal about what to publish and,
+later, how to rank and feature it. It lives on the Item in `starRating`, `starRatedAt` and `starRatedBy`, the same three fields a Reference has, and follows
+the same rules as `setReferenceStars`: it is separate from the stage, the newest rating wins, tapping the star already chosen clears it (and clears who and
+when), and it needs no reason. The writer is the `setItemStars` mutation (`amplify/functions/category-action`, editor and admin groups). It is a plain update of
+the Story's working record (the row marked current, as `current_story_version` reads it): it creates no version, never touches `stage`, `status`, `updatedAt`
+or the content hash, and does not republish a published Story. Only Stories can be rated; a wiki page, doctrine or page cannot.
+
+Item is versioned, so **every path that creates a new version carries the rating onto it**, through `carry_item_stars` in `src/papyrus_content/item_stars.py`
+(a Reference once lost its stars because one version path built its row without them):
+
+| Path | How the rating survives |
+| --- | --- |
+| `papyrus stories save-version`, the editor's "Save as new version" (`save_story_version`) | The new row is built from the working record and `carry_item_stars` copies the rating explicitly |
+| Saving the draft in place, `papyrus` import and Story creation (`save_item`) | An in-place update of the existing row, which keeps every field it already has |
+| A copywriting run that drafts the next version (`_draft_item_for_copywriting`) | `carry_item_stars` on the drafted row, because that row is built from the packet and not from the old version |
+| Moving a Story to another stage (`move_story_stage`), publishing and unpublishing (`publish_item`, `unpublish_item`) | In-place updates of named fields only; the rating is never among them |
+
+The Python authoring client asks for the three fields in `ITEM_FIELDS` and, like the Reference fields, reads a site whose schema does not have them yet without them
+(`NEWER_REFERENCE_FIELDS`), so a router serving sites on different versions keeps working. The legacy `type="assignment"` Item path in `newsroom.py` builds assignment
+Items, not Stories, and is not a rating path.
+
+**Stars are never published.** They order things for editors and never reach `PublishedItem`, a projection or any page: the three fields are not on the
+`PublishedItem` model in either schema file, `project_item_to_published` writes an explicit field list and then runs `assert_no_item_stars` on the row, and
+`GraphQLItem`, the type draft previews are built from, does not carry them. `scripts/test-story-stars-api.ts` and `features_backend/story-stars.feature` fail if a
+star reaches published output.
+
+On the newsroom side the Stories board card, the drawer and the Story editor all show `components/star-rating.tsx` (label "Rating · optional"): optimistic, kept in one
+store (`components/use-story-stars.ts`) so the three show one rating, and a failed save puts the saved rating back with a message. The Kanbus card has no slot for a
+control, so each Story card gets one container that the rating is drawn into (`components/story-board-stars.tsx`). A card read from a published-only row (not from the
+Item) has no control, because its rating is not known there; the drawer has it. The board's ordering and the public Story listings do not use the rating yet.
+A schema change: it needs the site backend deployed.
+
 ## Out of scope for now
 
 Board write actions (status transitions `PPY-caf6e5`, drag-to-publish

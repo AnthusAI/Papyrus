@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 from ..ideas.digest import RELEVANCE_PREDICATE, relations_of, relevance_of
 from ..knowledge_snapshot.parallel import map_with_clients
 from ..reference_feed_keys import UNDECIDED_PROBABILITY, accept_probability as decision_probability
+from .ordering import RANK_FIELD, rank_records, valid_stars
 
 if TYPE_CHECKING:
     from .settings import HomePageSettings
@@ -35,7 +36,10 @@ PUBLIC_REFERENCE_FIELDS = (
     "key", "status", "title", "authors", "url", "host", "mediaType", "sourceDate", "sourceUpdatedAt", "retrievedAt", "importedAt",
     "arrivedAt", "acceptedAt", "decidedAt", "section", "reasonCode", "actor", "shareable", "confidence", "predictedAcceptProbability",
     "predictionDecidedAt", "inboundCitationCount", "outboundCitationCount", "versionNumber", "image", "summary", "siteName",
+    RANK_FIELD,
 )
+#: ``rank`` is a position in the shared order (``ordering.py``), never a star count. The build orders by it, so every record has it whatever ``homePage.references.fields`` lists.
+ALWAYS_PUBLISHED_FIELDS = (RANK_FIELD,)
 
 PUBLIC_SOURCE_FIELDS = (
     "versionNumber", "title", "authors", "sourceUri", "mediaType", "sourcePublishedAt", "sourceUpdatedAt", "retrievedAt",
@@ -235,7 +239,7 @@ def public_reference(
         "versionNumber": row.get("versionNumber"),
         **preview_details(preview, settings.references.summary_characters),
     }
-    record = {name: full[name] for name in PUBLIC_REFERENCE_FIELDS if name in settings.references.fields}
+    record = {name: full[name] for name in PUBLIC_REFERENCE_FIELDS if name in settings.references.fields and name in full}
     leaked = sorted(set(record) & set(EXCLUDED_REFERENCE_FIELDS))
     if leaked:
         raise AssertionError(f"excluded fields reached a public record: {', '.join(leaked)}")
@@ -273,7 +277,7 @@ def collect_references(
 ) -> list[dict[str, Any]]:
     """The public records of a corpus: its accepted References, and its pending ones the Cyclotron expects an editor to accept.
 
-    Newest accepted first, then the recommended ones newest first. Rejected, archived and superseded References are never read into
+    Newest accepted first, then the recommended ones newest first, each with its ``rank`` in the shared order (``ordering.py``). Rejected, archived and superseded References are never read into
     the result. A Reference whose address would carry identity is left out rather than published.
     """
     accepted = current_references(client, "referencesByCurationStatusKey", f"{corpus_id}#{STATUS_ACCEPTED}")
@@ -285,13 +289,24 @@ def collect_references(
     previews = map_with_clients([row for row, _ in chosen], lambda worker, row: preview_of(worker, row), client=client, client_factory=client_factory, workers=workers)
     labels = section_labels_of(client)
     ordered = sorted(zip(chosen, previews), key=lambda entry: _newest_first(entry[0][0]), reverse=True)
-    records: list[dict[str, Any]] = []
+    kept: list[tuple[Mapping[str, Any], Mapping[str, Any], dict[str, Any]]] = []
     for (row, decision), preview in ordered:
         try:
-            records.append(public_reference(row, decision, preview, labels, settings))
+            kept.append((row, decision, public_reference(row, decision, preview, labels, settings)))
         except WithheldReference:
             continue
-    return records
+    # An editor's stars order the page and stay here: only the position they give each Reference is published.
+    ranks = rank_records((standing_of(row, decision), valid_stars(row.get("starRating"))) for row, decision, _record in kept)
+    return [{**record, RANK_FIELD: ranks[public_key(str(row["lineageId"]))]} for row, _decision, record in kept]
+
+
+def standing_of(row: Mapping[str, Any], decision: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The public signals the shared order reads, taken from the row itself so that a ``fields`` setting that leaves one out cannot change the order."""
+    return {
+        "key": public_key(str(row["lineageId"])),
+        "confidence": decimal(accept_probability(decision)),
+        "arrivedAt": row.get("feedArrivalAt") or row.get("createdAt"),
+    }
 
 
 def _newest_first(row: Mapping[str, Any]) -> tuple[int, str, str, str]:
