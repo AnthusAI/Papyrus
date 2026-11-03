@@ -193,7 +193,7 @@ def run_command(flags: list[str]) -> None:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(flags)
     client, _ = create_authoring_client()
-    services = Services(store=GraphQLEditorialStore(execute=client.graphql))
+    services = Services(store=GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None)))
     outcome = copy_edit_version(client, services, story=args.story, version=args.version, suggest=not args.no_suggest, raise_review=True, dry_run=args.dry_run)
     if args.json:
         print(json.dumps(outcome, indent=2, ensure_ascii=False))

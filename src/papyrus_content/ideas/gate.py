@@ -26,7 +26,7 @@ class HumanusGate:
         ``TYPESAFE_API_KEY`` there, Humanus reports the lane unavailable and the Item records why. The rules lane runs either way."""
         if judgment_key:
             os.environ["TYPESAFE_API_KEY"] = judgment_key
-        return cls(Services(store=GraphQLEditorialStore(execute=client.graphql)))
+        return cls(Services(store=GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None))))
 
     def check(self, body: str, section: str | None) -> dict[str, Any]:
         try:

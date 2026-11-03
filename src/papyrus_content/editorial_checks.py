@@ -599,12 +599,14 @@ UPDATE_SETTINGS = "mutation UpdateEditorialCheckSettings($input: UpdateEditorial
 class GraphQLEditorialStore:
     """The editorial models through AppSync, signed the Papyrus way (IAM for functions and the CLI)."""
 
-    def __init__(self, execute: Callable[[str, dict[str, Any]], dict[str, Any]] | None = None) -> None:
+    def __init__(self, execute: Callable[[str, dict[str, Any]], dict[str, Any]] | None = None,
+                 tenant_id: str | None = None) -> None:
         if execute is None:
             from .graphql_http import execute_graphql
 
             execute = execute_graphql
         self._execute = execute
+        self._tenant_id = tenant_id   # the calling client's tenant; without one, the process environment's
 
     def _list(self, query: str, field_name: str) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
@@ -641,7 +643,7 @@ class GraphQLEditorialStore:
           getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId, optionalPublicationDoctrine: true)
         }''', {'publicationKey': publication, 'sectionId': section})['getEditorialContext']
         pack = checked_context(_awsjson_document(result), publication=publication, section=section)
-        if (pack['publication'].get('tenantId') or None) != (tenant_id_from_environment() or None):
+        if (pack['publication'].get('tenantId') or None) != (self._tenant_id or tenant_id_from_environment() or None):
             raise ValueError('Editorial context tenant mismatch')
         return pack
 

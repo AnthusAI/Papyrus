@@ -243,7 +243,7 @@ def papyrus_copy_edit_story_version(story: str, version: str = "", suggest: bool
     from papyrus_content.graphql_authoring import create_authoring_client
 
     client, _ = create_authoring_client()
-    services = Services(store=GraphQLEditorialStore(execute=client.graphql))
+    services = Services(store=GraphQLEditorialStore(execute=client.graphql, tenant_id=getattr(client, "tenant_id", None)))
     return copy_edit_version(client, services, story=story, version=version or None, suggest=suggest)
 
 
