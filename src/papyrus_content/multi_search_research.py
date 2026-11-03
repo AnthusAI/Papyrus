@@ -131,6 +131,8 @@ SYNTH_DIRECTION_RULES = """The brief starts with the editor's direction. Answer 
 - Material on the Story's existing cases comes after the answers to the direction.
 - When the direction asks for a list (for example other cases), each item is its own claim with its own source.
 - Only titles and snippets count as evidence, as above.
+- One fact per claim. Do not join two facts, or a fact and your own caveat, in one claim: a claim with a part the sources do not support fails whole. Put a reader's caveat ("the account does not say...") in its own claim or in the open questions.
+- Give a year or a date only if a title or snippet gives it.
 """
 
 
@@ -419,7 +421,7 @@ def packet_fact_check_inputs(packet: Mapping[str, Any]) -> tuple[list[dict[str, 
 
 def plain_summary(counts: Mapping[str, int]) -> str:
     """The summary when no model text may be used: only what the check counted."""
-    held = counts.get("unverified", 0) + counts.get("unchecked", 0)
+    held = counts.get("needs_check", 0) + counts.get("rejected", 0) + counts.get("unchecked", 0)
     return (f"{counts.get('verified', 0)} of {counts.get('total', 0)} claims were verified against their sources. "
             f"{held} could not be verified and are listed apart.")
 
@@ -451,7 +453,8 @@ def fact_check_synthesis(synthesis: dict[str, Any], sources: Sequence[Mapping[st
     positions that fail the literal check are labelled, the summary is rewritten from verified claims, and ``factCheck`` records the results."""
     texts, urls = fact_check_source_texts(sources)
     claims = synthesis["claims"]
-    report = check_claims([{"claim": c["claim"], "sources": c["sources"]} for c in claims], {k: v for k, v in texts.items()}, judge=judge, urls=urls)
+    titles = {str(s["index"]): str(s.get("title") or "") for s in sources}
+    report = check_claims([{"claim": c["claim"], "sources": c["sources"]} for c in claims], {k: v for k, v in texts.items()}, judge=judge, urls=urls, titles=titles)
     verified, held = [], []
     for claim, result in zip(claims, report["claims"]):
         if result["verdict"] == "verified":
@@ -758,7 +761,8 @@ def research_multi(
     counts = (outcome["packet"].get("factCheck") or {}).get("counts") or {}
     summary_note = (f"Multi-search completed: {len(outcome['queries'])} queries, {len(outcome['sources'])} sources from "
                     f"{', '.join(outcome['packet']['multiSearch']['answeredProviders'])}. "
-                    f"Fact check: {counts.get('verified', 0)} verified, {counts.get('unverified', 0)} unverified, {counts.get('unchecked', 0)} unchecked.")
+                    f"Fact check: {counts.get('verified', 0)} verified, {counts.get('needs_check', 0)} need a check, {counts.get('rejected', 0)} rejected, "
+                    f"{counts.get('unchecked', 0)} unchecked.")
     event = _assignment_event_record(
         assignment=assignment, event_type="research.multi.intake_failed" if intake_error else "research.multi.completed",
         actor_label=actor_label, now=now,
@@ -795,7 +799,7 @@ def research_multi_command(flags: list[str]) -> None:
     print(f"assignments\tresearch-multi\tsources\t{result['sourceCount']}")
     if result.get("factCheck"):
         counts = result["factCheck"]
-        print(f"assignments\tresearch-multi\tfact-check\tverified={counts['verified']}\tunverified={counts['unverified']}\tunchecked={counts['unchecked']}")
+        print(f"assignments\tresearch-multi\tfact-check\tverified={counts['verified']}\tneeds_check={counts['needs_check']}\trejected={counts['rejected']}\tunchecked={counts['unchecked']}")
     for name, row in result["contribution"].items():
         failed = ",".join(sorted({f["kind"] for f in row["failures"]})) or "-"
         print(f"assignments\tresearch-multi\tprovider\t{name}\tqueries={row['queriesRun']}\thits={row['hits']}\t"

@@ -22,10 +22,11 @@ Where the check applies, in the order of the epic: research packets (done), Refe
 
 `claims` is a list of `{claim, sources}`; `sources` maps a source id to its text. For research the text is the source's title plus its snippets, because that is all the writer was told to use. `urls` maps source ids to URLs for the source-strength count. It returns `{contract, counts, claims, sourceLoad}`; each claim has `verdict`, `literal.unmatched` (`[{term, kind}]`, kind is `name`, `number` or `quotation`), `judge` (or `null`), `reasons` and `sourceStrength` (`{domains, singleSource}`).
 
-Verdicts:
+Verdicts, in two tiers of doubt so an editor can tell a nuance from an invention:
 
-- `verified`: the literal check passes, the judge said `supported` with a quote found in the cited text, and the claim does not state as fact what the source only attributes to a party.
-- `unverified`: any of those fails. Reasons are strings: `unmatched_terms: Rodney, Tennessee`, `quote_not_in_source`, `attribution_lost`, `judge_not_supported`, `judge_partly_supported`, `judge_source_silent`, `no_cited_text`.
+- `verified`: the literal check passes, the judge said `supported` with every quote found in the cited text, and the claim does not state as fact what the source only attributes to a party (or attributes it to the wrong party).
+- `needs_check`: the literal check passes, but the judge said `partly_supported` or `attribution_lost`. Reasons: `judge_partly_supported`, `attribution_lost`.
+- `rejected`: a literal failure (`unmatched_terms: Rodney, Tennessee`), or the judge said `not_supported` or `source_silent`, or a quote is not in the source (`quote_not_in_source`), or the claim cites no text (`no_cited_text`).
 - `unchecked`: the literal check passed but there is no judge (`no_judge`) or the judge failed (`judge_failed: ...`). Never counted as verified.
 
 A literal failure is never overridden by the judge.
@@ -43,19 +44,20 @@ What it cannot do: it does not know that a name is wrong, only that the cited so
 
 ### The judge
 
-`llm_judge(llm)` makes one call per claim, in a thread pool with one worker per claim, so the provider's own rate limit is the only limit. The model is `DEFAULT_LLM_MODEL`. The prompt gives it the claim and the cited source texts and nothing about how the claim was written. It answers `verdict` (`supported`, `partly_supported`, `not_supported`, `source_silent`), `quote`, `explanation` and `attribution_lost` under a strict JSON schema. Code normalizes the quote and the source text and checks the quote is in the text; if it is not, or a `supported` answer has no quote, the verdict becomes `not_supported` with reason `quote_not_in_source`.
+`llm_judge(llm)` makes one call per claim, in a thread pool with one worker per claim, so the provider's own rate limit is the only limit. The model is `DEFAULT_LLM_MODEL`. The prompt gives it the claim and the cited source texts and nothing about how the claim was written. Each source is given with its id, title, host and text; the judge may name a source's publisher from the title and host. It answers `verdict` (`supported`, `partly_supported`, `not_supported`, `source_silent`), `quotes` (one per supported part of the claim), `claim_is_only_about_source_limits`, `explanation` and `attribution_lost` under a strict JSON schema. Code normalizes each quote and the source text and checks that the quote is in the text; a quote with an ellipsis is split there and each piece is checked. If any quote is missing, or a `supported` answer has no quote and the claim is not only about what the source lacks, the verdict becomes `not_supported` with reason `quote_not_in_source`. A part of a claim that says what a source does not say ("the account does not specify...") is supported when the source is silent on it and needs no quote; the judge is told so.
 
 ## Multi-search research
 
 After synthesis, `run_multi_search` calls `fact_check_synthesis`:
 
-- `claims` keeps verified claims only. The rest are in `unverifiedClaims`, each `{claim, sources, reasons, verdict}`.
+- `claims` keeps verified claims only. The rest, `needs_check`, `rejected` and `unchecked`, are in `unverifiedClaims`, each `{claim, sources, reasons, verdict}`.
+- With a Story context pack the writer is told to give one fact per claim, to put a caveat in its own claim or in the open questions, and a year or date only if a title or snippet gives it, because a claim with one unsupported part fails whole.
 - Disagreement positions get the literal check only. A failing position stays, labelled `unverified: true` with `reasons`.
 - The summary and recommended angle are written again by one model call from the verified claims alone. The rewrite must pass the literal check against the sources of all verified claims; if it does not, or there are no verified claims, a plain summary built from the counts is used (`factCheck.plainSummaryBecause` says why).
 - The packet gets `factCheck`: counts, the per-claim results, the per-position results and `sourceLoad`.
 - The packet body shows claims, then a "Could not verify:" section with the reasons.
 - The cited-only intake reads `claims` and disagreement positions, so a source cited only by a failed claim is not taken in as a Reference.
-- The `prior_research` layer of the Story context pack lists unverified claims under "Unverified, do not rely on:".
+- The `prior_research` layer of the Story context pack lists `needs_check` claims under "Needs a check ... do not rely on:" unchecked ones under "Unchecked ... do not rely on:" and rejected ones (or any without a verdict) under "Rejected ... do not rely on:".
 - A judge that fails does not fail the run: those claims are `unchecked`, held with the reason. The `research.multi.completed` event records the counts.
 
 Nothing here is applied to packets made before this change; they have no `factCheck`. Replay them:

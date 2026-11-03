@@ -1895,11 +1895,11 @@ def research_packet_body(packet: dict[str, Any]) -> str:
         for item in disagreements:
             lines.append(f"- {item.get('topic')}")
             lines.extend(f"  - {p.get('position')} [{', '.join(str(i) for i in _parse_array(p.get('sources')))}]"
-                         + (f" (could not verify: {'; '.join(str(r) for r in _parse_array(p.get('reasons')))})" if p.get("unverified") else "")
+                         + (f" (rejected: {'; '.join(str(r) for r in _parse_array(p.get('reasons')))})" if p.get("unverified") else "")
                          for p in _parse_array(item.get("positions")) if isinstance(p, dict))
     if unverified:
         lines.extend(["", "Could not verify:"])
-        lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}] ({'; '.join(str(r) for r in _parse_array(c.get('reasons')))})"
+        lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}] ({c.get('verdict') or 'unverified'}: {'; '.join(str(r) for r in _parse_array(c.get('reasons')))})"
                      for c in unverified)
     open_questions = [q for q in _parse_array(packet.get("openQuestions")) if q]
     if (claims or unverified) and open_questions:
