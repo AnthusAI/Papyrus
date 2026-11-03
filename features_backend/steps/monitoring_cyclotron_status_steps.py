@@ -31,7 +31,7 @@ def step_no_snapshot(context):
 
 @given("the Cyclotron reports no refits and no labels for the first publication")
 def step_never(context):
-    context.cyclotron.status_answers[PUBLICATIONS[0]] = (200, tr.status_snapshot(PUBLICATIONS[0], refits=0, labels=0))
+    context.cyclotron.status_answers[PUBLICATIONS[0]] = (200, tr.status_answer(PUBLICATIONS[0], refits=0, labels=0))
 
 
 def status_rows(context):
@@ -68,6 +68,18 @@ def step_served_first(context):
     out = served(context, 0)
     assert [r["publicationId"] for r in out["rows"]] == [PUBLICATIONS[0]]
     assert out["rows"][0]["status"]["cyclotron"]["id"] == f"{PUBLICATIONS[0]}-relevance"
+
+
+@given("the Cyclotron's answer for the first publication holds only another output's snapshot")
+def step_other_output(context):
+    other = f"{PUBLICATIONS[1]}-relevance"
+    context.cyclotron.status_answers[PUBLICATIONS[0]] = (200, {"bindingId": PUBLICATIONS[0], "classifiers": {other: tr.status_snapshot(PUBLICATIONS[1])}})
+
+
+@then("the first publication's run says its answer was not a status snapshot")
+def step_not_snapshot(context):
+    assert context.result["publications"][PUBLICATIONS[0]] == {"status": "unavailable", "reason": "not a status snapshot"}
+    assert sorted(status_rows(context)) == sorted(PUBLICATIONS[1:])
 
 
 @then("the first publication has no status row and the other two have one")
