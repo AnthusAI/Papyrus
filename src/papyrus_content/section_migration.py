@@ -11,8 +11,7 @@ A Story's section is a topic. Older data holds other things: the placeholder ``u
 scans saved as ``<site>.<Model>.json`` (``--scan-dir``) or through the authoring client (``--live``), classifies every
 distinct ``(type, section)`` pair and prints the table. A pair is
 
-* ``keep``: empty, already a section id, or the folder of an Item that is not a Story (``page``, ``wiki_page``, ``newsletter_issue``:
-  the wiki sync and the newsletter archive find their Items by that section);
+* ``keep``: empty, already a section id, or the folder of an Item that is not a Story (``page``, ``wiki_page``: the wiki sync finds its Items by that section);
 * ``map``: a section's title, short title or the local part of its id: it becomes the section's id;
 * ``clear``: only the type's name or the placeholder (``articles``, ``unsectioned``, ``wiki`` for a wiki page): it becomes empty,
   so the section stops saying what the type already says;

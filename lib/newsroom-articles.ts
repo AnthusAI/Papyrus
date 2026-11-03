@@ -10,7 +10,8 @@ import {
   type ContentActionError,
 } from "./content-actions-client";
 import { createDemoArticlesBackend } from "./content-actions-demo";
-import { defaultStoryType, siteStoryTypes } from "./site-story-types";
+import { UNTYPED_ITEM_TYPE } from "./content-item-lifecycle";
+import { ALWAYS_PROJECTED, typeForNewStory, siteStoryTypes } from "./site-story-types";
 
 export type ArticleStatus = "draft" | "published";
 
@@ -19,11 +20,12 @@ export const PAGE_TYPE = "page";
 
 /** The types the editor offers for an Item of `currentType`: the site's Story types (its projection.json), the page, and the Item's own type when it is neither. */
 export function editorTypeChoices(currentType: string | null | undefined, offered: readonly string[] = siteStoryTypes().types): string[] {
-  return [...new Set([...offered, PAGE_TYPE, ...(currentType ? [currentType] : [])])];
+  return [...new Set([...offered, PAGE_TYPE, ...(currentType && currentType !== UNTYPED_ITEM_TYPE ? [currentType] : [])])];
 }
 
-/** `case_study` as "Case study". */
+/** `case_study` as "Case study"; the stored "untyped" as "Not set". */
 export function typeLabel(type: string): string {
+  if (type === UNTYPED_ITEM_TYPE) return "Not set";
   const words = type.replace(/[-_]+/g, " ").trim();
   return words ? words[0].toUpperCase() + words.slice(1) : type;
 }
@@ -149,7 +151,7 @@ export function locateError(error: ContentActionError, frontMatterYaml: string |
 export function emptyArticle(): NewsroomArticleEditorState {
   return {
     id: null,
-    type: defaultStoryType(),
+    type: typeForNewStory(),
     section: "",
     slug: "",
     frontMatterYaml: "title: \n",
@@ -234,9 +236,12 @@ export type ArticlesDataClient = {
   };
 };
 
-/** The list asks for each of the site's Story types and the page: the Item index is keyed on `<type>#<status>`. */
+/**
+ * The list asks for each of the site's Story types, the Stories with no type yet, and the two types every projection builds pages for (article, page), so
+ * older Items stay listed on a site that declares no types: the Item index is keyed on `<type>#<status>`.
+ */
 function listedTypes(): string[] {
-  return [...new Set([...siteStoryTypes().types, PAGE_TYPE])];
+  return [...new Set([...siteStoryTypes().types, UNTYPED_ITEM_TYPE, ...ALWAYS_PROJECTED, PAGE_TYPE])];
 }
 const articleTypeStatuses = () => listedTypes().flatMap((type) => [`${type}#draft`, `${type}#published`]);
 const publishedTypeStatuses = () => listedTypes().map((type) => `${type}#published`);

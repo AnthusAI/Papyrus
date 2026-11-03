@@ -121,10 +121,10 @@ def _another(context):
     state.result = run(state, again=True)
 
 
-@then('a draft article exists at the copywriting stage titled "{title}"')
+@then('a draft Story exists at the copywriting stage titled "{title}"')
 def _article(context, title):
     item = story(held(context))
-    assert (item["type"], item["stage"], item["title"]) == ("article", "copywriting", title)
+    assert (item["type"], item["stage"], item["title"]) == ("untyped", "copywriting", title)
 
 
 @then('its body starts with the preview image credited to "{site}"')
@@ -169,6 +169,11 @@ def _source_only(context):
 @then("the Story's body has no image")
 def _no_image(context):
     assert "::image" not in story(held(context))["bodyMarkus"]
+
+
+@then("the Story is untyped")
+def _is_untyped(context):
+    assert story(held(context))["type"] == "untyped"
 
 
 @then("the Story is a {item_type}")

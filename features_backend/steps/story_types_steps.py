@@ -73,6 +73,69 @@ def _offers(context, offered, default):
     assert ", ".join(found.offered) == offered and found.default == default, found
 
 
+@then('the site offers "{offered}" and has no default type')
+def _no_default(context, offered):
+    found = site_story_types()
+    assert ", ".join(found.offered) == offered and found.default is None, found
+
+
+@then("the site offers no types and has no default type")
+def _no_types(context):
+    found = site_story_types()
+    assert found.offered == () and found.default is None, found
+
+
+@then("the declaration is refused because that is the value of a Story with no type yet")
+def _refused_untyped(context):
+    try:
+        standard_settings_from_mapping(held(context).projection)
+    except ValueError as error:
+        assert "no type yet" in str(error), error
+    else:
+        raise AssertionError("the declaration was accepted")
+
+
+@when("a new Story is made for the site")
+def _new_story(context):
+    from papyrus_content.content_item_lifecycle import build_new_content_item_version
+
+    held(context).version = build_new_content_item_version(lineage_id="content-item-x", title="T", summary=None, section_key=None, stage="idea", actor_label="AI", now="2026-11-03T00:00:00Z")
+
+
+@then('the Story is stored with no type, as "untyped", and is a draft on the board')
+def _untyped_stored(context):
+    from papyrus_content.content_item_lifecycle import is_story_item_type
+
+    version = held(context).version
+    assert version["type"] == "untyped" and version["typeStatus"] == "untyped#draft" and version["status"] == "draft" and is_story_item_type(version["type"]), version
+
+
+@given("a Story with no type")
+def _story_no_type(context):
+    state = held(context)
+    test = handler(context)
+    state.first = test.call("saveItemDraft", save_payload(type="untyped"))["item"]
+
+
+@when("an editor publishes it")
+def _publish_it(context):
+    held(context).result = handler(context).call("publishItem", {"id": held(context).first["id"]})
+
+
+@then("the publish is refused and says to choose a type first")
+def _refused_publish(context):
+    result = held(context).result
+    assert not result["ok"] and result["errors"][0]["code"] == "type-required" and "Choose its type" in result["errors"][0]["message"], result
+
+
+@then("the editor has chosen the post type and publishing now succeeds")
+def _post_then_publish(context):
+    state = held(context)
+    assert state.result["ok"]
+    assert handler(context).client.tables["Item"][state.first["id"]]["type"] == "post"
+    assert handler(context).call("publishItem", {"id": state.first["id"]})["ok"]
+
+
 @then("the declaration is refused because that type is not a Story")
 def _refused(context):
     try:
@@ -222,3 +285,20 @@ def _moved(context):
     directory = Path(tempfile.mkdtemp(prefix="story-types-move-"))
     context.add_cleanup(shutil.rmtree, directory, True)
     test_publishing_a_changed_type_moves_the_page_and_leaves_a_redirect(directory)
+
+
+# --- the newsletter's issue type is the site's own Story type ---------------------------------------------------------
+
+@given("a roundup list that names no issue type")
+def _no_issue_type(context):
+    pass
+
+
+@then("the newsletter settings are refused and ask the site for the Story type of its issues")
+@then('a roundup list that names the type "post" is accepted, and its issues are Stories of that type')
+def _newsletter_settings(context):
+    # scripts/test-newsletter-plugin.ts holds both checks: a list with no issueType is refused, and one that names "post" resolves to it.
+    import subprocess
+
+    result = subprocess.run(["npx", "tsx", "scripts/test-newsletter-plugin.ts"], cwd=REPO_ROOT, capture_output=True, text=True, timeout=300)
+    assert result.returncode == 0 and "newsletter plugin ok" in result.stdout, result.stdout + result.stderr

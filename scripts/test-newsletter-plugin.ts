@@ -40,7 +40,7 @@ const base = {
   lists: [
     {
       id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup",
-      schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, archivePath: "/roundup/",
+      schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "post", archivePath: "/roundup/",
     },
     { id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert", rule: { sections: ["Security"], tags: ["breaking"] } },
   ],
@@ -126,7 +126,7 @@ assert.equal(resolveNewsletterConfig(with_({ basePath: "/posts" })).basePath, "p
 assert.equal(resolveNewsletterConfig(with_({ basePath: "posts/" })).basePath, "posts");
 assert.equal(resolveNewsletterConfig(with_({ basePath: "/" })).basePath, "");
 assert.equal(resolveNewsletterConfig(with_({ itemUrlStyle: "directory" })).itemUrlStyle, "directory");
-assert.equal(config.lists[0].kind === "roundup" && config.lists[0].issueType, "newsletter_issue");
+assert.equal(config.lists[0].kind === "roundup" && config.lists[0].issueType, "post", "the issue type is whatever the site configures");
 assert.deepEqual(config.lists[1].kind === "alert" && config.lists[1].approval, "admin");
 assert.equal(resolveNewsletterConfig(with_({ configurationSet: "custom-set", eventTopicName: "custom-topic" })).configurationSet, "custom-set");
 assert.equal(resolveNewsletterConfig(with_({ configurationSet: "custom-set", eventTopicName: "custom-topic" })).eventTopicName, "custom-topic");
@@ -200,6 +200,7 @@ refuses(with_({ basePath: 7 }), /basePath/);
 refuses(with_({ itemUrlStyle: "flat" }), /itemUrlStyle must be one of html, directory, clean/);
 refuses(with_({ lists: [{ ...base.lists[0], archivePath: undefined }] }), /archivePath/);
 refuses(with_({ lists: [{ ...base.lists[0], issueType: "Not Valid" }] }), /issueType/);
+refuses(with_({ lists: [{ ...base.lists[0], issueType: undefined }] }), /issueType must be the lowercase Item type the site gives its issues/);
 refuses(with_({ lists: [{ ...base.lists[0], rule: {} }] }), /unknown settings: rule/);
 refuses(with_({ lists: [{ ...base.lists[1], schedule: {} }] }), /unknown settings: schedule/);
 refuses(with_({ lists: [base.lists[0], { ...base.lists[0], id: "other" }] }), /different archivePath/);
@@ -222,7 +223,7 @@ assert.deepEqual(published, {
   fromName: "Example News",
   basePath: "",
   lists: [
-    { id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup", issueType: "newsletter_issue", archivePath: "/roundup/" },
+    { id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup", issueType: "post", archivePath: "/roundup/" },
     { id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert" },
   ],
   theme: base.theme,
@@ -245,7 +246,7 @@ assert.equal(environment.ITEM_URL_STYLE, "html");
 assert.deepEqual(JSON.parse(environment.LISTS_JSON), [
   {
     id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup",
-    issueType: "newsletter_issue", archivePath: "/roundup/", timezone: "America/New_York",
+    issueType: "post", archivePath: "/roundup/", timezone: "America/New_York",
   },
   {
     id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert",

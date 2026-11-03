@@ -21,6 +21,11 @@ Feature: Generated story ideas are Items at the idea stage
     When the pipeline files an idea citing the Reference
     Then the Item is a "guide"
 
+  Scenario: An idea is filed with no type when the site names no default
+    Given a site with no projection.json
+    When the pipeline files an idea citing the Reference
+    Then the Item is a "untyped"
+
   Scenario: The same idea is never filed twice
     When the pipeline files an idea citing the Reference
     And the pipeline files an idea citing the Reference

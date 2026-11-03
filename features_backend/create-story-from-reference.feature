@@ -1,7 +1,7 @@
 Feature: An editor creates a Story from any Reference in one tap
   The Reference card and detail have a Create Story action. One tap makes a draft Story at the copywriting stage, linked to the Reference, and opens it in the
-  article editor ready to write. The Story is of the site's default type (an article unless the site's projection.json says otherwise); the editor changes
-  its type in the Story. Its title is the Reference's title. Its text starts from the summary the
+  article editor ready to write. The Story is of the site's default type, when its projection.json names one, and has no type yet when it does not; the editor sets or
+  changes the type in the Story, and a Story with no type cannot be published. Its title is the Reference's title. Its text starts from the summary the
   newsroom already generated for the Reference, followed by the source link and who it came from; a Reference with no summary starts with the source link alone,
   and no text is ever invented. The one thing taken from the Reference besides that is the picture the newsroom already found for it, which stays a remote address
   credited to its site and recorded with the page it came from. It is another site's picture, so the editor sees a plain note to check the rights before
@@ -16,7 +16,7 @@ Feature: An editor creates a Story from any Reference in one tap
 
   Scenario: One tap makes a linked article at copywriting started from the summary
     When an editor creates a Story from the Reference
-    Then a draft article exists at the copywriting stage titled "Clef decision models"
+    Then a draft Story exists at the copywriting stage titled "Clef decision models"
     And its body starts with the preview image credited to "Example Blog"
     And its body then has the Reference's generated summary and a source line linking the Reference
     And the Story is linked to the Reference as "based_on"
@@ -42,9 +42,9 @@ Feature: An editor creates a Story from any Reference in one tap
     When an editor creates a Story from the Reference
     Then the Story is a guide
 
-  Scenario: A Story is an article when the site names no default
+  Scenario: A Story has no type when the site names no default
     When an editor creates a Story from the Reference
-    Then the Story is an article
+    Then the Story is untyped
 
   Scenario: A type that is not a Story is refused
     When an editor asks for a Story of the type "wiki_page"

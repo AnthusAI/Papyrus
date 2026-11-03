@@ -255,7 +255,7 @@ function resolveList(raw: unknown, index: number, instantAlerts: boolean): Newsl
         draft: matching(schedule.draft, `${label}.schedule.draft`, SCHEDULER_CRON, 'an EventBridge Scheduler cron such as "cron(0 13 ? * FRI *)"'),
         timezone: timeZone(schedule.timezone, `${label}.schedule.timezone`),
       },
-      issueType: matching(list.issueType, `${label}.issueType`, ISSUE_TYPE, "a lowercase item type name", "newsletter_issue"),
+      issueType: matching(list.issueType, `${label}.issueType`, ISSUE_TYPE, "the lowercase Item type the site gives its issues, such as post (a site-defined Story type, never a default of the engine)"),
       archivePath: matching(list.archivePath, `${label}.archivePath`, ARCHIVE_PATH, 'a path that starts and ends with "/", such as /roundup/'),
     };
   }

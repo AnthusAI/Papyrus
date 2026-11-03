@@ -25,9 +25,9 @@ function restoreStashedOutputs() {
   fs.renameSync(stashedOutputsPath, activeOutputsPath);
 }
 
-// The sample site's Story types, in the shape withPapyrus inlines from a site's web/projection.json: `guide` is offered but has no address.
+// The sample site's Story types, in the shape withPapyrus inlines from a site's web/projection.json: it names no default, so a new Story has no type; `guide` is offered but has no address.
 const previewStoryTypes = {
-  storyTypes: { default: "article", types: ["article", "post", "guide"] },
+  storyTypes: { types: ["article", "post", "guide"] },
   urls: { types: { article: { base: "articles" }, post: { base: "posts" } } },
   listings: { types: ["article", "post"] },
 };
