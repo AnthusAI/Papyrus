@@ -181,7 +181,8 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
                 "sectionType": _normalize_section_type((section or {}).get("type") or options.get("section-type")),
                 "topicScopeCategoryKeys": topic_scope,
                 "primaryFocusCategoryKey": primary_focus,
-                "contextProfile": "researcher",
+                "contextProfile": normalize_string(options.get("context-profile")) or "researcher",
+                **({"direction": normalize_string(options.get("direction"))} if normalize_string(options.get("direction")) else {}),
                 "createdBy": "assignments create-research",
                 **(
                     {
