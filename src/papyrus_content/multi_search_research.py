@@ -479,6 +479,17 @@ def fact_check_synthesis(synthesis: dict[str, Any], sources: Sequence[Mapping[st
 
 # --- the run, as a pure function ---------------------------------------------------------------------------------------------------
 
+def stop_judging_when_short_of_time(judge: Judge, out_of_time: Callable[[], bool]) -> Judge:
+    """The judge, except that it refuses to ask once ``out_of_time()`` is true. The fact check leaves such a claim ``unchecked`` (a judge that cannot answer never fails
+    the run), so a run short of time ends with a packet instead of being killed."""
+    def guarded(claim, cited, info):
+        if out_of_time():
+            raise TimeoutError("the run ran short of time before this claim was checked")
+        return judge(claim, cited, info)
+
+    return guarded
+
+
 def run_multi_search(
     brief: str,
     *,
@@ -490,6 +501,7 @@ def run_multi_search(
     system_prefix: str = "",
     context_pack: Mapping[str, Any] | None = None,
     judge: Judge | None = None,
+    out_of_time: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     """Plan, fan out, merge, synthesise, fact check. ``judge`` is the fact check's independent judge; none given, one is made from ``llm``. Returns the raw research packet (what ``apply_research_packet`` takes) under ``packet``
     plus ``contribution``. Raises ``MultiSearchFailed`` with the message to record when no packet can be made."""
@@ -507,7 +519,10 @@ def run_multi_search(
             raise MultiSearchFailed("no search provider answered: " + "; ".join(failures))
         raise MultiSearchFailed(f"multi-search ran {len(queries)} queries on {', '.join(usable)} and found no sources")
     synthesis = synthesise(brief, sources, llm, system_prefix)
-    synthesis = fact_check_synthesis(synthesis, sources, llm, judge or llm_judge(llm))
+    judge = judge or llm_judge(llm)
+    if out_of_time is not None:
+        judge = stop_judging_when_short_of_time(judge, out_of_time)
+    synthesis = fact_check_synthesis(synthesis, sources, llm, judge)
     packet = build_packet(queries, sources, contribution, synthesis, model=model)
     if context_pack:
         packet["multiSearch"]["contextPack"] = context_pack_summary(context_pack)
@@ -673,6 +688,7 @@ def research_multi(
     llm: Llm | None = None,
     providers: Mapping[str, Any] | None = None,
     curation_services: Any = None,
+    out_of_time: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     apply = resolve_mutation_apply(options, "assignments research-multi")
     assignment_id = normalize_string(options.get("assignment"))
@@ -706,7 +722,7 @@ def research_multi(
                 raise MultiSearchFailed("multi-search needs the editor's direction: this assignment has none")
             brief = pack["user"]
         outcome = run_multi_search(brief, llm=llm or openai_llm(model=model), providers=providers, model=model,
-                                   system_prefix=pack["system"] if pack else "", context_pack=pack)
+                                   system_prefix=pack["system"] if pack else "", context_pack=pack, out_of_time=out_of_time)
     except MultiSearchFailed as failure:
         message = str(failure)
         if apply:
