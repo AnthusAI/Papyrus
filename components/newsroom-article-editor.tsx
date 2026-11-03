@@ -24,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { isGeneratedIdeaFrontMatter, stageForIdeaDecision, writeIdeaDecision, type IdeaDecisionRecord } from "../lib/idea-decision";
 import { IdeaDecision } from "./idea-decision";
+import { SeededFromReferenceNote } from "./seeded-from-reference-note";
 import { FRONT_MATTER_BLURB_KEY, FRONT_MATTER_SUBTITLE_KEY, FRONT_MATTER_TITLE_KEY, readFrontMatterText, writeFrontMatterText } from "../lib/front-matter-fields";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContentActionFailure, type ContentActionError } from "../lib/content-actions-client";
@@ -735,6 +736,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                 {isOlderVersion ? <p className="newsroom-article-older-version" data-newsroom-article-older-version role="status">
                 This is version {editor.versionNumber} of {latestVersionNumber}, shown read-only. <button className="newsroom-article-link-button" onClick={() => setActiveArticleId(latestVersion?.id ?? activeArticleId)} type="button">Open the latest version</button>
               </p> : null}
+              {!isOlderVersion ? <SeededFromReferenceNote frontMatterYaml={editor.frontMatterYaml} /> : null}
               {!isNew && editor.id && !isOlderVersion && isGeneratedIdeaFrontMatter(editor.frontMatterYaml) ? (
                 <IdeaDecision
                   decidedBy={session?.shell.auth.status === "signedIn" ? session.shell.auth.label : "editor"}

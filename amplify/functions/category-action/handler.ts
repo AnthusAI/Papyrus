@@ -4,7 +4,7 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { putJsonModelPayload, putTextModelPayload, readJsonModelPayload } from "../shared/model-payloads";
-import { curationActorKind, referenceVoteFields, validatedCurationSectionId } from "../shared/reference-curation-metadata";
+import { curationActorKind, referenceStarFields, referenceVoteFields, validatedCurationSectionId } from "../shared/reference-curation-metadata";
 import {
   CURATION_DELEGATION_OWNER_TYPE,
   CURATION_DELEGATION_PAYLOAD_KIND,
@@ -28,7 +28,7 @@ import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-poli
 import { referenceFeedKeys, referenceFeedStateKey } from "../../../lib/reference-feed-keys";
 import { claimGroups } from "../../../lib/staff-groups";
 import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
-import { createReferenceLink, decideReferenceLink, type ReferenceLinkStore } from "./reference-links";
+import { createReferenceLink, decideReferenceLink, describeEditorConcept, type ReferenceLinkStore } from "./reference-links";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
@@ -40,6 +40,7 @@ type ApproveCurationDelegationHandler = Schema["approveCurationDelegation"]["fun
 type DenyCurationDelegationHandler = Schema["denyCurationDelegation"]["functionHandler"];
 type GetCurationDelegationStatusHandler = Schema["getCurationDelegationStatus"]["functionHandler"];
 type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functionHandler"];
+type ReferenceStarsHandler = Schema["setReferenceStars"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
 type ReferenceNoteHandler = Schema["createReferenceNote"]["functionHandler"];
 type MoveReferenceCorpusHandler = Schema["moveReferenceCorpus"]["functionHandler"];
@@ -54,11 +55,13 @@ type ArchiveDraftCategoryHandler = Schema["archiveDraftCategory"]["functionHandl
 type ReviewReferenceTopicLabelHandler = Schema["reviewReferenceTopicLabel"]["functionHandler"];
 type LinkMessageHashtagsHandler = Schema["linkMessageHashtags"]["functionHandler"];
 type CreateReferenceLinkHandler = Schema["createReferenceLink"]["functionHandler"];
+type DescribeConceptHandler = Schema["describeConcept"]["functionHandler"];
 type DecideReferenceLinkHandler = Schema["decideReferenceLink"]["functionHandler"];
 type CategoryActionEvent =
   | Parameters<LinkMessageHashtagsHandler>[0]
   | Parameters<CreateReferenceLinkHandler>[0]
   | Parameters<DecideReferenceLinkHandler>[0]
+  | Parameters<DescribeConceptHandler>[0]
   | Parameters<ReviewHandler>[0]
   | Parameters<ReferenceCurationHandler>[0]
   | Parameters<CreateCurationDelegationHandler>[0]
@@ -69,6 +72,7 @@ type CategoryActionEvent =
   | Parameters<DenyCurationDelegationHandler>[0]
   | Parameters<GetCurationDelegationStatusHandler>[0]
   | Parameters<RecordDelegatedCurationHandler>[0]
+  | Parameters<ReferenceStarsHandler>[0]
   | Parameters<ReferenceQualityHandler>[0]
   | Parameters<ReferenceNoteHandler>[0]
   | Parameters<MoveReferenceCorpusHandler>[0]
@@ -133,6 +137,7 @@ export const handler = async (event: CategoryActionEvent) => {
     throw new Error("Unsupported steering action: missing GraphQL field name.");
   }
   if (fieldName === "createReferenceLink") return createReferenceLinkAction(event as Parameters<CreateReferenceLinkHandler>[0]);
+  if (fieldName === "describeConcept") return describeConceptAction(event as Parameters<DescribeConceptHandler>[0]);
   if (fieldName === "decideReferenceLink") return decideReferenceLinkAction(event as Parameters<DecideReferenceLinkHandler>[0]);
   if (fieldName === "linkMessageHashtags") return linkMessageHashtagsAction(event as Parameters<LinkMessageHashtagsHandler>[0]);
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
@@ -145,6 +150,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "denyCurationDelegation") return denyCurationDelegationAction(event as Parameters<DenyCurationDelegationHandler>[0]);
   if (fieldName === "getCurationDelegationStatus") return getCurationDelegationStatusAction(event as Parameters<GetCurationDelegationStatusHandler>[0]);
   if (fieldName === "recordDelegatedCuration") return recordDelegatedCuration(event as Parameters<RecordDelegatedCurationHandler>[0]);
+  if (fieldName === "setReferenceStars") return setReferenceStars(event as Parameters<ReferenceStarsHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
   if (fieldName === "createReferenceNote") return createReferenceNote(event as Parameters<ReferenceNoteHandler>[0]);
   if (fieldName === "moveReferenceCorpus") return moveReferenceCorpus(event as Parameters<MoveReferenceCorpusHandler>[0]);
@@ -490,6 +496,34 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
   return reviewReferenceCuration(onBehalfOfPerson, { delegationId, relayedBy: agentLabel, instruction });
 }
 
+/**
+ * An editor's optional 1-5 star interest in a Reference. The rating sits on the Reference beside the latest vote (who, when), the newest rating
+ * wins, and `stars: null` clears it. It never touches the curation status and is never a Cyclotron label: stars are editorial interest, not relevance.
+ */
+async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
+  const client = await getDataClient();
+  const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
+  const stars = normalizeReferenceStars(event.arguments.stars);
+  const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
+  const now = new Date().toISOString();
+  const actor = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom";
+  await requireDataResult(
+    client.models.Reference.update({
+      id: referenceId,
+      ...referenceStarFields(stars, actor, now),
+    }),
+    "update Reference stars",
+  );
+  return { ok: true, referenceId, stars, status: normalizeOptionalString(reference.curationStatus) ?? "pending" };
+}
+
+function normalizeReferenceStars(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (Number.isInteger(numeric) && numeric >= 1 && numeric <= 5) return numeric;
+  throw new Error("stars must be an integer from 1 to 5, or empty to clear the rating.");
+}
+
 async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandler>[0]) {
   const client = await getDataClient();
   const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
@@ -633,7 +667,7 @@ async function linkMessageHashtagsAction(event: Parameters<LinkMessageHashtagsHa
   return linkMessageHashtags(store, { messageId, callerSub, now: new Date().toISOString() });
 }
 
-async function referenceLinkStore(): Promise<ReferenceLinkStore> {
+async function referenceLinkStore(): Promise<ReferenceLinkStore & { updateSemanticNode(node: Record<string, unknown>): Promise<void> }> {
   const client = await getDataClient();
   return {
     getCurrentReference: async (idOrLineageId) => {
@@ -668,6 +702,14 @@ async function referenceLinkStore(): Promise<ReferenceLinkStore> {
       assertNoDataErrors(response.errors, "get SemanticRelation");
       return response.data ?? null;
     },
+    createSemanticNode: async (node) => {
+      const response = await client.models.SemanticNode.create(node as any);
+      if (response.errors?.length) return false;   // the id exists (a second tap): the caller reads it back
+      return true;
+    },
+    updateSemanticNode: async (node: Record<string, unknown>) => {
+      await requireDataResult(client.models.SemanticNode.update(node as any), "update SemanticNode description");
+    },
     putRelation: async (relation, existing) => {
       const write = existing ? client.models.SemanticRelation.update(relation as any) : client.models.SemanticRelation.create({ ...relation, createdAt: relation.updatedAt } as any);
       await requireDataResult(write, "write reference link SemanticRelation");
@@ -684,6 +726,18 @@ async function createReferenceLinkAction(event: Parameters<CreateReferenceLinkHa
     objectLineageId: normalizeRequiredString(event.arguments.objectLineageId, "objectLineageId"),
     predicate: normalizeRequiredString(event.arguments.predicate, "predicate"),
     note: normalizeOptionalString(event.arguments.note),
+    newConceptName: normalizeOptionalString(event.arguments.newConceptName),
+    callerSub,
+    now: new Date().toISOString(),
+  });
+}
+
+async function describeConceptAction(event: Parameters<DescribeConceptHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to describe a concept.");
+  return describeEditorConcept((await referenceLinkStore()) as any, {
+    lineageId: normalizeRequiredString(event.arguments.lineageId, "lineageId"),
+    description: normalizeOptionalString(event.arguments.description),
     callerSub,
     now: new Date().toISOString(),
   });

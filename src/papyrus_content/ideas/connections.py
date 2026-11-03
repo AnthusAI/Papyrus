@@ -114,6 +114,7 @@ class Connection:
 class Connections:
     entries: tuple[Connection, ...] = ()
     found: Mapping[str, Any] = field(default_factory=dict)   # what exists, for the run record and the curation flag
+    rating: int | None = None   # the editors' stars for the source: direction for the writer (``editor_rating``), no handle, grounds nothing, not a connection that clears the bar
 
     def kinds(self) -> set[str]:
         return {entry.kind for entry in self.entries}
@@ -137,7 +138,7 @@ class Connections:
 
 
 def build_connections(
-    accept_reason: str | None, messages: Sequence[Mapping[str, Any]], neighbours: Sequence[Neighbour], *, suggested_links: int = 0,
+    accept_reason: str | None, messages: Sequence[Mapping[str, Any]], neighbours: Sequence[Neighbour], *, suggested_links: int = 0, stars: int | None = None,
 ) -> Connections:
     """The handles for one Reference: ``E1``, then ``M1..`` (oldest first), ``R1..`` (confirmed before suggested, closest first) and ``X1..`` for the
     neighbours an editor explained."""
@@ -174,9 +175,9 @@ def build_connections(
         }, str(neighbour.explanation), about=about))
     found = {
         "acceptReason": bool(reason), "messages": sum(entry.kind == MESSAGE for entry in entries), "neighbours": len(ordered),
-        "editorsExplanations": len(explained), "suggestedLinks": suggested_links,
+        "editorsExplanations": len(explained), "suggestedLinks": suggested_links, **({"stars": stars} if stars is not None else {}),
     }
-    return Connections(tuple(entries), found)
+    return Connections(tuple(entries), found, stars)
 
 
 def citation_views(connections: Connections) -> tuple[dict[str, str], dict[str, tuple[set[str], set[str]]]]:
@@ -341,7 +342,7 @@ class Knowledge:
         """The connections of a ``MonitoredItem``."""
         reason = item.accept_reason if getattr(item, "accepted_by_human", False) else None
         neighbours, suggested = self.neighbours_of(item.lineage_id)
-        return build_connections(reason, self.messages_of(item.lineage_id), neighbours, suggested_links=suggested)
+        return build_connections(reason, self.messages_of(item.lineage_id), neighbours, suggested_links=suggested, stars=getattr(item, "stars", None))
 
 
 def human_voted(row: Mapping[str, Any]) -> bool:

@@ -3,7 +3,7 @@
 import { CheckIcon, HashIcon, LinkIcon, Loader2Icon, PencilIcon, PlusIcon, QuoteIcon, SparklesIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  classifyAddInput, closeMatchText, explanationByline, publishedAddedText, relatedEdgeWords, suggestFailureText, suggestSkippedText,
+  classifyAddInput, closeMatchText, conceptSlug, EDITOR_CONCEPT_KIND, explanationByline, offersCreate, publishedAddedText, relatedEdgeWords, suggestFailureText, suggestSkippedText,
   type RelatedEntry, type RelatedItem, type SuggestionLabel,
 } from "../lib/reference-links";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,9 @@ const TILE = "rounded-[var(--feed-radius-md,16px)] bg-[var(--feed-control)]";
 function failureText(_failure: unknown, fallback: string): string {
   return fallback;
 }
+
+/** References whose suggestions were asked for on opening, in this page's life: asked once, not on every visit to the panel. */
+const triedAutomatically = new Set<string>();
 
 function useEntries(load: (() => Promise<RelatedEntry[]>) | null) {
   const [entries, setEntries] = useState<RelatedEntry[]>([]);
@@ -218,10 +221,53 @@ function SuggestedDecision({ disabled, entry, onDecide }: { disabled: boolean; e
   );
 }
 
-function AddLinkBox({ disabled, mode, onPick, search }: {
+/**
+ * "Create #name and tag this": one button, no dialog and no fields. It asks the store to invent the concept if it does not exist and to tag the Reference
+ * with it. Pressing it twice makes one concept and one link (the busy state stops the second tap and the backend makes the same node for the same name).
+ * Reusable from a card: give it the Reference's lineage id and the typed name.
+ */
+export function CreateConceptAction({ disabled = false, name, onDone, referenceLineageId }: { disabled?: boolean; name: string; onDone?: (item: RelatedItem) => void | Promise<void>; referenceLineageId: string }) {
+  const store = useReferenceLinksStore();
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const slug = conceptSlug(name);
+  if (!store?.createConceptAndTag || !slug) return null;
+  const create = async () => {
+    if (busy) return;
+    setBusy(true);
+    setFailure(null);
+    try {
+      const made = await store.createConceptAndTag!(referenceLineageId, slug);
+      await onDone?.(made.item);
+    } catch (problem) {
+      setFailure(failureText(problem, "The concept could not be created."));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button
+        className={cn(TILE, "flex w-full min-w-0 items-center gap-1.5 px-3 py-2 text-left text-sm font-semibold text-foreground outline-none transition-colors hover:bg-[var(--feed-control)]/70 focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-[var(--feed-quiet,0.6)]")}
+        data-related-create={slug}
+        disabled={disabled || busy}
+        onClick={() => void create()}
+        type="button"
+      >
+        {busy ? <Loader2Icon aria-hidden="true" className="size-4 animate-spin" /> : <PlusIcon aria-hidden="true" className="size-4" />}
+        <span className="min-w-0 break-words">Create #{slug} and tag this</span>
+      </button>
+      {failure ? <span className="text-xs text-destructive" role="alert">{failure}</span> : null}
+    </>
+  );
+}
+
+function AddLinkBox({ disabled, mode, onCreated, onPick, referenceLineageId, search }: {
   disabled: boolean;
   mode: "reference-side" | "concept-side";
+  onCreated?: (item: RelatedItem) => Promise<void>;
   onPick: (item: RelatedItem) => Promise<void>;
+  referenceLineageId?: string;
   search: { concepts: ReferenceLinksStore["searchConcepts"]; references: ReferenceLinksStore["searchReferences"] };
 }) {
   const [text, setText] = useState("");
@@ -268,6 +314,22 @@ function AddLinkBox({ disabled, mode, onPick, search }: {
       setBusy(false);
     }
   };
+  const creatable = conceptsAllowed && parsed.mode === "concept" && referenceLineageId && onCreated ? offersCreate(parsed.query, results) : null;
+  const created = async (item: RelatedItem) => {
+    await onCreated?.(item);
+    setText("");
+    setResults([]);
+    setSearched(false);
+    setMessage({ kind: "done", text: `Created and tagged ${item.hashtag ?? item.title}` });
+  };
+  // Enter takes the exact match if there is one, else creates the concept: one key, no dialog.
+  const onEnter = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey || disabled || busy || parsed.mode !== "concept") return;
+    event.preventDefault();
+    const exact = results.find(item => item.kind === "concept" && conceptSlug(item.hashtag ?? "") === conceptSlug(parsed.query));
+    if (exact) void pick(exact);
+    else if (creatable) document.querySelector<HTMLButtonElement>(`[data-related-create="${creatable}"]`)?.click();
+  };
   const placeholder = conceptsAllowed ? "Type # for a concept, or paste a link or a title" : "Paste a link or a title";
   return (
     <div className="grid gap-y-1.5" data-related-add>
@@ -276,6 +338,7 @@ function AddLinkBox({ disabled, mode, onPick, search }: {
         className={cn(TILE, "min-h-9 w-full border-0 px-3 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring")}
         disabled={disabled}
         onChange={event => { setText(event.target.value); setMessage(null); }}
+        onKeyDown={onEnter}
         placeholder={placeholder}
         rows={1}
         value={text}
@@ -302,7 +365,8 @@ function AddLinkBox({ disabled, mode, onPick, search }: {
           )}
         </button>
       ))}
-      {searched && !results.length ? <p className="text-xs text-muted-foreground" data-related-no-results>{parsed.mode === "concept" ? "No concept matches that hashtag." : "No Reference matches that."}</p> : null}
+      {creatable ? <CreateConceptAction disabled={disabled || busy} name={creatable} onDone={created} referenceLineageId={referenceLineageId as string} /> : null}
+      {searched && !results.length && !creatable ? <p className="text-xs text-muted-foreground" data-related-no-results>{parsed.mode === "concept" ? "No concept matches that hashtag." : "No Reference matches that."}</p> : null}
       <div className="min-h-5 text-xs text-muted-foreground" role="status">
         {busy ? <span className="inline-flex items-center gap-1"><Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" />Linking…</span> : null}
         {message?.kind === "done" ? <span className="inline-flex items-center gap-1 text-foreground" data-related-linked><CheckIcon aria-hidden="true" className="size-3.5" />{message.text}</span> : null}
@@ -329,6 +393,29 @@ export function RelatedSection({ disabledReason = null, hrefForReference, lineag
   const [suggesting, setSuggesting] = useState(false);
   const [suggestNote, setSuggestNote] = useState<string | null>(null);
   const disabled = Boolean(disabledReason);
+  const suggestMore = async () => {
+    if (!store) return;
+    setSuggesting(true);
+    setSuggestNote(null);
+    try {
+      const outcome = await store.suggest(referenceId ?? lineageId);
+      setLabels(current => ({ ...current, ...outcome.labels }));
+      if (outcome.skipped) setSuggestNote(suggestSkippedText(outcome.skipped));
+      void reload();   // the spinner stops now; the new rows appear when the list has been read again
+    } catch (failure) {
+      setSuggestNote(suggestFailureText(failure));
+    } finally {
+      setSuggesting(false);
+    }
+  };
+  // A Reference that is opened with no links and has not been tried gets its suggestions once, without a click (a failure or a skip is said in the same note).
+  const suggestKey = `${referenceId ?? lineageId}`;
+  useEffect(() => {
+    if (!store || disabled || state !== "ready" || entries.length || triedAutomatically.has(suggestKey)) return;
+    triedAutomatically.add(suggestKey);
+    void suggestMore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store, disabled, state, entries.length, suggestKey]);
   if (!store) return null;
   const labelled = entries.map(entry => (entry.state === "suggested" && labels[entry.item.lineageId] ? { ...entry, label: labels[entry.item.lineageId] } : entry));
   const concepts = labelled.filter(entry => entry.item.kind === "concept");
@@ -342,20 +429,6 @@ export function RelatedSection({ disabledReason = null, hrefForReference, lineag
   const explain: SaveExplanation = async (entry, text) => {
     await store.decide({ relationId: entry.relationId, decision: "accept", note: text });
     await reload();
-  };
-  const suggestMore = async () => {
-    setSuggesting(true);
-    setSuggestNote(null);
-    try {
-      const outcome = await store.suggest(referenceId ?? lineageId);
-      setLabels(current => ({ ...current, ...outcome.labels }));
-      if (outcome.skipped) setSuggestNote(suggestSkippedText(outcome.skipped));
-      await reload();
-    } catch (failure) {
-      setSuggestNote(suggestFailureText(failure));
-    } finally {
-      setSuggesting(false);
-    }
   };
   const addLink = async (item: RelatedItem) => {
     await store.create({ subjectLineageId: lineageId, objectKind: item.kind === "concept" ? "semanticNode" : "reference", objectLineageId: item.lineageId, predicate: "related_to" });
@@ -391,7 +464,7 @@ export function RelatedSection({ disabledReason = null, hrefForReference, lineag
         <span className={cn(LABEL, "text-muted-foreground")}>References</span>
         {references.length ? references.map(renderReference) : state === "ready" ? <p className="text-xs text-muted-foreground">No References linked yet.</p> : null}
       </div>
-      <AddLinkBox disabled={disabled} mode="reference-side" onPick={addLink} search={{ concepts: store.searchConcepts, references: store.searchReferences }} />
+      <AddLinkBox disabled={disabled} mode="reference-side" onCreated={async () => { await reload(); }} onPick={addLink} referenceLineageId={lineageId} search={{ concepts: store.searchConcepts, references: store.searchReferences }} />
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <button
           className={cn(TILE, "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-foreground outline-none hover:bg-[var(--feed-control)]/70 focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-[var(--feed-quiet,0.6)]")}
@@ -407,6 +480,73 @@ export function RelatedSection({ disabledReason = null, hrefForReference, lineag
       </div>
       {disabledReason ? <p className="text-xs text-muted-foreground">{disabledReason}</p> : null}
     </section>
+  );
+}
+
+/**
+ * On the page of a concept an editor invented: its description, written in place. No dialog: "Add a description" opens a text box, Save keeps the words (empty
+ * clears them). Other concepts are generated by the knowledge runs and are not edited here. A viewer without editor access reads the words only.
+ */
+export function ConceptDescription({ description, disabled = false, lineageId, nodeKind }: { description?: string | null; disabled?: boolean; lineageId: string; nodeKind: string }) {
+  const store = useReferenceLinksStore();
+  const [saved, setSaved] = useState(description ?? "");
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const editable = Boolean(store?.describeConcept) && nodeKind === EDITOR_CONCEPT_KIND && !disabled;
+  const save = async () => {
+    if (draft === null || busy) return;
+    setBusy(true);
+    setFailure(null);
+    try {
+      await store!.describeConcept!(lineageId, draft.trim());
+      setSaved(draft.trim());
+      setDraft(null);
+    } catch {
+      setFailure("The description could not be saved.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="grid gap-y-1.5" data-concept-description>
+      {draft === null ? (
+        <>
+          {saved ? saved.split(/\n{2,}/).map((paragraph, index) => <p key={index}>{paragraph}</p>) : <p className="wiki-empty">This concept has no description yet.</p>}
+          {editable ? (
+            <button
+              className={cn(TILE, "inline-flex w-fit items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-foreground outline-none hover:bg-[var(--feed-control)]/70 focus-visible:ring-[3px] focus-visible:ring-ring")}
+              data-concept-description-edit
+              onClick={() => setDraft(saved)}
+              type="button"
+            >
+              <PencilIcon aria-hidden="true" className="size-4" />{saved ? "Edit description" : "Add a description"}
+            </button>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <AutoGrowTextarea
+            aria-label="Describe this concept"
+            className={cn(TILE, "min-h-20 w-full border-0 px-3 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring")}
+            data-concept-description-input
+            onChange={event => setDraft(event.target.value)}
+            placeholder="What this concept means, in a sentence or two"
+            rows={3}
+            value={draft}
+          />
+          <div className="flex gap-2">
+            <button className={cn(TILE, "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-[var(--feed-quiet,0.6)]")} data-concept-description-save disabled={busy} onClick={() => void save()} type="button">
+              {busy ? <Loader2Icon aria-hidden="true" className="size-4 animate-spin" /> : <CheckIcon aria-hidden="true" className="size-4" />}Save
+            </button>
+            <button className={cn(TILE, "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring")} disabled={busy} onClick={() => { setDraft(null); setFailure(null); }} type="button">
+              <XIcon aria-hidden="true" className="size-4" />Cancel
+            </button>
+          </div>
+        </>
+      )}
+      {failure ? <span className="text-xs text-destructive" role="alert">{failure}</span> : null}
+    </div>
   );
 }
 

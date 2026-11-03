@@ -390,6 +390,22 @@ def request_staging_build_action() -> dict:
     return {"ok": True, "build": build}
 
 
+def create_story_from_reference_action(arguments: dict, actor: str) -> dict:
+    """One tap in the newsroom: a draft story started from a Reference (``story_from_reference.create_story_from_reference``). Never changes the Reference's status."""
+    from papyrus_content.ideas.signal_queue import ReferenceSummaries
+    from papyrus_content.story_from_reference import create_story_from_reference
+
+    client, _claims = create_authoring_client()
+    summaries = ReferenceSummaries(client)
+    try:
+        result = create_story_from_reference(
+            client, arguments["referenceId"], actor=actor, item_type=arguments.get("itemType") or "article", again=bool(arguments.get("again")), summary_of=summaries.read,
+        )
+    except ValueError as error:
+        return {"ok": False, "errors": [{"code": "story-not-created", "message": str(error), "line": None}]}
+    return {"ok": True, **result}
+
+
 def handler(event, context):
     if PROJECTION_TASK_KEY in event:
         return run_projection_task(event[PROJECTION_TASK_KEY])
@@ -426,6 +442,8 @@ def handler(event, context):
             return save_item_draft_action(arguments, actor, person_from_event(event))
         if field == "publishItem":
             return publish_item_action(arguments, actor, person_from_event(event))
+        if field == "createStoryFromReference":
+            return create_story_from_reference_action(arguments, actor)
         if field == "moveStoryStage":
             return move_story_stage_action(arguments, actor)
         if field == "unpublishItem":

@@ -295,3 +295,28 @@ export function isKnowledgeIndexMissing(failure: unknown): boolean {
   const text = failure instanceof Error ? failure.message : String(failure ?? "");
   return /knowledge[- ]index/i.test(text);
 }
+
+/** The kind of a concept an editor invents by typing its hashtag (amplify/functions/category-action/reference-links.ts). */
+export const EDITOR_CONCEPT_KIND = "editor_concept";
+
+/** `#Fake Website  Networks` -> `fake-website-networks`: the name part of the key that `conceptKeysForHashtag` matches (lower case, runs of other characters one hyphen). */
+export function conceptSlug(text: string): string {
+  return text.trim().replace(/^#+/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+}
+
+/** The lineage id the backend gives the concept of that name: the same for anyone who types the same name. */
+export function editorConceptLineageId(slug: string): string {
+  return `semantic-node-${EDITOR_CONCEPT_KIND}--${slug}`;
+}
+
+/** The concept as the Related section lists it, before its node has been read back. */
+export function editorConceptItem(slug: string): RelatedItem {
+  return { kind: "concept", lineageId: editorConceptLineageId(slug), title: slug.replace(/-/g, " "), hashtag: `#${slug}`, nodeKey: `${EDITOR_CONCEPT_KIND}--${slug}`, nodeKind: EDITOR_CONCEPT_KIND, host: null, sourceUri: null, sourcePublishedAt: null, addedAt: null };
+}
+
+/** Whether typing `query` after a # should offer to create the concept: it has a name, and no concept already has exactly that name part (in any kind). */
+export function offersCreate(query: string, found: readonly RelatedItem[]): string | null {
+  const slug = conceptSlug(query);
+  if (!slug) return null;
+  return found.some(item => (item.hashtag ?? "").replace(/^#/, "").replace(/ \(.*\)$/, "").toLowerCase() === slug) ? null : slug;
+}

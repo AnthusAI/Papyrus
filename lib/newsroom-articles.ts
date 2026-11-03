@@ -6,6 +6,7 @@ import {
   saveItemDraft,
   unpublishItem,
   moveStoryStage,
+  createStoryFromReference,
   type ContentActionError,
 } from "./content-actions-client";
 import { createDemoArticlesBackend } from "./content-actions-demo";
@@ -82,6 +83,7 @@ export type ArticlesBackend = {
     publishItem: typeof publishItem;
     unpublishItem: typeof unpublishItem;
     moveStoryStage: typeof moveStoryStage;
+    createStoryFromReference: typeof createStoryFromReference;
   };
   listRows: () => Promise<NewsroomArticleRow[]>;
   loadArticle: (id: string) => Promise<EditableArticle>;
@@ -293,7 +295,7 @@ export function createLiveArticlesBackend(): ArticlesBackend {
     return client;
   };
   return {
-    actions: { deriveMarkus, saveItemDraft, publishItem, unpublishItem, moveStoryStage },
+    actions: { deriveMarkus, saveItemDraft, publishItem, unpublishItem, moveStoryStage, createStoryFromReference },
     listRows: () => loadArticleRows(dataClient()),
     loadArticle: (id) => loadEditableArticle(dataClient(), id),
   };

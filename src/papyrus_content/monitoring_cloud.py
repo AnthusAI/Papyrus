@@ -10,11 +10,13 @@ and `papyrus_content.monitoring`.
 """
 from __future__ import annotations
 
+from datetime import datetime, time as clock_time, timedelta, timezone
 from decimal import Decimal
 import json
 import os
 import time
 import uuid
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from typing import Callable
 from urllib.parse import urlsplit
 
@@ -35,6 +37,40 @@ TTAB_PAGE_SIZE = 100         # the Reading Room API's page size when the config 
 #: Config fields that capped how much a pass read. The collector pages until it meets items it has collected or the
 #: source has no more, so a stored config that still has them loads and they are ignored (one log line).
 RETIRED_CONFIG_FIELDS = ("limit", "maxItems", "pagesPerQuery")
+
+
+SEARCH_FAILURE_ALARM_KINDS = ("auth", "plan_exhausted")   # a provider refusing the key or out of plan: the alarm's log line
+
+
+def validate_run_at(value) -> dict | None:
+    """`runAt`: {"time": "HH:MM", "timeZone": "America/New_York"}, the wall-clock time a monitor's pass starts each day."""
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) - {"time", "timeZone"}:
+        raise ValueError('Config runAt must be {"time": "HH:MM", "timeZone": "<IANA zone>"}')
+    try:
+        hour, minute = (int(part) for part in str(value.get("time")).split(":"))
+        clock_time(hour, minute)
+        ZoneInfo(str(value.get("timeZone")))
+    except (ValueError, TypeError, ZoneInfoNotFoundError, KeyError) as error:
+        raise ValueError('Config runAt must be {"time": "HH:MM", "timeZone": "<IANA zone>"}') from error
+    return {"time": f"{hour:02d}:{minute:02d}", "timeZone": str(value["timeZone"])}
+
+
+def next_run_at(run_at: dict, after: float) -> int:
+    """The first instant after `after` (epoch seconds) at which the wall clock in `run_at["timeZone"]` reads `run_at["time"]`.
+    Computed from the local date each time, so daylight saving moves the UTC instant and never the local time. A time that does
+    not exist on a spring-forward day (02:00 in New York) is the first moment after the gap (03:00); one that happens twice on a
+    fall-back day is taken at its first occurrence."""
+    zone = ZoneInfo(run_at["timeZone"])
+    hour, minute = (int(part) for part in run_at["time"].split(":"))
+    local_day = datetime.fromtimestamp(after, zone).date()
+    for offset in range(3):
+        wall = datetime.combine(local_day + timedelta(days=offset), clock_time(hour, minute), tzinfo=zone)
+        instant = wall.astimezone(timezone.utc).timestamp()
+        if instant > after:
+            return int(instant)
+    raise ValueError("No run time found")   # pragma: no cover - three days always hold one
 
 
 class ConditionFailed(Exception):
@@ -168,11 +204,12 @@ def _validate_config(raw: dict) -> dict:
     interval = int(raw.get("intervalSeconds"))
     if interval < 60:
         raise ValueError("Config intervalSeconds must be at least 60")
+    run_at = validate_run_at(raw.get("runAt"))
     retired = sorted(key for key in RETIRED_CONFIG_FIELDS if key in raw)
     if retired:   # an old stored config still loads, so deploy and seed order do not matter
         print(json.dumps({"monitor": "ignored_retired_config", "fields": retired}))
     config = {"sourceType": source_type, "sourceUrl": raw["sourceUrl"], "intervalSeconds": interval,
-              "enabled": raw.get("enabled", True) is not False}
+              "enabled": raw.get("enabled", True) is not False, **({"runAt": run_at} if run_at else {})}
     if source_type == "ttab-decisions":
         lookback = int(raw.get("lookbackDays", 30))
         if not 1 <= lookback <= 180:
@@ -345,7 +382,7 @@ def collect_source(store, monitor_id: str, config: dict, *, fetch, now: float, r
 
         try:
             left = read_feed(feed["fetch_page"], process, reading, resume.get(feed["key"]) or (),
-                             stop_at_seen=feed["stop_at_seen"])
+                             stop_at_seen=feed["stop_at_seen"], keep=feed.get("keep"))
         except Exception as error:
             failed += 1
             left = resume.get(feed["key"]) or []      # an unreadable feed keeps its place for the next pass
@@ -353,6 +390,8 @@ def collect_source(store, monitor_id: str, config: dict, *, fetch, now: float, r
                                    "message": str(error)[:300]})
         if left:
             carry[feed["key"]] = left
+        if feed.get("spent"):
+            result["searches"] = feed["spent"]()
     if web:
         record_query_runs(store, monitor_id, config, queries, stats, carry=carry.get("web", []), resume=resume.get("web", []),
                           now=now, run_id=run_id, reading=reading)
@@ -436,7 +475,17 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
         if result["errors"] and result["status"] != "failed":
             result["status"] = "partial"
         finished = now if injected_clock else time.time()
-        next_due = now if carry and result["status"] != "failed" else now + config["intervalSeconds"]
+        if carry and result["status"] != "failed":
+            next_due = now      # stopped early: the next scheduled wake resumes reading (a stored search answer is never asked twice)
+        elif config.get("runAt"):   # the next occurrence of the wall-clock time; DUE_SLACK keeps an early wake from running twice
+            next_due = next_run_at(config["runAt"], now + DUE_SLACK_SECONDS)
+        else:
+            next_due = now + config["intervalSeconds"]
+        for label in sorted((result.get("searches") or {}).get("run", {}).get("failures", {})):
+            provider, kind, *status = label.split(":")
+            if kind in SEARCH_FAILURE_ALARM_KINDS:   # the CloudWatch metric filter of SearchProviderFailingAlarm counts these lines
+                print(json.dumps({"monitor": "search_provider_failing", "monitorId": monitor_id, "provider": provider, "kind": kind,
+                                  **({"status": int(status[0])} if status else {})}))
         result.update(finishedAt=_iso(finished), nextDueAt=_iso(next_due), errorCount=len(result["errors"]))
         store.put_receipt(monitor_id, {
             "pk": pk(monitor_id), "sk": f"RUN#{result['startedAt']}#{run_id}", "runId": run_id,
@@ -444,7 +493,8 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
             "new": result["new"], "revised": result["revised"], "unchanged": result["unchanged"],
             "itemCount": result["itemCount"], "errorCount": result["errorCount"],
             "errors": result["errors"][:MAX_ERRORS_RECORDED], "nextDueAt": result["nextDueAt"],
-            "ttl": int(now + RECEIPT_TTL_SECONDS), **({"read": result["read"]} if "read" in result else {})})
+            "ttl": int(now + RECEIPT_TTL_SECONDS), **({"read": result["read"]} if "read" in result else {}),
+            **({"searches": result["searches"]} if "searches" in result else {})})
         store.put_state(monitor_id, {"pk": pk(monitor_id), "sk": "STATE", "nextDueAt": int(next_due),
                                      "lastRunId": run_id, "lastStatus": result["status"],
                                      "lastFinishedAt": result["finishedAt"], **({"resume": carry} if carry else {})})

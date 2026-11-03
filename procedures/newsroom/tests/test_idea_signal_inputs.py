@@ -222,3 +222,26 @@ def test_only_the_words_of_a_person_who_accepted_a_link_become_its_explanation_a
     assert {(l.concept_id, l.predicate): l.explanation for l in inputs.concept_links} == {
         ("cn-a", "related_to"): "This is the product named in the filing.", ("cn-b", "mentions"): None, ("cn-c", "related_to"): None,
     }
+
+
+class TaggedClient(FakeSignalClient):
+    """A client whose link feed holds the human concept tags ``tags`` (rows of the site's link feed)."""
+
+    def __init__(self, *args: Any, tags=(), **more: Any) -> None:
+        super().__init__(*args, **more)
+        self.tags = list(tags)
+
+    def list_by_index(self, index: str, key: str) -> list[dict[str, Any]]:
+        return self.tags if key == "reference-links" else super().list_by_index(index, key)
+
+
+def tag(row: dict[str, Any], provenance: str = "human", state: str = "current") -> dict[str, Any]:
+    return {"id": f"tag-{row['id']}", "relationState": state, "predicate": "related_to", "subjectKind": "reference", "subjectLineageId": row["lineageId"], "objectKind": "semanticNode",
+            "objectLineageId": "semantic-node-editor_concept--fake-website-networks", "metadata": json.dumps({"provenance": provenance})}
+
+
+def test_a_reference_an_editor_tagged_with_a_concept_is_read_like_one_a_person_voted_on_and_a_machine_suggestion_is_not():
+    tagged, suggested, plain = voted(1, "accepted", actor=None), voted(2, "accepted", actor=None), voted(3, "accepted", actor=None)
+    client = TaggedClient(references=[tagged, suggested, plain], tags=[tag(tagged), tag(suggested, provenance="suggested", state="suggested")])
+    load_signal_inputs(client, site="example-site", now=NOW)
+    assert client.relation_queries == [f"reference#{tagged['lineageId']}#current"]

@@ -181,15 +181,38 @@ def lambda_judgment_key(environment: dict[str, str] | None = None, *, ssm: Any =
         return None
 
 
+VECTOR_LINE_KEYS = ("indexed", "conceptCardsWritten", "suggestionsWritten", "suggestionsSkippedReason")
+
+
+def vector_summary(vectors: dict[str, Any]) -> dict[str, Any]:
+    """The vector pass's part of a publication's log line; what is left to do is there too (``suggestionsRemaining``), so a big first run shows how many runs it needs."""
+    line = {key: vectors[key] for key in VECTOR_LINE_KEYS}
+    for key in ("indexSkippedReason", "newlyAccepted", "newlyPending", "suggestionsFailed", "suggestionsWithoutVector", "watermarkError", "suggestionsRemaining"):
+        if vectors.get(key):
+            line[key] = vectors[key]
+    return line
+
+
+def merge_vector_passes(first: dict[str, Any], second: dict[str, Any]) -> dict[str, Any]:
+    """Two passes of one run: the work adds up, the counts of what the run started with are the first's, the rest (where it stopped, what is left) is the second's."""
+    merged = {**first, **{key: value for key, value in second.items() if key not in ("newlyAccepted", "newlyPending")}}
+    for key in ("indexed", "conceptCardsWritten", "linkExplanationsWritten", "suggestionsWritten", "suggestionsFailed", "suggestionsWithoutVector", "costUsd"):
+        merged[key] = (first.get(key) or 0) + (second.get(key) or 0)
+    return merged
+
+
 def run_publication(client: Any, publication: dict[str, Any], *, transport: Callable, now: datetime, out_of_time: Callable[[], bool],
                     fetch: Any = None, explorer: Any = REAL_EXPLORER, maximum_cost_usd: float = MAXIMUM_COST_USD,
                     handled_references: Any = (), gate: Any = None, embedding_key: str | None = None,
                     read_watermark: Callable[[], str | None] = lambda: None, write_watermark: Callable[[str], None] = lambda value: None,
-                    retry_memory: Any = None) -> dict[str, Any]:
+                    retry_memory: Any = None, vector_out_of_time: Callable[[], bool] | None = None) -> dict[str, Any]:
     """Drafts one publication's undrafted accepted monitored References and returns its log record (the shape the router prints).
     ``fetch`` and ``explorer`` default to the real page reader and link explorer; tests pass fakes. ``handled_references`` are the ids of the References
     an Automation has a procedure run recorded or in progress for (the router reads them from its trigger rows); those are left to it. ``retry_memory`` (``ideas/retry_memory.py``)
-    remembers the Reference and pack drafts that were rejected, and against which connections; the router keeps it in its own table."""
+    remembers the Reference and pack drafts that were rejected, and against which connections; the router keeps it in its own table.
+    The vector pass (index sync, suggestions) comes first but may use only up to ``vector_out_of_time`` (the router gives it the first half of the publication's
+    time), so a big backlog of vectors cannot starve the drafting; its progress is saved as it goes (``monitoring_vectors``). When drafting ends with time to
+    spare and the pass was stopped by time, the pass continues for the time left."""
     from .ideas import monitor_stories
     from .ideas.context import load_context
     from .ideas.items import ItemStore
@@ -200,14 +223,17 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
     from .monitoring_vectors import run_vector_pass, vector_provider_for
 
     policy = validate_monitor_stories(publication["publicationId"], publication.get("monitorStories"))
-    vectors = run_vector_pass(client, publication, policy, now=now, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd, embedding_key=embedding_key,
-                              read_watermark=read_watermark, write_watermark=write_watermark)
-    vector_line = {key: vectors[key] for key in ("indexed", "conceptCardsWritten", "suggestionsWritten", "suggestionsSkippedReason")}
-    for key in ("indexSkippedReason", "newlyAccepted", "newlyPending", "suggestionsFailed", "suggestionsWithoutVector", "watermarkError"):
-        if vectors.get(key):
-            vector_line[key] = vectors[key]
-    if not policy["contextPacks"]["enabled"] and not policy["singleItem"]:
-        return {**EMPTY_LINE, **vector_line, "publicationId": publication["publicationId"], "status": "complete", "costUsd": vectors["costUsd"], "stoppedBy": vectors["stoppedBy"]}
+    def vector_pass(stop: Callable[[], bool], spent_usd: float = 0.0) -> dict[str, Any]:
+        return run_vector_pass(client, publication, policy, now=now, out_of_time=stop, maximum_cost_usd=max(maximum_cost_usd - spent_usd, 0.0), embedding_key=embedding_key,
+                               read_watermark=read_watermark, write_watermark=write_watermark)
+
+    drafting = policy["contextPacks"]["enabled"] or policy["singleItem"]
+    vectors = vector_pass((vector_out_of_time or out_of_time) if drafting else out_of_time)
+    # Suggestions still to write: the editors' "nothing to connect to" is not yet true of a Reference whose suggestions have not been written.
+    suggestions_waiting = bool(vectors["suggestionsRemaining"]) and bool(policy["suggestions"]["enabled"]) and not vectors.get("indexSkippedReason")
+    if not drafting:
+        return {**EMPTY_LINE, **vector_summary(vectors), "publicationId": publication["publicationId"], "status": "stopped" if vectors["stoppedBy"] else "complete",
+                "costUsd": vectors["costUsd"], "stoppedBy": vectors["stoppedBy"]}
 
     # Each idea passes the same Humanus gate as `ideas monitor-stories --store items`, through this publication's own API.
     gate = gate if gate is not None else HumanusGate.for_client(client, judgment_key=lambda_judgment_key())
@@ -225,7 +251,11 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         transport=transport, limit=None, dry_run=False, now=now, fetch=fetch or monitor_stories.fetch_source,
         explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer, out_of_time=out_of_time,
         maximum_cost_usd=max(maximum_cost_usd - vectors["costUsd"], 0.0), read_workers=READ_WORKERS, automation_handled=handled_references, signal_run=signal_run,
-        retry_memory=retry_memory)
+        retry_memory=retry_memory, suggestions_waiting=suggestions_waiting)
+    if vectors["stoppedBy"] == "time" and not run["stoppedBy"] and not out_of_time():
+        # Drafting finished with time to spare: the vector pass picks up where it stopped (its progress was saved) for the time that is left.
+        vectors = merge_vector_passes(vectors, vector_pass(out_of_time, vectors["costUsd"] + (run.get("usage") or {}).get("costUsd", 0.0)))
+    vector_line = vector_summary(vectors)
     inputs, usage = run["inputs"], run.get("usage") or {}
     packs = run.get("packs") or []
     return {

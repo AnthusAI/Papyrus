@@ -39,6 +39,7 @@ type NewsroomOpsOverviewProps = {
   predictionState?: "loading" | "ready" | "error";
   /** Words for why a rating cannot be saved right now, or null. */
   disabledReason?: string | null;
+  onSetStars?: (reference: ReferenceRecord, stars: number | null) => Promise<void> | void;
   onReview?: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: { reasonCode?: ReferenceRejectionReasonCode | null; note?: string; decisionRelationId?: string; shareable?: boolean }) => Promise<void> | void;
   /** Saves a pasted or corrected capture (the `correctReferenceCapture` action). Without it the capture panel has no edit action. */
   onCorrectCapture?: CorrectCaptureAction;
@@ -60,6 +61,7 @@ export function NewsroomOpsOverview({
   notificationFixture = null,
   onCorrectCapture,
   onReview,
+  onSetStars,
   predictionState = "ready",
   referenceAttachments = [],
   references,
@@ -196,6 +198,7 @@ export function NewsroomOpsOverview({
             humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
             onCorrectCapture={onCorrectCapture}
             onRateReference={rateReference}
+            onSetReferenceStars={onSetStars}
             referenceAttachments={referenceAttachments}
             predictionLoading={predictionState === "loading"}
             previews={previews}

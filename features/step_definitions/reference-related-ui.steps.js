@@ -11,12 +11,17 @@ const root = path.resolve(__dirname, "../..");
 const browser = async (name) => (await promisify(execFile)(process.execPath, ["--import", "tsx", "scripts/test-related-links.ts", name], { cwd: root, maxBuffer: 8 * 1024 * 1024 })).stdout;
 
 for (const given of [
+  "a concept page for a concept an editor made",
+  "a Reference with no links that nobody has asked suggestions for",
   "a Reference with a confirmed concept, a confirmed Reference link, a suggested concept and a suggested Reference",
   "a site with no knowledge index and a Reference with one confirmed concept",
   "a concept page with two References linked by editors",
 ]) Given(given, function () { this.relatedResult = ""; });
 
 for (const when of [
+  "the editor types a hashtag that no concept has, taps the create action twice and then does the same with Enter",
+  "the editor adds a description in place",
+  "the editor opens the Related section of that Reference",
   "the editor opens the Related section",
   "the editor accepts the suggested concept",
   "the editor writes a reason and rejects the suggested Reference",
@@ -85,6 +90,15 @@ const outcomes = [
   ["referencesViewer", [
     "the section says \"Editor access is required to change links.\"",
     "Suggest more and the add box are disabled",
+  ]],
+  ["createConcept", [
+    "one concept and one confirmed link are made, the existing name offers itself instead of a second concept, and the action shows a Lucide icon in light and dark at 375 and 1440 pixels",
+  ]],
+  ["conceptDescription", [
+    "the words are saved without a dialog and the button then says Edit description",
+  ]],
+  ["autoSuggest", [
+    "the suggestions are asked for once without a press and show as soon as the answer comes",
   ]],
   ["skipNotes", [
     "the note says \"Suggestions appear once this Reference has a summary.\" for the first",

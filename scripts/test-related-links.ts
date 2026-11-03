@@ -34,7 +34,7 @@ function browserBundle(): Promise<string> {
     stdin: { resolveDir: root, loader: "tsx", sourcefile: "related-fixture.tsx", contents: `
 import { createRoot } from "react-dom/client";
 import { ReviewCard } from "./components/reference-review-card";
-import { RelatedSection, LinkedByEditors } from "./components/related-section";
+import { RelatedSection, LinkedByEditors, ConceptDescription } from "./components/related-section";
 import { ReferenceLinksStoreProvider, createMemoryReferenceLinksStore } from "./components/reference-links-context";
 import { ReferenceCardHeader } from "./components/reference-feed";
 import { referenceDatesText } from "./lib/reference-links";
@@ -46,6 +46,7 @@ const REFERENCE = { lineageId: "preview-reference-lineage-0", id: "preview-refer
 const items = localPreviewReferenceLinkItems();
 const links = params.has("concept") ? localPreviewReferenceLinks().filter((link) => link.objectKind === "semanticNode" && link.state === "current" && link.id !== "preview-link-1")
   : params.has("noindex") ? localPreviewReferenceLinks().filter((link) => link.id === "preview-link-1")
+  : params.has("bare") ? []
   : localPreviewReferenceLinks();
 window.calls = [];
 const store = createMemoryReferenceLinksStore({
@@ -71,6 +72,9 @@ function ReferencesPage() {
     <NewsroomReferencesView demo={false} disabled={params.has("viewer")} initialReferenceLineageId={REFERENCE.lineageId} loading={false} onReview={async () => undefined} references={[REFERENCE_PAGE_ROW as never]} />
   </div>;
 }
+function Described() {
+  return <article className="wiki-page max-w-xl" data-fixture-described><h1>Fake website networks</h1><ConceptDescription lineageId="semantic-node-editor_concept--fake-website-networks" nodeKind="editor_concept" /><LinkedByEditors conceptLineageId="preview-concept-voice-cloning" /></article>;
+}
 function Concept() {
   return <article className="wiki-page max-w-xl" data-fixture-concept><h1>Voice cloning</h1><LinkedByEditors conceptLineageId="preview-concept-voice-cloning" /></article>;
 }
@@ -89,7 +93,7 @@ function Dates() {
       meta={<span className="text-xs text-muted-foreground" data-reference-dates>{referenceDatesText(DATE_REFERENCES[1])}</span>} />
   </div>;
 }
-createRoot(document.getElementById("root")).render(<ReferenceLinksStoreProvider store={labelled}>{params.has("references") ? <ReferencesPage /> : params.has("dates") ? <Dates /> : params.has("concept") ? <Concept /> : <Detail />}</ReferenceLinksStoreProvider>);
+createRoot(document.getElementById("root")).render(<ReferenceLinksStoreProvider store={labelled}>{params.has("references") ? <ReferencesPage /> : params.has("dates") ? <Dates /> : params.has("described") ? <Described /> : params.has("concept") ? <Concept /> : <Detail />}</ReferenceLinksStoreProvider>);
 ` },
   }).then((result) => result.outputFiles[0].text);
   return bundle;
@@ -342,6 +346,76 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await related.locator("[data-related-add] textarea").isDisabled(), true);
     });
     console.log("Related scenario passed: referencesViewer");
+  },
+
+  /** A Reference opened with no links and never tried gets its suggestions once, without a click, and they show when the call returns. */
+  async autoSuggest() {
+    await run("?bare=1", [375, 1440], async (page, width) => {
+      await page.locator('[data-related-reference-card="preview-reference-lineage-4"]').waitFor();
+      const made = (await calls(page)).filter((call) => (call as { type?: string }).type === "suggest");
+      assert.equal(made.length, 1, "asked once, by itself");
+      assert.equal(await page.locator("[data-related-suggest-more]").isDisabled(), false, "the button is back once the answer came");
+      await screenshot(page, "auto-suggest", width);
+    });
+    console.log("Related scenario passed: autoSuggest");
+  },
+
+  /** Inventing a concept by typing its hashtag: one button, one tap or Enter, no duplicate of an existing name, and a double tap makes one. */
+  async createConcept() {
+    const slug = "fake-website-networks";
+    for (const width of [375, 1440]) {
+      for (const dark of [false, true]) {
+        const { browser, page, errors } = await setup("?bare=1", width, 1000, dark);
+        try {
+          await page.locator("[data-related-add] textarea").waitFor();
+          await box(page).fill("#Fake Website Networks");
+          const create = page.locator(`[data-related-create="${slug}"]`);
+          await create.waitFor();
+          assert.equal((await create.innerText()).trim(), `Create #${slug} and tag this`);
+          assert.equal(await create.locator("svg").count() >= 1, true, "a Lucide icon");
+          if (shots) { fs.mkdirSync(`${shots}/hashtag-concepts`, { recursive: true }); await page.screenshot({ path: `${shots}/hashtag-concepts/create-action-${width}-${dark ? "dark" : "light"}.png`, fullPage: true }); }
+          await create.dblclick();   // a double tap
+          await page.locator(`[data-related-concept="semantic-node-editor_concept--${slug}"]`).waitFor();
+          const made = (await calls(page)).filter((call) => (call as { type?: string }).type === "createConceptAndTag");
+          assert.equal(made.length, 1, "a double tap asks once");
+          assert.equal(await page.locator(`[data-related-concept="semantic-node-editor_concept--${slug}"]`).count(), 1, "one chip");
+          assert.equal(await box(page).inputValue(), "", "the box clears");
+          assert.deepEqual(errors, []);
+        } finally { await browser.close(); }
+      }
+    }
+    // Enter creates too; an existing name offers itself and no second concept.
+    await run("?bare=1", [375], async (page) => {
+      await box(page).fill("#brand new idea");
+      await page.locator('[data-related-create="brand-new-idea"]').waitFor();
+      await box(page).press("Enter");
+      await page.locator('[data-related-concept="semantic-node-editor_concept--brand-new-idea"]').waitFor();
+      await box(page).fill("#voice-cloning");
+      await page.locator('[data-related-result="preview-concept-voice-cloning"]').waitFor();
+      assert.equal(await page.locator("[data-related-create]").count(), 0, "an existing concept is not created again");
+    });
+    console.log("Related scenario passed: createConcept");
+  },
+
+  /** The page of an editor's concept: add the description in place. */
+  async conceptDescription() {
+    for (const width of [375, 1440]) {
+      for (const dark of [false, true]) {
+        const { browser, page, errors } = await setup("?described=1", width, 1000, dark);
+        try {
+          await page.locator("[data-concept-description-edit]").click();
+          await page.locator("[data-concept-description-input]").fill("Sites made to look like independent news outlets.");
+          if (shots) { fs.mkdirSync(`${shots}/hashtag-concepts`, { recursive: true }); await page.screenshot({ path: `${shots}/hashtag-concepts/concept-page-${width}-${dark ? "dark" : "light"}.png`, fullPage: true }); }
+          await page.locator("[data-concept-description-save]").click();
+          await page.getByText("Sites made to look like independent news outlets.").waitFor();
+          const saved = (await calls(page)).filter((call) => (call as { type?: string }).type === "describeConcept");
+          assert.equal(saved.length, 1);
+          assert.equal(await page.locator("[data-concept-description-edit]").innerText(), "Edit description");
+          assert.deepEqual(errors, []);
+        } finally { await browser.close(); }
+      }
+    }
+    console.log("Related scenario passed: conceptDescription");
   },
 
   async skipNotes() {

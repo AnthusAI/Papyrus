@@ -9,7 +9,7 @@ import type { createSemanticGraphSnapshot } from "../lib/semantic-graph";
 import {
   conceptEditedAt, conceptId, conceptTitle, conceptWikiPath, conceptsByTitle, recentlyEditedConcepts, resolveConceptLink,
 } from "../lib/wiki";
-import { LinkedByEditors } from "./related-section";
+import { ConceptDescription, LinkedByEditors } from "./related-section";
 import { MarkusIrPreview } from "./markus-ir-preview";
 import { createWikiIndexPage, loadWikiIndexPage, type WikiIndexPage } from "./wiki-index-client";
 
@@ -81,7 +81,7 @@ function ConceptPageView({ demo, graph, node, nodes, onOpen }: { demo: boolean; 
     <h1>{conceptTitle(node)}</h1>
     <p className="wiki-meta"><span className="wiki-chip">{kindLabel(node.nodeKind)}</span> {node.status !== "current" && <span className="wiki-chip">{node.status}</span>} {conceptEditedAt(node) && <>Last edited {formatEdited(conceptEditedAt(node))}</>}{node.versionCreatedBy ? ` by ${node.versionCreatedBy}` : ""}</p>
     {aliases.length > 0 && <p className="wiki-meta">Also known as {aliases.join(", ")}</p>}
-    {node.description ? node.description.split(/\n{2,}/).map((paragraph, index) => <p key={index}>{paragraph}</p>) : <p className="wiki-empty">This concept has no description yet.</p>}
+    <ConceptDescription description={node.description} lineageId={lineage} nodeKind={node.nodeKind} />
     <section data-wiki-section="connections">
       <h2>Connections</h2>
       {groups.length ? groups.map(group => <div className="wiki-connection-group" key={`${group.direction}-${group.predicate}`}>

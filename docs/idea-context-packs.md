@@ -223,7 +223,7 @@ All in the Reference detail (`components/needs-me-reference-detail.tsx`, next to
 * **Concepts**: a row of chips, each `Hash` icon + `#voice-cloning` + kind in parentheses when ambiguous. Confirmed chips are plain. A suggested chip carries a `Sparkles` icon and the word "Suggested" plus "close match 0.81" in text, and two buttons `Check` "Accept" and `X` "Reject". Rejecting opens a one-line textarea "Why not? (optional)" and a "Reject" button; nothing else moves.
 * **References**: cards with title, host, "published 2026-10-27 · added 2026-10-28" (both dates, always, "published unknown" when null), the edge type in words ("relates to", "cites"). Suggested cards look like suggested chips: `Sparkles` + "Suggested" + the similarity as text + Accept/Reject.
 * **Add**: one textarea with the placeholder "Type # for a concept, or paste a link or a title". As the person types `#…`, the list under the textarea shows up to the knee-cut results of a vector + prefix search over `concept_card` vectors, each a full-width button (`Hash` icon, hashtag, name, kind). Typing a URL or words shows matching References the same way (vector search on `reference_summary`, plus exact `sourceUri` match). Pressing a button writes a `current` edge with provenance `human` and clears the textarea. No dropdowns, no autocomplete popovers.
-* **"Suggest more"** button (`Sparkles`): runs `suggest_for(reference)` on demand and appends suggestions.
+* **"Suggest more"** button (`Sparkles`): runs `suggest_for(reference)` on demand and appends suggestions. A Reference opened with no links that has not been tried gets the same call once by itself (a spinner on the button, the usual skipped note), and the new suggestions show as soon as the call returns; the list is read again behind them. The labels of the concepts and References in the section are read by id, one request each (`lib/reference-links-resolve.ts`), never by loading every concept of the site: a concept is labelled by its own key, so a name two kinds share is told apart only in the add box, which reads all concept keys once when someone first types. The backend call costs a Lambda invocation and vector queries only (the stored summary vector is the query: no embedding, no OpenAI key), about 3 seconds in production. It works for a pending Reference as long as the router has indexed its summary vector (pending Reference are indexed as context, `PPY-65fc6b`); otherwise it answers with the skipped note "Suggestions appear once this Reference has a summary." Spec: `features/reference-related-ui.feature`, `features_backend/related-links-requests.feature`.
 * Everything degrades: with no vector index the section still lists confirmed links and accepts typed hashtags that exactly match a concept key; it says "Suggestions need the knowledge index" in text.
 
 * **Explanations**: under a confirmed concept chip or Reference card, a flat rounded block with a `Quote` icon and the word "Explanation", the editor's words and "Written by an editor on <date>". An editor sees `Pencil` "Edit" (or `Plus` "Add explanation" when there are no words), which opens the shared auto-growing textarea with `Check` "Save" and `X` "Cancel". A suggestion shows none. A viewer without editor access sees the words and no controls.
@@ -368,6 +368,49 @@ A rejected draft files nothing, so nothing marks the Reference as drafted. Witho
 
 The two-step angle-then-write call, concept handles (until the ontology is populated), and published Stories as connections (a story is always present, so it cannot gate; it needs a relatedness test first).
 
+## Editor interest: stars, messages and accept reasons
+
+Ryan, 2026-11-02: an editor who curates should be able to say which References interest them most, and the idea pipeline must read it. A signal nobody reads
+is worth nothing. Three things an editor does are the strongest human signals there are, and they combine:
+
+* **Stars**: a 1-5 rating on the Reference (`starRating`, `starRatedAt`, `starRatedBy`; [curation pipeline](reference-curation-pipeline.md)). Separate from the vote
+  and from relevance; never a Cyclotron label.
+* **A message** an editor wrote in a thread anchored on the Reference.
+* **The accept reason** the editor wrote when they accepted it.
+
+**One ordering, in one place: `ideas/editor_signals.py` (`interest_key`).** No weight table. Each signal that is *for* a Reference counts once (stars above
+three, a message, an accept reason); stars below three (1 or 2) take one away; three stars say nothing. The key is `(net, stars, messages)`, larger first.
+It means an accepted Reference with five stars and an editor's message (net 2, five stars) is written before anything without both, an accepted Reference
+with a message and a reason but no stars comes right after, and a Reference with one or two stars waits behind everything neutral: it is still in the
+queue, only later, and nothing is excluded or capped. Only a *rating* moves a Reference between those three groups; messages and accept reasons on their own
+keep the order the statistical signals give them (a thread's activity and an accepted Reference's reason are already components of `item_signals`), and
+add to the key when they come with stars.
+
+Where it is used:
+
+* **The single-item queue** (`item_signals.score_items`, `ordered_queue`): a Reference with good stars enters the queue with no p-value because an editor
+  decided; the queue takes what editors want first (in key order), then everything else in the round-robin it had, then what they lean against.
+  `monitor_stories.rank` (the order without a signal run) puts the same key first.
+* **Packs** (`context_packs`): each pack has the best key of its accepted members (`Pack.editor`); inside a signal, and across the queue, a pack with a
+  wanted member is offered earlier. `trim_pack` drops the member editors care about least first (lowest key, then the last, as before), so a highly rated
+  Reference is the last to go. Each Reference row carries `editorStars` when rated.
+* **Pending References**, never single-item ideas, keep their stars: `PendingReference.stars` is context in a pack, as pending Reference are today, and a
+  rated pending Reference is read (its concept links and edges) whatever the Cyclotron predicted.
+
+**What the writer is told.** The single-item input has `editor_rating: {"stars": N, "of": 5}` and a pack Reference has `editorStars`. It is direction under
+the same rules as `E`, `M` and `X`: it says what to look for, it has no handle, it grounds no sentence, no number or date, and it is never reported (the
+prompts say so, and the existing internal-wording check still refuses a sentence about editors or ratings). A rating alone is not a connection: **the bar
+stays "more than a summary"** (`Connections.clears_the_bar` ignores it).
+
+**Retrying.** `retry_memory` keeps `stars:<N>` (single item) and `stars:<lineage>:<N>` (pack) among a subject's connections, so a rating that is new or
+changed is something the last rejection was not made against, and a rejected idea is written again.
+
+**Saying why nothing came of a rating.** A run record has `ratedNoIdea`: one row per Reference rated four or five stars that got no idea, with `reason`
+(`pending_not_accepted`, `not_accepted`, `not_a_candidate`, `not_reached`, or the run's own: `nothing_to_add`, `already_rejected`, `no_point_offered`,
+`point_check_failed`, `citation_check_failed`, `no_source_text`, ...) and a sentence of explanation (`ideas/rated_outcomes.py`). The curation flag in the Notification
+Center names them ("You rated N References highly and no idea came of them: ..."). It is not shown on the Reference itself: the run record is not on the
+Reference, and writing it there would need a Reference write grant for the router; that is a follow-up (PPY-3247f1).
+
 ---
 
 ## Decisions (settled, Ryan, 2026-11-01)
@@ -376,3 +419,14 @@ The two-step angle-then-write call, concept handles (until the ontology is popul
 2. **Pending References may appear in packs.** Marked "not yet accepted" in the pack; they are context, never cited as evidence.
 3. **Single-item ideas keep running, beside the packs.** *(Superseded 2026-11-02 by section 9: a single-item idea is filed only when it is more than a summary of its Reference. They still run beside the packs, but a Reference with nothing to connect to is skipped, not summarised.)* Their job is finding individual items worth a post, but they must be chosen by data/signals too (Cyclotron score, votes, comments, links, concept activity), not "every accepted undrafted item". Packs and single-item ideas are balanced by the same signal scores, not a fixed split.
 4. **Always collect the reason.** Accept/Reject on a suggestion (link, concept, idea) offers the same optional reason textarea as References; those reasons train the site's Cyclotrons. One standard Accept/Reject-with-reason UI component, shared by References, suggestions and ideas.
+
+
+## Concepts an editor invents by typing a hashtag
+
+An editor types `#fake-website-networks` in the Related section's add box; when no concept has that name, one action appears, "Create #fake-website-networks and tag this" (one tap or Enter, no dialog, no required field). The name is normalised the way `conceptKeysForHashtag` matches it (lower case, runs of other characters one hyphen) and the concept is made on the spot: `SemanticNode` with kind `editor_concept`, key `editor_concept--<name>`, lineage id `semantic-node-editor_concept--<name>` (the same for anyone who types the same name, so a double tap or a later typing makes one node), status `accepted`, the display name, who made it and when (`versionCreatedBy`, `versionCreatedAt`, `changeReason`) and no description. The same call writes a human-confirmed `related_to` link from the Reference (`createReferenceLink` with the new optional argument `newConceptName`; editors have no write access to `SemanticNode`, so the category-action Lambda makes the node). Existing and near-match concepts are listed first by the existing search; the create action is not offered when a concept already has exactly that name part in any kind. The action is `CreateConceptAction` (exported from `components/related-section.tsx`) so a feed card can use it with the Reference's lineage id. The search loads the site's concepts once, when someone first types a hashtag; creating does not read them.
+
+* **It is a real concept.** `concept_kinds.py` treats `editor_concept` as a concept: it gets a concept card (the name at minimum, "<name> is listed here as a editor concept." and the kind, plus the description once an editor writes one; a changed description re-embeds the card on the next sync) and so shows up in the suggestions for other References.
+* **Idea packs.** A Reference an editor tagged counts as one a person worked on: `load_signal_inputs` reads its concept links like a vote's (`human_tagged_lineages`), and the vector pass suggests for it first. Today packs count human *votes* on References linked to a concept; the `cluster` and `hub` signals build nothing yet, so several References sharing one human tag are not yet a pack of their own. That is a follow-up.
+* **The knowledge run.** The wiki sync and the snapshot publish only the kinds the vocabulary names; `editor_concept` is opt-in like `personAuthor` (`knowledge_wiki/kinds.py`), so it gets no public page until the site's vocabulary names it, and a retiring run has no page of it to retire. The sync writes pages, not nodes, so it never overwrites the node (spec: `features_backend/knowledge-wiki-public-kinds.feature`).
+* **The concept page.** `components/wiki-concepts-view.tsx` shows `ConceptDescription`: "Add a description" opens a text box in place, Save calls `describeConcept` (only for `editor_concept` nodes; generated concepts would be overwritten by the next run). "Linked by editors" lists the tagged References as before.
+* **Deploy.** `createReferenceLink` gains an optional argument and there is a new mutation `describeConcept` (both in `amplify/data/resource.ts` and `schema.ts`): a schema change, so it needs the site's backend to be deployed with a release before the buttons work in production. No new IAM (the function already has data access to every model). Public publishing is per kind, not per concept, today.

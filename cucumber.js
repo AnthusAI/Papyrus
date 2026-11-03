@@ -111,6 +111,21 @@ module.exports = {
     require: ["features/step_definitions/alexa-*.steps.js"],
     format: ["summary"],
   },
+  createStory: {
+    paths: ["features/newsroom-create-story.feature"],
+    require: ["features/step_definitions/create-story.steps.js"],
+    format: ["summary"],
+  },
+  cardSuggestions: {
+    paths: ["features/newsroom-card-suggestions.feature"],
+    require: ["features/step_definitions/card-suggestions.steps.js"],
+    format: ["summary"],
+  },
+  referenceStars: {
+    paths: ["features/newsroom-reference-stars.feature"],
+    require: ["features/step_definitions/reference-stars.steps.js"],
+    format: ["summary"],
+  },
   autoAcceptedList: {
     paths: ["features/newsroom-auto-accepted-list.feature"],
     require: ["features/step_definitions/auto-accepted-list.steps.js"],

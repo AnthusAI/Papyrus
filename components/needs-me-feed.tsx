@@ -1,5 +1,7 @@
 "use client";
 
+import { CardSuggestions } from "./card-suggestions";
+import type { ReferenceRecord } from "../lib/category-repository";
 import {
   CheckIcon, ChevronDownIcon, CircleCheckBigIcon, CircleCheckIcon, CircleXIcon, ClipboardCheckIcon, FileWarningIcon, FlagIcon, InfoIcon, LayoutPanelLeftIcon, LightbulbIcon,
   LinkIcon, Loader2Icon, LockIcon, MailIcon, NewspaperIcon, SlidersHorizontalIcon, Undo2Icon, type LucideIcon,
@@ -195,9 +197,11 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
             reasonRequiredFor={refLike ? "reject" : null}
             showPrediction={refLike}
             showReason={refLike}
+            stars={ratings.stars(item.id) === undefined ? undefined : { value: ratings.stars(item.id) ?? null, onChange: (tapped) => { if (!disabledReason && !locked) ratings.setStars(item.id, tapped); }, feedback: ratings.starsFeedback(item.id) }}
           />
         )}
       </div>
+      {item.payload.kind === "reference" ? <CardSuggestions disabled={Boolean(disabledReason) || locked} inset="bg-[var(--feed-footer)] px-3 pb-3" lineageId={item.payload.lineageId} /> : null}
     </article>
   );
 }
@@ -277,6 +281,8 @@ export type NeedsMeViewProps = {
   onDecide: (item: NeedsMeEntry, decision: NeedsMeDecision) => Promise<void>;
   /** Changes only the Why of an item that is already decided (a review request, a held email). Throws a sentence when it cannot. */
   onEditReason?: (item: NeedsMeEntry, why: string) => Promise<void>;
+  /** Saves a Reference's star rating (null clears it). Stars sit beside Accept and Reject and never change the vote. */
+  onSetStars?: (reference: ReferenceRecord, stars: number | null) => Promise<void> | void;
   onOpened?: (item: NeedsMeEntry) => void;
   /** More suggested links wait to be read; `onLoadMoreLinks` reads the next page. */
   moreLinks?: boolean;
@@ -294,7 +300,7 @@ function Note({ children, ...rest }: { children: ReactNode } & Record<string, un
 /** The CMS console home: one feed that mixes everything that may need a person, with the References feed's cards and detail pane. */
 export function NeedsMeView({
   loadState, entries, threshold, now, shaping, recent, legacyAuto = [], settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
-  referenceDisabledReason = null, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onOpened, loadEmail, below,
+  referenceDisabledReason = null, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onSetStars, onOpened, loadEmail, below,
   moreLinks = false, loadingMoreLinks = false, onLoadMoreLinks,
 }: NeedsMeViewProps) {
   const themeMode = useResolvedPapyrusTheme();
@@ -355,6 +361,14 @@ export function NeedsMeView({
       return { note: pending ? "" : reference.curationStatusReason ?? "", reasonCode: referenceReasonCode(reference) ?? null };
     },
     needsReason: (id) => { const item = latest.current.byId.get(id); return item ? isReferenceLike(item) : true; },
+    ...(onSetStars ? {
+      saveStars: async (id: string, next: number | null) => {
+        const item = latest.current.byId.get(id);
+        if (!item || item.payload.kind !== "reference") throw new Error("This item cannot be rated.");
+        await onSetStars(item.payload.reference, next);
+      },
+      savedStars: (id: string) => { const item = latest.current.byId.get(id); return item && item.payload.kind === "reference" ? item.payload.reference.starRating ?? null : undefined; },
+    } : {}),
   });
 
   const counts = useMemo(() => countNeedsMe(placed.feed), [placed.feed]);

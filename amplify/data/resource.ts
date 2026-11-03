@@ -274,6 +274,13 @@ const schema = a.schema({
     reasonCode: a.string(),
   }),
 
+  ReferenceStarsActionResult: a.customType({
+    ok: a.boolean().required(),
+    referenceId: a.id().required(),
+    stars: a.integer(),
+    status: a.string().required(),
+  }),
+
   ReferenceQualityActionResult: a.customType({
     ok: a.boolean().required(),
     referenceId: a.id().required(),
@@ -458,6 +465,20 @@ const schema = a.schema({
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 
+  setReferenceStars: a
+    .mutation()
+    .arguments({
+      referenceId: a.id().required(),
+      stars: a.integer(),
+      actorSub: a.string(),
+      actorLabel: a.string(),
+    })
+    .returns(a.ref("ReferenceStarsActionResult"))
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
   setReferenceQualityRating: a
     .mutation()
     .arguments({
@@ -502,8 +523,22 @@ const schema = a.schema({
       objectLineageId: a.id().required(),
       predicate: a.string().required(),
       note: a.string(),
+      newConceptName: a.string(),
     })
     .returns(a.ref("ReferenceLinkResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  DescribeConceptResult: a.customType({
+    ok: a.boolean().required(),
+    lineageId: a.string().required(),
+    description: a.string(),
+  }),
+
+  describeConcept: a
+    .mutation()
+    .arguments({ lineageId: a.id().required(), description: a.string() })
+    .returns(a.ref("DescribeConceptResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(functionHandler("categoryAction", categoryAction)),
 
@@ -735,6 +770,13 @@ const schema = a.schema({
     .handler(functionHandler("contentActions", contentActions)),
 
   moveStoryStage: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
+  createStoryFromReference: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
@@ -1778,6 +1820,10 @@ const schema = a.schema({
       curationShareable: a.boolean(),
       curationDelegation: a.json(),
       curationDecisionRelationId: a.string(),
+      // An editor's optional 1-5 star interest in this Reference: separate from the vote and from relevance (docs/reference-curation-pipeline.md). Latest rating wins; null when unrated.
+      starRating: a.integer(),
+      starRatedAt: a.datetime(),
+      starRatedBy: a.string(),
       newsroomFeedKey: a.string(),
       reviewedFeedKey: a.string(),
       discoveredByMonitorId: a.string(),

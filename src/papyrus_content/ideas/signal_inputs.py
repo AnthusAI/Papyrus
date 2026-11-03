@@ -32,6 +32,10 @@ Fields of ``SignalInputs``:
 * ``pending_context``: ``PendingReference`` tuple, pending References whose relevance verdict (``relevance_decision_is``) is positive, context
   only (never a vote). Each has ``reference_id``, ``lineage_id``, ``title``, ``url``, ``created_at``, ``source_published_at``, ``score`` and
   ``concept_ids``.
+* ``ratings``: ``EditorRating`` tuple for every Reference an editor rated with stars, in any curation status (``starRating`` on the Reference row, read with
+  the rows already loaded: no extra query). Each has ``reference_id``, ``lineage_id``, ``title``, ``url``, ``status``, ``stars``, ``rated_at`` and ``rated_by``. Stars are
+  editorial interest, not relevance: nothing here sends them to the Cyclotron. A rated Reference counts as a core Reference, so its relations (concept links,
+  edges) are read like a voted one's. See ``editor_signals`` for how stars, Messages and accept reasons combine.
 * ``published``: ``StoryRecord`` tuple of the published Items, for repeat suppression.
 * ``ideas``: ``StoryRecord`` tuple of every existing generated idea, spiked ones included (``state`` is ``declined`` when spiked), with ``targets`` and ``evidence`` (the ``generated.evidence`` the idea recorded).
   ``StoryRecord`` fields: ``story_id``, ``title``, ``summary``, ``section``, ``state``, ``date``, ``targets`` and ``evidence`` (JSON text).
@@ -43,11 +47,12 @@ import copy
 import json
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any
 
 from ..priming_export import scrubbed
+from ..reference_stars import latest_stars
 from ..reference_vote import ACTION_FOR_STATUS, HUMAN
 from ..knowledge_snapshot.parallel import DEFAULT_WORKERS, map_with_clients
 from .context import list_stories, story_entry
@@ -134,6 +139,18 @@ class HumanVote:
 
 
 @dataclass(frozen=True)
+class EditorRating:
+    reference_id: str
+    lineage_id: str
+    title: str
+    url: str
+    status: str
+    stars: int
+    rated_at: str | None
+    rated_by: str | None
+
+
+@dataclass(frozen=True)
 class PendingReference:
     reference_id: str
     lineage_id: str
@@ -143,6 +160,7 @@ class PendingReference:
     source_published_at: str | None
     score: float | None
     concept_ids: tuple[str, ...]
+    stars: int | None = None   # an editor's rating of this still-pending Reference: context for the writer, never evidence
 
 
 @dataclass(frozen=True)
@@ -169,6 +187,7 @@ class SignalInputs:
     ideas: tuple[StoryRecord, ...]
     edges: tuple[ReferenceEdge, ...] = ()
     accepted: tuple[AcceptedReference, ...] = ()
+    ratings: tuple[EditorRating, ...] = ()
 
 
 def independent_copy(client: Any) -> Any:
@@ -288,6 +307,25 @@ def predicted_probability(row: dict[str, Any]) -> float | None:
     return float(value) if isinstance(value, (int, float)) else None
 
 
+def human_tagged_lineages(client: Any) -> set[str]:
+    """The lineage ids of the References an editor tagged with a concept (a current ``related_to`` link to a concept, provenance human, made or decided by a
+    person). A tag, including a concept an editor invented by typing its hashtag, is a human signal: the Reference counts as one a person worked on, so its
+    concept links are read like a vote's. One paginated read of the site's link rows; an unreadable feed means no tags."""
+    from .. import suggestion_calibration
+
+    try:
+        rows = client.list_by_index(suggestion_calibration.FEED_INDEX, suggestion_calibration.REFERENCE_LINK_FEED_KEY)
+    except Exception:  # noqa: BLE001
+        return set()
+    tagged: set[str] = set()
+    for row in rows:
+        metadata = suggestion_calibration._metadata(row)
+        if (row.get("relationState") == "current" and row.get("objectKind") == "semanticNode" and row.get("subjectKind") == REFERENCE_KIND
+                and metadata.get("provenance") == "human" and row.get("subjectLineageId")):
+            tagged.add(str(row["subjectLineageId"]))
+    return tagged
+
+
 def load_signal_inputs(
     client: Any, *, site: str, now: datetime, workers: int = DEFAULT_WORKERS, client_factory: Callable[[], Any] | None = None,
     out_of_time: Callable[[], bool] = lambda: False,
@@ -300,7 +338,8 @@ def load_signal_inputs(
     references = sorted(collect_references(client, [f"{CORPUS_PREFIX}{site}"], list(ACTION_FOR_STATUS), None), key=lambda entry: str(entry["id"]))
     messages, anchored = load_messages(client)
     is_pending = lambda row: str(row.get("curationStatus") or "pending") == "pending"  # noqa: E731
-    core = [row for row in references if row.get("curationActorKind") == HUMAN or str(row.get("lineageId") or row["id"]) in anchored]
+    tagged = human_tagged_lineages(client)
+    core = [row for row in references if row.get("curationActorKind") == HUMAN or latest_stars(row) is not None or str(row.get("lineageId") or row["id"]) in anchored | tagged]
     core_ids = {row["id"] for row in core}
     backlog = sorted((row for row in references if is_pending(row) and row["id"] not in core_ids),
                      key=lambda row: (-(predicted_probability(row) or 0.0), str(row["id"])))
@@ -349,9 +388,13 @@ def load_signal_inputs(
                 section_id=row.get("curationSectionId") or None, **common,
             ))
         elif status == "pending":
+            rating = latest_stars(row)
             pending_reference = pending_of(row, relations, common)
+            if pending_reference is None and rating is not None:
+                # An editor's stars make a pending Reference context whatever the prediction said: they are the stronger word.
+                pending_reference = PendingReference(score=predicted_probability(row), **common)
             if pending_reference is not None:
-                pending.append(pending_reference)
+                pending.append(replace(pending_reference, stars=rating["stars"]) if rating is not None else pending_reference)
     for row in unread_pending:
         pending_reference = pending_of(row, [], {
             "reference_id": str(row["id"]), "lineage_id": str(row.get("lineageId") or row["id"]), "title": str(row.get("title") or row.get("sourceUri") or "").strip(),
@@ -371,6 +414,13 @@ def load_signal_inputs(
         )
         for row in references if str(row.get("curationStatus") or "pending") == "accepted"
     ]
+    ratings = [
+        EditorRating(
+            reference_id=str(row["id"]), lineage_id=str(row.get("lineageId") or row["id"]), title=str(row.get("title") or row.get("sourceUri") or "").strip(),
+            url=str(row.get("sourceUri") or ""), status=str(row.get("curationStatus") or "pending"), stars=rating["stars"], rated_at=rating["ratedAt"], rated_by=rating["ratedBy"],
+        )
+        for row in references for rating in [latest_stars(row)] if rating is not None
+    ]
     stories = [story_entry(row) for row in list_stories(client) if row.get("versionState") == "current" and row.get("status") == "published"]
     ideas = [
         story_record({"id": row["id"], "title": row["title"], "summary": row["summary"], "state": row["state"], "date": (row.get("createdAt") or "")[:10] or None}, row["targets"], row.get("evidence") or "{}")
@@ -380,5 +430,6 @@ def load_signal_inputs(
         site=site, loaded_at=iso(now), messages=messages, votes=tuple(votes), concept_links=tuple(links),
         pending_context=tuple(pending), published=tuple(story_record(entry) for entry in stories), ideas=tuple(ideas),
         edges=tuple(sorted(found_edges.values(), key=lambda edge: (edge.subject_lineage_id, edge.object_lineage_id, edge.predicate))), accepted=tuple(accepted),
+        ratings=tuple(sorted(ratings, key=lambda rating: (rating.lineage_id, rating.reference_id))),
     )
 

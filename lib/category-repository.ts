@@ -287,6 +287,10 @@ export type ReferenceRecord = {
   curationShareable?: boolean | null;
   curationDelegation?: unknown;
   curationDecisionRelationId?: string | null;
+  /** An editor's optional 1-5 star interest (separate from the vote; never a Cyclotron label). */
+  starRating?: number | null;
+  starRatedAt?: string | null;
+  starRatedBy?: string | null;
   newsroomFeedKey?: string | null;
   reviewedFeedKey?: string | null;
   /** The feed-state keys the References page reads through (docs/reference-feed-indexes.md). */

@@ -48,6 +48,10 @@ carries a labelled marker ("Generated" or "Started by a person") so an editor
 can tell them apart. Every idea the pipeline generates (monitor stories, Cited Trends, synthesized ideas) is an Item at this stage, never a Proposal; an editor accepts one by moving it forward and declines it by moving it to `spiked` with a reason ([idea-pipeline.md](idea-pipeline.md)). Assignment-stage work appears on the assignments board and
 not on the stories board.
 Spiked is a collapsed column that loads its cards only when it is opened.
+
+What an editor does to a Reference before any idea exists steers which ideas are written first: a star rating, their messages and their accept reason are read
+by the idea pipeline ([editor interest](idea-context-packs.md#editor-interest-stars-messages-and-accept-reasons)). Stars are on the Reference, not the Item, and
+never move an Item between stages.
 Items still carrying the retired `research`, `report` or `editor_select`
 stages are read as `reporting`; `papyrus assignments migrate-content-item-stages`
 rewrites them (dry run by default).
@@ -76,6 +80,9 @@ place items there by hand until those agents exist.
   creates a parent/child hierarchy of content types.
 - **Edition placement is unchanged.** `EditionItem` still places a published
   item in an edition; it is layout, not lifecycle.
+
+A person can also start a Story from any Reference with one tap (**Create Story**, [reference curation pipeline](reference-curation-pipeline.md#create-story-ppy-3c11bd)):
+it is an Item at the `copywriting` stage that skips the idea stage, linked to the Reference.
 
 ## Story types and sections
 

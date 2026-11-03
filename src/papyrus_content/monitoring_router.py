@@ -1086,11 +1086,12 @@ def short(error: Exception) -> str:
 
 # --- AppSync access and delivery --------------------------------------------------------------------
 
-def make_appsync_client(endpoint: str):
+def make_appsync_client(endpoint: str, tenant_id: str | None = None):
     os.environ.setdefault("PAPYRUS_GRAPHQL_AUTH", "iam")
     from .graphql_authoring import PapyrusGraphQLAuthoringClient
     from .graphql_http import iam_signed_graphql_headers
-    return PapyrusGraphQLAuthoringClient(endpoint=endpoint, header_factory=lambda body: iam_signed_graphql_headers(endpoint, body))
+    return PapyrusGraphQLAuthoringClient(endpoint=endpoint, tenant_id=tenant_id,
+                                         header_factory=lambda body: iam_signed_graphql_headers(endpoint, body))
 
 
 def editorial_context_receipt(client, publication: dict) -> dict:
@@ -2497,10 +2498,14 @@ class Router:
                 # leaves passes on to the next, and a publication the time stopped comes round again in the next pass.
                 share = (self.time_left() - MIN_REMAINING_SECONDS) / (len(queue) - index)
                 stop_at = max(self.time_left() - share, MIN_REMAINING_SECONDS)
+                # The vector pass (index, suggestions) comes first but is held to the first half of this share, so a big backlog of vectors cannot starve the drafting;
+                # what it does not finish is saved and continues next run, or after the drafting if time is left.
+                vector_stop_at = stop_at + (self.time_left() - stop_at) / 2
                 try:
                     result = self.story_drafter(self.client(publication), publication, transport=self.story_transport,
                                                 now=datetime.fromtimestamp(self.now + passes, timezone.utc),   # a pass's run id (and so its review request) is its own
                                                 out_of_time=lambda stop_at=stop_at: self.time_left() < stop_at,
+                                                vector_out_of_time=lambda vector_stop_at=vector_stop_at: self.time_left() < vector_stop_at,
                                                 handled_references=self.automation_handled_references(publication), embedding_key=self.embedding_key,
                                                 retry_memory=self.retry_memory(pid),
                                                 read_watermark=lambda pid=pid: (self.store.get_any(self.monitor_id, watermark_sort_key(pid)) or {}).get("watermark"),

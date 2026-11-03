@@ -100,6 +100,7 @@ type ContainerProps = {
   referencesLoading?: boolean;
   predictionLoading?: boolean;
   referenceDisabledReason?: string | null;
+  onSetReferenceStars?: (reference: ReferenceRecord, stars: number | null) => Promise<void> | void;
   onRateReference?: (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null, note?: string) => Promise<void> | void;
   /** The Reference attachments (previews, captured text), for the cards' pictures and the capture checks. */
   referenceAttachments?: ReferenceAttachmentRecord[];
@@ -134,7 +135,7 @@ const EMAIL_REFUSALS: Record<string, string> = {
 
 export function NotificationCenter({
   references, decisions, humanCuratedReferenceLineageIds = NO_VISIT, previews = NO_PREVIEWS, referencesLoading = false, predictionLoading = false, referenceDisabledReason = null,
-  onRateReference, referenceAttachments = NO_ATTACHMENTS, onCorrectCapture, actorLabel, demo, fixture = null, api: liveOverride = liveApi, below,
+  onRateReference, onSetReferenceStars, referenceAttachments = NO_ATTACHMENTS, onCorrectCapture, actorLabel, demo, fixture = null, api: liveOverride = liveApi, below,
 }: ContainerProps) {
   const api = demo ? demoApi : liveOverride;
   // Suggested links are read and decided through the related-links store the Related section uses, so a decision is recorded identically.
@@ -385,7 +386,7 @@ export function NotificationCenter({
   return (
     <NeedsMeView
       below={below} captureTeaserLine={teaserLine} demo={demo} entries={entries} error={error} legacyAuto={legacyAuto}
-      loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason}
+      loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason} onSetStars={onSetReferenceStars}
       moreLinks={linksCursor !== null} loadingMoreLinks={linksLoadingMore} onLoadMoreLinks={loadMoreLinks}
       predictionLoading={predictionLoading} recent={recent} referenceAttachments={referenceAttachments}
       referenceDisabledReason={referenceDisabledReason} referencesLoading={referencesLoading} settled={settled} shaping={shaping} stale={stale} threshold={threshold}

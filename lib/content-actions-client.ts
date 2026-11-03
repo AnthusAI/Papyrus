@@ -32,6 +32,32 @@ export type UnpublishItemResult = { ok: true; changed: boolean };
 export type MoveStoryStageInput = { lineageId: string; stage: string; reason?: string | null };
 export type MoveStoryStageResult = { ok: true; changed: boolean; stage: string };
 
+export type CreateStoryFromReferenceInput = {
+  referenceId: string;
+  /** `article` (the default) or `post`. */
+  itemType?: string;
+  /** Make another story although this Reference already has one. */
+  again?: boolean;
+  /** Read only by the local preview, which has no backend to look the Reference up in; the real action ignores it. */
+  preview?: { title: string; url: string | null; summary: string | null; imageUrl: string | null; site: string | null };
+};
+export type ExistingStory = { itemId: string; lineageId: string; title: string; stage: string | null };
+export type CreateStoryFromReferenceResult =
+  | {
+      ok: true;
+      created: true;
+      itemId: string;
+      lineageId: string;
+      title: string;
+      itemType: string;
+      stage: string;
+      /** `included`, `none` (the Reference had no summary) or `withheld` (it repeated the source's own words). */
+      summary: "included" | "none" | "withheld";
+      image: "seeded" | "none" | string;
+      imageCredit: string | null;
+    }
+  | { ok: true; created: false; existing: ExistingStory[]; referenceLineageId: string };
+
 export type CaptureAssessment = "complete" | "incomplete" | "incorrect";
 export type CorrectReferenceCaptureInput = {
   referenceId: string;
@@ -65,6 +91,7 @@ export type ContentActionsTransport = {
     publishItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     unpublishItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     moveStoryStage: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
+    createStoryFromReference: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     correctReferenceCapture: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
   };
 };
@@ -104,6 +131,10 @@ export function createContentActionsClient(transport: ContentActionsTransport) {
     async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
       return parseActionResponse(await transport.mutations.moveStoryStage({ input: JSON.stringify(input) }, USER_POOL));
     },
+    async createStoryFromReference(input: CreateStoryFromReferenceInput): Promise<CreateStoryFromReferenceResult> {
+      const { preview: _preview, ...sent } = input;
+      return parseActionResponse(await transport.mutations.createStoryFromReference({ input: JSON.stringify(sent) }, USER_POOL));
+    },
     async unpublishItem(id: string): Promise<UnpublishItemResult> {
       return parseActionResponse(await transport.mutations.unpublishItem({ input: JSON.stringify({ id }) }, USER_POOL));
     },
@@ -122,6 +153,7 @@ function contentActionsClient() {
 export const deriveMarkus = (input: DeriveMarkusInput) => contentActionsClient().deriveMarkus(input);
 export const saveItemDraft = (input: SaveItemDraftInput) => contentActionsClient().saveItemDraft(input);
 export const publishItem = (id: string) => contentActionsClient().publishItem(id);
+export const createStoryFromReference = (input: CreateStoryFromReferenceInput) => contentActionsClient().createStoryFromReference(input);
 export const moveStoryStage = (input: MoveStoryStageInput) => contentActionsClient().moveStoryStage(input);
 export const unpublishItem = (id: string) => contentActionsClient().unpublishItem(id);
 
