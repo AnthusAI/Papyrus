@@ -103,6 +103,8 @@ def in_decision_contract(body):
 ROUTER_CONFIG_SK = "CONFIG#router"
 ROUTER_LOCK_SK = "LOCK#router"
 MONITOR_STORIES_LOCK_PREFIX = "LOCK#monitor-stories#"   # one lock per publication for a monitor-stories run that names one
+CYCLOTRON_STATUS_LOCK_SK = "LOCK#cyclotron-status"   # its own lock: reading status never waits for, or holds up, a routing sweep
+CYCLOTRON_STATUS_ROW_PREFIX = "CYCLOTRONSTATUS#"
 AUTO_ACCEPT_LOCK_PREFIX = "LOCK#auto-accept#"            # the same for an auto-accept run that names one
 FAN_OUT_TASKS = {"monitor-stories": MONITOR_STORIES_LOCK_PREFIX, "auto-accept": AUTO_ACCEPT_LOCK_PREFIX}   # tasks that run once per publication, each in its own invocation
 LEASE_SECONDS = 660                    # longer than the 600 s Lambda timeout
@@ -2670,6 +2672,56 @@ def reopen_stale_finals(store, monitor_id: str) -> int:
     return reopened
 
 
+# --- status snapshots for the newsroom ---------------------------------------------------------------
+
+def status_row_sk(publication_id: str) -> str:
+    """The monitor-partition row that holds a publication's latest Cyclotron status. The Monitoring view (src/papyrus_content/monitoring_view.py,
+    list `cyclotronStatus`) reads it for the signed-in site's own publication only."""
+    return CYCLOTRON_STATUS_ROW_PREFIX + publication_id
+
+
+def run_cyclotron_status(store, config: dict, cyclotron: CyclotronClient, *, monitor_id: str, now: float,
+                         time_left: Callable[[], float] = lambda: 1e9) -> dict:
+    """The `cyclotron-status` task: read the Cyclotron's `status` snapshot for each configured publication and keep it, one row per
+    publication (its output is in the row), in the monitor's own partition, where the newsroom home page reads it through the Monitoring view.
+    Read-only toward the Cyclotron and toward every site's backend: nothing is written outside the monitoring table.
+
+    It never goes through the deciding path and never stops a sweep: it calls the lab directly (not `classify`), so a 503 ("no verified
+    publication status snapshot yet") is that publication's "no snapshot yet" and sets no lab-wide pause, and it takes its own lock.
+    It does respect a pause the lab already asked for. A snapshot is only as fresh as the binding's last completed decision, so the row keeps the
+    snapshot's own `asOf` and the time this task last checked. One publication's failure never stops the others."""
+    results: dict = {}
+    if config["mode"] != "live" or config["decisions"] != "cyclotron":
+        return {"status": "skipped", "reason": "not a live Cyclotron monitor", "publications": results}
+    if int((store.get_any(monitor_id, LAB_BACKOFF_SK) or {}).get("until", 0)) > now:
+        return {"status": "skipped", "reason": "lab_backoff", "publications": results}
+    for publication in config["publications"]:
+        pid = publication["publicationId"]
+        if time_left() < MIN_REMAINING_SECONDS:
+            results[pid] = {"status": "skipped", "reason": "time budget"}
+            continue
+        try:
+            code, payload = cyclotron._call("POST", f"/machine/bindings/{quote(pid)}/operations",
+                                            {"contractVersion": CONTRACT_VERSION, "operation": "status", "payload": {}})
+        except (OSError, TimeoutError) as error:
+            results[pid] = {"status": "unreachable", "reason": type(error).__name__}
+            continue
+        if code == 503:
+            results[pid] = {"status": "no_snapshot"}   # no completed decision for this binding yet: not an error, and never a lab pause
+            continue
+        if code != 200 or payload.get("schema") != "cyclotron-status/v1":
+            results[pid] = {"status": "unavailable", "reason": body_excerpt(code, payload) if code != 200 else "not a status snapshot"}
+            continue
+        try:
+            store.put_any(monitor_id, {"pk": pk(monitor_id), "sk": status_row_sk(pid), "publicationId": pid, "output": publication["output"],
+                                       "asOf": payload.get("asOf"), "checkedAt": _iso(now), "status": payload})
+            results[pid] = {"status": "written", "asOf": payload.get("asOf")}
+        except Exception as error:  # noqa: BLE001 - one publication's unwritable row must not stop the others
+            results[pid] = {"status": "failed", "reason": short(error)}
+    print(json.dumps({"cyclotronStatus": {pid: r["status"] for pid, r in results.items()}, "monitorId": monitor_id}))
+    return {"status": "complete", "publications": results}
+
+
 def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner: str | None = None,
                run_id: str | None = None, task: str | None = None, cyclotron: CyclotronClient | None = None,
                appsync: Callable[[str], Any] = make_appsync_client, deliver=deliver_reference,
@@ -2699,7 +2751,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
             fan_out(pid)
         print(json.dumps({"monitorStories" if task == "monitor-stories" else "autoAccept": "fanned-out", "monitorId": monitor_id, "publications": started}))
         return {"monitorId": monitor_id, "runId": run_id, "status": "fanned-out", "publications": started}
-    lock_sk = ROUTER_LOCK_SK
+    lock_sk = CYCLOTRON_STATUS_LOCK_SK if task == "cyclotron-status" else ROUTER_LOCK_SK
     if publication_id is not None:
         # One publication of a per-publication task (the daily monitor-stories, the hourly auto-accept): validated against the monitor's config, and
         # locked per publication so the runs of one monitor's publications (each up to the Lambda's 10 minutes) neither wait for each other nor hold up
@@ -2716,6 +2768,11 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
             return {"monitorId": monitor_id, "runId": run_id, "status": "complete", "reopened": reopen_stale_finals(store, monitor_id)}
         if cyclotron is None and config["mode"] == "live" and config["decisions"] == "cyclotron":
             cyclotron = (cyclotron_factory or (lambda c: CyclotronClient(c, sign=sigv4_signer(c, assume_invoker(c)))))(config)
+        if task == "cyclotron-status":
+            # Its own task: no Router, no sweep, no feedback, no receipt, no lab-wide pause; the newsroom home page reads what it writes.
+            done = (run_cyclotron_status(store, config, cyclotron, monitor_id=monitor_id, now=now, time_left=time_left) if cyclotron
+                    else {"status": "skipped", "reason": "not a live Cyclotron monitor", "publications": {}})
+            return {"monitorId": monitor_id, "runId": run_id, **done}
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
                         start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher,
@@ -2803,7 +2860,7 @@ def invoke_self(context, payload: dict) -> None:
 
 
 def handler(event, context):
-    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"|"monitor-stories"|"auto-accept"}` limits the pass (operator debugging).
+    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"|"monitor-stories"|"auto-accept"|"cyclotron-status"}` limits the pass (operator debugging).
     `{"task": "monitor-stories"|"auto-accept", "monitorId": "hn", "publicationId": "anth-us"}` runs only that publication, with the whole time budget and its own lock;
     without a publicationId the task only fans out one such invocation per publication."""
     import boto3  # provided by the Lambda runtime

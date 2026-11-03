@@ -26,6 +26,8 @@ import { buildNeedsMeItemPath, parseNeedsMeItemIdFromNewsroomPathname } from "..
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { IDEA_STAGE, type RecentDecision } from "../lib/notification-feed";
 import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
+import { HomeCyclotronPanel } from "./home-cyclotron-panel";
+import type { HomeCyclotronState } from "../lib/hosted-cyclotron-status";
 import { NeedsMeDetail, type DecisionExtras } from "./needs-me-detail";
 import { FlagFooter, decidedChoiceOf, isReferenceLike, recordedAnswer } from "./needs-me-shared";
 import { NotificationSkeleton, RecentDecisions } from "./notification-cards";
@@ -265,6 +267,8 @@ export type NeedsMeViewProps = {
   recent: RecentDecision[];
   /** Read-only classifications the Cyclotron made on its own, other than the confident items above. */
   legacyAuto?: CyclotronEntry[];
+  /** The Cyclotron classifier behind this site's predictions: top right of the header (above the list on a phone). Absent: no panel. */
+  cyclotron?: HomeCyclotronState;
   /** True once every source has been read: the order is taken then, and not before. */
   settled: boolean;
   demo?: boolean;
@@ -299,7 +303,7 @@ function Note({ children, ...rest }: { children: ReactNode } & Record<string, un
 
 /** The CMS console home: one feed that mixes everything that may need a person, with the References feed's cards and detail pane. */
 export function NeedsMeView({
-  loadState, entries, threshold, now, shaping, recent, legacyAuto = [], settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
+  loadState, entries, threshold, now, shaping, recent, legacyAuto = [], cyclotron, settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
   referenceDisabledReason = null, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onSetStars, onOpened, loadEmail, below,
   moreLinks = false, loadingMoreLinks = false, onLoadMoreLinks,
 }: NeedsMeViewProps) {
@@ -445,9 +449,12 @@ export function NeedsMeView({
     <div className="flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-notification-center {...FEED_SURFACE_PROPS}>
       <div className="@container min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto px-1.5 pt-1.5 md:pr-2.5" data-needs-me-main data-needs-me-scroll>
         <header className="space-y-4">
-          <div className="space-y-1.5">
-            <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl" data-notification-title>What needs me?</h1>
-            <p className="text-lg text-muted-foreground" data-notification-summary role="status">{waitingTextFor(counts)}</p>
+          <div className="flex flex-col gap-4 @3xl:flex-row @3xl:items-start @3xl:justify-between">
+            <div className="min-w-0 space-y-1.5">
+              <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl" data-notification-title>What needs me?</h1>
+              <p className="text-lg text-muted-foreground" data-notification-summary role="status">{waitingTextFor(counts)}</p>
+            </div>
+            {cyclotron ? <HomeCyclotronPanel cyclotron={cyclotron} /> : null}
           </div>
           <ShapingStrip stats={shaping} />
           {linkedGone ? <Note data-needs-me-link-gone role="status">The item in this link is not waiting for you any more: it was decided, or it is not yours to decide.</Note> : null}
