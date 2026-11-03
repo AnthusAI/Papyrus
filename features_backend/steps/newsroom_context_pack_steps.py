@@ -658,6 +658,7 @@ class OneHitProvider:
 @when("the multi-search run is made for the assignment")
 def step_run(context):
     store = context.store
+    context.written_records = []
     try:
         context.expected_pack = pack_for(context, max_characters=ms.SYNTHESIS_INPUT_CHARACTERS // 2)
     except (ValueError, KeyError):
@@ -670,20 +671,23 @@ def step_run(context):
     references = [{"referenceId": reference_id} for reference_id in found]
     with mock.patch.object(pack_module, "graphql_endpoint", return_value=ENDPOINT), \
          mock.patch.object(ms, "apply_research_packet", return_value={"messageId": "message-packet-1"}) as packet, \
-         mock.patch.object(ms, "intake_research_packet_proposals", return_value={"registeredReferenceCount": len(references), "references": references}), \
+         mock.patch.object(ms, "intake_research_packet_proposals", return_value={"registeredReferenceCount": len(references), "references": references},
+                           side_effect=getattr(context, "intake_failure", None)) as intake, \
          mock.patch.object(ms, "build_record_changes", side_effect=lambda client, records: records), \
-         mock.patch.object(ms, "apply_record_changes"), \
+         mock.patch.object(ms, "apply_record_changes", side_effect=lambda client, rows: context.written_records.extend(rows)), \
          mock.patch.object(ms, "update_newsroom_summary_after_research_packet_creates"):
         context.result = ms.research_multi(store, {"assignment": "assignment-1"}, llm=context.llm, providers={"gemini": OneHitProvider()})
     context.packet = json.loads(packet.call_args.args[1]["research-json"])
+    context.intake_options = intake.call_args.args[1] if intake.called else None
+    context.events = [row["expected"] for row in getattr(context, "written_records", [])]
 
 
 @then("the planning and the synthesis were given the role and the policy as their system text")
 def step_systems(context):
     assert context.expected_pack, "the pack could not be built before the run"
     systems = {name: system for name, system, _ in context.llm.calls}
-    assert systems["search_plan"] == context.expected_pack["system"].rstrip() + "\n\n" + ms.PLAN_SYSTEM
-    assert systems["research_synthesis"] == context.expected_pack["system"].rstrip() + "\n\n" + ms.SYNTH_SYSTEM
+    assert systems["search_plan"] == context.expected_pack["system"].rstrip() + "\n\n" + ms.PLAN_SYSTEM + "\n" + ms.PLAN_DIRECTION_RULES
+    assert systems["research_synthesis"] == context.expected_pack["system"].rstrip() + "\n\n" + ms.SYNTH_SYSTEM + "\n" + ms.SYNTH_DIRECTION_RULES
     assert "PUBLICATION-POLICY" in systems["search_plan"]
 
 
@@ -869,3 +873,136 @@ def step_related_once(context):
 @then("a Reference only a rejected edge connects is not in the related layer")
 def step_edge_rejected_only(context):
     assert "rel-by-declined-edge" not in [entry["id"] for entry in related(context)]
+
+
+@then("the planning and synthesis prompts tell the model that the editor's direction outranks the Story")
+def step_direction_rules(context):
+    systems = {name: system for name, system, _ in context.llm.calls}
+    assert ms.PLAN_DIRECTION_RULES in systems["search_plan"] and "each item is its own claim" in systems["research_synthesis"]
+    assert "Each thing it asks for gets its own queries" in systems["search_plan"] or "each thing it asks for gets its own queries" in systems["search_plan"].lower()
+    assert "Answer it in its order" in systems["research_synthesis"] and "only titles and snippets count as evidence" in systems["research_synthesis"].lower()
+
+
+@then("the brief begins with the editor's direction, labelled as the editor's, before the Story")
+def step_direction_first(context):
+    plan = next(user for name, _, user in context.llm.calls if name == "search_plan")
+    assert plan.startswith("## The editor's assignment\n\nEditor's direction (it outranks the Story):\n" + DIRECTION)
+    assert plan.index(DIRECTION) < plan.index(DRAFT_MARKER)
+
+
+@then("the plain prompts carry no direction rules")
+def step_no_rules(context):
+    systems = [system for _, system, _ in context.llm.calls]
+    assert all("editor's direction" not in system for system in systems)
+
+
+@then("the intake is told to take in only the sources a claim cites")
+def step_cited_flag(context):
+    assert context.intake_options["cited-only"] is True and context.intake_options["message"] == "message-packet-1"
+
+
+@then("the intake is not told to take in only cited sources")
+def step_not_cited_flag(context):
+    assert context.intake_options["cited-only"] is False
+
+
+@given("the intake fails after the packet is written with \"{message}\"")
+def step_intake_fails(context, message):
+    context.intake_failure = ValueError(message)
+
+
+@then("the run does not stop with an error and its result says the intake failed with \"{message}\"")
+def step_intake_error(context, message):
+    assert message in context.result["intakeError"] and context.result["action"] == "completed"
+
+
+@then("the assignment records an intake failure event instead of a completed event")
+def step_intake_event(context):
+    types = [row["eventType"] for row in context.events if row.get("eventType")]
+    assert types == ["research.multi.intake_failed"], types
+    assert "Unknown --corpus-key" in [row for row in context.events][-1]["note"]
+
+
+@given("an earlier packet of seven sources, three cited, one of them already held as an accepted Reference")
+def step_cited_packet(context):
+    store = context.store
+    urls = [f"https://example.org/source-{number}" for number in range(1, 8)]
+    packet = {
+        "summary": "Seven sources.", "researchMode": "source_discovery",
+        "proposed_references": [{"url": url, "title": f"Source {number}"} for number, url in enumerate(urls, start=1)],
+        "source_snapshots": [{"url": url} for url in urls],
+        "claims": [{"claim": "First.", "sources": [1]}, {"claim": "Third.", "sources": [3, 99]}],
+        "disagreements": [{"topic": "Score", "positions": [{"position": "High", "sources": [5]}]}],
+        "multiSearch": {"sourceProviders": [{"index": number, "url": url, "providers": ["gemini"]} for number, url in enumerate(urls, start=1)]},
+    }
+    store.records["Message"]["message-packet-0"]["metadata"] = json.dumps({"research": packet})
+    store.add_reference("held-3", "Source 3 held", status="accepted", day=2)
+    store.records["Reference"]["held-3"]["sourceUri"] = urls[2]
+
+
+@when("the packet's sources are taken in with the cited-only option")
+def step_intake_cited(context):
+    take_in(context, {"cited-only": True})
+
+
+@when("the packet's sources are taken in without the cited-only option")
+def step_intake_all(context):
+    take_in(context, {})
+
+
+def take_in(context, extra):
+    import tempfile
+    from pathlib import Path
+    from papyrus_content import assignments_workflow as workflow
+
+    written = []
+    with tempfile.TemporaryDirectory() as directory, \
+         mock.patch.object(workflow, "PAPYRUS_ROOT", Path(directory)), \
+         mock.patch.object(workflow, "build_record_changes", side_effect=lambda client, records: [{**row, "action": "create"} for row in records]), \
+         mock.patch.object(workflow, "apply_record_changes", side_effect=lambda client, rows: written.extend(rows)), \
+         mock.patch.object(workflow, "update_newsroom_summary_after_reference_registration"):
+        context.intake = workflow.intake_research_packet_proposals(
+            context.store, {"assignment": "assignment-0", "status": "pending", "url-text": "false", "metadata-from-text": "false", **extra})
+    context.registered = [row["expected"] for row in written if row["modelName"] == "Reference"]
+
+
+@then("only the cited sources not already held are registered, as pending References")
+def step_registered(context):
+    urls = sorted(row["sourceUri"] for row in context.registered)
+    assert urls == ["https://example.org/source-1", "https://example.org/source-5"], urls
+    assert {row["curationStatus"] for row in context.registered} == {"pending"}
+
+
+@then("the held source is reported and left as it is, not registered again")
+def step_held(context):
+    held = [row for row in context.intake["references"] if row["action"] == "held"]
+    assert [row["referenceId"] for row in held] == ["held-3"]
+    assert context.store.records["Reference"]["held-3"]["curationStatus"] == "accepted"
+    assert context.intake["consideredSourceCount"] == 7 and context.intake["heldReferenceCount"] == 1
+
+
+@then("all seven sources are registered")
+def step_all_registered(context):
+    assert len(context.registered) == 7
+
+
+@when("the corpus key \"{key}\" is resolved for the intake against the repository's steering file")
+def step_corpus(context, key):
+    from papyrus_content.assignments_workflow import intake_corpus
+
+    context.corpus_error = None
+    try:
+        context.corpus = intake_corpus(context.store, key, "corpora/papyrus-steering.yml")
+    except ValueError as error:
+        context.corpus, context.corpus_error = None, str(error)
+
+
+@then("the corpus configuration is built from the backend's canonical corpus with no classifier")
+def step_hosted_corpus(context):
+    config, classifier = context.corpus
+    assert config == {"key": "example", "name": "Example", "role": "canonical"} and classifier is None
+
+
+@then("resolving it fails with \"{message}\"")
+def step_corpus_fails(context, message):
+    assert context.corpus_error == message, context.corpus_error

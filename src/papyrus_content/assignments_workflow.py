@@ -1173,17 +1173,16 @@ def _references_for_changed_ids(
 def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> dict[str, Any]:
     from .catalog import assert_reference_catalog_plan_safety, build_reference_catalog_registration_records
     from .ids import knowledge_corpus_id
-    from .steering import load_steering_config, require_corpus_config, resolve_classifier_for_corpus
+    from .editorial_context import hosted_publication
 
     apply = resolve_mutation_apply(options, "assignments process-proposals")
     assignment_id = normalize_string(options.get("assignment"))
     if not assignment_id:
         raise ValueError("assignments process-proposals requires --assignment <id>.")
-    if not options.get("config"):
-        raise ValueError("assignments process-proposals requires --config <steering.yml>.")
-    corpus_key = normalize_string(options.get("corpus-key"))
-    if not corpus_key:
-        raise ValueError("assignments process-proposals requires --corpus-key <key>.")
+    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(
+        assignment_metadata(client, client.get_record("Assignment", assignment_id) or {}).get("corpusKey")
+    ) or hosted_publication(client)["key"]
+    cited_only = parse_boolean_option(options.get("cited-only"), False, "--cited-only")
     entries = load_assignment_research_packet_entries(client, assignment_id)
     message_id = normalize_string(options.get("message"))
     selected = next((entry for entry in entries if entry["message"]["id"] == message_id), None) if message_id else (
@@ -1202,6 +1201,15 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
     run_dir.mkdir(parents=True, exist_ok=True)
     catalog_path = run_dir / "research-proposals-catalog.json"
     proposals = extract_research_packet_proposals(selected["packet"])
+    considered_count = len(proposals)
+    held_rows: list[dict[str, Any]] = []
+    if cited_only:
+        cited = cited_source_urls(selected["packet"])
+        proposals = [proposal for proposal in proposals if proposal["url"] in cited]
+        held = held_reference_urls(client, knowledge_corpus_id({"key": corpus_key}))
+        held_rows = [{"referenceId": held[proposal["url"]], "title": proposal.get("title"), "url": proposal["url"], "status": "held", "action": "held"}
+                     for proposal in proposals if proposal["url"] in held]
+        proposals = [proposal for proposal in proposals if proposal["url"] not in held]
     catalog_items = build_research_proposal_catalog_items(
         proposals,
         assignment=selected["assignment"],
@@ -1229,18 +1237,21 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
             "registeredReferenceCount": 0,
             "skippedDuplicateCount": 0,
             "curationAssignmentCount": 0,
+            "citedOnly": cited_only,
+            "consideredSourceCount": considered_count,
+            "heldReferenceCount": len(held_rows),
+            "references": held_rows,
             "blockedReason": blocked_reason,
             "next": f"Review blocked reason on research packet {selected['message']['id']}"
             if blocked_reason
             else f"poetry run papyrus assignments run-research --assignment {assignment_id} --research-mode source_discovery --max-evidence-items 20",
         }
-    steering_config = load_steering_config(options.get("config")) or require_steering_config()
-    corpus_config = require_corpus_config(steering_config, corpus_key, "--corpus-key")
+    corpus_config, classifier_id = intake_corpus(client, corpus_key, options.get("config"))
     catalog_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
     plan_options = {
         "corpusConfig": corpus_config,
         "corpusId": knowledge_corpus_id(corpus_config),
-        "classifierId": resolve_classifier_for_corpus(steering_config, corpus_config, None),
+        "classifierId": classifier_id,
         "status": _normalize_proposal_intake_status(options.get("status")),
         "reasonCode": options.get("reason-code"),
         "note": options.get("note"),
@@ -1305,7 +1316,7 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
                     apply=True,
                     bucket=normalize_string(options.get("bucket")),
                 )
-    references = _research_proposal_intake_reference_rows(registration["changes"])
+    references = [*_research_proposal_intake_reference_rows(registration["changes"]), *held_rows]
     changed_refs = sum(
         1 for change in registration["changes"] if change.get("modelName") == "Reference" and change.get("action") != "noop"
     )
@@ -1321,6 +1332,9 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
         "catalogPath": str(catalog_path),
         "proposedReferenceCount": len(proposals),
         "dedupedProposalCount": len(catalog_items),
+        "citedOnly": cited_only,
+        "consideredSourceCount": considered_count,
+        "heldReferenceCount": len(held_rows),
         "registeredReferenceCount": changed_refs,
         "skippedDuplicateCount": duplicate_noops,
         "curationAssignmentCount": changed_assignments,
@@ -1349,6 +1363,62 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
         if metadata_generation_result
         else None,
     }
+
+
+def intake_corpus(client: PapyrusGraphQLAuthoringClient, corpus_key: str, config_path: Any) -> tuple[dict[str, Any], str | None]:
+    """The corpus configuration the intake registers References under, and its classifier id.
+
+    A corpus the steering config lists keeps its configured settings and classifier. Otherwise the key must be the backend's own canonical
+    ``KnowledgeCorpus`` (its publication data is the policy, not a repository file): its configuration is built from that record, with no classifier,
+    because the Reference records written here carry the classifier id as an optional field and nothing reads it (the router's Reference delivery
+    writes none). A key that is neither fails."""
+    from .editorial_context import hosted_publication
+    from .steering import find_corpus_config, load_steering_config, resolve_classifier_for_corpus
+
+    steering_config = None
+    config_error: ValueError | None = None
+    if config_path:
+        try:
+            steering_config = load_steering_config(normalize_string(config_path) or None)
+        except ValueError as error:   # a missing or unreadable file only matters when the key is not the backend's own corpus
+            config_error = error
+    listed = find_corpus_config(steering_config, corpus_key) if steering_config else None
+    if listed is not None:
+        return listed, resolve_classifier_for_corpus(steering_config, listed, None)
+    try:
+        publication = hosted_publication(client)
+    except ValueError:
+        publication = None
+    if publication and publication["key"] == corpus_key:
+        return {"key": corpus_key, "name": publication["name"], "role": "canonical"}, None
+    raise config_error or ValueError(f"Unknown --corpus-key: {corpus_key}")
+
+
+def cited_source_urls(packet: dict[str, Any]) -> set[str]:
+    """The URLs of the sources a claim or a disagreement position cites, through the packet's ``multiSearch.sourceProviders`` index-to-URL list."""
+    index = {row.get("index"): normalize_proposal_url(row.get("url")) for row in _parse_array((packet.get("multiSearch") or {}).get("sourceProviders"))
+             if isinstance(row, dict)}
+    if not index:
+        raise ValueError("--cited-only needs a multi-search research packet: it has no source index to read the citations through.")
+    numbers: set[Any] = set()
+    for claim in _parse_array(packet.get("claims")):
+        numbers |= set(_parse_array(claim.get("sources"))) if isinstance(claim, dict) else set()
+    for disagreement in _parse_array(packet.get("disagreements")):
+        for position in _parse_array(disagreement.get("positions")) if isinstance(disagreement, dict) else []:
+            numbers |= set(_parse_array(position.get("sources"))) if isinstance(position, dict) else set()
+    return {index[number] for number in numbers if index.get(number)}
+
+
+def held_reference_urls(client: PapyrusGraphQLAuthoringClient, corpus_id: str) -> dict[str, str]:
+    """URL to Reference id for every current Reference the corpus already holds, whatever its curation status."""
+    held: dict[str, str] = {}
+    for status in ("accepted", "pending", "rejected"):
+        for row in client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}"):
+            if row and row.get("versionState", "current") == "current":
+                url = normalize_proposal_url(row.get("sourceUri"))
+                if url:
+                    held.setdefault(url, row["id"])
+    return held
 
 
 def load_assignment_research_packet_entries(

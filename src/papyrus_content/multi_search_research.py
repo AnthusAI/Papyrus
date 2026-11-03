@@ -113,13 +113,30 @@ def brief_text(assignment: Mapping[str, Any], meta: Mapping[str, Any] | None = N
     return "\n".join(lines)
 
 
-def with_system_prefix(system_prefix: str, system: str) -> str:
-    return f"{system_prefix.rstrip()}\n\n{system}" if system_prefix else system
+#: Added to the planning and synthesis prompts only when the run has a context pack (a Story with an editor's direction); other runs keep the plain prompts.
+PLAN_DIRECTION_RULES = """The brief starts with the editor's direction. It outranks the Story.
+- Plan from the direction first. Each thing it asks for gets its own queries, in proportion to what it asks: a request for a list of cases or sources needs several queries from different angles, a narrow question needs one or two.
+- Do not spend queries re-finding what the brief already shows the Story's References and related References hold.
+- Name a specific person, place or case in a query only when it appears in the brief.
+"""
+
+SYNTH_DIRECTION_RULES = """The brief starts with the editor's direction. Answer it in its order.
+- For each thing the direction asks for, write claims that answer it, or put an open question saying it was not answered.
+- Material on the Story's existing cases comes after the answers to the direction.
+- When the direction asks for a list (for example other cases), each item is its own claim with its own source.
+- Only titles and snippets count as evidence, as above.
+"""
+
+
+def with_system_prefix(system_prefix: str, system: str, direction_rules: str = "") -> str:
+    if not system_prefix:
+        return system
+    return f"{system_prefix.rstrip()}\n\n{system}" + (f"\n{direction_rules}" if direction_rules else "")
 
 
 def plan_queries(brief: str, llm: Llm, system_prefix: str = "") -> list[dict[str, str]]:
     try:
-        data = llm(with_system_prefix(system_prefix, PLAN_SYSTEM), brief, PLAN_SCHEMA)
+        data = llm(with_system_prefix(system_prefix, PLAN_SYSTEM, PLAN_DIRECTION_RULES), brief, PLAN_SCHEMA)
     except Exception as error:  # noqa: BLE001 - any model failure is a planning failure the assignment records
         raise MultiSearchFailed(f"multi-search could not plan queries: {error}") from None
     queries, seen = [], set()
@@ -324,7 +341,7 @@ def _valid_indices(values: Any, count: int) -> list[int]:
 
 def synthesise(brief: str, sources: Sequence[Mapping[str, Any]], llm: Llm, system_prefix: str = "") -> dict[str, Any]:
     try:
-        data = llm(with_system_prefix(system_prefix, SYNTH_SYSTEM), synthesis_input(brief, sources), SYNTH_SCHEMA)
+        data = llm(with_system_prefix(system_prefix, SYNTH_SYSTEM, SYNTH_DIRECTION_RULES), synthesis_input(brief, sources), SYNTH_SCHEMA)
     except Exception as error:  # noqa: BLE001
         raise MultiSearchFailed(f"multi-search found {len(sources)} sources but could not synthesise them: {error}") from None
     if not isinstance(data, dict) or not normalize_string(data.get("summary")):
@@ -562,31 +579,41 @@ def research_multi(
     apply_result = apply_research_packet(client, {"assignment": assignment_id, "research-json": json.dumps(packet),
                                                   "research-mode": research_mode, "actor-label": actor_label})
     intake_result: dict[str, Any] | None = None
+    intake_error: str | None = None
     if parse_boolean_option(options.get("intake-proposals"), True, "--intake-proposals"):
-        intake_result = intake_research_packet_proposals(client, {
-            "assignment": assignment_id,
-            "config": normalize_string(options.get("config")) or "corpora/papyrus-steering.yml",
-            "corpus-key": corpus_key,
-            "status": options.get("status") or "pending",
-            "url-text": options.get("url-text", "false"),
-            "metadata-from-text": options.get("metadata-from-text", "false"),
-            "actor-label": actor_label,
-        })
-    if pack and intake_result:
-        link_found_references_as_consulted(
-            client, story_lineage, [row["referenceId"] for row in intake_result.get("references") or [] if row.get("referenceId")],
-            actor=actor_label, note=f"Found by research assignment {assignment_id}")
+        try:
+            intake_result = intake_research_packet_proposals(client, {
+                "assignment": assignment_id,
+                "message": (apply_result or {}).get("messageId"),
+                "config": normalize_string(options.get("config")) or "corpora/papyrus-steering.yml",
+                "corpus-key": corpus_key,
+                "status": options.get("status") or "pending",
+                "cited-only": parse_boolean_option(options.get("cited-only"), bool(pack), "--cited-only"),
+                "url-text": options.get("url-text", "false"),
+                "metadata-from-text": options.get("metadata-from-text", "false"),
+                "actor-label": actor_label,
+            })
+            if pack:
+                link_found_references_as_consulted(
+                    client, story_lineage, [row["referenceId"] for row in intake_result.get("references") or [] if row.get("referenceId")],
+                    actor=actor_label, note=f"Found by research assignment {assignment_id}")
+        except Exception as error:   # noqa: BLE001 - the packet is already written; the failure is recorded on the assignment, not left half-done
+            intake_error = f"{type(error).__name__}: {error}"
     now = _utc_now()
+    summary_note = (f"Multi-search completed: {len(outcome['queries'])} queries, {len(outcome['sources'])} sources from "
+                    f"{', '.join(outcome['packet']['multiSearch']['answeredProviders'])}.")
     event = _assignment_event_record(
-        assignment=assignment, event_type="research.multi.completed", actor_label=actor_label, now=now,
-        note=f"Multi-search completed: {len(outcome['queries'])} queries, {len(outcome['sources'])} sources from "
-             f"{', '.join(outcome['packet']['multiSearch']['answeredProviders'])}.")
+        assignment=assignment, event_type="research.multi.intake_failed" if intake_error else "research.multi.completed",
+        actor_label=actor_label, now=now,
+        note=f"{summary_note} The packet was written, but taking its sources in failed: {intake_error}" if intake_error else summary_note)
     changes = build_record_changes(client, [event])
     apply_record_changes(client, changes)
     update_newsroom_summary_after_research_packet_creates(client, changes, actor_label=actor_label,
                                                           reason=f"assignments research-multi {assignment_id}")
     return {**result, "researchPacketMessageId": (apply_result or {}).get("messageId"),
-            "registeredReferenceCount": (intake_result or {}).get("registeredReferenceCount", 0)}
+            "registeredReferenceCount": (intake_result or {}).get("registeredReferenceCount", 0),
+            **({"intakeError": intake_error} if intake_error else {}),
+            **({"intake": {key: intake_result.get(key) for key in ("citedOnly", "consideredSourceCount", "dedupedProposalCount", "heldReferenceCount")}} if intake_result else {})}
 
 
 def research_multi_command(flags: list[str]) -> None:
@@ -614,3 +641,5 @@ def research_multi_command(flags: list[str]) -> None:
               f"unique={row['uniqueSources']}\tfailures={failed}\tms={row['elapsedMs']}")
     if result.get("researchPacketMessageId"):
         print(f"assignments\tresearch-multi\tpacket\t{result['researchPacketMessageId']}")
+    if result.get("intakeError"):
+        print(f"assignments\tresearch-multi\tintake-failed\t{result['intakeError']}")
