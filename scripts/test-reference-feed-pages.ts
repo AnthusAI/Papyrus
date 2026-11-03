@@ -87,7 +87,7 @@ test("star partitions in memory hold every starred row, state or not, newest fir
   assert.deepEqual(first.items.map((row) => row.lineageId), ["r7", "r1"], "an archived row is still in the star partition: the reader filters it");
   const reader = new MergedFeedReader({ keys: starFeedKeys(["alpha", "beta"], 4), sort: "quality", read: liveStarRows(read, "all") });
   const seen: string[] = [];
-  while (reader.hasMore) seen.push(...(await reader.more(24)).map((row) => row.lineageId));
+  while (reader.hasMore) seen.push(...(await reader.more(24)).map((row) => row.lineageId!));
   assert.deepEqual(seen, ["r3", "r1", "r4", "r2"], "5 stars newest first (the archived r7 is dropped), then 4 stars newest first");
 });
 
@@ -111,7 +111,7 @@ test("a page that filters to nothing does not end the feed: the reader keeps rea
   assert.equal(reader.hasMore, true, "but the partition is not finished, so the feed asks again (the sentinel row stays and loads the next round)");
   const placed: string[] = [];
   let calls = 1;
-  while (reader.hasMore) { calls += 1; placed.push(...(await reader.more(24)).map((row) => row.lineageId)); assert.ok(calls < 10); }
+  while (reader.hasMore) { calls += 1; placed.push(...(await reader.more(24)).map((row) => row.lineageId!)); assert.ok(calls < 10); }
   assert.deepEqual(placed.sort(), ["r100", "r101", "r102"]);
   assert.equal(reads, 3, "three pages of 24 cover the 63 rows");
 });

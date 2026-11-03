@@ -11,9 +11,8 @@
  */
 import type { ReferenceRecord } from "./category-repository";
 import type { RelevanceDecisionView } from "./relevance-decisions";
-import { normalizeReferenceCurationStatus } from "./reference-policy";
+import { normalizeReferenceCurationStatus, starsOf } from "./reference-policy";
 import { referenceLineageId } from "./newsroom-references";
-import { starsOf } from "./reference-feed-pages";
 
 /** The probability that stands for "no prediction". */
 export const UNDECIDED_PROBABILITY = 0.5;

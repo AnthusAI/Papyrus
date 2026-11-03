@@ -4,7 +4,7 @@
  */
 import type { ReferenceRecord } from "./category-repository";
 import { referenceFeedKeys } from "./reference-feed-keys";
-import { starsOf } from "./reference-feed-pages";
+import { starsOf } from "./reference-policy";
 
 export type ReferenceSearchShow = "unrated" | "rated" | "all";
 export type ReferenceSearchLane = { status: "ok" | "failed"; message?: string };
