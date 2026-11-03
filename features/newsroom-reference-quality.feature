@@ -2,12 +2,12 @@
 Feature: An editor finds the highest quality References again by their stars, newest first
   Editors rate References one to five stars while they curate, and later need to go back and find the good ones: most often "the most recent,
   highest quality things", where highest sometimes means only five stars, sometimes four or more, sometimes three or more, but never "only
-  three" and never "only two". The newsroom References page has a third Sort, Quality, beside Best bets and Newest, and a row labelled Minimum
+  three" and never "only two". The newsroom References page has a third Sort, Quality, beside Predictions and Newest, and a row labelled Minimum
   stars with Any, 3+, 4+ and 5, each with a star and its number so colour is never the only sign. Quality lists the References with the most
   stars first and the newest first within each number of stars; only starred References are in it. A minimum keeps the References with at least
   that many stars in whichever Sort is chosen. Stars are separate from the vote, so most starred References are voted: choosing Quality or a
   minimum while Show is Unrated moves Show to All, in view, and choosing Show afterwards is honoured. The stars index is by arrival and cannot
-  order by prediction: choosing a minimum while Sort is Best bets moves Sort to Newest, and choosing Best bets sets the minimum back to Any.
+  order by prediction: choosing a minimum while Sort is Predictions moves Sort to Newest, and choosing Predictions sets the minimum back to Any.
   Sort, Show and the minimum are remembered in this browser. A Reference that has been replaced by a newer version, or archived, is never shown,
   whatever its stars. While a search is open, Sort reads Relevance, Newest and Quality, opens on Relevance and is not saved, and the minimum is
   the same saved one. These scenarios use synthetic References in an isolated browser at 375 and 1440 pixels and never touch production.
@@ -37,14 +37,14 @@ Feature: An editor finds the highest quality References again by their stars, ne
     Then Show reads All in view
     And choosing Unrated afterwards lists the unrated starred References, and choosing Rated lists the rated ones
 
-  Scenario: Best bets sets the minimum back to Any
+  Scenario: Predictions sets the minimum back to Any
     Given a synthetic site with References of one to five stars, some unstarred, one archived and one replaced by a newer version
-    When the editor has chosen a minimum of 4+ and then chooses Best bets
+    When the editor has chosen a minimum of 4+ and then chooses Predictions
     Then the minimum reads Any and the feed lists unstarred References again
 
-  Scenario: A minimum moves Best bets to Newest
+  Scenario: A minimum moves Predictions to Newest
     Given a synthetic site with References of one to five stars, some unstarred, one archived and one replaced by a newer version
-    When the editor chooses Best bets, Unrated and then the minimum 3+
+    When the editor chooses Predictions, Unrated and then the minimum 3+
     Then Sort reads Newest and Show reads All
 
   Scenario: A minimum that finds nothing says which minimum and offers a way to clear it

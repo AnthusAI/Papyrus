@@ -3,7 +3,7 @@
 The page asks two indexes on ``Reference`` for a page at a time instead of loading every Reference:
 
 * ``listReferencesByFeedStateAndPrediction``: partition ``feedStateKey``, sort ``predictionSortKey``. Read newest-key-first it is
-  "Best bets": the Cyclotron's ORIGINAL P(accept) highest first, ties newest first.
+  "Predictions": the Cyclotron's ORIGINAL P(accept) highest first, ties newest first.
 * ``listReferencesByFeedStateAndArrival``: partition ``feedStateKey``, sort ``feedArrivalAt``. Read descending it is "Newest".
 * ``listReferencesByStarFeedAndArrival``: partition ``starFeedKey`` (``<corpusId>#stars#<n>``, one per star level), sort ``feedArrivalAt``.
   The Quality sort and the minimum-stars filter merge the levels they want.

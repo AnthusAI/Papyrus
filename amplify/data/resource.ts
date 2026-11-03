@@ -1841,7 +1841,7 @@ const schema = a.schema({
       discoveryRule: a.json(),
       // The References page reads the feed through two indexes (docs/reference-feed-indexes.md). `feedStateKey` is
       // "<corpusId>#unrated" or "<corpusId>#rated" for a current, not archived Reference (null otherwise: it is in no feed).
-      // `predictionSortKey` orders Best bets, `feedArrivalAt` orders Newest. The prediction is the Cyclotron's ORIGINAL
+      // `predictionSortKey` orders Predictions, `feedArrivalAt` orders Newest. The prediction is the Cyclotron's ORIGINAL
       // P(accept), written once, and never rewritten by a vote.
       feedStateKey: a.string(),
       feedArrivalAt: a.datetime(),

@@ -34,7 +34,7 @@ for (const then of [
   "that Reference is listed with \"Matched: meaning\"",
   "that Reference is the first card and says \"Matched: title and meaning\"",
   "the cards that match only by words or only by meaning follow it, each saying how",
-  "Sort reads Relevance in place of Best bets and Newest, and Show opened on All",
+  "Sort reads Relevance in place of Predictions and Newest, and Show opened on All",
   "choosing Unrated during the search did not change the saved choice",
   "clearing the search brings back Sort, the saved Show of Rated, and a plain address",
   "the search box holds that name and its results are listed",

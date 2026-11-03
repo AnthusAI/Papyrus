@@ -10,7 +10,7 @@ import { useFeedSearch } from "./use-indexed-reference-feed";
  * The feed's Sort, Show and Minimum stars controls, with and without a search open. Without one they are the saved choices. While a search is open
  * Sort reads Relevance, Newest or Quality (the search's own, opened on Relevance, not saved) and Show is the search's (opened on All, not saved), and
  * the minimum of stars is the saved one, shared with the feed. The rules between the choices (`choose` in use-feed-preferences.ts) hold in both: a
- * minimum or Quality moves an Unrated Show to All, and a minimum moves a saved Best bets to Newest.
+ * minimum or Quality moves an Unrated Show to All, and a minimum moves a saved Predictions to Newest.
  */
 export function useFeedControls({ searchRead, onChange }: { searchRead: ReferenceSearchReader | undefined; onChange?: () => void }) {
   const prefs = useFeedPreferences();

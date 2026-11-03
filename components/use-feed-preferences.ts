@@ -33,7 +33,7 @@ export type FeedChoices = { sort: FeedSort; show: FeedShow; minStars: FeedMinSta
 /**
  * What one choice does to the others, so the list never looks empty for a reason the editor cannot see. Stars are separate from the vote, so most
  * starred References are voted: Quality and a minimum move Show from Unrated to All. The star index is by arrival and cannot order by prediction:
- * a minimum moves Best bets to Newest, and Best bets takes the minimum back to Any. Show stays the editor's: picking it afterwards is honoured.
+ * a minimum moves Predictions to Newest, and Predictions takes the minimum back to Any. Show stays the editor's: picking it afterwards is honoured.
  */
 export function choose(current: FeedChoices, change: Partial<FeedChoices>): FeedChoices {
   const next = { ...current, ...change };

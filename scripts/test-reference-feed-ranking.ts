@@ -44,7 +44,7 @@ test("A prediction becomes a probability that the editor accepts", () => {
 
 const items = (references: ReferenceRecord[], decisions?: Map<string, RelevanceDecisionView>) => buildFeedItems(references, decisions);
 
-test("Best bets: strongest Accepts first, no prediction in the middle, strongest Rejects last", () => {
+test("Predictions: strongest Accepts first, no prediction in the middle, strongest Rejects last", () => {
   const references = ["weak-accept", "none", "strong-reject", "strong-accept", "weak-reject"].map((id) => reference(id));
   const decisions = new Map<string, RelevanceDecisionView>([
     ["weak-accept", decision("include", 0.6)], ["strong-accept", decision("include", 0.95)],
@@ -53,7 +53,7 @@ test("Best bets: strongest Accepts first, no prediction in the middle, strongest
   assert.deepEqual(ids(orderFeedItems(items(references, decisions), "best")), ["strong-accept", "weak-accept", "none", "weak-reject", "strong-reject"]);
 });
 
-test("Best bets is the Cyclotron's own confidence: age never changes it", () => {
+test("Predictions is the Cyclotron's own confidence: age never changes it", () => {
   const references = [reference("old-strong", { createdAt: ago(400) }), reference("new-weak", { createdAt: ago(0.1) }), reference("new-reject", { createdAt: ago(0.1) }), reference("old-reject", { createdAt: ago(400) })];
   const decisions = new Map<string, RelevanceDecisionView>([
     ["old-strong", decision("include", 0.9)], ["new-weak", decision("include", 0.6)], ["new-reject", decision("exclude", 0.9)], ["old-reject", decision("exclude", 0.7)],
@@ -63,7 +63,7 @@ test("Best bets is the Cyclotron's own confidence: age never changes it", () => 
   assert.equal(ordered[0].probability, 0.9, "no fading");
 });
 
-test("Ties in Best bets go to the newest item, then to a stable id order", () => {
+test("Ties in Predictions go to the newest item, then to a stable id order", () => {
   const references = [reference("b", { createdAt: ago(2) }), reference("a", { createdAt: ago(2) }), reference("c", { createdAt: ago(1) })];
   assert.deepEqual(ids(orderFeedItems(items(references), "best")), ["c", "a", "b"]);
 });
@@ -89,7 +89,7 @@ test("Unrated hides answered items except those answered this visit; All adds th
   assert.deepEqual(ids(visibleFeedItems(all, "newest", "all")), ["no", "open", "yes"]);
   assert.deepEqual(ids(visibleFeedItems(all, "newest", "unrated", new Set(["yes"]))), ["open", "yes"], "answered this visit: stays");
   assert.deepEqual(ids(visibleFeedItems(all, "newest", "rated")), ["no", "yes"], "Rated lists the answered items alone");
-  assert.deepEqual(ids(visibleFeedItems(all, "best", "rated")), ["no", "yes"], "Best bets with no prediction: newest first");
+  assert.deepEqual(ids(visibleFeedItems(all, "best", "rated")), ["no", "yes"], "Predictions with no prediction: newest first");
   assert.deepEqual(ids(visibleFeedItems(all, "newest", "rated", new Set(["open"]))), ["no", "open", "yes"], "an answer cleared this visit stays");
   assert.ok(visibleFeedItems(all, "best", "all").find((item) => item.lineageId === "yes")!.rated);
 });
@@ -313,9 +313,9 @@ test("the order snapshot keeps a Quality order of its own", () => {
 
 test("the rules between the choices: stars follow the vote and the prediction, and Show stays the editor's", () => {
   const start = { sort: "best", show: "unrated", minStars: 0 } as const;
-  assert.deepEqual(choose(start, { minStars: 4 }), { sort: "newest", show: "all", minStars: 4 }, "a minimum moves Best bets to Newest and Unrated to All");
+  assert.deepEqual(choose(start, { minStars: 4 }), { sort: "newest", show: "all", minStars: 4 }, "a minimum moves Predictions to Newest and Unrated to All");
   assert.deepEqual(choose(start, { sort: "quality" }), { sort: "quality", show: "all", minStars: 0 }, "Quality moves Unrated to All");
-  assert.deepEqual(choose({ sort: "newest", show: "rated", minStars: 3 }, { sort: "best" }), { sort: "best", show: "rated", minStars: 0 }, "Best bets takes the minimum back to Any");
+  assert.deepEqual(choose({ sort: "newest", show: "rated", minStars: 3 }, { sort: "best" }), { sort: "best", show: "rated", minStars: 0 }, "Predictions takes the minimum back to Any");
   assert.deepEqual(choose({ sort: "newest", show: "all", minStars: 5 }, { show: "unrated" }), { sort: "newest", show: "unrated", minStars: 5 }, "Show is honoured afterwards");
   assert.deepEqual(choose({ sort: "quality", show: "all", minStars: 0 }, { show: "unrated" }), { sort: "quality", show: "unrated", minStars: 0 });
   assert.deepEqual(choose({ sort: "newest", show: "all", minStars: 4 }, { minStars: 0 }), { sort: "newest", show: "all", minStars: 0 }, "Any moves nothing else");

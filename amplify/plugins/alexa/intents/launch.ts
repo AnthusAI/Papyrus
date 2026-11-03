@@ -20,13 +20,13 @@ export const launchIntent: IntentModule = {
             wrapSpeak(
               [
                 `Welcome to ${dependencies.config.skillName}.`,
-                "Say needs my help to review the references I'm least sure about, best bets for the ones I think you'll like, or headlines for the latest stories.",
+                "Say needs my help to review the references I'm least sure about, predictions for the ones I think you'll like, or headlines for the latest stories.",
               ]
                 .map(sentence)
                 .join(""),
             ),
           )
-          .reprompt(wrapSpeak(sentence("Say needs my help, best bets, or headlines.")))
+          .reprompt(wrapSpeak(sentence("Say needs my help, predictions, or headlines.")))
           .withShouldEndSession(false)
           .getResponse();
       }

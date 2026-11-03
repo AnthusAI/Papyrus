@@ -699,12 +699,12 @@ const scenarios: Record<string, () => Promise<void>> = {
     });
   },
 
-  /** Best bets by default, Newest by date; Unrated by default, All adds the answered cards; both choices are remembered. */
+  /** Predictions by default, Newest by date; Unrated by default, All adds the answered cards; both choices are remembered. */
   async sorting() {
     await run("?auto", [375, 1440], async (page) => {
       await cards(page).first().waitFor();
       const pressed = (kind: string, key: string) => page.locator(`[data-feed-${kind}-button=${key}]`).getAttribute("aria-pressed");
-      assert.equal(await pressed("sort", "best"), "true", "Best bets is the default");
+      assert.equal(await pressed("sort", "best"), "true", "Predictions is the default");
       assert.equal(await pressed("show", "unrated"), "true", "Unrated is the default");
       for (const kind of ["sort", "show"]) {
         for (const button of await page.locator(`[data-feed-${kind}-button]`).all()) {
@@ -742,7 +742,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await card(page, "editor-accepted").getAttribute("data-feed-rated"), "accept", "a rated card still shows its recorded vote");
       assert.equal(await page.locator("[data-feed-lead]").count(), 0, "and has no lead card");
       await page.locator("[data-feed-sort-button=best]").click();
-      assert.equal((await order(page)).length, 3, "Best bets also works with rated cards");
+      assert.equal((await order(page)).length, 3, "Predictions also works with rated cards");
       assert.equal(await page.locator("[data-feed-show-button=rated] svg").count(), 1, "a Lucide icon beside the words");
       await page.reload();
       await cards(page).first().waitFor();
@@ -806,7 +806,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await button.click();
       const panel = page.locator("[data-feed-ranking-panel]");
       const text = await panel.innerText();
-      for (const expected of ["A feed run by algorithms you control", "Best bets", "Newest", "Unrated", "All", "Your answers stay put", "Age does not change"]) {
+      for (const expected of ["A feed run by algorithms you control", "Predictions", "Newest", "Unrated", "All", "Your answers stay put", "Age does not change"]) {
         assert.ok(text.includes(expected), `the popover says: ${expected}`);
       }
       const box = (await panel.boundingBox())!;
@@ -883,7 +883,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await cards(page).count(), 24, "one page of cards");
       const attachments = first.find((request) => request.kind === "attachments") as unknown as { ids: string[] };
       assert.equal(attachments.ids.length, 24, "attachments for the 24 cards shown, not the 13,000 in the table");
-      // Best bets across all three corpora, highest original P first, newest on ties: the top of the merged partitions.
+      // Predictions across all three corpora, highest original P first, newest on ties: the top of the merged partitions.
       const shown = await order(page) as string[];
       const expected = await page.evaluate(() => window.site
         .filter((row: any) => row.feedStateKey.endsWith("#unrated"))
@@ -1037,7 +1037,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await card(page, "both").waitFor();
       assert.equal(await page.locator("[data-feed-sort-relevance]").innerText(), "Relevance");
       assert.equal(await page.locator("[data-feed-sort-button=relevance]").getAttribute("aria-pressed"), "true", "Relevance is the chosen sort");
-      assert.deepEqual(await page.locator("[data-feed-sort-button]").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("data-feed-sort-button"))), ["relevance", "newest", "quality"], "no Best bets while searching");
+      assert.deepEqual(await page.locator("[data-feed-sort-button]").evaluateAll((buttons) => buttons.map((button) => button.getAttribute("data-feed-sort-button"))), ["relevance", "newest", "quality"], "no Predictions while searching");
       assert.equal(await page.locator("[data-feed-show-button=all]").getAttribute("aria-pressed"), "true", "the search opens on All");
       assert.equal((await searches(page))[0]!.show, "all");
       await page.locator("[data-feed-show-button=unrated]").click();
@@ -1151,12 +1151,12 @@ const scenarios: Record<string, () => Promise<void>> = {
     await run("?quality=1", [375, 1440], async (page, width) => {
       await cards(page).first().waitFor();
       // The controls: a third sort, and a labelled row of minimums with a star and a number, none of them with a border.
-      assert.deepEqual(await page.locator("[data-feed-sort-button]").evaluateAll((buttons) => buttons.map((button) => button.textContent)), ["Best bets", "Newest", "Quality"]);
+      assert.deepEqual(await page.locator("[data-feed-sort-button]").evaluateAll((buttons) => buttons.map((button) => button.textContent)), ["Predictions", "Newest", "Quality"]);
       const row = page.locator("[data-feed-control=min-stars]");
       assert.ok((await row.innerText()).startsWith("Minimum stars"));
       assert.deepEqual(await page.locator("[data-feed-min-stars-button]").evaluateAll((buttons) => buttons.map((button) => (button.textContent ?? "").trim())), ["Any", "3+ stars or more", "4+ stars or more", "5 stars"]);
       assert.deepEqual(await page.locator("[data-feed-min-stars-button]").evaluateAll((buttons) => buttons.map((button) => button.querySelectorAll("svg").length)), [0, 1, 1, 1], "a star icon with the number; Any has none");
-      assert.equal(await pressed(sortButton(page, "best")) && await pressed(showButton(page, "unrated")) && await pressed(minButton(page, "0")), true, "Best bets, Unrated and Any by default");
+      assert.equal(await pressed(sortButton(page, "best")) && await pressed(showButton(page, "unrated")) && await pressed(minButton(page, "0")), true, "Predictions, Unrated and Any by default");
       const borders = await page.locator("[data-feed-control=min-stars], [data-feed-control=min-stars] *").evaluateAll((elements) => elements.map((element) => {
         const style = getComputedStyle(element);
         return ["Top", "Right", "Bottom", "Left"].map((side) => style.getPropertyValue(`border-${side.toLowerCase()}-width`)).join(" ");
@@ -1209,18 +1209,18 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await pressed(showButton(page, "all")), true);
       await waitOrder(page, ["five-new", "four-new", "five-old", "four-old"]);
 
-      // Best bets takes the minimum back to Any.
+      // Predictions takes the minimum back to Any.
       await sortButton(page, "best").click();
       await page.waitForFunction(() => document.querySelector("[data-feed-min-stars-button='0']")?.getAttribute("aria-pressed") === "true");
       assert.equal(await pressed(sortButton(page, "best")), true);
       assert.equal(await stored(page, "min-stars"), "0");
       await page.waitForFunction(() => document.querySelectorAll("[data-feed-card]").length === 9);
-      // And a minimum takes Best bets to Newest, and Unrated to All.
+      // And a minimum takes Predictions to Newest, and Unrated to All.
       await showButton(page, "unrated").click();
       await page.waitForFunction(() => document.querySelector("[data-feed-show-button='unrated']")?.getAttribute("aria-pressed") === "true");
       await minButton(page, "3").click();
       await waitOrder(page, ["five-new", "four-new", "three", "five-old", "four-old"]);
-      assert.equal(await pressed(sortButton(page, "newest")), true, "a minimum moves Best bets to Newest");
+      assert.equal(await pressed(sortButton(page, "newest")), true, "a minimum moves Predictions to Newest");
       assert.equal(await pressed(showButton(page, "all")), true, "and Unrated to All");
       await noSideScroll(page);
     });
@@ -1270,7 +1270,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.locator("[data-feed-search-clear]").click();
       await sortButton(page, "best").waitFor().catch(() => undefined);
       assert.equal(await pressed(minButton(page, "3")), true);
-      assert.equal(await pressed(sortButton(page, "newest")), true, "the saved Best bets moved to Newest with the minimum");
+      assert.equal(await pressed(sortButton(page, "newest")), true, "the saved Predictions moved to Newest with the minimum");
       assert.equal(await page.locator("[data-feed-sort-relevance]").count(), 0);
     });
 

@@ -106,7 +106,7 @@ async function main() {
   assert.equal(current().curationStatus, "accepted");
   assert.equal(current().feedStateKey, "corpus-fixture#rated", "a vote moves the Reference from the unrated feed to the rated feed");
   assert.equal(current().predictedAcceptProbability, 0.73, "a vote leaves the original prediction alone");
-  assert.equal(current().predictionSortKey, `0.730000#2026-10-28T08:00:00.000Z#${referenceId}`, "and the Best bets key");
+  assert.equal(current().predictionSortKey, `0.730000#2026-10-28T08:00:00.000Z#${referenceId}`, "and the Predictions key");
   const vote = writes.find((write) => write.model === "Reference" && write.operation === "update")!.input;
   for (const untouched of ["predictedAcceptProbability", "predictionDecidedAt", "predictionSortKey", "feedArrivalAt"]) {
     assert.ok(!Object.hasOwn(vote, untouched), `a vote does not write ${untouched}`);

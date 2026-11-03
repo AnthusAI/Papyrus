@@ -3,7 +3,7 @@ Feature: The References page pages through two indexes whose keys every writer k
   The newsroom References page used to download every Reference, every attachment and every decision, and rank them in the browser. It
   now asks for one page at a time from one of two indexes on the Reference itself. Both are partitioned by a feed state: a Reference that
   nobody has voted on is in the unrated feed of its corpus, one that is accepted or rejected is in the rated feed, and one that is archived
-  or is no longer the current version is in neither. "Best bets" is sorted by the Cyclotron's original chance that the editor accepts
+  or is no longer the current version is in neither. "Predictions" is sorted by the Cyclotron's original chance that the editor accepts
   (P of accept), highest first, then newest first. "Newest" is sorted by when the Reference arrived. The prediction is a value written on
   the Reference once, when the Cyclotron first decides it. It is the confidence of the include label, or one minus the confidence of the
   exclude label. A Reference nobody has predicted sorts as one half, after every predicted Accept and before every predicted Reject. A vote
@@ -14,7 +14,7 @@ Feature: The References page pages through two indexes whose keys every writer k
     When the Cyclotron decides "include" with 91% confidence and the publication's positive label is "include"
     Then the Reference records an accept probability of 0.91
     And the Reference records when the Cyclotron decided it
-    And its Best bets key is "0.910000#2026-10-28T12:00:00.000Z#" followed by its id
+    And its Predictions key is "0.910000#2026-10-28T12:00:00.000Z#" followed by its id
     And it is still in the unrated feed
 
   Scenario: A predicted Reject is recorded as the chance of an Accept, not the confidence of the label
@@ -31,7 +31,7 @@ Feature: The References page pages through two indexes whose keys every writer k
 
   Scenario: An unpredicted Reference sorts between a predicted Accept and a predicted Reject
     Given pending References that arrived together with predicted accept probabilities 0.9, none, 0.2 and 0.5
-    When their Best bets keys are read highest first
+    When their Predictions keys are read highest first
     Then the order is 0.9, then the two without a prediction or at one half, then 0.2
 
   Scenario: Newest sorts by arrival whatever the prediction
@@ -45,7 +45,7 @@ Feature: The References page pages through two indexes whose keys every writer k
     When the Cyclotron accepts it automatically
     Then it is in the rated feed of its corpus
     And the Reference still records an accept probability of 0.91
-    And its Best bets key is unchanged
+    And its Predictions key is unchanged
 
   Scenario: A rejection moves the Reference to the rated feed as well
     Given a pending Reference that arrived at "2026-10-28T12:00:00Z" and has no prediction

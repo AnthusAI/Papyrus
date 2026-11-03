@@ -90,7 +90,7 @@ test("a later page joins after everything already placed, a new arrival does not
   const older = laterPageItems(snapshot, seen, wider);
   assert.equal(older.length, FEED_PAGE_SIZE, "the second page was already there, just not placed yet");
   const extended = extendFeedOrderSnapshot(snapshot, older);
-  assert.deepEqual(extended.best.slice(0, snapshot.best.length), snapshot.best, "nothing above moves in Best bets");
+  assert.deepEqual(extended.best.slice(0, snapshot.best.length), snapshot.best, "nothing above moves in Predictions");
   assert.deepEqual(extended.newest.slice(0, snapshot.newest.length), snapshot.newest, "nothing above moves in Newest");
   assert.equal(extended.known.size, FEED_PAGE_SIZE * 2);
   assert.equal(applyFeedOrderSnapshot(extended, wider, "newest", "unrated").items.length, FEED_PAGE_SIZE * 2);

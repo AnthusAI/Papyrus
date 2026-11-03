@@ -3,7 +3,7 @@
  *
  * A site can have several corpora and the feed shows rated and unrated Reference together under "All", so the feed is
  * several index partitions (`<corpusId>#unrated`, `<corpusId>#rated`), each already in feed order. `MergedFeedReader` merges them
- * into one list in the same order as a single partition would give: Best bets by `predictionSortKey`, Newest by `feedArrivalAt`,
+ * into one list in the same order as a single partition would give: Predictions by `predictionSortKey`, Newest by `feedArrivalAt`,
  * both newest-first on ties. The Quality sort and the minimum-stars choice read star partitions (`<corpusId>#stars#<n>`) the same way. One call to `more` makes at most one round of reads (one page per partition whose buffer ran dry, in
  * parallel) and returns what it can place; it never walks pages to fill a target, so a short answer simply means the next
  * scroll asks again.

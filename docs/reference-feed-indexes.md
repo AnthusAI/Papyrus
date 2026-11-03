@@ -21,7 +21,7 @@ The prediction is a value on the original record, written once. A later decision
 
 Both are partitioned by `feedStateKey`.
 
-- `listReferencesByFeedStateAndPrediction` (sort key `predictionSortKey`), read descending: **Best bets**. Highest P(accept) first, ties newest first.
+- `listReferencesByFeedStateAndPrediction` (sort key `predictionSortKey`), read descending: **Predictions**. Highest P(accept) first, ties newest first.
 - `listReferencesByFeedStateAndArrival` (sort key `feedArrivalAt`), read descending: **Newest**.
 
 The page reads `<corpusId>#unrated` for "Unrated" and both partitions for "All", merging the two streams with the same comparator.
@@ -32,7 +32,7 @@ The page reads `<corpusId>#unrated` for "Unrated" and both partitions for "All",
 
 - **Quality** (minimum Any) reads levels 1 to 5 and merges them by stars, then arrival: most stars first, newest first within a level. Only starred References are in it.
 - **Newest with a minimum** (`4+`) reads only the levels from that number up (`#5` and `#4`) and merges them by arrival, newest first.
-- **Best bets cannot be combined with a minimum**: the star index is by arrival and cannot order by prediction. The page moves Sort to Newest when a minimum is chosen, and Best bets sets the minimum back to Any. Choosing Quality or a minimum while Show is Unrated moves Show to All, because stars are separate from the vote and most starred References have one.
+- **Predictions cannot be combined with a minimum**: the star index is by arrival and cannot order by prediction. The page moves Sort to Newest when a minimum is chosen, and Predictions sets the minimum back to Any. Choosing Quality or a minimum while Show is Unrated moves Show to All, because stars are separate from the vote and most starred References have one.
 
 The star key does not look at the feed state, so a star partition also holds a Reference that was superseded by a new version or archived while it kept its rating. That is the **ghost-row rule**: the reader (`liveStarRows` in `lib/reference-feed-pages.ts`) drops every row with no `feedStateKey`, so a superseded or archived Reference never shows, and keeps the rest by the chosen Show (the `#unrated` or `#rated` suffix of `feedStateKey`). The filter is on the client on purpose: star partitions are small, and it keeps the key writer to one rule. A page can come back short, or empty with a next token; the reader keeps going (`MergedFeedReader` places only what no unread partition could still beat, and the feed's "Load more" row stays while it has more), so a page of ghosts does not stop the list.
 

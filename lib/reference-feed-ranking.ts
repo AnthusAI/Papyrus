@@ -1,13 +1,13 @@
 /**
  * How the References feed is ordered, in plain words (the "How this feed is ranked" popover says them too):
- *   - One list, three sorts. "Best bets" is the Cyclotron's confidence that you will Accept (P), highest first; a prediction of
+ *   - One list, three sorts. "Predictions" is the Cyclotron's confidence that you will Accept (P), highest first; a prediction of
  *     Accept at 80% is P = 0.8, a prediction of Reject at 80% is P = 0.2, no prediction is P = 0.5. Age does not change it.
  *   - "Newest" is reverse chronological by when the Reference arrived.
  *   - "Quality" is the editor's stars, most first, newest first within a star level; only starred References are in it.
  *   - Ties go to the newest item, then to a stable id order.
  *   - "Minimum stars" (Any, 3+, 4+, 5) keeps References with at least that many stars, in whichever sort is chosen.
  *   - "Unrated" shows References nobody has answered; "All" adds the answered ones to the same list.
- * Nothing is cut off by age, and age never changes the order of Best bets: the original confidence is what ranks.
+ * Nothing is cut off by age, and age never changes the order of Predictions: the original confidence is what ranks.
  */
 import type { ReferenceRecord } from "./category-repository";
 import type { RelevanceDecisionView } from "./relevance-decisions";
@@ -49,7 +49,7 @@ export type FeedItem = {
   reference: ReferenceRecord;
   lineageId: string;
   decision: RelevanceDecisionView | undefined;
-  /** P(accept): the Cyclotron's confidence that the editor accepts. The Best bets sort key. */
+  /** P(accept): the Cyclotron's confidence that the editor accepts. The Predictions sort key. */
   probability: number;
   /** True when a human has already answered (accepted or rejected). */
   rated: boolean;
@@ -85,7 +85,7 @@ export function buildFeedItems(references: ReferenceRecord[], decisions: Readonl
   return items;
 }
 
-/** Best bets: highest P(accept) first; ties go to the newest item, then to a stable id order. */
+/** Predictions: highest P(accept) first; ties go to the newest item, then to a stable id order. */
 export function compareBestBets(left: FeedItem, right: FeedItem): number {
   if (right.probability !== left.probability) return right.probability - left.probability;
   return compareNewest(left, right);

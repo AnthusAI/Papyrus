@@ -47,10 +47,10 @@ export const REASON_LABELS: Record<ReferenceRejectionReasonCode, string> = {
   other: "Other",
 };
 
-/** The Sort choices: while a search is open Best bets is Relevance (how well each Reference matches), which the search keeps for itself. */
+/** The Sort choices: while a search is open Predictions is Relevance (how well each Reference matches), which the search keeps for itself. */
 export type FeedSortChoice = FeedSort | "relevance";
 const SORTS: Array<{ key: FeedSortChoice; label: string; Icon: typeof SparklesIcon }> = [
-  { key: "best", label: "Best bets", Icon: SparklesIcon },
+  { key: "best", label: "Predictions", Icon: SparklesIcon },
   { key: "newest", label: "Newest", Icon: ClockIcon },
   { key: "quality", label: "Quality", Icon: AwardIcon },
 ];
@@ -505,10 +505,10 @@ function RankingPopover() {
         >
           <p className="text-base font-bold">A feed run by algorithms you control</p>
           <ol className="list-decimal space-y-2.5 pl-5">
-            <li><strong>Best bets</strong> puts the items the Cyclotron is most sure you will Accept first. It goes by confidence alone: an Accept at 90% ranks above an Accept at 60%, and the ones it expects you to Reject most surely come last. Items with no prediction sit in the middle. Age does not change this order.</li>
+            <li><strong>Predictions</strong> puts the items the Cyclotron is most sure you will Accept first. It goes by confidence alone: an Accept at 90% ranks above an Accept at 60%, and the ones it expects you to Reject most surely come last. Items with no prediction sit in the middle. Age does not change this order.</li>
             <li><strong>Newest</strong> puts the items that arrived most recently first.</li>
             <li><strong>Quality</strong> puts the items you gave the most stars first, newest first within each number of stars. Only items with stars are in it. <strong>Minimum stars</strong> keeps the items with at least 3, 4 or 5 stars in whichever sort you chose. Stars are your own interest: the Cyclotron never sees them.</li>
-            <li><strong>Unrated</strong> shows items nobody has answered yet. <strong>All</strong> adds the ones you have already accepted or rejected to the same list, showing your answer, in the same sort. <strong>Rated</strong> lists just those answered ones, in the same sort, so you can find one again; Best bets there still goes by the Cyclotron&apos;s original confidence, not by your answer. Nothing is hidden because it is old.</li>
+            <li><strong>Unrated</strong> shows items nobody has answered yet. <strong>All</strong> adds the ones you have already accepted or rejected to the same list, showing your answer, in the same sort. <strong>Rated</strong> lists just those answered ones, in the same sort, so you can find one again; Predictions there still goes by the Cyclotron&apos;s original confidence, not by your answer. Nothing is hidden because it is old.</li>
             <li><strong>Search</strong> looks for your words in titles, authors, links and ids, and for meaning in the summaries, at the same time, over every Reference whether or not it has been answered. Results are ordered by how well they match (Relevance) unless you choose Newest or Quality, and each says how it matched. Show starts on All for a search; clearing the search brings back your own Sort and Show.</li>
             <li><strong>Your answers stay put.</strong> A card you rate stays where it is for this visit, and new items wait behind a button until you ask for them.</li>
           </ol>

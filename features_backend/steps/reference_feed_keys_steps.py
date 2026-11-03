@@ -123,7 +123,7 @@ def step_decided_at(context):
     assert stored(context)["predictionDecidedAt"] == "2026-10-28T12:05:00.000Z", stored(context)
 
 
-@then('its Best bets key is "{prefix}" followed by its id')
+@then('its Predictions key is "{prefix}" followed by its id')
 def step_key(context, prefix):
     assert stored(context)["predictionSortKey"] == prefix + stored(context)["id"], stored(context)["predictionSortKey"]
 
@@ -186,7 +186,7 @@ def step_four(context, first, second, third, fourth):
         state.named[number] = row
 
 
-@when("their Best bets keys are read highest first")
+@when("their Predictions keys are read highest first")
 def step_best(context):
     state = world(context)
     state.order = [row["predictedAcceptProbability"] if row.get("predictedAcceptProbability") is not None else None
@@ -231,7 +231,7 @@ def step_reject(context):
                                           decision_id="decision-1", now="2026-10-29T00:00:00Z")
 
 
-@then("its Best bets key is unchanged")
+@then("its Predictions key is unchanged")
 def step_key_unchanged(context):
     assert stored(context)["predictionSortKey"] == world(context).key_before
 
