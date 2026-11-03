@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "87ee89cf-7367-44bb-8913-d0226cbd8e18",
+  "issue_id": "PPY-83e413d0-4679-48c5-95f5-7e70305530fb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T20:05:11.031Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Signed-in CLI commands require amplify_outputs.json instead of selecting a signed-in site",
+    "description": "Signed-in CLI commands cannot reach a site unless the working directory holds that site's amplify_outputs.json or the operator sets PAPYRUS_GRAPHQL_ENDPOINT by hand. Ryan (2026-11-03): people must not need the Amplify outputs file to run the CLI.\n\n**Seen:** from a checkout of AnthusAI/Machines-on-Machines (5.81.0), and again from /tmp, `papyrus editorial context --backend cloud --format text` exits with \"Missing amplify_outputs.json. Run `npm run sandbox` or deploy the Amplify backend first.\" The file is git-ignored, so a fresh site checkout never has it. The advice in the message is also wrong: this site is deployed, and a sandbox is not what the operator needs.\n\n**Cause:** `graphql_endpoint()` and `load_amplify_outputs()` in `src/papyrus_content/env.py` accept only `PAPYRUS_GRAPHQL_ENDPOINT`, or `amplify_outputs.json` from `PAPYRUS_SITE_ROOT`, the working directory or the Papyrus root. The sign-in registry is not consulted, although `papyrus login` already records each site's `graphql_endpoint` from the public `/.well-known/papyrus-cli.json`, which the deployed site serves.\n\n**Expected:** an editor signed in with `papyrus login` picks a site and runs any newsroom command from any directory, with no outputs file and no AWS login. Sketch: an explicit site choice (`--site` or `PAPYRUS_SITE`), then the site the working directory declares (`infra/site.json`), then the only signed-in site; several signed-in sites and no choice is an error that lists them, never a guess. A token still goes only to the registered site that owns the endpoint.\n\n**Also check:** other readers of `load_amplify_outputs()` on the signed-in lane (the bucket, identity pool and publication kind lookups for `stories save-version --images` and `content publish`). A file that is present keeps working for operators and sandboxes, but must never silently beat an explicit site choice.\n\n**Done means:** Gherkin specs for no file, explicit site, several signed-in sites with no choice, and a failing message that names `papyrus login`. Update `docs/cli-login.md`, `docs/editorial-context.md` and `docs/operator-cli.md`.\n\nRelated: papyrus-cli-over-aws-cli direction (Ryan, 2026-11-02). Different from cb27a6, which is about the staging build's root path.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
