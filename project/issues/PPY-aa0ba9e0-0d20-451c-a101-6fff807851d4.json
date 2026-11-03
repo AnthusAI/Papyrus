@@ -1,0 +1,20 @@
+{
+  "id": "PPY-aa0ba9e0-0d20-451c-a101-6fff807851d4",
+  "title": "Assign research from the newsroom and run it without a terminal",
+  "description": "Newsroom action on a Story page: \"Assign research\", a textarea for the editor's direction and a button, no dropdowns, Lucide icon. Creates the same Assignment as `papyrus stories assign-research` and shows it in the Work trail with its state. A worker runs open `research.multi` assignments linked to a Story without someone at a terminal. Likely a router task, may need IAM grants, which need Ryan's explicit yes. UX gets screenshot review before merge. Shape depends on the live test on the facial-recognition Story.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-aab37edd-ee4e-4784-96a1-974ae040b452",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T12:04:11.883486Z",
+  "updated_at": "2026-11-03T12:04:11.883511Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
