@@ -12,6 +12,9 @@ fake providers and a fake model and never reach the network:
    rank, its title and its snippets. A source only one provider found is kept.
 4. ``synthesise``: one model call over the merged sources, cited by index, writes the claims with their supporting sources, where
    sources or providers disagree, and what nobody answered.
+5. ``fact_check_synthesis``: the shared fact check (``fact_check.py``, docs/fact-checking.md) reads every claim against the sources it cites. Only
+   verified claims stay in ``claims``; the rest are held in ``unverifiedClaims`` with the reasons. The summary and angle are written again from the
+   verified claims alone, so a claim that failed cannot survive in them.
 
 ``research_multi`` writes the result through the same research-packet path as ``research.tavily-deep``
 (``apply_research_packet`` and ``intake_research_packet_proposals``), so the newsroom shows it like any other packet. When no
@@ -33,16 +36,19 @@ from .assignments_workflow import (
     _utc_now,
     apply_research_packet,
     intake_research_packet_proposals,
+    load_message_metadata_payload,
     normalize_proposal_url,
     normalize_research_mode,
     update_newsroom_summary_after_research_packet_creates,
 )
 from .catalog import message_record
+from .fact_check import Judge, check_claims, literal_check, llm_judge, verified_only
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 from .ids import hash_short
 from .link_exploration import canonical_url
 from .model_defaults import DEFAULT_LLM_MODEL
 from .newsroom_context_pack import DEFAULT_MAX_CHARACTERS, PROFILES, build_context_pack
+from .model_attachments import parse_jsonish
 from .options import normalize_string, parse_boolean_option, parse_options, resolve_mutation_apply
 from .records import apply_record_changes, build_record_changes
 from .steering import default_corpus_key
@@ -373,6 +379,101 @@ def synthesise(brief: str, sources: Sequence[Mapping[str, Any]], llm: Llm, syste
     }
 
 
+# --- fact check --------------------------------------------------------------------------------------------------------------------
+
+SUMMARY_SYSTEM = """You write the summary of a research packet for an editor from claims that have already been checked against their sources. Use only the claims you are given. Do not add facts, numbers, quotes, names or places, and do not mention anything the claims do not say.
+
+- The summary is two to four sentences. Say where the evidence is thin, for example when a claim rests on one source.
+- The recommended angle is one sentence, and only if the claims support one; otherwise leave it empty.
+"""
+
+SUMMARY_SCHEMA = {
+    "type": "json_schema", "name": "verified_summary", "strict": True,
+    "schema": {"type": "object", "additionalProperties": False, "required": ["summary", "recommended_angle"],
+               "properties": {"summary": {"type": "string"}, "recommended_angle": {"type": "string"}}},
+}
+
+
+def fact_check_source_texts(sources: Sequence[Mapping[str, Any]]) -> tuple[dict[str, str], dict[str, str]]:
+    """(source number to its title and snippets, source number to its URL): the only text the writer was told to use."""
+    texts = {str(s["index"]): "\n".join([str(s.get("title") or ""), *map(str, s.get("snippets") or [])]) for s in sources}
+    return texts, {str(s["index"]): str(s.get("url") or "") for s in sources}
+
+
+def packet_fact_check_inputs(packet: Mapping[str, Any]) -> tuple[list[dict[str, Any]], dict[str, str], dict[str, str]]:
+    """(claims and disagreement positions as ``{"claim", "sources"}``, source texts, source URLs) read from a stored research packet, camelCase or not.
+    The texts come from ``proposedReferences`` by the URL ``multiSearch.sourceProviders`` gives each source number."""
+    by_url = {row.get("url"): row for row in packet.get("proposedReferences") or packet.get("proposed_references") or [] if isinstance(row, dict)}
+    texts, urls = {}, {}
+    for row in (packet.get("multiSearch") or {}).get("sourceProviders") or []:
+        reference = by_url.get(row.get("url")) or {}
+        texts[str(row["index"])] = "\n".join([str(reference.get("title") or ""), *map(str, reference.get("snippets") or [])])
+        urls[str(row["index"])] = str(row.get("url") or "")
+    items = [{"claim": row.get("claim"), "sources": [str(i) for i in row.get("sources") or []]}
+             for row in [*(packet.get("claims") or []), *(packet.get("unverifiedClaims") or [])] if isinstance(row, dict)]
+    for disagreement in packet.get("disagreements") or []:
+        items += [{"claim": p.get("position"), "sources": [str(i) for i in p.get("sources") or []]}
+                  for p in (disagreement.get("positions") if isinstance(disagreement, dict) else None) or [] if isinstance(p, dict)]
+    return items, texts, urls
+
+
+def plain_summary(counts: Mapping[str, int]) -> str:
+    """The summary when no model text may be used: only what the check counted."""
+    held = counts.get("unverified", 0) + counts.get("unchecked", 0)
+    return (f"{counts.get('verified', 0)} of {counts.get('total', 0)} claims were verified against their sources. "
+            f"{held} could not be verified and are listed apart.")
+
+
+def verified_summary(verified: Sequence[Mapping[str, Any]], texts: Mapping[str, str], urls: Mapping[str, str], counts: Mapping[str, int], llm: Llm,
+                     fallback: str) -> tuple[str, str, str | None]:
+    """(summary, angle, why the plain summary was used or None). One model call over the verified claims; its text must pass the literal check against
+    the sources of every verified claim, or the plain summary replaces it."""
+    if not verified:
+        return plain_summary(counts), "", "no_verified_claims"
+    claims = [{"claim": row["claim"], "sources": row["sources"]} for row in verified]
+    try:
+        data = llm(SUMMARY_SYSTEM, json.dumps({"claims": claims}, ensure_ascii=False), SUMMARY_SCHEMA)
+        summary, angle = normalize_string(data.get("summary")), normalize_string(data.get("recommended_angle")) or ""
+    except Exception:   # noqa: BLE001 - a failed rewrite uses the plain summary, it never fails the run
+        return plain_summary(counts), "", "summary_rewrite_failed"
+    if not summary:
+        return plain_summary(counts), "", "summary_rewrite_failed"
+    cited = sorted({source for row in verified for source in row["sources"]})
+    hosts = [host for host in (urlparse(urls.get(source, "")).hostname for source in cited) if host]
+    unmatched = literal_check(f"{summary} {angle}", [texts.get(source, "") for source in cited], hosts)
+    if unmatched:
+        return plain_summary(counts), "", "summary_failed_literal_check: " + ", ".join(row["term"] for row in unmatched)
+    return summary, angle, None
+
+
+def fact_check_synthesis(synthesis: dict[str, Any], sources: Sequence[Mapping[str, Any]], llm: Llm, judge: Judge | None) -> dict[str, Any]:
+    """The synthesis after the shared fact check: ``claims`` holds the verified claims, ``unverifiedClaims`` the rest with their reasons, disagreement
+    positions that fail the literal check are labelled, the summary is rewritten from verified claims, and ``factCheck`` records the results."""
+    texts, urls = fact_check_source_texts(sources)
+    claims = synthesis["claims"]
+    report = check_claims([{"claim": c["claim"], "sources": c["sources"]} for c in claims], {k: v for k, v in texts.items()}, judge=judge, urls=urls)
+    verified, held = [], []
+    for claim, result in zip(claims, report["claims"]):
+        if result["verdict"] == "verified":
+            verified.append(claim)
+        else:
+            held.append({**claim, "verdict": result["verdict"], "reasons": result["reasons"]})
+    positions = []
+    disagreements = []
+    for disagreement in synthesis["disagreements"]:
+        checked = check_claims([{"claim": p["position"], "sources": p["sources"]} for p in disagreement["positions"]], texts, judge=None, urls=urls)
+        labelled = []
+        for position, result in zip(disagreement["positions"], checked["claims"]):
+            failed = bool(result["literal"]["unmatched"])
+            labelled.append({**position, "unverified": True, "reasons": result["reasons"]} if failed else position)
+            positions.append({"topic": disagreement["topic"], "position": position["position"], "sources": position["sources"],
+                              "literal": result["literal"], "reasons": [r for r in result["reasons"] if r != "no_judge"]})
+        disagreements.append({**disagreement, "positions": labelled})
+    summary, angle, summary_note = verified_summary(verified_only({"claims": report["claims"]}), texts, urls, report["counts"], llm, synthesis["summary"])
+    return {**synthesis, "summary": summary, "recommendedAngle": angle, "claims": verified, "unverifiedClaims": held, "disagreements": disagreements,
+            "factCheck": {**report, "positions": positions, **({"plainSummaryBecause": summary_note} if summary_note else {})}}
+
+
 # --- the run, as a pure function ---------------------------------------------------------------------------------------------------
 
 def run_multi_search(
@@ -385,8 +486,9 @@ def run_multi_search(
     model: str = DEFAULT_LLM_MODEL,
     system_prefix: str = "",
     context_pack: Mapping[str, Any] | None = None,
+    judge: Judge | None = None,
 ) -> dict[str, Any]:
-    """Plan, fan out, merge, synthesise. Returns the raw research packet (what ``apply_research_packet`` takes) under ``packet``
+    """Plan, fan out, merge, synthesise, fact check. ``judge`` is the fact check's independent judge; none given, one is made from ``llm``. Returns the raw research packet (what ``apply_research_packet`` takes) under ``packet``
     plus ``contribution``. Raises ``MultiSearchFailed`` with the message to record when no packet can be made."""
     usable, unavailable = configured_providers(providers, environ)
     if not usable:
@@ -402,6 +504,7 @@ def run_multi_search(
             raise MultiSearchFailed("no search provider answered: " + "; ".join(failures))
         raise MultiSearchFailed(f"multi-search ran {len(queries)} queries on {', '.join(usable)} and found no sources")
     synthesis = synthesise(brief, sources, llm, system_prefix)
+    synthesis = fact_check_synthesis(synthesis, sources, llm, judge or llm_judge(llm))
     packet = build_packet(queries, sources, contribution, synthesis, model=model)
     if context_pack:
         packet["multiSearch"]["contextPack"] = context_pack_summary(context_pack)
@@ -444,6 +547,8 @@ def build_packet(queries, sources, contribution, synthesis, *, model: str = DEFA
         "proposed_references": references,
         "evidence_item_ids": [],
         "claims": synthesis["claims"],
+        **({"unverifiedClaims": synthesis["unverifiedClaims"]} if synthesis.get("unverifiedClaims") else {}),
+        **({"factCheck": synthesis["factCheck"]} if synthesis.get("factCheck") else {}),
         "disagreements": synthesis["disagreements"],
         "open_questions": synthesis["openQuestions"],
         "researchTrace": {
@@ -616,6 +721,7 @@ def research_multi(
         "queries": outcome["queries"],
         "sourceCount": len(outcome["sources"]),
         "contribution": outcome["contribution"],
+        "factCheck": (packet.get("factCheck") or {}).get("counts"),
         "packet": packet if not apply else None,
         **({"contextPack": packet["multiSearch"]["contextPack"]} if pack else {}),
     }
@@ -649,8 +755,10 @@ def research_multi(
             taken_in = [row["referenceId"] for row in intake_result.get("references") or [] if row.get("referenceId") and row.get("action") != "held"]
             curation = curate_found_references(client, assignment_id, taken_in, services=curation_services)
     now = _utc_now()
+    counts = (outcome["packet"].get("factCheck") or {}).get("counts") or {}
     summary_note = (f"Multi-search completed: {len(outcome['queries'])} queries, {len(outcome['sources'])} sources from "
-                    f"{', '.join(outcome['packet']['multiSearch']['answeredProviders'])}.")
+                    f"{', '.join(outcome['packet']['multiSearch']['answeredProviders'])}. "
+                    f"Fact check: {counts.get('verified', 0)} verified, {counts.get('unverified', 0)} unverified, {counts.get('unchecked', 0)} unchecked.")
     event = _assignment_event_record(
         assignment=assignment, event_type="research.multi.intake_failed" if intake_error else "research.multi.completed",
         actor_label=actor_label, now=now,
@@ -685,6 +793,9 @@ def research_multi_command(flags: list[str]) -> None:
         return
     print(f"assignments\tresearch-multi\tqueries\t{len(result['queries'])}")
     print(f"assignments\tresearch-multi\tsources\t{result['sourceCount']}")
+    if result.get("factCheck"):
+        counts = result["factCheck"]
+        print(f"assignments\tresearch-multi\tfact-check\tverified={counts['verified']}\tunverified={counts['unverified']}\tunchecked={counts['unchecked']}")
     for name, row in result["contribution"].items():
         failed = ",".join(sorted({f["kind"] for f in row["failures"]})) or "-"
         print(f"assignments\tresearch-multi\tprovider\t{name}\tqueries={row['queriesRun']}\thits={row['hits']}\t"
@@ -693,3 +804,36 @@ def research_multi_command(flags: list[str]) -> None:
         print(f"assignments\tresearch-multi\tpacket\t{result['researchPacketMessageId']}")
     if result.get("intakeError"):
         print(f"assignments\tresearch-multi\tintake-failed\t{result['intakeError']}")
+
+
+def fact_check_command(flags: list[str]) -> None:
+    """``papyrus assignments fact-check --message ID [--judge true|false] [--format text|json]``: read-only. Runs the shared fact check on a stored
+    research packet and prints the result; nothing is written. It exists to measure old packets."""
+    from .graphql_authoring import create_authoring_client
+
+    options = parse_options(list(flags))
+    message_id = normalize_string(options.get("message"))
+    if not message_id:
+        raise ValueError("assignments fact-check requires --message (the research packet Message id).")
+    use_judge = parse_boolean_option(options.get("judge"), True, "--judge")
+    output_format = normalize_string(options.get("format")) or "text"
+    if output_format not in ("text", "json"):
+        raise ValueError("--format must be text or json.")
+    client, _ = create_authoring_client()
+    message = client.get_record("Message", message_id)
+    if not message:
+        raise ValueError(f"Message not found: {message_id}.")
+    metadata = load_message_metadata_payload(client, message)
+    research = parse_jsonish(metadata.get("research")) or metadata
+    items, texts, urls = packet_fact_check_inputs(research)
+    report = check_claims(items, texts, judge=llm_judge() if use_judge else None, urls=urls)
+    if output_format == "json":
+        print(json.dumps({"ok": True, "messageId": message_id, "judge": use_judge, **report}, indent=2))
+        return
+    counts = report["counts"]
+    print(f"assignments\tfact-check\tmessage\t{message_id}\tjudge={'on' if use_judge else 'off'}")
+    print("assignments\tfact-check\tcounts\t" + "\t".join(f"{key}={value}" for key, value in counts.items()))
+    for row in report["claims"]:
+        print(f"assignments\tfact-check\t{row['verdict']}\tsources={','.join(row['sources'])}\t{row['claim']}")
+        for reason in row["reasons"]:
+            print(f"assignments\tfact-check\treason\t{reason}")

@@ -323,6 +323,7 @@ PORTED_COMMANDS = frozenset(
         "assignments:run-research",
         "assignments:research-multi",
         "assignments:context-pack",
+        "assignments:fact-check",
         "assignments:run-tavily-deep-research",
         "assignments:poll-tavily-deep-research",
         "assignments:run-reporting",
@@ -722,6 +723,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         assignments_run_research(flags)
     elif route == "assignments:research-multi":
         assignments_research_multi(flags)
+    elif route == "assignments:fact-check":
+        from .multi_search_research import fact_check_command
+
+        fact_check_command(flags)
     elif route == "assignments:context-pack":
         from .newsroom_context_pack import context_pack_command
 

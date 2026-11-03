@@ -51,7 +51,16 @@ class FakeLlm:
         self.calls.append((schema["name"], user))
         if self.fail == schema["name"]:
             raise RuntimeError("model unavailable")
+        if schema["name"] == "fact_check_judgement":
+            return self.judgement(json.loads(user))
+        if schema["name"] == "verified_summary":
+            return {"summary": self.synthesis["summary"], "recommended_angle": self.synthesis["recommended_angle"]}
         return self.plan if schema["name"] == "search_plan" else self.synthesis
+
+    @staticmethod
+    def judgement(given):
+        """A judge that finds every statement supported, quoting the start of the first source it was given."""
+        return {"verdict": "supported", "quote": given["sources"][0]["text"].split("\n")[0], "explanation": "The source says so.", "attribution_lost": False}
 
 
 SHARED = "https://example.org/glide"

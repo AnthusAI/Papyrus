@@ -376,10 +376,12 @@ def prior_research_layer(situation: Situation) -> tuple[list[Entry], str | None]
             packet = item["packet"]
             created = str(item["message"].get("createdAt") or "")
             claims = [str(claim["claim"]) for claim in packet.get("claims") or [] if isinstance(claim, dict) and claim.get("claim")]
+            unverified = [str(claim["claim"]) for claim in packet.get("unverifiedClaims") or [] if isinstance(claim, dict) and claim.get("claim")]
             questions = [str(question) for question in packet.get("openQuestions") or [] if question]
             text = _block([
                 _line("Researched", _day(created)), _line("Direction given", direction), _line("Summary", packet.get("summary")),
                 "Claims:\n" + "\n".join(f"- {claim}" for claim in claims) if claims else "",
+                "Unverified, do not rely on:\n" + "\n".join(f"- {claim}" for claim in unverified) if unverified else "",
                 "Open questions:\n" + "\n".join(f"- {question}" for question in questions) if questions else "",
             ])
             found.append((created, _entry("research_packet", str(item["message"]["id"]), text, assignmentId=str(assignment["id"]))))
