@@ -41,6 +41,14 @@ Feature: The router runs the research assignments editors give Stories, with nob
     Then assignments 1 and 2 are failed with their reasons in a failed event
     And assignment 3 is completed
 
+  Scenario: A run that could not take its sources in says so plainly
+    Given a backend with the open research assignments 1 on a Story
+    And the research for assignment 1 finishes but could not take its sources in because the server could not write a working file
+    When the research-assignments pass runs
+    Then assignment 1 is completed
+    And its finished note says that its sources were not added because the server could not write a working file
+    And the pass result lists assignment 1 as unable to take its sources in
+
   Scenario: The task stops before the deadline and leaves the rest open
     Given a backend with the open research assignments 1, 2 and 3 on a Story
     And the time runs short after the first assignment

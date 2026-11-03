@@ -92,6 +92,15 @@ def number_forms(text: str) -> set[str]:
     return found
 
 
+def _without_possessives(folded: str) -> str:
+    """Folded text with each possessive ending removed (``state's attorney's office`` is ``state attorney office``), so a phrase matches whether or not either side has them."""
+    return re.sub(r"(?<=[a-z0-9])'s?(?![a-z0-9])", "", folded)
+
+
+def _plain_words(folded: str) -> str:
+    return " " + re.sub(r"[^a-z0-9]+", " ", folded).strip() + " "
+
+
 class SourceText:
     """The union of the cited sources' texts, prepared once for the three comparisons."""
 
@@ -100,6 +109,8 @@ class SourceText:
         self.folded = fold(joined)
         self.words = words_of(joined)
         self.numbers = number_forms(joined)
+        self.possessive_free = _plain_words(_without_possessives(self.folded))
+        self.capitalized_elsewhere = _capitalized_inside_sentences(joined)
         self.host_labels = {label for host in hosts for label in re.split(r"[.\-]", fold(host)) if label}
         self.host_squashed = [re.sub(r"[^a-z0-9]", "", fold(host)) for host in hosts]
 
@@ -123,6 +134,9 @@ class SourceText:
         initials = "".join(word[0] for word in words)
         squashed = "".join(re.sub(r"[^a-z0-9]", "", fold(word)) for word in run)
         return initials in self.words or initials in self.host_labels or any(squashed in host for host in self.host_squashed)
+
+    def has_phrase_ignoring_possessives(self, phrase: str) -> bool:
+        return _plain_words(_without_possessives(fold(phrase))) in self.possessive_free
 
     def has_phrase(self, phrase: str) -> bool:
         return re.sub(r"[^a-z0-9]+", " ", fold(phrase)).strip() in re.sub(r"[^a-z0-9]+", " ", self.folded)
@@ -175,7 +189,17 @@ def numbers_in(claim: str) -> list[str]:
     return found
 
 
-def name_runs(claim: str) -> list[list[str]]:
+SENTENCE_ENDS = frozenset({".", "!", "?", ":"})
+
+
+def _capitalized_inside_sentences(text: str) -> set[str]:
+    """The folded capitalized words of a text that do not open a sentence: a word the sources capitalize in the middle of a sentence is a name there."""
+    tokens = _TOKEN.findall(str(text or ""))
+    return {fold(_strip_possessive(token)) for index, token in enumerate(tokens)
+            if _is_capitalized(token) and index > 0 and tokens[index - 1] not in SENTENCE_ENDS and not tokens[index - 1].endswith(".")}
+
+
+def name_runs(claim: str, lone_sentence_openers: list[list[str]] | None = None) -> list[list[str]]:
     """Runs of capitalized words, as the words. A connector (of, de, van) joins two capitalized words and a possessive ends a run. Months and weekdays
     are dates. A generic word (a sentence's usual first words, found by reading real claims) stays in a run it is part of, because a name like
     ``Government Accountability Office`` is spelled with it, and is dropped when it stands alone. A name that opens a sentence is still a name:
@@ -184,13 +208,18 @@ def name_runs(claim: str) -> list[list[str]]:
     tokens = _TOKEN.findall(outside)
     runs: list[list[str]] = []
     current: list[str] = []
+    started_at = 0
 
     def close() -> None:
         nonlocal current
         while current and fold(current[-1]) in NAME_CONNECTORS:
             current.pop()
         if len(current) > 1 or (current and fold(current[0]) not in GENERIC_WORDS):
-            runs.append(current)
+            opens_sentence = started_at == 0 or tokens[started_at - 1] in SENTENCE_ENDS or tokens[started_at - 1].endswith(".")
+            if lone_sentence_openers is not None and len(current) == 1 and opens_sentence:
+                lone_sentence_openers.append(current)
+            else:
+                runs.append(current)
         current = []
 
     for index, token in enumerate(tokens):
@@ -199,8 +228,10 @@ def name_runs(claim: str) -> list[list[str]]:
             if fold(word) in MONTHS or fold(word) in WEEKDAYS or all(part in _UNITS or part in _TENS for part in fold(word).split("-")):
                 close()
                 continue
+            if not current:
+                started_at = index
             current.append(word)
-            if word != token.rstrip(".,"):
+            if word != token.rstrip(".,") or (token.endswith(".") and len(word) > 3 and "." not in word):
                 close()
         elif fold(token) in NAME_CONNECTORS and current and index + 1 < len(tokens) and _is_capitalized(tokens[index + 1]):
             current.append(token)
@@ -210,9 +241,34 @@ def name_runs(claim: str) -> list[list[str]]:
     return runs
 
 
-def literal_check(claim: str, texts: Sequence[str], hosts: Sequence[str] = ()) -> list[dict[str, str]]:
+def possessive_chains(claim: str) -> list[list[str]]:
+    """Capitalized words joined by possessives (``State's Attorney's Office``) as the words without them, for each chain that has at least one possessive."""
+    tokens = _TOKEN.findall(_QUOTED.sub(" ", claim))
+    chains: list[list[str]] = []
+    current: list[str] = []
+    has_possessive = False
+    for token in [*tokens, ""]:
+        if _is_capitalized(token):
+            word = _strip_possessive(token)
+            current.append(word)
+            has_possessive = has_possessive or word != token.rstrip(".,")
+            continue
+        if fold(token) in NAME_CONNECTORS and current:
+            current.append(token)
+            continue
+        while current and fold(current[-1]) in NAME_CONNECTORS:
+            current.pop()
+        if has_possessive and len(current) > 1:
+            chains.append(current)
+        current, has_possessive = [], False
+    return chains
+
+
+def literal_check(claim: str, texts: Sequence[str], hosts: Sequence[str] = (), *, prose: bool = False) -> list[dict[str, str]]:
     """The terms of a claim that the cited sources do not contain: ``[{"term", "kind"}]``, empty when every one is found.
-    ``hosts`` are the cited sources' hosts, which a name may be spelled out in (see ``SourceText.has_short_form``)."""
+    ``hosts`` are the cited sources' hosts, which a name may be spelled out in (see ``SourceText.has_short_form``). With ``prose`` true (a model's summary or
+    angle, not a claim) a single capitalized word that opens a sentence is checked only when the sources also capitalize it inside a sentence, because an
+    ordinary verb or noun capitalized by position is not a name; a name of two or more words is always checked."""
     source = SourceText(texts, hosts)
     unmatched: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
@@ -228,16 +284,47 @@ def literal_check(claim: str, texts: Sequence[str], hosts: Sequence[str] = ()) -
     for number in numbers_in(claim):
         if not any(form in source.numbers for form in number_forms(number)):
             miss(number, NUMBER)
-    for run in name_runs(claim):
+    lone: list[list[str]] = []
+    runs = name_runs(claim, lone if prose else None)
+    runs += [run for run in lone if fold(run[0]) in source.capitalized_elsewhere]
+    chained = {fold(word) for chain in possessive_chains(claim) if source.has_phrase_ignoring_possessives(" ".join(chain)) for word in chain}
+    for run in runs:
         trimmed = list(run)
         while len(trimmed) > 1 and fold(trimmed[0]) in GENERIC_WORDS:
             trimmed.pop(0)
         if source.has_short_form(run) or source.has_short_form(trimmed):
             continue
         for word in run:
-            if fold(word) not in NAME_CONNECTORS and fold(word) not in GENERIC_WORDS and not source.has_word(word):
+            if fold(word) not in NAME_CONNECTORS and fold(word) not in GENERIC_WORDS and fold(word) not in chained and not source.has_word(word):
                 miss(word, NAME)
     return unmatched
+
+
+
+# --- the editor's direction --------------------------------------------------------------------------------------------------------
+
+def direction_gaps(direction: str, covered_texts: Sequence[str], source_texts: Sequence[str]) -> list[dict[str, Any]]:
+    """The names an editor's direction asks about that the finished packet says nothing on: ``[{"name", "inSources", "note"}]``. A name is the same extraction as the
+    literal check uses (``name_runs``; a lone word that opens a sentence is an ordinary word, not a name). It is covered when its last word (a person's surname)
+    appears in ``covered_texts``: the verified and unverified claims, the disagreements and the open questions. ``inSources`` says whether the sources' text has it."""
+    lone: list[list[str]] = []
+    covered = SourceText(covered_texts)
+    sources = SourceText(source_texts)
+    gaps: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for run in name_runs(direction, lone):
+        words = [word for word in run if fold(word) not in NAME_CONNECTORS]
+        name = " ".join(run)
+        key = fold(words[-1]) if words else ""
+        if not key or key in seen or key in GENERIC_WORDS:
+            continue
+        seen.add(key)
+        if covered.has_word(words[-1]):
+            continue
+        in_sources = sources.has_word(words[-1])
+        note = (f"The run has sources that mention {name} but wrote nothing on {name}." if in_sources else f"The run found nothing on {name}.")
+        gaps.append({"name": name, "inSources": in_sources, "note": note})
+    return gaps
 
 
 # --- source strength -------------------------------------------------------------------------------------------------------------

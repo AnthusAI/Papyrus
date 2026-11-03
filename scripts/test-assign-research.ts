@@ -105,6 +105,16 @@ test("unverifiedClaims and factCheck are shown when present and the packet reads
   assert.equal(view.factCheckSummary, "One claim could not be verified.");
 });
 
+test("the names a direction asked about and the run did not cover are listed, and a packet without them reads without", () => {
+  const view = researchPacketOf({ ...packet, factCheck: { directionGaps: [
+    { name: "Dana Woodruff", inSources: true, note: "The run has sources that mention Dana Woodruff but wrote nothing on Dana Woodruff." },
+    { name: "Rowan Tesk" }, { note: "no name" }] } });
+  assert.deepEqual(view?.directionGaps, [
+    { name: "Dana Woodruff", note: "The run has sources that mention Dana Woodruff but wrote nothing on Dana Woodruff." },
+    { name: "Rowan Tesk", note: "The run wrote nothing on Rowan Tesk." }]);
+  assert.deepEqual(researchPacketOf(packet)?.directionGaps, []);
+});
+
 test("something that is not a packet reads as none", () => {
   assert.equal(researchPacketOf(null), null);
   assert.equal(researchPacketOf({ claims: [] }), null);

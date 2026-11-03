@@ -34,7 +34,7 @@ from .automatic_assignments import (
     plan_automatic_assignment_cleanup,
 )
 from .graphql_authoring import create_authoring_client
-from .options import parse_options, resolve_mutation_apply
+from .options import normalize_string, parse_options, resolve_mutation_apply
 
 
 def assignments_list(flags: list[str]) -> None:
@@ -120,6 +120,17 @@ def assignments_intake_proposals(flags: list[str]) -> None:
     options = parse_options(flags)
     client, _ = create_authoring_client()
     result = intake_research_packet_proposals(client, options)
+    if result.get("citedOnly") and resolve_mutation_apply(options, "assignments process-proposals"):
+        from .assignments import assignment_metadata
+        from .multi_search_research import take_in_found_references
+        from .newsroom_context_pack import PROFILES
+
+        assignment = client.get_record("Assignment", result["assignmentId"]) or {}
+        story_lineage = normalize_string(assignment.get("itemLineageId"))
+        if story_lineage and normalize_string(assignment_metadata(client, assignment).get("contextProfile")) in PROFILES:
+            taken_in = take_in_found_references(client, result["assignmentId"], story_lineage, result,
+                                                actor_label=normalize_string(options.get("actor-label")) or "Papyrus content CLI")
+            result = {**result, "linkedToStory": taken_in["linked"], "curation": taken_in["curation"]}
     if options.get("json"):
         print(json.dumps({"ok": True, **result}, indent=2))
         return
@@ -128,6 +139,9 @@ def assignments_intake_proposals(flags: list[str]) -> None:
     print(f"assignments\tprocess-proposals\tregistered\t{result.get('registeredReferenceCount')}")
     if result.get("citedOnly"):
         print(f"assignments\tprocess-proposals\tcited-only\t{result.get('consideredSourceCount')} sources in the packet, {result.get('heldReferenceCount')} already held")
+    if result.get("linkedToStory") is not None:
+        curation = result.get("curation") or {}
+        print(f"assignments\tprocess-proposals\tlinked\t{len(result['linkedToStory'])} new links to the Story, {len(curation.get('curated') or [])} curated, {len(curation.get('failed') or [])} not curated")
 
 
 def assignments_research_intake_now(flags: list[str]) -> None:
