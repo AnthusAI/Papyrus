@@ -80,3 +80,9 @@ Feature: Editors rate a Reference with stars and the idea pipeline reads the rat
     When the signals are read
     Then its stars are available in the pending context
     And the run drafts no idea from it
+
+  Scenario: A site that does not have stars yet is still read
+    Given a site whose schema has no star fields on a Reference
+    When the router reads that site's References twice
+    Then both reads return the References
+    And only the first read was refused for naming the star fields

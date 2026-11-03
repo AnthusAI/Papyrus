@@ -20,6 +20,7 @@ import os  # noqa: E402
 os.environ.setdefault("PAPYRUS_GRAPHQL_AUTH", "iam")
 
 from papyrus_content import reference_stars, reference_vote  # noqa: E402
+from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient  # noqa: E402
 from papyrus_content.ideas import rated_outcomes, retry_memory, review  # noqa: E402
 from papyrus_content.ideas.context_packs import build_packs, drop_lowest_ranked, rank_packs  # noqa: E402
 from papyrus_content.ideas.item_signals import ordered_lineage_ids, ordered_queue, score_items  # noqa: E402
@@ -276,3 +277,49 @@ def _pending_context(context):
 def _no_idea(context):
     state = held(context)
     assert run_stories(state.client, Model())["drafts"] == []
+
+
+class _SchemaWithoutStars:
+    """Stands in for the connection to a site on an older version: AppSync refuses a query naming a star field."""
+
+    def __init__(self):
+        self.queries = []
+        self.refusals = 0
+
+    def request(self, _method, _path, body=None, headers=None):
+        self.queries.append(json.loads(body)["query"])
+
+    def getresponse(self):
+        refused = "starRating" in self.queries[-1]
+        self.refusals += refused
+        answer = ({"errors": [{"message": "Validation error of type FieldUndefined: Field 'starRating' in type 'Reference' is undefined"}]}
+                  if refused else {"data": {"listReferences": {"items": [{"id": "reference-1"}]}}})
+        return SimpleNamespace(status=200, reason="OK", read=lambda: json.dumps(answer).encode("utf-8"))
+
+    def close(self):
+        pass
+
+
+@given("a site whose schema has no star fields on a Reference")
+def step_site_without_star_fields(context):
+    context.old_site = _SchemaWithoutStars()
+    context.old_site_client = PapyrusGraphQLAuthoringClient(endpoint="https://example.test/graphql", header_factory=lambda _payload: {},
+                                                            tenant_id="old-site")
+    context.old_site_client._connection = context.old_site
+
+
+@when("the router reads that site's References twice")
+def step_read_old_site_twice(context):
+    query = "query { listReferences { items { id starRating starRatedAt starRatedBy updatedAt } } }"
+    context.old_site_reads = [context.old_site_client.graphql(query), context.old_site_client.graphql(query)]
+
+
+@then("both reads return the References")
+def step_both_reads_return(context):
+    assert [read["listReferences"]["items"] for read in context.old_site_reads] == [[{"id": "reference-1"}]] * 2
+
+
+@then("only the first read was refused for naming the star fields")
+def step_only_first_refused(context):
+    assert context.old_site.refusals == 1
+    assert len(context.old_site.queries) == 3 and "starRat" not in context.old_site.queries[-1]
