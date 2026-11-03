@@ -35,7 +35,7 @@ The real constraints, in the order they can stop a publication (``stoppedBy`` in
   starts from the same ranking (best first) and skips what is already drafted.
 * ``cost``: the model spend of one publication's run, ``MAXIMUM_COST_USD``. At the model's price it is far above what the time budget lets a
   run spend; it is only a backstop against a runaway loop, and a run that reaches it says so.
-* ``file_error``: a draft could not be filed (usually a missing grant). The run stops rather than pay for drafts that cannot be kept.
+* ``file_error``: the same filing error twice in a row (usually a missing grant or a scope mismatch). The run stops rather than pay for drafts that cannot be kept; a single failure is recorded (``fileErrors``) and the run goes on.
 
 Never raises into the router: a publication that fails is logged as ``failed`` and the others go on.
 """
@@ -281,5 +281,5 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         "packs": len(packs), "ideasFromPacks": sum(1 for draft in run["drafts"] if draft.get("origin") == "context-pack"),
         "packsSkippedNoNewEvidence": run.get("packsSkippedNoNewEvidence", 0),
         "packDetails": [{"signal": pack["signal"], "anchor": pack["anchor"], "correctedPValue": pack["correctedPValue"], "ideas": pack["ideas"]} for pack in packs if pack["attempted"]],
-        "timings": timings, "review": (run.get("review") or {}).get("status"), **({"fileError": run["fileError"]} if run.get("fileError") else {}),
+        "timings": timings, "review": (run.get("review") or {}).get("status"), **({"fileError": run["fileError"], "fileErrors": len(run.get("fileErrors") or []), **({"fileErrorReason": run["fileErrorReason"]} if run.get("fileErrorReason") else {})} if run.get("fileError") else {}),
     }

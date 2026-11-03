@@ -488,10 +488,10 @@ def step_router_stopped_time(context):
     assert state.line["stoppedBy"] == "time" and len(state.filing.filed) == 2 and state.client.filed == []
 
 
-@then("the publication is stopped by the filing error and the single item is not asked for")
+@then("the filing error is recorded, the publication is not stopped by it and the single item is still asked for")
 def step_router_stopped_file(context):
     state = context.router
-    assert state.line["stoppedBy"] == "file_error" and state.model.order == ["pack"]
+    assert state.line["stoppedBy"] != "file_error" and state.line["fileErrors"] == 1 and state.model.order[0] == "pack" and len(state.model.order) > 1
 
 
 @then("the publication is stopped by cost after the pack and the single item is not asked for")

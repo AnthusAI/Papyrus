@@ -380,8 +380,13 @@ def validate_router_publications(raw: dict) -> list[dict]:
         since = entry.get("criteriaSince")
         if since is not None and (not isinstance(since, (str, int)) or not str(since).strip()):
             raise ValueError(f"router publication {publication_id} has an invalid criteriaSince")
+        tenant = entry.get("tenantId")
+        if tenant is not None:
+            from .tenancy import validate_tenant_id
+            tenant = validate_tenant_id(str(tenant))   # raises on an invalid id: a mistyped tenant must not run unscoped
         publications.append({
             **({"criteriaSince": str(since).strip()} if since is not None else {}),
+            **({"tenantId": tenant} if tenant else {}),
             "publicationId": publication_id, "site": site, "appsyncEndpoint": entry["appsyncEndpoint"],
             **({"userPoolId": pool_id} if pool_id else {}),
             "corpusId": corpus_id, "corpusKey": corpus_id.removeprefix("knowledge-corpus-"),
@@ -1305,7 +1310,10 @@ class Router:
     def client(self, publication: dict):
         endpoint = publication["appsyncEndpoint"]
         if endpoint not in self._clients:
-            self._clients[endpoint] = self.appsync_factory(endpoint)
+            # A backend whose editorial records (sections, doctrine, stories) are stamped with a tenant is written and read as that tenant: the editorial check
+            # refuses a record whose tenant differs from the client's. Only publications that name one pass it; the other factories take the endpoint alone.
+            tenant = publication.get("tenantId")
+            self._clients[endpoint] = self.appsync_factory(endpoint, tenant) if tenant else self.appsync_factory(endpoint)
         return self._clients[endpoint]
 
     def context_for(self, publication: dict) -> dict:

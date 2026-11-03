@@ -236,6 +236,37 @@ def step_which(context, first, second):
     assert numbers == [first, second], numbers
 
 
+@given("the backend refuses to file the first idea only")
+def step_refuse_first(context):
+    client = state(context).clients[state(context).publications[0]]
+    original, refused = client.graphql, []
+
+    def graphql(query, variables=None):
+        if "fileProposal" in query and not refused:
+            refused.append(1)
+            raise RuntimeError("one record is bad")
+        return original(query, variables)
+
+    client.graphql = graphql
+
+
+@then("the model was asked exactly twice")
+def step_twice(context):
+    assert len(state(context).model.drafting) == 2, len(state(context).model.drafting)
+
+
+@then('the log line for "{publication}" says 2 filing errors were recorded and why the run stopped')
+def step_two_errors(context, publication):
+    line = state(context).lines[publication]
+    assert line["fileErrors"] == 2 and "twice in a row" in line["fileErrorReason"], line
+
+
+@then('the log line for "{publication}" says drafted 2 and 1 filing error was recorded')
+def step_one_error(context, publication):
+    line = state(context).lines[publication]
+    assert line["drafted"] == 2 and line["fileErrors"] == 1 and line["stoppedBy"] != "file_error", line
+
+
 @then("the model was asked exactly once")
 def step_once(context):
     assert len(state(context).model.drafting) == 1, len(state(context).model.drafting)

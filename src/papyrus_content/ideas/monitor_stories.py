@@ -650,7 +650,7 @@ def draft_monitor_stories(
 
     ``limit=None`` drafts every candidate (the daily router task, docs/monitoring-cloud.md#monitor-stories): the run then stops only for a real
     constraint, and ``stoppedBy`` names it: ``time`` (``out_of_time()`` turned true between two items; the rest is picked up by the next run),
-    ``cost`` (``maximum_cost_usd``) or ``file_error`` (a draft could not be filed: the run stops rather than spend on drafts that cannot be kept).
+    ``cost`` (``maximum_cost_usd``) or ``file_error`` (the same filing error twice in a row: systemic, so the run stops rather than spend on drafts that cannot be kept; a single failure is recorded in ``fileErrors`` and the run goes on).
     Each draft is filed as soon as it is kept, so a run that stops early loses nothing it paid for.
 
     ``ordered_candidates`` (lineage ids, best first, from the signal queue of ``ideas/item_signals.py``) replaces the Cyclotron-and-freshness ranking:
@@ -771,6 +771,22 @@ def draft_monitor_stories(
             return True
         run["retriedWithNewConnections"].append({"subject": subject, "newConnections": fresh, "earlierReasons": remembered.get("reasons") or []})
         return False
+    filing_streak = {"count": 0, "message": None}
+
+    def filing_failed(error: Exception, subject: dict[str, Any]) -> bool:
+        """Records a filing that failed. One failure says little about the rest (one idea, one record), so the run goes on with the next candidate; the same
+        failure twice in a row, with nothing filed between, is systemic (a missing grant, a scope that does not match): True, and the run stops and says why."""
+        message = f"{type(error).__name__}: {error}"[:300]
+        run.setdefault("fileErrors", []).append({**subject, "error": message})
+        run["fileError"] = message
+        filing_streak["count"] = filing_streak["count"] + 1 if filing_streak["message"] == message else 1
+        filing_streak["message"] = message
+        if filing_streak["count"] >= 2:
+            run["stoppedBy"] = "file_error"
+            run["fileErrorReason"] = "The same filing error twice in a row: systemic, so the run stopped rather than pay for ideas that cannot be kept."
+            return True
+        return False
+
     kept: list[dict[str, Any]] = []
     pack_documents: list[dedupe.Document] = []
     pack_model_calls = 0
@@ -802,10 +818,11 @@ def draft_monitor_stories(
                     existing_titles=[*(dedupe.Document("draft", d["ideaId"], d["title"], d.get("angle") or "") for d in [*kept]), *pack_documents],
                     run_id=run["runId"], dry_run=dry_run, concept_nodes=signal_run.concept_nodes, model=model, threshold=threshold, now=moment,
                 )
-            except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; stop before paying for ideas that cannot be kept
-                run["fileError"] = f"{type(error).__name__}: {error}"[:300]
-                run["stoppedBy"] = "file_error"
-                break
+            except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; one failure is recorded and the run goes on, a repeated one is systemic and stops it
+                if filing_failed(error, {"packId": subject.pack_id, "title": subject.anchor}):
+                    break
+                continue
+            filing_streak["count"] = 0
             pack_model_calls += result.model_calls
             if result.error:
                 run["invalid"].append({"packId": subject.pack_id, "title": subject.anchor, "reason": "model_error", "message": result.error})
@@ -908,10 +925,11 @@ def draft_monitor_stories(
                 except IdeaRefused as refusal:   # the editorial check found an error-severity violation: not filed, the run goes on
                     run["invalid"].append({**refusal.as_invalid(record), "referenceId": item.reference_id})
                     continue
-                except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; stop before paying for drafts that cannot be kept
-                    run["fileError"] = f"{type(error).__name__}: {error}"[:300]
-                    run["stoppedBy"] = "file_error"
-                    break
+                except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; one failure is recorded and the run goes on, a repeated one is systemic and stops it
+                    if filing_failed(error, {"referenceId": item.reference_id, "title": item.title}):
+                        break
+                    continue
+                filing_streak["count"] = 0
             run["drafts"].append(record)
         if run["stoppedBy"] == "file_error":
             break
