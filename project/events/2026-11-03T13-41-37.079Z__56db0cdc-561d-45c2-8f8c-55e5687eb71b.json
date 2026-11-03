@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "56db0cdc-561d-45c2-8f8c-55e5687eb71b",
+  "issue_id": "PPY-0b36cc85-40ac-4ed9-9b6c-12b2a95b626e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T13:41:37.079Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Fact-check Reference summaries and idea drafts",
+    "description": "Apply fact-check/v1 to Reference summaries against the captured text (a failed summary is held and marked, not shown as fact), and to idea drafts alongside point_check.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-b32e856a-d354-4996-8cce-77b852ca8288",
+    "labels": []
+  }
+}
