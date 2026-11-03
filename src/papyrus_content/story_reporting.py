@@ -340,8 +340,9 @@ def link_reference_to_story(
     note: str | None = None,
     citation_key: str | None = None,
     now: str | None = None,
+    assignment_id: str | None = None,
 ) -> dict[str, Any]:
-    """Attaches a reference to a story, or changes its role (consulted to cited) when already attached."""
+    """Attaches a reference to a story, or changes its role (consulted to cited) when already attached. ``assignment_id`` records the research Assignment that found it."""
     if role not in STORY_REFERENCE_ROLES:
         raise ValueError(f"role must be one of {', '.join(STORY_REFERENCE_ROLES)}.")
     now = now or utc_now_iso()
@@ -370,6 +371,8 @@ def link_reference_to_story(
         metadata["note"] = note
     if citation_key:
         metadata["citationKey"] = citation_key
+    if assignment_id:
+        metadata["assignmentId"] = assignment_id
     subject_state_key = f"item#{lineage_id}#current"
     object_state_key = f"reference#{reference_lineage_id}#current"
     record = {
@@ -410,7 +413,8 @@ def stories_based_on_reference(client, reference_lineage_id: str) -> list[dict[s
         if relation.get("predicate") != STORY_REFERENCE_PREDICATE or relation.get("subjectKind") != "item":
             continue
         metadata = json.loads(relation["metadata"]) if isinstance(relation.get("metadata"), str) and relation["metadata"] else {}
-        rows.append({"relationId": relation["id"], "storyLineageId": relation.get("subjectLineageId"), "role": metadata.get("role", "consulted")})
+        rows.append({"relationId": relation["id"], "storyLineageId": relation.get("subjectLineageId"), "role": metadata.get("role", "consulted"),
+                     "assignmentId": metadata.get("assignmentId")})
     return rows
 
 
@@ -510,7 +514,7 @@ def append_story_message(
 
 
 def link_found_references_as_consulted(client, lineage_id: str, reference_ids: list[str], *, actor: str, note: str | None = None,
-                                       now: str | None = None) -> list[str]:
+                                       now: str | None = None, assignment_id: str | None = None) -> list[str]:
     """Links References a run found to the story as ``consulted``. A Reference the story already has, in any role, is left as it is (a citation is never downgraded)."""
     already = {row["referenceLineageId"] for row in story_references(client, lineage_id)}
     linked: list[str] = []
@@ -518,7 +522,8 @@ def link_found_references_as_consulted(client, lineage_id: str, reference_ids: l
         reference = current_reference(client, reference_id)
         if reference is None or (reference.get("lineageId") or reference["id"]) in already:
             continue
-        result = link_reference_to_story(client, lineage_id, reference["id"], role="consulted", actor=actor, note=note, now=now)
+        result = link_reference_to_story(client, lineage_id, reference["id"], role="consulted", actor=actor, note=note, now=now,
+                                         assignment_id=assignment_id)
         already.add(result["referenceLineageId"])
         linked.append(result["referenceLineageId"])
     return linked

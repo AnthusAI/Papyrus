@@ -1,3 +1,5 @@
+import type { ResearchPacketView } from "./research-packet";
+
 /**
  * Everything the reporting process recorded about one story, gathered by the story's lineage id:
  * the draft versions of the copy, the research, reporting and copywriting assignments with their events,
@@ -38,6 +40,10 @@ export type TrailAssignmentEvent = {
 
 export type TrailAssignment = {
   id: string;
+  /** The editor's direction, from the assignment's `metadata` attachment (a research assignment) or null. */
+  direction?: string | null;
+  /** The packet of a finished research assignment, read through the Message it produced. */
+  packet?: ResearchPacketView | null;
   title: string;
   assignmentTypeKey: string;
   status: string;
@@ -160,4 +166,16 @@ export function siteNameOf(sourceUri: string | null | undefined, preferred?: str
   if (preferred) return preferred;
   if (!sourceUri) return null;
   try { return new URL(sourceUri).hostname.replace(/^www\./, ""); } catch { return null; }
+}
+
+/** The reason a research assignment failed: the note of its latest failed event, else null. */
+export function failureReasonOf(assignment: Pick<TrailAssignment, "status" | "events">): string | null {
+  if (assignment.status !== "failed") return null;
+  const failed = [...assignment.events].filter(event => event.toStatus === "failed" || event.eventType.endsWith(".failed")).sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+  return failed?.note ?? null;
+}
+
+/** An assignment the Work section shows with its direction and packet: the editor's research assignments. */
+export function isResearchAssignment(assignment: Pick<TrailAssignment, "assignmentTypeKey">): boolean {
+  return assignment.assignmentTypeKey === "research.multi";
 }

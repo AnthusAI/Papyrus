@@ -184,6 +184,23 @@ papyrus stories assign-research --story <lineage> --direction "Find the court ru
 
 The assignment is open, its type defaults to `research.multi`, its title to the Story's title, its `instructions` and `metadata.direction` hold the direction, and its `metadata.contextProfile` is `reporter`. An `AssignmentEvent` records the creation. A Story at the `idea` stage moves to `assignment` through the recorded stage move (`stories show` lists it); a Story at any other stage stays where it is. The command does not fire stage-entry triggers; run `papyrus stories fire-triggers` if the stage should start one. `--dry-run` writes nothing.
 
+### Assigning research in the newsroom
+
+The same assignment can be made on the Story page, at every stage of the Story (components `assign-research-box.tsx`, `assign-research-client.ts`, `lib/assign-research.ts`). The Messages view's Work section starts with an Assign research box: one text area for what the research should find out, and one button. An empty direction is refused in words, before anything is written. Only editors and admins reach the editor, and the backend's own groups decide who may write an `Assignment`.
+
+The browser writes the same stored shape as the command: the `Assignment` row (type `research.multi`, `itemLineageId`, the Story's section when it is one of the site's sections, status `open`, queue `research:<section>:exploratory`), the first `AssignmentEvent`, and two `ModelAttachment`s owned by the Assignment. **The Assignment model has no `metadata`, `brief` or `instructions` column** (PR 1110 was a live bug from writing them as columns). The `metadata` attachment (`role` and `sortKey` `metadata`, JSON) holds `direction` and `contextProfile: reporter`, which the context pack and the research run read through `assignment_metadata`; the `assignment_instructions` attachment holds the direction as text. A Story at the `idea` stage then moves to `assignment` through `moveStoryStage`; if that move fails the assignment stays and the box says so. Specs: `features/newsroom-assign-research.feature` (the box), `features_backend/browser-assign-research.feature` (the pack is built from what the browser wrote; the browser's records are recorded in `features_backend/fixtures/browser-assign-research.json` by `scripts/test-assign-research.ts`, and `UPDATE_FIXTURES=1` rewrites it).
+
+The Work section shows each research assignment with the editor's direction, its state in words and with an icon, when it was made, and the packet once it is finished. A worker runs it: [the research-assignments task](monitoring-cloud.md#research-assignments).
+
+| Stored status | Shown as |
+| --- | --- |
+| `open` | Waiting for the research worker |
+| `claimed` | Running |
+| `completed` | Finished, with the packet |
+| `failed` | Failed, with the reason from its latest failed event |
+
+The packet is read from the Assignment: the Message on its `produces` relation, and that Message's `metadata` attachment (`research`). Each claim names its sources by the `rank` of a `source_snapshots` entry, and the card links each claim to the pages it cites. The summary, the recommended angle, the disagreements and the open questions follow. A "Could not verify" list (`unverifiedClaims`: `claim`, `sources`, `verdict`, `reasons`) labels each entry in words and with an icon: Needs a check, Rejected (`needs_check`, `rejected`) or Not checked (`unchecked`), and gives the machine reasons in plain words (`unmatched_terms: Rodney` reads "Not in the cited source: Rodney", `judge_partly_supported` reads "The source only partly supports this"). The fact-check line is made from `factCheck.counts`, for example "12 verified, 8 need a check, 8 rejected; 23 rest on one site". Both are left out when the packet has none. Nothing is added to a message thread: Messages come only from people.
+
 `papyrus assignments context-pack` shows what a reporting agent is given. It only reads.
 
 ```bash
@@ -220,6 +237,8 @@ With a pack, the brief starts with the editor's direction, labelled as the edito
 A pack-driven run takes in only the sources a claim or a disagreement position cites (`--cited-only`, the default for a run with a pack and the option `papyrus assignments process-proposals --assignment A [--message M] [--cited-only]` for a packet already written). The citations are read through the packet's `multiSearch.sourceProviders` index-to-URL list; every source stays in the packet. A URL the corpus already holds as a Reference, in any status, is not registered again and its status is not touched; it is linked to the Story as `consulted` like the new ones. New sources are registered `pending`. Without `--cited-only` the intake behaves as before: every proposed source is registered, under an id made from its URL, so a source already registered under that id is rewritten.
 
 The corpus key is `--corpus-key`, else the assignment's `corpusKey`, else the backend's own. A key the steering file (`--config`, optional) lists keeps its configured settings and classifier. Otherwise the key must be the backend's canonical `KnowledgeCorpus`, and its configuration is built from that record with no classifier (the classifier id is an optional field on the records written, which nothing reads, and the router's Reference delivery writes none). A key that is neither fails with `Unknown --corpus-key`. If the intake fails after the packet is written, `research-multi` does not exit with an error: it records a `research.multi.intake_failed` event on the Assignment and returns `intakeError` in its result.
+
+A cited-only run then curates the References it took in: it reads each source with the existing capture stage and writes the Reference's summary with the Assignment's title and the editor's direction, and the titles, decks and sections of the Stories the Reference is linked to, as the reason the newsroom is reading it ([directed summaries](reference-curation-pipeline.md#directed-summaries-why-the-newsroom-is-reading-this-source)). That context is a hint about what to bring forward and where the source does not answer the question; it is never evidence, and the summary still says only what the source says. The summary is shared by every reader of the Reference, so a link made later does not rewrite it (`--force` does). A summary or capture failure is recorded on that Reference's curation card and in the run's `curation.failed`; the run still completes.
 
 ## Approving a Reference on a person's behalf
 

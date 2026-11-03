@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a309e00b-09a8-4f7a-8832-797d4fcf2352",
+  "issue_id": "PPY-10802f69-0bcb-41fc-acc8-74d15c843e53",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T14:43:51.528Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "People capture what we could not: the Captured filter and the home page list",
+    "description": "Ryan 2026-11-03. A continuous need from humans: accepted References whose contents could not be collected automatically, for example behind an I'm-not-a-robot gate. It is worth human effort to collect the highest-rated ones, by uploading a PDF, or select-all and paste. Organize the UI around this.\n\nFilters: Reviewed (accepted or rejected, or not) replaces Unrated, All, Rated. New Captured filter (fully captured or not). A Reference the check doubts counts as not captured.\n\nNewsroom home page: shows a few accepted, not-captured References. Highest-rated first, then most recent.\n\nDesign: a captureState field on Reference (full, thin, none, running; empty means none, because a monitor-discovered Reference has only its address), written with each capture change and by the backfill. Filtering reads existing indexes and drops rows client-side, so no new index and no sort restriction. An editor's complete verdict counts as full. No capture classifier exists yet: docs/reference-curation-pipeline.md records signals and editor labels for a future Cyclotron one, so today's check is the rule in lib/reference-capture.ts. Building that classifier is a follow-up. Every behaviour change ships with Gherkin; the epic ends with a p.apyr.us docs task.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

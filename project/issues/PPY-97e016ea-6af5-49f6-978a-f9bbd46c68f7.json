@@ -1,0 +1,20 @@
+{
+  "id": "PPY-97e016ea-6af5-49f6-978a-f9bbd46c68f7",
+  "title": "Human signals shape what the home page features and what gets published",
+  "description": "Ryan 2026-11-03. Use every signal that comes from humans to influence editorial content on the automated home pages, and start collecting Story ratings for what to publish and how to rank and feature it.\n\nDecided by Ryan: home pages rank References by rating when one exists. One sort is by recency in time buckets (day or week), then within a bucket by stars and/or Cyclotron confidence. Human ratings are the stronger signal and override Cyclotron confidence when they exist. Our own Stories get star ratings too.\n\nProposed defaults, Ryan can change them: within a bucket the order is 5, 4 and 3 stars, then unrated by Cyclotron confidence, then 2 and 1 stars, so a low rating is a real downgrade and overrides a confident prediction. Stars stay private, as export.py records today: they change order but are not printed on public pages. Tie: newest, then key.\n\nEvery behaviour change ships with Gherkin, and the epic ends with a p.apyr.us docs task.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T14:32:27.766648Z",
+  "updated_at": "2026-11-03T14:32:27.766964Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

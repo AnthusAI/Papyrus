@@ -1,0 +1,20 @@
+{
+  "id": "PPY-719a02d2-e49c-4b09-8493-1d87f62ef45f",
+  "title": "Fact-check Story drafts before publishing, with a gate and per-claim status for editors",
+  "description": "Check draft sentences against the Story's References; show status per claim in the newsroom; hard gate through review_requests before publish. UX gets screenshot review.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-b32e856a-d354-4996-8cce-77b852ca8288",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T13:41:37.163899Z",
+  "updated_at": "2026-11-03T13:41:37.163920Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

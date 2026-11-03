@@ -746,6 +746,7 @@ def _required_procedure_seed_specs() -> list[dict[str, Any]]:
                     "known_subtitle": {"type": "string"},
                     "media_type": {"type": "string"},
                     "doctrine_context_text": {"type": "string"},
+                    "purpose_context_text": {"type": "string"},
                     "model": {"type": "string"},
                     "prompt_version": {"type": "string"},
                 },

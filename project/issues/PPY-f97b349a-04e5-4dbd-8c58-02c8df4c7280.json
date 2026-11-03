@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f97b349a-04e5-4dbd-8c58-02c8df4c7280",
+  "title": "Home page: rank References by human rating, then Cyclotron confidence",
+  "description": "src/papyrus_content/projection/standard/home_page_blocks.py and home_page/export.py. Add one shared ordering: 5, 4 and 3 stars, then unrated by Cyclotron confidence, then 2 and 1 stars; ties newest, then key. Use it for the confident and recommended selections and the new bucketed sort. Add starRating to the fields home-page reads, without printing it. _data/home-page/references.json may be readable publicly, so carry the order as a rank or a pre-sorted list if that file is public, and check that first; the EXCLUDED_REFERENCE_FIELDS guard must keep passing. Add starRating to the fields that make homePageTrigger run (docs/home-page.md), so rating a Reference updates the pages through the existing debounce and digest.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-97e016ea-6af5-49f6-978a-f9bbd46c68f7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T14:32:43.988978Z",
+  "updated_at": "2026-11-03T14:32:43.989003Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

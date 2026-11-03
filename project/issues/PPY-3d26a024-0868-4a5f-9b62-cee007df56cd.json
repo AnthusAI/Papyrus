@@ -1,0 +1,20 @@
+{
+  "id": "PPY-3d26a024-0868-4a5f-9b62-cee007df56cd",
+  "title": "Home page: sort by recency buckets",
+  "description": "Add a day or week bucket option to the references include, for example select=recent bucket=week. The newest bucket comes first, and within a bucket the shared human-rating ordering applies. Bucket on the date that selection already orders by (accepted time for recent). State the time zone in the docs and settings. A rating never moves a Reference to another bucket. Configurable by site, with the ledger rules unchanged. Same sort available for the Story listing include once Stories have stars.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-97e016ea-6af5-49f6-978a-f9bbd46c68f7",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T14:32:44.079299Z",
+  "updated_at": "2026-11-03T14:32:44.079326Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

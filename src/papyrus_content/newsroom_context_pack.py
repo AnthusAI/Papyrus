@@ -376,10 +376,17 @@ def prior_research_layer(situation: Situation) -> tuple[list[Entry], str | None]
             packet = item["packet"]
             created = str(item["message"].get("createdAt") or "")
             claims = [str(claim["claim"]) for claim in packet.get("claims") or [] if isinstance(claim, dict) and claim.get("claim")]
+            held = [claim for claim in packet.get("unverifiedClaims") or [] if isinstance(claim, dict) and claim.get("claim")]
+            needs_check = [str(claim["claim"]) for claim in held if claim.get("verdict") == "needs_check"]
+            unchecked = [str(claim["claim"]) for claim in held if claim.get("verdict") == "unchecked"]
+            unverified = [str(claim["claim"]) for claim in held if claim.get("verdict") not in ("needs_check", "unchecked")]
             questions = [str(question) for question in packet.get("openQuestions") or [] if question]
             text = _block([
                 _line("Researched", _day(created)), _line("Direction given", direction), _line("Summary", packet.get("summary")),
                 "Claims:\n" + "\n".join(f"- {claim}" for claim in claims) if claims else "",
+                "Needs a check (partly supported, or the attribution is unclear), do not rely on:\n" + "\n".join(f"- {claim}" for claim in needs_check) if needs_check else "",
+                "Unchecked (the check could not run), do not rely on:\n" + "\n".join(f"- {claim}" for claim in unchecked) if unchecked else "",
+                "Rejected (not supported by its sources), do not rely on:\n" + "\n".join(f"- {claim}" for claim in unverified) if unverified else "",
                 "Open questions:\n" + "\n".join(f"- {question}" for question in questions) if questions else "",
             ])
             found.append((created, _entry("research_packet", str(item["message"]["id"]), text, assignmentId=str(assignment["id"]))))

@@ -48,6 +48,7 @@ SUMMARY_MESSAGE_KIND = "reference_summary"
 SUMMARY_MESSAGE_DOMAIN = "summarization"
 SUMMARY_SOURCE = "papyrus-summary-generator"
 SUMMARY_PROMPT_VERSION = "reference-summary-v3-source-voice"
+SUMMARY_DIRECTED_PROMPT_VERSION = "reference-summary-v3-source-voice-directed"
 SUMMARY_PROCEDURE_ALIAS_SUMMARIZE = "references.summarize"
 SUMMARY_PROCEDURE_ALIAS_SUMMARIZE_BATCH = "references.summarize-batch"
 SUMMARY_PROCEDURE_ALIAS_TITLE_SUBTITLE_RESOLVE = "references.title-subtitle.resolve"
@@ -444,6 +445,7 @@ def build_reference_summary_plan(
     identifier_prepass: dict[str, Any] | None = None,
     now: str | None = None,
     semantic_client: PapyrusSemanticClient | None = None,
+    purpose: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     now = now or _now()
     max_tokens = normalize_summary_budget(max_tokens)
@@ -502,6 +504,10 @@ def build_reference_summary_plan(
     next_metadata = dict(metadata_payload) if isinstance(metadata_payload, dict) else {}
     next_metadata["summary"] = summary_text
     next_metadata["summary_resolution"] = summary_resolution
+    if purpose:
+        next_metadata["summary_purpose"] = {key: purpose[key] for key in ("assignmentId", "storyLineageIds", "contextHash")}
+    else:
+        next_metadata.pop("summary_purpose", None)
     if identifier_prepass:
         next_metadata.update(
             _identifier_metadata_update(
@@ -2536,6 +2542,7 @@ def reference_summarize(
         else ""
     )
     doctrine_context = manual_summary_doctrine_context() if summary_text else load_publication_doctrine_context()
+    purpose = None if summary_text else _reference_purpose_context(reference)
     generated_result = (
         {
             "summary_text": summary_text,
@@ -2549,6 +2556,7 @@ def reference_summarize(
             model=model,
             reference=reference,
             doctrine_context=doctrine_context,
+            purpose_context_text=(purpose or {}).get("text") or "",
         )
     )
     generated = generated_result.get("summary_text") or ""
@@ -2563,6 +2571,7 @@ def reference_summarize(
         refresh=refresh,
         identifier_prepass=identifier_prepass,
         semantic_client=semantic,
+        purpose=purpose,
     )
     result = _apply_plan_if_requested(plan, apply=apply, actor_label=SUMMARY_SOURCE, reason="references summarize")
     result["identifierPrepass"] = identifier_prepass
@@ -2887,6 +2896,7 @@ def _reference_summarization_cloud_input(
     subtitle: str = "",
     doctrine_context: dict[str, Any] | None = None,
     prompt_version: str = "",
+    purpose_context_text: str = "",
 ) -> dict[str, Any]:
     sanitized_source_text = str(source_text or "").replace("\x00", "")
     return _compact_dict({
@@ -2899,6 +2909,7 @@ def _reference_summarization_cloud_input(
         "known_subtitle": _clean_text(subtitle),
         "media_type": _clean_text(reference.get("mediaType")),
         "doctrine_context_text": _format_publication_doctrine_prompt_block(doctrine_context or {}),
+        "purpose_context_text": purpose_context_text,
         "model": model,
         "prompt_version": prompt_version,
     })
@@ -2916,6 +2927,7 @@ def _run_reference_summarization_cloud_procedure(
     subtitle: str = "",
     doctrine_context: dict[str, Any] | None = None,
     prompt_version: str = "",
+    purpose_context_text: str = "",
 ) -> dict[str, str]:
     from papyrus_content.cloud_procedures import start_cloud_procedure_run
     from papyrus_content.graphql_authoring import create_authoring_client
@@ -2945,6 +2957,7 @@ def _run_reference_summarization_cloud_procedure(
             subtitle=subtitle,
             doctrine_context=doctrine_context,
             prompt_version=prompt_version,
+            purpose_context_text=purpose_context_text,
         ),
         run_dir=run_dir,
         source_path=source_path,
@@ -3220,6 +3233,7 @@ def generate_summary(
     reference: dict[str, Any],
     doctrine_context: dict[str, Any] | None = None,
     procedure_alias: str = SUMMARY_PROCEDURE_ALIAS_SUMMARIZE,
+    purpose_context_text: str = "",
 ) -> dict[str, str]:
     source_text = _required(source_text, "source_text").replace("\x00", "")
     budget = normalize_summary_budget(max_tokens)
@@ -3231,7 +3245,8 @@ def generate_summary(
         model=model,
         reference=reference,
         doctrine_context=doctrine_context,
-        prompt_version=SUMMARY_PROMPT_VERSION,
+        prompt_version=SUMMARY_DIRECTED_PROMPT_VERSION if purpose_context_text else SUMMARY_PROMPT_VERSION,
+        purpose_context_text=purpose_context_text,
     )
 
 
@@ -3572,6 +3587,14 @@ def estimate_tokens(text: str, *, model: str = "") -> int:
             encoding = tiktoken.get_encoding("cl100k_base")
         return len(encoding.encode(text))
     return max(1, round(len(text.split()) * 1.33))
+
+
+def _reference_purpose_context(reference: dict[str, Any]) -> dict[str, Any] | None:
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.reference_curation import reference_purpose_context
+
+    client, _ = create_authoring_client()
+    return reference_purpose_context(client, reference)
 
 
 def _semantic_client() -> PapyrusSemanticClient:
