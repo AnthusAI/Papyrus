@@ -946,6 +946,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       importRunId: normalizeOptionalString(current.importRunId),
       importedAt: normalizeOptionalString(current.importedAt),
       createdAt: normalizeOptionalString(current.createdAt) ?? now,
+      ...(current.starRating ? { starRating: current.starRating, starRatedAt: current.starRatedAt, starRatedBy: current.starRatedBy, starFeedKey: starFeedKeyFor(targetCorpusId, current.starRating) } : {}),
       curationStatus,
       curationStatusKey: `${targetCorpusId}#${curationStatus}`,
       curationStatusUpdatedAt: normalizeOptionalString(current.curationStatusUpdatedAt) ?? now,

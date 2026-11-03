@@ -425,6 +425,9 @@ def step_reimport(context):
     (first,) = state.memory.references()
     first.update(predictedAcceptProbability=state.prediction, predictionDecidedAt="2026-11-01T01:00:00.000Z",
                  predictionSortKey=f"{state.prediction:.6f}#{first['feedArrivalAt']}#{first['id']}")
+    if getattr(state, "first_version_stars", None):
+        first.update(starRating=state.first_version_stars, starRatedAt="2026-11-01T02:00:00.000Z", starRatedBy="editor-1",
+                     starFeedKey=f"{state.corpus_id}#stars#{state.first_version_stars}")
     catalog["items"][0]["title"] = "A changed title"
     register("2026-11-02T00:00:00Z")
     state.versions = {row["versionNumber"]: row for row in state.memory.references()}
@@ -446,6 +449,19 @@ def step_second_kept(context, probability, arrival):
     second = world(context).versions[2]
     assert second["predictedAcceptProbability"] == probability and second["feedArrivalAt"] == arrival, second
     assert second["predictionSortKey"] == f"{probability:.6f}#{arrival}#{second['id']}", second["predictionSortKey"]
+
+
+@given("an editor gave the first version {stars:d} stars")
+def step_first_version_stars(context, stars):
+    world(context).first_version_stars = stars
+
+
+@then("the second version still has {stars:d} stars and is in the {level:d}-star partition")
+def step_second_stars(context, stars, level):
+    state = world(context)
+    second = state.versions[2]
+    assert second["starRating"] == stars and second["starRatedBy"] == "editor-1", second
+    assert second["starFeedKey"] == f"{state.corpus_id}#stars#{level}", second
 
 
 @given("a pending Reference in a corpus")

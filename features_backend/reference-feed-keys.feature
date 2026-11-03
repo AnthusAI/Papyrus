@@ -183,6 +183,14 @@ Feature: The References page pages through two indexes whose keys every writer k
     And the second version is in the unrated feed
     And the second version still records an accept probability of 0.9 and the arrival "2026-11-01T00:00:00.000Z"
 
+  Scenario: A new version of a Reference keeps the stars an editor gave it
+    Given a corpus whose References have these versions
+      | version | arrived                  | accept probability |
+      | 1       | 2026-11-01T00:00:00.000Z | 0.9                |
+    And an editor gave the first version 5 stars
+    When the Reference is imported again with a changed title
+    Then the second version still has 5 stars and is in the 5-star partition
+
   Scenario Outline: A vote from a chat message moves the Reference between the feeds
     Given a pending Reference in a corpus
     When a chat message asks to "<action>" it
