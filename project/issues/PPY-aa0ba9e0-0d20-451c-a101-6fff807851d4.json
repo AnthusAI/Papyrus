@@ -10,9 +10,17 @@
   "parent": "PPY-aab37edd-ee4e-4784-96a1-974ae040b452",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7faaf269-b07d-44ea-a247-46b82c4b54c9",
+      "author": "home",
+      "text": "Ryan 2026-11-03 approved building this. Three parts, one PR into develop per part if that is simpler, all held for screenshot review before the UI merges.\n\nPART 1, BOX. On the Story page (`components/newsroom-article-editor.tsx`, near the Work section of `components/story-reporting-trail.tsx`), an \"Assign research\" action: a textarea for the editor's direction and one button, Lucide icon, no dropdowns, flat rounded backgrounds, no outlines, not colour alone. It works at every stage. It does the same as `papyrus stories assign-research`: type `research.multi`, `contextProfile: reporter`, `itemLineageId`, the Story's section, the default title from the Story, status open, an AssignmentEvent, and a Story at `idea` moves to `assignment` through the existing recorded move. TRAP: the Assignment model has no `metadata` or `instructions` columns. Metadata including `direction` goes to a ModelAttachment; the pack reads it through `assignment_metadata`. PR 1110 was a live bug from this. The browser path must end with the same stored shape as the CLI, proved by a test that builds the pack from what the browser path writes. See how `components/topic-steering-workspace.tsx` and `create-story-button.tsx` create records and attachments. Editor and admin only. Empty direction is refused in the UI.\n\nPART 2, SHOW. The Work section shows each research assignment: direction, state (waiting, running, finished, failed, with the failure reason), when, and its packet: summary, recommended angle, claims each with links to its cited sources, disagreements, open questions, and an \"Could not verify\" list when `unverifiedClaims` is present (another agent is adding that; render it when present and don't depend on it). Packet metadata is a ModelAttachment on the Message linked by the `produces` relation. Keep it private to the newsroom. Do not add these to any Message thread: Messages come only from people.\n\nPART 3, WORKER. A router task `research-assignments`, in `monitoring_router.py` following `suggest-backlog`, with its own lock and its own schedule, finds open `research.multi` assignments that have a Story and profile `reporter`, per publication, oldest first, marks running through existing assignment events and runs `research_multi` within the Lambda time. A search takes minutes, so stop before the deadline and leave the rest. An assignment left running past its time is failed with a reason so it can't hang. A person asked for this, so no budget gating beyond the existing spend alarm. Check the Lambda has the search and model keys, S3 access for attachments, and `corpora/` not required. Read `docs/monitoring-cloud.md`. List exactly which IAM grants and template changes this needs. DO NOT deploy: prepare the template and tell me; IAM changes need Ryan's explicit yes.\n\nSPECS. Gherkin for each behaviour, TypeScript tests where the repo does for components. Docs: `docs/story-reporting.md`, and add a p.apyr.us docs ticket note per the docs rule. Screenshots: run the local preview with `scripts/dev-local-preview.mjs` or the repo's documented path, take desktop and phone screenshots of the box empty, the box with text, each assignment state and a finished packet with synthetic content. Do not merge. No production writes.",
+      "created_at": "2026-11-03T13:46:40.915778Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-03T12:04:11.883486Z",
-  "updated_at": "2026-11-03T12:04:11.883511Z",
+  "updated_at": "2026-11-03T13:46:40.916258Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
