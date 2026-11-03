@@ -547,7 +547,7 @@ def outer_candidates(situation: Situation, name: str) -> tuple[Iterable[Entry], 
     if name == "desk_references":
         if not in_section:
             return [], situation.section_problem
-        return reference_entries(situation, reference_candidates(situation, inside=True)), "no accepted References are curated for the section"
+        return reference_entries(situation, reference_candidates(situation, inside=True)), "no accepted References are curated for the section or used as evidence by its other Stories"
     if name == "publication_references":
         return reference_entries(situation, reference_candidates(situation, inside=False)), "no accepted References in other sections"
     raise ValueError(f"Unknown layer {name!r}.")
