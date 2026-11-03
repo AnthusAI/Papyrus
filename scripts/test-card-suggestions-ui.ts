@@ -69,7 +69,8 @@ async function setup(options = "", width = 1280) {
   const script = await browserBundle();
   const tailwind = await compiledTailwind();
   const browser = await chromium.launch({ args: ["--no-proxy-server"], executablePath: process.env.PAPYRUS_CHROMIUM_PATH || undefined });
-  const page = await browser.newPage({ viewport: { width, height: 900 } });
+  // Suggestions load when a card's foot comes into view: a tall window keeps the first cards' feet above the fold.
+  const page = await browser.newPage({ viewport: { width, height: 1600 } });
   page.setDefaultTimeout(4000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
