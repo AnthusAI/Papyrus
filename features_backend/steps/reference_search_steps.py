@@ -292,3 +292,57 @@ def queries_only(context):
         assert body["query"].lstrip().startswith("query ") and "mutation" not in body["query"].lower()
         assert headers["Authorization"] and not [name for name in headers if name.lower().startswith("x-amz")]
     assert not [name for name in ("boto3", "botocore") if sys.modules.get(name) is not None]
+
+
+QUESTION = "why do neural networks forget earlier training"
+
+
+@given('a site of 60 References with common title words, and three that answer "{query}" by meaning')
+def forgetting_site(context, query):
+    from procedures.newsroom.tests.test_reference_search import forgetting_site as build, smooth_tail
+
+    context.question = query
+    site = build()
+    _site(context, site.rows, vectors=FakeVectors([("interference", 0.30), ("replay", 0.32), ("wide", 0.33)] + smooth_tail()))
+
+
+@given("the vector index cannot be reached")
+def question_vectors_down(context):
+    context.vectors = FakeVectors(error=RuntimeError("connection reset by peer"))
+
+
+@then("the answers come first, the one found by words and meaning leading and the other two found by meaning")
+def answers_first(context):
+    ids = _ids(context.result)
+    assert ids[0] == "wide" and set(ids[:3]) == {"wide", "interference", "replay"}
+    assert [item["matchedBy"] for item in context.result["items"][:3]] == [["keyword", "meaning"], ["meaning"], ["meaning"]]
+
+
+@then('no Reference that only shares "neural", "networks" or "training" in its title is listed')
+def no_generic(context):
+    assert not [lineage for lineage in _ids(context.result) if lineage.startswith(("generic", "training"))]
+
+
+@then("only the Reference whose title covers most of the question's distinctive words is returned, and the meaning search is reported as failed")
+def only_covering(context):
+    assert _ids(context.result) == ["wide"] and context.result["lanes"]["meaning"]["status"] == "failed"
+
+
+@given("a site with 7 Hinton papers and two other References the meaning search would add")
+def hinton_site(context):
+    from procedures.newsroom.tests.test_reference_search import smooth_tail
+
+    rows = [row(f"hinton{n}", f"Paper {n}", authors=["Geoffrey Hinton"], updated=f"2026-11-01T10:0{n}:00.000Z") for n in range(7)]
+    rows += [row("other", "Boltzmann machines"), row("sem", "Learning representations")]
+    _site(context, rows, vectors=FakeVectors([("sem", 0.2), ("other", 0.21)] + smooth_tail()))
+    context.words_only = rs.search_references({"query": "Hinton", "show": "all"}, graphql=context.site.graphql, vectors=None, index=rs.ReferenceWordIndex())
+
+
+@then("the 7 author matches come first in the same order as with the word search alone")
+def authors_first(context):
+    assert _ids(context.result)[:7] == _ids(context.words_only) and len(_ids(context.words_only)) == 7
+
+
+@then("the meaning matches follow them")
+def meaning_follows(context):
+    assert _ids(context.result)[7:] == ["sem", "other"]
