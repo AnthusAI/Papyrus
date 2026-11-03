@@ -97,7 +97,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       const rows = card(page, "r0").locator("[data-card-suggestion]");
       assert.equal(await rows.count(), 4, "two concepts and two References, not all six");
       assert.deepEqual(await rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-card-suggestion"))), ["l1", "l2", "l4", "l5"], "most likely first within each kind");
-      assert.equal(await card(page, "r1").locator("[data-card-suggestion]").count(), 0, "a card with none shows nothing");
+      assert.equal(await card(page, "r1").locator("[data-card-suggestion]").count(), 0, "a card with none shows no suggestion");
       assert.equal(await card(page, "r0").locator("[data-card-suggestion] select").count(), 0, "no dropdowns");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
@@ -114,6 +114,21 @@ const scenarios: Record<string, () => Promise<void>> = {
       await card(page, "r0").locator('[data-card-suggestion="l4"]').waitFor({ state: "detached" });
       assert.deepEqual((await calls(page)).filter((call) => call.type === "decide"), [{ type: "decide", relationId: "l1", decision: "accept" }, { type: "decide", relationId: "l4", decision: "reject" }]);
       assert.equal(await card(page, "r0").getAttribute("data-feed-rated"), null, "deciding a suggestion is not a vote on the Reference");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** The small hashtag box tags the Reference with a new concept in one tap, with the Related section's own action. */
+  async the_hashtag_box() {
+    const { browser, page, errors } = await setup();
+    try {
+      const box = card(page, "r1").locator("[data-card-hashtag] textarea");
+      await box.waitFor();
+      assert.equal(await card(page, "r1").locator("[data-related-create]").count(), 0, "no button until a name is typed");
+      await box.fill("#harbour dredging");
+      await card(page, "r1").locator('[data-related-create="harbour-dredging"]').click();
+      await card(page, "r1").locator("[data-card-hashtag-done]").waitFor();
+      assert.deepEqual((await calls(page)).filter((call) => call.type === "createConceptAndTag"), [{ type: "createConceptAndTag", referenceLineageId: "r1", name: "harbour-dredging" }]);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },

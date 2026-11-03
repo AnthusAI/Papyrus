@@ -3,9 +3,11 @@
 import { CheckIcon, HashIcon, LinkIcon, Loader2Icon, SparklesIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { openSuggestions, suggestionLoaderFor } from "../lib/card-suggestions";
-import { closeMatchText, type RelatedEntry } from "../lib/reference-links";
+import { classifyAddInput, closeMatchText, type RelatedEntry } from "../lib/reference-links";
 import { cn } from "@/lib/utils";
+import { CreateConceptAction } from "./related-section";
 import { useReferenceLinksStore } from "./reference-links-context";
+import { AutoGrowTextarea } from "./ui/auto-grow-textarea";
 
 const LABEL = "font-[family-name:var(--font-sans)] text-[10px] font-extrabold tracking-[0.07em] uppercase";
 
@@ -14,8 +16,37 @@ const LABEL = "font-[family-name:var(--font-sans)] text-[10px] font-extrabold tr
  * the Related section (`ReferenceLinksStore.decide`), recorded the same way. Curating, rating and tagging happen in one pass.
  *
  * Suggestions are read only once the card is on screen, through a loader shared by the feed that reads a few References at a time, and a card with none shows
- * nothing at all. `action` is where a small "add a concept" box goes (the hashtag action, once it is on develop), beside the suggestions.
+ * nothing at all. `action` is for anything else a surface wants beside them; the hashtag box (`CreateConceptAction`) is built in.
  */
+/**
+ * A small box on the card: type `#name` and one button creates the concept if it is new and tags the Reference with it (`CreateConceptAction`, the same action
+ * as the Related section's add box). No dialog; it appears only where the store can create concepts.
+ */
+function CardHashtagBox({ disabled, lineageId }: { disabled: boolean; lineageId: string }) {
+  const store = useReferenceLinksStore();
+  const [text, setText] = useState("");
+  const [done, setDone] = useState<string | null>(null);
+  if (!store?.createConceptAndTag) return null;
+  const parsed = classifyAddInput(text);
+  return (
+    <div className="grid gap-y-1.5" data-card-hashtag>
+      <AutoGrowTextarea
+        aria-label="Tag with a hashtag"
+        className="min-h-9 w-full rounded-[var(--feed-radius-md,16px)] border-0 bg-[var(--feed-control)] px-3 py-2 text-sm leading-5 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring"
+        disabled={disabled}
+        onChange={(event) => { setText(event.target.value); setDone(null); }}
+        placeholder="Tag it: type # and a name"
+        rows={1}
+        value={text}
+      />
+      {parsed.mode === "concept" && parsed.query ? (
+        <CreateConceptAction disabled={disabled} name={parsed.query} onDone={(item) => { setText(""); setDone(item.hashtag ?? item.title); }} referenceLineageId={lineageId} />
+      ) : null}
+      {done ? <span className="inline-flex items-center gap-1 text-xs text-foreground" data-card-hashtag-done role="status"><CheckIcon aria-hidden="true" className="size-3.5" />Tagged {done}</span> : null}
+    </div>
+  );
+}
+
 export function CardSuggestions({ action, disabled = false, inset = "", lineageId }: { action?: ReactNode; disabled?: boolean; /** Classes (the footer's tone and padding) applied only while there is something to show, so a card without suggestions keeps its height. */ inset?: string; lineageId: string }) {
   const store = useReferenceLinksStore();
   const root = useRef<HTMLDivElement | null>(null);
@@ -59,7 +90,7 @@ export function CardSuggestions({ action, disabled = false, inset = "", lineageI
   const { concepts, references } = openSuggestions(entries ?? []);
   const shown = [...concepts, ...references];
   return (
-    <div className={cn("grid gap-y-1.5", shown.length || action ? inset : "")} data-card-suggestions={lineageId} ref={root}>
+    <div className={cn("grid gap-y-1.5", shown.length || action || store.createConceptAndTag ? inset : "")} data-card-suggestions={lineageId} ref={root}>
       {shown.length ? (
         <>
           <span className={cn(LABEL, "inline-flex items-center gap-1 text-muted-foreground")}><SparklesIcon aria-hidden="true" className="size-3" />Suggested links</span>
@@ -88,6 +119,7 @@ export function CardSuggestions({ action, disabled = false, inset = "", lineageI
         </>
       ) : null}
       {action ? <div data-card-suggestions-action>{action}</div> : null}
+      <CardHashtagBox disabled={disabled} lineageId={lineageId} />
       {error ? <p className="text-xs text-destructive" role="alert">{error}</p> : null}
     </div>
   );

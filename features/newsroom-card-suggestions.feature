@@ -4,8 +4,8 @@ Feature: An editor decides the suggested links on the card they are curating
   References for that Reference: at most two of each kind, most likely first, each with Accept and Reject. One tap records the decision with the same call the
   Related section uses, and the suggestion leaves the card; deciding a suggestion is not a vote on the Reference. A card with no suggestions shows nothing and
   keeps its height. Suggestions are read only for the cards on screen, a few at a time and never twice, so a long feed does not read every Reference at once. On
-  a phone the buttons are large targets, nothing scrolls sideways and every icon is Lucide. Beside the suggestions there is room for the small box that adds a
-  concept by typing its hashtag, which arrives with its own change.
+  a phone the buttons are large targets, nothing scrolls sideways and every icon is Lucide. Beside the suggestions a small box adds a
+  concept by typing its hashtag, with one button and no dialog, through the same action as the Related section.
 
   Scenario: The card shows the two most likely suggestions of each kind
     Given a feed whose first Reference has three suggested concepts and three suggested References
@@ -16,6 +16,11 @@ Feature: An editor decides the suggested links on the card they are curating
     Given a feed whose first Reference has three suggested concepts and three suggested References
     When the editor accepts a suggested concept and rejects a suggested Reference on the card
     Then each decision is recorded with the Related section's call and the Reference itself is not voted on
+
+  Scenario: A small box tags the Reference with a hashtag in one tap
+    Given a feed whose first Reference has three suggested concepts and three suggested References
+    When the editor types a hashtag in the box on a card and taps Create and tag
+    Then the Reference is tagged through the Related section's own action
 
   Scenario: Only the cards on screen are read
     Given a feed of forty References

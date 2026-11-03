@@ -67,8 +67,7 @@ call the Related section makes, so the decision is recorded and trained on exact
 vector index recorded, most likely first (`lib/card-suggestions.ts`; the Needs me queue's `compareSuggestions` ranks the same way). Reads are lazy: a card asks
 only once it is on screen, through one loader per store that reads at most two References at a time and never the same one twice
 (`createSuggestionLoader`); the backend has no batch read, so a page of cards is throttled rather than batched. A card with no suggestions shows nothing and keeps
-its height. The list rows are buttons, so suggestions stay in the detail pane's Related section. `CardSuggestions` takes an `action` slot for the add-a-concept box
-(`CreateConceptAction`, PR 1066), to be filled once that is on develop.
+its height. The list rows are buttons, so suggestions stay in the detail pane's Related section. Beside them a small box takes `#name` and one button (`CreateConceptAction`, the Related section's own action) creates the concept if it is new and tags the Reference.
 
 ## 2. Curation before review
 
