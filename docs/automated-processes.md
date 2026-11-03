@@ -29,7 +29,7 @@ A process that cannot fill a line says so in that line.
 ### 1. Monitoring collection
 
 - **Trigger.** The collector Lambda on its schedule (every 15 minutes for the Hacker News monitor, 6 hours for TTAB and Hugging Face), or a fixed time of day when the monitor's `runAt` is set. A pass stopped by its time budget is due at once.
-- **Inputs.** One source per monitor: the Hacker News RSS feed, the TTAB decision search, the Hugging Face Hub model list, or approved web-search queries through a search provider.
+- **Inputs.** One source per monitor: the Hacker News RSS feed, the TTAB decision search, the Hugging Face Hub model list, research paper feeds (arXiv RSS and Atom, Hugging Face daily papers), or approved web-search queries through a search provider.
 - **Decision.** Which items are new: the pass reads newest first until it reaches an item it already collected (the high-water mark). Items are deduplicated per monitor by fingerprint and across monitors by canonical URL in the candidate record (`monitoring_candidates.py`, `CAND#<hash>`), which uses `monitoring.canonical_url`.
 - **May write.** The monitoring table only: per-item records with `routing: collected`, candidates, the checkpoint (`STATE.resume`) and receipts. It writes nothing to any publication.
 - **Must never.** Deliver to a publication, curate, or train.
@@ -38,7 +38,7 @@ A process that cannot fill a line says so in that line.
 - **Fails.** Closed. A page's items are committed before the next page is asked for, so a stop loses nothing; a 429 is waited out for as long as `Retry-After` says, else the pass stops and resumes at the same page. A provider that refuses its key or has used up its plan raises an alarm.
 - **Cost and bound.** No item, page or request limit. Bounded by the Lambda time (80 seconds of reading in a 120 second function), the source's rate limit, and for web monitors the account of paid searches: the same query for the same dates is never asked twice in a pass.
 - **Measured.** The receipts. No quality measure of collection (how much of what matters is found) is specified: **no spec**.
-- **Gherkin.** `monitoring-hacker-news`, `monitoring-huggingface`, `monitoring-web-search`, `monitoring-web-section-queries`, `monitoring-web-search-spend`, `monitoring-no-caps`, `monitoring-run-at`. Details: [monitoring-cloud.md](monitoring-cloud.md#reading-a-source-no-item-page-or-request-limits).
+- **Gherkin.** `monitoring-hacker-news`, `monitoring-huggingface`, `monitoring-paper-feeds`, `monitoring-web-search`, `monitoring-web-section-queries`, `monitoring-web-search-spend`, `monitoring-no-caps`, `monitoring-run-at`. Details: [monitoring-cloud.md](monitoring-cloud.md#reading-a-source-no-item-page-or-request-limits).
 
 ### 2. Routing and delivery
 

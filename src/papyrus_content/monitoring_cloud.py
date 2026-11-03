@@ -22,6 +22,8 @@ from urllib.parse import urlsplit
 
 from .monitoring import (SOURCE_TYPES, _digest, _iso, fetch_hn_feed, fetch_ttab_decisions, parse_hn_feed,
                          parse_ttab_page, ttab_search_body)
+from .monitoring_feed import feed_source, validate_feed_config
+from .monitoring_hf_papers import papers_feed, validate_papers_config
 from .monitoring_huggingface import Reading, hf_feeds, hf_window_start, validate_hf_config
 from .monitoring_paging import READ_BUDGET_SECONDS, Page, read_feed
 from .monitoring_candidates import candidate_key, collected_elsewhere, record_candidate
@@ -198,7 +200,9 @@ def _validate_config(raw: dict) -> dict:
     if source_type == WEB_SEARCH:
         raw = {"sourceUrl": TAVILY_SOURCE_URL, "intervalSeconds": WEB_INTERVAL_SECONDS, **raw}
     source = urlsplit(str(raw.get("sourceUrl") or ""))
-    if (source.scheme != "https" or source.hostname != host or source.username
+    if source_type == "feed":
+        validate_feed_config(raw)   # the allowed hosts are monitoring_feed.FEED_HOSTS; a feed address may carry a query
+    elif (source.scheme != "https" or source.hostname != host or source.username
             or source.password or source.query or source.fragment):
         raise ValueError(f"Config sourceUrl must be an https://{host} URL for a {source_type} monitor")
     interval = int(raw.get("intervalSeconds"))
@@ -224,6 +228,8 @@ def _validate_config(raw: dict) -> dict:
                       precedentialLookbackDays=recheck, pageSize=page_size)
     if source_type == "huggingface-models":
         config.update(validate_hf_config(raw))
+    if source_type == "huggingface-papers":
+        config.update(validate_papers_config(raw))
     if source_type == WEB_SEARCH:
         config.update(validate_web_config(raw))
     return config
@@ -240,6 +246,10 @@ def source_feeds(config: dict, now: float, fetch: Callable[..., bytes] | None, r
         return [web_feed(config, queries or [], now, fetch, known or (lambda item: False), stats if stats is not None else {})]
     if config["sourceType"] == "huggingface-models":
         return hf_feeds(config, now, fetch, reading)
+    if config["sourceType"] == "huggingface-papers":
+        return [papers_feed(config, now, fetch)]
+    if config["sourceType"] == "feed":
+        return [feed_source(config, fetch)]
     if config["sourceType"] == "ttab-decisions":
         fetch = fetch or fetch_ttab_decisions
         feeds = [("recent", config["lookbackDays"], config["finalDecisionsOnly"], False)]

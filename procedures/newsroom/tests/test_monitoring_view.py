@@ -387,7 +387,8 @@ APP_DISTINCTIVE = "https://dist9.appsync-api.us-east-1.amazonaws.com/graphql"
 def stores():
     return {"hn": fx.FakeViewStore(), "ttab": fx.FakeViewStore(fx.ttab_rows(APP_DISTINCTIVE)),
             "huggingface": fx.FakeViewStore(fx.ttab_rows(fx.APP_PAPYRUS, monitor="huggingface")),
-            "p-apyr-us-email": fx.FakeViewStore([])}
+            "p-apyr-us-email": fx.FakeViewStore([]),
+            **{paper: fx.FakeViewStore([]) for paper in ("papers-arxiv-ai", "papers-arxiv-security", "papers-huggingface")}}
 
 
 def site_overview(endpoint, groups=("editor",), scope="publication"):
@@ -439,7 +440,7 @@ def test_handler_reads_each_listed_monitor_through_the_same_read_only_store():
         asked.append(monitor_id)
         return stores()[monitor_id]
     out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": APP_DISTINCTIVE}, store_factory=factory)
-    assert asked == ["hn", "ttab", "huggingface", "p-apyr-us-email"] and [i["monitorId"] for i in out["items"]] == ["ttab"]
+    assert asked == list(mv.MONITOR_IDS) and "papers-huggingface" in asked and [i["monitorId"] for i in out["items"]] == ["ttab"]
     asked.clear()
     mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": APP_DISTINCTIVE, "PAPYRUS_MONITORING_MONITOR_IDS": "ttab, hn"},
               store_factory=factory)

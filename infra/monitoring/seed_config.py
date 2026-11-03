@@ -7,8 +7,14 @@
       --precedential-lookback-days 180
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_config.py --table TABLE --monitor-id huggingface \
       --source-type huggingface-models --file huggingface-config.json
+  AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_config.py --table TABLE --monitor-id papers-arxiv-security \
+      --source-type feed --source-url https://rss.arxiv.org/rss/cs.CR --interval-seconds 21600
+  AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_config.py --table TABLE --monitor-id papers-huggingface \
+      --source-type huggingface-papers --interval-seconds 21600
 
-A huggingface-models monitor is configured with `--file` (a JSON object with the fields in
+A feed monitor needs only --source-url (an https address on a host in monitoring_feed.FEED_HOSTS) and
+--interval-seconds; a huggingface-papers monitor takes the API address by default and an optional --file with
+lookbackDays and pageSize. A huggingface-models monitor is configured with `--file` (a JSON object with the fields in
 docs/monitoring-cloud.md: pipelineTags, authors, search, sort, minLikes, minDownloads, lookbackDays,
 pageSize (the Hub's API page size), intervalSeconds); the item is validated with the collector's own validator
 before it is written, so a config the Lambda would refuse is never stored.
@@ -34,14 +40,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--table", required=True)
     parser.add_argument("--monitor-id", default="hn")
-    parser.add_argument("--source-type", default="hn-rss", choices=("hn-rss", "ttab-decisions", "huggingface-models"))
+    parser.add_argument("--source-type", default="hn-rss", choices=("hn-rss", "ttab-decisions", "huggingface-models", "huggingface-papers", "feed"))
     parser.add_argument("--source-url", default=None)
     parser.add_argument("--lookback-days", type=int, default=30, help="ttab-decisions only")
     parser.add_argument("--precedential-lookback-days", type=int, default=0,
                         help="ttab-decisions only: also re-check precedential decisions over this many days (0 = off)")
     parser.add_argument("--interval-seconds", type=int, default=900)
     parser.add_argument("--page-size", type=int, default=None, help="ttab-decisions only: the API's page size (not a total)")
-    parser.add_argument("--file", help="huggingface-models: JSON file with the monitor's filters and limits")
+    parser.add_argument("--file", help="huggingface-models, huggingface-papers: JSON file with the monitor's filters and window")
     parser.add_argument("--replace", action="store_true", help="overwrite an existing config item")
     args = parser.parse_args()
     item = None
@@ -51,12 +57,19 @@ def main() -> int:
         item = {"intervalSeconds": 86400, **json.loads(Path(args.file).read_text()),
                 "pk": f"MONITOR#{args.monitor_id}", "sk": "CONFIG", "sourceType": args.source_type, "enabled": True}
         item["sourceUrl"] = args.source_url or item.get("sourceUrl") or "https://huggingface.co/api/models"
+    if args.source_type == "feed" and not args.source_url:
+        parser.error("--source-type feed needs --source-url")
+    if args.source_type == "huggingface-papers":
+        item = {"intervalSeconds": args.interval_seconds, **(json.loads(Path(args.file).read_text()) if args.file else {}),
+                "pk": f"MONITOR#{args.monitor_id}", "sk": "CONFIG", "sourceType": args.source_type, "enabled": True}
+        item["sourceUrl"] = args.source_url or item.get("sourceUrl") or "https://huggingface.co/api/daily_papers"
     if boto3.client("sts").get_caller_identity()["Account"] != ACCOUNT:
         print(f"Refusing to write: caller account is not {ACCOUNT}", file=sys.stderr)
         return 2
     if item is None:
         default_url = {"hn-rss": "https://news.ycombinator.com/rss",
-                       "ttab-decisions": "https://ttab-reading-room.uspto.gov/ttab-efoia-api/decision/search"}[args.source_type]
+                       "ttab-decisions": "https://ttab-reading-room.uspto.gov/ttab-efoia-api/decision/search",
+                       "feed": args.source_url}[args.source_type]
         item = {"pk": f"MONITOR#{args.monitor_id}", "sk": "CONFIG", "sourceType": args.source_type,
                 "sourceUrl": args.source_url or default_url,
                 "intervalSeconds": args.interval_seconds, "enabled": True}
