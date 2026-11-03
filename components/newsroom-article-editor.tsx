@@ -24,6 +24,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { isGeneratedIdeaFrontMatter, stageForIdeaDecision, writeIdeaDecision, type IdeaDecisionRecord } from "../lib/idea-decision";
 import { IdeaDecision } from "./idea-decision";
+import { StoryVariationsPanel } from "./story-variations";
+import { bodyWithVariation, changeReasonFor, frontMatterWithVariation, type StoryVariationView } from "../lib/story-variations";
 import { SeededFromReferenceNote } from "./seeded-from-reference-note";
 import { FRONT_MATTER_BLURB_KEY, FRONT_MATTER_SUBTITLE_KEY, FRONT_MATTER_TITLE_KEY, readFrontMatterText, writeFrontMatterText } from "../lib/front-matter-fields";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -349,6 +351,26 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
       setBusy(null);
     }
   }, [aliases, backend, changeReason, editor, afterEditorialSave]);
+
+  /** Accepting a variation: its wording is saved as the Story's next version, with `variationId` in the front matter so the version says where it came from. */
+  const applyVariationWording = useCallback(async (variation: StoryVariationView) => {
+    if (!editor || editor.id === null) return;
+    const result = await backend.actions.saveItemDraft({
+      id: editor.id,
+      type: editor.type,
+      slug: editor.slug,
+      section: editor.section.trim() ? editor.section.trim() : null,
+      frontMatterYaml: frontMatterWithVariation(editor.frontMatterYaml, variation),
+      bodyMarkus: bodyWithVariation(editor.bodyMarkus, variation),
+      aliases,
+      expectedContentHash: editor.contentHash,
+      newVersion: true,
+      changeReason: changeReasonFor(variation),
+    });
+    setActiveArticleId(result.item.id);
+    setNotice({ tone: "ok", text: `Variation ${variation.variationNumber} saved as version ${result.item.versionNumber ?? ""}.` });
+    afterEditorialSave(result.item.id);
+  }, [aliases, backend, editor, afterEditorialSave]);
 
   const decideGeneratedIdea = useCallback(async (record: IdeaDecisionRecord) => {
     if (!editor || editor.id === null) return;
@@ -743,6 +765,16 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                   frontMatterYaml={editor.frontMatterYaml}
                   key={editor.id}
                   onDecide={decideGeneratedIdea}
+                />
+              ) : null}
+              {!isNew && editor.id && lineageId && !isOlderVersion ? (
+                <StoryVariationsPanel
+                  applyWording={applyVariationWording}
+                  decidedBy={session?.shell.auth.status === "signedIn" ? session.shell.auth.label : "editor"}
+                  demo={previewMode}
+                  disabledReason={editor.dirty ? "You have unsaved edits. Save them first, then accept a variation." : null}
+                  lineageId={lineageId}
+                  reloadKey={reloadToken}
                 />
               ) : null}
               <div aria-label="Story view" className="newsroom-article-view-toggle" role="group">

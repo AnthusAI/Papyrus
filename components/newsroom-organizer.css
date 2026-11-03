@@ -496,3 +496,8 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
    gap between the bar and the tab bar. With the detail open the bar is flush with the tab bar instead. */
 @media(max-width:767px){.organizer-main:has([data-reference-layout=detail]){padding-bottom:0}}
 .organizer-public-site{display:flex;align-items:center;gap:10px;padding:12px;background:var(--org-control);border-radius:8px!important;color:var(--org-ink);font:600 14px var(--kb-theme-ui-font);text-decoration:none}
+
+/* A variation's connection links (components/story-variations.tsx) inside the Stories board's detail panel: the panel styles every link as an underlined
+   accent block, which would pull these cards out of their layout. They keep the card's own text and padding. */
+.organizer-board-body .kb-issue-detail a[data-variation-connection][data-variation-connection],
+[data-kanbus-theme] .kb-issue-detail a[data-variation-connection][data-variation-connection] { color: inherit; text-decoration: none; min-height: 0; padding: 10px; }

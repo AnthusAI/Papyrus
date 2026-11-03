@@ -121,6 +121,11 @@ module.exports = {
     require: ["features/step_definitions/alexa-*.steps.js"],
     format: ["summary"],
   },
+  storyVariations: {
+    paths: ["features/newsroom-story-variations.feature"],
+    require: ["features/step_definitions/story-variations.steps.js"],
+    format: ["summary"],
+  },
   createStory: {
     paths: ["features/newsroom-create-story.feature"],
     require: ["features/step_definitions/create-story.steps.js"],
