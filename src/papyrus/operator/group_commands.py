@@ -41,6 +41,8 @@ COMMAND_USAGE = {
   ("procedures", "register"): "--file PATH.tac --key PROCEDURE_KEY [--root DIR] [--title TEXT] [--description TEXT] [--dry-run] [--json]",
   ("stories", "create"): "--title TEXT [--section KEY] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--reference ID ...] [--with-assignment] [--dry-run]",
   ("items", "link-references"): "--site KEY [--role consulted|cited|based_on] [--json] [--dry-run]",
+  ("stories", "assign-research"): "--story LINEAGE --direction TEXT|--direction-file FILE [--type research.multi] [--title TEXT] [--dry-run]  (an idea Story moves to the assignment stage)",
+  ("assignments", "context-pack"): "--story LINEAGE [--assignment ID] [--direction TEXT] [--format text|json] [--max-characters N]  (read only)",
   ("stories", "move"): "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]  (board stage only: --stage published publishes no page; use ops content publish)",
   ("stories", "save-version"): "--story LINEAGE --body-file FILE --reason TEXT --author-label NAME [--stage STAGE | --advance]",
   ("messages", "list"): "--kind form_submission [--status open|handled|all] [--form ID] [--limit N] [--json]",

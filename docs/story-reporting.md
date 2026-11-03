@@ -173,6 +173,44 @@ papyrus stories show --story <lineage>
 
 prints the latest version, how many versions exist, and every attached reference with its role.
 
+## Assigning research and the reporter context pack
+
+An editor can attach a research assignment, with their own direction, to a Story. The assignment works on the Story's lineage, in the Story's section.
+
+```bash
+papyrus stories assign-research --story <lineage> --direction "Find the court rulings on model output" \
+  [--direction-file direction.md] [--type research.multi] [--title "..."] [--dry-run]
+```
+
+The assignment is open, its type defaults to `research.multi`, its title to the Story's title, its `instructions` and `metadata.direction` hold the direction, and its `metadata.contextProfile` is `reporter`. An `AssignmentEvent` records the creation. A Story at the `idea` stage moves to `assignment` through the recorded stage move (`stories show` lists it); a Story at any other stage stays where it is. The command does not fire stage-entry triggers; run `papyrus stories fire-triggers` if the stage should start one. `--dry-run` writes nothing.
+
+`papyrus assignments context-pack` shows what a reporting agent is given. It only reads.
+
+```bash
+papyrus assignments context-pack --story <lineage> [--assignment <id>] [--direction TEXT] [--format text|json] [--max-characters N]
+```
+
+The pack (contract `newsroom-context-pack/v1`, module `newsroom_context_pack.py`) is built without a model, the same way every time. Its `system` text is never trimmed: the profile's role text, the publication mission and policy, and the Story's section mission, policy, assignment guidance and kill criteria. A section with no mission or policy is a warning in `warnings`; nothing is invented, and a missing publication policy stops the build. Its `user` text has eight layers, most specific first, and `layers` reports each one's entries (with source ids), characters, `droppedCount` and `droppedReason`:
+
+| Layer | Holds |
+| --- | --- |
+| `assignment` | The editor's direction, the assignment title and who asked |
+| `story` | Title, deck, the current version's text, stage, type and section |
+| `story_references` | References linked to the Story (any role), with title, address, summary, published date, accept reason, stars, the note on the link, and the notes editors wrote on how they connect to other References |
+| `story_conversation` | Messages on the Story's `story_reporting` and `story_conversation` threads, oldest first, with author |
+| `desk_published` | Published Stories in the same section, newest first |
+| `desk_references` | Accepted References curated for the section, best first |
+| `publication_published` | Published Stories in other sections, newest first |
+| `publication_references` | Accepted References in other sections, best first |
+
+The outer layers leave out system item types, retired Items, the Story itself and References already in `story_references`. Rejected and pending References never appear. References rank by an editor's vote or stars first (stars, then a written reason), then by newest; an auto-accepted Reference ranks below every one an editor voted on or rated. Reads go through the client, so a tenant's pack holds only that tenant's records.
+
+There is no fixed count and no day window. `max_characters` (from the model's real limit) is the only bound. The first four layers are filled first. If they alone exceed it, the oldest conversation messages go first, then the References' summaries, and the layer records what it dropped. The room left is shared outward in halves: `desk_published` may use up to half of it, `desk_references` up to half of what is then left, and so on, with unused room rolling forward. Entries are whole or absent, and published Stories are read newest first only until a layer's share is full. The ranked Reference layers read the accepted set once, because ranking needs all of it.
+
+`contextHash` is a hash of the rendered `system` and `user` text and the layers' provenance, excluding any fetch time; it changes when the policy, the Story or any included record changes. `editorialContextHash` is the hash of the editorial context inside `system`.
+
+`papyrus assignments research-multi <assignment>` uses the pack when the assignment's `contextProfile` is `reporter` and it works on a Story: the pack's `system` text is put before the planning and synthesis prompts, and the pack's `user` text is the brief. The packet records the pack in `multiSearch.contextPack` (the two hashes and the size of each layer, never the text). The packet Message is added to the Story's reporting thread, and the Reference records made from the proposed sources are linked to the Story as `consulted` (a Reference the Story already has, in any role, is left as it is). The Story's text is never changed. Other assignments behave as before.
+
 ## Approving a Reference on a person's behalf
 
 Until a deployment includes the delegation mutations, an agent that runs

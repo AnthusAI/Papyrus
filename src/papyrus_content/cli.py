@@ -322,6 +322,7 @@ PORTED_COMMANDS = frozenset(
         "assignments:create-reporting",
         "assignments:run-research",
         "assignments:research-multi",
+        "assignments:context-pack",
         "assignments:run-tavily-deep-research",
         "assignments:poll-tavily-deep-research",
         "assignments:run-reporting",
@@ -342,6 +343,7 @@ PORTED_COMMANDS = frozenset(
         "stories:create",
         "stories:move",
         "stories:fire-triggers",
+        "stories:assign-research",
         "stories:repair-versions",
         "stories:set-slug",
         "assignments:backfill-content-items",
@@ -720,6 +722,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         assignments_run_research(flags)
     elif route == "assignments:research-multi":
         assignments_research_multi(flags)
+    elif route == "assignments:context-pack":
+        from .newsroom_context_pack import context_pack_command
+
+        context_pack_command(flags)
     elif route == "assignments:run-tavily-deep-research":
         assignments_run_tavily_deep_research(flags)
     elif route == "assignments:poll-tavily-deep-research":
@@ -772,6 +778,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_fire_triggers
 
         stories_fire_triggers(flags)
+    elif route == "stories:assign-research":
+        from .story_commands import stories_assign_research
+
+        stories_assign_research(flags)
     elif route == "stories:create":
         from .story_commands import stories_create
 

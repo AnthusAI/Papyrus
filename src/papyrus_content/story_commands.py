@@ -351,6 +351,45 @@ def stories_move(flags: list[str]) -> None:
         deliver_from_environment(client, lineage_id)
 
 
+def stories_assign_research(flags: list[str]) -> None:
+    """papyrus stories assign-research --story <lineage> --direction TEXT|--direction-file FILE [--type research.multi] [--title TEXT] [--actor-label NAME] [--dry-run]
+
+    An editor's research assignment on a Story: an Assignment working on the Story's lineage, in the Story's section, with the direction as its
+    instructions. Its context profile is ``reporter`` (``papyrus assignments context-pack`` shows what the reporting agent is given). A Story at the
+    idea stage moves to the assignment stage through the recorded stage move; a Story at any other stage stays where it is."""
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories assign-research")
+    lineage_id = _required_option(options, "story")
+    direction = _text_from_option_or_file(options, "direction", "direction-file")
+    if not direction or not direction.strip():
+        raise ValueError("--direction (or --direction-file) is required.")
+    client, _ = create_authoring_client()
+    story = current_story_version(client, lineage_id)
+    from .editorial_context import find_section
+    from .section_ids import is_type_shaped
+    from .assignments_workflow import create_research_assignment
+
+    section_value = normalize_string(story.get("section"))
+    section = find_section(client, section_value) if section_value and not is_type_shaped(section_value, story.get("type")) else None
+    actor = normalize_string(options.get("actor-label")) or "papyrus-cli"
+    result = create_research_assignment(client, {
+        **options,
+        "title": normalize_string(options.get("title")) or story.get("headline") or story.get("title"),
+        "type": normalize_string(options.get("type")) or "research.multi",
+        "content-item": lineage_id,
+        "section": section["id"] if section else None,
+        "instructions": direction.strip(),
+        "direction": direction.strip(),
+        "context-profile": "reporter",
+        "actor-label": actor,
+    })
+    moves = story.get("stage") == "idea"
+    print(f"stories\tassign-research\t{lineage_id}\t{result['assignmentId']}\t{'moves the Story to assignment' if moves else 'Story stays at ' + str(story.get('stage'))}\t{'write' if apply else 'dry run'}")
+    if apply and moves:
+        moved = move_story_stage(client, lineage_id, "assignment", actor=actor, reason=f"Research assignment {result['assignmentId']} created")
+        print(f"stories\tassign-research\tmoved\t{moved['from']}\t{moved['stage']}")
+
+
 def stories_fire_triggers(flags: list[str]) -> None:
     """papyrus stories fire-triggers --story <lineage>: deliver the stage-entry triggers for the story's current stage and version.
 
