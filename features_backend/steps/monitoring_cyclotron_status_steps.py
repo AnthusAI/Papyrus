@@ -34,6 +34,11 @@ def step_never(context):
     context.cyclotron.status_answers[PUBLICATIONS[0]] = (200, tr.status_answer(PUBLICATIONS[0], refits=0, labels=0))
 
 
+@given("the Cyclotron's report operation is failing for every publication")
+def step_no_report(context):
+    context.cyclotron.report_answers = {name: (503, {"detail": "busy"}) for name in PUBLICATIONS}
+
+
 def status_rows(context):
     return tr.status_rows(context.table_)
 
@@ -153,3 +158,106 @@ def step_schedules(context):
 @then("neither status schedule retries a failed run")
 def step_no_retry(context):
     assert all(s["Target"]["RetryPolicy"]["MaximumRetryAttempts"] == 0 for s in context.schedules)
+
+
+# --- the classifier report --------------------------------------------------------------------------------
+
+@then("each of the three publications's status row also holds its own output's report and the time it was read")
+def step_report_rows(context):
+    rows = status_rows(context)
+    for name in PUBLICATIONS:
+        report = rows[name]["report"]
+        assert report["schema"] == "cyclotron-classifier-report/v1" and report["classifier"]["id"] == f"{name}-relevance", report
+        assert rows[name]["reportCheckedAt"] and rows[name]["status"]["cyclotron"]["id"] == f"{name}-relevance"
+
+
+@then("the status and the report requests carry no request id and an empty payload")
+def step_bodies(context):
+    operations = sorted(body["operation"] for _, _, body in context.cyclotron.calls)
+    assert operations == ["report"] * 3 + ["status"] * 3, operations
+    for _, _, body in context.cyclotron.calls:
+        assert "requestId" not in body and body["payload"] == {}
+        mr.validate_request(body)
+
+
+@then("an editor of the first publication's site is served the status and the report of the first publication only")
+def step_served_both(context):
+    out = served(context, 0)
+    assert [r["publicationId"] for r in out["rows"]] == [PUBLICATIONS[0]]
+    row = out["rows"][0]
+    assert row["status"]["cyclotron"]["id"] == f"{PUBLICATIONS[0]}-relevance" and row["report"]["classifier"]["id"] == f"{PUBLICATIONS[0]}-relevance"
+    assert PUBLICATIONS[1] not in json.dumps(out) and PUBLICATIONS[2] not in json.dumps(out)
+
+
+@then("the first publication's row holds a report and no status")
+def step_report_only(context):
+    row = status_rows(context)[PUBLICATIONS[0]]
+    assert "status" not in row and row["report"]["learning"]["state"] == "not_active"
+
+
+@then("an editor of the first publication's site is served that report with a null status")
+def step_served_report_only(context):
+    out = served(context, 0)
+    assert len(out["rows"]) == 1 and out["rows"][0]["status"] is None and out["rows"][0]["report"]["classifier"]["id"] == f"{PUBLICATIONS[0]}-relevance"
+
+
+@given("the router has already kept a report for the first publication")
+def step_kept_report(context):
+    out = io.StringIO()
+    with redirect_stdout(out):
+        tr.status_run(context.table_, context.store, context.cyclotron, now=2000)
+    context.earlier = json.loads(json.dumps(status_rows(context)[PUBLICATIONS[0]], default=str))
+
+
+@when("the router runs the cyclotron-status task again")
+def step_run_again(context):
+    out = io.StringIO()
+    with redirect_stdout(out):
+        context.result = tr.status_run(context.table_, context.store, context.cyclotron, now=3000)
+
+
+@then("the first publication's row still holds the earlier report and its earlier read time")
+def step_earlier_report(context):
+    row = json.loads(json.dumps(status_rows(context)[PUBLICATIONS[0]], default=str))
+    assert row["report"] == context.earlier["report"] and row["reportCheckedAt"] == context.earlier["reportCheckedAt"]
+
+
+@then("the report reads were refused as ordinary failed reads")
+def step_failed_reads(context):
+    assert {r["status"] for r in context.result["reports"].values()} == {"unavailable"}
+
+
+@then("the first publication's row still holds the earlier status and also the new report")
+def step_both_kept(context):
+    row = status_rows(context)[PUBLICATIONS[0]]
+    assert json.loads(json.dumps(row["status"], default=str)) == context.earlier["status"]
+    assert row["reportCheckedAt"] != context.earlier["reportCheckedAt"] and row["report"]["classifier"]["id"] == f"{PUBLICATIONS[0]}-relevance"
+
+
+@given("the Cyclotron's report for the first publication holds only another output's report")
+def step_other_report(context):
+    other = tr.report_answer(PUBLICATIONS[1])["outputs"][f"{PUBLICATIONS[1]}-relevance"]
+    context.cyclotron.report_answers[PUBLICATIONS[0]] = (200, {**tr.report_answer(PUBLICATIONS[0]), "outputs": {f"{PUBLICATIONS[1]}-relevance": other}})
+
+
+@then("the first publication's run says its answer was not a classifier report")
+def step_not_report(context):
+    assert context.result["reports"][PUBLICATIONS[0]] == {"status": "unavailable", "reason": "not a classifier report"}
+
+
+@then("the first publication's row holds no report")
+def step_no_report_row(context):
+    assert "report" not in status_rows(context)[PUBLICATIONS[0]]
+
+
+@given("the Cyclotron's report for the first publication carries a very large model")
+def step_large(context):
+    weights = {f"feature {n}": 0.5 for n in range(20000)}
+    context.cyclotron.report_answers[PUBLICATIONS[0]] = (200, tr.report_answer(PUBLICATIONS[0], model={"features": list(weights), "weights": weights, "reason": None}))
+
+
+@then("the first publication's stored report is under the item limit and says what was left out")
+def step_trimmed(context):
+    report = status_rows(context)[PUBLICATIONS[0]]["report"]
+    assert len(json.dumps(report, default=str).encode()) <= mr.REPORT_ROW_LIMIT_BYTES < 400 * 1024
+    assert report["trimmed"] == ["model"] and report["model"]["weights"] is None and "too large" in report["model"]["reason"]

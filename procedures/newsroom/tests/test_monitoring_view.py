@@ -707,6 +707,31 @@ def status_row(publication, as_of="2026-11-02T10:00:00.000Z", monitor="hn", refi
                                      "fingerprint": "fp"}}}
 
 
+def report_of(publication, accuracy=None):
+    """One output's stored report, in the Cyclotron's real shape (src/decision_flywheel/classifier_report.py) plus the schema and read time the router adds."""
+    return {"schema": "cyclotron-classifier-report/v1", "generatedAt": "2026-11-03T18:00:00.000000+00:00",
+            "classifier": {"id": f"{publication}-relevance", "revision": 2, "question": "Would a security engineer want to read this?",
+                           "criteriaFingerprint": "cfp", "rubric": "Include practical security news.", "classes": ["include", "exclude"]},
+            "learning": {"state": "not_active", "reason": "standing runs do not train on votes yet; votes are stored and change no classifier", "version": 3,
+                         "refits": 0, "lastChange": None, "asOf": "2026-11-03T17:00:00.000Z", "unavailableReason": None},
+            "agreementWithEditors": {"votes": 5, "compared": 0, "agreed": 0, "byClassifierRevision": [{"classifierRevision": "2", "votes": 5, "compared": 0, "agreed": 0}],
+                                     "byDay": [{"day": "2026-11-03", "votes": 5, "compared": 0, "agreed": 0}]},
+            "heldOut": {"accuracy": accuracy, "reason": None if accuracy else "standing runs do not produce held-out evaluations yet"},
+            "counts": {"labels": {"include": 3, "exclude": 2}, "reviewedDecisions": None, "primedExamples": 30, "decisionsAwaitingReview": 1},
+            "model": {"features": None, "weights": None, "reason": "no machine-learning model has been fitted for this classifier"}}
+
+
+def with_report(row, publication=None):
+    return {**row, "report": report_of(publication or row["publicationId"]), "reportCheckedAt": "2026-11-03T18:05:00Z"}
+
+
+def report_only_row(publication, monitor="hn"):
+    row = status_row(publication, monitor=monitor)
+    for key in ("status", "asOf", "checkedAt"):
+        del row[key]
+    return with_report(row)
+
+
 def status_store(*extra):
     return fx.FakeViewStore([*fx.rows(), *extra])
 
@@ -752,3 +777,49 @@ def test_the_status_list_reads_one_row_per_monitor_and_nothing_secret_leaves():
     out = mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
     blob = json.dumps(out)
     assert not any(marker in blob for marker in fx.SECRET_MARKERS)
+
+
+def serve(*rows, endpoint=fx.APP_ANTH):
+    return mv.handle(status_event(), env={"PAPYRUS_GRAPHQL_ENDPOINT": endpoint}, store_factory=fx.only_hn(status_store(*rows)))
+
+
+def test_the_status_list_serves_the_report_beside_the_status_for_this_sites_publication_only():
+    out = serve(with_report(status_row("anth-us")), with_report(status_row("p-apyr-us")), with_report(status_row("threat-intelligence")))
+    assert [r["publicationId"] for r in out["rows"]] == ["anth-us"]
+    row = out["rows"][0]
+    assert row["status"]["cyclotron"]["id"] == "anth-us-relevance" and row["reportCheckedAt"] == "2026-11-03T18:05:00Z"
+    assert row["report"]["classifier"]["id"] == "anth-us-relevance" and row["report"]["schema"] == "cyclotron-classifier-report/v1"
+    assert row["report"]["agreementWithEditors"]["compared"] == 0 and row["report"]["model"]["weights"] is None
+    assert [r["publicationId"] for r in serve(with_report(status_row("anth-us")), with_report(status_row("p-apyr-us")), endpoint=fx.APP_PAPYRUS)["rows"]] == ["p-apyr-us"]
+
+
+def test_a_row_with_a_report_and_no_status_is_still_served_with_a_null_status():
+    out = serve(report_only_row("anth-us"))
+    assert len(out["rows"]) == 1
+    row = out["rows"][0]
+    assert row["status"] is None and row["asOf"] is None and row["report"]["learning"]["state"] == "not_active"
+
+
+def test_a_status_only_row_written_before_the_report_existed_is_served_with_a_null_report():
+    out = serve(status_row("anth-us"))
+    row = out["rows"][0]
+    assert row["report"] is None and row["reportCheckedAt"] is None and row["status"]["cyclotron"]["id"] == "anth-us-relevance"
+
+
+def test_a_row_with_neither_a_status_nor_a_report_object_is_not_served():
+    bare = status_row("anth-us")
+    bare["status"] = "nope"
+    assert serve({**bare, "report": "nope"})["rows"] == [] and serve({**bare, "report": None})["rows"] == []
+
+
+def test_the_report_of_another_publication_under_this_sites_key_is_not_served():
+    stray = with_report(status_row("anth-us"))
+    stray["publicationId"] = "threat-intelligence"
+    assert serve(stray)["rows"] == []
+
+
+def test_the_report_list_is_for_editors_and_leaks_no_marker():
+    out = serve(with_report(status_row("anth-us")))
+    assert not any(marker in json.dumps(out) for marker in fx.SECRET_MARKERS)
+    refused = mv.handle(status_event(["reader"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(status_store(with_report(status_row("anth-us")))))
+    assert refused["error"] == "forbidden"

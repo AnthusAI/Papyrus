@@ -105,6 +105,10 @@ ROUTER_LOCK_SK = "LOCK#router"
 MONITOR_STORIES_LOCK_PREFIX = "LOCK#monitor-stories#"   # one lock per publication for a monitor-stories run that names one
 CYCLOTRON_STATUS_LOCK_SK = "LOCK#cyclotron-status"   # its own lock: reading status never waits for, or holds up, a routing sweep
 CYCLOTRON_STATUS_ROW_PREFIX = "CYCLOTRONSTATUS#"
+READ_OPERATIONS = ("status", "report")   # read-only lab operations: no requestId, an empty payload, no provider call
+REPORT_SCHEMA = "cyclotron-classifier-report/v1"
+#: DynamoDB refuses an item over 400 KB. A stored report is cut down (the model's features and weights first, then the oldest days) to fit under this.
+REPORT_ROW_LIMIT_BYTES = 300_000
 AUTO_ACCEPT_LOCK_PREFIX = "LOCK#auto-accept#"            # the same for an auto-accept run that names one
 SUGGEST_BACKLOG_LOCK_PREFIX = "LOCK#suggest-backlog#"    # the same for the hourly suggestion backlog task
 FAN_OUT_TASKS = {"monitor-stories": MONITOR_STORIES_LOCK_PREFIX, "auto-accept": AUTO_ACCEPT_LOCK_PREFIX,
@@ -585,10 +589,13 @@ def validate_request(body: dict) -> None:
     """Structural validation of a machine-API body; raises ValueError on anything off-contract."""
     if body.get("contractVersion") != CONTRACT_VERSION:
         raise ValueError("wrong contract version")
-    if body.get("operation") not in ("decide", "feedback", "status"):
+    if body.get("operation") not in ("decide", "feedback", *READ_OPERATIONS):
         raise ValueError("unknown operation")
     request = body.get("requestId")
-    if body["operation"] != "status" and (not isinstance(request, str) or not 8 <= len(request) <= 128):
+    if body["operation"] in READ_OPERATIONS:
+        if "requestId" in body or body.get("payload") != {}:
+            raise ValueError("status and report take no requestId and an empty payload")   # the lab answers 400 to either
+    elif not isinstance(request, str) or not 8 <= len(request) <= 128:
         raise ValueError("requestId must be 8 to 128 characters")
     payload = body.get("payload")
     if not isinstance(payload, dict):
@@ -2736,48 +2743,125 @@ def status_of_output(answer: dict, output: str) -> dict | None:
     return snapshot if isinstance(snapshot, dict) and snapshot.get("schema") == "cyclotron-status/v1" else None
 
 
+def report_of_output(answer: dict, output: str) -> dict | None:
+    """One output's report from a `report` answer, whose `outputs` holds a report per bound output (Cyclotron src/decision_flywheel/classifier_report.py).
+    Only this publication's own output is ever taken. None when the answer is not a v1 report or has no report for this output."""
+    outputs = answer.get("outputs")
+    report = outputs.get(output) if isinstance(outputs, dict) else None
+    if answer.get("schema") != REPORT_SCHEMA or not isinstance(report, dict):
+        return None
+    classifier = report.get("classifier")
+    if not isinstance(classifier, dict) or classifier.get("id") != output:
+        return None
+    return {"schema": REPORT_SCHEMA, "generatedAt": answer.get("generatedAt"), **report}   # the stored report names its own schema and read time
+
+
+def fit_report(report: dict, limit: int = REPORT_ROW_LIMIT_BYTES) -> tuple[dict, list[str]]:
+    """The report cut down until its JSON fits `limit` bytes, and what was cut. The model's features and weights go first (they can be large),
+    then the oldest days of agreement; a trimmed report says so in `trimmed`, which the newsroom shows as words."""
+    def size(value):
+        return len(json.dumps(value, separators=(",", ":"), default=str).encode())
+    cut: list[str] = []
+    if size(report) <= limit:
+        return report, cut
+    report = json.loads(json.dumps(report, default=str))
+    model = report.get("model")
+    if isinstance(model, dict) and (model.get("features") or model.get("weights")):
+        report["model"] = {**model, "features": None, "weights": None, "reason": "The model is too large to keep here."}
+        cut.append("model")
+    days = (report.get("agreementWithEditors") or {}).get("byDay")
+    while size(report) > limit and isinstance(days, list) and len(days) > 1:
+        del days[: max(1, len(days) // 4)]   # oldest first
+        if "byDay" not in cut:
+            cut.append("byDay")
+    if cut:
+        report["trimmed"] = cut
+    return report, cut
+
+
+def read_lab(cyclotron: CyclotronClient, pid: str, operation: str) -> tuple[int | None, dict]:
+    """One read-only operation for a publication, called directly (never through `classify`): its refusals never pause the lab or stop a sweep.
+    (None, {reason}) when the lab could not be reached."""
+    try:
+        return cyclotron._call("POST", f"/machine/bindings/{quote(pid)}/operations",
+                               {"contractVersion": CONTRACT_VERSION, "operation": operation, "payload": {}})
+    except (OSError, TimeoutError) as error:
+        return None, {"reason": type(error).__name__}
+
+
 def run_cyclotron_status(store, config: dict, cyclotron: CyclotronClient, *, monitor_id: str, now: float,
                          time_left: Callable[[], float] = lambda: 1e9) -> dict:
-    """The `cyclotron-status` task: read the Cyclotron's `status` snapshot for each configured publication and keep it, one row per
-    publication (its output is in the row), in the monitor's own partition, where the newsroom home page reads it through the Monitoring view.
+    """The `cyclotron-status` task: read the Cyclotron's `status` snapshot and its `report` for each configured publication and keep them, one row per
+    publication (its output is in the row), in the monitor's own partition, where the newsroom home page reads them through the Monitoring view.
     Read-only toward the Cyclotron and toward every site's backend: nothing is written outside the monitoring table.
 
     It never goes through the deciding path and never stops a sweep: it calls the lab directly (not `classify`), so a 503 ("no verified
     publication status snapshot yet") is that publication's "no snapshot yet" and sets no lab-wide pause, and it takes its own lock.
     It does respect a pause the lab already asked for. A snapshot is only as fresh as the binding's last completed decision, so the row keeps the
-    snapshot's own `asOf` and the time this task last checked. One publication's failure never stops the others."""
+    snapshot's own `asOf` and the time this task last checked. One publication's failure never stops the others.
+
+    The two reads are independent. The row keeps the last good `status` and the last good `report` (`reportCheckedAt` is when the report was last
+    read), so a read that fails now never erases the other, or its own earlier value. The report answers 200 even before a first decision; a
+    report that fails is only a failed read. `publications` is the status read's outcome per publication, `reports` the report read's."""
     results: dict = {}
+    reports: dict = {}
     if config["mode"] != "live" or config["decisions"] != "cyclotron":
-        return {"status": "skipped", "reason": "not a live Cyclotron monitor", "publications": results}
+        return {"status": "skipped", "reason": "not a live Cyclotron monitor", "publications": results, "reports": reports}
     if int((store.get_any(monitor_id, LAB_BACKOFF_SK) or {}).get("until", 0)) > now:
-        return {"status": "skipped", "reason": "lab_backoff", "publications": results}
+        return {"status": "skipped", "reason": "lab_backoff", "publications": results, "reports": reports}
     for publication in config["publications"]:
-        pid = publication["publicationId"]
+        pid, output = publication["publicationId"], publication["output"]
         if time_left() < MIN_REMAINING_SECONDS:
             results[pid] = {"status": "skipped", "reason": "time budget"}
+            reports[pid] = {"status": "skipped", "reason": "time budget"}
             continue
-        try:
-            code, payload = cyclotron._call("POST", f"/machine/bindings/{quote(pid)}/operations",
-                                            {"contractVersion": CONTRACT_VERSION, "operation": "status", "payload": {}})
-        except (OSError, TimeoutError) as error:
-            results[pid] = {"status": "unreachable", "reason": type(error).__name__}
-            continue
-        if code == 503:
+        code, payload = read_lab(cyclotron, pid, "status")
+        snapshot = None
+        if code is None:
+            results[pid] = {"status": "unreachable", "reason": payload["reason"]}
+        elif code == 503:
             results[pid] = {"status": "no_snapshot"}   # no completed decision for this binding yet: not an error, and never a lab pause
-            continue
-        snapshot = status_of_output(payload, publication["output"]) if code == 200 else None
-        if snapshot is None:
-            results[pid] = {"status": "unavailable", "reason": body_excerpt(code, payload) if code != 200 else "not a status snapshot"}
+        else:
+            snapshot = status_of_output(payload, output) if code == 200 else None
+            if snapshot is None:
+                results[pid] = {"status": "unavailable", "reason": body_excerpt(code, payload) if code != 200 else "not a status snapshot"}
+        report, trimmed = None, []
+        if time_left() < MIN_REMAINING_SECONDS:
+            reports[pid] = {"status": "skipped", "reason": "time budget"}
+        else:
+            code, payload = read_lab(cyclotron, pid, "report")
+            if code is None:
+                reports[pid] = {"status": "unreachable", "reason": payload["reason"]}
+            else:
+                report = report_of_output(payload, output) if code == 200 else None   # a 503 here is a failed read like any other
+                if report is None:
+                    reports[pid] = {"status": "unavailable", "reason": body_excerpt(code, payload) if code != 200 else "not a classifier report"}
+                else:
+                    report, trimmed = fit_report(report)
+        if snapshot is None and report is None:
             continue
         try:
-            store.put_any(monitor_id, {"pk": pk(monitor_id), "sk": status_row_sk(pid), "publicationId": pid, "output": publication["output"],
-                                       "asOf": snapshot.get("asOf"), "checkedAt": _iso(now), "status": snapshot})
-            results[pid] = {"status": "written", "asOf": snapshot.get("asOf")}
+            row = {**(store.get_any(monitor_id, status_row_sk(pid)) or {}), "pk": pk(monitor_id), "sk": status_row_sk(pid), "publicationId": pid, "output": output}
+            if snapshot is not None:
+                row.update(asOf=snapshot.get("asOf"), checkedAt=_iso(now), status=snapshot)
+            if report is not None:
+                row.update(report=report, reportCheckedAt=_iso(now))
+            store.put_any(monitor_id, row)
+            if snapshot is not None:
+                results[pid] = {"status": "written", "asOf": snapshot.get("asOf")}
+            if report is not None:
+                reports[pid] = {"status": "written", **({"trimmed": trimmed} if trimmed else {})}
         except Exception as error:  # noqa: BLE001 - one publication's unwritable row must not stop the others
-            results[pid] = {"status": "failed", "reason": short(error)}
-    print(json.dumps({"cyclotronStatus": {pid: r["status"] for pid, r in results.items()}, "monitorId": monitor_id,
-                      "reasons": {pid: r["reason"] for pid, r in results.items() if r.get("reason")}}))
-    return {"status": "complete", "publications": results}
+            if snapshot is not None:
+                results[pid] = {"status": "failed", "reason": short(error)}
+            if report is not None:
+                reports[pid] = {"status": "failed", "reason": short(error)}
+    print(json.dumps({"cyclotronStatus": {pid: r["status"] for pid, r in results.items()},
+                      "cyclotronReport": {pid: r["status"] for pid, r in reports.items()}, "monitorId": monitor_id,
+                      "trimmedReports": {pid: r["trimmed"] for pid, r in reports.items() if r.get("trimmed")},
+                      "reasons": {pid: r["reason"] for pid, r in results.items() if r.get("reason")},
+                      "reportReasons": {pid: r["reason"] for pid, r in reports.items() if r.get("reason")}}))
+    return {"status": "complete", "publications": results, "reports": reports}
 
 
 def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner: str | None = None,
@@ -2832,7 +2916,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         if task == "cyclotron-status":
             # Its own task: no Router, no sweep, no feedback, no receipt, no lab-wide pause; the newsroom home page reads what it writes.
             done = (run_cyclotron_status(store, config, cyclotron, monitor_id=monitor_id, now=now, time_left=time_left) if cyclotron
-                    else {"status": "skipped", "reason": "not a live Cyclotron monitor", "publications": {}})
+                    else {"status": "skipped", "reason": "not a live Cyclotron monitor", "publications": {}, "reports": {}})
             return {"monitorId": monitor_id, "runId": run_id, **done}
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,

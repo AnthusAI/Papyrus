@@ -54,6 +54,7 @@ import { NotificationCenter } from "./components/notification-center";
 import { NewsroomOpsOverview } from "./components/newsroom-ops-overview";
 import { FIXTURE_IDEAS, FIXTURE_EMAIL_DETAILS, FIXTURE_HELD_EMAILS, FIXTURE_REVIEW_REQUESTS } from "./lib/review-fixture";
 import { answerUpdate, applyReviewUpdate } from "./lib/review-requests";
+import { homeCyclotronStateFrom } from "./lib/hosted-cyclotron-status";
 
 const params = new URLSearchParams(location.search);
 const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -91,7 +92,7 @@ const api = {
   decideEmail: async (receiptId, decision, reason) => { window.calls.push({ type: "email", receiptId, decision, reason }); return { ok: true, already: false, quarantine: { state: decision === "accept" ? "released" : "discarded", decision: null, failure: null } }; },
 };
 
-// ?cyclotron=snapshot|never|none|unavailable|loading: the classifier panel's synthetic snapshots (no network). Without the parameter the page has no panel.
+// ?cyclotron=snapshot|never|none|unavailable|loading|report|report-long|report-zero|report-model: the classifier panel's synthetic snapshots (no network). Without the parameter the page has no panel.
 function cyclotronStatus(kind) {
   const base = {
     schema: "cyclotron-status/v1",
@@ -110,11 +111,43 @@ function cyclotronStatus(kind) {
   }
   return base;
 }
+// The classifier report in the Cyclotron's real shape (src/decision_flywheel/classifier_report.py output_report), as the router stores it: it adds schema and generatedAt.
+function cyclotronReport(kind) {
+  const longRubric = "Include a reference when it reports a new attack technique, vulnerability or defence that a security team could act on this month. ".repeat(6).trim();
+  const base = {
+    schema: "cyclotron-classifier-report/v1", generatedAt: "2026-11-03T18:00:00.000000+00:00",
+    classifier: { id: "synthetic-relevance", revision: 2, question: "Would a security engineer at a mid-sized company want to read this?", criteriaFingerprint: "cfp-1",
+      rubric: kind === "report-long" ? longRubric : "Include practical security news. Exclude marketing.", classes: ["include", "exclude"] },
+    learning: { state: "not_active", reason: "standing runs do not train on votes yet; votes are stored and change no classifier", version: 4, refits: 2,
+      lastChange: { kind: "refit", fromVersion: 3, toVersion: 4, at: "2026-10-30T14:05:00.000Z", summary: "refit on 41 reviews", labels: 41 }, asOf: "2026-11-03T17:00:00.000Z", unavailableReason: null },
+    agreementWithEditors: { votes: 14, compared: 9, agreed: 7,
+      byClassifierRevision: [{ classifierRevision: "1", votes: 3, compared: 0, agreed: 0 }, { classifierRevision: "2", votes: 11, compared: 9, agreed: 7 }],
+      byDay: [{ day: "2026-11-01", votes: 3, compared: 0, agreed: 0 }, { day: "2026-11-02", votes: 3, compared: 3, agreed: 3 }, { day: "2026-11-03", votes: 8, compared: 6, agreed: 4 }] },
+    heldOut: { accuracy: null, reason: "standing runs do not produce held-out evaluations yet" },
+    counts: { labels: { include: 9, exclude: 5 }, reviewedDecisions: 12, primedExamples: 30, decisionsAwaitingReview: 4 },
+    model: { features: null, weights: null, reason: "no machine-learning model has been fitted for this classifier" },
+  };
+  if (kind === "report-zero") {
+    return { ...base, learning: { ...base.learning, version: null, refits: null, lastChange: null, asOf: null, unavailableReason: "no decision has completed for this binding yet" },
+      agreementWithEditors: { votes: 0, compared: 0, agreed: 0, byClassifierRevision: [], byDay: [] }, counts: { labels: {}, reviewedDecisions: null, primedExamples: null, decisionsAwaitingReview: null } };
+  }
+  if (kind === "report-model") {
+    return { ...base, heldOut: { accuracy: 0.8125, reason: null }, model: { features: ["mentions a vulnerability", "names a vendor"], weights: [1.25, -0.5], reason: null } };
+  }
+  return base;
+}
 const cyclotronParam = params.get("cyclotron");
 const cyclotronApi = cyclotronParam ? { loadCyclotronStatus: async () => {
   if (cyclotronParam === "loading") return new Promise(() => {});
   if (cyclotronParam === "unavailable") return { state: "unavailable" };
   if (cyclotronParam === "none") return { state: "none" };
+  if (cyclotronParam.startsWith("report")) {
+    const reportOnly = cyclotronParam === "report-zero";
+    const status = reportOnly ? null : cyclotronStatus("snapshot");
+    // Through the same parser the live page uses, so the report is read in the shape the Monitoring view serves it.
+    return homeCyclotronStateFrom({ rows: [{ monitorId: "hn", publicationId: "synthetic", output: "synthetic-relevance", asOf: status ? status.asOf : null, checkedAt: status ? "2026-11-02T10:30:00.000Z" : null,
+      status, report: cyclotronReport(cyclotronParam), reportCheckedAt: "2026-11-03T18:05:00.000Z" }] });
+  }
   const status = cyclotronStatus(cyclotronParam);
   return { state: "ready", rows: [{ monitorId: "hn", publicationId: "synthetic", output: "synthetic-relevance", asOf: status.asOf, checkedAt: "2026-11-02T10:30:00.000Z", status }] };
 } } : {};

@@ -146,6 +146,28 @@ def status_snapshot(pub, as_of="2026-11-02T10:00:00.000Z", refits=0, labels=0):
             "lastChange": None, "pending": {"decisionsAwaitingReview": 0, "staleSince": None}}
 
 
+def report_answer(pub, **overrides):
+    """The lab's answer to the `report` operation, in the real shape of Cyclotron's classifier_report(): the binding's envelope with `schema`,
+    `generatedAt` and `scope`, and one report per bound output under `outputs` (a dict here, where the status envelope's `outputs` is a list)."""
+    output = f"{pub}-relevance"
+    section = {
+        "classifier": {"id": output, "revision": 2, "question": "Would a security engineer want to read this?", "criteriaFingerprint": f"cfp-{pub}",
+                       "rubric": "Include practical security news.", "classes": ["include", "exclude"]},
+        "learning": {"state": "not_active", "reason": "standing runs do not train on votes yet; votes are stored and change no classifier", "version": 3,
+                     "refits": 0, "lastChange": None, "asOf": "2026-11-03T17:00:00.000Z", "unavailableReason": None},
+        "agreementWithEditors": {"votes": 5, "compared": 4, "agreed": 3,
+                                 "byClassifierRevision": [{"classifierRevision": "2", "votes": 5, "compared": 4, "agreed": 3}],
+                                 "byDay": [{"day": "2026-11-02", "votes": 2, "compared": 1, "agreed": 1}, {"day": "2026-11-03", "votes": 3, "compared": 3, "agreed": 2}]},
+        "heldOut": {"accuracy": None, "reason": "standing runs do not produce held-out evaluations yet"},
+        "counts": {"labels": {"include": 3, "exclude": 2}, "reviewedDecisions": 4, "primedExamples": 30, "decisionsAwaitingReview": 1},
+        "model": {"features": None, "weights": None, "reason": "no machine-learning model has been fitted for this classifier"},
+    }
+    section.update(overrides)
+    return {"contractVersion": mr.CONTRACT_VERSION, "accountId": "account-1", "bindingId": pub, "bindingRevision": "1",
+            "schema": "cyclotron-classifier-report/v1", "operation": "report", "generatedAt": "2026-11-03T18:00:00.000000+00:00",
+            "scope": "votes recorded on this run", "outputs": {output: section}}
+
+
 class FakeCyclotron:
     """Scriptable machine API: records every call; decisions share one id per item."""
 
@@ -156,6 +178,7 @@ class FakeCyclotron:
         self.post_override, self.poll_override = {}, {}
         self.feedback_override = None
         self.status_answers = {}              # pub -> (status, body) for the read-only `status` operation; default is a fresh snapshot
+        self.report_answers = {}              # pub -> (status, body) for the read-only `report` operation; default is a fresh report
         self.pending_polls = 0
         self.polls_needed = 0                 # each job answers "running" this many times before it completes
         self.job_gets = {}
@@ -225,6 +248,8 @@ class FakeCyclotron:
             data = json.loads(body)
             if data["operation"] == "status":
                 return self.status_answers.get(pub) or (200, status_answer(pub))
+            if data["operation"] == "report":
+                return self.report_answers.get(pub) or (200, report_answer(pub))
             if data["operation"] == "feedback":
                 return self.feedback_override or (200, {"status": "recorded", "feedbackId": "fb-" + data["requestId"][:8]})
             if pub in self.post_override:
@@ -2822,18 +2847,162 @@ def test_the_status_task_keeps_one_row_per_publication_in_the_monitors_own_parti
         assert row["asOf"] == "2026-11-02T10:00:00.000Z" and row["checkedAt"]
 
 
-def test_the_status_task_sends_the_contract_status_body_and_nothing_but_status_calls(table):
+def test_the_status_task_sends_the_contract_status_and_report_bodies_with_no_request_id_and_nothing_else(table):
     store, cyclotron = setup_router(table)
     status_run(table, store, cyclotron)
-    assert len(cyclotron.calls) == 3
+    assert len(cyclotron.calls) == 6
     for method, path, body in cyclotron.calls:
         assert method == "POST" and path.startswith("/machine/bindings/") and path.endswith("/operations")
-        assert body == {"contractVersion": mr.CONTRACT_VERSION, "operation": "status", "payload": {}}
+        assert body in ({"contractVersion": mr.CONTRACT_VERSION, "operation": "status", "payload": {}},
+                        {"contractVersion": mr.CONTRACT_VERSION, "operation": "report", "payload": {}})
+        assert "requestId" not in body
+        mr.validate_request(body)   # the same check every machine-API body passes
+    assert sorted(b["operation"] for _, _, b in cyclotron.calls) == ["report"] * 3 + ["status"] * 3
+
+
+def test_the_request_check_knows_report_and_refuses_a_request_id_or_a_payload_on_a_read():
+    read = {"contractVersion": mr.CONTRACT_VERSION, "operation": "report", "payload": {}}
+    mr.validate_request(read)
+    for bad in ({**read, "requestId": "req-12345678"}, {**read, "payload": {"x": 1}}, {**read, "operation": "other"}):
+        with pytest.raises(ValueError):
+            mr.validate_request(bad)
+    with pytest.raises(ValueError):
+        mr.validate_request({**read, "operation": "status", "requestId": "req-12345678"})
+
+
+def test_the_report_is_stored_with_the_status_in_the_same_row_under_its_own_attributes(table):
+    store, cyclotron = setup_router(table)
+    result = status_run(table, store, cyclotron)
+    assert {r["status"] for r in result["reports"].values()} == {"written"} and {r["status"] for r in result["publications"].values()} == {"written"}
+    rows = status_rows(table)
+    assert sorted(rows) == sorted(PUBS) and len([k for k in table.items if k[1].startswith("CYCLOTRONSTATUS#")]) == 3   # no new row, no new table
+    for pub, row in rows.items():
+        assert row["status"]["cyclotron"]["id"] == f"{pub}-relevance" and row["asOf"] == "2026-11-02T10:00:00.000Z" and row["checkedAt"]
+        report = row["report"]
+        assert report["schema"] == "cyclotron-classifier-report/v1" and report["generatedAt"] == "2026-11-03T18:00:00.000000+00:00"
+        assert report["classifier"]["id"] == f"{pub}-relevance"   # this publication's output, whole and as the lab sent it
+        assert report["agreementWithEditors"] == report_answer(pub)["outputs"][f"{pub}-relevance"]["agreementWithEditors"]
+        assert report["heldOut"]["accuracy"] is None and report["model"]["weights"] is None and row["reportCheckedAt"]
+        assert "outputs" not in report and "bindingId" not in report   # the envelope is not stored
+
+
+def test_a_report_with_floats_is_stored_and_read_back(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.report_answers["anth-us"] = (200, report_answer("anth-us", heldOut={"accuracy": 0.8125, "reason": None},
+                                                              model={"features": ["a"], "weights": [0.25], "reason": None}))
+    status_run(table, store, cyclotron)
+    row = store.get_any("hn", mr.status_row_sk("anth-us"))
+    assert row["report"]["heldOut"]["accuracy"] == 0.8125 and row["report"]["model"]["weights"] == [0.25]
+
+
+def test_a_report_is_kept_even_when_status_is_503_and_the_row_holds_only_the_report(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.status_answers["anth-us"] = (503, {"detail": "no verified publication status snapshot yet"})
+    before = report_answer("anth-us", learning={"state": "not_active", "reason": "r", "version": None, "refits": None, "lastChange": None, "asOf": None,
+                                               "unavailableReason": "no decision has completed for this binding yet"})
+    cyclotron.report_answers["anth-us"] = (200, before)
+    result = status_run(table, store, cyclotron)
+    assert result["publications"]["anth-us"] == {"status": "no_snapshot"} and result["reports"]["anth-us"] == {"status": "written"}
+    row = status_rows(table)["anth-us"]
+    assert "status" not in row and "asOf" not in row and row["report"]["learning"]["unavailableReason"] and row["reportCheckedAt"]
+    assert ("MONITOR#hn", mr.LAB_BACKOFF_SK) not in table.items
+
+
+def test_a_failed_report_keeps_the_last_report_and_a_failed_status_keeps_the_last_status(table):
+    store, cyclotron = setup_router(table)
+    status_run(table, store, cyclotron)
+    first = deepcopy(status_rows(table)["anth-us"])
+    first_other = deepcopy(status_rows(table)["p-apyr-us"])
+    cyclotron.report_answers["anth-us"] = (500, {"detail": "boom"})
+    cyclotron.status_answers["anth-us"] = (200, status_answer("anth-us", as_of="2026-11-03T12:00:00.000Z", refits=1))
+    cyclotron.report_answers["p-apyr-us"] = (200, {"pendingOutputs": ["x"]})   # not a report: nothing is stored from it
+    cyclotron.status_answers["p-apyr-us"] = (500, {"detail": "boom"})
+    result = status_run(table, store, cyclotron, now=3000)
+    assert result["reports"]["anth-us"]["status"] == "unavailable" and result["reports"]["p-apyr-us"] == {"status": "unavailable", "reason": "not a classifier report"}
+    rows = status_rows(table)
+    assert rows["anth-us"]["report"] == first["report"] and rows["anth-us"]["reportCheckedAt"] == first["reportCheckedAt"]   # the last report, not relabelled as fresh
+    assert rows["anth-us"]["status"]["cyclotron"]["refits"] == 1 and rows["anth-us"]["asOf"] == "2026-11-03T12:00:00.000Z"
+    assert rows["p-apyr-us"] == first_other   # both reads failed: the row is exactly as it was
+    # and the other way round
+    cyclotron.report_answers["anth-us"] = (200, report_answer("anth-us", heldOut={"accuracy": 0.5, "reason": None}))
+    cyclotron.status_answers["anth-us"] = (500, {"detail": "boom"})
+    status_run(table, store, cyclotron, now=4000)
+    row = status_rows(table)["anth-us"]
+    assert row["report"]["heldOut"]["accuracy"] == 0.5 and row["status"]["cyclotron"]["refits"] == 1 and row["asOf"] == "2026-11-03T12:00:00.000Z"
+
+
+def test_a_report_that_cannot_be_reached_or_fails_to_be_a_report_stores_nothing_and_stops_nothing(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.status_answers = {p: (503, {"detail": "no snapshot"}) for p in PUBS}
+    cyclotron.report_answers["anth-us"] = (500, {"detail": "boom"})
+    cyclotron.report_answers["p-apyr-us"] = (200, {"schema": "cyclotron-classifier-report/v2", "outputs": {"p-apyr-us-relevance": {}}})
+    result = status_run(table, store, cyclotron)
+    assert result["reports"]["anth-us"]["status"] == "unavailable" and result["reports"]["p-apyr-us"]["reason"] == "not a classifier report"
+    assert result["reports"]["threat-intelligence"] == {"status": "written"} and sorted(status_rows(table)) == ["threat-intelligence"]
+
+
+def test_a_503_report_is_an_ordinary_failed_read_and_sets_no_lab_pause(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.report_answers = {p: (503, {"detail": "busy"}) for p in PUBS}
+    result = status_run(table, store, cyclotron)
+    assert {r["status"] for r in result["reports"].values()} == {"unavailable"} and {r["status"] for r in result["publications"].values()} == {"written"}
+    assert ("MONITOR#hn", mr.LAB_BACKOFF_SK) not in table.items
+    config = validate_router_config(table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+    client = CyclotronClient(config, sign=lambda m, u, b: {}, http=cyclotron.http, sleep=lambda s: None, clock=lambda: 0)
+    mr.run_cyclotron_status(store, config, client, monitor_id="hn", now=5000)
+    assert client.rate_limited is None and client.refusals == []   # no lab-wide pause was asked for, and no refusal was logged as the lab's
+    assert all("report" not in row for row in status_rows(table).values())   # the status rows are unchanged by it
+    swept = go(table, store, cyclotron, now=2100)
+    assert swept["status"] != "stopped" and len(cyclotron.posts()) > 3
+
+
+def test_a_report_for_another_output_is_never_stored(table):
+    store, cyclotron = setup_router(table)
+    answer = report_answer("anth-us")
+    answer["outputs"]["p-apyr-us-relevance"] = report_answer("p-apyr-us")["outputs"]["p-apyr-us-relevance"]
+    cyclotron.report_answers["anth-us"] = (200, answer)
+    status_run(table, store, cyclotron)
+    assert status_rows(table)["anth-us"]["report"]["classifier"]["id"] == "anth-us-relevance"
+    cyclotron.report_answers["anth-us"] = (200, {**answer, "outputs": {"p-apyr-us-relevance": answer["outputs"]["p-apyr-us-relevance"]}})
+    result = status_run(table, store, cyclotron, now=3000)
+    assert result["reports"]["anth-us"] == {"status": "unavailable", "reason": "not a classifier report"}
+    mislabelled = report_answer("anth-us")
+    mislabelled["outputs"]["anth-us-relevance"]["classifier"]["id"] = "p-apyr-us-relevance"   # an entry under this output that is another classifier's
+    cyclotron.report_answers["anth-us"] = (200, mislabelled)
+    assert status_run(table, store, cyclotron, now=4000)["reports"]["anth-us"]["status"] == "unavailable"
+    assert status_rows(table)["anth-us"]["report"]["classifier"]["id"] == "anth-us-relevance"
+
+
+def test_a_report_too_large_for_the_row_is_cut_down_and_says_so(table):
+    store, cyclotron = setup_router(table)
+    big = {f"feature {n}": 0.5 for n in range(20000)}
+    days = [{"day": f"2020-{n // 28 % 12 + 1:02d}-{n % 28 + 1:02d}-{n}", "votes": 1, "compared": 1, "agreed": 1} for n in range(9000)]
+    section = report_answer("anth-us", model={"features": list(big), "weights": big, "reason": None})
+    section["outputs"]["anth-us-relevance"]["agreementWithEditors"]["byDay"] = days
+    cyclotron.report_answers["anth-us"] = (200, section)
+    result = status_run(table, store, cyclotron)
+    assert result["reports"]["anth-us"] == {"status": "written", "trimmed": ["model", "byDay"]}
+    stored = status_rows(table)["anth-us"]["report"]
+    assert stored["trimmed"] == ["model", "byDay"] and stored["model"]["weights"] is None and "too large" in stored["model"]["reason"]
+    kept = stored["agreementWithEditors"]["byDay"]
+    assert 0 < len(kept) < 9000 and kept[-1] == days[-1]   # the oldest days go first
+    assert len(json.dumps(stored, default=str).encode()) <= mr.REPORT_ROW_LIMIT_BYTES < 400 * 1024
+    small, cut = mr.fit_report(report_answer("anth-us")["outputs"]["anth-us-relevance"])
+    assert cut == [] and "trimmed" not in small
+
+
+def test_the_report_read_honours_the_time_budget_and_a_status_only_row_stays_as_it_was(table):
+    store, cyclotron = setup_router(table)
+    left = iter([1e9, 10] + [1e9] * 10)   # time runs out between the first publication's status and its report
+    result = status_run(table, store, cyclotron, time_left=lambda: next(left))
+    assert result["reports"]["anth-us"] == {"status": "skipped", "reason": "time budget"} and result["publications"]["anth-us"]["status"] == "written"
+    assert "report" not in status_rows(table)["anth-us"] and "report" in status_rows(table)["p-apyr-us"]
 
 
 def test_a_503_is_no_snapshot_yet_for_that_publication_and_never_a_lab_pause_or_a_stopped_sweep(table):
     store, cyclotron = setup_router(table)
     cyclotron.status_answers["anth-us"] = (503, {"detail": "no verified publication status snapshot yet"})
+    cyclotron.report_answers["anth-us"] = (503, {"detail": "busy"})   # no report either: nothing at all is stored for it
     result = status_run(table, store, cyclotron)
     assert result["publications"]["anth-us"] == {"status": "no_snapshot"}
     assert sorted(status_rows(table)) == ["p-apyr-us", "threat-intelligence"]
@@ -2847,6 +3016,7 @@ def test_a_status_refusal_or_a_reply_that_is_not_a_snapshot_is_recorded_for_that
     cyclotron.status_answers["anth-us"] = (500, {"detail": "boom"})
     cyclotron.status_answers["p-apyr-us"] = (200, {"pendingOutputs": ["x"]})
     cyclotron.status_answers["threat-intelligence"] = (200, status_snapshot("threat-intelligence"))   # a bare snapshot is not the lab's answer
+    cyclotron.report_answers = {p: (503, {"detail": "busy"}) for p in PUBS}   # and no report: a row needs one of the two
     result = status_run(table, store, cyclotron)
     assert result["publications"]["anth-us"]["status"] == "unavailable"
     assert result["publications"]["p-apyr-us"] == {"status": "unavailable", "reason": "not a status snapshot"}
