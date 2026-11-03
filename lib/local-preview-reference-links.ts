@@ -52,6 +52,11 @@ export function localPreviewLinkSuggestions(): MemoryLink[] {
     suggested("preview-suggestion-2", "preview-reference-lineage-3", "preview-concept-voice-cloning", "semanticNode", 0.84),
     suggested("preview-suggestion-3", "preview-reference-lineage-2", "preview-reference-lineage-3", "reference", 0.72),
     suggested("preview-suggestion-4", "preview-reference-lineage-4", "preview-concept-translation", "semanticNode", 0.66),
+    // The cards of the References feed: the demo workspace's own References, so a card shows its most likely suggestions.
+    suggested("preview-card-suggestion-1", "reference-knowledge-corpus-demo-source-history-002", "preview-concept-speech-synthesis", "semanticNode", 0.88),
+    suggested("preview-card-suggestion-2", "reference-knowledge-corpus-demo-source-history-002", "preview-reference-lineage-3", "reference", 0.79),
+    suggested("preview-card-suggestion-3", "reference-knowledge-corpus-demo-source-history-002", "preview-concept-voice-cloning", "semanticNode", 0.71),
+    suggested("preview-card-suggestion-4", "reference-knowledge-corpus-demo-source-history-002", "preview-concept-translation", "semanticNode", 0.52),
   ];
 }
 

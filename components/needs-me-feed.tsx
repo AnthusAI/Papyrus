@@ -1,5 +1,6 @@
 "use client";
 
+import { CardSuggestions } from "./card-suggestions";
 import type { ReferenceRecord } from "../lib/category-repository";
 import {
   CheckIcon, ChevronDownIcon, CircleCheckBigIcon, CircleCheckIcon, CircleXIcon, ClipboardCheckIcon, FileWarningIcon, FlagIcon, InfoIcon, LayoutPanelLeftIcon, LightbulbIcon,
@@ -200,6 +201,7 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
           />
         )}
       </div>
+      {item.payload.kind === "reference" ? <CardSuggestions disabled={Boolean(disabledReason) || locked} inset="bg-[var(--feed-footer)] px-3 pb-3" lineageId={item.payload.lineageId} /> : null}
     </article>
   );
 }
