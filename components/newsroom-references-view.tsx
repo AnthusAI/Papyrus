@@ -1,5 +1,6 @@
 "use client";
 
+import { StarsMark } from "./star-rating";
 import { DETAIL_PANE_WIDTH, LIST_HIDDEN_WHEN_DETAIL_OPEN } from "./list-detail-layout";
 import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
 import { ReferenceAddEntry } from "./reference-add-entry";
@@ -143,6 +144,8 @@ type NewsroomReferencesViewProps = {
   onRelevanceReview?: (reference: ReferenceRecord, curation: RelevanceCuration) => Promise<void> | void;
   initialReferenceLineageId?: string | null;
   onReview: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: ReferenceReviewOptions) => Promise<void> | void;
+  /** Saves an editor's star rating (null clears it). Stars never change the vote. */
+  onSetStars?: (reference: ReferenceRecord, stars: number | null) => Promise<void> | void;
   referenceAttachments?: ReferenceAttachmentRecord[];
   references: ReferenceRecord[];
   /** Saves an editor's pasted or corrected capture text and their verdict on it. Optional: without it the capture panel only reads. */
@@ -433,6 +436,7 @@ export function NewsroomReferencesView({
   sectionAgreement = null,
   initialReferenceLineageId = null,
   onReview,
+  onSetStars,
   referenceAttachments = [],
   references: liveReferences,
   loading: loadingProp = false,
@@ -762,6 +766,14 @@ export function NewsroomReferencesView({
       return status === "accepted" && !(reference && isAutoAccepted(reference)) ? "accept" : status === "rejected" ? "reject" : null;
     },
     confirms: (lineageId) => { const reference = referenceById(lineageId); return Boolean(reference && isAutoAccepted(reference)); },
+    ...(onSetStars ? {
+      saveStars: async (lineageId: string, next: number | null) => {
+        const reference = referenceById(lineageId);
+        if (!reference) throw new Error("This reference is no longer in the list.");
+        await onSetStars(reference, next);
+      },
+      savedStars: (lineageId: string) => { const reference = referenceById(lineageId); return reference ? reference.starRating ?? null : undefined; },
+    } : {}),
     seed: (lineageId) => {
       const reference = referenceById(lineageId);
       const status = normalizeReferenceCurationStatus(reference?.curationStatus);
@@ -1039,7 +1051,10 @@ export function NewsroomReferencesView({
                       <p className="truncate text-sm font-medium text-foreground">{referenceDisplayTitle(reference)}</p>
                       <p className="truncate text-xs text-muted-foreground">{reference.corpusId}</p>
                     </div>
-                    <Badge variant={referenceStatusBadgeVariant(status)}>{referenceStatusLabel(status)}</Badge>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <StarsMark stars={reference.starRating ?? null} />
+                      <Badge variant={referenceStatusBadgeVariant(status)}>{referenceStatusLabel(status)}</Badge>
+                    </div>
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">{formatReferenceListDate(reference)}</p>
                   {isAutoAccepted(reference) ? <AutoAcceptedBadge actor={reference.curationStatusUpdatedBy} className="mt-1" reason={reference.curationStatusReason} /> : null}

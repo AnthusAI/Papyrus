@@ -16,6 +16,9 @@ weight: the item's p-value is the smallest component p-value times the number of
 ``surprise`` is ``trends.significance_z`` of that, the same scale as a pack. An item whose corrected p-value is one (no evidence, or nothing the site's other References do not match) is not
 scored, so a quiet site yields no single-item candidate rather than all of them.
 
+Editors' own word comes first (``editor_signals``, docs/idea-context-packs.md "Editor interest"): a Reference with good stars enters the queue even with no
+evidence of the kinds above, and ``ordered_queue`` offers what editors want first and what they lean against last.
+
 ``ordered_queue`` merges ranked packs and scored items into one list. Single items are one more signal type (``item``) beside ``conversation`` and
 ``acceptance``: inside a signal the most surprising comes first, and in each round the signals take their turn in order of the surprise they offer,
 so neither packs nor single items starve. ``ordered_lineage_ids`` is the item part of that queue, ready for ``draft_monitor_stories(ordered_candidates=...)``.
@@ -30,6 +33,7 @@ from typing import Any
 
 from ..knowledge_snapshot.trends import significance_z
 from .context_packs import Pack
+from .editor_signals import NEUTRAL, EditorInterest, interest_from_inputs, order_key, tier
 from .monitor_stories import MonitoredItem
 from .signal_inputs import SignalInputs
 
@@ -42,6 +46,10 @@ COMPONENTS = ("acceptReason", "messages", "links", "conceptAcceptance", "cyclotr
 class ScoredItem:
     item: MonitoredItem
     signal: Mapping[str, Any]
+
+    @property
+    def editor(self) -> tuple[int, int, int]:
+        return tuple(self.signal.get("editorKey") or NEUTRAL)   # type: ignore[return-value]
 
     @property
     def surprise(self) -> float:
@@ -63,6 +71,7 @@ class QueueEntry:
     signal_type: str
     entry_id: str
     corrected_p_value: float
+    editor: tuple[int, int, int] = NEUTRAL
     pack: Pack | None = None
     scored_item: ScoredItem | None = None
 
@@ -108,19 +117,24 @@ def upper_tail_p_value(value: float, distribution: Iterable[float]) -> float:
 def score_items(inputs: SignalInputs, candidates: Sequence[MonitoredItem]) -> list[ScoredItem]:
     """The candidates that have any evidence, each with its item signal (``type``, ``anchor``, ``surprise``, ``correctedPValue``, ``components``)."""
     values = component_values(inputs, candidates)
+    interest = interest_from_inputs(inputs)
     scored = []
     for item in candidates:
+        mine = interest.get(item.lineage_id) or EditorInterest(item.stars, 0, bool(item.accepted_by_human and item.accept_reason))
         components = {}
         for name in COMPONENTS:
             value = values[name].get(item.lineage_id, 0.0)
             components[name] = {"value": value, "pValue": upper_tail_p_value(value, values[name].values())}
         smallest = min(row["pValue"] for row in components.values())
         corrected = min(1.0, smallest * len(COMPONENTS))
-        if corrected >= 1.0:
-            continue
-        signal = {"type": ITEM, "anchor": item.lineage_id, "correctedPValue": corrected, "surprise": significance_z(corrected), "components": components}
+        if corrected >= 1.0 and tier(mine.key) <= 0:
+            continue   # no statistical evidence and nothing an editor wants: not offered. An editor's own word needs no p-value.
+        signal = {
+            "type": ITEM, "anchor": item.lineage_id, "correctedPValue": corrected, "surprise": significance_z(corrected) if corrected < 1.0 else 0.0, "components": components,
+            "editor": {"stars": mine.stars, "messages": mine.messages, "acceptReason": mine.reason, "net": mine.net}, "editorKey": list(mine.key),
+        }
         scored.append(ScoredItem(item, signal))
-    return sorted(scored, key=lambda row: (-row.surprise, row.signal["correctedPValue"], row.item.lineage_id))
+    return sorted(scored, key=lambda row: (tuple(-number for number in order_key(row.editor)), -row.surprise, row.signal["correctedPValue"], row.item.lineage_id))
 
 
 def ordered_queue(packs: Iterable[Pack], scored_items: Iterable[ScoredItem]) -> list[QueueEntry]:
@@ -128,16 +142,21 @@ def ordered_queue(packs: Iterable[Pack], scored_items: Iterable[ScoredItem]) -> 
     signals take their turn in order of the surprise they offer."""
     queues: dict[str, list[QueueEntry]] = defaultdict(list)
     for pack in packs:
-        queues[pack.signal_type].append(QueueEntry("pack", pack.surprise, pack.signal_type, pack.pack_id, float(pack.signal["correctedPValue"]), pack=pack))
+        queues[pack.signal_type].append(QueueEntry("pack", pack.surprise, pack.signal_type, pack.pack_id, float(pack.signal["correctedPValue"]), pack.editor, pack=pack))
     for row in scored_items:
-        queues[ITEM].append(QueueEntry("item", row.surprise, ITEM, row.entry_id, float(row.signal["correctedPValue"]), scored_item=row))
+        queues[ITEM].append(QueueEntry("item", row.surprise, ITEM, row.entry_id, float(row.signal["correctedPValue"]), row.editor, scored_item=row))
     for queue in queues.values():
-        queue.sort(key=lambda entry: (-entry.surprise, entry.corrected_p_value, entry.entry_id))
+        queue.sort(key=lambda entry: (tuple(-number for number in order_key(entry.editor)), -entry.surprise, entry.corrected_p_value, entry.entry_id))
     ordered: list[QueueEntry] = []
     for position in range(max((len(queue) for queue in queues.values()), default=0)):
         offered = [queue[position] for queue in queues.values() if len(queue) > position]
         ordered.extend(sorted(offered, key=lambda entry: (-entry.surprise, entry.signal_type, entry.entry_id)))
-    return ordered
+    # Editors' own word comes first, whatever the signal: what they want (net above zero) in order of ``editor_signals.interest_key``; what they lean against
+    # (net below zero) last. Inside each group the order above is kept. Nothing is dropped.
+    wanted = sorted((entry for entry in ordered if tier(entry.editor) > 0), key=lambda entry: tuple(-number for number in order_key(entry.editor)))
+    neutral = [entry for entry in ordered if tier(entry.editor) == 0]
+    against = [entry for entry in ordered if tier(entry.editor) < 0]
+    return [*wanted, *neutral, *against]
 
 
 def ordered_lineage_ids(queue: Iterable[QueueEntry]) -> list[str]:

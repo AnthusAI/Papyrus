@@ -368,6 +368,49 @@ A rejected draft files nothing, so nothing marks the Reference as drafted. Witho
 
 The two-step angle-then-write call, concept handles (until the ontology is populated), and published Stories as connections (a story is always present, so it cannot gate; it needs a relatedness test first).
 
+## Editor interest: stars, messages and accept reasons
+
+Ryan, 2026-11-02: an editor who curates should be able to say which References interest them most, and the idea pipeline must read it. A signal nobody reads
+is worth nothing. Three things an editor does are the strongest human signals there are, and they combine:
+
+* **Stars**: a 1-5 rating on the Reference (`starRating`, `starRatedAt`, `starRatedBy`; [curation pipeline](reference-curation-pipeline.md)). Separate from the vote
+  and from relevance; never a Cyclotron label.
+* **A message** an editor wrote in a thread anchored on the Reference.
+* **The accept reason** the editor wrote when they accepted it.
+
+**One ordering, in one place: `ideas/editor_signals.py` (`interest_key`).** No weight table. Each signal that is *for* a Reference counts once (stars above
+three, a message, an accept reason); stars below three (1 or 2) take one away; three stars say nothing. The key is `(net, stars, messages)`, larger first.
+It means an accepted Reference with five stars and an editor's message (net 2, five stars) is written before anything without both, an accepted Reference
+with a message and a reason but no stars comes right after, and a Reference with one or two stars waits behind everything neutral: it is still in the
+queue, only later, and nothing is excluded or capped. Only a *rating* moves a Reference between those three groups; messages and accept reasons on their own
+keep the order the statistical signals give them (a thread's activity and an accepted Reference's reason are already components of `item_signals`), and
+add to the key when they come with stars.
+
+Where it is used:
+
+* **The single-item queue** (`item_signals.score_items`, `ordered_queue`): a Reference with good stars enters the queue with no p-value because an editor
+  decided; the queue takes what editors want first (in key order), then everything else in the round-robin it had, then what they lean against.
+  `monitor_stories.rank` (the order without a signal run) puts the same key first.
+* **Packs** (`context_packs`): each pack has the best key of its accepted members (`Pack.editor`); inside a signal, and across the queue, a pack with a
+  wanted member is offered earlier. `trim_pack` drops the member editors care about least first (lowest key, then the last, as before), so a highly rated
+  Reference is the last to go. Each Reference row carries `editorStars` when rated.
+* **Pending References**, never single-item ideas, keep their stars: `PendingReference.stars` is context in a pack, as pending Reference are today, and a
+  rated pending Reference is read (its concept links and edges) whatever the Cyclotron predicted.
+
+**What the writer is told.** The single-item input has `editor_rating: {"stars": N, "of": 5}` and a pack Reference has `editorStars`. It is direction under
+the same rules as `E`, `M` and `X`: it says what to look for, it has no handle, it grounds no sentence, no number or date, and it is never reported (the
+prompts say so, and the existing internal-wording check still refuses a sentence about editors or ratings). A rating alone is not a connection: **the bar
+stays "more than a summary"** (`Connections.clears_the_bar` ignores it).
+
+**Retrying.** `retry_memory` keeps `stars:<N>` (single item) and `stars:<lineage>:<N>` (pack) among a subject's connections, so a rating that is new or
+changed is something the last rejection was not made against, and a rejected idea is written again.
+
+**Saying why nothing came of a rating.** A run record has `ratedNoIdea`: one row per Reference rated four or five stars that got no idea, with `reason`
+(`pending_not_accepted`, `not_accepted`, `not_a_candidate`, `not_reached`, or the run's own: `nothing_to_add`, `already_rejected`, `no_point_offered`,
+`point_check_failed`, `citation_check_failed`, `no_source_text`, ...) and a sentence of explanation (`ideas/rated_outcomes.py`). The curation flag in the Notification
+Center names them ("You rated N References highly and no idea came of them: ..."). It is not shown on the Reference itself: the run record is not on the
+Reference, and writing it there would need a Reference write grant for the router; that is a follow-up (PPY-3247f1).
+
 ---
 
 ## Decisions (settled, Ryan, 2026-11-01)

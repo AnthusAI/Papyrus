@@ -136,6 +136,7 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
               showPrediction={false}
               showReason={false}
               size="large"
+              stars={ratings.stars(item.id) === undefined ? undefined : { value: ratings.stars(item.id) ?? null, onChange: (tapped) => { if (!disabledReason) ratings.setStars(item.id, tapped); }, feedback: ratings.starsFeedback(item.id) }}
               surface="footer"
             />
           )}

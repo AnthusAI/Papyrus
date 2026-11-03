@@ -48,6 +48,8 @@ def single_keys(connections: Any) -> frozenset[str]:
 
     known = connections.by_handle()
     keys = set()
+    if connections.rating is not None:
+        keys.add(f"stars:{connections.rating}")   # a changed rating is something new the newsroom knows: a rejected idea is written again
     for entry in connections.entries:
         if entry.kind == rules.ACCEPT_REASON:
             keys.add(f"acceptReason:{digest(entry.grounding)}")
@@ -64,6 +66,7 @@ def single_keys(connections: Any) -> frozenset[str]:
 def pack_keys(pack: Any, ids: Mapping[str, str]) -> frozenset[str]:
     """The connections of a pack as stable keys. ``ids`` maps a pack handle to the id the citation check records (``pack_stories.PackHandles.ids``)."""
     keys = {f"reference:{lineage}" for lineage in pack.accepted_lineage_ids}
+    keys.update(f"stars:{lineage}:{rating['editorStars']}" for lineage, rating in zip(pack.accepted_lineage_ids, pack.references) if rating.get("editorStars"))
     keys.update(f"message:{digest(row.get('text'))}" for row in pack.messages)
     for row in pack.edges:
         first, second = ids.get(str(row.get("from")), str(row.get("from"))), ids.get(str(row.get("to")), str(row.get("to")))
