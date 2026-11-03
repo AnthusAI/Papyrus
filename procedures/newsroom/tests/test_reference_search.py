@@ -286,5 +286,9 @@ def test_the_lambda_answers_searchReferences_by_field_name_and_everything_else_a
     result = lambda_handler.handler(event)
     assert titles(result) == ["Agent memory"] and result["lanes"]["meaning"]["status"] == "failed"
     assert lambda_handler.handler({"info": {"fieldName": "knowledgeQuery"}, "arguments": {"input": "{}"}}) == {"asked": "knowledgeQuery"}
+    # Amplify's Lambda resolvers send the field at the top of the event, with no `info`.
+    top_level = {"fieldName": "searchReferences", "identity": {"claims": {"cognito:groups": ["editor"]}}, "arguments": event["arguments"]}
+    assert titles(lambda_handler.handler(top_level)) == ["Agent memory"]
+    assert lambda_handler.handler({"fieldName": "knowledgeQuery", "arguments": {"input": "{}"}}) == {"asked": "knowledgeQuery"}
     with pytest.raises(rs.SearchError):
         lambda_handler.handler({**event, "identity": {"groups": ["reader"]}})

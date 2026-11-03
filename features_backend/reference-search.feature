@@ -62,6 +62,10 @@ Feature: The References page search finds a Reference again by its words and by 
     When an editor searches for the first time
     Then every page was read, the archived Reference is left out, and the time it took is logged
 
+  Scenario: The search answers when the resolver names its field at the top of the event
+    Given the search is asked for through an Amplify resolver by an editor
+    Then the search runs instead of the knowledge query
+
   Scenario: A person who is not an editor or admin is refused
     Given the search is asked for by someone in the reader group
     Then the search is refused with a Not Authorized message
