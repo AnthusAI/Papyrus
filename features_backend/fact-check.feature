@@ -235,3 +235,22 @@ Feature: Everything a model writes from sources is fact checked, in layers, befo
     Then it lists "Councilor Marlow spoke on Tuesday." under "Claims:"
     And it lists "Councilor Marlow spoke on Tuesday night." under "Needs a check (partly supported, or the attribution is unclear), do not rely on:"
     And it lists "Ohio resident Alder Vance was held for a year." under "Rejected (not supported by its sources), do not rely on:"
+
+  Scenario: A claim is verified only if the judge agrees every time it is asked
+    A judge can answer differently on the same claim and the same text, so one doubt among its answers is enough.
+    Given a judge that supports a claim with a real quote and then says on its second answer that attribution was lost
+    When the claim is checked
+    Then the claim needs a check
+    And the judge was asked twice
+
+  Scenario: A claim the judge supports every time is verified after all its passes
+    Given a judge that always supports a claim with a real quote
+    When the claim is checked
+    Then the claim is verified
+    And the judge was asked as many times as a claim needs to pass
+
+  Scenario: A claim that failed the literal check is asked only once
+    Given a judge that always supports a claim that names someone its source does not
+    When the claim is checked
+    Then the claim is rejected
+    And the judge was asked once

@@ -26,6 +26,10 @@ VERIFIED, NEEDS_CHECK, REJECTED, UNCHECKED = "verified", "needs_check", "rejecte
 SUPPORTED, PARTLY_SUPPORTED, NOT_SUPPORTED, SOURCE_SILENT = "supported", "partly_supported", "not_supported", "source_silent"
 JUDGE_VERDICTS = (SUPPORTED, PARTLY_SUPPORTED, NOT_SUPPORTED, SOURCE_SILENT)
 
+# The judge's answer on the same claim and text changes between runs: on 2026-11-03, 4 of 28 real claims changed verdict across three replays,
+# one of them an allegation stated as fact. A claim is verified only if every pass agrees, so one doubt is enough to stop it.
+JUDGE_PASSES = 3
+
 UNMATCHED_TERMS = "unmatched_terms"
 QUOTE_NOT_IN_SOURCE = "quote_not_in_source"
 ATTRIBUTION_LOST = "attribution_lost"
@@ -336,6 +340,10 @@ def _judgement(raw: Mapping[str, Any], cited_texts: Sequence[str]) -> dict[str, 
 
 # --- the check -------------------------------------------------------------------------------------------------------------------
 
+def _judge_agrees(judgement: Mapping[str, Any]) -> bool:
+    return judgement["verdict"] == SUPPORTED and judgement["quoteVerified"] is not False and not judgement["attributionLost"]
+
+
 def _claim_entry(claim: Mapping[str, Any], sources: Mapping[str, str], urls: Mapping[str, str]) -> tuple[dict[str, Any], list[str], str]:
     text = str(claim.get("claim") or claim.get("position") or "").strip()
     cited = [str(source_id) for source_id in claim.get("sources") or []]
@@ -362,8 +370,16 @@ def check_claims(claims: Sequence[Mapping[str, Any]], sources: Mapping[str, str]
         if judge is None or not text or not entry["sources"]:
             return None, None
         info = {source_id: {"title": titles.get(source_id, ""), "host": urlparse(urls.get(source_id) or "").hostname or ""} for source_id in entry["sources"]}
+        cited = {source_id: str(sources.get(source_id) or "") for source_id in entry["sources"]}
+        # Asked again until it stops agreeing: a claim that already failed the literal check cannot become verified, so it gets one answer.
+        passes = 1 if entry["literal"]["unmatched"] else JUDGE_PASSES
         try:
-            return _judgement(judge(text, {source_id: str(sources.get(source_id) or "") for source_id in entry["sources"]}, info), texts), None
+            for answered in range(1, passes + 1):
+                judgement = _judgement(judge(text, cited, info), texts)
+                judgement["passes"] = answered
+                if not _judge_agrees(judgement):
+                    break
+            return judgement, None
         except Exception as error:  # noqa: BLE001 - a judge that cannot answer leaves the claim unchecked, it never fails the run
             return None, f"{type(error).__name__}: {error}"[:200]
 
