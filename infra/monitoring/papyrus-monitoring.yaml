@@ -1001,6 +1001,7 @@ Resources:
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listAssignmentsByItemLineageAndCreatedAt"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listAssignmentsByTypeStatusAndCreatedAt"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsBySectionStatusAndPublishedAt"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listKnowledgeCorporaByRoleAndName"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessageThreadsByAnchorAndUpdatedAt"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessagesByThreadAndSequence"

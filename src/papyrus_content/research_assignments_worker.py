@@ -22,7 +22,7 @@ START_RESERVE_SECONDS = 420     # a run is not started with less time left than 
 JUDGE_RESERVE_SECONDS = 240     # the fact check's judge stops asking with less time left than this, so its claims end `unchecked` and the packet is written
 POLICY_KEYS = ("enabled",)
 PACKET_EVENT_TYPES = ("research.multi.completed", "research.multi.intake_failed")
-CREDENTIAL_GUIDANCE_MARKERS = ("aws sso login", "papyrus login", "papyrus auth status")
+CREDENTIAL_GUIDANCE_MARKERS = ("your aws session may have expired", "aws sso login", "papyrus login", "papyrus auth status")
 
 
 @contextmanager
