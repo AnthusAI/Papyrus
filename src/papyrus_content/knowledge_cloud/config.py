@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..ideas.excluded_hosts import normalize_hosts
+from ..machine_writes import knowledge_run_id
 
 STAGES = (
     "corpus-sync",
@@ -108,6 +109,11 @@ class CloudRunConfig:
     @property
     def state_prefix(self) -> str:
         return f"publications/{self.publication}/"
+
+    @property
+    def run_id(self) -> str:
+        """The id every Item this execution writes records (``machine_writes.py``); ``papyrus knowledge run undo --run-id`` takes it back."""
+        return knowledge_run_id(self.publication, self.execution_name)
 
     @property
     def actor_name(self) -> str:

@@ -152,6 +152,10 @@ npx cdk deploy -c site=$SITE -c imageTag=$IMAGE_TAG KnowledgeRun-dataparade \
 
 For a site whose `infra/site.json` lives in its own repo, point `SITE` at that file instead once it carries the same `knowledgeRun` block. Shipped is a redeploy of the existing stack: the new `MonitorStoriesEnabled` parameter defaults to `false`, so the command above turns it on in the same change set.
 
+## The first run of a site waits for a person
+
+Since PPY-84b0dd a site's first `wiki-sync` is held for a person ([the preview gate](knowledge-cloud-run.md#the-preview-gate-bulk-writes-wait-for-a-person)), so a rollout is not finished when the first run succeeds. After the first run of a site (including a site that already ran before the gate: it has no history yet), open the Notification Center, read the card "First knowledge run for <site>", accept it if the kinds and the sample are what the site should publish, and let the next run write. Every later run is compared with the site's own history and only an unusual one is held. A rollout to another site starts only when the previous site's first plan has been read.
+
 ## Starting a run by hand
 
 ```bash

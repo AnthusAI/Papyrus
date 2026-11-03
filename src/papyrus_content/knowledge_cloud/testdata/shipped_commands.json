@@ -288,7 +288,10 @@
   "<work>/site/web/scoring.json",
   "--vocabulary",
   "<work>/config/vocabulary.yml",
-  "--retire"
+  "--retire",
+  "--run-id",
+  "knowledge-shipped-manual-1",
+  "--json"
  ],
  [
   "papyrus",
@@ -304,6 +307,8 @@
   "--vocabulary",
   "<work>/config/vocabulary.yml",
   "--retire",
+  "--run-id",
+  "knowledge-shipped-manual-1",
   "--apply",
   "--retired-out",
   "<work>/runs/2026-W44/retired-wiki-items.json"

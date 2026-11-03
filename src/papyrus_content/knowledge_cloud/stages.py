@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from . import cost as costs
+from . import preview_gate
 from .config import PROJECTION_STAGE, STAGES, CloudRunConfig
 from .defaults import OUTPUTS_FILE, VOCABULARY_FILE, default_outputs, default_vocabulary
 from .ledger import SUCCEEDED, RunLedger
@@ -32,6 +33,7 @@ ENTITY_HREF = "/wiki/{slug}/"
 DELETION_FLAG = "--allow-deletions"
 ARCHIVE_DIRECTORY = "_data/knowledge/history"
 RETIRED_FILE = "retired-wiki-items.json"
+PLAN_FILE = "wiki-sync-plan.json"
 FORBIDDEN_FLAGS = (DELETION_FLAG, "--reconcile", "--replace")  # a run only writes: no cleanup, no replacing an archived week
 
 
@@ -104,6 +106,7 @@ class Run:
         env.setdefault("PAPYRUS_GRAPHQL_AUTH", "iam")
         env["PAPYRUS_ALLOW_CROSS_ROOT"] = "1"
         env["PAPYRUS_PROJECTION_LEASE_PURPOSE"] = "cloud-run projection"
+        env["KNOWLEDGE_RUN_ID"] = self.config.run_id
         if self.outputs.exists():
             from ..knowledge_snapshot.commands import endpoint_of_outputs  # noqa: PLC0415
 
@@ -617,20 +620,126 @@ def archive(run: Run) -> dict:
     return {"asOf": run.config.monday.isoformat()}
 
 
+def read_plan(text: str) -> dict:
+    """The wiki sync's ``--json`` plan: the first JSON object in its output that has counts and pages."""
+    decoder = json.JSONDecoder()
+    start = text.find("{")
+    while start != -1:
+        try:
+            value, end = decoder.raw_decode(text[start:])
+        except ValueError:
+            start = text.find("{", start + 1)
+            continue
+        if isinstance(value, dict) and "counts" in value and "pages" in value:
+            return value
+        start = text.find("{", start + end)
+    raise StageFailed("The wiki sync printed no plan (a JSON object with `counts` and `pages`).")
+
+
 def wiki_sync(run: Run) -> dict:
+    """Plan the sync, ask the preview gate (``preview_gate.py``), and write only if it says proceed.
+
+    A first run, or one that differs sharply from the site's history, is held: a hard-gate review request goes to the Notification Center, nothing is
+    written, and ``projection`` skips this execution. The next run plans again and goes through once a person accepted a plan like it."""
     if (idle := run.nothing_to_do()) is not None:
         return idle
     run.pull(site=True, run=bool(run.config.monitor_sources or run.config.reference_documents_bucket))
     sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options(), *run.reference_options()]
     sync += beats_options(run)
-    sync += ["--vocabulary", str(run.config_dir / VOCABULARY_FILE), "--retire"]  # pages of kinds the vocabulary does not declare come down
-    run.sh(*sync)  # the dry run: its plan, with every page it would retire, is in the task log
+    sync += ["--vocabulary", str(run.config_dir / VOCABULARY_FILE), "--retire", "--run-id", run.config.run_id]  # pages of kinds the vocabulary does not declare come down; each page records the run
     run.run_dir.mkdir(parents=True, exist_ok=True)
+    plan_file = run.run_dir / PLAN_FILE
+    run.sh(*sync, "--json", stdout=plan_file)  # the dry run: nothing is written
+    plan = read_plan(plan_file.read_text())
+    gate = judge_plan(run, plan)
+    print(f"wiki-sync plan: {json.dumps(plan['counts'], sort_keys=True)}; retire {len(plan.get('retired') or [])}; gate: {gate.decision.action} ({gate.decision.reason})", flush=True)
+    for page in plan.get("retired") or []:  # every page the sync would take down is in the task log
+        print(f"wiki-sync would retire {page.get('section')}/{page.get('slug')} ({'live' if page.get('live') else 'draft'})", flush=True)
+    run.write_state(heldExecution=run.config.execution_name if gate.decision.hold else None)
+    if gate.decision.hold:
+        run.push(run=True)  # the plan, for whoever reads the hold
+        print(f"wiki-sync HELD, nothing written: {gate.decision.reason}. Review request {gate.request_id}.", flush=True)
+        return gate.details()
     run.sh(*sync, "--apply", "--retired-out", str(run.run_dir / RETIRED_FILE))  # drafts only
     # --no-trigger: publishing must not project; the projection stage does that once, under the lease, last.
     run.sh("papyrus", "knowledge", "wiki", "publish", *backend_options(run), "--all-drafts", "--actor", "ai", "--apply", "--no-trigger")
+    finish_gate(run, gate)
     run.push(run=True)  # the retired pages, for the projection stage
-    return {"retired": len(retired_items(run))}
+    return {"retired": len(retired_items(run)), "gate": {"reason": gate.decision.reason, "writes": gate.series.get(preview_gate.TOTAL, 0)}}
+
+
+def review_client(run: Run) -> Any:
+    return run.services.record_client({"auth": "iam", "amplify-outputs": str(run.outputs)})
+
+
+def judge_plan(run: Run, plan: dict) -> "preview_gate.GateResult":
+    """Compare the plan with the site's history; on a hold, raise (once) the hard-gate request that asks a person."""
+    from .. import review_requests  # noqa: PLC0415
+
+    series, fingerprint = preview_gate.series_of(plan), preview_gate.fingerprint_of(plan)
+    entries = preview_gate.load_history(run.state)
+    client = review_client(run) if entries or series.get(preview_gate.TOTAL) else None
+
+    def read_request(request_id: str) -> dict:
+        try:
+            return review_requests.get_review(client, request_id, sweep=False)
+        except review_requests.ReviewError:  # deleted by an admin: not an approval
+            return {"state": "withdrawn"}
+
+    if client is not None and preview_gate.settle(entries, read_request):
+        preview_gate.save_history(run.state, entries)
+    decision = preview_gate.decide(
+        series, fingerprint,
+        [entry["series"] for entry in entries if entry.get("outcome") in preview_gate.LEARNED],
+        {entry["fingerprint"] for entry in entries if entry.get("outcome") == preview_gate.APPROVED},
+        {entry["fingerprint"] for entry in entries if entry.get("outcome") == preview_gate.REJECTED},
+    )
+    result = preview_gate.GateResult(decision, series, fingerprint, entries=entries)
+    if client is not None:
+        withdraw_stale(client, entries, keep=fingerprint if decision.hold else None)
+    if not decision.hold:
+        return result
+    result.request_id = preview_gate.request_id(run.config.publication, fingerprint)
+    if decision.reason != "rejected_plan":
+        reason, ask = preview_gate.describe(plan, series, decision, publication=run.config.publication)
+        try:
+            review_requests.raise_review(
+                client, subject={"type": "batch", "id": f"wiki-sync-{run.config.publication}-{run.config.week}-{fingerprint}"}, mode="hard_gate", reason=reason, ask=ask,
+                raised_by=preview_gate.RAISED_BY, request_id=result.request_id,
+            )
+        except Exception as error:  # noqa: BLE001 - a hold nobody can see is worse than a failed stage: the failure alarm reaches a person
+            raise StageFailed(f"The run is held ({decision.reason}) but its review request could not be raised: {type(error).__name__}: {error}") from error
+        preview_gate.record(entries, history_entry(run, result, preview_gate.HELD))
+    preview_gate.save_history(run.state, entries)
+    (run.run_dir / "wiki-sync-preview.json").write_text(json.dumps({"decision": result.details(), "plan": plan}, indent=2, sort_keys=True))
+    return result
+
+
+def withdraw_stale(client: Any, entries: list[dict], *, keep: str | None) -> None:
+    """Older open requests of held plans are superseded by this run's plan: take them back so the Notification Center shows one."""
+    from .. import review_requests  # noqa: PLC0415
+
+    for entry in entries:
+        if entry.get("outcome") == preview_gate.HELD and entry.get("fingerprint") != keep:
+            try:
+                review_requests.withdraw_review(client, entry["requestId"], by=preview_gate.RAISED_BY, note="A newer run planned different pages.")
+            except review_requests.ReviewError:
+                pass  # answered meanwhile: the next settle reads it
+            else:
+                entry["outcome"] = "superseded"
+
+
+def history_entry(run: Run, result: "preview_gate.GateResult", outcome: str) -> dict:
+    return {
+        "runId": run.config.run_id, "week": run.config.week, "at": run.now().strftime("%Y-%m-%dT%H:%M:%SZ"), "fingerprint": result.fingerprint,
+        "series": result.series, "outcome": outcome, **({"requestId": result.request_id} if result.request_id else {}),
+    }
+
+
+def finish_gate(run: Run, result: "preview_gate.GateResult") -> None:
+    """A run that wrote joins the site's history, so the next run is compared with it (a run that wrote nothing counts too: zero is a count)."""
+    preview_gate.record(result.entries, history_entry(run, result, preview_gate.WRITTEN))
+    preview_gate.save_history(run.state, result.entries)
 
 
 def retired_items(run: Run) -> list[str]:
@@ -642,6 +751,9 @@ def retired_items(run: Run) -> list[str]:
 def projection(run: Run) -> dict:
     if (idle := run.nothing_to_do()) is not None:
         return idle
+    if run.read_state().get("heldExecution") == run.config.execution_name:  # wiki-sync held this execution for a person: no page was written, so nothing goes live
+        print("projection skipped: this execution is held for a person's review (see the Notification Center)", flush=True)
+        return {"status": "held", "reason": "the run is held for review; nothing was written"}
     run.prepare_site()
     arguments = ["papyrus", "ops", "content", "project", "--all", "--static-dir", str(run.static_dir), "--bucket", run.config.site_bucket, "--json"]
     assert not set(FORBIDDEN_FLAGS) & set(arguments)  # the #565 guard stays on; a bad run must never delete pages

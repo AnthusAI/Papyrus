@@ -213,10 +213,10 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then a page that sends X-Frame-Options or a frame-ancestors rule that does not allow every site is not framed, and one with neither rule is
     And only public web addresses on the standard ports are ever fetched, so the check cannot be pointed at the server's own network
 
-  Scenario: The feed holds every Reference, not just the first page the backend returns
+  Scenario: The List view, which needs every Reference, reads them all only when it is opened, and each once
     Given a newsroom with more References than one page of the backend's list holds
-    When the editor opens the References feed
-    Then the feed reads page after page until the backend says there are no more
+    When the editor opens the List view
+    Then the list reads page after page until the backend says there are no more
     And each Reference appears once even when two pages overlap
     And a page token that repeats stops the read with a message instead of looping
 
@@ -251,3 +251,32 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then only the shown References are read, at most a few reads are in flight at once, and one failing read fails only its own Reference
     And the window is the newest pages of unanswered items plus the answered ones that arrived since, and it only ever grows
     And a later page is ranked after everything already placed, while a new arrival waits behind the new-items pill
+
+  # The feed reads the feed-state indexes (docs/reference-feed-indexes.md), a page at a time, and nothing else ahead of need. A synthetic
+  # site of 7,000 References in three corpora, with a fake backend that logs every request, shows what the page asks for.
+  Scenario: The first cards come from one round of indexed reads, with no table walked
+    Given a synthetic site of 7,000 References in three corpora, behind a backend that logs every request
+    When the editor opens the References feed at 375 and 1440 pixels
+    Then the requests are one read of the corpora, one indexed page of 24 for each corpus, and one batch of attachments for the 24 cards, and no other
+    And no request walks a whole table or the whole attachment table, and none asks for fewer than a page
+    And the first 24 cards are the top of the merged order of every corpus, highest original confidence first
+
+  Scenario: Scrolling loads the next page, and an unscrolled page asks for nothing more
+    Given a synthetic site of 7,000 References in three corpora, behind a backend that logs every request
+    When the editor opens the References feed and waits without scrolling, then scrolls to the end
+    Then no further request is made while the page is not scrolled
+    And scrolling to the end loads the next 24 cards by itself, with attachments for those 24 cards only and none read twice
+    And one scroll costs at most one more round of indexed reads
+
+  Scenario: A slow read is not "no items", an empty site says so, and a failed read says so with a Retry
+    Given a synthetic site of 7,000 References in three corpora, behind a backend that logs every request
+    When the first read is slow, empty, or refused once
+    Then a slow read shows card skeletons and never the empty message
+    And an empty site shows the empty message and no skeleton
+    And a refused read shows what went wrong in words with a Retry button, never a skeleton that does not end, and Retry reads again and shows the cards
+
+  Scenario: References from a manual Add, from email and from a monitor are in one feed, in order, with no difference by source
+    Given a synthetic site of 7,000 References in three corpora, behind a backend that logs every request
+    When References that arrived by a monitor, a manual Add and email are listed under Newest
+    Then they appear in one list in arrival order, newest first
+    And each has the same Accept and Reject controls whatever its source

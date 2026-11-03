@@ -47,6 +47,14 @@ class FakeSite:
     def __init__(self, plugins: str = "reader-steering,newsletter") -> None:
         self.variables = {"PAPYRUS_PLUGINS": plugins}
         self.objects: dict[str, bytes] = {}
+        self.client: Any = None  # the site's data API: review requests are raised and read here
+
+    def record_client(self, options: Mapping[str, Any]) -> Any:
+        if self.client is None:
+            from procedures.newsroom.tests.fake_client import FakeAuthoringClient  # noqa: PLC0415 - a test double, only needed by the stages that read the API
+
+            self.client = FakeAuthoringClient()
+        return self.client
 
     def read_object(self, bucket: str, key: str) -> bytes | None:
         assert bucket == SITE_BUCKET
@@ -81,6 +89,7 @@ class FakeShell:
         self.site_json: str | None = None  # the text of the site repo's infra/site.json, when it has one
         self.retired: list[str] = []  # the wiki lineages the fake sync takes down (written to --retired-out)
         self.records = 0  # monitor records the fake export writes when the site has monitor sources
+        self.wiki_plan: dict = {"counts": {}, "pages": [], "retired": []}  # what the fake wiki sync dry run (--json) prints
 
     def __call__(self, args: list[str], *, cwd: Path, env: Mapping[str, str], stdout: Path | None = None) -> None:
         self.calls.append(list(args))
@@ -126,6 +135,8 @@ class FakeShell:
                 rows = [{"referenceId": "reference-1", "lineageId": "reference-1", "title": "A paper", "url": "https://example.test/paper.pdf", "publishedAt": "2026-10-01T00:00:00Z"}]
                 documents.write_text(json.dumps({"schemaVersion": 1, "referenceDocuments": rows}))
                 (raw / "ref-reference-1.md").write_text("# A paper")
+        elif args[:4] == ["papyrus", "knowledge", "wiki", "sync"] and "--json" in args:
+            out = json.dumps(self.wiki_plan)
         elif args[:4] == ["papyrus", "knowledge", "wiki", "sync"] and "--retired-out" in args:
             Path(args[args.index("--retired-out") + 1]).write_text(json.dumps(self.retired))
         elif args[:2] == ["biblicus", "init"]:

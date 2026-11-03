@@ -25,3 +25,19 @@ def test_the_original_prediction_is_written_once():
     assert first["predictedAcceptProbability"] == 0.9 and first["predictionSortKey"].startswith("0.900000#")
     assert original_prediction_fields({**reference, **first}, label="exclude", positive_label="include", confidence=0.99,
                                       decided_at="2026-10-29T00:00:00Z") == {}
+
+
+def test_the_backfill_covers_the_site_corpus_named_corpora_or_every_corpus():
+    import pytest
+    from .reference_feed_backfill import corpus_ids_for
+
+    class Client:
+        def list_records(self, model):
+            assert model == "KnowledgeCorpus"
+            return [{"id": "knowledge-corpus-b"}, {"id": "knowledge-corpus-a"}, {"id": "knowledge-corpus-a"}, {}]
+
+    assert corpus_ids_for(Client(), site="site", corpus_keys=None, all_corpora=False) == ["knowledge-corpus-site"]
+    assert corpus_ids_for(Client(), site="site", corpus_keys="a, b,a", all_corpora=False) == ["knowledge-corpus-a", "knowledge-corpus-b"]
+    assert corpus_ids_for(Client(), site="site", corpus_keys="a", all_corpora=True) == ["knowledge-corpus-a", "knowledge-corpus-b"]
+    with pytest.raises(ValueError, match="needs"):
+        corpus_ids_for(Client(), site=None, corpus_keys=None, all_corpora=False)

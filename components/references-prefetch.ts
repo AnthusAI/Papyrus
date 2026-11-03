@@ -1,24 +1,22 @@
 /**
- * Starts the References reads (the References and the review history; predictions are read per Reference as the feed shows them) as soon as the editor session is confirmed, in parallel with the summary dashboard, instead of after it.
+ * Starts the review-history read as soon as the editor session is confirmed, in parallel with the summary dashboard, instead of after it.
  * The page that needs them takes the in-flight request once; anything later, or a retry, makes a fresh read. This is a head start
  * on the same reads, not a cache: the backend authorizes each call exactly as before.
  */
-import {
-  loadEditorMessagesData,
-  loadEditorReferencesData,
-} from "./news-desk-taxonomy-client";
+import { loadEditorMessagesData } from "./news-desk-taxonomy-client";
 
 const HEAD_START_MS = 60_000;
 type Started = { startedAt: number; promise: Promise<unknown> };
 const started = new Map<string, Started>();
 
+// The References themselves are not here: the feed reads its own first page from the feed-state indexes, and nothing reads the
+// whole table ahead of need.
 const LOADERS = {
-  references: loadEditorReferencesData,
   messages: loadEditorMessagesData,
 } as const;
 type Key = keyof typeof LOADERS;
 
-/** Begin both reads. Safe to call twice; a failure is reported to whoever takes the read, never as an unhandled rejection. */
+/** Begin the read. Safe to call twice; a failure is reported to whoever takes the read, never as an unhandled rejection. */
 export function prefetchReferencesFeed(now = Date.now()) {
   for (const key of Object.keys(LOADERS) as Key[]) {
     if (started.has(key)) continue;
@@ -35,7 +33,6 @@ function take<Key2 extends Key>(key: Key2, now = Date.now()): ReturnType<(typeof
   return LOADERS[key]() as ReturnType<(typeof LOADERS)[Key2]>;
 }
 
-export const loadReferencesWithHeadStart = () => take("references");
 export const loadMessagesWithHeadStart = () => take("messages");
 
 /** Forget any unclaimed head start (sign-out). */

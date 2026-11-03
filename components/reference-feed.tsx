@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCheckIcon, CircleDashedIcon, ClockIcon, InfoIcon, Loader2Icon, MessageSquareIcon, SparklesIcon } from "lucide-react";
+import { CheckCheckIcon, CircleDashedIcon, ClockIcon, InfoIcon, Loader2Icon, MessageSquareIcon, RefreshCwIcon, SparklesIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import type { ReferenceRecord } from "../lib/category-repository";
 import { REFERENCE_REJECTION_REASON_CODES, isAutoAccepted, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
@@ -83,6 +83,9 @@ export type ReferenceFeedProps = {
   /** The next page is being read; its cards join the feed when their predictions have arrived. */
   loadingMore?: boolean;
   onLoadMore?: () => void;
+  /** The read failed: said in words with a Retry. With no cards it replaces the skeletons; with cards it sits under them. */
+  error?: string | null;
+  onRetry?: () => void;
   previews: ReadonlyMap<string, ReferencePreview>;
   selectedLineageId?: string;
   /** Capture status per Reference lineage, for the small badge on each card. Optional. */
@@ -455,7 +458,25 @@ function FeedMoreSentinel({ hasMore, itemCount, loadingMore, onLoadMore }: { has
   if (!hasMore && !loadingMore) return null;
   return (
     <div className="flex min-h-12 items-center justify-center gap-2 text-sm text-muted-foreground" data-feed-more ref={ref} role="status">
-      <Loader2Icon aria-hidden="true" className={cn("size-4", loadingMore && "animate-spin")} />{loadingMore ? "Reading predictions for more items…" : "More items"}
+      <Loader2Icon aria-hidden="true" className={cn("size-4", loadingMore && "animate-spin")} />
+      {loadingMore ? "Loading more items…" : (
+        // The next page loads by itself as this row nears the screen; the button is the way to ask for it from a keyboard.
+        <button className="rounded-full px-3 py-1 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" data-feed-load-more onClick={onLoadMore} type="button">Load more items</button>
+      )}
+    </div>
+  );
+}
+
+function FeedReadError({ error, onRetry }: { error: string; onRetry?: (() => void) | undefined }) {
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-[20px] bg-[var(--feed-card)] p-8 text-center text-sm" data-feed-error role="alert">
+      <p className="font-medium text-foreground">The References could not be loaded.</p>
+      <p className="text-muted-foreground">{error}</p>
+      {onRetry ? (
+        <button className={cn(PILL, "bg-[var(--feed-control)] text-foreground")} data-feed-retry onClick={onRetry} type="button">
+          <RefreshCwIcon aria-hidden="true" className="size-4" />Retry
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -478,6 +499,8 @@ export function ReferenceFeed({
   hasMore = false,
   loadingMore = false,
   onLoadMore,
+  error = null,
+  onRetry,
   previews,
   selectedLineageId = "",
   captures,
@@ -567,11 +590,12 @@ export function ReferenceFeed({
       </div>
       {stale ? <p className="text-xs text-muted-foreground sm:hidden" role="status"><Loader2Icon aria-hidden="true" className="mr-1 inline size-3.5 animate-spin" />Showing your last view while it updates</p> : null}
 
-      {loading ? <ReferenceFeedSkeleton /> : (
+      {error && !items.length ? <FeedReadError error={error} onRetry={onRetry} /> : loading ? <ReferenceFeedSkeleton /> : (
         items.length ? (
           <>
             <div className={FEED_GRID} data-feed-grid>{items.map((item) => renderCard(item, item.lineageId === leadId))}</div>
-            <FeedMoreSentinel hasMore={hasMore} itemCount={items.length} loadingMore={loadingMore} onLoadMore={onLoadMore} />
+            {error ? <FeedReadError error={error} onRetry={onRetry} /> : null}
+            <FeedMoreSentinel hasMore={hasMore && !error} itemCount={items.length} loadingMore={loadingMore} onLoadMore={onLoadMore} />
           </>
         ) : hasMore || loadingMore ? (
           <FeedMoreSentinel hasMore={hasMore} itemCount={0} loadingMore={loadingMore} onLoadMore={onLoadMore} />

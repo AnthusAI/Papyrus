@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ad9779ae-89fa-4095-b48e-1bb36bb87a1b",
+  "title": "References feed: per-card reads by near-screen cards, not by loaded page",
+  "description": "Attachments and predictions are read in one batch per loaded page (24 cards), and pages load on scroll. Report cards near the screen with an IntersectionObserver so cards scrolled past, or a tall first page, read nothing extra. Found on PPY-c8cb44.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-02T22:37:54.225075Z",
+  "updated_at": "2026-11-02T22:37:54.225115Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

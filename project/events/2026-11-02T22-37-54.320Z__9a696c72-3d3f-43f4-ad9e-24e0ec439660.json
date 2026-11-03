@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9a696c72-3d3f-43f4-ad9e-24e0ec439660",
+  "issue_id": "PPY-90861bea-99d1-452f-be17-580ffaac9059",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-02T22:37:54.320Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom tabs still read whole tables: Reference and ReferenceAttachment in loadEditorFullNewsDeskDashboard",
+    "description": "Desks, Topics, Concepts and Administration load every Reference and every ReferenceAttachment through listUserPoolModel (components/news-desk-taxonomy-client.ts loadEditorFullNewsDeskDashboard). They should read what they show. Also the List view reads every Reference when opened (loadAllEditorReferences); page it by status index. Found on PPY-c8cb44.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

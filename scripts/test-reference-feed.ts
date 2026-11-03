@@ -5,6 +5,8 @@ import { chromium, type Page } from "playwright";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
+declare global { interface Window { requests: Array<{ kind: string; sort?: string; limit?: number; ids?: string[] }>; site: any[] } }
+
 const root = fileURLToPath(new URL("..", import.meta.url));
 const origin = "http://reference-feed.test";
 let bundle: Promise<string> | undefined;
@@ -27,7 +29,7 @@ function browserBundle(): Promise<string> {
     banner: { js: 'window.process = { env: { NODE_ENV: "development" } };' },
     stdin: { resolveDir: root, loader: "tsx", sourcefile: "reference-feed-fixture.tsx", contents: `
 import { createRoot } from "react-dom/client";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReferenceFeed } from "./components/reference-feed";
 import { ReferencesPageLoading } from "./components/references-page-loading";
 import { useFeedPreferences } from "./components/use-feed-preferences";
@@ -35,6 +37,10 @@ import { applyFeedOrderSnapshot, buildFeedItems, takeFeedOrderSnapshot } from ".
 import { useReferencePredictions } from "./lib/use-reference-predictions";
 import { useFeedWindow } from "./components/use-feed-window";
 import { currentRelevanceDecisions } from "./lib/relevance-decisions";
+import { useIndexedReferenceFeed } from "./components/use-indexed-reference-feed";
+import { scoreFeedItem, feedLeadId } from "./lib/reference-feed-ranking";
+import { predictionSortKeyFor } from "./lib/reference-feed-keys";
+import { compareFeedRecords } from "./lib/reference-feed-pages";
 
 const params = new URLSearchParams(location.search);
 const NOW = Date.parse("2026-10-27T12:00:00Z");
@@ -148,7 +154,84 @@ function PagedHarness() {
     onLoadMore={windowState.loadMore}
   />;
 }
-createRoot(document.getElementById("root")).render(params.has("page-loading") ? <ReferencesPageLoading /> : params.has("paged") ? <PagedHarness /> : <Harness />);
+
+// A synthetic site read through the feed-state indexes: three corpora (one holds almost everything), thousands of References, and a
+// fake backend that records every request. Nothing here can read a whole table, so the log shows exactly what the page asks for.
+window.requests = [];
+function buildSite(total) {
+  const rows = [];
+  for (let i = 0; i < total; i += 1) {
+    const corpusId = i % 100 < 93 ? "knowledge-corpus-research" : i % 100 < 98 ? "knowledge-corpus-journalism" : "knowledge-corpus-history";
+    const arrival = new Date(NOW - i * 60000).toISOString();
+    const probability = ((i * 37) % 100) / 100;
+    const rated = i % 10 === 9;
+    const source = ["monitor", "manual", "email"][i % 3];
+    rows.push({ id: "s" + i + "-v1", lineageId: "s" + i, versionState: "current", versionNumber: 1, corpusId, externalItemId: "s" + i, title: "Title of s" + i,
+      sourceUri: "https://s" + i + ".example.org/story", curationStatus: rated ? "accepted" : "pending", createdAt: arrival, feedArrivalAt: arrival,
+      feedStateKey: corpusId + (rated ? "#rated" : "#unrated"), predictedAcceptProbability: probability,
+      predictionSortKey: predictionSortKeyFor(probability, arrival, "s" + i + "-v1"), versionCreatedBy: source === "manual" ? "editor" : source === "email" ? "email-submission" : "papyrus-monitoring-worker",
+      discoveredByMonitorId: source === "monitor" ? "monitor-" + (i % 7) : null });
+  }
+  return rows;
+}
+const SITE_TOTAL = Number(params.get("total") || 7000);
+const SITE = buildSite(SITE_TOTAL);
+window.site = SITE;
+const partitionCache = new Map();
+function partition(key, sort) {
+  const cacheKey = key + "|" + sort;
+  if (!partitionCache.has(cacheKey)) partitionCache.set(cacheKey, SITE.filter((row) => row.feedStateKey === key).sort(compareFeedRecords(sort)));
+  return partitionCache.get(cacheKey);
+}
+let failuresLeft = Number(params.get("failFirst") || 0);
+const source = {
+  loadCorpusIds: async () => { window.requests.push({ kind: "corpora" }); return ["knowledge-corpus-research", "knowledge-corpus-journalism", "knowledge-corpus-history"]; },
+  readStream: async ({ feedStateKey, sort, limit, nextToken }) => {
+    window.requests.push({ kind: "index", key: feedStateKey, sort, limit, token: nextToken });
+    await new Promise((resolve) => setTimeout(resolve, Number(params.get("slow") || 5)));
+    if (failuresLeft > 0) { failuresLeft -= 1; throw new Error("The index read was refused."); }
+    if (params.has("empty")) return { items: [], nextToken: null };
+    const rows = partition(feedStateKey, sort);
+    const start = nextToken ? Number(nextToken) : 0;
+    const items = rows.slice(start, start + limit);
+    return { items, nextToken: start + items.length < rows.length ? String(start + items.length) : null };
+  },
+};
+function IndexedHarness() {
+  const { sort, setSort, show, setShow } = useFeedPreferences();
+  const feed = useIndexedReferenceFeed({ enabled: true, source, sort, show });
+  const items = useMemo(() => feed.records.map((record) => ({ ...scoreFeedItem(record, undefined), probability: record.predictedAcceptProbability ?? 0.5 })), [feed.records]);
+  // The page's own per-card work: attachments for the cards shown, one batch for the ids not asked about yet.
+  const asked = useRef(new Set());
+  useEffect(() => {
+    const fresh = feed.records.map((record) => record.lineageId).filter((id) => !asked.current.has(id));
+    if (!fresh.length) return;
+    fresh.forEach((id) => asked.current.add(id));
+    window.requests.push({ kind: "attachments", ids: fresh });
+  }, [feed.records]);
+  return <ReferenceFeed
+    error={feed.error ?? feed.moreError}
+    hasMore={feed.hasMore}
+    items={items}
+    leadId={feedLeadId(items)}
+    loading={feed.status === "loading" || feed.status === "idle"}
+    loadingMore={feed.loadingMore}
+    now={NOW}
+    onLoadMore={() => { void feed.loadMore(); }}
+    onOpen={() => undefined}
+    onRate={async () => undefined}
+    onRetry={feed.retry}
+    onShowChange={setShow}
+    onSortChange={setSort}
+    onVisitRated={() => undefined}
+    previews={new Map()}
+    ratedCount={params.has("empty") ? 0 : 1}
+    show={show}
+    sort={sort}
+    visitRated={new Set()}
+  />;
+}
+createRoot(document.getElementById("root")).render(params.has("indexed") ? <IndexedHarness /> : params.has("page-loading") ? <ReferencesPageLoading /> : params.has("paged") ? <PagedHarness /> : <Harness />);
 ` },
   }).then((result) => result.outputFiles[0].text);
   return bundle;
@@ -202,6 +285,7 @@ const cards = (page: Page) => page.locator("[data-feed-card]");
 const order = (page: Page) => cards(page).evaluateAll((elements) => elements.map((element) => element.getAttribute("data-feed-card")));
 const card = (page: Page, id: string) => page.locator(`[data-feed-card="${id}"]`);
 
+const shots = process.env.FEED_SHOTS;
 const scenarios: Record<string, () => Promise<void>> = {
   /** A responsive grid, a larger lead card, and the strongest Accepts first and the strongest Rejects last. */
   async layout() {
@@ -652,6 +736,111 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await page.locator("[data-feed-card] [data-prediction-state=error]").count(), 24);
       assert.equal(await page.getByText(/Predictions unavailable/i).count(), 0, "no page-wide failure");
       if (shots) await page.screenshot({ path: `${shots}/feed-without-predictions-${width}.png` });
+    });
+  },
+
+
+  /** The first cards come from one round of indexed reads; scrolling reads the next page; per-card reads follow the cards shown. */
+  async indexed() {
+    await run("?indexed=1&total=7000", [375, 1440], async (page, width) => {
+      await cards(page).first().waitFor();
+      await page.waitForFunction(() => window.requests.some((request) => request.kind === "attachments"));
+      const log = () => page.evaluate(() => window.requests);
+      const first = await log();
+      const kinds = (list: Array<{ kind: string }>) => list.reduce<Record<string, number>>((all, request) => ({ ...all, [request.kind]: (all[request.kind] ?? 0) + 1 }), {});
+      // One corpora read, one index read per corpus partition (three corpora, unrated), one attachments batch: no table is walked.
+      assert.deepEqual(kinds(first), { corpora: 1, index: 3, attachments: 1 }, "first paint requests: " + JSON.stringify(kinds(first)));
+      assert.ok(first.filter((request) => request.kind === "index").every((request) => request.limit === 24), "one page of 24 per partition, never a limit of 13");
+      assert.equal(await cards(page).count(), 24, "one page of cards");
+      const attachments = first.find((request) => request.kind === "attachments") as unknown as { ids: string[] };
+      assert.equal(attachments.ids.length, 24, "attachments for the 24 cards shown, not the 13,000 in the table");
+      // Best bets across all three corpora, highest original P first, newest on ties: the top of the merged partitions.
+      const shown = await order(page) as string[];
+      const expected = await page.evaluate(() => window.site
+        .filter((row: any) => row.feedStateKey.endsWith("#unrated"))
+        .sort((left: any, right: any) => (left.predictionSortKey < right.predictionSortKey ? 1 : -1))
+        .slice(0, 24).map((row: any) => row.lineageId));
+      assert.deepEqual(shown, expected, "the first page is the top of the merged index order");
+      // Nothing more is read while the editor does not scroll.
+      await page.waitForTimeout(700);
+      assert.deepEqual(kinds(await log()), kinds(first), "an unscrolled page makes no further requests");
+      // Scrolling to the end reads the next page, and only that page's attachments.
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await page.waitForFunction(() => document.querySelectorAll("[data-feed-card]").length >= 48);
+      await page.waitForFunction(() => window.requests.filter((request) => request.kind === "attachments").length >= 2);
+      const afterScroll = await log();
+      const secondBatch = afterScroll.filter((request) => request.kind === "attachments")[1] as unknown as { ids: string[] };
+      assert.equal(secondBatch.ids.length, 24, "attachments for the next 24 cards only");
+      assert.equal(new Set([...attachments.ids, ...secondBatch.ids]).size, 48, "no card is read twice");
+      const scrollReads = afterScroll.length - first.length;
+      assert.ok(afterScroll.filter((request) => request.kind === "index").length - 3 <= 3, "one scroll reads at most one more round of pages");
+      assert.equal(await cards(page).count(), 48);
+      console.log(`indexed requests at ${width}px: first paint ${first.length} (${JSON.stringify(kinds(first))}), one scroll +${scrollReads} (${JSON.stringify(kinds(afterScroll.slice(first.length)))})`);
+      if (shots) { await page.evaluate(() => window.scrollTo(0, 0)); await page.screenshot({ path: `${shots}/indexed-feed-${width}.png` }); }
+    });
+  },
+
+  /** A merged order across corpora, and the empty, slow and failed reads. */
+  async indexedStates() {
+    await run("?indexed=1&total=600", [375], async (page) => {
+      await cards(page).first().waitFor();
+      assert.equal(await cards(page).count(), 24);
+      await page.locator("[data-feed-sort-button=newest]").click();
+      await page.waitForFunction(() => window.requests.some((request) => request.kind === "index" && request.sort === "newest"));
+      await page.waitForFunction(() => document.querySelector("[data-feed-grid]") && document.querySelector("[data-feed-card='s0']"));
+      assert.equal((await order(page))![0], "s0", "Newest starts with the latest arrival");
+    });
+    await run("?indexed=1&empty=1", [375, 1440], async (page) => {
+      await page.locator("[data-feed-empty]").waitFor();
+      assert.equal(await page.locator(".animate-pulse").count(), 0, "an empty feed shows the empty message, not a skeleton");
+    });
+    await run("?indexed=1&slow=900", [375], async (page) => {
+      await page.waitForTimeout(300);
+      assert.equal(await page.locator("[data-feed-empty]").count(), 0, "a slow read never looks like no items");
+      assert.equal(await cards(page).count(), 0);
+      assert.equal(await page.locator("[data-feed-error]").count(), 0);
+      await cards(page).first().waitFor({ timeout: 4000 });
+    });
+    await run("?indexed=1&failFirst=1&total=600", [375, 1440], async (page, width) => {
+      await page.locator("[data-feed-error]").waitFor();
+      assert.match(await page.locator("[data-feed-error]").innerText(), /could not be loaded[\s\S]*refused/i);
+      assert.equal(await cards(page).count(), 0);
+      if (shots) await page.screenshot({ path: `${shots}/indexed-error-${width}.png` });
+      await page.locator("[data-feed-retry]").click();
+      await cards(page).first().waitFor();
+      assert.equal(await page.locator("[data-feed-error]").count(), 0, "Retry reads the feed again");
+    });
+  },
+
+  /** Screenshots for review (FEED_SHOTS=dir): the old wait (skeletons only), the indexed feed, and the error with Retry. */
+  async screens() {
+    if (!shots) return;
+    await run("?indexed=1&slow=600000", [375, 1440], async (page, width) => {
+      await page.locator("[data-reference-feed-skeleton]").waitFor();
+      await page.screenshot({ path: `${shots}/before-skeleton-only-${width}.png` });
+    });
+    await run("?indexed=1&total=7000", [375, 1440], async (page, width) => {
+      await cards(page).first().waitFor();
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${shots}/after-first-cards-${width}.png` });
+    });
+    await run("?indexed=1&failFirst=1", [375, 1440], async (page, width) => {
+      await page.locator("[data-feed-error]").waitFor();
+      await page.screenshot({ path: `${shots}/after-error-retry-${width}.png` });
+    });
+  },
+
+  /** A Reference from a manual Add, from email and from a monitor appear in one feed, in order, with no difference by source. */
+  async sources() {
+    await run("?indexed=1&total=300", [375, 1440], async (page) => {
+      await cards(page).first().waitFor();
+      await page.locator("[data-feed-sort-button=newest]").click();
+      await page.waitForFunction(() => document.querySelector("[data-feed-card='s0']") && document.querySelector("[data-feed-card='s1']") && document.querySelector("[data-feed-card='s2']"));
+      const ids = (await order(page)) as string[];
+      // s0 monitor, s1 manual Add, s2 email: consecutive arrivals, newest first, all in the one list.
+      assert.deepEqual(ids.slice(0, 3), ["s0", "s1", "s2"]);
+      const texts = await Promise.all(["s0", "s1", "s2"].map((id) => card(page, id).locator("[data-review-choice=accept]").count()));
+      assert.deepEqual(texts, [1, 1, 1], "each has the same Accept control whatever its source");
     });
   },
 

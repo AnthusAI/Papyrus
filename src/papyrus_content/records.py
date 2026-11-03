@@ -8,6 +8,7 @@ from typing import Any, Callable
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, strip_unsupported_payload_fields
 from .ids import hash_short
 from .model_attachments import expand_private_payload_records, upload_attachment_body
+from .reference_feed_keys import feed_keys, prediction_sort_key
 
 
 APPEND_ONLY_EXISTING_NOOP_MODELS = frozenset(
@@ -104,6 +105,16 @@ def build_record_changes_targeted_by_id(
 
 
 KEPT_FEED_FIELDS = ("predictedAcceptProbability", "predictionDecidedAt", "predictionSortKey", "feedArrivalAt")
+
+
+def _feed_keys_for_new_version(next_reference: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    """A new version of a Reference is in the feed like the one it replaces: the original prediction and arrival carry over."""
+    carried = {key: current[key] for key in ("predictedAcceptProbability", "predictionDecidedAt", "feedArrivalAt") if current.get(key) is not None}
+    keys = feed_keys({**next_reference, **carried})
+    if carried.get("feedArrivalAt"):
+        keys["feedArrivalAt"] = carried["feedArrivalAt"]
+        keys["predictionSortKey"] = prediction_sort_key(carried.get("predictedAcceptProbability"), carried["feedArrivalAt"], str(next_reference["id"]))
+    return {**carried, **keys}
 
 
 def build_record_change_from_current(
@@ -277,6 +288,7 @@ def prepare_versioned_knowledge_records(
             "previousVersionId": current["id"],
             "versionState": "current",
         }
+        next_reference.update(_feed_keys_for_new_version(next_reference, current))
         reference_id_map[expected["id"]] = next_reference
         changed_lineages.add(expected["lineageId"])
         prepared_records.append({**record, "expected": next_reference})

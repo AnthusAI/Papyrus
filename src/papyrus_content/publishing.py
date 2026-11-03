@@ -15,6 +15,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from .authors import author_names
+from .machine_writes import apply_stamp
 from .markus_renderer.derive import BodyError, derive_body
 from .projection.stored import PROJECTION_METADATA_KEY, projection_metadata
 from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
@@ -39,6 +40,8 @@ class ItemFields:
     id: str | None = None
     source_path: str | None = None
     overrides: dict | None = None
+    #: ``{"runId", "writer"}`` of a machine write: recorded in ``metadata.machineWrite`` (machine_writes.py).
+    machine_write: dict | None = None
 
 
 @dataclass
@@ -225,6 +228,7 @@ def save_item(
     columns.update({key: value for key, value in (fields.overrides or {}).items()})
     metadata["frontMatterYaml"] = fields.front_matter_yaml
     metadata["source"] = {"path": fields.source_path}
+    apply_stamp(metadata, fields.machine_write, created=existing is None, now=now)
 
     record = {
         **base,

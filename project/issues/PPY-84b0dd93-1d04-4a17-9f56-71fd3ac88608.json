@@ -10,9 +10,17 @@
   "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f58e1d97-9300-491f-8e4e-6996716707ca",
+      "author": "home",
+      "text": "Implemented on feature/PPY-84b0dd-knowledge-run-preview, PR https://github.com/AnthusAI/Papyrus/pull/1059 (builds on PR 1058 for PPY-5b5a5d). wiki-sync plans first (wiki sync --json) and a gate (knowledge_cloud/preview_gate.py) holds the first run of a site, or one unlike the site's own history (negative binomial tail below 1/((n+1)*k), mean and spread learned from earlier runs), as a hard-gate review request in the Notification Center; approval is the console or papyrus reviews answer, no AWS login. A held run writes nothing and projection skips its execution. Tests: preview_gate_test.py (18), preview_stages_test.py (10), features_backend/knowledge-run-preview.feature (11 scenarios). Not deployed: needs a release, a rebuilt knowledge-run image and its deploy. Quality follow-up filed: PPY-7d309b.",
+      "created_at": "2026-11-02T21:51:13.569553Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-02T18:00:33.207550Z",
-  "updated_at": "2026-11-02T18:00:33.207609Z",
+  "updated_at": "2026-11-02T21:51:13.570218Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

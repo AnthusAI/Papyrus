@@ -178,6 +178,11 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
             raise ValueError(f"papyrus knowledge {command} requires <command>: {allowed}.")
         _delegate_content("knowledge", f"{command}-{flags[0]}", flags[1:])
         return 0
+    if command == "run":
+        if not flags or flags[0] not in {"undo", "restore"}:
+            raise ValueError("papyrus knowledge run requires <command>: undo or restore (both are dry runs unless --apply is given).")
+        _delegate_content("knowledge", f"run-{flags[0]}", flags[1:])
+        return 0
     if command == "wiki":
         if not flags or flags[0].startswith("-"):
             raise ValueError("papyrus knowledge wiki requires <command>: sync or publish.")
