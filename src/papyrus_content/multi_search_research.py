@@ -42,11 +42,11 @@ from .graphql_authoring import PapyrusGraphQLAuthoringClient
 from .ids import hash_short
 from .link_exploration import canonical_url
 from .model_defaults import DEFAULT_LLM_MODEL
-from .newsroom_context_pack import PROFILES, build_context_pack
+from .newsroom_context_pack import DEFAULT_MAX_CHARACTERS, PROFILES, build_context_pack
 from .options import normalize_string, parse_boolean_option, parse_options, resolve_mutation_apply
 from .records import apply_record_changes, build_record_changes
 from .steering import default_corpus_key
-from .story_reporting import attach_message_to_story_thread, link_found_references_as_consulted
+from .story_reporting import link_found_references_as_consulted
 from .tavily_deep_research import _assignment_event_record, _produces_assignment_message_relation
 from .web_search import (
     PROVIDERS,
@@ -531,7 +531,7 @@ def research_multi(
         if story_lineage and profile in PROFILES:
             try:
                 pack = build_context_pack(client, profile=profile, assignment=assignment, story_lineage_id=story_lineage,
-                                          max_characters=SYNTHESIS_INPUT_CHARACTERS // 2)
+                                          max_characters=DEFAULT_MAX_CHARACTERS)
             except (ValueError, PermissionError) as error:
                 raise MultiSearchFailed(f"multi-search could not build the context pack: {error}") from None
             brief = pack["user"]
@@ -561,8 +561,6 @@ def research_multi(
         return result
     apply_result = apply_research_packet(client, {"assignment": assignment_id, "research-json": json.dumps(packet),
                                                   "research-mode": research_mode, "actor-label": actor_label})
-    if pack and (apply_result or {}).get("messageId"):
-        attach_message_to_story_thread(client, story_lineage, apply_result["messageId"])
     intake_result: dict[str, Any] | None = None
     if parse_boolean_option(options.get("intake-proposals"), True, "--intake-proposals"):
         intake_result = intake_research_packet_proposals(client, {

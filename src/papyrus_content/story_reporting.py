@@ -509,16 +509,6 @@ def append_story_message(
     return message
 
 
-def attach_message_to_story_thread(client, lineage_id: str, message_id: str, *, now: str | None = None) -> dict[str, Any]:
-    """Puts an existing Message (a research packet an assignment made) on the story's reporting thread, so the Reporting trail shows it."""
-    now = now or utc_now_iso()
-    thread = ensure_story_thread(client, lineage_id, now=now)
-    sequence_number = int(thread.get("messageCount") or 0) + 1
-    client.update_record("Message", {"id": message_id, "threadId": thread["id"], "sequenceNumber": sequence_number, "updatedAt": now})
-    client.update_record("MessageThread", {"id": thread["id"], "messageCount": sequence_number, "lastMessageId": message_id, "lastMessageAt": now, "updatedAt": now})
-    return {"threadId": thread["id"], "sequenceNumber": sequence_number}
-
-
 def link_found_references_as_consulted(client, lineage_id: str, reference_ids: list[str], *, actor: str, note: str | None = None,
                                        now: str | None = None) -> list[str]:
     """Links References a run found to the story as ``consulted``. A Reference the story already has, in any role, is left as it is (a citation is never downgraded)."""

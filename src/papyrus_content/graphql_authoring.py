@@ -427,7 +427,10 @@ PUBLISHED_STORY_LIST_FIELDS = (
     "id tenantId sourceItemId itemLineageId type status slug section sectionStatus title headline deck publishedAt"
 )
 
+STORY_SECTION_LINK_FIELDS = "id tenantId lineageId versionState stage status type section sectionStatus"
+
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
+    "itemsBySectionStatus": {"field": "listItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": STORY_SECTION_LINK_FIELDS},
     "messageThreadsByAnchor": {"field": "listMessageThreadsByAnchorAndUpdatedAt", "partitionKey": "primaryAnchorKey", "fields": MESSAGE_THREAD_FIELDS},
     "publishedItemsBySectionStatus": {"field": "listPublishedItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": PUBLISHED_STORY_LIST_FIELDS},
     "messageThreadsByKindAndUpdatedAt": {"field": "listMessageThreadsByKindAndUpdatedAt", "partitionKey": "threadKind", "fields": MESSAGE_THREAD_FIELDS},

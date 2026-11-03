@@ -3,9 +3,9 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
   needs no model to build. The system text says who the agent is and carries the publication's mission and policy and the Story's
   section mission, policy, assignment guidance and kill criteria; it is never shortened. The rest is layered from the most specific
   to the widest: the editor's assignment, the Story itself, the References already attached to it with the notes editors wrote on how
-  they connect, the conversation on the Story, then what the publication has published in the Story's section, the accepted References
+  they connect, the conversation on the Story, the research already done on it, then what the publication has published in the Story's section, the accepted References
   curated for that section, what it has published in other sections and the accepted References in other sections. There is no fixed
-  count and no day window: the only bound is the character budget the caller gives, taken from the model's real limit. The first four
+  count and no day window: the only bound is the character budget the caller gives, taken from the model's real limit. The first five
   layers are filled first; the room that is left is shared from the nearest ring outwards, each ring taking up to half of what remains,
   so the outer rings shrink first and are not starved. Every layer reports what it held and what it had to drop. Editors can attach a
   research assignment with their own direction to a Story, and the multi-search research run then uses the pack, so its queries and its
@@ -18,7 +18,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
 
   Scenario: The layers come in order, most specific first
     When the reporter context pack is built for the Story and the assignment
-    Then the layers are, in order, "assignment, story, story_references, story_conversation, desk_published, desk_references, publication_published, publication_references"
+    Then the layers are, in order, "assignment, story, story_references, story_conversation, prior_research, desk_published, desk_references, publication_published, publication_references"
     And every layer holds at least one entry
     And the user text shows the editor's direction before the Story's draft and the Story's draft before the section's published record
     And the system text carries the role, the publication policy and the section mission
@@ -50,23 +50,42 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     And the editor-voted Reference with a written reason comes before the auto-accepted Reference
     And the auto-accepted Reference comes last
 
+  Scenario: Earlier research on the Story is shown to the next reporter
+    When the reporter context pack is built for the Story and the assignment
+    Then the earlier research appears after the conversation with its direction, summary, claims and open questions
+
+  Scenario: The section's References include those that other Stories in the section use as evidence
+    When the reporter context pack is built for the Story and the assignment
+    Then the section's Reference layer holds the Reference that another Story in the section uses as evidence
+
+  Scenario: The outer layers are compact, one line for each entry
+    When the reporter context pack is built for the Story and the assignment
+    Then every entry in the outer layers is one line with its title, date and address
+    And the first sentence of the summary or deck follows and the rest of it does not
+    And an editor's reason and stars stay on an outer entry when present
+
+  Scenario: A Reference whose title is only its address is not shown with that title
+    When the reporter context pack is built for the Story and the assignment
+    Then a Reference whose title is only its address shows no title line in the Story's References
+    And in the outer layers such a Reference leads with the first sentence of its summary
+
   Scenario: Under a budget the outer rings shrink first and each keeps a share
-    When the reporter context pack is built with room for the first four layers and 1500 more characters
-    Then the assignment, the Story, its References and its conversation are all complete
+    When the reporter context pack is built with room for the first five layers and 1500 more characters
+    Then the assignment, the Story, its References, its conversation and its earlier research are all complete
     And each outer layer holds at least one entry
 
   Scenario: The nearest ring takes at most half of the room, so the next ring is not starved
-    When the reporter context pack is built with room for the first four layers and 600 more characters
+    When the reporter context pack is built with room for the first five layers and 600 more characters
     Then the section's published layer used no more than half of the 600 characters
     And the section's Reference layer holds at least one entry
 
   Scenario: Whole entries only, and the dropped counts are reported
-    When the reporter context pack is built with room for the first four layers and 1500 more characters
+    When the reporter context pack is built with room for the first five layers and 1500 more characters
     Then every entry in the user text is complete
     And at least one outer layer reports a dropped count above zero with a reason
     And a layer that dropped nothing reports a dropped count of zero
 
-  Scenario: When the first four layers alone do not fit, the oldest messages go first
+  Scenario: When the first five layers alone do not fit, the oldest messages go first
     When the reporter context pack is built with room for the assignment and the Story only
     Then the conversation reports that its oldest messages were dropped
     And the References report that their summaries were dropped
@@ -123,7 +142,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     Then the planning and the synthesis were given the role and the policy as their system text
     And the planning brief is the pack's user text
     And the packet records the context hash, the editorial context hash and the size of each layer
-    And the packet message is on the Story's thread
+    And the packet is on no message thread
     And the sources the run found are linked to the Story as consulted and not as cited
     And the Story's text is unchanged
     And the model is the default model

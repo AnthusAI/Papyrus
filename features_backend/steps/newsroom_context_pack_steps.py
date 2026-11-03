@@ -72,11 +72,19 @@ class FakeNewsroom:
             return copy.deepcopy([row for row in self.records["Reference"].values() if row.get("curationStatusKey") == key])
         if index == "referencesByLineageAndVersion":
             return copy.deepcopy([row for row in self.records["Reference"].values() if row.get("lineageId") == key])
+        if index == "assignmentsByItemLineageAndCreatedAt":
+            return copy.deepcopy([row for row in self.records["Assignment"].values() if row.get("itemLineageId") == key])
+        if index == "itemsBySectionStatus":
+            return copy.deepcopy([row for row in self.items
+                                  if f"{TENANT}#{row.get('section')}#{'published' if row.get('status') == 'published' else 'draft'}" == key])
         if index == "messageThreadsByAnchor":
             return copy.deepcopy([row for row in self.threads if row.get("primaryAnchorKey") == key])
         if index == "messagesByThreadAndSequence":
             return copy.deepcopy(self.messages[key])
         raise AssertionError(f"the fake store does not serve index {index}")
+
+    def get_records_by_id(self, model, ids):
+        return {record_id: copy.deepcopy(self.records[model][record_id]) for record_id in ids if record_id in self.records[model]}
 
     def list_semantic_relations_by_subject_state(self, key):
         return self.list_by_index("semanticRelationsBySubjectState", key)
@@ -171,6 +179,25 @@ def build_newsroom():
                                 "researchBackend": "multi_search"}),
     }
     store.add_reference("ref-attached", "The attached ruling", status="accepted", day=3, summary="A court held the text was the user's.")
+    store.add_reference("ref-url", "https://example.org/ref-url", status="accepted", day=3, summary="A notice about disclosure. It has more.")
+    store.link_reference("ref-url", "consulted")
+    store.items.append({"id": "story-2-v1", "lineageId": "story-2", "versionNumber": 1, "versionState": "current", "tenantId": TENANT, "type": "article",
+                        "status": "draft", "stage": "idea", "section": "law-policy", "title": "A sibling idea"})
+    store.add_reference("law-evidence", "Evidence of a sibling Story", human=False, day=6, summary="A study of court filings. It counts them.")
+    store.relations.append({"id": "relation-story-2", "relationState": "current", "predicate": "uses_evidence", "subjectKind": "item", "subjectLineageId": "story-2",
+                            "objectKind": "reference", "objectLineageId": "law-evidence", "subjectStateKey": "item#story-2#current",
+                            "objectStateKey": "reference#law-evidence#current", "metadata": json.dumps({"role": "consulted"})})
+    store.add_reference("law-url-title", "https://example.org/law-url-title", human=True, day=4, summary="Opens with the ruling. More text follows.")
+    store.records["Assignment"]["assignment-0"] = {
+        "id": "assignment-0", "itemLineageId": "story-1", "assignmentTypeKey": "research.multi", "title": "Earlier research", "instructions": "Look at appeals first",
+        "metadata": json.dumps({"direction": "Look at appeals first"})}
+    store.records["Message"]["message-packet-0"] = {
+        "id": "message-packet-0", "messageKind": "research_packet", "createdAt": moment(2),
+        "metadata": json.dumps({"research": {"summary": "Two appeals were found.", "claims": [{"claim": "An appeal was filed.", "sources": [1]}],
+                                             "openQuestions": ["Who ruled?"], "researchMode": "source_discovery"}})}
+    store.relations.append({"id": "produces-0", "relationState": "current", "predicate": "produces", "subjectKind": "assignment", "subjectId": "assignment-0",
+                            "objectKind": "message", "objectId": "message-packet-0", "subjectStateKey": "assignment#assignment-0#current",
+                            "objectStateKey": "message#message-packet-0#current"})
     store.link_reference("ref-attached", "consulted", note="the primary ruling")
     store.add_reference("ref-linked", "A commentary on the ruling", status="accepted", day=4, summary="Commentary.")
     store.relations.append({
@@ -218,7 +245,7 @@ def entry_ids(context, name):
 
 
 def core_room(pack):
-    return sum(row["characters"] + 2 * len(row["entries"]) for row in pack["layers"][:4])
+    return sum(row["characters"] + 2 * len(row["entries"]) for row in pack["layers"][:5])
 
 
 def build(context, **kwargs):
@@ -306,7 +333,7 @@ def step_build_tiny(context, budget):
     build(context, max_characters=budget)
 
 
-@when("the reporter context pack is built with room for the first four layers and {more:d} more characters")
+@when("the reporter context pack is built with room for the first five layers and {more:d} more characters")
 def step_build_room(context, more):
     context.unbounded = pack_for(context)
     context.more = more
@@ -407,12 +434,13 @@ def step_reason_before_auto(context):
 
 @then("the auto-accepted Reference comes last")
 def step_auto_last(context):
-    assert entry_ids(context, "desk_references")[-1] == "law-auto"
+    ids = entry_ids(context, "desk_references")
+    assert set(ids[-2:]) == {"law-auto", "law-evidence"} and ids[-2] == "law-auto", ids
 
 
-@then("the assignment, the Story, its References and its conversation are all complete")
-def step_first_four(context):
-    for name in ("assignment", "story", "story_references", "story_conversation"):
+@then("the assignment, the Story, its References, its conversation and its earlier research are all complete")
+def step_first_five(context):
+    for name in ("assignment", "story", "story_references", "story_conversation", "prior_research"):
         assert [row["id"] for row in layer(context, name)["entries"]] == [row["id"] for row in next(l for l in context.unbounded["layers"] if l["name"] == name)["entries"]]
         assert layer(context, name)["droppedCount"] == 0
 
@@ -655,11 +683,10 @@ def step_packet_hashes(context):
     assert "PUBLICATION-POLICY" not in json.dumps(record)
 
 
-@then("the packet message is on the Story's thread")
-def step_thread(context):
-    thread_id = story_thread_id("story-1")
-    moved = [payload for op, model, payload in context.store.writes if model == "Message" and payload["id"] == "message-packet-1"]
-    assert moved and moved[0]["threadId"] == thread_id and moved[0]["sequenceNumber"] == 1, moved
+@then("the packet is on no message thread")
+def step_no_thread(context):
+    written = [(model, payload["id"]) for op, model, payload in context.store.writes if model in ("Message", "MessageThread")]
+    assert not written, written
 
 
 def story_links(context):
@@ -686,7 +713,7 @@ def step_model(context):
 
 @then("that Reference is still linked to the Story as cited")
 def step_still_cited(context):
-    relation = next(row for row in context.store.relations if row["objectLineageId"] == "ref-cited")
+    relation = next(row for row in context.store.relations if row.get("objectLineageId") == "ref-cited")
     assert json.loads(relation["metadata"])["role"] == "cited"
     assert "ref-cited" not in [link["objectLineageId"] for link in story_links(context)]
     assert [link["objectLineageId"] for link in story_links(context)] == ["ref-found"]
@@ -707,3 +734,64 @@ def step_plain_system(context):
 @then("the packet has no context pack record")
 def step_no_record(context):
     assert "contextPack" not in context.packet["multiSearch"] and not context.store.writes
+
+
+@then("the earlier research appears after the conversation with its direction, summary, claims and open questions")
+def step_prior_research(context):
+    names = [row["name"] for row in context.pack["layers"]]
+    assert names.index("prior_research") == names.index("story_conversation") + 1
+    user = context.pack["user"]
+    for text in ("Look at appeals first", "Two appeals were found.", "An appeal was filed.", "Who ruled?"):
+        assert text in user, text
+    assert user.index("Check the appeal.") < user.index("Look at appeals first") < user.index("Judges weigh machine text")
+
+
+@then("the section's Reference layer holds the Reference that another Story in the section uses as evidence")
+def step_section_evidence(context):
+    assert "law-evidence" in entry_ids(context, "desk_references")
+    assert "law-evidence" not in entry_ids(context, "publication_references")
+
+
+def outer_blocks(context):
+    user = context.pack["user"]
+    blocks = []
+    for name in pack_module.OUTER_LAYERS:
+        heading = f"## {pack_module.HEADINGS[name]}\n\n"
+        if heading in user:
+            body = user.split(heading, 1)[1].split("\n\n## ", 1)[0]
+            blocks += [entry for entry in body.split("\n\n") if entry]
+    return blocks
+
+
+@then("every entry in the outer layers is one line with its title, date and address")
+def step_compact(context):
+    blocks = outer_blocks(context)
+    assert blocks and all("\n" not in block and "Title:" not in block and "Summary:" not in block for block in blocks), blocks
+    assert any("Liability for output | 2026-10-08" in block and "law-4" in block for block in blocks)
+
+
+@then("the first sentence of the summary or deck follows and the rest of it does not")
+def step_first_sentence(context):
+    user = context.pack["user"]
+    assert "Deck of Liability for output" in user
+    outer = "\n".join(outer_blocks(context))
+    assert "A study of court filings" in outer and "It counts them." not in outer
+
+
+@then("an editor's reason and stars stay on an outer entry when present")
+def step_reason_stars(context):
+    outer = "\n".join(outer_blocks(context))
+    assert "accepted because the key ruling" in outer and "5 stars" in outer
+
+
+@then("a Reference whose title is only its address shows no title line in the Story's References")
+def step_no_url_title(context):
+    section = context.pack["user"].split("## References already attached to the Story", 1)[1].split("\n\n## ", 1)[0]
+    assert "Title: https://" not in section and "https://example.org/ref-url" in section and "A notice about disclosure. It has more." in section
+
+
+@then("in the outer layers such a Reference leads with the first sentence of its summary")
+def step_url_title_lead(context):
+    outer = outer_blocks(context)
+    line = next(block for block in outer if "law-url-title" in block)
+    assert line.startswith("Opens with the ruling.") and "More text follows." not in line, line

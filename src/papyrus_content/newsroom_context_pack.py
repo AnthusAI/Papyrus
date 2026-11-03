@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import heapq
 import json
+import re
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Any
 
@@ -35,6 +36,8 @@ from .story_reporting import current_reference, current_story_version, story_anc
 from .tenancy import tenant_scoped_value
 
 CONTRACT = "newsroom-context-pack/v1"
+#: The default budget: half of the 200,000 characters the research run allows its model input; the other half is for the sources it finds.
+DEFAULT_MAX_CHARACTERS = 100_000
 STORY_THREAD_KINDS = ("story_reporting", "story_conversation")
 RETIRED_STAGE = "retired"
 ACCEPTED = "accepted"
@@ -54,7 +57,7 @@ How to read what follows:
 PROFILES: dict[str, dict[str, Any]] = {
     "reporter": {
         "role": REPORTER_ROLE,
-        "layers": ("assignment", "story", "story_references", "story_conversation",
+        "layers": ("assignment", "story", "story_references", "story_conversation", "prior_research",
                    "desk_published", "desk_references", "publication_published", "publication_references"),
     },
 }
@@ -64,12 +67,13 @@ HEADINGS = {
     "story": "The Story",
     "story_references": "References already attached to the Story",
     "story_conversation": "The conversation on the Story, oldest first",
+    "prior_research": "Research already done on this Story, newest first",
     "desk_published": "Published in the Story's section, newest first",
     "desk_references": "Accepted References in the Story's section, best first",
     "publication_published": "Published in other sections, newest first",
     "publication_references": "Accepted References in other sections, best first",
 }
-CORE_LAYERS = ("assignment", "story", "story_references", "story_conversation")
+CORE_LAYERS = ("assignment", "story", "story_references", "story_conversation", "prior_research")
 OUTER_LAYERS = ("desk_published", "desk_references", "publication_published", "publication_references")
 
 
@@ -88,6 +92,24 @@ def _day(moment: Any) -> str:
 def _line(label: str, value: Any) -> str:
     text = " ".join(str(value or "").split())
     return f"{label}: {text}" if text else ""
+
+
+def first_sentence(text: Any) -> str:
+    flat = " ".join(str(text or "").split())
+    return re.split(r"(?<=[.!?])\s", flat, maxsplit=1)[0] if flat else ""
+
+
+def clean_title(title: Any, url: Any) -> str:
+    """The title when it says something: empty, or just the address, is no title."""
+    text = " ".join(str(title or "").split())
+    address = " ".join(str(url or "").split())
+    if not text or text.rstrip("/").lower() == address.rstrip("/").lower() or re.match(r"^https?://\S+$", text):
+        return ""
+    return text
+
+
+def one_line(*parts: Any) -> str:
+    return " | ".join(" ".join(str(part).split()) for part in parts if part not in (None, "") and str(part).strip())
 
 
 def _block(lines: Iterable[str]) -> str:
@@ -217,7 +239,7 @@ def reference_text(situation: Situation, row: Mapping[str, Any], *, summary: boo
     lineage = str(row.get("lineageId") or row["id"])
     stars = latest_stars(row)
     text = _block([
-        _line("Title", row.get("title") or row.get("sourceUri")),
+        _line("Title", clean_title(row.get("title"), row.get("sourceUri"))),
         _line("URL", row.get("sourceUri")),
         _line("Published", _day(row.get("sourcePublishedAt"))),
         _line("Accepted because", row.get("curationStatusReason")),
@@ -226,6 +248,18 @@ def reference_text(situation: Situation, row: Mapping[str, Any], *, summary: boo
     ])
     summary_text = " ".join(str(situation.summaries()[lineage] or "").split()) if summary else ""
     return _block([text, _line("Summary", summary_text)])
+
+
+def reference_one_line(situation: Situation, row: Mapping[str, Any]) -> str:
+    """An outer-layer Reference in one line, for awareness: the title (or, when it is only the address, the first sentence of the summary), date,
+    address, the first sentence of the summary, and the accept reason and stars when an editor gave them."""
+    lineage = str(row.get("lineageId") or row["id"])
+    stars = latest_stars(row)
+    title = clean_title(row.get("title"), row.get("sourceUri"))
+    sentence = first_sentence(situation.summaries()[lineage])
+    reason = " ".join(str(row.get("curationStatusReason") or "").split())
+    return one_line(title or sentence or row.get("sourceUri"), _day(row.get("sourcePublishedAt")), row.get("sourceUri"),
+                    sentence if title else "", f"accepted because {reason}" if reason else "", f"{stars['stars']} stars" if stars else "")
 
 
 def story_references_layer(situation: Situation) -> tuple[list[Entry], str | None]:
@@ -264,6 +298,29 @@ def conversation_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     return entries, None if entries else "the Story has no messages"
 
 
+def prior_research_layer(situation: Situation) -> tuple[list[Entry], str | None]:
+    """The research packets earlier assignments on this Story made, newest first, with the direction each was given."""
+    from .assignments_workflow import load_assignment_research_packet_entries
+
+    found: list[tuple[str, Entry]] = []
+    for assignment in situation.store.list_by_index("assignmentsByItemLineageAndCreatedAt", situation.lineage):
+        direction = _json_object(assignment.get("metadata")).get("direction") or assignment.get("instructions")
+        for item in load_assignment_research_packet_entries(situation.store, assignment["id"]):
+            packet = item["packet"]
+            created = str(item["message"].get("createdAt") or "")
+            claims = [str(claim["claim"]) for claim in packet.get("claims") or [] if isinstance(claim, dict) and claim.get("claim")]
+            questions = [str(question) for question in packet.get("openQuestions") or [] if question]
+            text = _block([
+                _line("Researched", _day(created)), _line("Direction given", direction), _line("Summary", packet.get("summary")),
+                "Claims:\n" + "\n".join(f"- {claim}" for claim in claims) if claims else "",
+                "Open questions:\n" + "\n".join(f"- {question}" for question in questions) if questions else "",
+            ])
+            found.append((created, _entry("research_packet", str(item["message"]["id"]), text, assignmentId=str(assignment["id"]))))
+    found.sort(key=lambda pair: (pair[0], pair[1]["id"]), reverse=True)
+    entries = [entry for _, entry in found]
+    return entries, None if entries else "no research has been done on this Story yet"
+
+
 def published_rows(situation: Situation, slugs: Iterable[str]) -> Iterator[dict[str, Any]]:
     """Published Stories of the given section slugs, newest first across all of them, lazily: a caller that stops reading stops the queries."""
     def stream(slug: str) -> Iterator[dict[str, Any]]:
@@ -285,8 +342,7 @@ def published_rows(situation: Situation, slugs: Iterable[str]) -> Iterator[dict[
 
 def published_entry(row: Mapping[str, Any]) -> Entry:
     address = "/".join(part for part in (str(row.get("section") or "").strip(), str(row.get("slug") or "").strip()) if part)
-    text = _block([_line("Title", row.get("headline") or row.get("title")), _line("Deck", row.get("deck")),
-                   _line("Published", _day(row.get("publishedAt"))), _line("Address", address)])
+    text = one_line(row.get("headline") or row.get("title"), _day(row.get("publishedAt")), address, first_sentence(row.get("deck")))
     return _entry("published", str(row.get("itemLineageId") or row["id"]), text)
 
 
@@ -311,13 +367,35 @@ def section_of_reference(situation: Situation, row: Mapping[str, Any]) -> bool |
     return value in situation.section_names or slug_of(value.split("#")[-1]) in situation.section_slugs
 
 
+def section_evidence(situation: Situation) -> set[str]:
+    """Reference lineages that any other Story in the section, at any stage (ideas included), uses as evidence."""
+    if situation.section is None:
+        return set()
+    lineages: set[str] = set()
+    for slug in sorted(situation.section_slugs):
+        for status in ("draft", "published"):
+            key = tenant_scoped_value(situation.tenant, f"{slug}#{status}")
+            for row in situation.store.list_by_index("itemsBySectionStatus", key):
+                lineage = str(row.get("lineageId") or row.get("id"))
+                if (lineage != situation.lineage and row.get("stage") != RETIRED_STAGE and row.get("type") not in SYSTEM_ITEM_TYPES
+                        and (not situation.tenant or row.get("tenantId") == situation.tenant)):
+                    lineages.add(lineage)
+    evidence: set[str] = set()
+    for lineage in sorted(lineages):
+        evidence |= {str(link["referenceLineageId"]) for link in story_references(situation.store, lineage) if link.get("referenceLineageId")}
+    return evidence
+
+
 def reference_candidates(situation: Situation, *, inside: bool) -> list[dict[str, Any]]:
+    """Accepted References outside the Story. A Reference belongs to the section when it was curated for it, or when any other Story in the
+    section uses it as evidence."""
     attached = situation.attached_lineages()
+    evidence = section_evidence(situation) if situation.section is not None else set()
     rows = []
     for row in situation.accepted_references():
         lineage = str(row.get("lineageId") or row["id"])
-        match = section_of_reference(situation, row)
-        if lineage in attached or (match is True) != inside or (inside and match is None):
+        belongs = section_of_reference(situation, row) is True or lineage in evidence
+        if lineage in attached or belongs != inside:
             continue
         rows.append(row)
     newest = sorted(sorted(rows, key=lambda row: str(row["id"])), key=lambda row: str(row.get("curationStatusUpdatedAt") or row.get("createdAt") or ""), reverse=True)
@@ -329,6 +407,7 @@ LAYER_BUILDERS: dict[str, Callable[[Situation], tuple[list[Entry], str | None]]]
     "story": story_layer,
     "story_references": story_references_layer,
     "story_conversation": conversation_layer,
+    "prior_research": prior_research_layer,
 }
 
 
@@ -362,7 +441,9 @@ def build_context_pack(store: Any, *, profile: str, assignment: Any = None, stor
                        max_characters: int | None = None) -> dict[str, Any]:
     if profile not in PROFILES:
         raise ValueError(f"Unknown context profile {profile!r}; known: {', '.join(sorted(PROFILES))}.")
-    if max_characters is not None and max_characters < 0:
+    if max_characters is None:
+        max_characters = DEFAULT_MAX_CHARACTERS
+    if max_characters < 0:
         raise ValueError("The context budget must be nonnegative.")
     definition = PROFILES[profile]
     if isinstance(assignment, str):
@@ -398,6 +479,12 @@ def build_context_pack(store: Any, *, profile: str, assignment: Any = None, stor
             over -= len(gone["text"]) + 2
             count, _ = dropped.get("story_conversation", (0, ""))
             dropped["story_conversation"] = (count + 1, "oldest messages dropped: the assignment, the Story and its References alone fill the budget")
+        research = core.get("prior_research", [])
+        while over > 0 and research:
+            gone = research.pop()
+            over -= len(gone["text"]) + 2
+            count, _ = dropped.get("prior_research", (0, ""))
+            dropped["prior_research"] = (count + 1, "oldest research dropped: the assignment, the Story and its References and conversation fill the budget")
         for entry in reversed(core.get("story_references", [])):
             if over <= 0:
                 break
@@ -475,7 +562,7 @@ class LazyReferenceEntries(list):
 
     def __iter__(self) -> Iterator[Entry]:
         for row in list.__iter__(self):
-            yield _entry("reference", str(row["id"]), reference_text(self._situation, row), lineageId=str(row.get("lineageId") or row["id"]),
+            yield _entry("reference", str(row["id"]), reference_one_line(self._situation, row), lineageId=str(row.get("lineageId") or row["id"]),
                          acceptedBy=HUMAN if row.get("curationActorKind") == HUMAN else "machine")
 
 
