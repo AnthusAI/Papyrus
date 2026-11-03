@@ -2728,6 +2728,14 @@ def status_row_sk(publication_id: str) -> str:
     return CYCLOTRON_STATUS_ROW_PREFIX + publication_id
 
 
+def status_of_output(answer: dict, output: str) -> dict | None:
+    """One output's `cyclotron-status/v1` snapshot from a `status` answer, whose envelope holds a snapshot per bound output under `classifiers`
+    (Cyclotron docs/decision-contract.md). None when the answer has no snapshot for this output."""
+    classifiers = answer.get("classifiers")
+    snapshot = classifiers.get(output) if isinstance(classifiers, dict) else None
+    return snapshot if isinstance(snapshot, dict) and snapshot.get("schema") == "cyclotron-status/v1" else None
+
+
 def run_cyclotron_status(store, config: dict, cyclotron: CyclotronClient, *, monitor_id: str, now: float,
                          time_left: Callable[[], float] = lambda: 1e9) -> dict:
     """The `cyclotron-status` task: read the Cyclotron's `status` snapshot for each configured publication and keep it, one row per
@@ -2757,16 +2765,18 @@ def run_cyclotron_status(store, config: dict, cyclotron: CyclotronClient, *, mon
         if code == 503:
             results[pid] = {"status": "no_snapshot"}   # no completed decision for this binding yet: not an error, and never a lab pause
             continue
-        if code != 200 or payload.get("schema") != "cyclotron-status/v1":
+        snapshot = status_of_output(payload, publication["output"]) if code == 200 else None
+        if snapshot is None:
             results[pid] = {"status": "unavailable", "reason": body_excerpt(code, payload) if code != 200 else "not a status snapshot"}
             continue
         try:
             store.put_any(monitor_id, {"pk": pk(monitor_id), "sk": status_row_sk(pid), "publicationId": pid, "output": publication["output"],
-                                       "asOf": payload.get("asOf"), "checkedAt": _iso(now), "status": payload})
-            results[pid] = {"status": "written", "asOf": payload.get("asOf")}
+                                       "asOf": snapshot.get("asOf"), "checkedAt": _iso(now), "status": snapshot})
+            results[pid] = {"status": "written", "asOf": snapshot.get("asOf")}
         except Exception as error:  # noqa: BLE001 - one publication's unwritable row must not stop the others
             results[pid] = {"status": "failed", "reason": short(error)}
-    print(json.dumps({"cyclotronStatus": {pid: r["status"] for pid, r in results.items()}, "monitorId": monitor_id}))
+    print(json.dumps({"cyclotronStatus": {pid: r["status"] for pid, r in results.items()}, "monitorId": monitor_id,
+                      "reasons": {pid: r["reason"] for pid, r in results.items() if r.get("reason")}}))
     return {"status": "complete", "publications": results}
 
 
