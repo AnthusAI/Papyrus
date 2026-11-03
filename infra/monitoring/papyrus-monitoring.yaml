@@ -1609,6 +1609,47 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt RouterDeadLetterQueue.Arn
 
+  SuggestBacklogSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-suggest-backlog
+      Description: >-
+        Every hour at minute 44, start the suggest-backlog task for the hn monitor (docs/monitoring-cloud.md#suggestion-backlog).
+        It invokes the router once per publication with a vector index and suggestions on, and writes the suggestions of References
+        that have a summary vector. No indexing and no model call. No retry: the next hour repeats it.
+      ScheduleExpression: cron(44 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"suggest-backlog","monitorId":"hn"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  DistinctiveSuggestBacklogSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-distinctive-suggest-backlog
+      Description: >-
+        Every hour at minute 14, the same suggest-backlog task for Distinctive Mark, which the hn router does not list
+        (docs/monitoring-cloud.md#suggestion-backlog). No retry.
+      ScheduleExpression: cron(14 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"suggest-backlog","monitorId":"web-distinctive"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
   CyclotronStatusSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:

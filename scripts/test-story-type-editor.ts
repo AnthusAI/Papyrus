@@ -149,12 +149,32 @@ const scenarios: Record<string, () => Promise<void>> = {
     } finally { await browser.close(); }
   },
 
-  /** A site that declares nothing offers the article type and the page; Create Story and the editor need no engine change for a new type. */
+  /** A site that names no default: a new Story has no type until the editor chooses one, and cannot be published before. */
+  async type_not_set() {
+    const { browser, page, errors } = await setup("new", 1280, { ...SITE, storyTypes: { types: ["article", "post", "guide"] } });
+    try {
+      assert.deepEqual(await pressed(page), [], "no type is chosen");
+      assert.match(await page.locator("[data-newsroom-article-type-unset]").innerText(), /Not set/);
+      assert.ok(await page.locator("[data-newsroom-article-type-unset] svg").count() > 0, "the state has an icon as well as words");
+      assert.match(await page.locator("[data-newsroom-article-type-required]").innerText(), /This Story has no type yet\. You can draft and edit it, but it cannot be published until you choose a type/);
+      assert.equal(await page.locator("[data-newsroom-article-no-public-url]").count(), 0, "not the same message as a type with no address");
+      assert.equal(await page.locator("[data-newsroom-article-publish]").isDisabled(), true, "Publish is off");
+      assert.deepEqual((await page.locator("[data-newsroom-article-type]").allInnerTexts()).map((label) => label.trim()), ["Article", "Post", "Guide", "Page"], "buttons to choose, and no 'untyped' button");
+      await page.locator("[data-newsroom-article-field=title]").waitFor({ state: "attached" });
+      await typeButton(page, "post").click();
+      assert.equal(await page.locator("[data-newsroom-article-type-unset]").count(), 0, "choosing a type clears the state");
+      assert.equal(await page.locator("[data-newsroom-article-type-required]").count(), 0);
+      assert.deepEqual(await pressed(page), ["post"]);
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** A site that declares nothing offers no Story type: only the page and the Story's own stored type show. */
   async a_site_that_declares_nothing() {
     const { browser, page, errors } = await setup(DRAFT_ID, 1280, {});
     try {
       const labels = (await page.locator("[data-newsroom-article-type]").allInnerTexts()).map((label) => label.trim());
-      assert.deepEqual(labels, ["Article", "Page"]);
+      assert.deepEqual(labels, ["Page", "Article"], "the site offers no type, so only the page and the Story's own stored type show");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },

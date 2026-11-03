@@ -326,6 +326,8 @@ class S3VectorsProvider:
     embedding_model: str = "text-embedding-3-small"
     region_name: str | None = None
     name: str = "s3-vectors"
+    _client: Any = field(default=None, init=False, repr=False, compare=False)
+    _client_lock: Any = field(default_factory=threading.Lock, init=False, repr=False, compare=False)
 
     def search(self, query: str, scope: dict[str, Any], limit: int) -> list[dict[str, Any]]:
         if not query.strip():
@@ -423,11 +425,16 @@ class S3VectorsProvider:
         ]
 
     def _s3vectors_client(self):
-        try:
-            import boto3  # type: ignore
-        except ImportError as exc:  # pragma: no cover - deployment guard
-            raise RuntimeError("boto3 is required for S3VectorsProvider") from exc
-        return boto3.client("s3vectors", region_name=self.region_name)
+        """One client for the provider, made once: a client is safe to share between threads, and making one per call both costs time and is not safe to do from
+        several threads at once (the router's suggestion step asks from eight)."""
+        with self._client_lock:
+            if self._client is None:
+                try:
+                    import boto3  # type: ignore
+                except ImportError as exc:  # pragma: no cover - deployment guard
+                    raise RuntimeError("boto3 is required for S3VectorsProvider") from exc
+                self._client = boto3.client("s3vectors", region_name=self.region_name)
+            return self._client
 
     def embed_text(self, text: str) -> list[float]:
         """The query embedding for ``text`` (one OpenAI call); the vector can then go to ``query_by_vector`` with any metadata filter."""

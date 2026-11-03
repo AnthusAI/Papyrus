@@ -310,7 +310,7 @@ def step_promote(context, model, section):
 @then('a draft item "{item_id}" exists in the section "{section}"')
 def step_draft(context, item_id, section):
     item = context.client.rows["Item"][item_id]
-    assert (item["status"], item["section"], item["type"]) == ("draft", section, "article")
+    assert (item["status"], item["section"], item["type"]) == ("draft", section, "untyped")
 
 
 @then('the draft carries the source link "{url}", the structured facts and the entities of the record')

@@ -1,5 +1,5 @@
 import { ContentActionFailure } from "./content-actions-client";
-import { defaultStoryType } from "./site-story-types";
+import { typeForNewStory } from "./site-story-types";
 import { isLocalPreviewEnabled } from "./local-preview";
 import type {
   DeriveMarkusInput,
@@ -187,6 +187,9 @@ export function createDemoArticlesBackend(): ArticlesBackend {
       },
       async publishItem(id: string): Promise<PublishItemResult> {
         const record = requireRecord(id);
+        if (record.type === "untyped") {
+          throw new ContentActionFailure([{ code: "type-required", message: "This story has no type yet. Choose its type, then publish: the site decides where a page lives from it.", line: null }]);
+        }
         const changed = record.status !== "published" || record.publishedContentHash !== record.contentHash;
         const versionNumber = changed ? (record.versionNumber ?? 0) + 1 : record.versionNumber;
         const typeChangedFrom = changed && record.publishedType && record.publishedType !== record.type ? record.publishedType : undefined;
@@ -223,11 +226,11 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         ].join("\n") + "\n";
         const id = `demo-article-new-${(created += 1)}`;
         records.set(id, {
-          id, type: input.itemType ?? defaultStoryType(), slug: `from-reference-${created}`, section: null, title: hint.title, status: "draft", frontMatterYaml, bodyMarkus,
+          id, type: input.itemType ?? typeForNewStory(), slug: `from-reference-${created}`, section: null, title: hint.title, status: "draft", frontMatterYaml, bodyMarkus,
           contentHash: demoContentHash(frontMatterYaml, bodyMarkus), publishedContentHash: null, versionNumber: null, everPublished: false, updatedAt: new Date().toISOString(),
         });
         storiesFromReference.set(input.referenceId, [...already, id]);
-        return { ok: true, created: true, itemId: id, lineageId: id, title: hint.title, itemType: input.itemType ?? defaultStoryType(), stage: "copywriting", summary: summaryState, image: hint.imageUrl ? "seeded" : "none", imageCredit: hint.imageUrl && hint.site ? `Image: ${hint.site}` : null };
+        return { ok: true, created: true, itemId: id, lineageId: id, title: hint.title, itemType: input.itemType ?? typeForNewStory(), stage: "copywriting", summary: summaryState, image: hint.imageUrl ? "seeded" : "none", imageCredit: hint.imageUrl && hint.site ? `Image: ${hint.site}` : null };
       },
       async unpublishItem(id: string): Promise<UnpublishItemResult> {
         const record = requireRecord(id);

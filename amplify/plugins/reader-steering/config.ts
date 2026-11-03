@@ -281,7 +281,7 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       perDay: integer(submissions.perDay, "submissions.perDay", 10, 1, 1000),
       similarHours: integer(submissions.similarHours, "submissions.similarHours", 48, 1, 24 * 30),
       kinds: kinds.length > 0 ? kinds : ["link"],
-      itemType: lowercaseName(submissions.itemType, "submissions.itemType", "brief"),
+      itemType: lowercaseName(submissions.itemType, "submissions.itemType", "untyped"),
       section: lowercaseName(submissions.section, "submissions.section", "unsectioned"),
       ...(submissions.extraction === undefined
         ? {}

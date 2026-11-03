@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "963bab00-edd6-4182-b219-31809932aa0b",
+  "issue_id": "PPY-a5ed57d9-6ae5-4bf4-9b75-62dc5a8cd4f0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T05:30:26.709Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Edit pages as pages, not as Stories: a page editor (probably the wiki)",
+    "description": "Ryan 2026-11-03: Page is not a Story type, but the Story editor still offers a Page button so existing pages stay editable. We might need a specific way to edit pages as pages instead of trying to shoehorn them into stories; probably the wiki will end up being that. Follow-up only, not built in the story-types PR: decide the page editing surface, then remove the Page button from the Story editor.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-0a285b53-456c-46a3-b179-a9898f3d67ec",
+    "labels": []
+  }
+}

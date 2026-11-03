@@ -48,9 +48,9 @@ def item_of(client, result):
 def test_one_call_makes_a_linked_article_at_copywriting_started_from_the_summary():
     client = backend()
     result = create(client)
-    assert result["created"] and (result["itemType"], result["stage"], result["title"]) == ("article", "copywriting", "Clef decision models")
+    assert result["created"] and (result["itemType"], result["stage"], result["title"]) == ("untyped", "copywriting", "Clef decision models")
     item = item_of(client, result)
-    assert (item["type"], item["stage"], item["title"]) == ("article", "copywriting", "Clef decision models")
+    assert (item["type"], item["stage"], item["title"]) == ("untyped", "copywriting", "Clef decision models")
     body = item["bodyMarkus"]
     assert body.startswith('::image{src="https://blog.example.com/og/clef.png"') and 'credit="Image: Example Blog"' in body
     assert SUMMARY in body and body.rstrip().endswith(f"Source: [Clef decision models]({URL}), Example Blog.")

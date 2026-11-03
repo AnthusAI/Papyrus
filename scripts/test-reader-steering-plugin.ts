@@ -58,7 +58,7 @@ assert.deepEqual(defaults, {
     combination: "blend", shrinkageK: 20, readerShareCap: 0.4, newAccountWeight: 1, risingMinimumAccountHours: 0,
   },
   snapshot: { schedule: false, intervalHours: 6, hypeMinimum: 5 },
-  submissions: { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "brief", section: "unsectioned" },
+  submissions: { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "untyped", section: "unsectioned" },
   subjects: { types: ["item", "submission"] },
   moderation: { mode: "human", preModeration: false, reportsPerDay: 20 },
   comments: { perHour: 30, editWindowMinutes: 10, maximumLength: 2000, maximumLinks: 3 },
@@ -83,7 +83,7 @@ const tuned = resolveReaderSteeringConfig({ ...base, comments: { perHour: 5, edi
 assert.deepEqual(tuned.comments, { perHour: 5, editWindowMinutes: 0, maximumLength: 2000, maximumLinks: 0 });
 
 const withKinds = resolveReaderSteeringConfig({ ...base, submissions: { perDay: 20, kinds: ["article", "tool", "article"] } });
-assert.deepEqual(withKinds.submissions, { perDay: 20, similarHours: 48, kinds: ["article", "tool"], itemType: "brief", section: "unsectioned" });
+assert.deepEqual(withKinds.submissions, { perDay: 20, similarHours: 48, kinds: ["article", "tool"], itemType: "untyped", section: "unsectioned" });
 assert.deepEqual(resolveReaderSteeringConfig({ ...base, submissions: { itemType: "link", section: "tools" } }).submissions, { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "link", section: "tools" });
 
 assert.deepEqual(resolveReaderSteeringConfig({ ...base, moderation: { mode: "off" } }).moderation, { mode: "off", preModeration: false, reportsPerDay: 20 });

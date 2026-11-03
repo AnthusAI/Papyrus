@@ -11,6 +11,7 @@ for (const given of [
   "a published Story open in the editor on a site that offers the types article, post and guide",
   "a Story open in the editor on a site that declares no Story types",
   "a Story open in the editor on a phone",
+  "a new Story open in the editor on a site that names no default type",
 ]) Given(given, function () {});
 
 for (const when of [
@@ -26,7 +27,8 @@ const outcomes = {
   "the editor says in plain words that the Story has no public URL, and choosing Post takes the note away": "no_public_url",
   "saving in place was off, the live address stayed until the new version was published, and publishing said that the address moved": "live_story",
   "Publish is off and the editor says it would remove the live page": "live_story_to_a_type_without_a_page",
-  "only the article type and the page are offered": "a_site_that_declares_nothing",
+  "only the page and the Story's own type are offered": "a_site_that_declares_nothing",
+  "Type shows as not set with buttons to choose, Publish is off, and the editor says it cannot be published until a type is chosen, and choosing Post clears that": "type_not_set",
   "every type button is at least forty pixels tall and nothing scrolls sideways": "phone",
 };
 for (const [outcome, scenario] of Object.entries(outcomes)) Then(outcome, { timeout: 120000 }, async function () { await browser(scenario); });
