@@ -28,7 +28,7 @@ import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-poli
 import { referenceFeedKeys, referenceFeedStateKey } from "../../../lib/reference-feed-keys";
 import { claimGroups } from "../../../lib/staff-groups";
 import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
-import { createReferenceLink, decideReferenceLink, type ReferenceLinkStore } from "./reference-links";
+import { createReferenceLink, decideReferenceLink, describeEditorConcept, type ReferenceLinkStore } from "./reference-links";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
@@ -55,11 +55,13 @@ type ArchiveDraftCategoryHandler = Schema["archiveDraftCategory"]["functionHandl
 type ReviewReferenceTopicLabelHandler = Schema["reviewReferenceTopicLabel"]["functionHandler"];
 type LinkMessageHashtagsHandler = Schema["linkMessageHashtags"]["functionHandler"];
 type CreateReferenceLinkHandler = Schema["createReferenceLink"]["functionHandler"];
+type DescribeConceptHandler = Schema["describeConcept"]["functionHandler"];
 type DecideReferenceLinkHandler = Schema["decideReferenceLink"]["functionHandler"];
 type CategoryActionEvent =
   | Parameters<LinkMessageHashtagsHandler>[0]
   | Parameters<CreateReferenceLinkHandler>[0]
   | Parameters<DecideReferenceLinkHandler>[0]
+  | Parameters<DescribeConceptHandler>[0]
   | Parameters<ReviewHandler>[0]
   | Parameters<ReferenceCurationHandler>[0]
   | Parameters<CreateCurationDelegationHandler>[0]
@@ -135,6 +137,7 @@ export const handler = async (event: CategoryActionEvent) => {
     throw new Error("Unsupported steering action: missing GraphQL field name.");
   }
   if (fieldName === "createReferenceLink") return createReferenceLinkAction(event as Parameters<CreateReferenceLinkHandler>[0]);
+  if (fieldName === "describeConcept") return describeConceptAction(event as Parameters<DescribeConceptHandler>[0]);
   if (fieldName === "decideReferenceLink") return decideReferenceLinkAction(event as Parameters<DecideReferenceLinkHandler>[0]);
   if (fieldName === "linkMessageHashtags") return linkMessageHashtagsAction(event as Parameters<LinkMessageHashtagsHandler>[0]);
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
@@ -664,7 +667,7 @@ async function linkMessageHashtagsAction(event: Parameters<LinkMessageHashtagsHa
   return linkMessageHashtags(store, { messageId, callerSub, now: new Date().toISOString() });
 }
 
-async function referenceLinkStore(): Promise<ReferenceLinkStore> {
+async function referenceLinkStore(): Promise<ReferenceLinkStore & { updateSemanticNode(node: Record<string, unknown>): Promise<void> }> {
   const client = await getDataClient();
   return {
     getCurrentReference: async (idOrLineageId) => {
@@ -699,6 +702,14 @@ async function referenceLinkStore(): Promise<ReferenceLinkStore> {
       assertNoDataErrors(response.errors, "get SemanticRelation");
       return response.data ?? null;
     },
+    createSemanticNode: async (node) => {
+      const response = await client.models.SemanticNode.create(node as any);
+      if (response.errors?.length) return false;   // the id exists (a second tap): the caller reads it back
+      return true;
+    },
+    updateSemanticNode: async (node: Record<string, unknown>) => {
+      await requireDataResult(client.models.SemanticNode.update(node as any), "update SemanticNode description");
+    },
     putRelation: async (relation, existing) => {
       const write = existing ? client.models.SemanticRelation.update(relation as any) : client.models.SemanticRelation.create({ ...relation, createdAt: relation.updatedAt } as any);
       await requireDataResult(write, "write reference link SemanticRelation");
@@ -715,6 +726,18 @@ async function createReferenceLinkAction(event: Parameters<CreateReferenceLinkHa
     objectLineageId: normalizeRequiredString(event.arguments.objectLineageId, "objectLineageId"),
     predicate: normalizeRequiredString(event.arguments.predicate, "predicate"),
     note: normalizeOptionalString(event.arguments.note),
+    newConceptName: normalizeOptionalString(event.arguments.newConceptName),
+    callerSub,
+    now: new Date().toISOString(),
+  });
+}
+
+async function describeConceptAction(event: Parameters<DescribeConceptHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to describe a concept.");
+  return describeEditorConcept((await referenceLinkStore()) as any, {
+    lineageId: normalizeRequiredString(event.arguments.lineageId, "lineageId"),
+    description: normalizeOptionalString(event.arguments.description),
     callerSub,
     now: new Date().toISOString(),
   });

@@ -6,6 +6,7 @@ import {
   type RelatedEntry, type RelatedItem, type RelationRow, type SuggestionLabel,
 } from "../lib/reference-links";
 import type { ReferenceRecord, SemanticNodeRecord, SemanticRelationRecord } from "../lib/category-repository";
+import { conceptSlug, editorConceptItem, editorConceptLineageId } from "../lib/reference-links";
 import { createLinkResolver } from "../lib/reference-links-resolve";
 import { conceptKeysForHashtag } from "../lib/wiki";
 import type { ReferenceLinksStore, SuggestOutcome } from "./reference-links-context";
@@ -16,6 +17,10 @@ import {
 
 const CREATE_REFERENCE_LINK_MUTATION =
   "mutation CreateReferenceLink($subjectLineageId: ID!, $objectKind: String!, $objectLineageId: ID!, $predicate: String!, $note: String) { createReferenceLink(subjectLineageId: $subjectLineageId, objectKind: $objectKind, objectLineageId: $objectLineageId, predicate: $predicate, note: $note) { ok relationId relationState outcome } }";
+const CREATE_CONCEPT_AND_LINK_MUTATION =
+  "mutation CreateConceptAndLink($subjectLineageId: ID!, $objectKind: String!, $objectLineageId: ID!, $predicate: String!, $newConceptName: String) { createReferenceLink(subjectLineageId: $subjectLineageId, objectKind: $objectKind, objectLineageId: $objectLineageId, predicate: $predicate, newConceptName: $newConceptName) { ok relationId relationState outcome } }";
+const DESCRIBE_CONCEPT_MUTATION =
+  "mutation DescribeConcept($lineageId: ID!, $description: String) { describeConcept(lineageId: $lineageId, description: $description) { ok lineageId description } }";
 const DECIDE_REFERENCE_LINK_MUTATION =
   "mutation DecideReferenceLink($relationId: ID!, $decision: String!, $reasonCode: String, $note: String) { decideReferenceLink(relationId: $relationId, decision: $decision, reasonCode: $reasonCode, note: $note) { ok relationId relationState decision } }";
 const SUGGEST_REFERENCE_LINKS_MUTATION =
@@ -136,6 +141,20 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
     async decide(input) {
       const data = await runGraphql<{ decideReferenceLink?: { ok: boolean } }>(DECIDE_REFERENCE_LINK_MUTATION, input);
       if (!data.decideReferenceLink?.ok) throw new Error("The decision could not be saved.");
+    },
+    async createConceptAndTag(referenceLineageId, name) {
+      const slug = conceptSlug(name);
+      if (!slug) throw new Error("A concept needs a name.");
+      const lineageId = editorConceptLineageId(slug);
+      const data = await runGraphql<{ createReferenceLink?: { ok: boolean; relationId: string } }>(CREATE_CONCEPT_AND_LINK_MUTATION, {
+        subjectLineageId: referenceLineageId, objectKind: "semanticNode", objectLineageId: lineageId, predicate: "related_to", newConceptName: slug,
+      });
+      if (!data.createReferenceLink?.ok) throw new Error("The concept could not be created.");
+      return { relationId: data.createReferenceLink.relationId, item: editorConceptItem(slug) };
+    },
+    async describeConcept(conceptLineageId, description) {
+      const data = await runGraphql<{ describeConcept?: { ok: boolean } }>(DESCRIBE_CONCEPT_MUTATION, { lineageId: conceptLineageId, description });
+      if (!data.describeConcept?.ok) throw new Error("The description could not be saved.");
     },
     async suggest(referenceId) {
       const data = await runGraphql<{ suggestReferenceLinks?: unknown }>(SUGGEST_REFERENCE_LINKS_MUTATION, { input: JSON.stringify({ referenceId }) });

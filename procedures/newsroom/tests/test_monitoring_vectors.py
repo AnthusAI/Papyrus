@@ -62,6 +62,8 @@ class AcceptedClient:
         return self.threads
 
     def list_by_index(self, index_name, key_value, *, limit=100):
+        if not key_value.endswith(("#accepted", "#pending")):
+            return []   # the link feed, read for human tags: none here
         self.asked.append((index_name, key_value))
         return list(self.pending if key_value.endswith("#pending") else self.rows)
 

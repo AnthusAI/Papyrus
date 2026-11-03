@@ -13,8 +13,13 @@ from papyrus_knowledge_query.concept_kinds import NON_CONCEPT_KINDS, is_concept,
 
 
 def test_the_bookkeeping_and_author_kinds_are_the_ones_the_public_wiki_already_leaves_out_plus_bulk_extractions():
-    wiki = {kind_token(kind) for kind in (*INTERNAL_KINDS, *OPT_IN_KINDS)}
+    wiki = {kind_token(kind) for kind in (*INTERNAL_KINDS, *OPT_IN_KINDS)} - {kind_token("editor_concept")}
     assert wiki <= NON_CONCEPT_KINDS and NON_CONCEPT_KINDS - wiki == {"entity", "identifier"}
+
+
+def test_a_concept_an_editor_invented_is_a_concept_though_the_wiki_does_not_publish_it_by_itself():
+    assert is_concept("editor_concept", "editor_concept--fake-website-networks")
+    assert kind_token("editor_concept") in {kind_token(kind) for kind in OPT_IN_KINDS}
 
 
 def test_real_vocabulary_kinds_are_concepts_and_authors_and_bookkeeping_are_not():
