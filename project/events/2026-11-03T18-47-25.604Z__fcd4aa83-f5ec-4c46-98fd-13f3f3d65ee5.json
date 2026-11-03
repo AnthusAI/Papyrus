@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fcd4aa83-f5ec-4c46-98fd-13f3f3d65ee5",
+  "issue_id": "PPY-4c0490d0-f60c-4832-8f1f-5bbc2588db7a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T18:47:25.604Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Hugging Face daily papers monitor source type",
+    "description": "huggingface.co/api/daily_papers has no RSS. Read the JSON list beside huggingface-models. Canonical URL is the arXiv abstract page so it dedupes with the arXiv monitors; upvotes stay in details.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-dd6c50f1-9918-46d6-8148-f1f759d14aea",
+    "labels": []
+  }
+}
