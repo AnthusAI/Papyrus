@@ -75,3 +75,18 @@ test("the preview matcher can stand in for meaning, which is listed after the wo
   const page = previewSearch(records, { query: "memory", show: "all", limit: 24, cursor: null }, { meaning: { memory: ["recall"] } });
   assert.deepEqual(page.items.map((item) => [item.reference.lineageId, item.matchedBy]), [["both", ["keyword", "meaning"]], ["words", ["keyword"]], ["meaning", ["meaning"]]]);
 });
+
+test("the preview matcher orders by newest or quality and keeps a minimum of stars, like the site's search", () => {
+  const records = [
+    make("a", { title: "Topic a", starRating: 5, createdAt: "2026-11-01T10:00:00.000Z" }), make("b", { title: "Topic b", starRating: 3, createdAt: "2026-11-02T10:00:00.000Z" }),
+    make("c", { title: "Topic c", createdAt: "2026-11-03T10:00:00.000Z" }), make("d", { title: "Topic d", starRating: 5, createdAt: "2026-11-04T10:00:00.000Z" }),
+    make("e", { title: "Topic e", starRating: 4.5, createdAt: "2026-11-05T10:00:00.000Z" }),
+  ];
+  const ask = (extra: Partial<Parameters<typeof previewSearch>[1]>) => previewSearch(records, { query: "topic", show: "all", limit: 24, cursor: null, ...extra }).items.map((item) => item.reference.lineageId);
+  assert.deepEqual(ask({ sort: "newest" }), ["e", "d", "c", "b", "a"]);
+  assert.deepEqual(ask({ sort: "quality" }), ["d", "a", "b", "e", "c"], "an unstarred match is last, never lost; 4.5 is not a rating");
+  assert.deepEqual(ask({ sort: "newest", minStars: 4 }), ["d", "a"]);
+  assert.deepEqual(ask({ sort: "quality", minStars: 3 }), ["d", "a", "b"]);
+  assert.deepEqual(ask({ minStars: 5 }).sort(), ["a", "d"], "relevance order with a minimum");
+  assert.equal(ask({ minStars: null }).length, 5);
+});

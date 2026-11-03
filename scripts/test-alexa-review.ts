@@ -102,7 +102,7 @@ function conversation(newsroom: NewsroomReview | undefined, options: { token?: s
 const mixed = () => [reference(1, 0.92), reference(2, 0.55), reference(3, 0.1), reference(4, 0.48), reference(5, undefined)];
 
 const behaviours: Record<string, () => Promise<void> | void> = {
-  "best bets are ordered by P(accept) and needs my help by uncertainty": () => {
+  "predictions are ordered by P(accept) and needs my help by uncertainty": () => {
     const best = orderQueue(mixed(), "best").map((item) => item.id);
     assert.deepEqual(best, ["ref-1", "ref-2", "ref-5", "ref-4", "ref-3"], "highest P first; no prediction counts as 0.5");
     const help = orderQueue(mixed(), "help").map((item) => item.id);
@@ -110,14 +110,17 @@ const behaviours: Record<string, () => Promise<void> | void> = {
     assert.equal(help.at(-1), "ref-1");
   },
 
-  "an editor reviews the best bets one by one and votes are recorded as theirs": async () => {
+  "an editor reviews the predictions one by one and votes are recorded as theirs": async () => {
     const { review, votes } = fakeNewsroom(mixed());
     const talk = conversation(review, { token: "editor-token", screen: true });
-    const first = await talk.intent("StartReviewIntent", { queue: "best bets" });
+    const first = await talk.intent("StartReviewIntent", { queue: "predictions" });
     assert.match(first.speech, /^5 references are waiting, starting with the ones I think you'll like most\. Number 1 of 5\. Reference number 1 From Example Source\. The subtitle of reference 1\. The summary of reference 1\./);
     assert.match(first.speech, /Say accept, or reject and why/);
     assert.equal(first.directives[0]?.token, "reference");
-    assert.equal(first.directives[0]?.datasources?.referenceData.queueLabel, "Best bets · 1 of 5");
+    assert.equal(first.directives[0]?.datasources?.referenceData.queueLabel, "Predictions · 1 of 5");
+    // People who still say the old name are understood: "best bets" is an accepted alias that starts the same list.
+    const alias = await conversation(fakeNewsroom(mixed()).review, { token: "editor-token", screen: true }).intent("StartReviewIntent", { queue: "best bets" });
+    assert.equal(alias.directives[0]?.datasources?.referenceData.queueLabel, "Predictions · 1 of 5");
     const second = await talk.intent("AcceptReferenceIntent");
     assert.match(second.speech, /^Accepted\. Number 2 of 5\. Reference number 2/);
     assert.match(second.speech, /Accept, reject, or skip\?$/, "the prompt is short once heard");
@@ -132,7 +135,7 @@ const behaviours: Record<string, () => Promise<void> | void> = {
   "a bare reject asks why and the because answer completes it": async () => {
     const { review, votes } = fakeNewsroom(mixed());
     const talk = conversation(review);
-    await talk.intent("StartReviewIntent", { queue: "best bets" });
+    await talk.intent("StartReviewIntent", { queue: "predictions" });
     const ask = await talk.intent("RejectReferenceIntent");
     assert.match(ask.speech, /^Why\? Say because, and the reason/);
     assert.equal(votes.length, 0, "nothing is recorded without a reason");
@@ -149,19 +152,19 @@ const behaviours: Record<string, () => Promise<void> | void> = {
   "without a named list it starts with what needs help and says how to switch": async () => {
     const { review } = fakeNewsroom(mixed());
     const turn = await conversation(review).intent("StartReviewIntent");
-    assert.match(turn.speech, /^Starting with what needs your help\. Say best bets any time/);
+    assert.match(turn.speech, /^Starting with what needs your help\. Say predictions any time/);
     assert.match(turn.speech, /starting with the ones I'm least sure about\. Number 1 of 5\. Reference number 5/);
   },
 
   "skip, undo, previous and repeat move without losing the editor": async () => {
     const { review, votes } = fakeNewsroom(mixed());
     const talk = conversation(review);
-    await talk.intent("StartReviewIntent", { queue: "best bets" });
+    await talk.intent("StartReviewIntent", { queue: "predictions" });
     assert.match((await talk.intent("SkipReferenceIntent")).speech, /^Skipped\. Number 2 of 5/);
     assert.match((await talk.intent("AMAZON.NextIntent")).speech, /^Skipped\. Number 3 of 5/, "next means skip during review");
     assert.match((await talk.intent("AcceptReferenceIntent")).speech, /^Accepted\. Number 4 of 5/);
     const undone = await talk.intent("UndoVoteIntent");
-    // Best-bets order is 1, 2, 5 (no prediction counts as 0.5), 4, 3: the accepted third one is reference 5.
+    // Predictions order is 1, 2, 5 (no prediction counts as 0.5), 4, 3: the accepted third one is reference 5.
     assert.match(undone.speech, /^Undone: that one is no longer accepted\. Number 3 of 5\. Reference number 5/);
     assert.deepEqual(votes.at(-1), { referenceId: "ref-5", action: "reopen" });
     assert.match((await talk.intent("AMAZON.RepeatIntent")).speech, /Number 3 of 5\. Reference number 5/);
@@ -172,14 +175,14 @@ const behaviours: Record<string, () => Promise<void> | void> = {
   "the editor can ask where they are, why, who published it, and for the link": async () => {
     const { review } = fakeNewsroom(mixed());
     const talk = conversation(review);
-    await talk.intent("StartReviewIntent", { queue: "best bets" });
+    await talk.intent("StartReviewIntent", { queue: "predictions" });
     assert.match((await talk.intent("HowManyLeftIntent")).speech, /^5 are left, counting this one\./);
     assert.match((await talk.intent("WhyThisReferenceIntent")).speech, /The Cyclotron thinks you'd accept it, about 92 percent sure\./);
     assert.match((await talk.intent("ReferenceSourceIntent")).speech, /It's from Example Source, published October 11, 2026\./);
     const sent = await talk.intent("SendReferenceToPhoneIntent");
     assert.match(sent.speech, /sent the link to the Alexa app/);
     assert.equal(sent.card?.type, "Simple");
-    assert.match((await talk.intent("AMAZON.HelpIntent")).speech, /You're in best bets, number 1 of 5\. Say accept, or reject and why/);
+    assert.match((await talk.intent("AMAZON.HelpIntent")).speech, /You're in predictions, number 1 of 5\. Say accept, or reject and why/);
     assert.match((await talk.intent("ContinueIntent")).speech, /The subtitle of reference 1\. The summary of reference 1\. It has a second sentence\./, "more reads the whole summary");
     assert.match((await talk.intent("BulkReviewIntent")).speech, /one at a time/);
   },
@@ -195,7 +198,7 @@ const behaviours: Record<string, () => Promise<void> | void> = {
   "touch buttons on the card do what the words do": async () => {
     const { review, votes } = fakeNewsroom(mixed());
     const talk = conversation(review, { token: "editor-token", screen: true });
-    await talk.intent("StartReviewIntent", { queue: "best bets" });
+    await talk.intent("StartReviewIntent", { queue: "predictions" });
     assert.match((await talk.touch("accept")).speech, /^Accepted\./);
     assert.match((await talk.touch("reject")).speech, /^Why\?/, "a touched reject still asks why");
     assert.match((await talk.touch("skip")).speech, /^Skipped\./);
@@ -205,7 +208,7 @@ const behaviours: Record<string, () => Promise<void> | void> = {
   "the end of a round offers the other list": async () => {
     const { review } = fakeNewsroom([reference(1, 0.9), reference(2, 0.8)]);
     const talk = conversation(review);
-    await talk.intent("StartReviewIntent", { queue: "best bets" });
+    await talk.intent("StartReviewIntent", { queue: "predictions" });
     await talk.intent("AcceptReferenceIntent");
     const end = await talk.intent("AcceptReferenceIntent");
     assert.match(end.speech, /^Accepted\. That's the end of this round\. Say needs your help for the other list, or stop\./);
@@ -215,7 +218,7 @@ const behaviours: Record<string, () => Promise<void> | void> = {
 
   "a session carries a capped queue but counts them all": async () => {
     const many = Array.from({ length: 40 }, (_, index) => reference(index + 1, index / 40));
-    const turn = await conversation(fakeNewsroom(many).review).intent("StartReviewIntent", { queue: "best bets" });
+    const turn = await conversation(fakeNewsroom(many).review).intent("StartReviewIntent", { queue: "predictions" });
     assert.match(turn.speech, /^40 references are waiting/);
     assert.match(turn.speech, /Number 1 of 40/);
     assert.ok(QUEUE_SESSION_LIMIT < 40);
@@ -233,20 +236,20 @@ const behaviours: Record<string, () => Promise<void> | void> = {
 
   "a refused or failed vote records nothing and says so": async () => {
     const refused = conversation(fakeNewsroom(mixed(), { refuseVotes: true }).review);
-    await refused.intent("StartReviewIntent", { queue: "best bets" });
+    await refused.intent("StartReviewIntent", { queue: "predictions" });
     const answer = await refused.intent("AcceptReferenceIntent");
     assert.equal(answer.card?.type, "LinkAccount");
     assert.match(answer.speech, /nothing was recorded/);
     const failing = conversation(fakeNewsroom(mixed(), { failVotes: true }).review);
-    await failing.intent("StartReviewIntent", { queue: "best bets" });
+    await failing.intent("StartReviewIntent", { queue: "predictions" });
     assert.match((await failing.intent("AcceptReferenceIntent")).speech, /couldn't record that, so nothing changed/);
   },
 
   "review words outside a review get a way in, and stop leaves cleanly": async () => {
     const { review } = fakeNewsroom(mixed());
     const talk = conversation(review);
-    assert.match((await talk.intent("AcceptReferenceIntent")).speech, /not reviewing anything right now\. Say needs my help, or best bets/);
-    await talk.intent("StartReviewIntent", { queue: "best bets" });
+    assert.match((await talk.intent("AcceptReferenceIntent")).speech, /not reviewing anything right now\. Say needs my help, or predictions/);
+    await talk.intent("StartReviewIntent", { queue: "predictions" });
     assert.match((await talk.intent("AMAZON.FallbackIntent")).speech, /^Sorry, I didn't catch that\. Say accept, reject and why, or skip/, "no headline dump mid-review");
     const stop = await talk.intent("DoneReviewingIntent");
     assert.equal(stop.ends, true);

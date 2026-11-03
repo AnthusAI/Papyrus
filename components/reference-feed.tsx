@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowDownWideNarrowIcon, CheckCheckIcon, CircleDashedIcon, ClockIcon, InfoIcon, ListChecksIcon, Loader2Icon, MessageSquareIcon, RefreshCwIcon, SearchIcon, SparklesIcon, XIcon } from "lucide-react";
+import { ArrowDownWideNarrowIcon, AwardIcon, CheckCheckIcon, CircleDashedIcon, ClockIcon, InfoIcon, ListChecksIcon, Loader2Icon, MessageSquareIcon, RefreshCwIcon, SearchIcon, SparklesIcon, StarIcon, StarOffIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import type { ReferenceRecord } from "../lib/category-repository";
 import { REFERENCE_REJECTION_REASON_CODES, isAutoAccepted, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import {
   referenceDisplayTime,
   type FeedItem,
+  type FeedMinStars,
   type FeedShow,
   type FeedSort,
 } from "../lib/reference-feed-ranking";
@@ -46,10 +47,28 @@ export const REASON_LABELS: Record<ReferenceRejectionReasonCode, string> = {
   other: "Other",
 };
 
-const SORTS: Array<{ key: FeedSort; label: string; Icon: typeof SparklesIcon }> = [
-  { key: "best", label: "Best bets", Icon: SparklesIcon },
+/** The Sort choices: while a search is open Predictions is Relevance (how well each Reference matches), which the search keeps for itself. */
+export type FeedSortChoice = FeedSort | "relevance";
+const SORTS: Array<{ key: FeedSortChoice; label: string; Icon: typeof SparklesIcon }> = [
+  { key: "best", label: "Predictions", Icon: SparklesIcon },
   { key: "newest", label: "Newest", Icon: ClockIcon },
+  { key: "quality", label: "Quality", Icon: AwardIcon },
 ];
+const SEARCH_SORTS: typeof SORTS = [
+  { key: "relevance", label: "Relevance", Icon: ArrowDownWideNarrowIcon },
+  SORTS[1]!,
+  SORTS[2]!,
+];
+/** Minimum stars: a floor, never "only 3" or "only 2". The icon and the number say it, not colour. */
+const MIN_STARS: Array<{ key: FeedMinStars; label: string; spoken: string }> = [
+  { key: 0, label: "Any", spoken: "" },
+  { key: 3, label: "3+", spoken: " stars or more" },
+  { key: 4, label: "4+", spoken: " stars or more" },
+  { key: 5, label: "5", spoken: " stars" },
+];
+export function minStarsPhrase(minStars: FeedMinStars): string {
+  return minStars === 5 ? "5 stars" : `${minStars} or more stars`;
+}
 const SHOWS: Array<{ key: FeedShow; label: string; Icon: typeof SparklesIcon }> = [
   { key: "unrated", label: "Unrated", Icon: CircleDashedIcon },
   { key: "all", label: "All", Icon: CheckCheckIcon },
@@ -73,13 +92,17 @@ export type ReferenceFeedProps = {
   /** Saves a star rating (null clears it). Without it, and without a shared store that rates stars, the cards show no stars. */
   onSetStars?: (reference: ReferenceRecord, stars: number | null) => Promise<void> | void;
   onVisitRated: (lineageId: string) => void;
-  onSortChange: (sort: FeedSort) => void;
+  onSortChange: (sort: FeedSortChoice) => void;
   onShowChange: (show: FeedShow) => void;
+  /** The Minimum stars row. Without it the feed has no such row (a page that does not read by stars). */
+  onMinStarsChange?: (minStars: FeedMinStars) => void;
+  minStars?: FeedMinStars;
   /** The visible list, already ordered by the chosen sort and filtered by the chosen Show. */
   items: FeedItem[];
   /** How many References already have an answer, for the empty text. */
   ratedCount: number;
-  sort: FeedSort;
+  /** The chosen sort; while a search is open, the search's own (Relevance, Newest or Quality). */
+  sort: FeedSortChoice;
   show: FeedShow;
   predictionLoading?: boolean;
   /** Each Reference's own prediction read. A failure shows on that card only, with a way to read it again. */
@@ -482,10 +505,11 @@ function RankingPopover() {
         >
           <p className="text-base font-bold">A feed run by algorithms you control</p>
           <ol className="list-decimal space-y-2.5 pl-5">
-            <li><strong>Best bets</strong> puts the items the Cyclotron is most sure you will Accept first. It goes by confidence alone: an Accept at 90% ranks above an Accept at 60%, and the ones it expects you to Reject most surely come last. Items with no prediction sit in the middle. Age does not change this order.</li>
+            <li><strong>Predictions</strong> puts the items the Cyclotron is most sure you will Accept first. It goes by confidence alone: an Accept at 90% ranks above an Accept at 60%, and the ones it expects you to Reject most surely come last. Items with no prediction sit in the middle. Age does not change this order.</li>
             <li><strong>Newest</strong> puts the items that arrived most recently first.</li>
-            <li><strong>Unrated</strong> shows items nobody has answered yet. <strong>All</strong> adds the ones you have already accepted or rejected to the same list, showing your answer, in the same sort. <strong>Rated</strong> lists just those answered ones, in the same sort, so you can find one again; Best bets there still goes by the Cyclotron&apos;s original confidence, not by your answer. Nothing is hidden because it is old.</li>
-            <li><strong>Search</strong> looks for your words in titles, authors, links and ids, and for meaning in the summaries, at the same time, over every Reference whether or not it has been answered. Results are ordered by how well they match (Relevance) and each says how it matched. Show starts on All for a search; clearing the search brings back your own Sort and Show.</li>
+            <li><strong>Quality</strong> puts the items you gave the most stars first, newest first within each number of stars. Only items with stars are in it. <strong>Minimum stars</strong> keeps the items with at least 3, 4 or 5 stars in whichever sort you chose. Stars are your own interest: the Cyclotron never sees them.</li>
+            <li><strong>Unrated</strong> shows items nobody has answered yet. <strong>All</strong> adds the ones you have already accepted or rejected to the same list, showing your answer, in the same sort. <strong>Rated</strong> lists just those answered ones, in the same sort, so you can find one again; Predictions there still goes by the Cyclotron&apos;s original confidence, not by your answer. Nothing is hidden because it is old.</li>
+            <li><strong>Search</strong> looks for your words in titles, authors, links and ids, and for meaning in the summaries, at the same time, over every Reference whether or not it has been answered. Results are ordered by how well they match (Relevance) unless you choose Newest or Quality, and each says how it matched. Show starts on All for a search; clearing the search brings back your own Sort and Show.</li>
             <li><strong>Your answers stay put.</strong> A card you rate stays where it is for this visit, and new items wait behind a button until you ask for them.</li>
           </ol>
         </div>
@@ -586,6 +610,8 @@ export function ReferenceFeed({
   onSetStars,
   onShowChange,
   onSortChange,
+  onMinStarsChange,
+  minStars = 0,
   onVisitRated,
   items,
   ratedCount,
@@ -610,6 +636,7 @@ export function ReferenceFeed({
   search,
 }: ReferenceFeedProps) {
   const searching = Boolean(search?.query);
+  const minStarsLabelId = useId();
 
   const renderCard = (item: FeedItem, lead: boolean) => (
     <FeedCard
@@ -643,26 +670,34 @@ export function ReferenceFeed({
   // Previous / Next in the detail pane scrolls the grid to the same card, smoothly. Selecting a card by clicking it never scrolls.
   useEffect(() => {
     if (!scrollTarget || typeof document === "undefined") return;
-    document.querySelector(`[data-feed-card="${CSS.escape(scrollTarget.id)}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const card = document.querySelector(`[data-feed-card="${CSS.escape(scrollTarget.id)}"]`);
+    const scroller = card?.closest<HTMLElement>("[data-reference-feed-scroll]");
+    if (!card) return;
+    if (!scroller || scroller.scrollHeight <= scroller.clientHeight) {
+      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
+    // Only the feed's own scroller moves: scrollIntoView would also move the page around it and shift the detail pane.
+    const box = card.getBoundingClientRect();
+    const view = scroller.getBoundingClientRect();
+    const bottom = Math.min(view.bottom, window.innerHeight);
+    const by = box.top < view.top ? box.top - view.top : box.bottom > bottom ? Math.min(box.bottom - bottom, box.top - view.top) : 0;
+    if (by) scroller.scrollBy({ top: by, behavior: "smooth" });
   }, [scrollTarget]);
 
 
   return (
-    <div className="@container space-y-5" data-reference-feed data-feed-sort={searching ? "relevance" : sort} data-feed-show={show} data-feed-searching={searching || undefined} {...FEED_SURFACE_PROPS}>
+    <div className="@container space-y-5" data-reference-feed data-feed-sort={sort} data-feed-show={show} data-feed-min-stars={minStars} data-feed-searching={searching || undefined} {...FEED_SURFACE_PROPS}>
       {search ? <FeedSearchBox onClear={search.onClear} onSubmit={search.onSubmit} query={search.query} /> : null}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div aria-label="Sort" className="inline-flex rounded-full bg-[var(--feed-card)] p-1" data-feed-control="sort" role="group">
-            {searching ? (
-              // A search is ordered by how well each Reference matches; the saved Sort comes back when the search is cleared.
-              <span className={cn(PILL, "bg-[var(--feed-control)] px-3.5 text-foreground")} data-feed-sort-relevance>
-                <ArrowDownWideNarrowIcon aria-hidden="true" className="size-4" />Relevance
-              </span>
-            ) : SORTS.map(({ key, label, Icon }) => (
+            {(searching ? SEARCH_SORTS : SORTS).map(({ key, label, Icon }) => (
               <button
                 aria-pressed={sort === key}
                 className={cn(PILL, "px-3.5", sort === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground")}
                 data-feed-sort-button={key}
+                {...(key === "relevance" ? { "data-feed-sort-relevance": true } : {})}
                 key={key}
                 onClick={() => onSortChange(key)}
                 type="button"
@@ -685,6 +720,25 @@ export function ReferenceFeed({
               </button>
             ))}
           </div>
+          {onMinStarsChange ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1" data-feed-control="min-stars">
+              <span className="whitespace-nowrap text-sm text-muted-foreground" id={minStarsLabelId}>Minimum stars</span>
+              <div aria-labelledby={minStarsLabelId} className="inline-flex rounded-full bg-[var(--feed-card)] p-1" role="group">
+                {MIN_STARS.map(({ key, label, spoken }) => (
+                  <button
+                    aria-pressed={minStars === key}
+                    className={cn(PILL, "px-3.5", minStars === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground")}
+                    data-feed-min-stars-button={key}
+                    key={key}
+                    onClick={() => onMinStarsChange(key)}
+                    type="button"
+                  >
+                    {key ? <StarIcon aria-hidden="true" className="size-4" /> : null}{label}<span className="sr-only">{spoken}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           {stale ? (
@@ -717,6 +771,14 @@ export function ReferenceFeed({
           </>
         ) : hasMore || loadingMore ? (
           <FeedMoreSentinel hasMore={hasMore} itemCount={0} loadingMore={loadingMore} onLoadMore={onLoadMore} />
+        ) : minStars > 0 && onMinStarsChange ? (
+          // The minimum is the likeliest reason for an empty list, so it is named, with a way to take it off.
+          <div className="flex flex-col items-center gap-3 rounded-[20px] bg-[var(--feed-card)] p-10 text-center text-sm text-muted-foreground" data-feed-empty data-feed-min-stars-empty>
+            <p>{searching ? `Nothing matches “${search?.query}” with ${minStarsPhrase(minStars)}.` : `Nothing here has ${minStarsPhrase(minStars)}.`}</p>
+            <button className={cn(PILL, "bg-[var(--feed-control)] text-foreground")} data-feed-min-stars-clear onClick={() => onMinStarsChange(0)} type="button">
+              <StarOffIcon aria-hidden="true" className="size-4" />Show any stars
+            </button>
+          </div>
         ) : searching ? (
           show === "all" ? empty(`No References match “${search?.query}”.`) : (
             <div className="flex flex-col items-center gap-3 rounded-[20px] bg-[var(--feed-card)] p-10 text-center text-sm text-muted-foreground" data-feed-empty data-feed-search-empty>
@@ -726,7 +788,8 @@ export function ReferenceFeed({
               </button>
             </div>
           )
-        ) : empty(show === "rated"
+        ) : sort === "quality" ? empty("No References have stars yet. Rate a Reference with stars and it will be listed here.")
+        : empty(show === "rated"
           ? "Nothing rated yet. Accept or reject a reference and it will be listed here."
           : ratedCount && show === "unrated" ? "You are all caught up. Choose All to see your answers." : "No references yet.")
       )}

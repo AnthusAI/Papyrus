@@ -126,6 +126,8 @@ def assignments_intake_proposals(flags: list[str]) -> None:
     print(f"assignments\tprocess-proposals\tassignment\t{result['assignmentId']}")
     print(f"assignments\tprocess-proposals\tcatalog\t{result.get('catalogPath')}")
     print(f"assignments\tprocess-proposals\tregistered\t{result.get('registeredReferenceCount')}")
+    if result.get("citedOnly"):
+        print(f"assignments\tprocess-proposals\tcited-only\t{result.get('consideredSourceCount')} sources in the packet, {result.get('heldReferenceCount')} already held")
 
 
 def assignments_research_intake_now(flags: list[str]) -> None:

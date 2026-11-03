@@ -2,7 +2,7 @@
 
 import { loadReferenceReviewDetails } from "../lib/reference-review-details";
 import { loadAllPages } from "../lib/newsroom-all-pages";
-import { feedReaderFromRecords, type FeedStreamReader } from "../lib/reference-feed-pages";
+import { feedReaderFromRecords, starReaderFromRecords, type FeedStreamReader } from "../lib/reference-feed-pages";
 import { PREVIEW_SEARCH_MEANING, parseSearchPage, previewSearch, type ReferenceSearchReader } from "../lib/reference-search";
 import { hasEditorRights } from "../lib/staff-groups";
 
@@ -2080,6 +2080,34 @@ export const readReferenceFeedStream: FeedStreamReader = async ({ feedStateKey, 
   );
   const connection = data[field];
   if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+  return { items: (connection.items ?? []).filter(Boolean) as ReferenceRecord[], nextToken: connection.nextToken ?? null };
+};
+
+const LIST_REFERENCES_BY_STAR_FEED_AND_ARRIVAL_QUERY = `
+  query ListReferencesByStarFeedAndArrival($starFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
+    listReferencesByStarFeedAndArrival(starFeedKey: $starFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+      items { ${REFERENCE_RECORD_GRAPHQL_FIELDS} }
+      nextToken
+    }
+  }
+`;
+
+/**
+ * One page of one star partition (`<corpusId>#stars#<n>`), newest arrival first, for the Quality sort and the minimum of stars. The query's key is
+ * passed as `feedStateKey` like the feed's own. The index keeps a Reference for as long as it has stars, so the rows can include a superseded or
+ * archived one; `liveStarRows` drops those (docs/reference-feed-indexes.md).
+ */
+export const readReferenceStarStream: FeedStreamReader = async ({ feedStateKey, limit, nextToken }) => {
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) return starReaderFromRecords(testMock.references)({ feedStateKey, sort: "newest", limit, nextToken });
+  if (isLocalPreviewEnabled()) return starReaderFromRecords(createLocalPreviewReferences())({ feedStateKey, sort: "newest", limit, nextToken });
+  const data = await runGraphql<Record<string, { items?: Array<ReferenceRecord | null> | null; nextToken?: string | null } | null>>(
+    LIST_REFERENCES_BY_STAR_FEED_AND_ARRIVAL_QUERY,
+    { starFeedKey: feedStateKey, sortDirection: "DESC", limit, nextToken },
+  );
+  const connection = data.listReferencesByStarFeedAndArrival;
+  if (!connection) throw new Error("Missing GraphQL connection payload for listReferencesByStarFeedAndArrival.");
   return { items: (connection.items ?? []).filter(Boolean) as ReferenceRecord[], nextToken: connection.nextToken ?? null };
 };
 

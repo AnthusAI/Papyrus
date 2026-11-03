@@ -50,7 +50,7 @@ import { ReferenceSourcePreview } from "./reference-source-preview";
 import { ReferenceStories } from "./reference-stories";
 import { useReferencePreviewAttachments } from "./use-reference-preview-attachments";
 import { FEED_SURFACE_PROPS, FEED_SURFACE_STYLE, ReferenceFeed } from "./reference-feed";
-import { useFeedPreferences } from "./use-feed-preferences";
+import { useFeedControls } from "./use-feed-controls";
 import { ReferenceCapturePanel } from "./reference-capture-panel";
 import { useReferenceCapture, type CorrectCaptureAction } from "./reference-capture-client";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
@@ -61,7 +61,7 @@ import { captureStatusesByLineage } from "../lib/reference-capture";
 import { buildFeedItems, feedLeadId, referenceArrivalTime, scoreFeedItem, type FeedItem } from "../lib/reference-feed-ranking";
 import type { PredictionStatuses } from "../lib/reference-predictions";
 import { useFeedWindow } from "./use-feed-window";
-import { useFeedSearch, useIndexedReferenceFeed, type IndexedFeedSource } from "./use-indexed-reference-feed";
+import { useIndexedReferenceFeed, type IndexedFeedSource } from "./use-indexed-reference-feed";
 import { pathWithSearch, type ReferenceSearchReader } from "../lib/reference-search";
 import { referenceDek, referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
@@ -476,17 +476,18 @@ export function NewsroomReferencesView({
   );
   const routeLineageId = pathname ? pathnameLineageId ?? "" : initialReferenceLineageId ?? "";
 
-  const { sort: feedSort, setSort: setFeedSort, show: feedShow, setShow: setFeedShow } = useFeedPreferences();
   const serverMode = Boolean(feedSource);
   // The search box (docs/reference-search.md). A search replaces the feed's pages with the site's ranked results; the saved Sort and Show are untouched
   // (a search opens on All, and clearing it brings the saved choices back).
   const [caughtUp, setCaughtUp] = useState(false);
   const stopCaughtUp = useCallback(() => setCaughtUp(false), []);
   const searchRead = feedSource?.search ?? searchReader;
-  const search = useFeedSearch({ enabled: Boolean(searchRead), read: searchRead, onChange: stopCaughtUp });
+  const controls = useFeedControls({ searchRead, onChange: stopCaughtUp });
+  const { search, minStars } = controls;
   const { searching, query: searchQuery } = search;
   const searchFeed = search.feed;
-  const indexedFeed = useIndexedReferenceFeed({ enabled: serverMode && !searching, source: feedSource, sort: feedSort, show: feedShow });
+  const { sort: feedSort, show: feedShow } = controls.saved;
+  const indexedFeed = useIndexedReferenceFeed({ enabled: serverMode && !searching, source: feedSource, sort: feedSort, show: feedShow, minStars });
   const indexed = searching ? searchFeed : indexedFeed;
   // The cards come from the pages of a reader (the indexes, or a search) rather than from the page's own list.
   const resultsMode = serverMode || searching;
@@ -551,21 +552,23 @@ export function NewsroomReferencesView({
     onRequestPredictions,
     sort: feedSort,
     show: feedShow,
+    minStars,
     visitRated,
   });
   // Server mode: the feed is the index's own order, page by page. A Reference an editor rates stays where it is for the visit.
   const [revealed, setRevealed] = useState<string[]>([]);
-  useEffect(() => { setRevealed([]); }, [feedSort, feedShow, searchQuery, search.show]);
+  useEffect(() => { setRevealed([]); }, [feedSort, feedShow, minStars, searchQuery, search.show, search.sort]);
   const indexedLineages = useMemo(() => new Set(indexed.records.map(referenceLineageId)), [indexed.records]);
   const arrivals = useMemo(() => {
-    if (!serverMode || searching || indexed.status !== "ready") return [] as ReferenceRecord[];
+    // A new Reference has no stars, so it cannot belong in the Quality sort or under a minimum of stars.
+    if (!serverMode || searching || indexed.status !== "ready" || feedSort === "quality" || minStars > 0) return [] as ReferenceRecord[];
     const shown = new Set(revealed);
     return canonicalReferences.filter((reference) => {
       const lineage = referenceLineageId(reference);
       return normalizeReferenceCurationStatus(reference.curationStatus) === "pending" && !indexedLineages.has(lineage) && !shown.has(lineage)
         && (referenceArrivalTime(reference) ?? 0) > indexed.readAt;
     }).sort((left, right) => (referenceArrivalTime(right) ?? 0) - (referenceArrivalTime(left) ?? 0));
-  }, [canonicalReferences, indexed.readAt, indexed.status, indexedLineages, revealed, searching, serverMode]);
+  }, [canonicalReferences, feedSort, indexed.readAt, indexed.status, indexedLineages, minStars, revealed, searching, serverMode]);
   const serverItems = useMemo(() => {
     if (!resultsMode) return NO_FEED_ITEMS;
     const current = new Map(canonicalReferences.map((reference) => [referenceLineageId(reference), reference] as const));
@@ -961,8 +964,10 @@ export function NewsroomReferencesView({
                 onOpen={selectReference}
                 onRate={rateFromFeed}
                 demo={demo}
-                onShowChange={(next) => { if (searching) search.setShow(next); else setFeedShow(next); setCaughtUp(false); }}
-                onSortChange={(next) => { setFeedSort(next); setCaughtUp(false); }}
+                onShowChange={(next) => { controls.setShow(next); setCaughtUp(false); }}
+                onSortChange={(next) => { controls.setSort(next); setCaughtUp(false); }}
+                onMinStarsChange={(next) => { controls.setMinStars(next); setCaughtUp(false); }}
+                minStars={minStars}
                 onVisitRated={markVisitRated}
                 items={feedItems}
                 ratedCount={ratedCount}
@@ -981,8 +986,8 @@ export function NewsroomReferencesView({
                 ratings={ratings}
                 selectedLineageId={selectedLineageId}
                 stale={!resultsMode && (showingSavedCopy || (loading && references.length > 0))}
-                show={searching ? search.show : feedShow}
-                sort={feedSort}
+                show={controls.show}
+                sort={controls.sort}
                 visitRated={visitRated}
                 search={searchRead ? {
                   query: searchQuery,

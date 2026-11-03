@@ -5,7 +5,8 @@ The newsroom References page has one search box above Sort and Show. It runs a w
 ## What an editor sees
 
 - Press Enter to search. The query is in the address as `?q=`, so a search can be linked and the browser's Back button follows it.
-- While a search is open, Sort reads **Relevance** (the saved Best bets or Newest comes back when the search is cleared) and Show opens on **All** without changing the choice saved in this browser. Unrated, All and Rated still narrow the search.
+- While a search is open, Sort reads **Relevance**, **Newest** and **Quality**. It opens on Relevance (how well each Reference matches) and is not saved; the saved Predictions or Newest comes back when the search is cleared. Show opens on **All** without changing the choice saved in this browser. Unrated, All and Rated still narrow the search.
+- **Minimum stars** (Any, 3+, 4+, 5) applies to a search too, and is the same saved choice the feed uses: a search keeps only the matches with at least that many stars. Newest orders the matches by arrival. Quality puts the most stars first, newest first within a star level, and keeps the unstarred matches after the starred ones (a search never loses a match to Quality; only a minimum drops them). Choosing Quality or a minimum while the search's Show is Unrated moves it to All. Nothing matches under a minimum: `Nothing matches "..." with 4 or more stars.` with a **Show any stars** button.
 - Cards are the feed's own cards with no lead card and no new-items pill. Each says how it matched, in words: `Matched: title, author`, `Matched: meaning`, `Matched: title and meaning`. A card voted on stays where it is. Paging is the feed's infinite scroll.
 - Nothing matches: `No References match "..."`. Nothing matches within a narrowed Show: `No unrated matches` (or `No rated matches`) with a **Show all** button.
 - One search could not run: the other's results stay, with `Searched by words only: meaning search is unavailable` (or the reverse) and a Retry. Both could not run: the feed's own error with its Retry.
@@ -15,10 +16,13 @@ The newsroom References page has one search box above Sort and Show. It runs a w
 `searchReferences(input: AWSJSON!): AWSJSON` is a query on the same Lambda as `knowledgeQuery` (`amplify/functions/knowledge-query`, dispatched on the AppSync `fieldName` in `src/papyrus_knowledge_query/lambda_handler.py`). It is for the `editor` and `admin` groups (`allow.groups(categoryWriteGroups)`), has no subscription, and the Lambda checks the caller's groups again. It is defined in both `amplify/data/schema.ts` and `amplify/data/resource.ts`.
 
 ```
-input:  { query, show: "unrated" | "rated" | "all", limit?: 24 (1 to 100), cursor? }
+input:  { query, show: "unrated" | "rated" | "all", limit?: 24 (1 to 100), cursor?,
+          sort?: "relevance" (default) | "newest" | "quality", minStars?: null | 3 | 4 | 5 }
 output: { items: [{ reference, matchedBy: ["keyword"|"meaning"], matchedFields: ["title"|"authors"|"sourceUri"|"externalItemId"] }],
           nextCursor, lanes: { keyword: { status, message? }, meaning: { status, message? } } }
 ```
+
+`sort` and `minStars` are checked: another `sort`, or a `minStars` that is not 3, 4 or 5 (never "only 3" or "only 2"), is refused with a `SearchError`. They apply after fusing: `minStars` drops the matches with fewer stars (an unstarred match has none), then a stable sort orders what is left (`newest`: `feedArrivalAt` descending; `quality`: stars descending, unstarred last, then `feedArrivalAt` descending; `relevance`: the fused order, unchanged). A stars value that is a float, null or absent never breaks the order: only a whole number from 1 to 5 counts as stars, anything else is none. Stars order and narrow; they never decide what matches and never reach the Cyclotron.
 
 `reference` is the whole Reference row the feed reads, so the page draws it as any other card. `status` is `ok` or `failed`; a failure carries a sentence that is safe to show.
 
@@ -50,7 +54,7 @@ One entry per lineage, in tiers, best first:
 4. a meaning match (alone, or with some of the words);
 5. a partial word match found by words alone.
 
-Inside a tier, Reciprocal Rank Fusion, `1 / (60 + rank)` summed over the lanes a Reference is in, so a Reference found both ways ranks above the same rank in one lane; then the lineage id, a fixed order. A partial word match never outranks a meaning match, and "Hinton" (one term, in the authors) behaves as before: every author match first. The cursor is opaque: an offset and a hash of the query and Show choice, and a cursor from another search is refused. If one search fails the other's results are returned with the failed search's status; the meaning search is given 20 seconds.
+Inside a tier, Reciprocal Rank Fusion, `1 / (60 + rank)` summed over the lanes a Reference is in, so a Reference found both ways ranks above the same rank in one lane; then the lineage id, a fixed order. A partial word match never outranks a meaning match, and "Hinton" (one term, in the authors) behaves as before: every author match first. The cursor is opaque: an offset and a hash of the query, Show choice, sort and minimum stars, and a cursor from another search or another ordering is refused. If one search fails the other's results are returned with the failed search's status; the meaning search is given 20 seconds.
 
 ## From the command line
 
@@ -62,4 +66,4 @@ The schema (one new query) and the `knowledgeQuery` Lambda change, so the data A
 
 ## Tests
 
-`procedures/newsroom/tests/test_reference_search.py` (index, ranking, fusion, cursor, failure), `test_references_search_cli.py` (the command, no mutation), `features_backend/reference-search.feature` (behave), `scripts/test-reference-feed-search.ts` and the `search` scenario of `scripts/test-reference-feed.ts` at 375 and 1440 pixels, and `features/newsroom-reference-search.feature` (Cucumber).
+`procedures/newsroom/tests/test_reference_search.py` (index, ranking, fusion, cursor, failure), `test_references_search_cli.py` (the command, no mutation), `features_backend/reference-search.feature` (behave), `scripts/test-reference-feed-search.ts` and the `search` scenario of `scripts/test-reference-feed.ts` at 375 and 1440 pixels, and `features/newsroom-reference-search.feature` (Cucumber). The sort and minimum are tested in the same files (`test_reference_search.py`, `reference-search.feature`, `test-reference-feed-search.ts`) and in the `quality` scenario of `scripts/test-reference-feed.ts` (`features/newsroom-reference-quality.feature`).

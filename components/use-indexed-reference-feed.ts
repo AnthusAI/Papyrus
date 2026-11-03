@@ -10,14 +10,19 @@ import {
   bothLanesFailed,
   laneNotice,
   matchedLabel,
+  type ReferenceSearchMinStars,
   type ReferenceSearchPage,
   type ReferenceSearchReader,
   type ReferenceSearchShow,
+  type ReferenceSearchSort,
 } from "../lib/reference-search";
+import type { FeedMinStars } from "../lib/reference-feed-ranking";
 import {
   FEED_READ_PAGE_SIZE,
   MergedFeedReader,
   feedStateKeys,
+  liveStarRows,
+  starFeedKeys,
   type FeedStreamReader,
   type FeedStreamShow,
   type FeedStreamSort,
@@ -28,6 +33,8 @@ export type IndexedFeedSource = {
   loadCorpusIds: () => Promise<string[]>;
   /** One page of one partition from the feed-state index. */
   readStream: FeedStreamReader;
+  /** One page of one star partition (`<corpusId>#stars#<n>`), newest arrival first. Without it the Quality sort and a minimum of stars cannot be read. */
+  readStarStream?: FeedStreamReader;
   /** The search box's query. Without it the page has no search box. */
   search?: ReferenceSearchReader;
 };
@@ -36,6 +43,8 @@ type Status = "idle" | "loading" | "ready" | "error";
 
 /**
  * The References feed, a page at a time from the feed-state indexes, in the order the index gives (merged across corpora).
+ * The Quality sort and a minimum of stars read the star partitions instead (one per star level, merged by `MergedFeedReader`), keeping the rows
+ * the chosen Show lets through.
  * The first page is one round of reads; `loadMore` reads one more round when the reader nears the end. Nothing else is read.
  * A failed first read leaves `status` at "error" with a sentence and `retry` reads it again; a failed later page keeps the cards already
  * shown and sets `moreError`.
@@ -45,12 +54,15 @@ export function useIndexedReferenceFeed({
   source,
   sort,
   show,
+  minStars = 0,
   pageSize = FEED_READ_PAGE_SIZE,
 }: {
   enabled: boolean;
   source: IndexedFeedSource | undefined;
   sort: FeedStreamSort;
   show: FeedStreamShow;
+  /** The fewest stars to show; 0 is Any. */
+  minStars?: FeedMinStars;
   pageSize?: number;
 }) {
   const [records, setRecords] = useState<ReferenceRecord[]>([]);
@@ -83,7 +95,11 @@ export function useIndexedReferenceFeed({
       const current = sourceRef.current!;
       const corpusIds = await current.loadCorpusIds();
       if (mine !== generation.current) return;
-      const next = new MergedFeedReader({ keys: feedStateKeys(corpusIds, show), sort, read: current.readStream, pageSize });
+      const byStars = sort === "quality" || minStars > 0;
+      if (byStars && !current.readStarStream) throw new Error("This site cannot read References by stars.");
+      const next = byStars
+        ? new MergedFeedReader({ keys: starFeedKeys(corpusIds, minStars), sort, read: liveStarRows(current.readStarStream!, show), pageSize })
+        : new MergedFeedReader({ keys: feedStateKeys(corpusIds, show), sort, read: current.readStream, pageSize });
       reader.current = next;
       const first = await next.more(pageSize);
       if (mine !== generation.current) return;
@@ -97,7 +113,7 @@ export function useIndexedReferenceFeed({
     } finally {
       if (mine === generation.current) busy.current = false;
     }
-  }, [pageSize, show, sort]);
+  }, [minStars, pageSize, show, sort]);
 
   useEffect(() => {
     if (!active) {
@@ -152,12 +168,17 @@ export function useReferenceSearchFeed({
   enabled,
   query,
   show,
+  sort = "relevance",
+  minStars = 0,
   read,
   pageSize = SEARCH_PAGE_SIZE,
 }: {
   enabled: boolean;
   query: string;
   show: ReferenceSearchShow;
+  sort?: ReferenceSearchSort;
+  /** The fewest stars a match must have; 0 is Any. */
+  minStars?: FeedMinStars;
   read: ReferenceSearchReader | undefined;
   pageSize?: number;
 }) {
@@ -178,6 +199,7 @@ export function useReferenceSearchFeed({
   const active = enabled && Boolean(read) && query.trim() !== "";
 
   const describe = (failure: unknown, fallback: string) => (failure instanceof Error && failure.message ? failure.message : fallback);
+  const minimum: ReferenceSearchMinStars = minStars === 0 ? null : minStars;
   const labelsOf = (page: ReferenceSearchPage) => page.items.map((item) => [lineageOf(item.reference), matchedLabel(item.matchedBy, item.matchedFields)] as const);
 
   const start = useCallback(async () => {
@@ -193,7 +215,7 @@ export function useReferenceSearchFeed({
     setHasMore(false);
     setReadAt(Date.now());
     try {
-      const page = await readRef.current!({ query, show, limit: pageSize, cursor: null });
+      const page = await readRef.current!({ query, show, sort, minStars: minimum, limit: pageSize, cursor: null });
       if (mine !== generation.current) return;
       if (bothLanesFailed(page.lanes)) throw new Error("Neither word search nor meaning search could run. Try again in a moment.");
       const seen = new Set<string>();
@@ -211,7 +233,7 @@ export function useReferenceSearchFeed({
     } finally {
       if (mine === generation.current) busy.current = false;
     }
-  }, [pageSize, query, show]);
+  }, [minimum, pageSize, query, show, sort]);
 
   useEffect(() => {
     if (!active) {
@@ -235,7 +257,7 @@ export function useReferenceSearchFeed({
     setLoadingMore(true);
     setMoreError(null);
     try {
-      const page = await readRef.current({ query, show, limit: pageSize, cursor: cursor.current });
+      const page = await readRef.current({ query, show, sort, minStars: minimum, limit: pageSize, cursor: cursor.current });
       if (mine !== generation.current) return;
       setRecords((existing) => {
         const known = new Set(existing.map(lineageOf));
@@ -256,7 +278,7 @@ export function useReferenceSearchFeed({
     } finally {
       if (mine === generation.current) { busy.current = false; setLoadingMore(false); }
     }
-  }, [pageSize, query, show]);
+  }, [minimum, pageSize, query, show, sort]);
 
   const retry = useCallback(() => {
     if (status === "error" || notice) void start();
@@ -267,14 +289,16 @@ export function useReferenceSearchFeed({
 }
 
 /**
- * The search box's state: the submitted query (also in the URL as `?q=`, followed by the browser's Back and Forward), the Show choice that belongs to
- * the search (it opens on All and is not the saved Show), and the results. Clearing the search leaves the saved Sort and Show as they were.
+ * The search box's state: the submitted query (also in the URL as `?q=`, followed by the browser's Back and Forward), the Show and Sort choices that
+ * belong to the search (it opens on All and on Relevance, and neither is saved), the saved minimum of stars it shares with the feed, and the results.
+ * Clearing the search leaves the saved Sort, Show and minimum as they were.
  */
-export function useFeedSearch({ enabled, read, onChange }: { enabled: boolean; read: ReferenceSearchReader | undefined; onChange?: () => void }) {
+export function useFeedSearch({ enabled, read, onChange, minStars = 0 }: { enabled: boolean; read: ReferenceSearchReader | undefined; onChange?: () => void; minStars?: FeedMinStars }) {
   const [query, setQuery] = useState("");
   const [show, setShow] = useState<ReferenceSearchShow>("all");
+  const [sort, setSort] = useState<ReferenceSearchSort>("relevance");
   const searching = enabled && Boolean(read) && query !== "";
-  const feed = useReferenceSearchFeed({ enabled: searching, query, show, read });
+  const feed = useReferenceSearchFeed({ enabled: searching, query, show, sort, minStars, read });
   useEffect(() => {
     const fromUrl = () => setQuery(searchQueryFromLocation(window.location.search));
     fromUrl();
@@ -284,7 +308,7 @@ export function useFeedSearch({ enabled, read, onChange }: { enabled: boolean; r
   const submit = useCallback((raw: string) => {
     const next = normalizeSearchQuery(raw);
     if (!next) return;
-    if (!query) setShow("all");
+    if (!query) { setShow("all"); setSort("relevance"); }
     setQuery(next);
     onChange?.();
     const target = pathWithSearch(window.location.pathname, next);
@@ -295,5 +319,5 @@ export function useFeedSearch({ enabled, read, onChange }: { enabled: boolean; r
     onChange?.();
     if (window.location.search.includes("q=")) window.history.replaceState(null, "", window.location.pathname);
   }, [onChange]);
-  return { query, show, setShow, searching, feed, submit, clear };
+  return { query, show, setShow, sort, setSort, searching, feed, submit, clear };
 }

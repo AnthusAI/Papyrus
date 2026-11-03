@@ -25,7 +25,7 @@ import {
   type DelegationStore,
 } from "../shared/curation-delegation-flow";
 import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
-import { referenceFeedKeys, referenceFeedStateKey } from "../../../lib/reference-feed-keys";
+import { referenceFeedArrivalAt, referenceFeedKeys, referenceFeedStateKey, starFeedKeyFor } from "../../../lib/reference-feed-keys";
 import { claimGroups } from "../../../lib/staff-groups";
 import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
 import { createReferenceLink, decideReferenceLink, describeEditorConcept, type ReferenceLinkStore } from "./reference-links";
@@ -499,6 +499,8 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
 /**
  * An editor's optional 1-5 star interest in a Reference. The rating sits on the Reference beside the latest vote (who, when), the newest rating
  * wins, and `stars: null` clears it. It never touches the curation status and is never a Cyclotron label: stars are editorial interest, not relevance.
+ * It also keeps the Reference in the right star partition (`starFeedKey`, docs/reference-feed-indexes.md): cleared with the rating, and a Reference with
+ * no `feedArrivalAt` gets one, because the star index sorts by it and a row without it is not in the index.
  */
 async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
   const client = await getDataClient();
@@ -511,6 +513,8 @@ async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
     client.models.Reference.update({
       id: referenceId,
       ...referenceStarFields(stars, actor, now),
+      starFeedKey: starFeedKeyFor(normalizeOptionalString(reference.corpusId), stars),
+      ...(normalizeOptionalString(reference.feedArrivalAt) ? {} : { feedArrivalAt: referenceFeedArrivalAt(reference as Parameters<typeof referenceFeedArrivalAt>[0]) }),
     }),
     "update Reference stars",
   );
@@ -942,6 +946,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       importRunId: normalizeOptionalString(current.importRunId),
       importedAt: normalizeOptionalString(current.importedAt),
       createdAt: normalizeOptionalString(current.createdAt) ?? now,
+      ...(current.starRating ? { starRating: current.starRating, starRatedAt: current.starRatedAt, starRatedBy: current.starRatedBy, starFeedKey: starFeedKeyFor(targetCorpusId, current.starRating) } : {}),
       curationStatus,
       curationStatusKey: `${targetCorpusId}#${curationStatus}`,
       curationStatusUpdatedAt: normalizeOptionalString(current.curationStatusUpdatedAt) ?? now,

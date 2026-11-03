@@ -12,13 +12,13 @@ export function queueOf(handlerInput: Parameters<typeof getSlotValue>[0]): Revie
   const resolved = slot?.resolutions?.resolutionsPerAuthority?.find((authority) => authority.status.code === "ER_SUCCESS_MATCH")?.values?.[0]?.value?.id;
   if (resolved === "best" || resolved === "help") return resolved;
   const spoken = (slot?.value ?? "").toLowerCase();
-  if (/best|like|interest|top|good|pick/.test(spoken)) return "best";
+  if (/best|predict|like|interest|top|good|pick/.test(spoken)) return "best";
   if (/help|need|unsure|sure|uncertain|hard|tricky/.test(spoken)) return "help";
   return undefined;
 }
 
 /**
- * "What needs my help", "review the best bets", "show me references": starts a review queue. Without a named queue it starts with
+ * "What needs my help", "review the predictions", "show me references": starts a review queue. Without a named queue it starts with
  * what needs help (the Cyclotron learns most from those) and says the other is a word away.
  */
 export const reviewStartIntent = reviewIntent({
@@ -70,8 +70,8 @@ export const reviewStartIntent = reviewIntent({
         {
           id: "best",
           name: {
-            value: "best bets",
-            synonyms: ["best bet", "the best bets", "the best ones", "most interesting", "the most interesting ones", "what I'll like", "what I'd like", "the ones I'll like", "top picks", "the good ones", "the top ones", "your picks"],
+            value: "predictions",
+            synonyms: ["prediction", "the predictions", "best bets", "best bet", "the best bets", "the best ones", "most interesting", "the most interesting ones", "what I'll like", "what I'd like", "the ones I'll like", "top picks", "the good ones", "the top ones", "your picks"],
           },
         },
         {
@@ -88,7 +88,7 @@ export const reviewStartIntent = reviewIntent({
     asEditor(handlerInput, dependencies, (review) => {
       const named = queueOf(handlerInput.requestEnvelope);
       const kind = named ?? "help";
-      const lead = named ? "" : sentence("Starting with what needs your help. Say best bets any time for the ones I think you'll like.");
+      const lead = named ? "" : sentence("Starting with what needs your help. Say predictions any time for the ones I think you'll like.");
       return startQueue(handlerInput, dependencies, review, kind, lead);
     }),
 });

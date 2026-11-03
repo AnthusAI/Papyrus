@@ -17,7 +17,11 @@ Fusion is Reciprocal Rank Fusion, ``1 / (60 + rank)`` summed over the lanes a Re
 all appear in its title, authors, URL or id ("strong" word matches) sits above every meaning match, and a meaning match above a partial word match. If one
 lane fails the other's results are returned with that lane's status.
 
-The cursor is opaque: an offset plus a hash of the query and filter, so a cursor from another search is refused. The words lane is deterministic;
+After fusing, the page can be narrowed to a minimum of stars (``minStars``: 3, 4 or 5) and ordered by ``sort``: ``relevance`` keeps the fused order,
+``newest`` is ``feedArrivalAt`` descending, ``quality`` is stars descending (a Reference with none last, so a search never loses a match) and then
+newest first. Both are stable, so ties keep the fused order. Stars are an editor's interest, not relevance: they never change a match, only the order.
+
+The cursor is opaque: an offset plus a hash of the query, filter, sort and minimum, so a cursor from another search or ordering is refused. The words lane is deterministic;
 the meaning lane is cached for a few minutes per query so paging does not embed again.
 """
 from __future__ import annotations
@@ -43,6 +47,8 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
 SHOW_CHOICES = ("unrated", "rated", "all")
+SORT_CHOICES = ("relevance", "newest", "quality")
+MIN_STARS_CHOICES = (3, 4, 5)   # never "only 3" or "only 2": a minimum is a floor, and the lowest floor worth asking for is 3
 DEFAULT_LIMIT = 24
 MAX_LIMIT = 100
 MAX_QUERY_LENGTH = 500
@@ -424,24 +430,63 @@ def fuse(word_hits: list[WordHit], meaning: list[tuple[str, float]]) -> list[Fus
     return sorted(by_lineage.values(), key=lambda entry: (entry.tier, -entry.score, entry.lineage_id))
 
 
-def search_hash(query: str, show: str) -> str:
-    return hashlib.sha256(f"{' '.join(_normalize(query).split())}\u0000{show}".encode("utf-8")).hexdigest()[:16]
+def search_hash(query: str, show: str, sort: str = "relevance", min_stars: int | None = None) -> str:
+    return hashlib.sha256(f"{' '.join(_normalize(query).split())}\u0000{show}\u0000{sort}\u0000{min_stars or ''}".encode("utf-8")).hexdigest()[:16]
 
 
-def encode_cursor(offset: int, query: str, show: str) -> str:
-    raw = json.dumps({"o": offset, "h": search_hash(query, show)}, separators=(",", ":")).encode("utf-8")
+def encode_cursor(offset: int, query: str, show: str, sort: str = "relevance", min_stars: int | None = None) -> str:
+    raw = json.dumps({"o": offset, "h": search_hash(query, show, sort, min_stars)}, separators=(",", ":")).encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 
-def decode_cursor(cursor: str, query: str, show: str) -> int:
+def decode_cursor(cursor: str, query: str, show: str, sort: str = "relevance", min_stars: int | None = None) -> int:
     try:
         payload = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
         offset, digest = int(payload["o"]), str(payload["h"])
     except (ValueError, KeyError, TypeError):
         raise SearchError("The cursor is not valid.") from None
-    if digest != search_hash(query, show) or offset < 0:
+    if digest != search_hash(query, show, sort, min_stars) or offset < 0:
         raise SearchError("The cursor belongs to a different search.")
     return offset
+
+
+def stars_of(row: dict[str, Any]) -> int:
+    """A Reference's whole star rating, 0 when it has none or the value is not a rating (a float such as 4.0 counts as 4; NaN, 2.5 and 9 do not)."""
+    value = row.get("starRating")
+    if isinstance(value, bool) or value is None:
+        return 0
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0
+    return int(number) if math.isfinite(number) and number == int(number) and 1 <= number <= 5 else 0
+
+
+def _arrival_of(row: dict[str, Any]) -> str:
+    return str(row.get("feedArrivalAt") or row.get("createdAt") or "")
+
+
+def parse_min_stars(value: Any) -> int | None:
+    """The minimum from the payload: nothing (or null) is no minimum; otherwise 3, 4 or 5."""
+    if value is None or value == "":
+        return None
+    try:
+        number = float(value) if not isinstance(value, bool) else None
+    except (TypeError, ValueError):
+        number = None
+    if number is None or not math.isfinite(number) or number != int(number) or int(number) not in MIN_STARS_CHOICES:
+        raise SearchError(f"minStars must be one of {', '.join(str(choice) for choice in MIN_STARS_CHOICES)}, or empty.")
+    return int(number)
+
+
+def order_fused(fused: list[Fused], rows: dict[str, dict[str, Any]], sort: str, min_stars: int | None) -> list[Fused]:
+    """Narrow the fused results to ``min_stars`` and order them by ``sort``. Stable: ties keep the fused (relevance) order."""
+    kept = [entry for entry in fused if min_stars is None or stars_of(rows[entry.lineage_id]) >= min_stars]
+    if sort == "newest":
+        return sorted(kept, key=lambda entry: _arrival_of(rows[entry.lineage_id]), reverse=True)
+    if sort == "quality":
+        return sorted(kept, key=lambda entry: (stars_of(rows[entry.lineage_id]), _arrival_of(rows[entry.lineage_id])), reverse=True)
+    return kept
 
 
 _index = ReferenceWordIndex()
@@ -481,19 +526,25 @@ def search_references(
     vectors: VectorSearch | None,
     index: ReferenceWordIndex | None = None,
 ) -> dict[str, Any]:
-    """``{items: [{reference, matchedBy, matchedFields}], nextCursor, lanes: {keyword: {status}, meaning: {status, message?}}}``."""
+    """``{items: [{reference, matchedBy, matchedFields}], nextCursor, lanes: {keyword: {status}, meaning: {status, message?}}}``.
+
+    ``payload``: ``query``, ``show``, ``limit``, ``cursor`` and, to order or narrow the results, ``sort`` (relevance, newest, quality) and ``minStars`` (3, 4, 5)."""
     index = _index if index is None else index
     query = " ".join(str(payload.get("query") or "").split())[:MAX_QUERY_LENGTH]
     show = str(payload.get("show") or "all")
     if show not in SHOW_CHOICES:
         raise SearchError(f"show must be one of {', '.join(SHOW_CHOICES)}.")
+    sort = str(payload.get("sort") or "relevance")
+    if sort not in SORT_CHOICES:
+        raise SearchError(f"sort must be one of {', '.join(SORT_CHOICES)}.")
+    min_stars = parse_min_stars(payload.get("minStars"))
     try:
         limit = int(payload.get("limit") or DEFAULT_LIMIT)
     except (TypeError, ValueError):
         raise SearchError("limit must be a whole number.") from None
     limit = max(1, min(limit, MAX_LIMIT))
     cursor = payload.get("cursor")
-    offset = decode_cursor(str(cursor), query, show) if cursor else 0
+    offset = decode_cursor(str(cursor), query, show, sort, min_stars) if cursor else 0
     lanes: dict[str, dict[str, Any]] = {"keyword": {"status": "ok"}, "meaning": {"status": "ok"}}
     if not query_terms(query):
         return {"items": [], "nextCursor": None, "lanes": lanes}
@@ -528,11 +579,13 @@ def search_references(
 
     shown_meaning = [(lineage_id, similarity) for lineage_id, similarity in meaning_hits
                      if (row := index.row(lineage_id)) is not None and _shown(row, show)]
-    fused = [entry for entry in fuse(word_hits, shown_meaning) if index.row(entry.lineage_id) is not None]
+    candidates = fuse(word_hits, shown_meaning)
+    rows = {entry.lineage_id: row for entry in candidates if (row := index.row(entry.lineage_id)) is not None}
+    fused = order_fused([entry for entry in candidates if entry.lineage_id in rows], rows, sort, min_stars)
     page = fused[offset: offset + limit]
     items = []
     for entry in page:
         matched_by = [lane for lane, found in (("keyword", entry.by_words), ("meaning", entry.by_meaning)) if found]
         items.append({"reference": index.row(entry.lineage_id), "matchedBy": matched_by, "matchedFields": entry.word_fields})
     more = offset + limit < len(fused)
-    return {"items": items, "nextCursor": encode_cursor(offset + limit, query, show) if more else None, "lanes": lanes}
+    return {"items": items, "nextCursor": encode_cursor(offset + limit, query, show, sort, min_stars) if more else None, "lanes": lanes}

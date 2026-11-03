@@ -10,19 +10,25 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from .reference_feed_keys import star_feed_key
+
 MINIMUM_STARS = 1
 MAXIMUM_STARS = 5
 #: Three stars say "fine" and nothing else. Above it is interest the idea pipeline follows; below it is interest against (``ideas/editor_signals.py``).
 MIDPOINT_STARS = 3
 
 
-def star_fields(stars: int | None, *, rated_by: str | None = None, rated_at: str | None = None) -> dict[str, Any]:
-    """The Reference fields a rating sets. Every field is always present, so clearing the rating (``None``) clears who and when too."""
+def star_fields(stars: int | None, *, corpus_id: str | None, rated_by: str | None = None, rated_at: str | None = None) -> dict[str, Any]:
+    """The Reference fields a rating sets. Every field is always present, so clearing the rating (``None``) clears who and when too.
+
+    ``starFeedKey`` is the star partition the Reference is read from (``reference_feed_keys.star_feed_key``); it needs the Reference's corpus, so a
+    caller that has none passes ``None`` and the key is cleared, never left stale.
+    """
     if stars is None:
-        return {"starRating": None, "starRatedAt": None, "starRatedBy": None}
+        return {"starRating": None, "starRatedAt": None, "starRatedBy": None, "starFeedKey": None}
     if isinstance(stars, bool) or not isinstance(stars, int) or not MINIMUM_STARS <= stars <= MAXIMUM_STARS:
         raise ValueError(f"Stars are a whole number from {MINIMUM_STARS} to {MAXIMUM_STARS}, not {stars!r}.")
-    return {"starRating": stars, "starRatedAt": rated_at, "starRatedBy": rated_by}
+    return {"starRating": stars, "starRatedAt": rated_at, "starRatedBy": rated_by, "starFeedKey": star_feed_key(corpus_id, stars)}
 
 
 def latest_stars(reference: Mapping[str, Any] | None) -> dict[str, Any] | None:

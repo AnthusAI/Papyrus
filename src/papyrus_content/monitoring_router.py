@@ -1191,7 +1191,7 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
 
 
 def record_original_prediction(client, publication: dict, decision: dict, reference_id: str, disc: dict) -> None:
-    """Write the Cyclotron's first prediction onto the Reference itself, where the References page's Best bets index reads it.
+    """Write the Cyclotron's first prediction onto the Reference itself, where the References page's Predictions index reads it.
 
     P(accept) is the confidence of the include label, or 1 - the confidence of the exclude label. It is written once: a Reference that
     already has a prediction keeps it (a later decision, a vote, a re-delivery change nothing here), so a redelivery writes nothing.

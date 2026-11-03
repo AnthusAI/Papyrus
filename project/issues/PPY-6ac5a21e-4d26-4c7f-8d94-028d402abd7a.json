@@ -1,0 +1,20 @@
+{
+  "id": "PPY-6ac5a21e-4d26-4c7f-8d94-028d402abd7a",
+  "title": "Summarize a Reference with the Assignment or Story that brought it",
+  "description": "Ryan 2026-11-03: when a Reference is summarized, if it came from an Assignment or is linked to a Story, include that in the summarization's context, to explain exactly why we are looking at it. With no such link, today's general summary stays exactly as it is.\n\nCONTEXT BLOCK. New pure function (e.g. in `reference_curation.py` or a small module) `reference_purpose_context(client, reference) -> {text, assignmentId, storyLineageIds} | None`:\n- The Assignment it came from: the editor's direction, and the assignment title. Read how `build_research_proposal_catalog_items` and intake record the origin; do not guess the field.\n- Every Story linked by `uses_evidence` (consulted, cited, based_on): title, deck, section title. Not the Story's body. Newest first. The budget is the model's input window, no fixed count.\n- No origin or link: None, and the prompt is byte-identical to today's.\n\nPROMPT. Both summary paths must use it: `references summarize` via `procedures/newsroom/reference_summarization.tac` (add input `purpose_context_text`, default empty) and `reference_curation._summary_stage` / `openai_summarizer` (a test keeps the two prompts in step; keep it passing; bump the prompt version only for the contextual path if versioning requires). Rule added only when context is present:\n\"Why the newsroom is reading this source: <block>. Use this to choose what to bring forward and to say plainly where the source does not address the question. It is not evidence. Every statement must still come from the source text; never carry a fact, name or claim from this block into the summary.\" Source voice and grounding rules unchanged.\n\nRECORD. Reference metadata gets `summary_purpose` with assignmentId, storyLineageIds and a hash of the context, beside `summary_resolution`, so a reader can tell a directed summary from a general one. General summaries get nothing new.\n\nWHEN. Existing behaviour: a present summary is kept unless `--force`. Keep it; do not automatically rewrite a general summary when a link appears later, because the summary feeds the Cyclotron input and the suggestion vectors. Routine router enrichment happens before any link exists so it remains general. Say in docs that a summary is shared by every reader of the Reference.\n\nRESEARCH INTAKE. Check whether the References a `research.multi` run registers get a summary at all. The 16 taken in today are pending and may have none, in which case the reporter pack shows nothing for them. If they don't, make the cited-only intake in `multi_search_research.py` / `process-proposals` run the existing curation or summary path on just those References with this context. A summary failure is recorded and does not fail the run. Report the cost path. If it needs the page text first, use the existing capture stage; no new fetcher.\n\nSPECS. Gherkin in the reference-curation feature that fits, with a fake model capturing prompts: no link gives the identical prompt; an Assignment origin includes the direction; a Story link includes title and deck, not body; several Stories all appear; `summary_purpose` recorded; `--force` required to replace; a summary failure on intake leaves the run complete. Update `docs/reference-curation-pipeline.md` and `docs/story-reporting.md`. Synthetic content only.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-aab37edd-ee4e-4784-96a1-974ae040b452",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T12:56:10.380882Z",
+  "updated_at": "2026-11-03T12:56:10.380947Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

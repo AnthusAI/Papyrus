@@ -3,7 +3,7 @@ Feature: The References page pages through two indexes whose keys every writer k
   The newsroom References page used to download every Reference, every attachment and every decision, and rank them in the browser. It
   now asks for one page at a time from one of two indexes on the Reference itself. Both are partitioned by a feed state: a Reference that
   nobody has voted on is in the unrated feed of its corpus, one that is accepted or rejected is in the rated feed, and one that is archived
-  or is no longer the current version is in neither. "Best bets" is sorted by the Cyclotron's original chance that the editor accepts
+  or is no longer the current version is in neither. "Predictions" is sorted by the Cyclotron's original chance that the editor accepts
   (P of accept), highest first, then newest first. "Newest" is sorted by when the Reference arrived. The prediction is a value written on
   the Reference once, when the Cyclotron first decides it. It is the confidence of the include label, or one minus the confidence of the
   exclude label. A Reference nobody has predicted sorts as one half, after every predicted Accept and before every predicted Reject. A vote
@@ -14,7 +14,7 @@ Feature: The References page pages through two indexes whose keys every writer k
     When the Cyclotron decides "include" with 91% confidence and the publication's positive label is "include"
     Then the Reference records an accept probability of 0.91
     And the Reference records when the Cyclotron decided it
-    And its Best bets key is "0.910000#2026-10-28T12:00:00.000Z#" followed by its id
+    And its Predictions key is "0.910000#2026-10-28T12:00:00.000Z#" followed by its id
     And it is still in the unrated feed
 
   Scenario: A predicted Reject is recorded as the chance of an Accept, not the confidence of the label
@@ -31,7 +31,7 @@ Feature: The References page pages through two indexes whose keys every writer k
 
   Scenario: An unpredicted Reference sorts between a predicted Accept and a predicted Reject
     Given pending References that arrived together with predicted accept probabilities 0.9, none, 0.2 and 0.5
-    When their Best bets keys are read highest first
+    When their Predictions keys are read highest first
     Then the order is 0.9, then the two without a prediction or at one half, then 0.2
 
   Scenario: Newest sorts by arrival whatever the prediction
@@ -45,7 +45,7 @@ Feature: The References page pages through two indexes whose keys every writer k
     When the Cyclotron accepts it automatically
     Then it is in the rated feed of its corpus
     And the Reference still records an accept probability of 0.91
-    And its Best bets key is unchanged
+    And its Predictions key is unchanged
 
   Scenario: A rejection moves the Reference to the rated feed as well
     Given a pending Reference that arrived at "2026-10-28T12:00:00Z" and has no prediction
@@ -59,6 +59,19 @@ Feature: The References page pages through two indexes whose keys every writer k
   Scenario: A superseded version is in no feed
     Given a pending Reference that is not the current version
     Then it is in no feed
+
+  Scenario: A star rating puts the Reference in the star partition for its stars and clearing it takes it out
+    The Quality sort and the minimum-stars choice read a third index, partitioned by "<corpus>#stars#<n>" and sorted by arrival. It is sparse:
+    a Reference with no stars is in no partition. The key is written with the rating, never with the feed keys, so a write that carries
+    the feed keys alone cannot clear it.
+    Given a pending Reference that arrived at "2026-10-28T12:00:00Z" and has no prediction
+    When an editor's rating of 4 stars is recorded on it
+    Then it is in the star partition for 4 stars of its corpus
+    When an editor's rating of 2 stars is recorded on it
+    Then it is in the star partition for 2 stars of its corpus
+    When the editor's rating is cleared on it
+    Then it is in no star partition of its corpus
+    And the feed keys of a Reference never include the star key
 
   Scenario: The backfill sets the keys and changes nothing else
     Given a corpus with these References and no feed keys
@@ -102,6 +115,36 @@ Feature: The References page pages through two indexes whose keys every writer k
     When the feed key backfill runs for that corpus
     Then the "fresh" Reference still records an accept probability of 0.4
 
+  Scenario: The backfill puts a starred Reference in its star partition
+    The Quality sort and the minimum-stars choice read the star index, one partition per star level, "<corpus>#stars#<n>". A Reference starred
+    before that index existed has no star key, so the backfill sets it from the stars the Reference already records. One without stars gets none.
+    Given a corpus with these References and no feed keys
+      | name    | status   | decision |
+      | picked  | pending  | none     |
+      | voted   | accepted | none     |
+      | plain   | pending  | none     |
+    And the "picked" Reference is starred 4 stars
+    And the "voted" Reference is starred 5 stars
+    When the feed key backfill runs for that corpus
+    Then the "picked" Reference is in the star partition "stars#4"
+    And the "voted" Reference is in the star partition "stars#5"
+    And the "plain" Reference is in no star partition
+    And the backfill reports 2 star keys changed
+    And each backfill write names only the Reference id and feed key fields
+
+  Scenario: The backfill clears a star key whose stars are gone and writes nothing the second time
+    Given a corpus with these References and no feed keys
+      | name    | status  | decision |
+      | cleared | pending | none     |
+      | picked  | pending | none     |
+    And the "picked" Reference is starred 3 stars
+    And the "cleared" Reference still has the star key "stars#2" though it has no stars
+    When the feed key backfill runs for that corpus
+    And the feed key backfill runs for that corpus again
+    Then the "cleared" Reference is in no star partition
+    And the "picked" Reference is in the star partition "stars#3"
+    And the second run wrote nothing
+
   Scenario Outline: Every way of creating a Reference is in the feed
     The feed reads References only through their feed keys, so a Reference created without them would be invisible there. Whatever the
     source of a new Reference (a monitor, an editor's console, an email, a chat message, the command line, an import, an accession or a
@@ -139,6 +182,14 @@ Feature: The References page pages through two indexes whose keys every writer k
     Then the first version is in no feed
     And the second version is in the unrated feed
     And the second version still records an accept probability of 0.9 and the arrival "2026-11-01T00:00:00.000Z"
+
+  Scenario: A new version of a Reference keeps the stars an editor gave it
+    Given a corpus whose References have these versions
+      | version | arrived                  | accept probability |
+      | 1       | 2026-11-01T00:00:00.000Z | 0.9                |
+    And an editor gave the first version 5 stars
+    When the Reference is imported again with a changed title
+    Then the second version still has 5 stars and is in the 5-star partition
 
   Scenario Outline: A vote from a chat message moves the Reference between the feeds
     Given a pending Reference in a corpus

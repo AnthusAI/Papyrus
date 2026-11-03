@@ -326,6 +326,88 @@ def test_limit_show_and_empty_queries():
         search(site, None, "alpha", show="rejected")
 
 
+# --- sort and minimum stars --------------------------------------------------------------------------------------------------------------------
+
+def starred_site():
+    return FakeSite([
+        row("a", "Topic alpha", arrival="2026-11-01T10:00:00.000Z", starRating=5),
+        row("b", "Topic beta", arrival="2026-11-02T10:00:00.000Z", starRating=3),
+        row("c", "Topic gamma", arrival="2026-11-03T10:00:00.000Z"),
+        row("d", "Topic delta", arrival="2026-11-04T10:00:00.000Z", starRating=5),
+        row("e", "Topic epsilon", arrival="2026-11-05T10:00:00.000Z", starRating=2),
+    ], page=10)
+
+
+def test_relevance_is_the_default_and_keeps_the_fused_order():
+    site = starred_site()
+    assert titles(search(site, None, "topic")) == titles(search(site, None, "topic", sort="relevance"))
+
+
+def test_newest_orders_by_arrival_and_quality_by_stars_then_arrival_with_unstarred_last():
+    site = starred_site()
+    assert titles(search(site, None, "topic", sort="newest")) == ["Topic epsilon", "Topic delta", "Topic gamma", "Topic beta", "Topic alpha"]
+    assert titles(search(site, None, "topic", sort="quality")) == ["Topic delta", "Topic alpha", "Topic beta", "Topic epsilon", "Topic gamma"]   # 5 5 3 2 then none
+
+
+def test_a_minimum_keeps_that_many_stars_or_more_and_drops_the_unstarred():
+    site = starred_site()
+    assert titles(search(site, None, "topic", sort="newest", minStars=4)) == ["Topic delta", "Topic alpha"]
+    assert titles(search(site, None, "topic", sort="newest", minStars=3)) == ["Topic delta", "Topic beta", "Topic alpha"]
+    assert titles(search(site, None, "topic", sort="quality", minStars=5)) == ["Topic delta", "Topic alpha"]
+    assert titles(search(site, None, "topic", minStars=5)) != []   # relevance order with a minimum is allowed too
+
+
+@pytest.mark.parametrize("bad", [1, 2, 6, "x", 3.5, True, float("nan")])
+def test_a_minimum_other_than_three_four_or_five_is_refused(bad):
+    with pytest.raises(rs.SearchError):
+        search(starred_site(), None, "topic", minStars=bad)
+
+
+def test_an_unknown_sort_is_refused_and_an_empty_minimum_is_none():
+    with pytest.raises(rs.SearchError):
+        search(starred_site(), None, "topic", sort="stars")
+    assert len(search(starred_site(), None, "topic", minStars=None)["items"]) == 5
+    assert len(search(starred_site(), None, "topic", minStars="")["items"]) == 5
+
+
+def test_real_floats_and_absent_values_do_not_break_the_order():
+    site = FakeSite([
+        row("a", "Topic alpha", arrival="2026-11-01T10:00:00.000Z", starRating=4.0),   # a float that is a whole number is 4
+        row("b", "Topic beta", arrival="2026-11-02T10:00:00.000Z", starRating=float("nan")),
+        row("c", "Topic gamma", arrival="2026-11-03T10:00:00.000Z", starRating=4.5),
+        row("d", "Topic delta", arrival="2026-11-04T10:00:00.000Z", starRating=None),
+        row("e", "Topic epsilon", arrival="2026-11-05T10:00:00.000Z", starRating=5.0),
+        row("f", "Topic zeta", arrival=None, updated="2026-11-06T10:00:00.000Z", feedArrivalAt=None, createdAt=None),   # no arrival at all
+    ], page=10)
+    # 5.0 and 4.0 are stars; NaN, 4.5 and null are none, which sort last newest first, a row with no arrival at all after them.
+    assert titles(search(site, None, "topic", sort="quality")) == ["Topic epsilon", "Topic alpha", "Topic delta", "Topic gamma", "Topic beta", "Topic zeta"]
+    assert titles(search(site, None, "topic", sort="quality", minStars=4)) == ["Topic epsilon", "Topic alpha"]
+    assert len(search(site, None, "topic", sort="newest")["items"]) == 6
+    assert rs.stars_of({"starRating": 4.0}) == 4 and rs.stars_of({"starRating": 4.5}) == 0 and rs.stars_of({"starRating": float("inf")}) == 0
+    assert rs.stars_of({"starRating": "4"}) == 4 and rs.stars_of({"starRating": True}) == 0 and rs.stars_of({}) == 0
+
+
+def test_a_cursor_from_another_ordering_or_minimum_is_refused():
+    cursor = rs.encode_cursor(24, "topic", "all", "quality", 4)
+    assert rs.decode_cursor(cursor, "topic", "all", "quality", 4) == 24
+    for other in (("relevance", 4), ("newest", 4), ("quality", None), ("quality", 5)):
+        with pytest.raises(rs.SearchError):
+            rs.decode_cursor(cursor, "topic", "all", *other)
+
+
+def test_paging_through_a_quality_search_never_repeats_or_skips():
+    site = FakeSite([row(f"r{n}", f"Shared topic {n}", arrival=f"2026-11-01T10:{n:02d}:00.000Z", starRating=(n % 5) + 1) for n in range(20)], page=10)
+    index, seen, cursor = rs.ReferenceWordIndex(), [], None
+    while True:
+        extra = {"cursor": cursor} if cursor else {}
+        result = rs.search_references({"query": "shared topic", "limit": 4, "sort": "quality", "minStars": 3, **extra}, graphql=site.graphql, vectors=None, index=index)
+        seen += [(item["reference"]["starRating"], item["reference"]["feedArrivalAt"]) for item in result["items"]]
+        cursor = result["nextCursor"]
+        if not cursor:
+            break
+    assert len(seen) == len(set(seen)) == 12 and seen == sorted(seen, reverse=True)
+
+
 # --- one lane failing --------------------------------------------------------------------------------------------------------------------------
 
 def test_a_meaning_failure_still_returns_the_word_results_with_its_status():

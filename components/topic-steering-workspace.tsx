@@ -42,6 +42,7 @@ import {
   loadAllEditorReferences,
   loadReferenceFeedCorpusIds,
   readReferenceFeedStream,
+  readReferenceStarStream,
   searchReferences,
   discardFeedCorpusIds,
   loadReferenceAttachmentsForLineages,
@@ -918,6 +919,7 @@ function NewsDeskDashboard({
   const feedSource = useMemo<IndexedFeedSource>(() => ({
     loadCorpusIds: () => loadReferenceFeedCorpusIds(Object.keys(summary?.facets?.references?.byCorpus ?? {})),
     readStream: readReferenceFeedStream,
+    readStarStream: readReferenceStarStream,
     search: searchReferences,
   }), [summary?.facets?.references?.byCorpus]);
   const [referencesRealtimeStatus, setReferencesRealtimeStatus] = useState<RealtimeSubscriptionStatus>("idle");

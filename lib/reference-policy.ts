@@ -184,3 +184,9 @@ function normalizePolicyToken(value: unknown): string {
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "");
 }
+
+/** An editor's stars on a Reference, 1 to 5, or 0 when it has none. */
+export function starsOf(reference: { starRating?: number | null }): number {
+  const stars = reference.starRating;
+  return typeof stars === "number" && Number.isInteger(stars) && stars >= 1 && stars <= 5 ? stars : 0;
+}

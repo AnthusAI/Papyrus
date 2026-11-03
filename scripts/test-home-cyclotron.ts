@@ -32,7 +32,7 @@ const units: Record<string, () => void> = {
     assert.ok(never.counts[0].startsWith("No reviewed labels counted yet"));
 
     const done = describeClassifier(trained(), { timeZone: "UTC" });
-    assert.match(done.retraining, /^Retrained 2 times\. Last change Oct 30, 2026: retrained on reviews, refit on 41 reviews\.$/);
+    assert.match(done.retraining, /^Cycled 2 times\. Last change Oct 30, 2026: cycled on reviews, refit on 41 reviews\.$/);
     assert.equal(done.agreement, "83%");
     assert.equal(done.evaluation, "Agreement with reviewers 83%");
     assert.match(done.evaluationNote, /^Measured on reviews selected by the cyclotron: 41 reviews in the last 200\.$/);
@@ -42,9 +42,9 @@ const units: Record<string, () => void> = {
     assert.match(done.freshness, /^Votes after the snapshot are not included yet\. Checked Nov 2, 2026, 10:30 AM\.$/);
 
     const changedOnly = describeClassifier(row({ lastChange: { kind: "definition", fromVersion: 1, toVersion: 2, at: null, summary: "question reworded", labels: null } }), { timeZone: "UTC" });
-    assert.match(changedOnly.retraining, /^No retraining on reviews has happened yet\. Last change \(date not recorded\): questions or examples changed, question reworded\.$/, "a definition change is never called learning");
+    assert.match(changedOnly.retraining, /^Not cycled on reviews yet\. Last change \(date not recorded\): questions or examples changed, question reworded\.$/, "a definition change is never called learning");
     const refitNoDate = describeClassifier(row({ cyclotron: { ...DEMO_CYCLOTRON_STATUS.cyclotron, refits: 1 } }), { timeZone: "UTC" });
-    assert.equal(refitNoDate.retraining, "Retrained 1 time. The date of the last retraining was not recorded.");
+    assert.equal(refitNoDate.retraining, "Cycled 1 time. The date of the last cycle was not recorded.");
     assert.equal(formatWhen("not a date"), "not a date");
     assert.equal(formatWhen(null), null);
   },
@@ -91,7 +91,7 @@ const browser: Record<string, () => Promise<void>> = {
         const panel = page.locator("[data-home-cyclotron]");
         await panel.locator("[data-home-cyclotron-state='ready']").waitFor();
         const text = (await panel.textContent()) ?? "";
-        for (const expected of ["Cyclotron classifier", "Classifier: relevant", "Retrained 2 times.", "Last change Oct 30, 2026: retrained on reviews, refit on 41 reviews.",
+        for (const expected of ["Cyclotron classifier", "Classifier: relevant", "Cycled 2 times.", "Last change Oct 30, 2026: cycled on reviews, refit on 41 reviews.",
           "Agreement with reviewers 83%", "Measured on reviews selected by the cyclotron: 41 reviews in the last 200.", "41 reviewed labels counted", "3 awaiting review",
           "Snapshot from Nov 2, 2026", "Votes after the snapshot are not included yet."]) assert.ok(text.includes(expected), `the panel says: ${expected}`);
         assert.ok(!/held-out accuracy/i.test(text), "never called held-out accuracy");
@@ -125,8 +125,8 @@ const browser: Record<string, () => Promise<void>> = {
         const panel = page.locator("[data-home-cyclotron]");
         await panel.locator("[data-home-cyclotron-state='ready']").waitFor();
         const text = (await panel.textContent()) ?? "";
-        for (const expected of ["No retraining has happened yet.", `Agreement with reviewers: ${NOT_MEASURED}`, "No reviewed labels counted yet", "12 awaiting review"]) assert.ok(text.includes(expected), `the panel says: ${expected}`);
-        assert.ok(!/Retrained|Last change/.test(text), "no learning is implied");
+        for (const expected of ["Not cycled yet.", `Agreement with reviewers: ${NOT_MEASURED}`, "No reviewed labels counted yet", "12 awaiting review"]) assert.ok(text.includes(expected), `the panel says: ${expected}`);
+        assert.ok(!/Cycled|Last change/.test(text), "no learning is implied");
         assert.ok(!/%/.test(await panel.locator("[data-home-cyclotron-evaluation]").innerText()), "no percentage appears for an unmeasured agreement");
         await assertDesignRules(page, width);
         await shot(page, "never-trained", width);

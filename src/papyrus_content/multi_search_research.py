@@ -42,9 +42,11 @@ from .graphql_authoring import PapyrusGraphQLAuthoringClient
 from .ids import hash_short
 from .link_exploration import canonical_url
 from .model_defaults import DEFAULT_LLM_MODEL
+from .newsroom_context_pack import DEFAULT_MAX_CHARACTERS, PROFILES, build_context_pack
 from .options import normalize_string, parse_boolean_option, parse_options, resolve_mutation_apply
 from .records import apply_record_changes, build_record_changes
 from .steering import default_corpus_key
+from .story_reporting import link_found_references_as_consulted
 from .tavily_deep_research import _assignment_event_record, _produces_assignment_message_relation
 from .web_search import (
     PROVIDERS,
@@ -111,9 +113,30 @@ def brief_text(assignment: Mapping[str, Any], meta: Mapping[str, Any] | None = N
     return "\n".join(lines)
 
 
-def plan_queries(brief: str, llm: Llm) -> list[dict[str, str]]:
+#: Added to the planning and synthesis prompts only when the run has a context pack (a Story with an editor's direction); other runs keep the plain prompts.
+PLAN_DIRECTION_RULES = """The brief starts with the editor's direction. It outranks the Story.
+- Plan from the direction first. Each thing it asks for gets its own queries, in proportion to what it asks: a request for a list of cases or sources needs several queries from different angles, a narrow question needs one or two.
+- Do not spend queries re-finding what the brief already shows the Story's References and related References hold.
+- Name a specific person, place or case in a query only when it appears in the brief.
+"""
+
+SYNTH_DIRECTION_RULES = """The brief starts with the editor's direction. Answer it in its order.
+- For each thing the direction asks for, write claims that answer it, or put an open question saying it was not answered.
+- Material on the Story's existing cases comes after the answers to the direction.
+- When the direction asks for a list (for example other cases), each item is its own claim with its own source.
+- Only titles and snippets count as evidence, as above.
+"""
+
+
+def with_system_prefix(system_prefix: str, system: str, direction_rules: str = "") -> str:
+    if not system_prefix:
+        return system
+    return f"{system_prefix.rstrip()}\n\n{system}" + (f"\n{direction_rules}" if direction_rules else "")
+
+
+def plan_queries(brief: str, llm: Llm, system_prefix: str = "") -> list[dict[str, str]]:
     try:
-        data = llm(PLAN_SYSTEM, brief, PLAN_SCHEMA)
+        data = llm(with_system_prefix(system_prefix, PLAN_SYSTEM, PLAN_DIRECTION_RULES), brief, PLAN_SCHEMA)
     except Exception as error:  # noqa: BLE001 - any model failure is a planning failure the assignment records
         raise MultiSearchFailed(f"multi-search could not plan queries: {error}") from None
     queries, seen = [], set()
@@ -316,9 +339,9 @@ def _valid_indices(values: Any, count: int) -> list[int]:
     return out
 
 
-def synthesise(brief: str, sources: Sequence[Mapping[str, Any]], llm: Llm) -> dict[str, Any]:
+def synthesise(brief: str, sources: Sequence[Mapping[str, Any]], llm: Llm, system_prefix: str = "") -> dict[str, Any]:
     try:
-        data = llm(SYNTH_SYSTEM, synthesis_input(brief, sources), SYNTH_SCHEMA)
+        data = llm(with_system_prefix(system_prefix, SYNTH_SYSTEM, SYNTH_DIRECTION_RULES), synthesis_input(brief, sources), SYNTH_SCHEMA)
     except Exception as error:  # noqa: BLE001
         raise MultiSearchFailed(f"multi-search found {len(sources)} sources but could not synthesise them: {error}") from None
     if not isinstance(data, dict) or not normalize_string(data.get("summary")):
@@ -360,6 +383,8 @@ def run_multi_search(
     environ: Mapping[str, str] | None = None,
     limit: int | None = None,
     model: str = DEFAULT_LLM_MODEL,
+    system_prefix: str = "",
+    context_pack: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Plan, fan out, merge, synthesise. Returns the raw research packet (what ``apply_research_packet`` takes) under ``packet``
     plus ``contribution``. Raises ``MultiSearchFailed`` with the message to record when no packet can be made."""
@@ -367,7 +392,7 @@ def run_multi_search(
     if not usable:
         raise MultiSearchFailed("multi-search has no search provider to ask: " +
                                 ("; ".join(f"{row['provider']}: {row['reason']}" for row in unavailable) or "none configured"))
-    queries = plan_queries(brief, llm)
+    queries = plan_queries(brief, llm, system_prefix)
     runs = fan_out(queries, usable, limit=limit)
     sources = merge_hits(runs, queries)
     contribution = provider_contributions(runs, sources, unavailable)
@@ -376,9 +401,19 @@ def run_multi_search(
         if failures and not any(run.queries_run for run in runs):
             raise MultiSearchFailed("no search provider answered: " + "; ".join(failures))
         raise MultiSearchFailed(f"multi-search ran {len(queries)} queries on {', '.join(usable)} and found no sources")
-    synthesis = synthesise(brief, sources, llm)
-    return {"packet": build_packet(queries, sources, contribution, synthesis, model=model), "contribution": contribution,
-            "sources": sources, "queries": queries}
+    synthesis = synthesise(brief, sources, llm, system_prefix)
+    packet = build_packet(queries, sources, contribution, synthesis, model=model)
+    if context_pack:
+        packet["multiSearch"]["contextPack"] = context_pack_summary(context_pack)
+    return {"packet": packet, "contribution": contribution, "sources": sources, "queries": queries}
+
+
+def context_pack_summary(pack: Mapping[str, Any]) -> dict[str, Any]:
+    """What the packet records of the pack the run was given: its hashes and the size of every layer, never its text."""
+    return {"contract": pack["contract"], "profile": pack["profile"], "contextHash": pack["contextHash"],
+            "editorialContextHash": pack["editorialContextHash"],
+            "layers": {layer["name"]: {"entries": len(layer["entries"]), "characters": layer["characters"], "droppedCount": layer["droppedCount"]}
+                       for layer in pack["layers"]}}
 
 
 def build_packet(queries, sources, contribution, synthesis, *, model: str = DEFAULT_LLM_MODEL) -> dict[str, Any]:
@@ -506,8 +541,21 @@ def research_multi(
     actor_label = normalize_string(options.get("actor-label")) or "Papyrus content CLI"
     model = normalize_string(options.get("model")) or DEFAULT_LLM_MODEL
     brief = brief_text(assignment, meta)
+    story_lineage = normalize_string(assignment.get("itemLineageId"))
+    profile = normalize_string(meta.get("contextProfile"))
+    pack = None
     try:
-        outcome = run_multi_search(brief, llm=llm or openai_llm(model=model), providers=providers, model=model)
+        if story_lineage and profile in PROFILES:
+            try:
+                pack = build_context_pack(client, profile=profile, assignment=assignment, story_lineage_id=story_lineage,
+                                          max_characters=DEFAULT_MAX_CHARACTERS)
+            except (ValueError, PermissionError) as error:
+                raise MultiSearchFailed(f"multi-search could not build the context pack: {error}") from None
+            if not normalize_string(meta.get("direction")):
+                raise MultiSearchFailed("multi-search needs the editor's direction: this assignment has none")
+            brief = pack["user"]
+        outcome = run_multi_search(brief, llm=llm or openai_llm(model=model), providers=providers, model=model,
+                                   system_prefix=pack["system"] if pack else "", context_pack=pack)
     except MultiSearchFailed as failure:
         message = str(failure)
         if apply:
@@ -526,33 +574,48 @@ def research_multi(
         "sourceCount": len(outcome["sources"]),
         "contribution": outcome["contribution"],
         "packet": packet if not apply else None,
+        **({"contextPack": packet["multiSearch"]["contextPack"]} if pack else {}),
     }
     if not apply:
         return result
     apply_result = apply_research_packet(client, {"assignment": assignment_id, "research-json": json.dumps(packet),
                                                   "research-mode": research_mode, "actor-label": actor_label})
     intake_result: dict[str, Any] | None = None
+    intake_error: str | None = None
     if parse_boolean_option(options.get("intake-proposals"), True, "--intake-proposals"):
-        intake_result = intake_research_packet_proposals(client, {
-            "assignment": assignment_id,
-            "config": normalize_string(options.get("config")) or "corpora/papyrus-steering.yml",
-            "corpus-key": corpus_key,
-            "status": options.get("status") or "pending",
-            "url-text": options.get("url-text", "false"),
-            "metadata-from-text": options.get("metadata-from-text", "false"),
-            "actor-label": actor_label,
-        })
+        try:
+            intake_result = intake_research_packet_proposals(client, {
+                "assignment": assignment_id,
+                "message": (apply_result or {}).get("messageId"),
+                "config": normalize_string(options.get("config")) or "corpora/papyrus-steering.yml",
+                "corpus-key": corpus_key,
+                "status": options.get("status") or "pending",
+                "cited-only": parse_boolean_option(options.get("cited-only"), bool(pack), "--cited-only"),
+                "url-text": options.get("url-text", "false"),
+                "metadata-from-text": options.get("metadata-from-text", "false"),
+                "actor-label": actor_label,
+            })
+            if pack:
+                link_found_references_as_consulted(
+                    client, story_lineage, [row["referenceId"] for row in intake_result.get("references") or [] if row.get("referenceId")],
+                    actor=actor_label, note=f"Found by research assignment {assignment_id}")
+        except Exception as error:   # noqa: BLE001 - the packet is already written; the failure is recorded on the assignment, not left half-done
+            intake_error = f"{type(error).__name__}: {error}"
     now = _utc_now()
+    summary_note = (f"Multi-search completed: {len(outcome['queries'])} queries, {len(outcome['sources'])} sources from "
+                    f"{', '.join(outcome['packet']['multiSearch']['answeredProviders'])}.")
     event = _assignment_event_record(
-        assignment=assignment, event_type="research.multi.completed", actor_label=actor_label, now=now,
-        note=f"Multi-search completed: {len(outcome['queries'])} queries, {len(outcome['sources'])} sources from "
-             f"{', '.join(outcome['packet']['multiSearch']['answeredProviders'])}.")
+        assignment=assignment, event_type="research.multi.intake_failed" if intake_error else "research.multi.completed",
+        actor_label=actor_label, now=now,
+        note=f"{summary_note} The packet was written, but taking its sources in failed: {intake_error}" if intake_error else summary_note)
     changes = build_record_changes(client, [event])
     apply_record_changes(client, changes)
     update_newsroom_summary_after_research_packet_creates(client, changes, actor_label=actor_label,
                                                           reason=f"assignments research-multi {assignment_id}")
     return {**result, "researchPacketMessageId": (apply_result or {}).get("messageId"),
-            "registeredReferenceCount": (intake_result or {}).get("registeredReferenceCount", 0)}
+            "registeredReferenceCount": (intake_result or {}).get("registeredReferenceCount", 0),
+            **({"intakeError": intake_error} if intake_error else {}),
+            **({"intake": {key: intake_result.get(key) for key in ("citedOnly", "consideredSourceCount", "dedupedProposalCount", "heldReferenceCount")}} if intake_result else {})}
 
 
 def research_multi_command(flags: list[str]) -> None:
@@ -580,3 +643,5 @@ def research_multi_command(flags: list[str]) -> None:
               f"unique={row['uniqueSources']}\tfailures={failed}\tms={row['elapsedMs']}")
     if result.get("researchPacketMessageId"):
         print(f"assignments\tresearch-multi\tpacket\t{result['researchPacketMessageId']}")
+    if result.get("intakeError"):
+        print(f"assignments\tresearch-multi\tintake-failed\t{result['intakeError']}")
