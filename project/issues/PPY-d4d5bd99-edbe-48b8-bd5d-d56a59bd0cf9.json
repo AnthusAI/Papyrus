@@ -10,9 +10,17 @@
   "parent": "PPY-b32e856a-d354-4996-8cce-77b852ca8288",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6f3f50e4-4627-443f-8b83-45e22878dde8",
+      "author": "home",
+      "text": "Live on packet 3, three judge passes: 12 verified, 8-9 needs_check, 7-8 rejected. Lipps attribution and Parks nuance caught again; Rodney and Tennessee rejected in every run. Remaining instability seen: one claim moved between needs_check and rejected, none crossed into verified in these two runs. Research packets are wired; fact check runs on the next research run.",
+      "created_at": "2026-11-03T14:40:18.270113Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-03T13:41:36.992853Z",
-  "updated_at": "2026-11-03T13:41:36.992874Z",
+  "updated_at": "2026-11-03T14:40:18.270309Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
