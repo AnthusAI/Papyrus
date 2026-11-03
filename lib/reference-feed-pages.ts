@@ -12,7 +12,7 @@ import type { ReferenceRecord } from "./category-repository";
 import { referenceFeedKeys } from "./reference-feed-keys";
 
 export type FeedStreamSort = "best" | "newest";
-export type FeedStreamShow = "unrated" | "all";
+export type FeedStreamShow = "unrated" | "all" | "rated";
 
 export type FeedStreamQuery = { feedStateKey: string; sort: FeedStreamSort; limit: number; nextToken: string | null };
 export type FeedStreamPage = { items: ReferenceRecord[]; nextToken: string | null };
@@ -22,7 +22,7 @@ export type FeedStreamReader = (query: FeedStreamQuery) => Promise<FeedStreamPag
 export const FEED_READ_PAGE_SIZE = 24;
 
 export function feedStateKeys(corpusIds: readonly string[], show: FeedStreamShow): string[] {
-  const states = show === "all" ? ["unrated", "rated"] : ["unrated"];
+  const states = show === "all" ? ["unrated", "rated"] : [show];
   return [...new Set(corpusIds)].flatMap((corpusId) => states.map((state) => `${corpusId}#${state}`));
 }
 

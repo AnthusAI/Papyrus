@@ -617,7 +617,19 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await pressed("sort", "newest"), "true", "the sort is remembered");
       assert.equal(await pressed("show", "all"), "true", "and so is Show");
       assert.equal((await order(page)).length, 9);
+      await page.locator("[data-feed-show-button=rated]").click();
+      assert.equal(await pressed("show", "rated"), "true");
+      assert.equal(await pressed("show", "all"), "false");
+      const rated = await order(page);
+      assert.deepEqual(rated, ["auto-accepted", "rule-accepted", "editor-accepted"], "Rated only lists the answered cards alone, newest first");
+      assert.equal(await card(page, "editor-accepted").getAttribute("data-feed-rated"), "accept", "a rated card still shows its recorded vote");
+      assert.equal(await page.locator("[data-feed-lead]").count(), 0, "and has no lead card");
       await page.locator("[data-feed-sort-button=best]").click();
+      assert.equal((await order(page)).length, 3, "Best bets also works with rated cards");
+      assert.equal(await page.locator("[data-feed-show-button=rated] svg").count(), 1, "a Lucide icon beside the words");
+      await page.reload();
+      await cards(page).first().waitFor();
+      assert.equal(await pressed("show", "rated"), "true", "Rated only is remembered too");
       await page.locator("[data-feed-show-button=unrated]").click();
       assert.equal((await order(page)).length, 6);
     });
@@ -633,7 +645,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok((await skeleton.locator(".animate-pulse").count()) > 10);
       assert.equal(await cards(page).count(), 0);
       assert.equal(await page.locator("[data-feed-sort-button]").count(), 2, "the feed's controls are already on the page");
-      assert.equal(await page.locator("[data-feed-show-button]").count(), 2);
+      assert.equal(await page.locator("[data-feed-show-button]").count(), 3);
       assert.ok(!/checking|credentials/i.test(await page.locator("body").innerText()));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     });
@@ -793,6 +805,16 @@ const scenarios: Record<string, () => Promise<void>> = {
     await run("?indexed=1&empty=1", [375, 1440], async (page) => {
       await page.locator("[data-feed-empty]").waitFor();
       assert.equal(await page.locator(".animate-pulse").count(), 0, "an empty feed shows the empty message, not a skeleton");
+    });
+    await run("?indexed=1&empty=1", [375, 1440], async (page) => {
+      await page.locator("[data-feed-empty]").waitFor();
+      await page.evaluate(() => { window.requests.length = 0; });
+      await page.locator("[data-feed-show-button=rated]").click();
+      await page.waitForFunction(() => window.requests.some((request) => request.kind === "index"));
+      await page.locator("[data-feed-empty]").waitFor();
+      assert.match(await page.locator("[data-feed-empty]").innerText(), /Nothing rated yet/, "an empty Rated only says so in plain words");
+      const keys = await page.evaluate(() => window.requests.filter((request) => request.kind === "index").map((request) => (request as unknown as { key: string }).key));
+      assert.ok(keys.length > 0 && keys.every((key) => key.endsWith("#rated")), "Rated only reads the rated partitions alone");
     });
     await run("?indexed=1&slow=900", [375], async (page) => {
       await page.waitForTimeout(300);

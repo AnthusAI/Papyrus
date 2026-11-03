@@ -86,6 +86,9 @@ test("Unrated only hides answered items except those answered this visit; Includ
   assert.deepEqual(ids(visibleFeedItems(all, "newest", "unrated")), ["open"]);
   assert.deepEqual(ids(visibleFeedItems(all, "newest", "all")), ["no", "open", "yes"]);
   assert.deepEqual(ids(visibleFeedItems(all, "newest", "unrated", new Set(["yes"]))), ["open", "yes"], "answered this visit: stays");
+  assert.deepEqual(ids(visibleFeedItems(all, "newest", "rated")), ["no", "yes"], "Rated only lists the answered items alone");
+  assert.deepEqual(ids(visibleFeedItems(all, "best", "rated")), ["no", "yes"], "Best bets with no prediction: newest first");
+  assert.deepEqual(ids(visibleFeedItems(all, "newest", "rated", new Set(["open"]))), ["no", "open", "yes"], "an answer cleared this visit stays");
   assert.ok(visibleFeedItems(all, "best", "all").find((item) => item.lineageId === "yes")!.rated);
 });
 
@@ -244,6 +247,10 @@ test("Include rated adds answered cards from the snapshot, in the active sort, w
   assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "all").items), ["done", "open", "old"]);
   assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "best", "all").items), ["old", "done", "open"]);
   assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "unrated").items), ["open", "old"]);
+  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "rated").items), ["done"], "Rated only takes the answered items from the snapshot");
+  assert.equal(applyFeedOrderSnapshot(snapshot, live, "best", "rated").leadId, undefined, "and has no lead card");
+  const answered = items([reference("open", { createdAt: ago(1), curationStatus: "rejected" }), live[1].reference, live[2].reference]);
+  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, answered, "newest", "rated").items), ["done", "open"], "an item answered this visit joins Rated only without re-ranking");
 });
 
 const curation = (body: Record<string, unknown>) => attach("a", "curation", { sortKey: "003-curation", metadata: JSON.stringify({ kind: "reference-curation", ...body }) });

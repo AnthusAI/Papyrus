@@ -7,7 +7,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
   first, whatever the age: the items it expects the editor to Accept most surely come first, the items with no prediction sit in the
   middle, and the strongest predicted Rejects come last. Newest is the latest arrival first. Show is Unrated only, the default, or
   Include rated, which adds the References that already have a human answer to the same list in the same sort, each showing its
-  recorded vote. Both choices are remembered in this browser. Nothing is hidden because it is old. A card the editor rates stays where
+  recorded vote, or Rated only, which lists just those answered References so an editor can find one again. Both choices are remembered in this browser. Nothing is hidden because it is old. A card the editor rates stays where
   it is for the rest of the visit, showing the answer and whether the Cyclotron matched it, and the order is taken once per visit in
   either sort. The page shows its shell and card skeletons at once instead of a checking screen, and a return visit shows the last
   saved cards while the live read runs. These scenarios use synthetic References in an isolated browser at 375 and 1440 pixels and
@@ -73,6 +73,14 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     When the editor chooses Include rated and reloads the page
     Then the answered cards join the same list in the active sort, each showing its recorded vote
     And the page remembers Newest and Include rated for this browser, with no tabs on the page
+
+  Scenario: Rated only lists just the answered cards, a page at a time, and finds them again
+    Given a feed with References that were accepted automatically or by an editor
+    When the editor chooses Rated only
+    Then only the answered cards are listed, in the active sort, each showing its recorded vote, with no large lead card
+    And Best bets there goes by the Cyclotron's original confidence and Newest by arrival, never by the editor's answer
+    And the answered cards are read from the rated partitions alone, a page at a time, and a vote changed there leaves the card where it is
+    And a site with nothing rated yet says "Nothing rated yet" in plain words, and the page remembers Rated only for this browser
 
   Scenario: The feed is flat, rounded and borderless, one list in rank order
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction

@@ -166,6 +166,13 @@ Then("Best bets and Unrated only are pressed, and each choice is a pair of butto
 Then("choosing Newest orders the cards by arrival, newest first, whatever the predictions say", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("the answered cards join the same list in the active sort, each showing its recorded vote", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("the page remembers Newest and Include rated for this browser, with no tabs on the page", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+When("the editor chooses Rated only", function () { this.feedResult = ""; });
+for (const text of [
+  "only the answered cards are listed, in the active sort, each showing its recorded vote, with no large lead card",
+  "the answered cards are read from the rated partitions alone, a page at a time, and a vote changed there leaves the card where it is",
+  "a site with nothing rated yet says \"Nothing rated yet\" in plain words, and the page remembers Rated only for this browser",
+]) Then(text, async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+Then("Best bets there goes by the Cyclotron's original confidence and Newest by arrival, never by the editor's answer", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 When("the editor chooses Include rated and reloads the page", function () { this.feedResult = ""; });
 Then("the pictures are lazy, in a fixed frame and requested with no referrer", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("a missing or failing picture shows a soft gradient tile with the source's mark and name", async function () { assert.ok((await browser("images")).includes("passed: images")); });

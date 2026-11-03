@@ -53,7 +53,7 @@ export type FeedItem = {
 };
 
 export type FeedSort = "best" | "newest";
-export type FeedShow = "unrated" | "all";
+export type FeedShow = "unrated" | "all" | "rated";
 export const DEFAULT_FEED_SORT: FeedSort = "best";
 export const DEFAULT_FEED_SHOW: FeedShow = "unrated";
 
@@ -96,9 +96,13 @@ export function orderFeedItems(items: FeedItem[], sort: FeedSort): FeedItem[] {
   return [...items].sort(sort === "newest" ? compareNewest : compareBestBets);
 }
 
-/** The visible list: ordered by `sort`; "Unrated only" keeps the items answered during this visit, which stay in place. */
+/**
+ * The visible list: ordered by `sort`; "Unrated only" keeps the items answered during this visit, which stay in place. "Rated only"
+ * lists the answered items, and keeps one whose answer was cleared this visit, so it does not vanish under the editor's hand.
+ */
 export function visibleFeedItems(items: FeedItem[], sort: FeedSort, show: FeedShow, visitRated: ReadonlySet<string> = new Set()): FeedItem[] {
-  return orderFeedItems(items.filter((item) => show === "all" || !item.rated || visitRated.has(item.lineageId)), sort);
+  const keep = (item: FeedItem) => show === "all" || (show === "rated" ? item.rated : !item.rated) || visitRated.has(item.lineageId);
+  return orderFeedItems(items.filter(keep), sort);
 }
 
 /** The lead card is the first card, unless it is a predicted Reject. */
@@ -142,7 +146,7 @@ export function applyFeedOrderSnapshot(snapshot: FeedOrderSnapshot, live: FeedIt
 } {
   const byId = new Map(live.map((item) => [item.lineageId, item] as const));
   const items = (sort === "newest" ? snapshot.newest : snapshot.best)
-    .filter((id) => show === "all" || snapshot.unrated.has(id))
+    .filter((id) => show === "all" || (show === "rated" ? !snapshot.unrated.has(id) || byId.get(id)?.rated : snapshot.unrated.has(id)))
     .flatMap((id) => { const item = byId.get(id); return item ? [item] : []; });
   const lead = snapshot.lead[sort];
   return {
