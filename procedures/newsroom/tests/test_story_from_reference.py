@@ -71,7 +71,7 @@ def test_a_story_is_linked_to_its_reference_by_lineage_ids_and_keeps_our_own_bod
     assert (link["referenceLineageId"], link["role"]) == ("reference-clef", "based_on")
     [relation] = client.tables["SemanticRelation"].values()
     assert (relation["predicate"], relation["subjectLineageId"], relation["objectLineageId"]) == ("uses_evidence", result["lineageId"], "reference-clef")
-    assert stories_based_on_reference(client, "reference-clef") == [{"relationId": relation["id"], "storyLineageId": result["lineageId"], "role": "based_on"}]
+    assert stories_based_on_reference(client, "reference-clef") == [{"relationId": relation["id"], "storyLineageId": result["lineageId"], "role": "based_on", "assignmentId": None}]
 
 
 def test_without_a_body_the_story_starts_from_a_brief_that_carries_none_of_the_source_text():
