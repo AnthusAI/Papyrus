@@ -842,8 +842,23 @@ evaluation number and what that number was measured on, and counts such as the r
   `papyrus monitors page --list cyclotronStatus` on the signed-in lane.
 * **Freshness.** A snapshot is only as fresh as the binding's last completed decision, so votes made after it are not in it; the page shows the snapshot's `asOf` and says so.
   Votes do not train hosted runs today, so expect zero refits and possibly zero labels, which the page says plainly.
-* **Not built yet.** Cyclotron's proposed `report` operation (history over time, and the supporting questions behind a decision) is not published. The seam for it is documented in
-  `lib/hosted-cyclotron-status.ts` and the `extra` slot of `components/home-cyclotron-panel.tsx`; nothing stands in for it.
+* **The report.** The same task also calls the Cyclotron's read-only `report` operation (body `{"contractVersion", "operation":"report", "payload":{}}`, never a `requestId`; the lab
+  answers 400 to one) for each publication, right after its `status` call and honouring the same time budget, and keeps this publication's own output (`outputs[<output>]` of the
+  `cyclotron-classifier-report/v1` answer, with the answer's `schema` and `generatedAt` added) in the same row under `report`, with `reportCheckedAt`. No new schedule, table or page read.
+  It holds the classifier (revision, question, rubric, classes), `learning` (state, reason, version, refits, last change), `agreementWithEditors` (votes, compared, agreed, by classifier
+  revision and by day), `heldOut`, `counts` (labels by name, reviewed decisions, primed examples, decisions without a label in the engine) and `model` (features, weights, reason).
+  The report answers 200 before a first decision, when `status` answers 503, so a row may hold a report and no status. A report for another output is never stored.
+* **The two reads are independent.** The row is merged, not overwritten: a failed `status` keeps the last good status, a failed `report` (including a 503, which is an ordinary failed read
+  and never a lab pause) keeps the last good report and its `reportCheckedAt`. The run's print line has `cyclotronReport` per publication and `reportReasons`; the task result has `reports`.
+* **Row size.** DynamoDB refuses an item over 400 KB. A report that would take the row past 300,000 bytes is cut down before it is stored: the model's features and weights first
+  (`model.reason` then says so), then the oldest days of agreement; the stored report lists what was cut in `trimmed`, and the home page says some of it was left out. The run's print line
+  has `trimmedReports`. Votes grow the report only by one entry per day and per classifier revision, so this is a guard for a large fitted model, not an expected case.
+* **What it costs.** The report read takes 0.2 to 6.4 seconds and grows with the number of votes; it runs once an hour per publication and never on a page view.
+* **On the home page.** The panel shows learning and its reason, the most recent cycle, agreement with reviewers as "agreed of compared" ("Not compared yet" when none was compared, never 0%,
+  and never called accuracy), agreement by day and by classifier revision, the held-out evaluation (a percentage, or the report's reason), and counts of labels, reviewed decisions and primed examples;
+  the expanded details add the question, classes, rubric and the supporting questions and weights (or the report's reason when there are none). Votes are compared only for decisions the Cyclotron
+  filed by item, which it does from its release with the report on, so earlier votes count but show as not compared. A site on an older Papyrus version, and any row before the router's first
+  run with the report, has no report and shows the status-only panel. `lib/hosted-cyclotron-status.ts` parses it (`parseHostedReport` drops an unknown schema or a section out of shape).
 
 Specs: `features_backend/monitoring-cyclotron-status.feature` and `features/newsroom-home-cyclotron.feature`.
 

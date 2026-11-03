@@ -539,16 +539,23 @@ CYCLOTRON_STATUS_ROW_PREFIX = "CYCLOTRONSTATUS#"   # written by the router's `cy
 def cyclotron_status_rows(stores: dict, *, groups, site_endpoint) -> dict:
     """The Cyclotron classifier status of THIS site's publication, newest snapshot first. Always publication scope: a monitor whose router
     config does not list the signed-in site's endpoint contributes nothing, and a monitor that lists several publications contributes only
-    the one row for the publication that owns the endpoint. Small and read-only: one get per monitor, no list is walked."""
+    the one row for the publication that owns the endpoint. Small and read-only: one get per monitor, no list is walked.
+    Each row carries the latest `status` snapshot and the latest classifier `report` (either may be null: the router keeps the last good read of each)."""
     if not set(groups or []) & EDITOR_GROUPS:
         raise Forbidden("monitoring is for editors and admins")
     rows = []
     for monitor_id, store in stores.items():
         own = _Routing(store, store, site_endpoint=site_endpoint, scope="publication").own
         row = store.get(CYCLOTRON_STATUS_ROW_PREFIX + own["publicationId"]) if own else None
-        if row and row.get("publicationId") == own["publicationId"] and isinstance(row.get("status"), dict):
+        status = row.get("status") if row else None
+        report = row.get("report") if row else None
+        if row and row.get("publicationId") == own["publicationId"] and (isinstance(status, dict) or isinstance(report, dict)):
+            # A row may hold a status, a report, or both: the router keeps each one's last good read separately.
             rows.append({"monitorId": monitor_id, "publicationId": row["publicationId"], "output": row.get("output"),
-                         "asOf": row.get("asOf"), "checkedAt": row.get("checkedAt"), "status": row["status"]})
+                         "asOf": row.get("asOf"), "checkedAt": row.get("checkedAt"),
+                         "status": status if isinstance(status, dict) else None,
+                         "report": report if isinstance(report, dict) else None,
+                         "reportCheckedAt": row.get("reportCheckedAt") if isinstance(report, dict) else None})
     return {"list": CYCLOTRON_STATUS_LIST, "rows": _newest(rows, "asOf"), "cursor": None}
 
 
