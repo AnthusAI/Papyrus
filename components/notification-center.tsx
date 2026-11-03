@@ -405,7 +405,7 @@ export function NotificationCenter({
 
   return (
     <NeedsMeView
-      below={below} captureTeaserLine={teaserLine} cyclotron={cyclotron} demo={demo} entries={entries} error={error} legacyAuto={legacyAuto}
+      actorLabel={actorLabel} below={below} captureTeaserLine={teaserLine} cyclotron={cyclotron} demo={demo} entries={entries} error={error} legacyAuto={legacyAuto}
       loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason} onSetStars={onSetReferenceStars}
       moreLinks={linksCursor !== null} loadingMoreLinks={linksLoadingMore} onLoadMoreLinks={loadMoreLinks}
       predictionLoading={predictionLoading} recent={recent} referenceAttachments={referenceAttachments}

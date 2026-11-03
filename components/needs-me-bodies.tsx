@@ -38,6 +38,8 @@ export type DetailProps = {
   predictionLoading: boolean;
   onCorrectCapture?: CorrectCaptureAction;
   loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
+  /** Who is deciding, for what is recorded with a decision made inside a detail (the variations of an idea). */
+  actorLabel?: string;
 };
 
 export function Heading({ item }: { item: NeedsMeEntry }) {
@@ -162,6 +164,20 @@ export function DefaultOutcome({ item }: { item: NeedsMeEntry }) {
 
 // --- one body per type -----------------------------------------------------------------------------------------------
 
+/**
+ * The variations of one idea of a batch, loaded in the browser only (`needs-me-idea-variations.tsx`): reading them needs the signed-in API client, which
+ * this module, and the tests that render it on the server, must not pull in.
+ */
+function BatchIdeaVariations(props: { lineageId: string; demo: boolean; decidedBy: string }) {
+  const [Loaded, setLoaded] = useState<((props: { lineageId: string; demo: boolean; decidedBy: string }) => ReactNode) | null>(null);
+  useEffect(() => {
+    let live = true;
+    void import("./needs-me-idea-variations").then((module) => { if (live) setLoaded(() => module.BatchIdeaVariations); }, () => undefined);
+    return () => { live = false; };
+  }, []);
+  return Loaded ? <Loaded {...props} /> : null;
+}
+
 /** A batch of generated story ideas. They are decided on the Stories board, so this body lists them and links to the Idea column; it asks nothing here. */
 export function IdeaBatchBody(props: DetailProps & { payload: Extract<NeedsMeEntry["payload"], { kind: "ideas" }> }) {
   const { item, payload } = props;
@@ -190,6 +206,7 @@ export function IdeaBatchBody(props: DetailProps & { payload: Extract<NeedsMeEnt
                       <span className="block text-xs text-muted-foreground">{idea.stage === null ? "In the Idea column" : idea.stage === IDEA_STAGE ? "In the Idea column" : idea.stage === "spiked" ? "Declined: spiked" : `Accepted: moved to ${idea.stage.replace(/[-_]+/g, " ")}`}</span>
                     </span>
                   </Link>
+                  <BatchIdeaVariations decidedBy={props.actorLabel ?? "editor"} demo={props.demo} lineageId={idea.id} />
                 </li>
               );
             })}

@@ -259,6 +259,8 @@ const NO_EXTRAS: DecisionExtras = { notThisKind: false };
 const NO_ATTACHMENTS: ReferenceAttachmentRecord[] = [];
 
 export type NeedsMeViewProps = {
+  /** Who is deciding: recorded with a decision made inside a detail (the variations of an idea). */
+  actorLabel?: string;
   loadState: NeedsMeLoadState;
   entries: NeedsMeEntry[];
   threshold: ConfidenceThreshold;
@@ -305,7 +307,7 @@ function Note({ children, ...rest }: { children: ReactNode } & Record<string, un
 export function NeedsMeView({
   loadState, entries, threshold, now, shaping, recent, legacyAuto = [], cyclotron, settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
   referenceDisabledReason = null, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onSetStars, onOpened, loadEmail, below,
-  moreLinks = false, loadingMoreLinks = false, onLoadMoreLinks,
+  moreLinks = false, loadingMoreLinks = false, onLoadMoreLinks, actorLabel,
 }: NeedsMeViewProps) {
   const themeMode = useResolvedPapyrusTheme();
   const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
@@ -430,7 +432,7 @@ export function NeedsMeView({
   const nothing = waiting === 0 && placed.feed.length === 0 && !referencesLoading;
   const detailBody = (item: NeedsMeEntry) => (
     <NeedsMeDetail
-      attachments={referenceAttachments} captureTeaserLine={captureTeaserLine} demo={demo} disabledReason={disabledFor(item, session, referenceDisabledReason)} extras={extras[item.id] ?? NO_EXTRAS}
+      actorLabel={actorLabel} attachments={referenceAttachments} captureTeaserLine={captureTeaserLine} demo={demo} disabledReason={disabledFor(item, session, referenceDisabledReason)} extras={extras[item.id] ?? NO_EXTRAS}
       item={item} loadEmail={loadEmail} onCorrectCapture={onCorrectCapture} onExtras={(next) => setExtras((current) => ({ ...current, [item.id]: next }))}
       predictionLoading={predictionLoading} ratings={ratings}
     />

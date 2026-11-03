@@ -79,6 +79,7 @@
     "test:oauth-redirect-urls": "tsx scripts/test-oauth-redirect-urls.ts",
     "test:infra-site-config": "tsx scripts/test-infra-site-config.ts",
     "test:prospectus-site-identity": "tsx scripts/test-prospectus-site-identity.ts",
+    "test:story-variations": "tsx scripts/test-story-variations.ts && tsx scripts/test-story-variations-ui.ts && cucumber-js --profile storyVariations && poetry run behave features_backend/story-variations.feature features_backend/story-variations-accept.feature",
     "test:create-story": "tsx scripts/test-story-from-reference.ts && tsx scripts/test-create-story-ui.ts && cucumber-js --profile createStory && poetry run behave features_backend/create-story-from-reference.feature",
     "test:card-suggestions": "tsx scripts/test-card-suggestions.ts && tsx scripts/test-card-suggestions-ui.ts && cucumber-js --profile cardSuggestions",
     "test:reference-stars": "tsx scripts/test-reference-stars-ui.ts && cucumber-js --profile referenceStars && poetry run behave features_backend/reference-stars.feature",

@@ -177,7 +177,7 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
     type: version.type,
     section: version.section ?? null,
     slug: version.slug,
-    frontMatterYaml: `title: ${headline}\nsection: ${version.section ?? ""}`,
+    frontMatterYaml: `title: ${JSON.stringify(headline)}\nsection: ${version.section ?? ""}`,
     bodyMarkus: `# ${headline}\n\nThe local preview shows this story's record. Its full body text is loaded from the live backend.`,
     contentHash: null,
     status: version.status === "published" ? "published" : "draft",
@@ -185,6 +185,12 @@ export function createLocalPreviewEditableArticle(id: string): EditableArticle |
     aliases: [],
     everPublished: version.status === "published",
   };
+}
+
+/** The id of the preview version a lineage starts as (the preview has no history to read the latest version from). */
+export function previewVersionIdForLineage(lineageId: string): string | null {
+  const named = lineageId === "idea-1" ? "preview-item-lineage-idea-1" : lineageId;   // the sample idea batch's first idea is the board's second idea
+  return createLocalPreviewContentItemVersions().find(candidate => candidate.lineageId === named)?.id ?? null;
 }
 
 export function recordLocalPreviewDesk(articleId: string, deskId: string | null): void {

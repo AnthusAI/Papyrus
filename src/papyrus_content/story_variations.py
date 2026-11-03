@@ -97,6 +97,34 @@ def decide_variation(
     return _read(client.get_record(MODEL, variation_id))
 
 
+#: The front matter key an accepted variation's wording is saved under on the Story's next version (the newsroom writes it: ``lib/story-variations.ts``).
+VARIATION_ID_KEY = "variationId"
+
+
+def variation_id_of(item: Mapping[str, Any]) -> str | None:
+    """The variation a Story version's wording was accepted from, or None for a version people or runs wrote themselves."""
+    import yaml
+
+    metadata = item.get("metadata")
+    metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
+    try:
+        front = yaml.safe_load(metadata.get("frontMatterYaml") or "") or {}
+    except yaml.YAMLError:
+        return None
+    found = front.get(VARIATION_ID_KEY) if isinstance(front, dict) else None
+    return found if isinstance(found, str) and found else None
+
+
+def versions_from_variations(versions: Iterable[Mapping[str, Any]]) -> dict[str, list[int]]:
+    """For each variation id, the version numbers of the Story that carry its wording, oldest first: how a Story's history shows where its wording came from."""
+    found: dict[str, list[int]] = {}
+    for version in sorted(versions, key=lambda row: int(row.get("versionNumber") or 0)):
+        identifier = variation_id_of(version)
+        if identifier:
+            found.setdefault(identifier, []).append(int(version.get("versionNumber") or 0))
+    return found
+
+
 def _connection(row: Mapping[str, Any]) -> dict[str, Any]:
     kind, identifier, title = row.get("kind"), str(row.get("id") or "").strip(), str(row.get("title") or "").strip()
     if kind not in CONNECTION_KINDS:
