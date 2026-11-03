@@ -5,8 +5,7 @@ Feature: The router runs the research assignments editors give Stories, with nob
   research-assignments, does it. A publication turns it on in its router entry (researchAssignments, off until then), because it needs the backend to
   grant the service the fields it uses. The task runs once per publication, each in its own invocation with its own lock, and it runs in its own function with its own
   role, which holds the search and model keys. It takes that publication's open research assignments that have a Story, oldest first, marks each one running
-  (claimed) with an assignment event and a lease, runs the multi-search research on it, and marks it finished (completed) or failed with the reason. A search takes
-  minutes, so the task stops starting new ones when the time is short and leaves the rest open for the next run. An assignment left running past its lease is
+  (claimed) with an assignment event and a lease, runs the multi-search research on it, and marks it finished (completed) or failed with the reason. A search and its synthesis take about five minutes and the fact check adds about 55 model calls, so the worker's Lambda runs up to 900 seconds, a run is not started with less than 420 seconds left, and the fact check's judge stops asking with less than 240 seconds left, so unjudged claims end unchecked and the packet is still written; the rest wait open for the next run. An assignment left running past its lease is
   failed with a reason, so it cannot hang, and a failed assignment is never retried by the task, because a run spends search and model calls. No fixed limit and no budget gate
   bounds it: a person asked for each run. The backend, the clock and the research are fakes in these scenarios.
 
@@ -20,7 +19,7 @@ Feature: The router runs the research assignments editors give Stories, with nob
   Scenario: An assignment is marked running before its research starts
     Given a backend with the open research assignments 1 on a Story
     When the research-assignments pass runs
-    Then while its research ran, assignment 1 was claimed by the research worker with a lease that ends 11 minutes later
+    Then while its research ran, assignment 1 was claimed by the research worker with a lease that ends 16 minutes later
 
   Scenario Outline: An assignment that is not an editor's research assignment on a Story is left alone
     Given a backend whose only assignment is <kind>
@@ -48,6 +47,19 @@ Feature: The router runs the research assignments editors give Stories, with nob
     When the research-assignments pass runs
     Then assignment 1 is completed and assignments 2 and 3 are still open
     And the pass reports that it stopped by time with 2 left open
+
+  Scenario: A run is not started when less time is left than a search needs
+    Given a backend with the open research assignments 1 on a Story
+    And only 400 of the worker's 900 seconds are left
+    When the research-assignments pass runs
+    Then no research ran and assignment 1 is still open
+    And the pass reports that it stopped by time with 1 left open
+
+  Scenario: The fact check stops asking the judge when time is short and its claims end unchecked
+    Given a fact check whose time runs short after its first judge answer
+    When the claims are checked
+    Then the claims not yet judged are unchecked with the reason that the run ran short of time
+    And the packet is still made
 
   Scenario: An assignment left running past its lease is failed so it cannot hang
     Given a backend with assignment 1 claimed with a lease that ended a minute ago

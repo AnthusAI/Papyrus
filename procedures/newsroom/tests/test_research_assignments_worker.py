@@ -45,7 +45,7 @@ class Research:
     def __init__(self, fail=(), raises=()):
         self.asked, self.fail, self.raises = [], set(fail), set(raises)
 
-    def __call__(self, client, options):
+    def __call__(self, client, options, **_):
         self.asked.append(options)
         if options["assignment"] in self.raises:
             raise RuntimeError("search is down")
@@ -54,8 +54,8 @@ class Research:
         return {"action": "completed"}
 
 
-def run(backend, research, *, out_of_time=lambda: False):
-    return run_research_assignments(backend, PUBLICATION, now=NOW, out_of_time=out_of_time, research=research, clock=lambda: NOW)
+def run(backend, research, *, out_of_time=lambda: False, time_left=None):
+    return run_research_assignments(backend, PUBLICATION, now=NOW, out_of_time=out_of_time, research=research, clock=lambda: NOW, time_left=time_left)
 
 
 def test_open_research_assignments_with_a_story_run_oldest_first_and_finish():
@@ -70,13 +70,13 @@ def test_open_research_assignments_with_a_story_run_oldest_first_and_finish():
 def test_the_assignment_is_marked_running_before_the_research_starts():
     backend, seen = Backend([assignment(1)]), []
 
-    def research(client, options):
+    def research(client, options, **_):
         row = backend.rows[options["assignment"]]
         seen.append((row["status"], row["assigneeKey"], row["claimExpiresAt"]))
         return {"action": "completed"}
 
     run(backend, research)
-    assert seen == [("claimed", WORKER_LABEL, "2026-11-03T12:11:00.000Z")]
+    assert seen == [("claimed", WORKER_LABEL, "2026-11-03T12:16:00.000Z")]
 
 
 @pytest.mark.parametrize("other", [assignment(1, story=None), assignment(1, profile="researcher"), assignment(1, status="completed"), assignment(1, type_key="research.candidate")])
@@ -101,6 +101,47 @@ def test_it_stops_before_the_deadline_and_leaves_the_rest_open():
     result = run(backend, research, out_of_time=lambda: next(calls, True))
     assert [row["status"] for row in backend.rows.values()] == ["completed", "open", "open"]
     assert result["stoppedBy"] == "time" and result["leftOpen"] == 2 and result["status"] == "stopped"
+
+
+def test_a_run_is_not_started_with_less_time_than_a_search_and_synthesis_need():
+    backend, research = Backend([assignment(1)]), Research()
+    result = run(backend, research, time_left=lambda: 400)
+    assert research.asked == [] and backend.rows["assignment-1"]["status"] == "open" and result["stoppedBy"] == "time" and result["leftOpen"] == 1
+    result = run(backend, research, time_left=lambda: 800)
+    assert backend.rows["assignment-1"]["status"] == "completed"
+
+
+def test_the_research_is_told_to_stop_judging_when_less_than_the_judge_reserve_is_left():
+    left, told = [800], []
+
+    def research(client, options, out_of_time):
+        told.append(out_of_time())
+        left[0] = 200
+        told.append(out_of_time())
+        return {"action": "completed"}
+
+    run(Backend([assignment(1)]), research, time_left=lambda: left[0])
+    assert told == [False, True]
+
+
+def test_a_judge_that_is_out_of_time_leaves_claims_unchecked_and_the_run_still_makes_a_packet():
+    from papyrus_content.fact_check import check_claims
+    from papyrus_content.multi_search_research import stop_judging_when_short_of_time
+
+    asked = []
+    short = [False]
+
+    def judge(claim, cited, info):
+        asked.append(claim)
+        short[0] = True
+        return {"verdict": "supported", "quotes": [], "explanation": "", "attribution_lost": False, "claim_is_only_about_source_limits": False}
+
+    texts = {"1": "Alpha beta gamma. Delta epsilon."}
+    claims = [{"claim": "Alpha beta gamma.", "sources": ["1"]}, {"claim": "Delta epsilon.", "sources": ["1"]}]
+    report = check_claims(claims, texts, judge=stop_judging_when_short_of_time(judge, lambda: short[0]), urls={"1": "https://a.example/x"})
+    verdicts = [claim["verdict"] for claim in report["claims"]]
+    assert "unchecked" in verdicts and report["counts"]["total"] == 2
+    assert all("ran short of time" in claim["reasons"][0] for claim in report["claims"] if claim["verdict"] == "unchecked")
 
 
 def test_a_claim_past_its_lease_is_failed_with_a_reason_and_not_run_again():
@@ -139,7 +180,7 @@ def router_with(settings):
     return table, store
 
 
-def run_task(store, backends, *, publication_id=None, fan_out=None, research=None, time_left=lambda: 600):
+def run_task(store, backends, *, publication_id=None, fan_out=None, research=None, time_left=lambda: 900):
     endpoints = {tr.ENDPOINT.replace("abc123", f"api{n}"): backend for n, backend in enumerate(backends.values())}
     original = mr.run_research_assignments
     mr.run_research_assignments = lambda client, publication, **options: original(client, publication, **{**options, "research": research or Research()})
@@ -266,10 +307,29 @@ def test_the_worker_has_its_own_function_and_schedule_and_the_key_policies_name_
     for name in ("RouterOpenAiSearchKeyPolicy", "RouterTavilyKeyPolicy"):
         assert resources[name]["Properties"]["Roles"] == [("Ref", "RouterRole")], name
     function = resources["ResearchWorkerFunction"]["Properties"]
-    assert function["Handler"] == resources["RouterFunction"]["Properties"]["Handler"] and function["Timeout"] <= 600
+    assert function["Handler"] == resources["RouterFunction"]["Properties"]["Handler"] and function["Timeout"] == 900
+    from papyrus_content.monitoring_router import TASK_LEASE_SECONDS
+    from papyrus_content.research_assignments_worker import CLAIM_LEASE_SECONDS
+
+    assert TASK_LEASE_SECONDS["research-assignments"] > function["Timeout"] and CLAIM_LEASE_SECONDS > function["Timeout"]
 
 
 def test_the_router_role_keeps_its_twenty_policies_and_gains_none():
     resources = tr._template()["Resources"]
     attached = [name for name, resource in resources.items() if resource["Type"] == "AWS::IAM::ManagedPolicy" and ("Ref", "RouterRole") in (resource["Properties"].get("Roles") or [])]
     assert len(attached) <= 20, len(attached)
+
+
+def test_an_idle_tick_lists_once_and_writes_no_receipt(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
+    table, store = router_with({"a-site": {"enabled": True}})
+    backend = Backend([])
+    listed = []
+    original = backend.list_assignments_by_type_status_and_created_at
+    backend.list_assignments_by_type_status_and_created_at = lambda type_key: listed.append(type_key) or original(type_key)
+    run_task(store, {"a-site": backend}, publication_id="a-site")
+    assert listed == ["research.multi"] and backend.events == []
+    assert not [key for key in table.items if key[1].startswith("ROUTERUN#")]
+    backend.rows["assignment-1"] = assignment(1)
+    run_task(store, {"a-site": backend}, publication_id="a-site")
+    assert [key for key in table.items if key[1].startswith("ROUTERUN#")]

@@ -116,6 +116,7 @@ RESEARCH_ASSIGNMENTS_LOCK_PREFIX = "LOCK#research-assignments#"   # the same for
 FAN_OUT_TASKS = {"monitor-stories": MONITOR_STORIES_LOCK_PREFIX, "auto-accept": AUTO_ACCEPT_LOCK_PREFIX,
                  "suggest-backlog": SUGGEST_BACKLOG_LOCK_PREFIX, "research-assignments": RESEARCH_ASSIGNMENTS_LOCK_PREFIX}   # tasks that run once per publication, each in its own invocation
 LEASE_SECONDS = 660                    # longer than the 600 s Lambda timeout
+TASK_LEASE_SECONDS = {"research-assignments": 960}   # a task with its own, longer Lambda timeout (900 s) holds its lock longer
 RECEIPT_TTL_SECONDS = 30 * 86400
 STALE_FINAL_REASON = "job pending longer than the allowed time; reconcile manually"   # an old limit's finals, reopened by hand
 AWAITING = "awaiting"
@@ -2622,7 +2623,7 @@ class Router:
                 continue
             try:
                 results[pid] = run_research_assignments(self.client(publication), publication, now=datetime.fromtimestamp(self.now, timezone.utc),
-                                                        out_of_time=lambda: self.time_left() < MIN_REMAINING_SECONDS)
+                                                        out_of_time=lambda: self.time_left() < MIN_REMAINING_SECONDS, time_left=self.time_left)
             except Exception as error:  # noqa: BLE001 - never fails the run
                 results[pid] = {"publicationId": pid, "status": "failed", "reason": short(error)}
         for result in results.values():
@@ -2936,7 +2937,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         if publication_id not in {p["publicationId"] for p in config["publications"]}:
             return {"monitorId": monitor_id, "runId": run_id, "status": "error", "reason": f"unknown publicationId {publication_id!r} for monitor {monitor_id}"}
         lock_sk = f"{FAN_OUT_TASKS[task]}{publication_id}"
-    if not store.acquire_router_lock(monitor_id, owner, now, sk=lock_sk):
+    if not store.acquire_router_lock(monitor_id, owner, now, lease=TASK_LEASE_SECONDS.get(task, LEASE_SECONDS), sk=lock_sk):
         return {"monitorId": monitor_id, "runId": run_id, "status": "locked"}
     try:
         if task == "reopen-stale-finals":
@@ -2965,6 +2966,9 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
                   "feedback": feedback, "autoAccept": auto_accepted, "monitorStories": monitor_stories, "suggestBacklog": suggest_backlog, "researchAssignments": research_assignments, "errors": outcome.get("errors", []),
                   "waitingForClassifier": outcome.get("waitingForClassifier", []), "posted": router.posted}
+        if task == "research-assignments" and not any(row.get(key) for row in research_assignments.values() for key in ("ran", "failed", "expired", "leftOpen")) \
+                and not any(row.get("status") == "failed" for row in research_assignments.values()):
+            return result   # an idle tick (nothing to run) writes no receipt: it would be 288 rows a day for each publication
         store.put_receipt(monitor_id, {
             "pk": pk(monitor_id), "sk": f"ROUTERUN#{result['startedAt']}#{run_id}", "runId": run_id,
             "startedAt": result["startedAt"], "mode": config["mode"], "status": result["status"],

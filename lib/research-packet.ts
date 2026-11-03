@@ -10,7 +10,41 @@
 export type PacketSource = { rank: number; url: string; title: string; domain: string | null };
 export type PacketClaim = { claim: string; sources: PacketSource[] };
 export type PacketDisagreement = { topic: string; positions: { position: string; sources: PacketSource[] }[] };
-export type PacketUnverifiedClaim = { claim: string; sources: PacketSource[]; reasons: string[] };
+export type ClaimVerdict = "needs_check" | "rejected" | "unchecked";
+export type PacketUnverifiedClaim = { claim: string; sources: PacketSource[]; verdict: ClaimVerdict | null; reasons: string[] };
+
+/** A machine reason from the fact check (`fact_check.py`), in plain words. A reason it does not know is shown as it is. */
+export function plainReason(reason: string): string {
+  const unmatched = /^unmatched_terms:\s*(.+)$/.exec(reason);
+  if (unmatched) return `Not in the cited source: ${unmatched[1]}`;
+  if (/^judge_failed\b/.test(reason)) return /short of time/.test(reason) ? "The run ran short of time before this claim was checked" : "The second check could not run";
+  const known: Record<string, string> = {
+    judge_partly_supported: "The source only partly supports this",
+    judge_not_supported: "The source does not support this",
+    judge_source_silent: "The source does not say this",
+    quote_not_in_source: "The quotation is not in the source",
+    attribution_lost: "The claim drops who said it",
+    no_cited_text: "No text of the cited source was read",
+    no_judge: "The second check was not run",
+  };
+  return known[reason] ?? reason;
+}
+
+export function verdictLabel(verdict: ClaimVerdict | null): string {
+  return verdict === "rejected" ? "Rejected" : verdict === "unchecked" ? "Not checked" : "Needs a check";
+}
+
+const count = (counts: Record<string, unknown>, key: string): number => (typeof counts[key] === "number" && Number.isFinite(counts[key]) ? counts[key] as number : 0);
+
+/** "12 verified, 8 need a check, 8 rejected; 23 rest on one site", from the counts of `factCheck`. Parts that are zero are left out, except verified. */
+export function factCheckSentence(counts: Record<string, unknown>): string {
+  const parts = [`${count(counts, "verified")} verified`];
+  if (count(counts, "needs_check")) parts.push(`${count(counts, "needs_check")} need a check`);
+  if (count(counts, "rejected")) parts.push(`${count(counts, "rejected")} rejected`);
+  if (count(counts, "unchecked")) parts.push(`${count(counts, "unchecked")} not checked`);
+  const single = count(counts, "singleSource");
+  return parts.join(", ") + (single ? `; ${single} rest on one site` : "");
+}
 
 export type ResearchPacketView = {
   summary: string;
@@ -59,9 +93,12 @@ export function researchPacketOf(raw: unknown): ResearchPacketView | null {
   });
   const unverifiedClaims = list(packet.unverifiedClaims).flatMap(entry => {
     const claim = text(record(entry).claim);
-    return claim ? [{ claim, sources: sourcesOf(record(entry).sources, byRank), reasons: list(record(entry).reasons).flatMap(reason => text(reason) ?? []) }] : [];
+    const raw = record(entry).verdict;
+    const verdict: ClaimVerdict | null = raw === "rejected" || raw === "unchecked" || raw === "needs_check" ? raw : null;
+    return claim ? [{ claim, sources: sourcesOf(record(entry).sources, byRank), verdict, reasons: list(record(entry).reasons).flatMap(reason => text(reason) ?? []).map(plainReason) }] : [];
   });
-  const factCheck = packet.factCheck;
+  const factCheck = record(packet.factCheck);
+  const counts = record(factCheck.counts);
   return {
     summary,
     recommendedAngle: text(packet.recommended_angle ?? packet.recommendedAngle),
@@ -69,7 +106,7 @@ export function researchPacketOf(raw: unknown): ResearchPacketView | null {
     disagreements,
     openQuestions: list(packet.open_questions ?? packet.openQuestions).flatMap(question => text(question) ?? []),
     unverifiedClaims,
-    factCheckSummary: text(factCheck) ?? text(record(factCheck).summary),
+    factCheckSummary: Object.keys(counts).length ? factCheckSentence(counts) : text(packet.factCheck) ?? text(factCheck.summary),
     sourceCount: byRank.size,
   };
 }

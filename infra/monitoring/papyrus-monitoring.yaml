@@ -1133,7 +1133,7 @@ Resources:
       Architectures: [arm64]
       Handler: papyrus_content.monitoring_router.handler
       MemorySize: 512
-      Timeout: 600   # the router's own lock lease (660 s) is longer than this, so one publication's runs never overlap
+      Timeout: 900   # the task's lock lease (960 s, TASK_LEASE_SECONDS) is longer than this, so one publication's runs never overlap
       Role: !GetAtt ResearchWorkerRole.Arn
       DeadLetterConfig:
         TargetArn: !GetAtt RouterDeadLetterQueue.Arn

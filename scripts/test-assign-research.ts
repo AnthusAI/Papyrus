@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { assignmentStateView, buildResearchAssignmentPlan, directionProblem } from "../lib/assign-research";
-import { researchPacketOf } from "../lib/research-packet";
+import { factCheckSentence, plainReason, researchPacketOf } from "../lib/research-packet";
 import { failureReasonOf, isResearchAssignment } from "../lib/story-reporting-trail";
 
 export const BROWSER_PLAN_INPUT = {
@@ -93,9 +93,15 @@ test("a packet is read with claims linked to the sources they cite, and unknown 
 });
 
 test("unverifiedClaims and factCheck are shown when present and the packet reads without them", () => {
-  const view = researchPacketOf({ ...packet, unverifiedClaims: [{ claim: "It won an award.", sources: [1], reasons: ["Only the maker says so."] }, { reasons: ["no claim"] }], factCheck: { summary: "One claim could not be verified." } });
+  const view = researchPacketOf({ ...packet, unverifiedClaims: [
+    { claim: "It won an award.", verdict: "needs_check", sources: [1], reasons: ["judge_partly_supported"] },
+    { claim: "Rodney signed it.", verdict: "rejected", sources: [2], reasons: ["unmatched_terms: Rodney"] },
+    { claim: "Old shape.", sources: [1], reasons: ["Only the maker says so."] }, { reasons: ["no claim"] }], factCheck: { summary: "One claim could not be verified." } });
   assert.ok(view);
-  assert.deepEqual(view.unverifiedClaims.map(item => [item.claim, item.reasons, item.sources.length]), [["It won an award.", ["Only the maker says so."], 1]]);
+  assert.deepEqual(view.unverifiedClaims.map(item => [item.claim, item.verdict, item.reasons, item.sources.length]), [
+    ["It won an award.", "needs_check", ["The source only partly supports this"], 1],
+    ["Rodney signed it.", "rejected", ["Not in the cited source: Rodney"], 1],
+    ["Old shape.", null, ["Only the maker says so."], 1]]);
   assert.equal(view.factCheckSummary, "One claim could not be verified.");
 });
 
@@ -103,4 +109,18 @@ test("something that is not a packet reads as none", () => {
   assert.equal(researchPacketOf(null), null);
   assert.equal(researchPacketOf({ claims: [] }), null);
   assert.equal(researchPacketOf("text"), null);
+});
+
+test("the fact check sentence is made from the counts", () => {
+  assert.equal(factCheckSentence({ verified: 12, needs_check: 8, rejected: 8, unchecked: 0, total: 28, singleSource: 23 }), "12 verified, 8 need a check, 8 rejected; 23 rest on one site");
+  assert.equal(factCheckSentence({ verified: 3, unchecked: 2, singleSource: 0 }), "3 verified, 2 not checked");
+  const view = researchPacketOf({ ...packet, factCheck: { counts: { verified: 1, needs_check: 1, rejected: 0, unchecked: 0, total: 2, singleSource: 1 } } });
+  assert.equal(view?.factCheckSummary, "1 verified, 1 need a check; 1 rest on one site");
+});
+
+test("machine reasons are shown in plain words and unknown ones as they are", () => {
+  assert.equal(plainReason("unmatched_terms: Rodney"), "Not in the cited source: Rodney");
+  assert.equal(plainReason("judge_partly_supported"), "The source only partly supports this");
+  assert.equal(plainReason("judge_failed: TimeoutError: the run ran short of time before this claim was checked"), "The run ran short of time before this claim was checked");
+  assert.equal(plainReason("something new"), "something new");
 });

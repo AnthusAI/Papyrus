@@ -32,6 +32,7 @@ Then("the Work section should start with the Assign research box", async functio
 Then("the box should have one text area, one button with an icon, and no dropdown", async function () {
   assert.equal(await box(this).locator("textarea").count(), 1);
   assert.equal(await box(this).locator("button").count(), 1);
+  assert.equal(await box(this).locator("label").count(), 0);
   assert.equal(await box(this).locator("button svg").count() >= 1, true);
   assert.equal(await box(this).locator("select, [role='combobox'], [role='listbox']").count(), 0);
 });
@@ -105,7 +106,18 @@ Then("the packet should list {string} with a claim and its reasons", async funct
   assert.match(await section.textContent(), new RegExp(heading));
   assert.equal(await section.locator("svg").count() >= 1, true);
   assert.match(await section.innerText(), /delivered late/);
-  assert.match(await section.innerText(), /No independent report was found/);
+  assert.match(await section.innerText(), /The source only partly supports this/);
+});
+
+Then("each unverified claim should be labelled {string}, {string} or {string} with an icon, and its reasons in plain words", async function (first, second, third) {
+  const labels = await packet(this).locator("[data-research-verdict]").allInnerTexts();
+  assert.deepEqual(labels.map((label) => label.trim().toLowerCase()), [first, second, third].map((label) => label.toLowerCase()));
+  assert.equal(await packet(this).locator("[data-research-verdict] svg").count(), 3);
+  assert.match(await packet(this).locator("[data-research-unverified]").innerText(), /Not in the cited source: Rodney/);
+});
+
+Then("the fact check line should read {string}", async function (sentence) {
+  assert.match(await packet(this).locator("[data-research-fact-check]").innerText(), new RegExp(sentence));
 });
 
 Then("the page should not scroll sideways", async function () {

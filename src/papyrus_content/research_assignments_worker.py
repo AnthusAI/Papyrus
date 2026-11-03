@@ -16,8 +16,10 @@ from .assignments import assignment_metadata
 
 MULTI_ASSIGNMENT_TYPE = "research.multi"   # multi_search_research.MULTI_ASSIGNMENT_TYPE; not imported, because that module imports the router
 WORKER_LABEL = "papyrus-research-worker"
-CLAIM_LEASE_SECONDS = 660       # longer than the router's 600 second Lambda timeout, as the router's own lock is
+CLAIM_LEASE_SECONDS = 960       # longer than the worker's 900 second Lambda timeout
 REPORTER_PROFILE = "reporter"
+START_RESERVE_SECONDS = 420     # a run is not started with less time left than this: search and synthesis took about 5 minutes on real runs, and the packet still has to be written
+JUDGE_RESERVE_SECONDS = 240     # the fact check's judge stops asking with less time left than this, so its claims end `unchecked` and the packet is written
 POLICY_KEYS = ("enabled",)
 
 
@@ -98,11 +100,12 @@ def research_assignments_of_stories(client: Any) -> list[dict[str, Any]]:
 
 
 def run_research_assignments(client: Any, publication: dict[str, Any], *, now: datetime, out_of_time: Callable[[], bool],
-                             clock: Callable[[], datetime] | None = None, research: Callable[..., dict[str, Any]] | None = None) -> dict[str, Any]:
+                             clock: Callable[[], datetime] | None = None, time_left: Callable[[], float] | None = None, research: Callable[..., dict[str, Any]] | None = None) -> dict[str, Any]:
     """One pass for one publication. Never raises for one assignment's failure; stops, leaving the rest open, when the time is short."""
     if research is None:
         from .multi_search_research import research_multi as research
     clock = clock or (lambda: datetime.now(timezone.utc))
+    judge_out_of_time = (lambda: time_left() < JUDGE_RESERVE_SECONDS) if time_left is not None else (lambda: False)
     result: dict[str, Any] = {"publicationId": publication["publicationId"], "ran": [], "failed": [], "expired": [], "leftOpen": 0, "stoppedBy": None}
     rows = research_assignments_of_stories(client)
     for row in rows:
@@ -114,7 +117,7 @@ def run_research_assignments(client: Any, publication: dict[str, Any], *, now: d
             result["expired"].append(row["id"])
     waiting = [row for row in rows if row.get("status") == "open"]
     for index, row in enumerate(waiting):
-        if out_of_time():
+        if out_of_time() or (time_left is not None and time_left() < START_RESERVE_SECONDS):
             result["stoppedBy"] = "time"
             result["leftOpen"] = len(waiting) - index
             break
@@ -123,7 +126,8 @@ def run_research_assignments(client: Any, publication: dict[str, Any], *, now: d
         running = set_status(client, row, "claimed", now=now, event_type="claim", note="The research worker started this assignment.", claim=True)
         try:
             with publication_endpoint(publication):
-                outcome = research(client, {"assignment": row["id"], "corpus-key": publication.get("corpusKey"), "actor-label": WORKER_LABEL})
+                outcome = research(client, {"assignment": row["id"], "corpus-key": publication.get("corpusKey"), "actor-label": WORKER_LABEL},
+                                   out_of_time=judge_out_of_time)
         except Exception as error:   # noqa: BLE001 - one assignment never stops the others
             outcome = {"action": "failed", "error": f"{type(error).__name__}: {error}"}
         if outcome.get("action") == "completed":

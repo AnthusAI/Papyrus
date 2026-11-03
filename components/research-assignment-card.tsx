@@ -1,13 +1,15 @@
 "use client";
 
-import { CheckCircle2Icon, CircleHelpIcon, ClockIcon, ExternalLinkIcon, Loader2Icon, SearchIcon, TriangleAlertIcon, XCircleIcon } from "lucide-react";
+import { BanIcon, CheckCircle2Icon, CircleHelpIcon, ClockIcon, ExternalLinkIcon, Loader2Icon, MinusCircleIcon, SearchCheckIcon, SearchIcon, TriangleAlertIcon, XCircleIcon } from "lucide-react";
 import Link from "next/link";
 import { assignmentStateView } from "../lib/assign-research";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import type { PacketSource, ResearchPacketView } from "../lib/research-packet";
+import { verdictLabel, type ClaimVerdict, type PacketSource, type ResearchPacketView } from "../lib/research-packet";
 import { failureReasonOf, type TrailAssignment } from "../lib/story-reporting-trail";
 
 const stateIcons = { waiting: ClockIcon, running: Loader2Icon, finished: CheckCircle2Icon, failed: XCircleIcon, other: CircleHelpIcon } as const;
+
+const verdictIcons = { needs_check: SearchCheckIcon, rejected: BanIcon, unchecked: MinusCircleIcon } as const;
 
 function SourceLinks({ sources }: { sources: PacketSource[] }) {
   if (!sources.length) return null;
@@ -23,7 +25,7 @@ export function ResearchPacket({ packet }: { packet: ResearchPacketView }) {
     {packet.claims.length > 0 && <div data-research-claims><h4>Claims</h4><ul>{packet.claims.map(claim => <li key={claim.claim}>{claim.claim} <SourceLinks sources={claim.sources} /></li>)}</ul></div>}
     {packet.disagreements.length > 0 && <div data-research-disagreements><h4>Where sources disagree</h4><ul>{packet.disagreements.map(item => <li key={item.topic}><strong>{item.topic}</strong><ul>{item.positions.map(position => <li key={position.position}>{position.position} <SourceLinks sources={position.sources} /></li>)}</ul></li>)}</ul></div>}
     {packet.openQuestions.length > 0 && <div data-research-open-questions><h4>Open questions</h4><ul>{packet.openQuestions.map(question => <li key={question}>{question}</li>)}</ul></div>}
-    {packet.unverifiedClaims.length > 0 && <div className="research-unverified" data-research-unverified><h4><TriangleAlertIcon aria-hidden="true" size={14} /> Could not verify</h4><ul>{packet.unverifiedClaims.map(item => <li key={item.claim}>{item.claim} <SourceLinks sources={item.sources} />{item.reasons.length > 0 && <ul className="research-reasons">{item.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}</li>)}</ul></div>}
+    {packet.unverifiedClaims.length > 0 && <div className="research-unverified" data-research-unverified><h4><TriangleAlertIcon aria-hidden="true" size={14} /> Could not verify</h4><ul>{packet.unverifiedClaims.map(item => <li key={item.claim}><span className="research-verdict" data-research-verdict={item.verdict ?? "needs_check"}>{(() => { const VerdictIcon = verdictIcons[(item.verdict ?? "needs_check") as ClaimVerdict]; return <VerdictIcon aria-hidden="true" size={12} />; })()} {verdictLabel(item.verdict)}</span> {item.claim} <SourceLinks sources={item.sources} />{item.reasons.length > 0 && <ul className="research-reasons">{item.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}</li>)}</ul></div>}
   </div>;
 }
 

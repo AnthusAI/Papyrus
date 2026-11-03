@@ -248,8 +248,12 @@ const PREVIEW_PACKET: ResearchPacketView = {
     { position: "The authority says the first crane arrives in June.", sources: [{ rank: 1, url: "https://authority.example.org/minutes/march", title: "March board minutes", domain: "authority.example.org" }] },
     { position: "The contractor says September.", sources: [{ rank: 3, url: "https://contractor.example.com/schedule", title: "Delivery schedule", domain: "contractor.example.com" }] }] }],
   openQuestions: ["Who pays for the rail spur the cranes need?", "Was the second bidder disqualified?"],
-  unverifiedClaims: [{ claim: "The contractor has delivered late on two earlier harbor projects.", sources: [{ rank: 3, url: "https://contractor.example.com/schedule", title: "Delivery schedule", domain: "contractor.example.com" }], reasons: ["Only the contractor's own page was found.", "No independent report was found."] }],
-  factCheckSummary: "Two claims were checked against their sources; one could not be verified.",
+  unverifiedClaims: [
+    { claim: "The contractor has delivered late on two earlier harbor projects.", verdict: "needs_check", sources: [{ rank: 3, url: "https://contractor.example.com/schedule", title: "Delivery schedule", domain: "contractor.example.com" }], reasons: ["The source only partly supports this"] },
+    { claim: "Mayor Rodney Hale signed the contract in March.", verdict: "rejected", sources: [{ rank: 1, url: "https://authority.example.org/minutes/march", title: "March board minutes", domain: "authority.example.org" }], reasons: ["Not in the cited source: Rodney"] },
+    { claim: "The second bidder withdrew.", verdict: "unchecked", sources: [{ rank: 2, url: "https://news.example.net/cranes-approved", title: "Cranes approved for the harbor", domain: "news.example.net" }], reasons: ["The run ran short of time before this claim was checked"] },
+  ],
+  factCheckSummary: "12 verified, 8 need a check, 8 rejected; 23 rest on one site",
   sourceCount: 3,
 };
 

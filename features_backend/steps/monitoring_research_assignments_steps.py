@@ -71,13 +71,13 @@ def step_run(context):
     seen = []
     inner = current.research
 
-    def watching(client, options):
+    def watching(client, options, **kwargs):
         row = current.backend.rows[options["assignment"]]
         seen.append((options["assignment"], row["status"], row.get("assigneeKey"), row.get("claimExpiresAt")))
-        return inner(client, options)
+        return inner(client, options, **kwargs)
 
     current.seen = seen
-    current.result = worker.run(current.backend, watching, out_of_time=current.limit or (lambda: False))
+    current.result = worker.run(current.backend, watching, out_of_time=current.limit or (lambda: False), time_left=getattr(current, "time_left", None))
 
 
 @then("the research ran for assignments {text} in that order")
@@ -96,9 +96,9 @@ def step_events(context):
     assert kinds == ["claim", "research.completed"], kinds
 
 
-@then("while its research ran, assignment 1 was claimed by the research worker with a lease that ends 11 minutes later")
+@then("while its research ran, assignment 1 was claimed by the research worker with a lease that ends 16 minutes later")
 def step_lease(context):
-    assert state(context).seen == [("assignment-1", "claimed", worker.WORKER_LABEL, "2026-11-03T12:11:00.000Z")], state(context).seen
+    assert state(context).seen == [("assignment-1", "claimed", worker.WORKER_LABEL, "2026-11-03T12:16:00.000Z")], state(context).seen
 
 
 @then("no research ran and no event was written")
@@ -124,10 +124,10 @@ def step_stopped(context):
     assert [row["status"] for row in state(context).backend.rows.values()] == ["completed", "open", "open"]
 
 
-@then("the pass reports that it stopped by time with 2 left open")
-def step_report(context):
+@then("the pass reports that it stopped by time with {count:d} left open")
+def step_report(context, count):
     result = state(context).result
-    assert result["stoppedBy"] == "time" and result["leftOpen"] == 2
+    assert result["stoppedBy"] == "time" and result["leftOpen"] == count
 
 
 @then("assignment 1 is failed with the reason that its time ran out")
@@ -233,3 +233,44 @@ def step_no_policy(context):
     resources = worker.tr._template()["Resources"]
     attached = [name for name, resource in resources.items() if resource["Type"] == "AWS::IAM::ManagedPolicy" and ("Ref", "RouterRole") in (resource["Properties"].get("Roles") or [])]
     assert len(attached) <= 20, len(attached)
+
+
+@given("only {seconds:d} of the worker's 900 seconds are left")
+def step_time_left(context, seconds):
+    state(context).time_left = lambda: seconds
+
+
+@then("no research ran and assignment 1 is still open")
+def step_still_open(context):
+    assert state(context).research.asked == [] and state(context).backend.rows["assignment-1"]["status"] == "open"
+
+
+@given("a fact check whose time runs short after its first judge answer")
+def step_short_judge(context):
+    state(context).short = [False]
+
+
+@when("the claims are checked")
+def step_check(context):
+    from papyrus_content.fact_check import check_claims
+    from papyrus_content.multi_search_research import stop_judging_when_short_of_time
+
+    current = state(context)
+
+    def judge(claim, cited, info):
+        current.short[0] = True
+        return {"verdict": "supported", "quotes": [], "explanation": "", "attribution_lost": False, "claim_is_only_about_source_limits": False}
+
+    claims = [{"claim": "Alpha beta gamma.", "sources": ["1"]}, {"claim": "Delta epsilon.", "sources": ["1"]}]
+    current.report = check_claims(claims, {"1": "Alpha beta gamma. Delta epsilon."}, judge=stop_judging_when_short_of_time(judge, lambda: current.short[0]), urls={"1": "https://a.example/x"})
+
+
+@then("the claims not yet judged are unchecked with the reason that the run ran short of time")
+def step_unchecked(context):
+    rows = [claim for claim in state(context).report["claims"] if claim["verdict"] == "unchecked"]
+    assert rows and all("ran short of time" in claim["reasons"][0] for claim in rows)
+
+
+@then("the packet is still made")
+def step_packet(context):
+    assert state(context).report["counts"]["total"] == 2

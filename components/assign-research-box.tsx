@@ -40,8 +40,8 @@ export function AssignResearchBox({ demo = false, lineageId, onAssigned, section
   }
 
   return <div className="assign-research" data-assign-research>
-    <label className="assign-research-label" htmlFor={textareaId}><SearchIcon aria-hidden="true" size={15} /> Assign research</label>
     <textarea
+      aria-label="What should the research find out?"
       aria-describedby={problem ? `${textareaId}-problem` : undefined}
       aria-invalid={problem ? true : undefined}
       className="assign-research-text"

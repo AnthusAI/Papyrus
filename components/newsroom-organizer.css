@@ -498,9 +498,10 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-public-site{display:flex;align-items:center;gap:10px;padding:12px;background:var(--org-control);border-radius:8px!important;color:var(--org-ink);font:600 14px var(--kb-theme-ui-font);text-decoration:none}
 
 .assign-research{display:grid;gap:8px;background:color-mix(in srgb,var(--org-ink) 6%,transparent);border-radius:12px;padding:12px;margin-bottom:12px}
-.assign-research-label{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600}
 .assign-research-text{width:100%;box-sizing:border-box;resize:vertical;font:inherit;font-size:16px;line-height:1.4;color:inherit;background:color-mix(in srgb,var(--org-ink) 8%,var(--org-paper,#fff));border:0;border-radius:10px;padding:10px 12px;min-height:96px}
-.assign-research-text:focus-visible,.assign-research-button:focus-visible{outline:3px solid color-mix(in srgb,var(--org-ink) 55%,transparent);outline-offset:2px}
+.assign-research-text,.assign-research-button{outline:none}
+.assign-research-text:focus{background:color-mix(in srgb,var(--org-ink) 14%,var(--org-paper,#fff))}
+.assign-research-button:focus-visible{background:color-mix(in srgb,var(--org-ink) 78%,var(--org-paper,#fff));text-decoration:underline}
 .assign-research-actions{display:flex}
 .assign-research-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 16px;font:inherit;font-size:14px;font-weight:600;color:var(--org-paper,#fff);background:var(--org-ink);border:0;border-radius:12px;cursor:pointer}
 .assign-research-button[disabled]{opacity:.6;cursor:default}
@@ -525,3 +526,5 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .research-assignment .story-trail-row strong{display:inline-flex;align-items:center;gap:5px}
 .research-packet ul{list-style:disc}
 .research-packet ul ul{list-style:circle}
+.research-verdict{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:color-mix(in srgb,var(--org-ink) 14%,transparent);border-radius:999px;padding:1px 8px;margin-right:4px}
+.research-unverified [data-research-verdict="rejected"]{background:color-mix(in srgb,var(--org-ink) 26%,transparent)}
