@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Any, Callable, Protocol
 
 from papyrus_knowledge_query.concept_kinds import is_concept
+from papyrus_knowledge_query.cuts import knee_cut_count   # re-exported: callers import it from here
 from papyrus_knowledge_query.vector_index import reference_summary_vector_key
 
 from .reference_links import RELATED_TO, link_concept, link_references
@@ -36,16 +37,6 @@ class VectorProvider(Protocol):
     def get_vector(self, key: str) -> list[float] | None: ...
 
     def query_by_vector(self, vector: list[float], top_k: int, metadata_filter: dict[str, Any] | None) -> list[dict[str, Any]]: ...
-
-
-def knee_cut_count(similarities: list[float]) -> int:
-    """How many of the descending ``similarities`` to keep: everything before the largest drop between consecutive
-    scores among the first half. A single score, or none, has no drop and is kept whole."""
-    if len(similarities) < 2:
-        return len(similarities)
-    gap_count = max(1, len(similarities) // 2)
-    gaps = [similarities[index] - similarities[index + 1] for index in range(gap_count)]
-    return gaps.index(max(gaps)) + 1
 
 
 def _similarity(match: dict[str, Any]) -> float | None:

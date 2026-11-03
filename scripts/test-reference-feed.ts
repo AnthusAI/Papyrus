@@ -5,7 +5,7 @@ import { chromium, type Page } from "playwright";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
-declare global { interface Window { requests: Array<{ kind: string; sort?: string; limit?: number; ids?: string[] }>; site: any[] } }
+declare global { interface Window { requests: Array<{ kind: string; sort?: string; limit?: number; ids?: string[] }>; site: any[]; searches: Array<{ query: string; show: string; limit: number; cursor: string | null }> } }
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const origin = "http://reference-feed.test";
@@ -37,7 +37,8 @@ import { applyFeedOrderSnapshot, buildFeedItems, takeFeedOrderSnapshot } from ".
 import { useReferencePredictions } from "./lib/use-reference-predictions";
 import { useFeedWindow } from "./components/use-feed-window";
 import { currentRelevanceDecisions } from "./lib/relevance-decisions";
-import { useIndexedReferenceFeed } from "./components/use-indexed-reference-feed";
+import { useFeedSearch, useIndexedReferenceFeed } from "./components/use-indexed-reference-feed";
+import { previewSearch } from "./lib/reference-search";
 import { scoreFeedItem, feedLeadId } from "./lib/reference-feed-ranking";
 import { predictionSortKeyFor } from "./lib/reference-feed-keys";
 import { compareFeedRecords } from "./lib/reference-feed-pages";
@@ -231,7 +232,61 @@ function IndexedHarness() {
     visitRated={new Set()}
   />;
 }
-createRoot(document.getElementById("root")).render(params.has("indexed") ? <IndexedHarness /> : params.has("page-loading") ? <ReferencesPageLoading /> : params.has("paged") ? <PagedHarness /> : <Harness />);
+
+// The References page search box: a synthetic site of rated (accepted, rejected) and unrated References, searched by the same matcher the local preview
+// uses, standing in for the site's searchReferences query. The reader records every search it is asked for.
+window.searches = [];
+function buildSearchSite() {
+  const row = (id, title, state, extra = {}) => ({ ...make(id, { title, curationStatus: state === "unrated" ? "pending" : state, ...extra }), feedStateKey: "c#" + (state === "unrated" ? "unrated" : "rated"), feedArrivalAt: ago(0.3 + 0.001 * (made += 1)) });
+  return [
+    row("rejected-by-author", "Notes on tool use in practice", "rejected", { authors: ["Marta Okafor"] }),
+    row("unrated-by-title", "Persistent notebooks for agents", "unrated"),
+    row("accepted-meaning", "Recall in long-running assistants", "accepted"),
+    row("both", "Memory and recall in agent loops", "unrated"),
+    row("chips-history", "A history of memory chips", "accepted"),
+    ...Array.from({ length: 40 }, (_, index) => row("shared-" + index, "Shared topic number " + index, index % 3 === 0 ? "unrated" : index % 3 === 1 ? "accepted" : "rejected")),
+  ];
+}
+const SEARCH_SITE = buildSearchSite();
+const SEARCH_MEANING = { memory: ["recall"] };
+const searchLanes = () => params.get("lane") === "meaning-down" ? { keyword: { status: "ok" }, meaning: { status: "failed", message: "Meaning search could not be reached." } }
+  : params.get("lane") === "both-down" ? { keyword: { status: "failed" }, meaning: { status: "failed" } } : undefined;
+let laneFailuresLeft = Number(params.get("laneOnce") || 0);
+const searchReader = async (input) => {
+  window.searches.push({ query: input.query, show: input.show, limit: input.limit, cursor: input.cursor });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  if (laneFailuresLeft > 0) { laneFailuresLeft -= 1; return previewSearch(SEARCH_SITE, input, { meaning: SEARCH_MEANING, lanes: { keyword: { status: "ok" }, meaning: { status: "failed" } } }); }
+  return previewSearch(SEARCH_SITE, input, { meaning: SEARCH_MEANING, lanes: searchLanes() });
+};
+function SearchHarness() {
+  const { sort, setSort, show, setShow } = useFeedPreferences();
+  const search = useFeedSearch({ enabled: true, read: searchReader });
+  const [answers, setAnswers] = useState({});
+  const items = useMemo(() => search.feed.records.map((record) => scoreFeedItem({ ...record, curationStatus: answers[record.lineageId] ?? record.curationStatus }, undefined)), [search.feed.records, answers]);
+  return <ReferenceFeed
+    error={search.feed.error ?? search.feed.moreError}
+    hasMore={search.feed.hasMore}
+    items={items}
+    leadId={search.searching ? undefined : feedLeadId(items)}
+    loading={search.searching && (search.feed.status === "loading" || search.feed.status === "idle")}
+    loadingMore={search.feed.loadingMore}
+    now={NOW}
+    onLoadMore={() => { void search.feed.loadMore(); }}
+    onOpen={() => undefined}
+    onRate={async (reference, choice) => { window.calls.push({ type: "rate", id: reference.lineageId, choice }); setAnswers((current) => ({ ...current, [reference.lineageId]: choice === "accept" ? "accepted" : "rejected" })); }}
+    onRetry={search.feed.retry}
+    onShowChange={search.searching ? search.setShow : setShow}
+    onSortChange={setSort}
+    onVisitRated={() => undefined}
+    previews={new Map()}
+    ratedCount={1}
+    search={{ query: search.query, onSubmit: search.submit, onClear: search.clear, matches: search.feed.matches, notice: search.feed.notice, onRetry: search.feed.retry }}
+    show={search.searching ? search.show : show}
+    sort={sort}
+    visitRated={new Set()}
+  />;
+}
+createRoot(document.getElementById("root")).render(params.has("search") ? <SearchHarness /> : params.has("indexed") ? <IndexedHarness /> : params.has("page-loading") ? <ReferencesPageLoading /> : params.has("paged") ? <PagedHarness /> : <Harness />);
 ` },
   }).then((result) => result.outputFiles[0].text);
   return bundle;
@@ -248,7 +303,8 @@ async function setup(options = "", width = 1440, beforeLoad?: (page: Page) => Pr
   page.setDefaultTimeout(4000);
   const errors: string[] = [];
   const requests: Array<{ url: string; referrer: string | undefined }> = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) => { errors.push(error.message); if (process.env.FEED_DEBUG) console.log(`[page error] ${error.message}`); });
+  if (process.env.FEED_DEBUG) page.on("console", (message) => console.log(`[browser ${message.type()}] ${message.text()}`));
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (url.origin === "https://opengraph.githubassets.com") {
@@ -263,7 +319,7 @@ async function setup(options = "", width = 1440, beforeLoad?: (page: Page) => Pr
       requests.push({ url: url.href, referrer: route.request().headers().referer });
       return url.searchParams.get("host")?.includes("broken") ? route.fulfill({ status: 404, body: "" }) : route.fulfill({ contentType: "image/svg+xml", body: SVG });
     }
-    if (url.pathname === "/fixture.js") return route.fulfill({ contentType: "text/javascript", body: script });
+    if (url.pathname === "/fixture.js") return route.fulfill({ contentType: "text/javascript; charset=utf-8", body: script });
     return route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width"><style>${tailwind}</style><style>${fixtureCss}</style></head><body><div id="root" class="p-4"></div><script src="/fixture.js"></script></body></html>` });
   });
   if (beforeLoad) await beforeLoad(page);
@@ -863,6 +919,148 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.deepEqual(ids.slice(0, 3), ["s0", "s1", "s2"]);
       const texts = await Promise.all(["s0", "s1", "s2"].map((id) => card(page, id).locator("[data-review-choice=accept]").count()));
       assert.deepEqual(texts, [1, 1, 1], "each has the same Accept control whatever its source");
+    });
+  },
+
+  /**
+   * The search box (docs/reference-search.md): words and meaning together, over References in any state, as ordinary cards that say how they matched.
+   * A search is ordered by Relevance and opens on All without touching the saved Show; clearing it brings the saved choices back.
+   */
+  async search() {
+    const shotDir = process.env.SEARCH_SHOTS;
+    if (shotDir) fs.mkdirSync(shotDir, { recursive: true });
+    const searches = (page: Page) => page.evaluate(() => window.searches.slice());
+    const box = (page: Page) => page.locator("[data-feed-search-input]");
+    const submit = async (page: Page, text: string) => { await box(page).fill(text); await box(page).press("Enter"); };
+    const matched = (page: Page, id: string) => card(page, id).locator("[data-feed-matched]").innerText();
+    const savedRated = async (page: Page) => { await page.addInitScript(() => localStorage.setItem("papyrus:reference-feed:show", "rated")); };
+    const noSideScroll = async (page: Page) => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal scroll");
+
+    // The box sits above Sort and Show; Enter runs the search and puts it in the URL; each kind of match says so in words.
+    await run("?search=1", [375, 1440], async (page, width) => {
+      if (process.env.FEED_DEBUG) console.log(await page.locator("#root").innerHTML());
+      await box(page).waitFor();
+      const boxTop = (await page.locator("[data-feed-search]").boundingBox())!.y;
+      const sortTop = (await page.locator("[data-feed-control=sort]").boundingBox())!.y;
+      assert.ok(boxTop < sortTop, "the search box is above Sort and Show");
+      assert.deepEqual(await searches(page), [], "nothing is searched until Enter");
+      await submit(page, "Marta Okafor");
+      await card(page, "rejected-by-author").waitFor();
+      assert.deepEqual(await order(page), ["rejected-by-author"], "an exact author name finds a rejected Reference");
+      assert.equal(await matched(page, "rejected-by-author"), "Matched: author");
+      assert.equal(await card(page, "rejected-by-author").getAttribute("data-feed-rated"), "reject");
+      assert.ok((await page.evaluate(() => location.search)).includes("q=Marta%20Okafor"), "the query is in the URL");
+      assert.equal(await page.locator("[data-feed-lead]").count(), 0, "a search has no lead card");
+      assert.equal(await page.locator("[data-feed-new-items]").count(), 0, "and no new-items pill");
+      await submit(page, "notebooks");
+      await card(page, "unrated-by-title").waitFor();
+      assert.equal(await matched(page, "unrated-by-title"), "Matched: title");
+      await submit(page, "memory");
+      await card(page, "both").waitFor();
+      assert.equal((await order(page))[0], "both", "a match on both lanes ranks first");
+      assert.equal(await matched(page, "both"), "Matched: title and meaning");
+      assert.equal(await matched(page, "accepted-meaning"), "Matched: meaning");
+      assert.equal(await matched(page, "chips-history"), "Matched: title");
+      assert.ok((await page.locator("[data-feed-matched]").first().innerText()).startsWith("Matched:"), "said in words, not colour alone");
+      await noSideScroll(page);
+      if (shotDir) await page.screenshot({ path: `${shotDir}/search-results-${width}.png` });
+    });
+
+    // Sort reads Relevance and Show opens on All while searching; the saved Show is not changed and comes back when the search is cleared.
+    await run("?search=1", [375, 1440], async (page) => {
+      await savedRated(page);
+      await page.reload();
+      await box(page).waitFor();
+      assert.equal(await page.locator("[data-feed-show-button=rated]").getAttribute("aria-pressed"), "true", "the saved Show is Rated");
+      await submit(page, "memory");
+      await card(page, "both").waitFor();
+      assert.equal(await page.locator("[data-feed-sort-relevance]").innerText(), "Relevance");
+      assert.equal(await page.locator("[data-feed-sort-button]").count(), 0, "no Best bets or Newest while searching");
+      assert.equal(await page.locator("[data-feed-show-button=all]").getAttribute("aria-pressed"), "true", "the search opens on All");
+      assert.equal((await searches(page))[0]!.show, "all");
+      await page.locator("[data-feed-show-button=unrated]").click();
+      await page.waitForFunction(() => window.searches.length === 2);
+      assert.equal((await searches(page))[1]!.show, "unrated");
+      assert.deepEqual(await order(page), ["both"]);
+      assert.equal(await page.evaluate(() => localStorage.getItem("papyrus:reference-feed:show")), "rated", "choosing Show during a search does not change the saved one");
+      await page.locator("[data-feed-search-clear]").click();
+      await page.locator("[data-feed-sort-button=best]").waitFor();
+      assert.equal(await page.locator("[data-feed-show-button=rated]").getAttribute("aria-pressed"), "true", "clearing restores the saved Show");
+      assert.equal(await page.evaluate(() => location.search), "", "and the URL loses ?q=");
+      assert.equal(await page.locator("[data-feed-matched]").count(), 0);
+    });
+
+    // ?q= opens the page already searching.
+    await run("?search=1&q=Okafor", [375], async (page) => {
+      await card(page, "rejected-by-author").waitFor();
+      assert.equal(await box(page).inputValue(), "Okafor");
+    });
+
+    // Nothing matches: said in words; with the Show filter narrowed the way out is a button.
+    await run("?search=1", [375, 1440], async (page, width) => {
+      await submit(page, "zzzz");
+      assert.equal(await page.locator("[data-feed-empty]").innerText(), "No References match “zzzz”.");
+      await submit(page, "okafor");
+      await card(page, "rejected-by-author").waitFor();
+      await page.locator("[data-feed-show-button=unrated]").click();
+      await page.locator("[data-feed-search-empty]").waitFor();
+      assert.ok((await page.locator("[data-feed-search-empty]").innerText()).startsWith("No unrated matches"));
+      if (shotDir) await page.screenshot({ path: `${shotDir}/search-empty-filtered-${width}.png` });
+      await page.locator("[data-feed-show-all]").click();
+      await card(page, "rejected-by-author").waitFor();
+      assert.equal(await page.locator("[data-feed-show-button=all]").getAttribute("aria-pressed"), "true");
+    });
+
+    // One lane down: the other's results stay, said in words, with a Retry that searches again. Both down: the feed's own error.
+    await run("?search=1&lane=meaning-down", [375, 1440], async (page, width) => {
+      await submit(page, "notebooks");
+      await card(page, "unrated-by-title").waitFor();
+      assert.equal((await page.locator("[data-feed-search-notice]").innerText()).split("\n")[0], "Searched by words only: meaning search is unavailable");
+      const before = (await searches(page)).length;
+      await page.locator("[data-feed-search-retry]").click();
+      await page.waitForFunction((count) => window.searches.length > count, before);
+      await card(page, "unrated-by-title").waitFor();
+      if (shotDir) await page.screenshot({ path: `${shotDir}/search-meaning-down-${width}.png` });
+    });
+    await run("?search=1&laneOnce=1", [375], async (page) => {
+      await submit(page, "notebooks");
+      await page.locator("[data-feed-search-notice]").waitFor();
+      await page.locator("[data-feed-search-retry]").click();
+      await page.waitForFunction(() => document.querySelector("[data-feed-search-notice]") === null);
+      assert.deepEqual(await order(page), ["unrated-by-title"], "after the retry both lanes ran");
+    });
+    await run("?search=1&lane=both-down", [375, 1440], async (page, width) => {
+      await submit(page, "notebooks");
+      await page.locator("[data-feed-error]").waitFor();
+      assert.ok((await page.locator("[data-feed-error]").innerText()).includes("The References could not be loaded."));
+      await page.locator("[data-feed-retry]").waitFor();
+      if (shotDir) await page.screenshot({ path: `${shotDir}/search-both-down-${width}.png` });
+    });
+
+    // Paging: the existing infinite scroll asks for the next page with the site's cursor and never shows a card twice.
+    await run("?search=1", [375, 1440], async (page) => {
+      await submit(page, "shared topic");
+      await cards(page).first().waitFor();
+      await page.locator("[data-feed-more]").scrollIntoViewIfNeeded();
+      await page.waitForFunction(() => document.querySelectorAll("[data-feed-card]").length === 40);
+      const ids = (await order(page)) as string[];
+      assert.equal(new Set(ids).size, ids.length, "no card appears twice");
+      const asked = await searches(page);
+      assert.equal(asked.length, 2, "two pages of 24 cover 40 results");
+      assert.equal(asked[0]!.cursor, null);
+      assert.ok(asked[1]!.cursor, "the second page continues from the site's cursor");
+      assert.equal(asked.every((entry) => entry.limit === 24), true);
+    });
+
+    // A card voted on stays where it is.
+    await run("?search=1", [375], async (page) => {
+      await submit(page, "shared topic");
+      await cards(page).first().waitFor();
+      const before = (await order(page)) as string[];
+      const target = before[2]!;
+      await card(page, target).locator("[data-review-choice=accept]").click();
+      await page.waitForFunction((id) => document.querySelector(`[data-feed-card="${id}"]`)?.getAttribute("data-feed-rated") === "accept", target);
+      assert.deepEqual((await order(page)).slice(0, before.length), before, "no card moved");
     });
   },
 

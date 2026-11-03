@@ -8,8 +8,29 @@ from .services import build_environment_services
 
 
 def handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
+    """One Lambda, two AppSync queries: ``searchReferences`` (the References page search box) and, for anything else, ``knowledgeQuery``."""
     input_payload = _extract_input(event)
-    return run_knowledge_query(input_payload, build_environment_services(event))
+    services = build_environment_services(event)
+    if _field_name(event) == "searchReferences":
+        return _search_references(event, input_payload, services)
+    return run_knowledge_query(input_payload, services)
+
+
+def _field_name(event: dict[str, Any]) -> str:
+    info = event.get("info") if isinstance(event, dict) else None
+    return str(info.get("fieldName") or "") if isinstance(info, dict) else ""
+
+
+def _search_references(event: dict[str, Any], input_payload: dict[str, Any], services: Any) -> dict[str, Any]:
+    from . import reference_search
+
+    reference_search.require_editor(event)
+    graph = getattr(services, "graph", None)
+    return reference_search.search_references(
+        input_payload,
+        graphql=graph.graphql if graph is not None else None,
+        vectors=services.semantic if hasattr(services.semantic, "query_by_vector") and hasattr(services.semantic, "embed_text") else None,
+    )
 
 
 def _extract_input(event: dict[str, Any]) -> dict[str, Any]:

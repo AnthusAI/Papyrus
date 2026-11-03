@@ -2,6 +2,8 @@
 
 The newsroom References page used to download every Reference, every ReferenceAttachment and every relevance decision on each visit and rank them in the browser. It now reads one page at a time from one of two indexes on `Reference`. This page says what the keys are, who keeps them right, and how to fill them for References that already exist.
 
+The page's search box does not use these indexes; it asks `searchReferences` ([reference search](reference-search.md)).
+
 ## The fields
 
 | Field | Meaning |
