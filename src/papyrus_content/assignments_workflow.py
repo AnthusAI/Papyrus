@@ -1212,6 +1212,10 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
         message=selected["message"],
         packet=selected["packet"],
     )
+    from .reference_identity import IdentityIndex, split_by_identity
+    catalog_items, identity_rows = split_by_identity(IdentityIndex(client.list_records("Reference")), catalog_items,
+                                                     corpus_id=knowledge_corpus_id({"key": corpus_key}))
+    held_rows = [*held_rows, *identity_rows]
     blocked_reason = normalize_string((selected["packet"].get("sourceDiscovery") or {}).get("blockedReason"))
     catalog = {
         "schema_version": 1,
