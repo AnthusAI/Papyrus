@@ -187,6 +187,27 @@ def build_newsroom():
     store.relations.append({"id": "relation-story-2", "relationState": "current", "predicate": "uses_evidence", "subjectKind": "item", "subjectLineageId": "story-2",
                             "objectKind": "reference", "objectLineageId": "law-evidence", "subjectStateKey": "item#story-2#current",
                             "objectStateKey": "reference#law-evidence#current", "metadata": json.dumps({"role": "consulted"})})
+    def edge(edge_id, subject, obj, *, state="current", score=None, person=False, note=None):
+        metadata = {"provenance": "human" if person else "suggested"}
+        if person:
+            metadata.update({"decision": "accepted", "decidedBy": "An Editor", "note": note})
+        store.relations.append({
+            "id": edge_id, "relationState": state, "predicate": "related_to", "subjectKind": "reference", "objectKind": "reference",
+            "subjectLineageId": subject, "objectLineageId": obj, "subjectStateKey": f"reference#{subject}#{state}", "objectStateKey": f"reference#{obj}#{state}",
+            "score": score, "metadata": json.dumps(metadata)})
+
+    store.add_reference("rel-accepted", "Accepted by an editor as related", day=2, summary="A ruling the editor linked. It has detail.")
+    store.add_reference("rel-high", "Suggested, strongest", status="pending", section=None, human=False, day=2, summary="A strongly similar case. Details follow.")
+    store.add_reference("rel-low", "Suggested, weaker", human=False, day=2, summary="A weaker match. Details follow.")
+    store.add_reference("rel-turned-down", "A related Reference that was rejected", status="rejected", day=2)
+    store.add_reference("rel-by-declined-edge", "Only a rejected edge connects it", day=2, summary="Should not be related.")
+    edge("edge-accepted", "ref-attached", "rel-accepted", person=True, note="Same court, same week.", score=0.5)
+    edge("edge-high", "rel-high", "ref-url", state="suggested", score=0.9)
+    edge("edge-low", "ref-attached", "rel-low", state="suggested", score=0.6)
+    edge("edge-low-stronger", "ref-url", "rel-low", state="suggested", score=0.7)
+    edge("edge-rejected-reference", "ref-attached", "rel-turned-down", state="suggested", score=0.95)
+    edge("edge-rejected", "ref-attached", "rel-by-declined-edge", state="rejected", score=0.99)
+    edge("edge-between-attached", "ref-attached", "ref-url", state="suggested", score=0.99)
     store.add_reference("law-url-title", "https://example.org/law-url-title", human=True, day=4, summary="Opens with the ruling. More text follows.")
     store.records["Assignment"]["assignment-0"] = {
         "id": "assignment-0", "itemLineageId": "story-1", "assignmentTypeKey": "research.multi", "title": "Earlier research", "instructions": "Look at appeals first",
@@ -245,7 +266,7 @@ def entry_ids(context, name):
 
 
 def core_room(pack):
-    return sum(row["characters"] + 2 * len(row["entries"]) for row in pack["layers"][:5])
+    return sum(row["characters"] + 2 * len(row["entries"]) for row in pack["layers"] if row["name"] in pack_module.CORE_LAYERS)
 
 
 def build(context, **kwargs):
@@ -390,7 +411,7 @@ def step_system_same(context):
 
 @then("no outer layer holds an entry")
 def step_no_outer(context):
-    assert all(not layer(context, name)["entries"] for name in pack_module.OUTER_LAYERS)
+    assert all(not layer(context, name)["entries"] for name in (*pack_module.SHARED_LAYERS, *pack_module.OUTER_LAYERS))
 
 
 @then("the assignment and the Story are still complete")
@@ -447,7 +468,7 @@ def step_first_five(context):
 
 @then("each outer layer holds at least one entry")
 def step_each_outer(context):
-    missing = [name for name in pack_module.OUTER_LAYERS if not layer(context, name)["entries"]]
+    missing = [name for name in (*pack_module.SHARED_LAYERS, *pack_module.OUTER_LAYERS) if not layer(context, name)["entries"]]
     assert not missing, (missing, [(row["name"], row["characters"], row["droppedCount"]) for row in context.pack["layers"]])
 
 
@@ -795,3 +816,56 @@ def step_url_title_lead(context):
     outer = outer_blocks(context)
     line = next(block for block in outer if "law-url-title" in block)
     assert line.startswith("Opens with the ruling.") and "More text follows." not in line, line
+
+
+def related(context):
+    return layer(context, "related_references")["entries"]
+
+
+@then("the layer of related References comes right after the Story's References")
+def step_related_placed(context):
+    names = [row["name"] for row in context.pack["layers"]]
+    assert names.index("related_references") == names.index("story_references") + 1
+
+
+@then("it holds the other end of edges in both directions, each once, and none already on the Story")
+def step_related_both(context):
+    ids = [entry["id"] for entry in related(context)]
+    assert {"rel-accepted", "rel-high", "rel-low"} <= set(ids), ids
+    assert len(ids) == len(set(ids)) and not {"ref-attached", "ref-url"} & set(ids), ids
+    assert next(entry for entry in related(context) if entry["id"] == "rel-low")["score"] == 0.7
+
+
+@then("the edge an editor accepted comes first, with the editor's note and the Reference it connects to")
+def step_related_person_first(context):
+    assert related(context)[0]["id"] == "rel-accepted" and related(context)[0]["connection"] == "accepted"
+    user = context.pack["user"]
+    assert "Editor's note on the connection: Same court, same week." in user and "Connects to: The attached ruling" in user
+    assert "A ruling the editor linked. It has detail." in user
+
+
+@then("the suggested edges follow by descending score and are labelled with their score and curation status")
+def step_related_scores(context):
+    ids = [entry["id"] for entry in related(context)]
+    assert ids.index("rel-high") < ids.index("rel-low") and ids.index("rel-accepted") == 0, ids
+    user = context.pack["user"]
+    assert "suggested, score 0.90" in user and "Curation status: pending" in user and "Curation status: accepted" in user
+
+
+@then("a rejected edge and a rejected Reference never appear in the related layer")
+def step_related_rejected(context):
+    ids = [entry["id"] for entry in related(context)]
+    assert "rel-by-declined-edge" not in ids and "rel-turned-down" not in ids, ids
+    assert "A related Reference that was rejected" not in context.pack["user"]
+
+
+@then("no related Reference appears again in another layer")
+def step_related_once(context):
+    related_ids = {entry["id"] for entry in related(context)}
+    elsewhere = {entry["id"] for row in context.pack["layers"] if row["name"] != "related_references" for entry in row["entries"]}
+    assert not related_ids & elsewhere, related_ids & elsewhere
+
+
+@then("a Reference only a rejected edge connects is not in the related layer")
+def step_edge_rejected_only(context):
+    assert "rel-by-declined-edge" not in [entry["id"] for entry in related(context)]

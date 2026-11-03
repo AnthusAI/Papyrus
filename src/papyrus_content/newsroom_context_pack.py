@@ -57,7 +57,7 @@ How to read what follows:
 PROFILES: dict[str, dict[str, Any]] = {
     "reporter": {
         "role": REPORTER_ROLE,
-        "layers": ("assignment", "story", "story_references", "story_conversation", "prior_research",
+        "layers": ("assignment", "story", "story_references", "related_references", "story_conversation", "prior_research",
                    "desk_published", "desk_references", "publication_published", "publication_references"),
     },
 }
@@ -66,6 +66,7 @@ HEADINGS = {
     "assignment": "The editor's assignment",
     "story": "The Story",
     "story_references": "References already attached to the Story",
+    "related_references": "References connected to the Story's References, best first",
     "story_conversation": "The conversation on the Story, oldest first",
     "prior_research": "Research already done on this Story, newest first",
     "desk_published": "Published in the Story's section, newest first",
@@ -74,6 +75,7 @@ HEADINGS = {
     "publication_references": "Accepted References in other sections, best first",
 }
 CORE_LAYERS = ("assignment", "story", "story_references", "story_conversation", "prior_research")
+SHARED_LAYERS = ("related_references",)
 OUTER_LAYERS = ("desk_published", "desk_references", "publication_published", "publication_references")
 
 
@@ -139,6 +141,7 @@ class Situation:
         self.section_problem: str | None = None
         self.section = self._resolve_section()
         self._references_in_story: set[str] | None = None
+        self._related: dict[str, dict[str, Any]] | None = None
         self._accepted: list[dict[str, Any]] | None = None
         self._summaries: Any = None
 
@@ -298,6 +301,64 @@ def conversation_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     return entries, None if entries else "the Story has no messages"
 
 
+def related_edges(situation: Situation) -> dict[str, dict[str, Any]]:
+    """The other end of every ``related_to`` edge on the Story's References, in both directions, by lineage, keeping the strongest edge.
+
+    Edges are read in two states: ``current`` (a person accepted it, or a rule derived it) and ``suggested`` (a machine proposed it); a rejected
+    edge has its own state key and is never read. A person's acceptance (``metadata.decision`` accepted, ``decidedBy`` not an ``auto:`` rule) with its
+    ``metadata.note`` ranks first, then the edge ``score``. The Story's own References are never the other end."""
+    from .ideas.signal_inputs import explanation_of
+
+    if situation._related is not None:
+        return situation._related
+    attached = situation.attached_lineages()
+    best: dict[str, dict[str, Any]] = {}
+    for via in sorted(attached):
+        for state in ("current", "suggested"):
+            key = f"reference#{via}#{state}"
+            for relation in [*situation.store.list_semantic_relations_by_subject_state(key), *situation.store.list_semantic_relations_by_object_state(key)]:
+                if (relation.get("predicate") != "related_to" or relation.get("subjectKind") != "reference" or relation.get("objectKind") != "reference"
+                        or relation.get("relationState", state) != state):
+                    continue
+                ends = {str(relation.get("subjectLineageId")), str(relation.get("objectLineageId"))}
+                other = next(iter(ends - {via}), None) if len(ends) == 2 else None
+                if not other or other in attached:
+                    continue
+                note = explanation_of(relation) if state == "current" else None
+                metadata = _json_object(relation.get("metadata"))
+                person = state == "current" and metadata.get("decision") == "accepted" and not str(metadata.get("decidedBy") or "").startswith("auto:") and bool(metadata.get("decidedBy"))
+                score = relation.get("score")
+                edge = {"other": other, "via": via, "person": person, "note": note, "state": state,
+                        "score": float(score) if isinstance(score, (int, float)) else None}
+                rank = (not person, -(edge["score"] if edge["score"] is not None else -1.0), via)
+                if other not in best or rank < best[other]["rank"]:
+                    best[other] = {**edge, "rank": rank}
+    situation._related = best
+    return best
+
+
+def related_candidates(situation: Situation) -> list[dict[str, Any]]:
+    """Reference rows (with their edge) in layer order: person-accepted edges first, then by descending score. A rejected Reference is dropped."""
+    rows = []
+    for other, edge in related_edges(situation).items():
+        reference = current_reference(situation.store, other)
+        if reference is None or str(reference.get("curationStatus") or "pending") == "rejected":
+            continue
+        rows.append({"reference": reference, "edge": edge})
+    return sorted(rows, key=lambda row: (row["edge"]["rank"], str(row["reference"]["id"])))
+
+
+def related_text(situation: Situation, candidate: Mapping[str, Any]) -> str:
+    reference, edge = candidate["reference"], candidate["edge"]
+    via = current_reference(situation.store, edge["via"]) or {}
+    via_name = clean_title(via.get("title"), via.get("sourceUri")) or via.get("sourceUri") or edge["via"]
+    link = "accepted by an editor" if edge["person"] else ("suggested" + (f", score {edge['score']:.2f}" if edge["score"] is not None else ""))
+    extra = [_line("Curation status", reference.get("curationStatus") or "pending"), _line("Connects to", via_name), _line("The connection", link)]
+    if edge["note"]:
+        extra.append(_line("Editor's note on the connection", edge["note"]))
+    return reference_text(situation, reference, extra=extra)
+
+
 def prior_research_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     """The research packets earlier assignments on this Story made, newest first, with the direction each was given."""
     from .assignments_workflow import load_assignment_research_packet_entries
@@ -389,7 +450,7 @@ def section_evidence(situation: Situation) -> set[str]:
 def reference_candidates(situation: Situation, *, inside: bool) -> list[dict[str, Any]]:
     """Accepted References outside the Story. A Reference belongs to the section when it was curated for it, or when any other Story in the
     section uses it as evidence."""
-    attached = situation.attached_lineages()
+    attached = situation.attached_lineages() | set(related_edges(situation))
     evidence = section_evidence(situation) if situation.section is not None else set()
     rows = []
     for row in situation.accepted_references():
@@ -538,6 +599,8 @@ def build_context_pack(store: Any, *, profile: str, assignment: Any = None, stor
 def outer_candidates(situation: Situation, name: str) -> tuple[Iterable[Entry], str | None]:
     """The candidates of an outer layer, best first, as a list when the whole set is known (References) or a lazy stream (published Stories)."""
     in_section = situation.section is not None
+    if name == "related_references":
+        return related_entries(situation), "no References are connected to the Story's References"
     if name == "desk_published":
         if not in_section:
             return [], situation.section_problem
@@ -553,21 +616,27 @@ def outer_candidates(situation: Situation, name: str) -> tuple[Iterable[Entry], 
     raise ValueError(f"Unknown layer {name!r}.")
 
 
-class LazyReferenceEntries(list):
-    """A ranked list of References whose entries are written (and summaries read) only when the budget asks for them."""
+class LazyEntries(list):
+    """Ranked candidates whose entries are written (and summaries read) only when the budget asks for them."""
 
-    def __init__(self, situation: Situation, rows: list[dict[str, Any]]) -> None:
-        super().__init__(rows)
-        self._situation = situation
+    def __init__(self, candidates: list[Any], build: Callable[[Any], Entry]) -> None:
+        super().__init__(candidates)
+        self._build = build
 
     def __iter__(self) -> Iterator[Entry]:
-        for row in list.__iter__(self):
-            yield _entry("reference", str(row["id"]), reference_one_line(self._situation, row), lineageId=str(row.get("lineageId") or row["id"]),
-                         acceptedBy=HUMAN if row.get("curationActorKind") == HUMAN else "machine")
+        for candidate in list.__iter__(self):
+            yield self._build(candidate)
 
 
-def reference_entries(situation: Situation, rows: list[dict[str, Any]]) -> LazyReferenceEntries:
-    return LazyReferenceEntries(situation, rows)
+def reference_entries(situation: Situation, rows: list[dict[str, Any]]) -> LazyEntries:
+    return LazyEntries(rows, lambda row: _entry("reference", str(row["id"]), reference_one_line(situation, row), lineageId=str(row.get("lineageId") or row["id"]),
+                                                acceptedBy=HUMAN if row.get("curationActorKind") == HUMAN else "machine"))
+
+
+def related_entries(situation: Situation) -> LazyEntries:
+    return LazyEntries(related_candidates(situation), lambda candidate: _entry(
+        "reference", str(candidate["reference"]["id"]), related_text(situation, candidate), lineageId=str(candidate["edge"]["other"]),
+        via=candidate["edge"]["via"], connection="accepted" if candidate["edge"]["person"] else candidate["edge"]["state"], score=candidate["edge"]["score"]))
 
 
 # --- command ------------------------------------------------------------------------------------------------------------------------

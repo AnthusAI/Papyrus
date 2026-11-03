@@ -18,7 +18,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
 
   Scenario: The layers come in order, most specific first
     When the reporter context pack is built for the Story and the assignment
-    Then the layers are, in order, "assignment, story, story_references, story_conversation, prior_research, desk_published, desk_references, publication_published, publication_references"
+    Then the layers are, in order, "assignment, story, story_references, related_references, story_conversation, prior_research, desk_published, desk_references, publication_published, publication_references"
     And every layer holds at least one entry
     And the user text shows the editor's direction before the Story's draft and the Story's draft before the section's published record
     And the system text carries the role, the publication policy and the section mission
@@ -50,6 +50,19 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     And the editor-voted Reference with a written reason comes before the auto-accepted Reference
     And the auto-accepted Reference comes last
 
+  Scenario: References connected to the Story's References are shown, strongest connection first
+    When the reporter context pack is built for the Story and the assignment
+    Then the layer of related References comes right after the Story's References
+    And it holds the other end of edges in both directions, each once, and none already on the Story
+    And the edge an editor accepted comes first, with the editor's note and the Reference it connects to
+    And the suggested edges follow by descending score and are labelled with their score and curation status
+
+  Scenario: Rejected edges and rejected References are never related, and nothing appears twice
+    When the reporter context pack is built for the Story and the assignment
+    Then a rejected edge and a rejected Reference never appear in the related layer
+    And a Reference only a rejected edge connects is not in the related layer
+    And no related Reference appears again in another layer
+
   Scenario: Earlier research on the Story is shown to the next reporter
     When the reporter context pack is built for the Story and the assignment
     Then the earlier research appears after the conversation with its direction, summary, claims and open questions
@@ -70,7 +83,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     And in the outer layers such a Reference leads with the first sentence of its summary
 
   Scenario: Under a budget the outer rings shrink first and each keeps a share
-    When the reporter context pack is built with room for the first five layers and 1500 more characters
+    When the reporter context pack is built with room for the first five layers and 2500 more characters
     Then the assignment, the Story, its References, its conversation and its earlier research are all complete
     And each outer layer holds at least one entry
 
@@ -80,7 +93,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     And the section's Reference layer holds at least one entry
 
   Scenario: Whole entries only, and the dropped counts are reported
-    When the reporter context pack is built with room for the first five layers and 1500 more characters
+    When the reporter context pack is built with room for the first five layers and 2500 more characters
     Then every entry in the user text is complete
     And at least one outer layer reports a dropped count above zero with a reason
     And a layer that dropped nothing reports a dropped count of zero
