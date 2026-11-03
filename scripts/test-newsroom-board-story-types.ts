@@ -24,18 +24,18 @@ const version = (id: string, type: string, stage: string, status = "draft"): Con
 const scenario = process.argv[2] ?? "all";
 const runs: Record<string, () => Promise<void>> = {
   async types() {
-    assert.deepEqual([...SYSTEM_ITEM_TYPES], ["wiki_page", "doctrine", "page", "newsletter_issue"], "the system set is fixed: these are not stories");
-    for (const type of ["article", "post", "guide", "case_study", "brief"]) assert.equal(isStoryItemType(type), true, `${type} is a story type: nothing but the system set decides`);
-    for (const type of ["wiki_page", "doctrine", "page", "newsletter_issue", "", null, undefined]) assert.equal(isStoryItemType(type as string), false, `${String(type)} is not a story`);
+    assert.deepEqual([...SYSTEM_ITEM_TYPES], ["wiki_page", "doctrine", "page"], "the system set is fixed: these are not stories");
+    for (const type of ["article", "post", "guide", "case_study", "untyped", "newsletter_issue"]) assert.equal(isStoryItemType(type), true, `${type} is a story type: nothing but the system set decides`);
+    for (const type of ["wiki_page", "doctrine", "page", "", null, undefined]) assert.equal(isStoryItemType(type as string), false, `${String(type)} is not a story`);
     assert.deepEqual(storyItemTypeFilter(), { and: SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })) }, "the query filter excludes the system set and names no story type");
   },
   async new_type() {
     // A site's own type (`guide`) reaches the board with no engine change, in a stage column and in Published.
     const issues = projectContentItemBoard({ contentItemVersions: [
       version("wiki-1", "wiki_page", "copywriting"), version("guide-1", "guide", "copywriting"), version("post-1", "post", "copywriting"),
-      version("guide-p", "guide", "published", "published"), version("issue-p", "newsletter_issue", "published", "published"),
+      version("guide-p", "guide", "published", "published"), version("issue-p", "newsletter_issue", "published", "published"), version("typeless-1", "untyped", "copywriting"),
     ] });
-    assert.deepEqual(issues.map(issue => issue.nativeId).sort(), ["guide-1", "guide-p", "post-1"], "a new type is on the board; system types are not");
+    assert.deepEqual(issues.map(issue => issue.nativeId).sort(), ["guide-1", "guide-p", "issue-p", "post-1", "typeless-1"], "a new type, a newsletter issue and a Story with no type are on the board; the wiki page is not");
   },
   async copywriting() {
     const issues = projectContentItemBoard({ contentItemVersions: [version("wiki-1", "wiki_page", "copywriting"), version("story-1", "article", "copywriting")] });

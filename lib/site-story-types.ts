@@ -1,4 +1,4 @@
-import { SYSTEM_ITEM_TYPES } from "./content-item-lifecycle";
+import { SYSTEM_ITEM_TYPES, UNTYPED_ITEM_TYPE } from "./content-item-lifecycle";
 
 /**
  * The Story types a site offers, read from the site's own projection.json (the file the projector reads; `storyTypes` and `urls`).
@@ -7,17 +7,17 @@ import { SYSTEM_ITEM_TYPES } from "./content-item-lifecycle";
  *
  *   "storyTypes": { "default": "article", "types": ["article", "post"] }     (both keys optional)
  *
- * With no `storyTypes` the default is `article` (a fallback only) and the offered types are the default plus every type in `urls.types`.
+ * With no default a new Story has no type until an editor picks one (it is stored as "untyped" and cannot be published). With no `types` the offered types
+ * are the default, when there is one, plus every type in `urls.types`.
  */
-export const FALLBACK_STORY_TYPE = "article";
 export const PROJECTION_TYPES_ENV = "NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES";
 const TYPE_NAME = /^[a-z][a-z0-9_]*$/;
 /** The Item types every standard projection builds pages for, before the site's `listings.types` and `urls.types`. Mirrors EXPORTED_TYPES in markus_export.py for the Story-relevant ones. */
-const ALWAYS_PROJECTED = ["article", "page"];
+export const ALWAYS_PROJECTED = ["article", "page"];
 
 export type SiteStoryTypes = {
-  /** The type a new Story gets. */
-  default: string;
+  /** The type a new Story gets; null when the site names none (the Story then has no type until an editor chooses one). */
+  default: string | null;
   /** The types an editor can choose, in the site's order. */
   types: string[];
   /** The public base (a path segment, "" for the site root) of each type that has a `urls.types` entry. */
@@ -36,6 +36,7 @@ const record = (value: unknown): Raw => (value && typeof value === "object" && !
 function requireStoryType(value: unknown, where: string): string {
   const name = typeof value === "string" ? value : "";
   if (!TYPE_NAME.test(name)) throw new Error(`${where} is a lowercase name such as 'article' or 'guide', not ${JSON.stringify(value)}.`);
+  if (name === UNTYPED_ITEM_TYPE) throw new Error(`${where} cannot be '${name}': that is the value of a Story with no type yet, not a type to choose.`);
   if (SYSTEM_ITEM_TYPES.includes(name)) throw new Error(`${where} cannot be '${name}': that type is not a Story.`);
   return name;
 }
@@ -46,17 +47,16 @@ export function storyTypesFromProjection(projection: unknown): SiteStoryTypes {
   const declared = record(raw.storyTypes);
   const unknown = Object.keys(declared).filter(key => key !== "default" && key !== "types");
   if (unknown.length) throw new Error(`Unknown storyTypes settings: ${unknown.sort().join(", ")}`);
-  const fallback = declared.default === undefined ? FALLBACK_STORY_TYPE : declared.default;
-  const defaultType = requireStoryType(fallback, "storyTypes.default");
+  const defaultType = declared.default === undefined || declared.default === null ? null : requireStoryType(declared.default, "storyTypes.default");
   const urls = record(raw.urls);
   const urlTypes = record(urls.types);
   const urlSections = record(urls.sections);
   let types: string[];
   if (Array.isArray(declared.types)) {
     types = [...new Set(declared.types.map(name => requireStoryType(name, "storyTypes.types entries")))];
-    if (!types.includes(defaultType)) throw new Error(`storyTypes.default '${defaultType}' is not one of storyTypes.types (${types.join(", ")}).`);
+    if (defaultType !== null && !types.includes(defaultType)) throw new Error(`storyTypes.default '${defaultType}' is not one of storyTypes.types (${types.join(", ")}).`);
   } else {
-    types = [...new Set([defaultType, ...Object.keys(urlTypes).filter(name => !SYSTEM_ITEM_TYPES.includes(name))])];
+    types = [...new Set([...(defaultType === null ? [] : [defaultType]), ...Object.keys(urlTypes).filter(name => !SYSTEM_ITEM_TYPES.includes(name))])];
   }
   const typeBases: Record<string, string> = {};
   for (const [name, entry] of Object.entries(urlTypes)) typeBases[name] = String(record(entry).base ?? name);
@@ -80,7 +80,7 @@ export function storyTypesFromProjection(projection: unknown): SiteStoryTypes {
 
 let cached: SiteStoryTypes | null = null;
 
-/** The running site's Story types. Without the build-time slice (the engine's own preview, a site that declares nothing) it is `article` alone. */
+/** The running site's Story types. Without the build-time slice (the engine's own preview, a site that declares nothing) there are none and no default. */
 export function siteStoryTypes(environment: Record<string, string | undefined> = process.env): SiteStoryTypes {
   if (environment === process.env && cached) return cached;
   let found: SiteStoryTypes;
@@ -89,15 +89,16 @@ export function siteStoryTypes(environment: Record<string, string | undefined> =
     const text = environment === process.env ? process.env.NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES : environment[PROJECTION_TYPES_ENV];
     found = storyTypesFromProjection(text ? JSON.parse(text) : {});
   } catch (error) {
-    console.warn(`The site's Story types are invalid; falling back to '${FALLBACK_STORY_TYPE}': ${error instanceof Error ? error.message : String(error)}`);
+    console.warn(`The site's Story types are invalid; offering none: ${error instanceof Error ? error.message : String(error)}`);
     found = storyTypesFromProjection({});
   }
   if (environment === process.env) cached = found;
   return found;
 }
 
-export function defaultStoryType(types: SiteStoryTypes = siteStoryTypes()): string {
-  return types.default;
+/** The type a new Story is stored with: the site's default, else "untyped". */
+export function typeForNewStory(types: SiteStoryTypes = siteStoryTypes()): string {
+  return types.default ?? UNTYPED_ITEM_TYPE;
 }
 
 export type StoryAddress =

@@ -149,7 +149,7 @@ class ReaderSettings:
     moderation_mode: str = "human"
     pre_moderation: bool = False
     reports_per_day: int = 20
-    promote_item_type: str = "brief"
+    promote_item_type: str = "untyped"  # a promoted submission is a Story with no type yet; UNTYPED_ITEM_TYPE
     promote_section: str = "unsectioned"
     ai_model: str = ai_moderation.DEFAULT_MODEL
     ai_key_parameter: str = ""

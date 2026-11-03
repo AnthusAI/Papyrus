@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, CheckIcon, ExternalLinkIcon, GlobeLockIcon, ImagePlusIcon, RouteIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, CircleDashedIcon, ExternalLinkIcon, GlobeLockIcon, ImagePlusIcon, RouteIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,7 @@ import {
 } from "../lib/newsroom-media";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
+import { isUntyped } from "../lib/content-item-lifecycle";
 import { describeBase, siteStoryTypes, storyAddress } from "../lib/site-story-types";
 import { cn } from "../lib/utils";
 import { applyReplacement, inlineFindings, visibleFindings } from "../lib/editorial-checks";
@@ -565,9 +566,11 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     const typeNeedsNewVersion = editor.status === "published" && savedType !== null && editor.type !== savedType;
     /** Publishing this version would remove the live page: the new type has no page. */
     const publishWouldRemoveLivePage = liveAddress !== null && address.kind === "none";
+    /** A Story with no type can be drafted and edited, but the site decides where a page lives from the type, so it cannot be published yet. */
+    const typeNotSet = isUntyped(editor.type);
     const invalid = validation.status === "invalid" || validation.status === "unavailable";
     const isOlderVersion = latestVersionNumber !== null && editor.versionNumber !== null && editor.versionNumber < latestVersionNumber;
-    const publishBlocked = isOlderVersion || invalid || validation.status === "checking" || busy !== null || !editor.slug.trim() || typeNeedsNewVersion || publishWouldRemoveLivePage;
+    const publishBlocked = isOlderVersion || invalid || validation.status === "checking" || busy !== null || !editor.slug.trim() || typeNeedsNewVersion || publishWouldRemoveLivePage || typeNotSet;
     const saveBlocked = isOlderVersion || invalid || busy !== null || !editor.slug.trim() || (!editor.dirty && editor.id !== null) || typeNeedsNewVersion;
     const stagingUrl = stagingPreviewUrl(
       process.env.NEXT_PUBLIC_PAPYRUS_STAGING_URL,
@@ -696,7 +699,15 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
             >
               <div className="grid gap-3" data-feed-flat="" data-feed-surface="" data-newsroom-article-type-field>
                 <div className="space-y-1.5 text-sm font-medium" role="group" aria-label="Type">
-                  <span>Type</span>
+                  <span className="flex items-center gap-2">
+                    Type
+                    {typeNotSet ? (
+                      <span className="inline-flex items-center gap-1 rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] px-2 py-0.5 text-xs" data-newsroom-article-type-unset>
+                        <CircleDashedIcon aria-hidden="true" className="size-3.5" />
+                        Not set
+                      </span>
+                    ) : null}
+                  </span>
                   <div className="flex flex-wrap gap-2">
                     {typeChoices.map((type) => (
                       <button
@@ -717,7 +728,12 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                     ))}
                   </div>
                 </div>
-                {address.kind === "none" ? (
+                {typeNotSet ? (
+                  <p className="flex items-start gap-2 rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] p-3 text-sm" data-newsroom-article-type-required role="status">
+                    <CircleDashedIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                    <span><strong>This Story has no type yet.</strong> You can draft and edit it, but it cannot be published until you choose a type: the site decides where its page lives from the type.</span>
+                  </p>
+                ) : address.kind === "none" ? (
                   <p className="flex items-start gap-2 rounded-[var(--feed-radius-md,8px)] bg-[var(--feed-control)] p-3 text-sm" data-newsroom-article-no-public-url role="status">
                     <GlobeLockIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                     <span><strong>No public URL.</strong> {address.reason} Publishing records it as published, but the site builds no page for it.</span>

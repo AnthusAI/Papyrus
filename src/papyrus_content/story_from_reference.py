@@ -31,7 +31,7 @@ from .link_exploration import canonical_url
 from .publishing import ItemFields, item_id_for, save_item
 from .record_helpers import slugify
 from .reference_images import PREVIEW_ROLE
-from .story_types import default_story_type, require_story_type
+from .story_types import type_for_new_story, require_story_type
 from .story_reporting import BASED_ON, current_reference, latest_story_version, link_reference_to_story, stories_based_on_reference, story_references
 
 #: The item types whose image is seeded from the Reference's preview image.
@@ -216,7 +216,7 @@ def create_story_from_references(
     """
     if not references:
         raise ValueError("A story based on a Reference needs at least one Reference.")
-    item_type = item_type or default_story_type()
+    item_type = item_type or type_for_new_story()
     rows = []
     for reference in references:
         row = current_reference(client, reference["id"]) or reference
@@ -485,7 +485,7 @@ def create_story_from_reference(
     A summary that repeats ``COPIED_RUN_WORDS`` words of the captured text is left out (``summary: "withheld"``), the same copy guard as every other path.
     This never changes the Reference's curation status; the editor's Accept is a vote the caller records through the existing review path.
     """
-    item_type = require_story_type(item_type) if item_type else default_story_type()
+    item_type = require_story_type(item_type) if item_type else type_for_new_story()
     reference = current_reference(client, reference_id)
     if reference is None:
         raise ValueError(f"Reference not found: {reference_id}")

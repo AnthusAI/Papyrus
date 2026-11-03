@@ -1,7 +1,8 @@
 @story-type-editor
 Feature: A Story's type is a field the editor sets, from the types the site defines
-  Papyrus lists no Story types. A site declares the types it offers, and the one a new Story gets, in its projection.json (storyTypes); a site that declares
-  nothing offers the article type and the types it gives a URL base. In the Story the editor sees those types as buttons, never a dropdown, with a check mark
+  Papyrus lists no Story types. A site declares the types it offers, and optionally the one a new Story gets, in its projection.json (storyTypes); a site that
+  declares no types offers the ones it gives a URL base. With no default, a new Story has no type: the editor shows Type as not set, with buttons to choose,
+  and says plainly that the Story can be drafted and edited but not published until a type is chosen. In the Story the editor sees those types as buttons, never a dropdown, with a check mark
   on the chosen one so that colour is not the only signal. A Story's type can change after it is created, and that follows versioning: a new version carries
   the new type. A live Story keeps its address until that version is published; saving it in place would republish it at once, so that is off, and the editor
   says what publishing will do. A type the site gives no address (no urls.types entry, no section route) says plainly, in the Story, that it has no public URL.
@@ -26,9 +27,13 @@ Feature: A Story's type is a field the editor sets, from the types the site defi
     When the editor saves a new version of it as a Guide
     Then Publish is off and the editor says it would remove the live page
 
-  Scenario: A site that declares nothing offers the article type
+  Scenario: A new Story on a site with no default type has no type yet
+    Given a new Story open in the editor on a site that names no default type
+    Then Type shows as not set with buttons to choose, Publish is off, and the editor says it cannot be published until a type is chosen, and choosing Post clears that
+
+  Scenario: A site that declares no Story types offers none
     Given a Story open in the editor on a site that declares no Story types
-    Then only the article type and the page are offered
+    Then only the page and the Story's own type are offered
 
   Scenario: On a phone the type buttons are large targets
     Given a Story open in the editor on a phone

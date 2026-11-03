@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { editorTypeChoices, typeLabel } from "../lib/newsroom-articles";
-import { SYSTEM_ITEM_TYPES } from "../lib/content-item-lifecycle";
-import { describeBase, siteStoryTypes, storyAddress, storyTypesFromProjection } from "../lib/site-story-types";
+import { SYSTEM_ITEM_TYPES, UNTYPED_ITEM_TYPE, isStoryItemType } from "../lib/content-item-lifecycle";
+import { describeBase, siteStoryTypes, storyAddress, storyTypesFromProjection, typeForNewStory } from "../lib/site-story-types";
 import { projectionTypesEnvironment, projectionTypesSlice } from "../packages/papyrus/src/with-papyrus.mjs";
 import path from "node:path";
 import os from "node:os";
@@ -46,13 +46,24 @@ assert.equal(describeBase(""), "the site root");
 assert.deepEqual(editorTypeChoices("article", ["article", "post"]), ["article", "post", "page"]);
 assert.deepEqual(editorTypeChoices("legacy", ["article"]), ["article", "page", "legacy"], "a type the site no longer offers stays visible");
 assert.equal(typeLabel("case_study"), "Case study");
+assert.equal(typeLabel(UNTYPED_ITEM_TYPE), "Not set");
+assert.deepEqual(editorTypeChoices(UNTYPED_ITEM_TYPE, ["article"]), ["article", "page"], "an untyped Story is not offered 'untyped' as a choice: it shows as not set");
 
-// The runtime reads the slice withPapyrus inlines, and falls back to the article type with none or with an invalid one.
-assert.deepEqual(siteStoryTypes({}).types, ["article"]);
+// A site with no default gives a new Story no type; one with a default gives that. The untyped value is a Story on the board, in the Python mirror too.
+assert.equal(typeForNewStory(storyTypesFromProjection({})), "untyped");
+assert.equal(typeForNewStory(storyTypesFromProjection({ storyTypes: { default: "post" } })), "post");
+assert.equal(isStoryItemType(UNTYPED_ITEM_TYPE), true);
+assert.equal(isStoryItemType("newsletter_issue"), true, "newsletter issues are Stories on the board");
+const untypedPython = /^UNTYPED_ITEM_TYPE = "([^"]+)"/m.exec(python)?.[1];
+assert.equal(untypedPython, UNTYPED_ITEM_TYPE, "the untyped value is the same string in both languages");
+
+// The runtime reads the slice withPapyrus inlines, and has no types and no default with none or with an invalid one.
+assert.deepEqual(siteStoryTypes({}).types, []);
+assert.equal(siteStoryTypes({}).default, null);
 assert.deepEqual(siteStoryTypes({ NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES: JSON.stringify({ storyTypes: { default: "post", types: ["post", "article"] } }) }).types, ["post", "article"]);
 const warn = console.warn;
 console.warn = () => {};
-assert.deepEqual(siteStoryTypes({ NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES: "{\"storyTypes\":{\"default\":\"page\"}}" }).types, ["article"]);
+assert.deepEqual(siteStoryTypes({ NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES: "{\"storyTypes\":{\"default\":\"page\"}}" }).types, []);
 console.warn = warn;
 
 // withPapyrus copies only the Story-type settings of the site's projection.json.
@@ -63,7 +74,7 @@ assert.deepEqual(projectionTypesEnvironment(directory), {}, "a site with no proj
 fs.mkdirSync(path.join(directory, "web"));
 fs.writeFileSync(path.join(directory, "web", "projection.json"), JSON.stringify({ urls: { types: { guide: {} } } }));
 const environment = projectionTypesEnvironment(directory);
-assert.deepEqual(storyTypesFromProjection(JSON.parse(environment.NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES)).types, ["article", "guide"]);
+assert.deepEqual(storyTypesFromProjection(JSON.parse(environment.NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES)).types, ["guide"]);
 fs.rmSync(directory, { recursive: true });
 
 console.log("story types tests passed");

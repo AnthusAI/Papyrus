@@ -13,9 +13,9 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from papyrus_content.content_item_lifecycle import SYSTEM_ITEM_TYPES, build_new_content_item_version  # noqa: E402
+from papyrus_content.content_item_lifecycle import SYSTEM_ITEM_TYPES, UNTYPED_ITEM_TYPE, build_new_content_item_version  # noqa: E402
 from papyrus_content.projection.standard.config import standard_settings_from_mapping  # noqa: E402
-from papyrus_content.story_types import default_story_type, require_story_type, site_story_types, story_types_from_mapping  # noqa: E402
+from papyrus_content.story_types import default_story_type, require_story_type, site_story_types, story_types_from_mapping, type_for_new_story  # noqa: E402
 
 CASES = json.loads((REPO_ROOT / "scripts" / "fixtures" / "story-types-cases.json").read_text(encoding="utf-8"))
 
@@ -52,9 +52,28 @@ def test_the_site_reads_its_types_from_the_projection_json_it_ships(tmp_path):
     assert default_story_type(environment) == "post"
 
 
-def test_with_no_projection_json_the_default_is_the_fallback_article():
-    assert default_story_type({}) == "article"
-    assert site_story_types({"PAPYRUS_SITE_STATIC_DIR": "/no/such/directory"}).offered == ("article",)
+def test_with_no_projection_json_there_is_no_default_and_a_new_story_has_no_type():
+    assert default_story_type({}) is None
+    assert type_for_new_story({}) == "untyped"
+    assert site_story_types({"PAPYRUS_SITE_STATIC_DIR": "/no/such/directory"}).offered == ()
+
+
+def test_the_untyped_value_is_the_same_string_in_typescript_and_cannot_be_chosen_as_a_type():
+    source = (REPO_ROOT / "lib" / "content-item-lifecycle.ts").read_text(encoding="utf-8")
+    assert re.search(r'export const UNTYPED_ITEM_TYPE = "untyped"', source) and UNTYPED_ITEM_TYPE == "untyped"
+    with pytest.raises(ValueError, match="no type yet"):
+        require_story_type("untyped")
+
+
+def test_an_untyped_story_cannot_be_published():
+    from papyrus_content.publishing import PublishError, publish_item
+    from procedures.newsroom.tests.fake_client import FakeAuthoringClient
+
+    client = FakeAuthoringClient()
+    client.upsert("Item", {"id": "item-a", "lineageId": "item-a", "type": "untyped", "typeStatus": "untyped#draft", "slug": "a", "status": "draft", "bodyMarkus": "Body.\n", "metadata": "{}", "contentHash": "h"})
+    with pytest.raises(PublishError) as raised:
+        publish_item(client, "item-a", actor="editor")
+    assert raised.value.code == "type-required"
 
 
 def test_a_new_content_item_gets_the_sites_default_type_unless_one_is_given(tmp_path, monkeypatch):

@@ -17,7 +17,17 @@ export type ContentItemStageDefinition = {
  * (`guide`, `case-study`) needs no engine change. A system type never appears on the Stories board or in a story count. Which Story types a site offers editors,
  * and which one is its default, come from the site's projection.json (lib/site-story-types.ts).
  */
-export const SYSTEM_ITEM_TYPES: readonly string[] = ["wiki_page", "doctrine", "page", "newsletter_issue"];
+export const SYSTEM_ITEM_TYPES: readonly string[] = ["wiki_page", "doctrine", "page"];
+
+/**
+ * The stored type of a Story that has none yet (UNTYPED_ITEM_TYPE in content_item_lifecycle.py). `Item.type` is required and `typeStatus` is a key, so "no type" is an
+ * explicit value. It is a Story type like any other for the board; the editor shows it as "not set", and a Story of this type cannot be published.
+ */
+export const UNTYPED_ITEM_TYPE = "untyped";
+
+export function isUntyped(type: string | null | undefined): boolean {
+  return type === UNTYPED_ITEM_TYPE;
+}
 
 export function isStoryItemType(type: string | null | undefined): boolean {
   return typeof type === "string" && type !== "" && !SYSTEM_ITEM_TYPES.includes(type);

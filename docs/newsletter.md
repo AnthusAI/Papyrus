@@ -104,7 +104,7 @@ backend: {
       theme: { accent: "#...", text: "#...", background: "#...", fontFamily: "...", logoUrl: "https://..." }, // branding keys: see "Email theme fields"
       lists: [
         { id: "weekly", name: "...", description: "...", kind: "roundup",
-          schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "newsletter_issue", archivePath: "/roundup/" },
+          schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "post", archivePath: "/roundup/" },
         { id: "alerts-x", name: "...", description: "...", kind: "alert", rule: { sections: ["..."], tags: ["..."], types: ["..."] }, approval: "admin" },
       ],
       // configurationSet and eventTopicName default to papyrus-<siteId> and papyrus-newsletter-events-<siteId>.
@@ -230,7 +230,7 @@ The sender (PPY-3ae3b9) writes `gsiHid` on every ledger row, as above, so erasur
 
 Status: Built (PPY-3ae3b9). The newsroom Newsletter panel (below) drives these operations.
 
-A roundup issue is an `Item` of the list's `issueType` (default `newsletter_issue`), so editors write it in the ordinary newsroom editor (open it at `/newsroom/articles/<itemId>`; the article list does not show other types yet). The newsletter table holds its send state in `ISSUE#` rows. When the send finishes, the Item is published through `content-actions` (`publishItem`), so the standard front end gives it a page, a Markdown twin and an `llms.txt` entry, and lists it on the archive page.
+A roundup issue is an ordinary Story of the list's `issueType`, which a site must set (there is no default: it is the Story type the site uses for its periodic email, usually `post`), so editors write it in the ordinary newsroom editor (it is a card on the Stories board; open it at `/newsroom/articles/<itemId>`; the article list does not show other types yet). The newsletter table holds its send state in `ISSUE#` rows. When the send finishes, the Item is published through `content-actions` (`publishItem`), so the standard front end gives it a page, a Markdown twin and an `llms.txt` entry, and lists it on the archive page.
 
 ### Issue lifecycle
 
@@ -263,13 +263,13 @@ The projector decides a page by section, and which Item types it projects by `li
       "roundup": { "base": "roundup", "label": "Roundup", "description": "Every weekly issue.", "feed": false }
     }
   },
-  "listings": { "types": ["article", "newsletter_issue"] }
+  "listings": { "types": ["article", "post"] }
 }
 ```
 
 Core change (PPY-3ae3b9): until now only `article` and `page` Items were projected whatever the settings; the projector now also projects every type in `listings.types` (`StandardMarkusProjector.projectable_types`, `PublishedContentSource.extra_types`). Sites that do not list a type project nothing for it, as before. `feed: false` keeps issues out of the site feed. The plugin setting `itemUrlStyle` (`html`, `directory` or `clean`, default `html`) must equal `urls.style`: roundup drafts link to published items with it. `archivePath` is one path segment because it is also the Item section and the `urls.sections` key.
 
-Item `type` is a free string in the Item model and in `saveItemDraft`; the newsroom article editor's Type menu offers only `article` and `page` and its list loads only those types, so an issue is opened by id. Epic PPY-cf5e4c (publication-defined shapes) names "newsletter issue" as a shape; `newsletter_issue` is that string.
+The issue type is a Story type like any other: the site lists it in `urls.types` or `listings.types` so the projector builds its pages, and the board, the Type buttons and the Stories list all include it. A site whose stored issues carry another type string keeps it by naming that string as `issueType`; nothing rewrites stored types.
 
 ### Drafting the roundup
 

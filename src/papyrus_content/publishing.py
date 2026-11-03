@@ -19,6 +19,7 @@ from .machine_writes import apply_stamp
 from .markus_renderer.derive import BodyError, derive_body
 from .projection.stored import PROJECTION_METADATA_KEY, projection_metadata
 from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
+from .content_item_lifecycle import UNTYPED_ITEM_TYPE
 from .wiki_stamp import WIKI_PAGE_ITEM_TYPE, stamp_problems
 
 PUBLISHED_ID_PREFIX = "published-"
@@ -339,6 +340,8 @@ def publish_item(
     published_id = published_item_id_for(lineage_id)
     metadata = _parse_json_object(item.get("metadata"))
     envelope = _derive_or_raise(metadata.get("frontMatterYaml"), item.get("bodyMarkus") or "")
+    if item.get("type") == UNTYPED_ITEM_TYPE:
+        raise PublishError("type-required", "This story has no type yet. Choose its type, then publish: the site decides where a page lives from it.")
     if item.get("type") == WIKI_PAGE_ITEM_TYPE:
         problems = stamp_problems(_load_front_matter(metadata.get("frontMatterYaml")))
         if problems:
