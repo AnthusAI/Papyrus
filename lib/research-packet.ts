@@ -46,6 +46,8 @@ export function factCheckSentence(counts: Record<string, unknown>): string {
   return parts.join(", ") + (single ? `; ${single} rest on one site` : "");
 }
 
+export type PacketDirectionGap = { name: string; note: string };
+
 export type ResearchPacketView = {
   summary: string;
   recommendedAngle: string | null;
@@ -54,6 +56,7 @@ export type ResearchPacketView = {
   openQuestions: string[];
   unverifiedClaims: PacketUnverifiedClaim[];
   factCheckSummary: string | null;
+  directionGaps: PacketDirectionGap[];
   sourceCount: number;
 };
 
@@ -99,6 +102,10 @@ export function researchPacketOf(raw: unknown): ResearchPacketView | null {
   });
   const factCheck = record(packet.factCheck);
   const counts = record(factCheck.counts);
+  const directionGaps = list(factCheck.directionGaps).flatMap(entry => {
+    const name = text(record(entry).name);
+    return name ? [{ name, note: text(record(entry).note) ?? `The run wrote nothing on ${name}.` }] : [];
+  });
   return {
     summary,
     recommendedAngle: text(packet.recommended_angle ?? packet.recommendedAngle),
@@ -107,6 +114,7 @@ export function researchPacketOf(raw: unknown): ResearchPacketView | null {
     openQuestions: list(packet.open_questions ?? packet.openQuestions).flatMap(question => text(question) ?? []),
     unverifiedClaims,
     factCheckSummary: Object.keys(counts).length ? factCheckSentence(counts) : text(packet.factCheck) ?? text(factCheck.summary),
+    directionGaps,
     sourceCount: byRank.size,
   };
 }

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -53,6 +55,22 @@ ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_KINDS = (
 )
 ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_MESSAGE_KINDS = ("note",)
 ASSIGNMENT_RUN_DEFAULT_KNOWLEDGE_INCLUDE_ASSIGNMENT_TYPES = ("research.*", "reporting.*")
+
+
+
+def writable_run_dir(run_id: str) -> Path:
+    """The directory for one run's files: under the repository's ``.papyrus-runs``, or under the system temporary directory when that place cannot be written
+    (a Lambda's code directory is read-only), so a run that has nothing to do with the disk never dies on it."""
+    preferred = PAPYRUS_ROOT / ".papyrus-runs" / run_id
+    try:
+        preferred.mkdir(parents=True, exist_ok=True)
+        if os.access(preferred, os.W_OK):
+            return preferred
+    except OSError:
+        pass
+    fallback = Path(tempfile.gettempdir()) / ".papyrus-runs" / run_id
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
 
 
 def normalize_research_mode(value: Any) -> str:
@@ -421,8 +439,7 @@ def run_research_assignment(flags: list[str]) -> None:
     run_id = normalize_string(options.get("run-id")) or (
         f"research-{safe_id(assignment_id)[:60]}-{timestamp_for_path()}"
     )
-    run_dir = PAPYRUS_ROOT / ".papyrus-runs" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = writable_run_dir(run_id)
     result_path = run_dir / "research-result.json"
     source_path = run_dir / "research.cloud.tac"
     stdout_path = run_dir / "research.stdout.log"
@@ -609,8 +626,7 @@ def run_reporting_assignment(flags: list[str]) -> None:
     run_id = normalize_string(options.get("run-id")) or (
         f"reporting-{safe_id(assignment_id)[:60]}-{timestamp_for_path()}"
     )
-    run_dir = PAPYRUS_ROOT / ".papyrus-runs" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = writable_run_dir(run_id)
     result_path = run_dir / "reporting-result.json"
     source_path = run_dir / "reporting.cloud.tac"
     stdout_path = run_dir / "reporting.stdout.log"
@@ -1193,8 +1209,7 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
     run_id = normalize_string(options.get("run-id")) or (
         f"research-proposals-{safe_id(assignment_id)[:60]}-{timestamp_for_path()}"
     )
-    run_dir = PAPYRUS_ROOT / ".papyrus-runs" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = writable_run_dir(run_id)
     catalog_path = run_dir / "research-proposals-catalog.json"
     proposals = extract_research_packet_proposals(selected["packet"])
     considered_count = len(proposals)
@@ -1900,6 +1915,9 @@ def research_packet_body(packet: dict[str, Any]) -> str:
         lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}] ({c.get('verdict') or 'unverified'}: {'; '.join(str(r) for r in _parse_array(c.get('reasons')))})"
                      for c in unverified)
     open_questions = [q for q in _parse_array(packet.get("openQuestions")) if q]
+    gaps = [g for g in _parse_array((packet.get("factCheck") or {}).get("directionGaps") if isinstance(packet.get("factCheck"), dict) else None) if isinstance(g, dict)]
+    if gaps:
+        lines.extend(["", "Named in the direction, not covered:", *(f"- {g.get('name')}: {g.get('note')}" for g in gaps)])
     if (claims or unverified) and open_questions:
         lines.extend(["", "Open questions:", *(f"- {q}" for q in open_questions)])
     return "\n".join(lines)
@@ -2462,7 +2480,7 @@ def build_assignment_context(flags: list[str]) -> None:
     if not assignment_id:
         raise ValueError("assignments build-context requires --assignment.")
     output_path = options.get("output") or str(
-        PAPYRUS_ROOT / ".papyrus-runs" / timestamp_for_path() / f"assignment-context-{assignment_id}.json"
+        writable_run_dir(timestamp_for_path()) / f"assignment-context-{assignment_id}.json"
     )
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     payload = run_papyrus_cli_json(

@@ -269,7 +269,7 @@ def step_run(context):
     hits = [hit(page_url(number), f"Page {number}", text) for number, text in enumerate(run.pages, start=1)]
     provider = FakeProvider("gemini", {query["query"]: hits for query in llm.plan["queries"]})
     context.llm = llm
-    context.packet = ms.run_multi_search("brief", llm=llm, providers={"gemini": provider})["packet"]
+    context.packet = ms.run_multi_search("brief", llm=llm, providers={"gemini": provider}, direction=getattr(run, "direction", ""))["packet"]
 
 
 @then('the packet claims are exactly "{claim}"')

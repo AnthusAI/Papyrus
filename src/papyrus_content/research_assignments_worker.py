@@ -8,6 +8,7 @@ reason, so nothing hangs for ever; a failed assignment is never retried on its o
 from __future__ import annotations
 
 import os
+import re
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
@@ -73,6 +74,18 @@ def without_credential_guidance(reason: str) -> str:
     return "\n".join(kept).strip()
 
 
+def finished_note(intake_error: Any) -> str:
+    """The note of a finished run: plain when everything went in, and plain about what did not when the sources could not be taken in."""
+    if not intake_error:
+        return "Research finished; the packet is on the assignment."
+    reason = without_credential_guidance(str(intake_error))
+    if "read-only file system" in reason.lower() or "errno 30" in reason.lower():
+        reason = "the server could not write a working file"
+    else:
+        reason = re.sub(r"^[A-Za-z_][\w.]*(?:Error|Exception): ", "", reason).strip() or "an error the log records"
+    return f"Research finished and the packet is on the assignment, but its sources were not added to the newsroom, and no sources were linked to the Story: {reason}."[:500]
+
+
 def assignment_has_research_packet(client: Any, assignment: dict[str, Any]) -> bool:
     """Whether a run already made this assignment's packet: it ``produces`` a research packet Message, or it has a finished-run event."""
     state_key = f"assignment#{assignment['id']}#current"
@@ -124,7 +137,7 @@ def run_research_assignments(client: Any, publication: dict[str, Any], *, now: d
         from .multi_search_research import research_multi as research
     clock = clock or (lambda: datetime.now(timezone.utc))
     judge_out_of_time = (lambda: time_left() < JUDGE_RESERVE_SECONDS) if time_left is not None else (lambda: False)
-    result: dict[str, Any] = {"publicationId": publication["publicationId"], "ran": [], "failed": [], "expired": [], "alreadyDone": [], "leftOpen": 0, "stoppedBy": None}
+    result: dict[str, Any] = {"publicationId": publication["publicationId"], "ran": [], "failed": [], "expired": [], "alreadyDone": [], "intakeFailed": {}, "leftOpen": 0, "stoppedBy": None}
     rows = research_assignments_of_stories(client)
     for row in rows:
         if row.get("status") != "claimed":
@@ -154,8 +167,10 @@ def run_research_assignments(client: Any, publication: dict[str, Any], *, now: d
         except Exception as error:   # noqa: BLE001 - one assignment never stops the others
             outcome = {"action": "failed", "error": f"{type(error).__name__}: {error}"}
         if outcome.get("action") == "completed":
-            set_status(client, running, "completed", now=clock(), event_type="research.completed", note="Research finished; the packet is on the assignment.")
+            set_status(client, running, "completed", now=clock(), event_type="research.completed", note=finished_note(outcome.get("intakeError")))
             result["ran"].append(row["id"])
+            if outcome.get("intakeError"):
+                result["intakeFailed"][row["id"]] = str(outcome["intakeError"])[:300]
         else:
             set_status(client, running, "failed", now=clock(), event_type="research.failed", note=(without_credential_guidance(str(outcome.get("error") or "")) or "The research did not finish.")[:400])
             result["failed"].append(row["id"])

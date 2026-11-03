@@ -272,6 +272,7 @@ const PREVIEW_PACKET: ResearchPacketView = {
     { claim: "The second bidder withdrew.", verdict: "unchecked", sources: [{ rank: 2, url: "https://news.example.net/cranes-approved", title: "Cranes approved for the harbor", domain: "news.example.net" }], reasons: ["The run ran short of time before this claim was checked"] },
   ],
   factCheckSummary: "12 verified, 8 need a check, 8 rejected; 23 rest on one site",
+  directionGaps: [],
   sourceCount: 3,
 };
 
