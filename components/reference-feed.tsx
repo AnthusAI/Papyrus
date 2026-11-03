@@ -670,7 +670,19 @@ export function ReferenceFeed({
   // Previous / Next in the detail pane scrolls the grid to the same card, smoothly. Selecting a card by clicking it never scrolls.
   useEffect(() => {
     if (!scrollTarget || typeof document === "undefined") return;
-    document.querySelector(`[data-feed-card="${CSS.escape(scrollTarget.id)}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const card = document.querySelector(`[data-feed-card="${CSS.escape(scrollTarget.id)}"]`);
+    const scroller = card?.closest<HTMLElement>("[data-reference-feed-scroll]");
+    if (!card) return;
+    if (!scroller || scroller.scrollHeight <= scroller.clientHeight) {
+      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
+    // Only the feed's own scroller moves: scrollIntoView would also move the page around it and shift the detail pane.
+    const box = card.getBoundingClientRect();
+    const view = scroller.getBoundingClientRect();
+    const bottom = Math.min(view.bottom, window.innerHeight);
+    const by = box.top < view.top ? box.top - view.top : box.bottom > bottom ? Math.min(box.bottom - bottom, box.top - view.top) : 0;
+    if (by) scroller.scrollBy({ top: by, behavior: "smooth" });
   }, [scrollTarget]);
 
 
