@@ -147,3 +147,34 @@ def test_a_reused_reference_without_a_monitor_gets_one_and_never_loses_its_first
     client.updates.clear()
     sink(item, p)
     assert client.updates == []
+
+
+def _archived_match(client, item, *, status="archived", by):
+    client.references.append({"id": "reference-stub-v1", "lineageId": "reference-stub", "versionNumber": 1, "corpusId": "knowledge-corpus-publication",
+                              "versionState": "current", "sourceUri": item.canonical_url, "curationStatus": status,
+                              "curationStatusKey": f"knowledge-corpus-publication#{status}", "curationStatusUpdatedBy": by,
+                              "createdAt": "2026-10-01T00:00:00Z", "feedStateKey": None, "reviewedFeedKey": "references#reviewed"})
+    return deepcopy(client.references[0])
+
+
+def test_a_stub_the_machine_archived_returns_to_pending_with_its_feed_keys_when_a_monitor_finds_the_paper(tmp_path):
+    from papyrus_content.reference_citation_stubs import RETIRED_BY
+    client, _, sink, item, p = setup(tmp_path)
+    _archived_match(client, item, by=RETIRED_BY)
+    receipt = sink(item, p)
+    row = client.references[0]
+    assert receipt["referenceId"] == "reference-stub-v1" and receipt["referenceRestored"] is True and client.writes == []
+    assert row["curationStatus"] == "pending" and row["curationStatusKey"] == "knowledge-corpus-publication#pending"
+    assert row["feedStateKey"] == "knowledge-corpus-publication#unrated" and row["reviewedFeedKey"] is None
+    assert row["discoveredByMonitorId"] == "hn"
+
+
+@pytest.mark.parametrize("status, by", [("rejected", "papyrus-retire-citation-stubs"), ("archived", "an editor"), ("rejected", "an editor"),
+                                        ("accepted", "papyrus-retire-citation-stubs")])
+def test_a_rejected_or_human_archived_match_is_not_restored(tmp_path, status, by):
+    client, _, sink, item, p = setup(tmp_path)
+    before = _archived_match(client, item, status=status, by=by)
+    receipt = sink(item, p)
+    row = client.references[0]
+    assert "referenceRestored" not in receipt
+    assert {key: row[key] for key in before} == before   # curation fields exactly as they were

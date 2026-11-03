@@ -728,6 +728,12 @@ flags, attempts and errors are kept per publication per item; one failing backen
 the others, and a rerun skips what is already delivered. The publication needs exactly one
 canonical `KnowledgeCorpus`.
 
+Intake matches an existing Reference by canonical URL whatever its status and reuses it, with one exception: a Reference
+the machine archived as an unreviewed citation stub (`papyrus references retire-citation-stubs`, see
+[citation stubs](reference-curation-pipeline.md#citation-stubs-archived-and-brought-back-by-a-monitor)) goes back to
+`pending` with its feed keys, and the receipt says `referenceRestored`. The router then records the Cyclotron's prediction on it as it does for
+any delivery. A rejected Reference, or one archived by a person, is reused exactly as it is.
+
 ## Procedure triggers
 
 A publication may list `procedureTriggers` and name its OpenAI key's SSM parameter
