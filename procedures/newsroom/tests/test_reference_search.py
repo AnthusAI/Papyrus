@@ -4,6 +4,7 @@ Everything runs against a fake GraphQL list and a fake vector index, with synthe
 """
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -11,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
-from papyrus_knowledge_query import lambda_handler, reference_search as rs  # noqa: E402
+from papyrus_knowledge_query import cuts, lambda_handler, reference_search as rs  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -195,6 +196,97 @@ def test_a_partial_word_match_does_not_outrank_a_better_meaning_rank_but_a_stron
     assert [entry.lineage_id for entry in fused] == ["all", "some", "m1", "m2"]
     assert fused[0].strong and not fused[1].strong
     assert fused[1].score == pytest.approx(1 / 61 + 1 / 63)   # 'some' is words rank 1 and meaning rank 3: reciprocal rank fusion, k = 60
+
+
+# --- long questions: meaning above partial words ---------------------------------------------------------------------------------------------------
+
+QUESTION = "why do neural networks forget earlier training"
+
+
+def forgetting_site():
+    """A site where generic title words are everywhere: 40 'neural networks' titles and 20 'training' titles, a few real answers."""
+    rows = [row(f"generic{n}", f"Neural networks for task {n}", updated=f"2026-11-01T10:{n:02d}:00.000Z") for n in range(40)]
+    rows += [row(f"training{n}", f"Training tips number {n}", updated=f"2026-11-01T11:{n:02d}:00.000Z") for n in range(20)]
+    rows += [
+        row("wide", "Wide Neural Networks Forget Less Catastrophically", updated="2026-11-01T12:00:00.000Z"),
+        row("interference", "Interference between old and new tasks in continual learning", updated="2026-11-01T12:01:00.000Z"),
+        row("replay", "Replay buffers keep earlier lessons alive", updated="2026-11-01T12:02:00.000Z"),
+        row("unrelated", "A history of the telegraph", updated="2026-11-01T12:03:00.000Z"),
+    ]
+    return FakeSite(rows, page=100)
+
+
+def smooth_tail(start=0.50, end=0.40, count=60):
+    """Distances for far neighbours (not Reference rows in the index) falling off smoothly, as real neighbour lists do."""
+    return [(f"far{n}", 1 - (start - (start - end) * (1 - math.exp(-n / 10)))) for n in range(count)]
+
+
+def test_the_largest_drop_cut_keeps_one_hit_of_a_realistic_neighbour_list_and_the_search_cut_keeps_the_bend():
+    # One hit stands clear, then the scores fall smoothly: the shape of a real neighbour list for a question.
+    similarities = [0.62] + [0.50 - 0.10 * (1 - math.exp(-n / 15)) for n in range(99)]
+    assert cuts.knee_cut_count(similarities) == 1   # why the meaning lane contributed one card, the one the words lane already had
+    kept = cuts.search_cut_count(similarities)
+    assert 5 < kept < len(similarities)
+    # The cliff and plateau cases still cut where one expects, and a flat or tiny list is kept whole.
+    assert cuts.search_cut_count([0.95, 0.92, 0.88, 0.5, 0.48, 0.45]) == 3
+    assert cuts.search_cut_count([0.9] * 5 + [0.3] * 5) == 5
+    assert cuts.search_cut_count([0.5] * 8) == 8 and cuts.search_cut_count([0.5, 0.4]) == 2 and cuts.search_cut_count([]) == 0
+
+
+def test_a_long_question_ranks_meaning_matches_above_single_common_word_title_matches():
+    site = forgetting_site()
+    matches = [("interference", 0.30), ("replay", 0.32), ("wide", 0.33)] + smooth_tail(start=0.50)
+    result = search(site, FakeVectors(matches), QUESTION)
+    ids = [item["reference"]["lineageId"] for item in result["items"]]
+    assert set(ids[:3]) == {"wide", "interference", "replay"} and ids[0] == "wide"   # words and meaning together, then meaning alone
+    assert result["items"][0]["matchedBy"] == ["keyword", "meaning"]
+    assert [item["matchedBy"] for item in result["items"][1:3]] == [["meaning"], ["meaning"]]
+    assert not any(lineage.startswith(("generic", "training")) for lineage in ids)   # "neural", "networks" and "training" alone are not an answer
+    assert result["lanes"]["meaning"] == {"status": "ok"}
+
+
+def test_a_partial_match_covering_few_of_a_long_querys_distinctive_terms_is_dropped_and_rare_terms_weigh_more():
+    site = forgetting_site()
+    index = rs.ReferenceWordIndex()
+    index.refresh(site.graphql)
+    hits = {hit.lineage_id: hit for hit in index.search(QUESTION, "all")}
+    assert "generic0" not in hits and "training0" not in hits and "wide" in hits and hits["wide"].coverage >= rs.PARTIAL_COVERAGE_FLOOR
+    # A short query keeps every partial match, but the rarer word ranks above the common one.
+    ordered = [hit.lineage_id for hit in index.search("neural forget", "all")]
+    assert ordered[0] == "wide" and "generic0" in ordered   # "wide" holds both, the generic ones only the common word
+    assert index.search("neural replay", "all")[0].lineage_id == "replay"   # one rare word outweighs one word in most titles
+
+
+def test_question_words_are_not_searched_but_a_query_of_only_them_still_is():
+    assert rs.query_terms(QUESTION) == ["neural", "networks", "forget", "earlier", "training"]
+    assert rs.query_terms("why do") == ["why", "do"]
+
+
+def test_an_exact_title_phrase_and_all_terms_in_title_or_author_rank_above_meaning_matches():
+    site = FakeSite([
+        row("both", "Goodbye telegraph", authors=["Ada Hinton"], updated="2026-11-01T10:00:01.000Z"),
+        row("phrase", "Hinton goodbye", updated="2026-11-01T10:00:02.000Z"),
+        row("meaning", "Unrelated", updated="2026-11-01T10:00:03.000Z"),
+    ], page=10)
+    result = search(site, FakeVectors([("meaning", 0.1)] + smooth_tail()), "hinton goodbye")
+    assert [item["reference"]["lineageId"] for item in result["items"]] == ["phrase", "both", "meaning"]
+
+
+def test_a_one_word_author_search_is_unchanged_by_the_meaning_lane():
+    authored = [row(f"hinton{n}", f"Paper {n}", authors=["Geoffrey Hinton"], updated=f"2026-11-01T10:0{n}:00.000Z") for n in range(7)]
+    site = FakeSite(authored + [row("other", "Boltzmann machines"), row("sem", "Learning representations")], page=100)
+    words_only = search(site, None, "Hinton")
+    with_meaning = search(site, FakeVectors([("sem", 0.2), ("other", 0.21)] + smooth_tail()), "Hinton")
+    assert [i["reference"]["lineageId"] for i in words_only["items"]] == [f"hinton{n}" for n in range(6, -1, -1)]
+    assert all("authors" in i["matchedFields"] for i in words_only["items"])   # the test ids also put "hinton" in each link
+    assert [i["reference"]["lineageId"] for i in with_meaning["items"]][:7] == [i["reference"]["lineageId"] for i in words_only["items"]]
+    assert [i["reference"]["lineageId"] for i in with_meaning["items"]][7:] == ["sem", "other"]   # meaning only after every author match
+
+
+def test_a_long_question_with_meaning_down_still_returns_the_word_results_that_cover_it():
+    result = search(forgetting_site(), FakeVectors(error=RuntimeError("connection reset by peer")), QUESTION)
+    assert titles(result) == ["Wide Neural Networks Forget Less Catastrophically"]   # the generic single-word title matches stay out
+    assert result["lanes"]["keyword"] == {"status": "ok"} and result["lanes"]["meaning"]["status"] == "failed"
 
 
 # --- the cursor and the page -------------------------------------------------------------------------------------------------------------------

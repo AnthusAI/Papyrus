@@ -4,9 +4,11 @@ Feature: The References page search finds a Reference again by its words and by 
   unrated, accepted or rejected. The site's searchReferences query runs two searches together and merges them. The word search looks at each
   Reference's title, authors, link and id; it keeps its own index in memory, reads every current Reference once when it starts, and afterwards
   reads only the References changed since, so a Reference changed a moment ago is found. The meaning search embeds the query and asks the vector
-  index for the nearest Reference summaries in the states the editor chose, cutting the list where the similarity drops most. The two are merged by
-  Reciprocal Rank Fusion, one entry per Reference: a Reference whose every word is found sits above one found only by meaning, and a Reference found
-  both ways sits first and says so. A search is answered a page at a time with an opaque cursor. If one search cannot run the other's results are
+  index for the nearest Reference summaries in the states the editor chose, cutting the list at the bend of the whole similarity curve, not at its largest single drop, so a question keeps more than its one nearest hit. The
+  two are merged in a fixed order, one entry per Reference: an exact title phrase, then every word in the title or authors, then every word anywhere,
+  then meaning matches (a Reference found both ways sits first among them and says so), then partial word matches. Question words such as "why"
+  and "do" are not searched, each remaining word counts by how rare it is in the site, and a partial match that holds only a small share of a long
+  question's distinctive words is left out. A search is answered a page at a time with an opaque cursor. If one search cannot run the other's results are
   still returned with that search's status. Only editors and admins may ask, and the command line asks the same query without writing anything.
   Nothing here touches production: the site and the vector index are in memory.
 
@@ -33,6 +35,24 @@ Feature: The References page search finds a Reference again by its words and by 
     When an editor searches all References for "agent memory"
     Then the Reference found both ways is first and says it was found by words and by meaning
     And the Reference found only by words is next, and the one found only by meaning is last
+
+  Scenario: A long question ranks meaning matches above single common-word title matches
+    Given a site of 60 References with common title words, and three that answer "why do neural networks forget earlier training" by meaning
+    When an editor searches all References for "why do neural networks forget earlier training"
+    Then the answers come first, the one found by words and meaning leading and the other two found by meaning
+    And no Reference that only shares "neural", "networks" or "training" in its title is listed
+
+  Scenario: A one-word author search is unchanged by the meaning search
+    Given a site with 7 Hinton papers and two other References the meaning search would add
+    When an editor searches all References for "Hinton"
+    Then the 7 author matches come first in the same order as with the word search alone
+    And the meaning matches follow them
+
+  Scenario: Meaning search failing still returns the word results for a long question
+    Given a site of 60 References with common title words, and three that answer "why do neural networks forget earlier training" by meaning
+    And the vector index cannot be reached
+    When an editor searches all References for "why do neural networks forget earlier training"
+    Then only the Reference whose title covers most of the question's distinctive words is returned, and the meaning search is reported as failed
 
   Scenario: Meaning search failing still returns the word results
     Given a site where the vector index cannot be reached
