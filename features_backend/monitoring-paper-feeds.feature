@@ -88,3 +88,7 @@ Feature: Paper monitors read research feeds and Hugging Face daily papers into o
     Then the request's summary is the paper's abstract
     And the request's text is the title, the address and the abstract
     And the request names the feed as its source
+
+  Scenario: Each paper monitor has a collect schedule and an hourly route schedule
+    Given the paper monitors in the monitoring stack template
+    Then papers-arxiv-ai, papers-arxiv-security and papers-huggingface each have a schedule running the collector every 6 hours and a schedule running the router hourly, each naming its monitor

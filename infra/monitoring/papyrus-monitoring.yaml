@@ -456,6 +456,60 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt ScheduleDeadLetterQueue.Arn
 
+  PapersArxivAiCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-arxiv-ai-collect
+      Description: Run the collector for the arXiv AI paper feed; it skips itself until its stored next-due time.
+      ScheduleExpression: rate(6 hours)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"monitorId":"papers-arxiv-ai"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  PapersArxivSecurityCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-arxiv-security-collect
+      Description: Run the collector for the arXiv security paper feed; it skips itself until its stored next-due time.
+      ScheduleExpression: rate(6 hours)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"monitorId":"papers-arxiv-security"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  PapersHuggingfaceCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-huggingface-collect
+      Description: Run the collector for the Hugging Face daily papers list; it skips itself until its stored next-due time.
+      ScheduleExpression: rate(6 hours)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"monitorId":"papers-huggingface"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
   WebCollectSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:
@@ -2034,6 +2088,60 @@ Resources:
         Arn: !GetAtt RouterFunction.Arn
         RoleArn: !GetAtt RouterScheduleRole.Arn
         Input: '{"monitorId":"huggingface"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  PapersArxivAiRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-arxiv-ai-route
+      Description: Run the router for the arXiv AI paper feed hourly at minute 6; it routes in the mode stored in the table.
+      ScheduleExpression: cron(6 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"papers-arxiv-ai"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  PapersArxivSecurityRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-arxiv-security-route
+      Description: Run the router for the arXiv security paper feed hourly at minute 23; it routes in the mode stored in the table.
+      ScheduleExpression: cron(23 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"papers-arxiv-security"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  PapersHuggingfaceRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-papers-huggingface-route
+      Description: Run the router for the Hugging Face daily papers list hourly at minute 51; it routes in the mode stored in the table.
+      ScheduleExpression: cron(51 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"papers-huggingface"}'
         RetryPolicy:
           MaximumEventAgeInSeconds: 600
           MaximumRetryAttempts: 1

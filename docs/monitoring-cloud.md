@@ -461,8 +461,8 @@ python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id papers-hug
     --interval-seconds 21600            # add --file with lookbackDays / pageSize to change the defaults
 ```
 
-A monitor also needs what any monitor needs: a collect schedule and a route schedule in `papyrus-monitoring.yaml` (as for
-`huggingface`, input `{"monitorId": "<id>"}`), and `seed_router_config.py --monitor-id <id> --file router.json` for its publications
+A monitor also needs what any monitor needs: its collect and route schedules, which `papyrus-monitoring.yaml` has for these three
+(routing at minutes 6, 23 and 51), and `seed_router_config.py --monitor-id <id> --file router.json` for its publications
 (`decisions: cyclotron` with the shared `cyclotron` block, or `hold` while a site has no Cyclotron). The ids are already in the
 Monitoring page's `MONITOR_IDS` (`monitoring_view.py`), so the page lists them as soon as they have items.
 
