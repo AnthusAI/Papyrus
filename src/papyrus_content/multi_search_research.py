@@ -33,6 +33,8 @@ from urllib.parse import urlparse
 
 from .assignments import assignment_metadata
 from .assignments_workflow import (
+    _assignment_event_record,
+    _produces_assignment_message_relation,
     _utc_now,
     apply_research_packet,
     intake_research_packet_proposals,
@@ -53,7 +55,6 @@ from .options import normalize_string, parse_boolean_option, parse_options, reso
 from .records import apply_record_changes, build_record_changes
 from .steering import default_corpus_key
 from .story_reporting import link_found_references_as_consulted
-from .tavily_deep_research import _assignment_event_record, _produces_assignment_message_relation
 from .web_search import (
     PROVIDERS,
     BedrockProvider,
