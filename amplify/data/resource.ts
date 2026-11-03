@@ -274,6 +274,13 @@ const schema = a.schema({
     reasonCode: a.string(),
   }),
 
+  ReferenceStarsActionResult: a.customType({
+    ok: a.boolean().required(),
+    referenceId: a.id().required(),
+    stars: a.integer(),
+    status: a.string().required(),
+  }),
+
   ReferenceQualityActionResult: a.customType({
     ok: a.boolean().required(),
     referenceId: a.id().required(),
@@ -455,6 +462,20 @@ const schema = a.schema({
     .returns(a.ref("ReferenceCurationActionResult"))
     .authorization((allow) => [
       allow.authenticated("identityPool"),
+    ])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  setReferenceStars: a
+    .mutation()
+    .arguments({
+      referenceId: a.id().required(),
+      stars: a.integer(),
+      actorSub: a.string(),
+      actorLabel: a.string(),
+    })
+    .returns(a.ref("ReferenceStarsActionResult"))
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups),
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 
@@ -1785,6 +1806,10 @@ const schema = a.schema({
       curationShareable: a.boolean(),
       curationDelegation: a.json(),
       curationDecisionRelationId: a.string(),
+      // An editor's optional 1-5 star interest in this Reference: separate from the vote and from relevance (docs/reference-curation-pipeline.md). Latest rating wins; null when unrated.
+      starRating: a.integer(),
+      starRatedAt: a.datetime(),
+      starRatedBy: a.string(),
       newsroomFeedKey: a.string(),
       reviewedFeedKey: a.string(),
       discoveredByMonitorId: a.string(),

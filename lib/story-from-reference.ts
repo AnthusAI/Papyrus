@@ -49,7 +49,8 @@ export function seededImageLine(url: string, title: string, site: string | null)
 }
 
 /** The button's caption for a Reference in this status: a rejected Reference says so, because creating a story never overturns the vote. */
-export function createStoryCaption(status: string): { label: string; note: string | null } {
+export function createStoryCaption(status: string, automatic = false): { label: string; note: string | null } {
+  if (automatic && status === "accepted") return { label: "Create Story", note: "Also confirms the automatic acceptance." };
   if (status === "rejected") return { label: "Create Story", note: "This Reference is rejected. Its vote stays." };
   if (status === "pending") return { label: "Create Story", note: "Also accepts this Reference." };
   return { label: "Create Story", note: null };

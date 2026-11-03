@@ -72,6 +72,10 @@ Ideas are private by default.
   [reader-steering.md](reader-steering.md#proposals).
 ## The run record
 
+Monitor-story runs also record `ratedNoIdea` (a Reference rated four or five stars that got no idea, with the reason) and the ranking rows carry `stars`; see
+[editor interest](idea-context-packs.md#editor-interest-stars-messages-and-accept-reasons).
+
+
 Every synthesis run saves a ledger (`runs/<run-id>.json`) and prints a summary: inputs counted (references by status, stories,
 drafts, feedback entries), ideas proposed, invalid ideas dropped, near-duplicates dropped, ideas created, model, tokens (input,
 cached, output) and cost in dollars. Cost uses the recorded price for the model ($0.10, $0.01 cached and $0.50 per million tokens

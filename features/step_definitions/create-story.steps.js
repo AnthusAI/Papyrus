@@ -11,6 +11,7 @@ Given("a References page with a pending, a rejected and an accepted Reference", 
 for (const when of [
   "the editor taps Create Story on the pending card",
   "the editor taps Create Story on the rejected card",
+  "the editor taps Create Story on the automatically accepted card",
   "the editor taps Create Story on the accepted card",
   "the editor taps Create Story twice on the same card and then taps Create another",
   "the editor taps \"As a post\" on a card",
@@ -21,6 +22,7 @@ for (const when of [
 // Each outcome runs the named scenario of scripts/test-create-story-ui.ts (a real browser, fixture data).
 const outcomes = {
   "the Story opens in the article editor and the Reference is accepted with no reason": "one_tap_on_a_pending_reference",
+  "the card says it confirms the automatic acceptance and the editor's Accept is recorded with no reason": "an_automatic_acceptance_is_confirmed",
   "the card says its vote stays and no vote is recorded": "a_rejected_reference_stays_rejected",
   "the Story opens and no vote is recorded": "an_accepted_reference",
   "the second tap offers the existing Story and only the deliberate choice makes a second one": "a_second_tap_offers_the_existing_story",

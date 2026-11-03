@@ -45,6 +45,20 @@ Cyclotron's feedback. Every reader (the sweep, the proofs, the exports, the revi
 `src/papyrus_content/reference_vote.py`. `papyrus references backfill-vote-details [--dry-run]` copies the latest old
 vote of each Reference from its `reference_curation` Message.
 
+## A star rating is recorded on the Reference too (PPY-3247f1)
+
+An editor can give any Reference one to five stars beside Accept and Reject, on every surface that decides a Reference (feed card, list, detail, Needs me,
+Accepted automatically). The rating lives on the Reference in `starRating`, `starRatedAt` and `starRatedBy`, so it travels with every read of the row: the
+feed, the Python readers and the idea pipeline need no extra query. It is **separate from the vote**: it never changes `curationStatus`, it needs no reason, it
+can be set before or after a vote, and the newest rating wins (a tap on the same star clears it, which clears who and when too). It is **not relevance**: stars
+are editorial interest, and nothing sends them to the Cyclotron as a label (`reference_vote.vote_fields` carries none; `reference_vote.latest_vote` ignores
+them). The writer is the `setReferenceStars` mutation (`amplify/functions/category-action`, editor groups, like `reviewReferenceCuration`); Python reads with
+`reference_stars.latest_stars` and writes with `reference_stars.star_fields`. The older `setReferenceQualityRating` mutation was not reused: it
+turns three stars or more into an Accept and fewer into a Reject, which is the opposite of "stars do not change the vote", and it keeps the rating as a
+`quality_rating_is` relation to a quality node, which costs a relation read per Reference. The idea pipeline reads stars as one of the strongest human signals
+([ideas from context packs, "Editor interest"](idea-context-packs.md#editor-interest-stars-messages-and-accept-reasons)). A schema change: it needs the
+backend deployed (a site release), and the `p.apyr.us` docs page for curation should gain a short "stars" section (follow-up PPY-3247f1).
+
 ## 2. Curation before review
 
 ```

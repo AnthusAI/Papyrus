@@ -95,6 +95,7 @@ export function ReviewCard({
   const item = store.get(itemId);
   const note = item.note ?? initialNote;
   const chosen = item.pending ?? decided;
+  const starValue = store.stars(itemId);
   const choose = (choice: ReviewChoice) => { if (!disabledReason) store.choose(itemId, choice); };
   const commitNote = () => { if (!disabledReason) store.commitNote(itemId); };
 
@@ -147,6 +148,7 @@ export function ReviewCard({
         reason={note}
         reasonRequiredFor="reject"
         size="large"
+        stars={starValue === undefined ? undefined : { value: starValue, onChange: (tapped) => { if (!disabledReason) store.setStars(itemId, tapped); }, feedback: store.starsFeedback(itemId) }}
         surface="card"
       />
 

@@ -9,7 +9,7 @@ import type { ReviewRequest } from "../lib/review-requests";
 const input = JSON.parse(process.argv[2] ?? "{}") as { request: ReviewRequest; deletedStories?: string[]; storyTitles?: Record<string, string> };
 const ratings = {
   get: () => ({ pending: null, askReason: false, feedback: { phase: "idle" as const } }),
-  choose: () => undefined, setReason: () => undefined, setNote: () => undefined, commitNote: () => undefined, cancelReason: () => undefined,
+  choose: () => undefined, setReason: () => undefined, setNote: () => undefined, commitNote: () => undefined, cancelReason: () => undefined, stars: () => undefined, setStars: () => undefined, starsFeedback: () => ({ phase: "idle" as const }),
 };
 async function main() {
   const { buildNeedsMeItems } = await import("../lib/needs-me-items");

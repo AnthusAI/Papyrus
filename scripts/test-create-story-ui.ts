@@ -36,12 +36,13 @@ function browserBundle(): Promise<string> {
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { NewsroomReferencesView } from "./components/newsroom-references-view";
-// r0 pending, r1 rejected, r2 accepted by an editor, r3 pending.
-const status = ['pending', 'rejected', 'accepted', 'pending'];
+// r0 pending, r1 rejected, r2 accepted by an editor, r3 pending, r4 accepted automatically.
+const status = ['pending', 'rejected', 'accepted', 'pending', 'accepted'];
 const rows = status.map((curationStatus, n) => ({
   id: 'r' + n + '-v1', lineageId: 'r' + n, versionState: 'current', versionNumber: 1, corpusId: 'fixture-corpus', externalItemId: 's' + n, title: 'Reference ' + n,
   sourceUri: 'https://example.test/' + n, importedAt: '2026-10-2' + n + 'T10:00:00Z', curationStatus,
-  ...(curationStatus !== 'pending' ? { curationActorKind: 'human', curationStatusUpdatedBy: 'editor@example.test', curationStatusUpdatedAt: '2026-11-01T10:00:00Z' } : {}),
+  ...(curationStatus !== 'pending' && n !== 4 ? { curationActorKind: 'human', curationStatusUpdatedBy: 'editor@example.test', curationStatusUpdatedAt: '2026-11-01T10:00:00Z' } : {}),
+  ...(n === 4 ? { curationActorKind: 'cyclotron', curationStatusUpdatedBy: 'auto:cyclotron', curationStatusUpdatedAt: '2026-11-01T11:00:00Z', curationStatusReason: 'Accepted automatically by the Cyclotron.' } : {}),
 }));
 window.fixtureVotes = [];
 window.fixturePushed = [];
@@ -146,6 +147,20 @@ const scenarios: Record<string, () => Promise<void>> = {
       await offered.locator("[data-create-story-another]").click();
       await page.waitForFunction(() => ((window as unknown as { fixturePushed: string[] }).fixturePushed ?? []).length === 2);
       assert.notEqual((await pushed(page))[0], (await pushed(page))[1], "the second Story has its own address");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** An automatic acceptance is confirmed as the editor's own vote, with no reason asked. */
+  async an_automatic_acceptance_is_confirmed() {
+    const { browser, page, errors } = await setup();
+    try {
+      await includeRated(page);
+      await card(page, "r4").waitFor();
+      assert.match(await card(page, "r4").locator("[data-create-story-note]").innerText(), /confirms the automatic acceptance/i);
+      await card(page, "r4").locator("[data-create-story-button]").click();
+      await page.waitForFunction(() => ((window as unknown as { fixturePushed: string[] }).fixturePushed ?? []).length === 1);
+      assert.deepEqual(await votes(page), [{ referenceId: "r4-v1", action: "accept", reason: null }]);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },

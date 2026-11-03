@@ -12,6 +12,11 @@ Feature: An editor creates a Story from a Reference in one tap
     When the editor taps Create Story on the pending card
     Then the Story opens in the article editor and the Reference is accepted with no reason
 
+  Scenario: An automatic acceptance is confirmed as the editor's own vote
+    Given a References page with a pending, a rejected and an accepted Reference
+    When the editor taps Create Story on the automatically accepted card
+    Then the card says it confirms the automatic acceptance and the editor's Accept is recorded with no reason
+
   Scenario: A rejected Reference says its vote stays and is not overturned
     Given a References page with a pending, a rejected and an accepted Reference
     When the editor taps Create Story on the rejected card

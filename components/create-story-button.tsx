@@ -37,6 +37,7 @@ export type CreateStoryPreview = { title: string; url: string | null; summary: s
  * the button offers the existing Story, and "Create another" is a deliberate second tap.
  */
 export function CreateStoryButton({
+  automatic = false,
   demo = false,
   disabled = false,
   onAccept,
@@ -46,6 +47,8 @@ export function CreateStoryButton({
   stable = false,
   status,
 }: {
+  /** The Reference stands accepted automatically: Create Story confirms it as the editor's own vote (Ryan: creating a Story means accepting). */
+  automatic?: boolean;
   demo?: boolean;
   disabled?: boolean;
   /** Records the editor's Accept of a pending Reference (the same call as the Accept button). Not called for a Reference already accepted or rejected. */
@@ -61,7 +64,7 @@ export function CreateStoryButton({
   const [busy, setBusy] = useState(false);
   const [existing, setExisting] = useState<ExistingStory[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const caption = createStoryCaption(status);
+  const caption = createStoryCaption(status, automatic);
   const offersPost = STORY_ITEM_TYPES.includes("post");
   const cell = size === "large" ? "min-h-12 text-base" : "min-h-10 text-sm";
 
@@ -76,7 +79,7 @@ export function CreateStoryButton({
         return;
       }
       setExisting(null);
-      if (status === "pending" && onAccept) {
+      if ((status === "pending" || automatic) && onAccept) {
         try {
           await onAccept();
         } catch (failure) {
