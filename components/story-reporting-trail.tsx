@@ -4,8 +4,10 @@ import { BookmarkIcon, ExternalLinkIcon, GlobeIcon, LinkIcon } from "lucide-reac
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { referenceRoleLabel, storyMessageFeed, storyReportingTrailIsEmpty, type StoryReportingTrail, type TrailReference } from "../lib/story-reporting-trail";
+import { isResearchAssignment, referenceRoleLabel, storyMessageFeed, storyReportingTrailIsEmpty, type StoryReportingTrail, type TrailReference } from "../lib/story-reporting-trail";
 import { loadStoryReportingTrail } from "./story-reporting-trail-client";
+import { AssignResearchBox } from "./assign-research-box";
+import { ResearchAssignmentCard } from "./research-assignment-card";
 
 const timestampFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -50,17 +52,25 @@ function TrailSection({ count, children, title }: { count: number; children: Rea
  * notes and packets, the references behind it, and attached files. Container queries lay the sections out
  * in one column in a narrow Board panel and side by side on a wide page.
  */
-export function StoryReportingTrailView({ citedKeys = [], demo = false, focusedReferenceId = null, itemId, lineageId, onOpenVersion, onShowReference, view = "messages" }: { citedKeys?: readonly string[]; demo?: boolean; focusedReferenceId?: string | null; itemId: string; lineageId: string | null | undefined; onOpenVersion?: (versionId: string) => void; onShowReference?: (referenceId: string) => void; view?: "messages" | "references" }) {
+export function StoryReportingTrailView({ assign, citedKeys = [], demo = false, focusedReferenceId = null, itemId, lineageId, onOpenVersion, onShowReference, view = "messages" }: { assign?: { sectionKey: string | null; storyTitle: string }; citedKeys?: readonly string[]; demo?: boolean; focusedReferenceId?: string | null; itemId: string; lineageId: string | null | undefined; onOpenVersion?: (versionId: string) => void; onShowReference?: (referenceId: string) => void; view?: "messages" | "references" }) {
   const [trail, setTrail] = useState<StoryReportingTrail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const waitingOnWorker = !demo && (trail?.assignments.some(assignment => isResearchAssignment(assignment) && (assignment.status === "open" || assignment.status === "claimed")) ?? false);
   useEffect(() => {
     let cancelled = false;
-    setTrail(null); setError(null);
+    setError(null);
     loadStoryReportingTrail(lineageId || itemId, itemId, demo)
       .then(loaded => { if (!cancelled) setTrail(loaded); })
       .catch((reason: unknown) => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Could not load the reporting trail."); });
     return () => { cancelled = true; };
-  }, [demo, itemId, lineageId]);
+  }, [demo, itemId, lineageId, refresh]);
+  useEffect(() => {
+    if (!waitingOnWorker) return undefined;
+    const timer = window.setInterval(() => setRefresh(count => count + 1), 30000);
+    return () => window.clearInterval(timer);
+  }, [waitingOnWorker]);
+  useEffect(() => { setTrail(null); }, [demo, itemId, lineageId]);
   if (error) return <p role="alert" className="story-trail-empty">{error}</p>;
   if (!trail) return <p className="story-trail-empty">Loading the reporting trail…</p>;
   const messageFeed = storyMessageFeed(trail);
@@ -110,9 +120,12 @@ export function StoryReportingTrailView({ citedKeys = [], demo = false, focusedR
         </li>)}
       </ol>
     </TrailSection>
-    <TrailSection count={trail.assignments.length} title="Work">
-      <ol className="story-trail-list">
+    <section className="story-trail-section" data-story-trail-section="work">
+      <h3>Work <small>{trail.assignments.length}</small></h3>
+      {assign && <AssignResearchBox demo={demo} lineageId={lineageId || itemId} onAssigned={() => setRefresh(count => count + 1)} sectionKey={assign.sectionKey} stage={trail.versions[0]?.stage ?? null} storyTitle={assign.storyTitle} />}
+      {trail.assignments.length === 0 ? <p className="story-trail-empty">None recorded.</p> : <ol className="story-trail-list">
         {trail.assignments.map(assignment => <li key={assignment.id}>
+          {isResearchAssignment(assignment) ? <ResearchAssignmentCard assignment={assignment} demo={demo} formatTimestamp={formatTimestamp} /> : <>
           <div className="story-trail-row"><strong>{assignment.title}</strong> <span className="story-trail-chip">{assignment.status}</span></div>
           <div className="story-trail-meta">{[assignment.assignmentTypeKey, assignment.assigneeKey, formatTimestamp(assignment.createdAt)].filter(Boolean).join(" · ")}</div>
           {assignment.summary && <p>{assignment.summary}</p>}
@@ -122,9 +135,10 @@ export function StoryReportingTrailView({ citedKeys = [], demo = false, focusedR
             </li>)}
           </ol>}
           <Link href={getNewsroomNavHref(`/newsroom/assignments/${encodeURIComponent(assignment.id)}`, demo)}>Open assignment</Link>
+          </>}
         </li>)}
-      </ol>
-    </TrailSection>
+      </ol>}
+    </section>
     <TrailSection count={trail.attachments.length} title="Files">
       <ul className="story-trail-list">
         {trail.attachments.map(attachment => <li key={attachment.id}><strong>{attachment.filename ?? attachment.id}</strong> <span className="story-trail-meta">{[attachment.role, attachment.mediaType].filter(Boolean).join(" · ")}</span></li>)}

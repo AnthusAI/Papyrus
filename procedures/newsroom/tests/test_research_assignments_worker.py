@@ -1,0 +1,275 @@
+"""The router's research-assignments task (features_backend/monitoring-research-assignments.feature). The backend, the clock and the research run are fakes."""
+from __future__ import annotations
+
+import json
+import sys
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from papyrus_content.research_assignments_worker import WORKER_LABEL, run_research_assignments, validate_research_assignments  # noqa: E402
+
+NOW = datetime(2026, 11, 3, 12, 0, tzinfo=timezone.utc)
+PUBLICATION = {"publicationId": "example-site", "corpusKey": "example-site"}
+
+
+class Backend:
+    """An in-memory backend with the four calls the worker makes."""
+
+    def __init__(self, rows):
+        self.rows = {row["id"]: dict(row) for row in rows}
+        self.events = []
+
+    def list_assignments_by_type_status_and_created_at(self, type_key):
+        return [dict(row) for row in self.rows.values() if row["assignmentTypeKey"] == type_key]
+
+    def update_record(self, model, payload):
+        assert model == "Assignment"
+        self.rows[payload["id"]].update(payload)
+
+    def create_record(self, model, payload):
+        assert model == "AssignmentEvent"
+        self.events.append(payload)
+
+
+def assignment(number, *, status="open", story="story-1", profile="reporter", type_key="research.multi", expires=None):
+    return {"id": f"assignment-{number}", "assignmentTypeKey": type_key, "queueKey": "research:world:exploratory", "status": status, "title": f"Research {number}",
+            "createdAt": f"2026-11-03T0{number}:00:00.000Z", "itemLineageId": story, "sectionKey": "world", "claimExpiresAt": expires,
+            "metadata": json.dumps({"contextProfile": profile, "direction": f"Look into {number}"})}
+
+
+class Research:
+    def __init__(self, fail=(), raises=()):
+        self.asked, self.fail, self.raises = [], set(fail), set(raises)
+
+    def __call__(self, client, options):
+        self.asked.append(options)
+        if options["assignment"] in self.raises:
+            raise RuntimeError("search is down")
+        if options["assignment"] in self.fail:
+            return {"action": "failed", "error": "no search provider answered"}
+        return {"action": "completed"}
+
+
+def run(backend, research, *, out_of_time=lambda: False):
+    return run_research_assignments(backend, PUBLICATION, now=NOW, out_of_time=out_of_time, research=research, clock=lambda: NOW)
+
+
+def test_open_research_assignments_with_a_story_run_oldest_first_and_finish():
+    backend, research = Backend([assignment(2), assignment(1)]), Research()
+    result = run(backend, research)
+    assert [asked["assignment"] for asked in research.asked] == ["assignment-1", "assignment-2"]
+    assert research.asked[0]["corpus-key"] == "example-site" and research.asked[0]["actor-label"] == WORKER_LABEL
+    assert {row["status"] for row in backend.rows.values()} == {"completed"} and result["ran"] == ["assignment-1", "assignment-2"]
+    assert [event["eventType"] for event in backend.events if event["assignmentId"] == "assignment-1"] == ["claim", "research.completed"]
+
+
+def test_the_assignment_is_marked_running_before_the_research_starts():
+    backend, seen = Backend([assignment(1)]), []
+
+    def research(client, options):
+        row = backend.rows[options["assignment"]]
+        seen.append((row["status"], row["assigneeKey"], row["claimExpiresAt"]))
+        return {"action": "completed"}
+
+    run(backend, research)
+    assert seen == [("claimed", WORKER_LABEL, "2026-11-03T12:11:00.000Z")]
+
+
+@pytest.mark.parametrize("other", [assignment(1, story=None), assignment(1, profile="researcher"), assignment(1, status="completed"), assignment(1, type_key="research.candidate")])
+def test_assignments_without_a_story_or_the_reporter_profile_or_not_open_are_left_alone(other):
+    backend, research = Backend([other]), Research()
+    run(backend, research)
+    assert research.asked == [] and backend.events == []
+
+
+def test_a_failed_run_is_failed_with_its_reason_and_the_others_still_run():
+    backend, research = Backend([assignment(1), assignment(2), assignment(3)]), Research(fail={"assignment-1"}, raises={"assignment-2"})
+    result = run(backend, research)
+    assert [backend.rows[f"assignment-{n}"]["status"] for n in (1, 2, 3)] == ["failed", "failed", "completed"]
+    notes = {event["assignmentId"]: event["note"] for event in backend.events if event["eventType"] == "research.failed"}
+    assert notes == {"assignment-1": "no search provider answered", "assignment-2": "RuntimeError: search is down"}
+    assert result["failed"] == ["assignment-1", "assignment-2"]
+
+
+def test_it_stops_before_the_deadline_and_leaves_the_rest_open():
+    backend, research = Backend([assignment(1), assignment(2), assignment(3)]), Research()
+    calls = iter([False, True])
+    result = run(backend, research, out_of_time=lambda: next(calls, True))
+    assert [row["status"] for row in backend.rows.values()] == ["completed", "open", "open"]
+    assert result["stoppedBy"] == "time" and result["leftOpen"] == 2 and result["status"] == "stopped"
+
+
+def test_a_claim_past_its_lease_is_failed_with_a_reason_and_not_run_again():
+    stale, live = (NOW - timedelta(minutes=1)).isoformat(), (NOW + timedelta(minutes=5)).isoformat()
+    backend, research = Backend([assignment(1, status="claimed", expires=stale), assignment(2, status="claimed", expires=live)]), Research()
+    result = run(backend, research)
+    assert backend.rows["assignment-1"]["status"] == "failed" and backend.rows["assignment-2"]["status"] == "claimed"
+    assert "time ran out" in backend.events[0]["note"] and result["expired"] == ["assignment-1"] and research.asked == []
+
+
+def test_the_policy_is_off_unless_a_publication_turns_it_on():
+    assert validate_research_assignments("x", None) == {"enabled": False}
+    assert validate_research_assignments("x", {"enabled": True}) == {"enabled": True}
+    for bad in ("yes", {"enabled": "yes"}, {"budget": 5}):
+        with pytest.raises(ValueError):
+            validate_research_assignments("x", bad)
+
+
+# --- the router task and the fields its run asks for -------------------------------------------------------------------------------------
+
+import test_monitoring_router as tr  # noqa: E402
+import test_monitoring_stories as tms  # noqa: E402
+from ideas_fixtures import NOW as ROUTER_NOW  # noqa: E402
+from papyrus_content import monitoring_router as mr  # noqa: E402
+
+
+def router_with(settings):
+    from _pytest.monkeypatch import MonkeyPatch
+
+    table, store = tms.router(tuple(settings), None)
+    config = table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"]
+    for entry in config["publications"]:
+        if settings[entry["publicationId"]] is not None:
+            entry["researchAssignments"] = settings[entry["publicationId"]]
+    table.put_item(config)
+    return table, store
+
+
+def run_task(store, backends, *, publication_id=None, fan_out=None, research=None, time_left=lambda: 600):
+    endpoints = {tr.ENDPOINT.replace("abc123", f"api{n}"): backend for n, backend in enumerate(backends.values())}
+    original = mr.run_research_assignments
+    mr.run_research_assignments = lambda client, publication, **options: original(client, publication, **{**options, "research": research or Research()})
+    try:
+        return mr.run_router(store, "hn", now=ROUTER_NOW.timestamp(), task="research-assignments", appsync=lambda endpoint: endpoints[endpoint], deliver=tr.Delivery(),
+                             time_left=time_left, publication_id=publication_id, fan_out=fan_out)
+    finally:
+        mr.run_research_assignments = original
+
+
+def test_with_no_publication_named_the_task_only_starts_a_run_for_each_publication_that_turned_it_on(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
+    table, store = router_with({"a-site": {"enabled": True}, "off-site": None, "b-site": {"enabled": True}})
+    started = []
+    result = run_task(store, {}, fan_out=started.append)
+    assert started == ["a-site", "b-site"] and result["status"] == "fanned-out"
+    assert not [key for key in table.items if key[1].startswith(("LOCK#", "ROUTERUN#"))]
+
+
+def test_a_run_for_one_publication_runs_its_assignments_under_its_own_lock_and_leaves_the_routing_lock_free(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
+    table, store = router_with({"a-site": {"enabled": True}})
+    backend, research = Backend([assignment(1)]), Research()
+    result = run_task(store, {"a-site": backend}, publication_id="a-site", research=research)
+    assert backend.rows["assignment-1"]["status"] == "completed" and result["researchAssignments"]["a-site"]["ran"] == ["assignment-1"]
+    assert store.acquire_router_lock("hn", "route", now=ROUTER_NOW.timestamp())
+    assert store.acquire_router_lock("hn", "again", now=ROUTER_NOW.timestamp(), sk="LOCK#research-assignments#a-site")
+
+
+def test_a_publication_that_did_not_turn_it_on_runs_nothing(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
+    _, store = router_with({"a-site": None})
+    backend, research = Backend([assignment(1)]), Research()
+    result = run_task(store, {"a-site": backend}, publication_id="a-site", research=research)
+    assert research.asked == [] and result["researchAssignments"]["a-site"]["status"] == "skipped"
+
+
+def worker_grants():
+    """Every (Query|Mutation, field) the template grants the research worker's own role, on any publication API."""
+    import re
+
+    statements = tr._template()["Resources"]["ResearchWorkerRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+    found = set()
+    for statement in statements:
+        for entry in statement["Resource"] if isinstance(statement["Resource"], list) else [statement["Resource"]]:
+            match = re.search(r"apis/\*/types/(Query|Mutation)/fields/(\w+)$", str(entry[1] if isinstance(entry, tuple) else entry))
+            if match:
+                found.add((match.group(1), match.group(2)))
+    return found
+
+
+def recorded_fields_of_a_full_run(monkeypatch):
+    """The fields one assignment's whole run asks of the publication API, on the real client with its transport replaced: the pass, the claim, the context pack, the
+    two model calls, the packet and its intake. The backend answers like a small real one (what is created can be read back)."""
+    import functools
+    import re
+    import urllib.request
+
+    import test_multi_search_research as multi
+    from papyrus_content import multi_search_research as research_module
+    from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
+
+    recorded, stored = set(), {}
+    story = {"id": "item-1", "lineageId": "story-1", "versionState": "current", "versionNumber": 1, "type": "post", "stage": "assignment", "headline": "A story",
+             "section": None, "bodyMarkus": "Body", "status": "draft"}
+    corpus = {"id": "knowledge-corpus-example-site", "role": "canonical", "name": "Example"}
+    doctrine = {"id": "d", "lineageId": "d", "versionNumber": 1, "versionState": "current", "type": "doctrine", "status": "private", "body": ["Doctrine"]}
+    row = assignment(1)
+    stored.setdefault("Assignment", {})[row["id"]] = row
+
+    def respond(query, variables=None):
+        variables = variables or {}
+        kind, field = ("Mutation" if query.lstrip().startswith("mutation") else "Query"), tms.GRAPHQL_ROOT.match(query).group(1)
+        recorded.add((kind, field))
+        write = re.match(r"(create|update)(\w+)$", field)
+        if kind == "Mutation" and write and "input" in variables:
+            stored.setdefault(write.group(2), {}).setdefault(variables["input"]["id"], {}).update(variables["input"])
+        if field == "createModelAttachmentUpload":
+            return {field: {"uploadId": "u1", "uploadUrl": "https://s3.example/put", "method": "PUT", "requiredHeaders": {}, "storagePath": "p"}}
+        if kind == "Mutation":
+            return {field: {"id": "x"}}
+        served = {"listAssignmentsByTypeStatusAndCreatedAt": [row], "listItemsByLineageAndVersion": [story], "itemBySlug": [doctrine],
+                  "listKnowledgeCorporaByRoleAndName": [corpus]}
+        if field in served:
+            return {field: {"items": served[field], "nextToken": None}}
+        if field.startswith("get"):
+            return {field: stored.get(field[3:], {}).get(variables.get("id"))}
+        return {field: {"items": [], "nextToken": None}}
+
+    class Upload:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *failure):
+            return False
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda request: Upload())
+    client = PapyrusGraphQLAuthoringClient(endpoint=tr.ENDPOINT, tenant_id=None, header_factory=lambda body: {})
+    client.graphql = respond
+    done = functools.partial(research_module.research_multi, llm=multi.FakeLlm(), providers=multi.two_providers())
+    result = run_research_assignments(client, {**PUBLICATION, "appsyncEndpoint": tr.ENDPOINT}, now=NOW, out_of_time=lambda: False, research=done, clock=lambda: NOW)
+    assert result["ran"] == ["assignment-1"], result
+    return recorded
+
+
+def test_every_field_a_full_run_asks_for_is_granted_to_the_research_workers_role(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
+    asked = recorded_fields_of_a_full_run(monkeypatch)
+    granted = worker_grants()
+    assert {("Mutation", "updateAssignment"), ("Mutation", "createAssignmentEvent"), ("Mutation", "createMessage")} <= asked
+    assert asked <= granted, sorted(asked - granted)
+
+
+def test_the_worker_has_its_own_function_and_schedule_and_the_key_policies_name_its_role():
+    resources = tr._template()["Resources"]
+    assert resources["ResearchAssignmentsSchedule"]["Properties"]["Target"]["Arn"] == ("GetAtt", "ResearchWorkerFunction.Arn") or "ResearchWorkerFunction" in str(resources["ResearchAssignmentsSchedule"]["Properties"]["Target"]["Arn"])
+    assert json.loads(resources["ResearchAssignmentsSchedule"]["Properties"]["Target"]["Input"]) == {"task": "research-assignments", "monitorId": "hn"}
+    for name in ("ResearchWorkerOpenAiSearchKeyPolicy", "ResearchWorkerPerplexitySearchKeyPolicy", "ResearchWorkerGeminiSearchKeyPolicy", "ResearchWorkerTavilyKeyPolicy"):
+        assert resources[name]["Properties"]["Roles"] == [("Ref", "ResearchWorkerRole")], name
+        assert resources[name]["Condition"] == resources[name.replace("ResearchWorker", "Router")]["Condition"], name
+        assert resources[name]["Properties"]["PolicyDocument"] == resources[name.replace("ResearchWorker", "Router")]["Properties"]["PolicyDocument"], name
+    for name in ("RouterOpenAiSearchKeyPolicy", "RouterTavilyKeyPolicy"):
+        assert resources[name]["Properties"]["Roles"] == [("Ref", "RouterRole")], name
+    function = resources["ResearchWorkerFunction"]["Properties"]
+    assert function["Handler"] == resources["RouterFunction"]["Properties"]["Handler"] and function["Timeout"] <= 600
+
+
+def test_the_router_role_keeps_its_twenty_policies_and_gains_none():
+    resources = tr._template()["Resources"]
+    attached = [name for name, resource in resources.items() if resource["Type"] == "AWS::IAM::ManagedPolicy" and ("Ref", "RouterRole") in (resource["Properties"].get("Roles") or [])]
+    assert len(attached) <= 20, len(attached)
