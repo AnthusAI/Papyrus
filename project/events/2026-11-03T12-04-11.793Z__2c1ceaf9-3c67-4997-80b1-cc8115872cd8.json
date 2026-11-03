@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2c1ceaf9-3c67-4997-80b1-cc8115872cd8",
+  "issue_id": "PPY-2b6705d8-f37d-4feb-b439-6f5c13ab462a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T12:04:11.793Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Report on the facial-recognition idea on Machines on Machines",
+    "description": "Create the assignment on item-idea-6cfd7da9e098a17e and do the real reporting: more US cases of false identification from police facial recognition, commentary, insight. Read the packet critically and report what it found.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-aab37edd-ee4e-4784-96a1-974ae040b452",
+    "labels": []
+  }
+}
