@@ -1,6 +1,6 @@
 /**
  * Fixture-only browser acceptance for Story star ratings (PPY-f1c1fd): the real Stories board, its drawer and the Story editor on the local-preview data. No network,
- * no production reads. Run one scenario with `tsx scripts/test-story-stars-ui.ts card_tap`; set PAPYRUS_STORY_STARS_SHOTS=<dir> to write the screenshots.
+ * no production reads. Run one scenario with `tsx scripts/test-story-stars-ui.ts card_mark`; set PAPYRUS_STORY_STARS_SHOTS=<dir> to write the screenshots.
  */
 import assert from "node:assert/strict";
 import { build } from "esbuild";
@@ -122,13 +122,14 @@ async function setup(path: string, width = 1440, height = 1000) {
 }
 
 const board = "/newsroom/articles";
-const card = (page: Page, lineage: string) => page.locator(`[data-story-stars="${lineage}"]`);
+const card = (page: Page, lineage: string) => page.locator(`.issue-card[data-issue-id="contentItem:${lineage}"]`);
+const mark = (page: Page, lineage: string) => card(page, lineage).locator("[data-stars-mark]");
 const drawer = (page: Page) => page.locator("[data-newsroom-article-stars]");
 const stars = (locator: ReturnType<Page["locator"]>) => locator.locator("[data-star-rating]").getAttribute("data-stars");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { fixtureCalls: unknown[] }).fixtureCalls);
 const waitStars = (locator: ReturnType<Page["locator"]>, expected: string) => locator.locator(`[data-star-rating][data-stars="${expected}"]`).first().waitFor();
 async function openStory(page: Page, lineage: string) {
-  await page.locator(`.issue-card[data-issue-id="contentItem:${lineage}"] h3`).click();
+  await card(page, lineage).locator("h3").click();
   await drawer(page).waitFor();
 }
 async function shot(page: Page, name: string) {
@@ -137,43 +138,48 @@ async function shot(page: Page, name: string) {
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 
 const scenarios: Record<string, () => Promise<void>> = {
-  /** A Story card shows five stars with the saved rating; one tap sets, a tap on the same star clears; solid versus outline by shape, the count in words, no dropdown. */
-  async card_tap() {
+  /** A rated card shows one solid star and the number in its top row, an unrated card shows nothing, the card has no controls, and a tap on the mark opens the Story. */
+  async card_mark() {
     const { browser, page, errors } = await setup(board);
     try {
-      await card(page, RATED.lineage).waitFor();
-      assert.equal(await stars(card(page, RATED.lineage)), "4", "a rated Story shows its saved rating");
-      assert.equal(await stars(card(page, UNRATED.lineage)), "0", "an unrated Story shows five empty stars");
-      assert.equal(await card(page, UNRATED.lineage).locator("[data-star]").count(), 5);
-      await card(page, UNRATED.lineage).locator('[data-star="3"]').click();
-      await waitStars(card(page, UNRATED.lineage), "3");
-      assert.deepEqual(await calls(page), [{ action: "setItemStars", itemId: UNRATED.version, stars: 3 }]);
-      const shapes = await card(page, UNRATED.lineage).locator("[data-star] svg").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("fill")));
-      assert.deepEqual(shapes, ["currentColor", "currentColor", "currentColor", "none", "none"], "filled versus outline by shape, not colour");
-      assert.match(await card(page, UNRATED.lineage).locator("[data-star-rating-words]").innerText(), /3 of 5 stars/i, "the count is written as well");
-      await card(page, UNRATED.lineage).locator('[data-star="3"]').click();
-      await waitStars(card(page, UNRATED.lineage), "0");
-      assert.deepEqual((await calls(page)).at(-1), { action: "setItemStars", itemId: UNRATED.version, stars: null }, "the second tap clears");
-      assert.equal(await page.locator("[data-story-stars] select, [data-story-stars] [role=combobox]").count(), 0, "no dropdowns");
-      assert.equal(await page.locator("[role=dialog], [data-issue-detail]").count(), 0, "tapping a star on a card does not open the Story");
-      assert.deepEqual(errors, []);
+      await mark(page, RATED.lineage).waitFor();
+      assert.equal(await mark(page, RATED.lineage).getAttribute("aria-label"), "4 of 5 stars", "a rated Story shows its saved rating");
+      assert.match(await mark(page, RATED.lineage).innerText(), /^4$/, "the number is written");
+      assert.equal(await mark(page, RATED.lineage).locator("svg").getAttribute("fill"), "currentColor", "a solid star, by shape");
+      assert.equal(await card(page, RATED.lineage).locator(".issue-accent-row [data-stars-mark]").count(), 1, "in the card's top row");
+      assert.equal(await mark(page, UNRATED.lineage).count(), 0, "an unrated Story shows no rating");
+      assert.equal(await page.locator(".issue-card [data-star]").count(), 0, "no star buttons on any card");
+      const rowHeight = await card(page, RATED.lineage).locator(".issue-accent-row").evaluate((node) => node.getBoundingClientRect().height);
+      assert.equal(await card(page, UNRATED.lineage).locator(".issue-accent-row").evaluate((node) => node.getBoundingClientRect().height), rowHeight, "the mark does not make the top row taller");
       await shot(page, "card-1440");
+      await mark(page, RATED.lineage).click();
+      await drawer(page).waitFor();
+      assert.deepEqual(await calls(page), [], "tapping the mark saves nothing");
+      assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
 
-  /** The drawer and the card are one rating: change it in the drawer and the card follows, and back. Rating never saves a draft, publishes or moves a stage. */
-  async drawer_follows_card() {
+  /** In the drawer one tap sets and a tap on the same star clears, by shape with the count in words; the card follows. Rating never saves a draft, publishes or moves a stage. */
+  async drawer_tap() {
     const { browser, page, errors } = await setup(board);
     try {
-      await openStory(page, RATED.lineage);
-      assert.equal(await stars(drawer(page)), "4", "the drawer shows the Story's rating");
-      await drawer(page).locator('[data-star="2"]').click();
-      await waitStars(drawer(page), "2");
-      await waitStars(card(page, RATED.lineage), "2");
-      await card(page, RATED.lineage).locator('[data-star="5"]').click();
-      await waitStars(drawer(page), "5");
-      assert.deepEqual((await calls(page)).map((call) => (call as { action: string }).action), ["setItemStars", "setItemStars"], "only ratings were saved: no draft, publish or stage move");
+      await openStory(page, UNRATED.lineage);
+      assert.equal(await stars(drawer(page)), "0", "an unrated Story shows five empty stars");
+      assert.equal(await drawer(page).locator("[data-star]").count(), 5);
+      await drawer(page).locator('[data-star="3"]').click();
+      await waitStars(drawer(page), "3");
+      assert.deepEqual(await calls(page), [{ action: "setItemStars", itemId: UNRATED.version, stars: 3 }]);
+      const shapes = await drawer(page).locator("[data-star] svg").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("fill")));
+      assert.deepEqual(shapes, ["currentColor", "currentColor", "currentColor", "none", "none"], "filled versus outline by shape, not colour");
+      assert.match(await drawer(page).locator("[data-star-rating-words]").innerText(), /3 of 5 stars/i, "the count is written as well");
+      await card(page, UNRATED.lineage).locator('[data-stars-mark="3"]').waitFor({ state: "attached" });
       await shot(page, "drawer-1440");
+      await drawer(page).locator('[data-star="3"]').click();
+      await waitStars(drawer(page), "0");
+      await mark(page, UNRATED.lineage).waitFor({ state: "detached" });
+      assert.deepEqual((await calls(page)).at(-1), { action: "setItemStars", itemId: UNRATED.version, stars: null }, "the second tap clears");
+      assert.deepEqual((await calls(page)).map((call) => (call as { action: string }).action), ["setItemStars", "setItemStars"], "only ratings were saved: no draft, publish or stage move");
+      assert.equal(await drawer(page).locator("select, [role=combobox]").count(), 0, "no dropdowns");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
@@ -194,31 +200,40 @@ const scenarios: Record<string, () => Promise<void>> = {
     } finally { await browser.close(); }
   },
 
-  /** A save that fails says so and shows the saved rating again. */
+  /** A save that fails says so and shows the saved rating again, in the drawer and on the card. */
   async failed_save() {
     const { browser, page, errors } = await setup(board);
     try {
-      await card(page, RATED.lineage).waitFor();
+      await openStory(page, RATED.lineage);
       await page.evaluate(() => { (window as unknown as { fixtureFailStars: boolean }).fixtureFailStars = true; });
-      await card(page, RATED.lineage).locator('[data-star="1"]').click();
-      await card(page, RATED.lineage).locator('[role="alert"]').waitFor();
-      assert.match(await card(page, RATED.lineage).locator('[role="alert"]').innerText(), /could not be saved/i);
-      assert.equal(await stars(card(page, RATED.lineage)), "4", "the saved rating is shown again");
+      await drawer(page).locator('[data-star="1"]').click();
+      await drawer(page).locator('[role="alert"]').waitFor();
+      assert.match(await drawer(page).locator('[role="alert"]').innerText(), /could not be saved/i);
+      assert.equal(await stars(drawer(page)), "4", "the saved rating is shown again");
+      assert.equal(await mark(page, RATED.lineage).getAttribute("data-stars-mark"), "4", "and on the card");
       await page.evaluate(() => { (window as unknown as { fixtureFailStars: boolean }).fixtureFailStars = false; });
-      await card(page, RATED.lineage).locator('[data-star="1"]').click();
-      await waitStars(card(page, RATED.lineage), "1");
+      await drawer(page).locator('[data-star="1"]').click();
+      await waitStars(drawer(page), "1");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
 
-  /** On a phone the stars are large targets in one row on the card, in the drawer and in the editor, and nothing scrolls sideways. */
+  /** On a phone the stars are large targets in one row in the drawer and the editor, the card's rating stays in its top row, and nothing scrolls sideways. */
   async phone() {
-    for (const target of ["board", "drawer", "editor"] as const) {
+    const onBoard = await setup(board, 375, 900);
+    try {
+      await mark(onBoard.page, RATED.lineage).waitFor();
+      await mark(onBoard.page, RATED.lineage).scrollIntoViewIfNeeded();
+      await shot(onBoard.page, "board-375");
+      assert.equal(await card(onBoard.page, RATED.lineage).locator(".issue-accent-row [data-stars-mark]").count(), 1, "board: the mark is in the card's top row");
+      assert.equal(await noSideScroll(onBoard.page), true, "board: nothing scrolls sideways");
+      assert.deepEqual(onBoard.errors, []);
+    } finally { await onBoard.browser.close(); }
+    for (const target of ["drawer", "editor"] as const) {
       const { browser, page, errors } = await setup(target === "editor" ? `/?editor=${RATED.version}` : board, 375, 900);
       try {
-        const rating = target === "editor" ? drawer(page) : card(page, RATED.lineage);
-        if (target === "drawer") { await openStory(page, RATED.lineage); }
-        const control = target === "drawer" ? drawer(page) : rating;
+        if (target === "drawer") await openStory(page, RATED.lineage);
+        const control = drawer(page);
         await control.first().waitFor();
         await control.first().scrollIntoViewIfNeeded();
         await shot(page, `${target}-375`);
