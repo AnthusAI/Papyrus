@@ -13,6 +13,8 @@ export type DemoArticleRecord = {
   everPublished: boolean;
   /** The type of the live version, when it differs from `type` (a new version changed it and has not been published). */
   publishedType?: string | null;
+  /** A private 1-5 rating of the Story (null or absent: unrated). */
+  starRating?: number | null;
   updatedAt: string;
 };
 

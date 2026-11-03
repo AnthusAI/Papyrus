@@ -85,6 +85,21 @@ export function createDemoArticlesBackend(): ArticlesBackend {
   let created = 0;
   const storiesFromReference = new Map<string, string[]>();
 
+  /** A local-preview Story is added to the demo records the first time something reads or changes it. */
+  const loadPreviewRecord = (id: string): void => {
+    if (records.has(id)) return;
+    const previewRecord = createLocalPreviewEditableArticle(id);
+    if (!previewRecord) return;
+    records.set(id, {
+      ...previewRecord,
+      title: titleFromYaml(previewRecord.frontMatterYaml, previewRecord.slug),
+      status: previewRecord.status === "published" ? "published" : "draft",
+      contentHash: demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus),
+      publishedContentHash: previewRecord.status === "published" ? demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus) : null,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
   const requireRecord = (id: string): DemoArticleRecord => {
     const record = records.get(id);
     if (!record) throw new ContentActionFailure([{ code: "not-found", message: "That article was not found.", line: null }]);
@@ -204,6 +219,11 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         });
         return { ok: true, changed, publishedId: `published-${id}`, versionNumber, ...(typeChangedFrom ? { typeChangedFrom } : {}) };
       },
+      async setItemStars(itemId: string, stars: number | null): Promise<void> {
+        // A plain update of the record: no new version, and a published Story stays as published as it was.
+        loadPreviewRecord(itemId);
+        records.set(itemId, { ...requireRecord(itemId), starRating: stars });
+      },
       async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
         return { ok: true, changed: true, stage: input.stage };
       },
@@ -259,19 +279,7 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     },
     async loadArticle(id: string): Promise<EditableArticle> {
-      if (!records.has(id)) {
-        const previewRecord = createLocalPreviewEditableArticle(id);
-        if (previewRecord) {
-          records.set(id, {
-            ...previewRecord,
-            title: titleFromYaml(previewRecord.frontMatterYaml, previewRecord.slug),
-            status: previewRecord.status === "published" ? "published" : "draft",
-            contentHash: demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus),
-            publishedContentHash: previewRecord.status === "published" ? demoContentHash(previewRecord.frontMatterYaml, previewRecord.bodyMarkus) : null,
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      }
+      loadPreviewRecord(id);
       const record = requireRecord(id);
       return {
         id: record.id,
@@ -287,6 +295,7 @@ export function createDemoArticlesBackend(): ArticlesBackend {
         aliases: [],
         everPublished: record.everPublished,
         publishedType: record.publishedType ?? (record.everPublished ? record.type : null),
+        starRating: record.starRating ?? null,
       };
     },
   };

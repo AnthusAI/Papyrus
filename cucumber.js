@@ -153,6 +153,11 @@ module.exports = {
     require: ["features/step_definitions/reference-stars.steps.js"],
     format: ["summary"],
   },
+  storyStars: {
+    paths: ["features/newsroom-story-stars.feature"],
+    require: ["features/step_definitions/story-stars.steps.js"],
+    format: ["summary"],
+  },
   autoAcceptedList: {
     paths: ["features/newsroom-auto-accepted-list.feature"],
     require: ["features/step_definitions/auto-accepted-list.steps.js"],

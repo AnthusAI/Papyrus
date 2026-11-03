@@ -103,6 +103,8 @@ export type ContentItemVersionRecord = {
   updatedAt?: string | null;
   /** Who recorded this version; "AI" for machine-written stories. */
   versionCreatedBy?: string | null;
+  /** An editor's private 1-5 rating of the Story. Absent (undefined) when this record was not read from the Item row, so the rating is unknown; null is unrated. */
+  starRating?: number | null;
 };
 
 export function latestVersionPerContentItem(
