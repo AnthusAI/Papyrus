@@ -516,21 +516,39 @@ def create_multi_error_records(*, assignment: Mapping[str, Any], error: str, act
     ]
 
 
+def research_summary_services(client: PapyrusGraphQLAuthoringClient, *, environ: Mapping[str, str] | None = None, read_secret: Any = None,
+                              transport: Any = None) -> Any:
+    """Curation services whose summarizer is keyed the way research runs are keyed: ``OPENAI_API_KEY``, else the SSM parameter named by
+    ``PAPYRUS_OPENAI_KEY_PARAMETER`` (the same resolution as ``openai_llm``), else the local config. With no key the summary stage is a typed skip."""
+    from .reference_curation import default_services, openai_summarizer
+
+    services = default_services(client)
+    if services.summarizer is None:
+        try:
+            key = OpenAIProvider(environ=environ, read_secret=read_secret).api_key()
+        except Exception:   # noqa: BLE001 - no key from either source: the stage records the typed skip
+            key = ""
+        if key:
+            services.summarizer = openai_summarizer(key, transport=transport)
+    return services
+
+
 def curate_found_references(client: PapyrusGraphQLAuthoringClient, assignment_id: str, reference_ids: Sequence[str], *,
                             services: Any = None) -> dict[str, Any]:
     """Capture and summarize the References a research run took in, each summarized with the Assignment (and any linked Story) as its purpose.
     Uses the existing curation stages; a failure on one Reference is recorded and never stops the others or the run."""
-    from .reference_curation import curate_reference, default_services
+    from .reference_curation import curate_reference
     from .story_reporting import current_reference
 
     curated: list[str] = []
     failed: list[dict[str, str]] = []
+    services = services or research_summary_services(client)
     for reference_id in reference_ids:
         try:
             reference = current_reference(client, reference_id)
             if reference is None:
                 raise ValueError("Reference not found")
-            result = curate_reference(client, reference, services=services or default_services(client), origin_assignment_id=assignment_id)
+            result = curate_reference(client, reference, services=services)
             if result.get("outcome") in ("curated", "already_curated"):
                 curated.append(reference_id)
             else:
@@ -622,7 +640,7 @@ def research_multi(
             if pack:
                 link_found_references_as_consulted(
                     client, story_lineage, [row["referenceId"] for row in intake_result.get("references") or [] if row.get("referenceId")],
-                    actor=actor_label, note=f"Found by research assignment {assignment_id}")
+                    actor=actor_label, note=f"Found by research assignment {assignment_id}", assignment_id=assignment_id)
         except Exception as error:   # noqa: BLE001 - the packet is already written; the failure is recorded on the assignment, not left half-done
             intake_error = f"{type(error).__name__}: {error}"
         if intake_result and intake_result.get("citedOnly"):

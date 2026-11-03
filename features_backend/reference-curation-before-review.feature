@@ -179,6 +179,16 @@ Feature: References are curated before an editor reviews them
     Then the model's purpose context includes "Newer headline"
     And the Reference's metadata holds a "summary_purpose" with its Story ids and a hash of the context
 
+  Scenario: A research run's summaries are keyed from the configured parameter when the environment has no key
+    Given the environment has no OPENAI_API_KEY and names an SSM parameter holding the key
+    When curation services are built for a research run
+    Then the summarizer is keyed from the parameter and writes a summary
+
+  Scenario: A later summary still gets the direction the research run recorded on the Story link
+    Given the Reference came from the Assignment "Synthetic assignment" with the direction "Find other synthetic cases of the same failure."
+    When the curation procedure runs for the Reference with force
+    Then the model's purpose context includes "Find other synthetic cases of the same failure."
+
   Scenario: A summary that fails while a research run takes in its References leaves the run complete
     Given the model fails with "model_failed"
     When a research run for the Assignment "assignment-1" takes in the Reference

@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 
-from curation_support import (ARTICLE_PARAGRAPHS, NOW, TEI, Explorer, Grobid, MemoryClient, Summarizer, article_html, directed_world, page, paper_pdf,
+from curation_support import (ARTICLE_PARAGRAPHS, NOW, TEI, Explorer, Grobid, MemoryClient, Summarizer, article_html, directed_world, page, stored_attachment_bodies, paper_pdf,
                               reference, services)
 from pdf_fixtures import make_pdf
 from papyrus_content import reference_capture, reference_curation as curation
@@ -335,16 +335,31 @@ def test_a_reference_with_no_assignment_and_no_story_has_no_purpose():
 def test_the_purpose_names_the_assignment_direction_and_every_story_newest_first_without_any_body():
     ref = reference()
     client = MemoryClient([ref])
-    assignment_id = directed_world(client, ref, direction="Find other synthetic cases of the same failure.", stories=[
+    directed_world(client, ref, direction="Find other synthetic cases of the same failure.", found_by="assignment-1", stories=[
         ("story-old", "Older headline", "Older deck", "news", "consulted", "2026-10-01T00:00:00Z"),
         ("story-new", "Newer headline", "Newer deck", "features", "cited", "2026-11-01T00:00:00Z")])
-    purpose = curation.reference_purpose_context(client, ref, origin_assignment_id=assignment_id)
+    with stored_attachment_bodies():
+        purpose = curation.reference_purpose_context(client, ref)
     text = purpose["text"]
     assert "Editor's direction: Find other synthetic cases of the same failure." in text and "Assignment: Synthetic assignment" in text
     assert text.index("Newer headline") < text.index("Older headline")
     assert "Newer deck" in text and "Older deck" in text and "Section features" in text and "BODY-SENTINEL" not in text
     assert purpose["assignmentId"] == "assignment-1" and purpose["storyLineageIds"] == ["story-new", "story-old"]
     assert len(purpose["contextHash"]) == 64
+
+
+def test_a_research_run_records_its_assignment_on_the_story_link_and_the_purpose_reads_it_back():
+    from papyrus_content.story_reporting import link_found_references_as_consulted
+
+    ref = reference()
+    client = MemoryClient([ref])
+    directed_world(client, ref, direction="Find other synthetic cases.", stories=[("story-1", "Headline", "Deck", "news", "cited", "2026-10-01T00:00:00Z")])
+    client.tables["SemanticRelation"].clear()
+    link_found_references_as_consulted(client, "story-1", [ref["id"]], actor="tester", note="Found by research assignment assignment-1", assignment_id="assignment-1")
+    relation = next(iter(client.tables["SemanticRelation"].values()))
+    assert json.loads(relation["metadata"])["assignmentId"] == "assignment-1" and "Found by" in json.loads(relation["metadata"])["note"]
+    with stored_attachment_bodies():
+        assert curation.reference_purpose_context(client, ref)["assignmentId"] == "assignment-1"
 
 
 def test_the_summarizer_posts_to_the_responses_api_with_gpt_6_luna():

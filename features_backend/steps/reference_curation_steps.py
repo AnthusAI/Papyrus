@@ -15,7 +15,7 @@ for path in (REPO_ROOT / "src", REPO_ROOT / "procedures" / "newsroom" / "tests")
         sys.path.insert(0, str(path))
 
 from curation_support import (  # noqa: E402
-    NOW, MemoryClient, Grobid, Summarizer, article_html, directed_world, page, paper_pdf, reference, services as build_services,
+    NOW, MemoryClient, Grobid, Summarizer, article_html, directed_world, page, stored_attachment_bodies, paper_pdf, reference, services as build_services,
 )
 from papyrus_content import reference_curation as curation, youtube_transcript  # noqa: E402
 from papyrus_content.reference_curation_store import CurationError, apply_editor_correction, correct_reference_capture  # noqa: E402
@@ -34,7 +34,6 @@ def svc(context):
 
 
 def curate(context, **kwargs):
-    kwargs.setdefault("origin_assignment_id", getattr(context, "origin_assignment_id", None))
     context.result = curation.curate_reference(context.client, context.ref, services=svc(context), **kwargs)
     return context.result
 
@@ -186,13 +185,48 @@ def _(context, reason):
 
 @given('the Reference came from the Assignment "{title}" with the direction "{direction}"')
 def _(context, title, direction):
-    context.origin_assignment_id = directed_world(context.client, context.ref, direction=direction, assignment_title=title)
+    patcher = stored_attachment_bodies()
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+    directed_world(context.client, context.ref, direction=direction, assignment_title=title, found_by="assignment-1",
+                   stories=[("story-found", "Found headline", "Found deck", "news", "consulted", "2026-10-15T00:00:00Z")])
 
 
 @given('the Story "{headline}" with the deck "{deck}" in the section "{section}" is linked to the Reference as "{role}"')
 def _(context, headline, deck, section, role):
     created = {"Older headline": "2026-10-01T00:00:00Z"}.get(headline, "2026-11-01T00:00:00Z")
     directed_world(context.client, context.ref, stories=[(f"story-{headline.split()[0].lower()}", headline, deck, section, role, created)])
+
+
+@given("the environment has no OPENAI_API_KEY and names an SSM parameter holding the key")
+def _(context):
+    context.environ = {"PAPYRUS_OPENAI_KEY_PARAMETER": "/synthetic/openai-key"}
+    context.secret_reads = []
+
+
+@when("curation services are built for a research run")
+def _(context):
+    from papyrus_content import multi_search_research
+
+    sent = []
+
+    def transport(url, headers, payload):
+        sent.append(headers)
+        return {"output_text": "Keyed summary.", "usage": {"input_tokens": 1, "output_tokens": 1}}
+
+    def read_secret(parameter):
+        context.secret_reads.append(parameter)
+        return "synthetic-key"
+
+    with mock.patch.object(curation, "default_services", lambda client: build_services(client, pages=context.pages, summarizer=None)):
+        context.research_services = multi_search_research.research_summary_services(context.client, environ=context.environ, read_secret=read_secret,
+                                                                                    transport=transport)
+    context.research_summary = context.research_services.summarizer({"text": "Body text.", "title": "T", "sourceUri": ARTICLE_URL})
+
+
+@then("the summarizer is keyed from the parameter and writes a summary")
+def _(context):
+    assert context.secret_reads == ["/synthetic/openai-key"] and context.research_summary["text"] == "Keyed summary."
 
 
 @given('the model fails with "{reason}"')

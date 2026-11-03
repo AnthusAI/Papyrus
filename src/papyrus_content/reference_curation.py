@@ -184,12 +184,12 @@ def default_services(client: Any, *, start_grobid: bool = False, grobid_url: str
 # --- why the newsroom is reading a Reference -------------------------------------------------------------------------
 
 
-def reference_purpose_context(client: Any, reference: dict[str, Any], *, origin_assignment_id: str | None = None) -> dict[str, Any] | None:
+def reference_purpose_context(client: Any, reference: dict[str, Any]) -> dict[str, Any] | None:
     """The Assignment a Reference came from and the Stories linked to it, as a block of text for the summary prompt, or None when it has neither.
 
-    The Reference row keeps no pointer to the Assignment that proposed it (the catalog's ``research_assignment_id`` is not a Reference field), so the
-    caller that knows the origin, a research run, names it in ``origin_assignment_id``. The direction is the Assignment's metadata ``direction``, else
-    its ``instructions``. Stories are the ``uses_evidence`` links
+    The Reference row keeps no pointer to the Assignment that proposed it (``Reference`` has no metadata field). The origin is the ``assignmentId`` a
+    research run writes on the Story link's metadata (``link_found_references_as_consulted``). The direction is the Assignment's metadata ``direction`` (read through ``assignment_metadata``: it lives in an attachment),
+    else its ``instructions``. Stories are the ``uses_evidence`` links
     (consulted, cited, based_on) to the Reference's lineage, newest first, each by title, deck and section title; never the body."""
     from .assignments import assignment_metadata
     from .story_reporting import current_story_version, stories_based_on_reference
@@ -197,15 +197,19 @@ def reference_purpose_context(client: Any, reference: dict[str, Any], *, origin_
 
     lines: list[str] = []
     assignment_id = ""
-    assignment = client.get_record("Assignment", origin_assignment_id) if origin_assignment_id else None
-    if assignment:
-        assignment_id = origin_assignment_id
+    links = stories_based_on_reference(client, str(reference.get("lineageId") or reference["id"]))
+    assignment_ids = list(dict.fromkeys(link["assignmentId"] for link in links if link.get("assignmentId")))
+    for candidate in assignment_ids:
+        assignment = client.get_record("Assignment", candidate)
+        if not assignment:
+            continue
+        assignment_id = assignment_id or candidate
         direction = str(assignment_metadata(client, assignment).get("direction") or assignment.get("instructions") or "").strip()
         lines.append(f"Assignment: {str(assignment.get('title') or '').strip()}")
         if direction:
             lines.append(f"Editor's direction: {direction}")
     stories = []
-    for link in stories_based_on_reference(client, str(reference.get("lineageId") or reference["id"])):
+    for link in links:
         try:
             story = current_story_version(client, link["storyLineageId"])
         except ValueError:
@@ -286,8 +290,7 @@ def _parse(value: Any) -> datetime | None:
 # --- one Reference ---------------------------------------------------------------------------------------------------
 
 
-def curate_reference(client: Any, reference: dict[str, Any], *, services: Services, force: bool = False, dry_run: bool = False,
-                     origin_assignment_id: str | None = None) -> dict[str, Any]:
+def curate_reference(client: Any, reference: dict[str, Any], *, services: Services, force: bool = False, dry_run: bool = False) -> dict[str, Any]:
     """Run the stages this Reference still needs. Never raises for a bad source; a failure is a stage outcome on the card."""
     now = services.now()
     card = read_card(client, reference)
@@ -311,7 +314,7 @@ def curate_reference(client: Any, reference: dict[str, Any], *, services: Servic
             _record_capture(card, captured, reference, store, services.now())
             _publication_date_stage(client, reference, card, captured, services.now())
         if plan["summary"]:
-            _summary_stage(client, card, reference, store, services, captured, force, origin_assignment_id)
+            _summary_stage(client, card, reference, store, services, captured, force)
         if plan["grobid"]:
             _grobid_stage(card, reference, store, services, captured)
     except Exception as error:  # noqa: BLE001 - an unexpected bug must leave the card retryable, not stuck in "running"
@@ -362,7 +365,7 @@ def _record_capture(card: dict[str, Any], captured: Capture, reference: dict[str
 
 
 def _summary_stage(client: Any, card: dict[str, Any], reference: dict[str, Any], store: AttachmentStore, services: Services, captured: Capture | None,
-                   force: bool, origin_assignment_id: str | None = None) -> None:
+                   force: bool) -> None:
     previous = card.get("summary") or {}
     text = captured.text if captured is not None and captured.ok and not has_text_edit(card) else current_text(card, reference, store)
     if not text:
@@ -376,7 +379,7 @@ def _summary_stage(client: Any, card: dict[str, Any], reference: dict[str, Any],
         card["summary"] = {**{k: v for k, v in previous.items() if k == "text"}, "status": "skipped", "reason": "openai_not_configured"}
         return
     stamp = iso(services.now())
-    purpose = reference_purpose_context(client, reference, origin_assignment_id=origin_assignment_id)
+    purpose = reference_purpose_context(client, reference)
     request = {"text": text, "title": reference.get("title") or "", "sourceUri": reference.get("sourceUri") or "", "maxTokens": SUMMARY_MAX_TOKENS}
     if purpose:
         request["purposeContext"] = purpose["text"]
