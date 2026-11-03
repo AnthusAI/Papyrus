@@ -1006,3 +1006,68 @@ def step_hosted_corpus(context):
 @then("resolving it fails with \"{message}\"")
 def step_corpus_fails(context, message):
     assert context.corpus_error == message, context.corpus_error
+
+
+def strip_row_to_stored_shape(store, metadata):
+    """What the API really returns: the Assignment row has no metadata or instructions; they are in a ModelAttachment."""
+    row = store.records["Assignment"]["assignment-1"]
+    row.pop("metadata", None)
+    row.pop("instructions", None)
+    store.assignment_attachment = metadata
+    original = store.list_by_index
+
+    def list_by_index(index, key, **options):
+        if index == "modelAttachmentsByOwnerRoleAndSortKey":
+            return [{"role": "metadata", "status": "active", "sortKey": "metadata", "storagePath": "stored-metadata"}]
+        return original(index, key, **options)
+
+    store.list_by_index = list_by_index
+
+
+@given("a Story with an assignment whose metadata is only in its attachment")
+def step_stored_shape(context):
+    context.store = build_newsroom()
+    strip_row_to_stored_shape(context.store, {"contextProfile": "reporter", "direction": "Look for appeals in other states"})
+
+
+@when("the reporter pack is built for that assignment")
+def step_build_stored(context):
+    payload = json.dumps(context.store.assignment_attachment).encode("utf-8")
+    with mock.patch("papyrus_content.assignments.download_attachment_buffer", return_value=payload):
+        build(context)
+
+
+@then("the pack's first layer has the editor's direction")
+def step_first_layer_direction(context):
+    first = context.pack["layers"][0]
+    assert first["name"] == "assignment" and context.pack["user"].index("Look for appeals in other states") < context.pack["user"].index("The Story")
+
+
+@given("a reporter assignment on a Story with no direction stored")
+def step_no_direction(context):
+    context.store = build_newsroom()
+    strip_row_to_stored_shape(context.store, {"contextProfile": "reporter", "corpusKey": "example", "researchMode": "source_discovery"})
+
+
+@when("its research run starts")
+def step_run_no_direction(context):
+    context.model_calls = []
+    payload = json.dumps(context.store.assignment_attachment).encode("utf-8")
+
+    def llm(system, user, schema):
+        context.model_calls.append(system)
+        return {}
+
+    with mock.patch("papyrus_content.assignments.download_attachment_buffer", return_value=payload), \
+         mock.patch.object(pack_module, "graphql_endpoint", return_value=ENDPOINT):
+        context.result = ms.research_multi(context.store, {"assignment": "assignment-1", "dry-run": "true"}, llm=llm, providers=[])
+
+
+@then("the run fails saying it needs the editor's direction")
+def step_failed_direction(context):
+    assert context.result["action"] == "failed" and "direction" in context.result["error"]
+
+
+@then("no search or model call was made")
+def step_no_calls(context):
+    assert context.model_calls == []

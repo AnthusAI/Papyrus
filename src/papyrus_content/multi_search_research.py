@@ -551,6 +551,8 @@ def research_multi(
                                           max_characters=DEFAULT_MAX_CHARACTERS)
             except (ValueError, PermissionError) as error:
                 raise MultiSearchFailed(f"multi-search could not build the context pack: {error}") from None
+            if not normalize_string(meta.get("direction")):
+                raise MultiSearchFailed("multi-search needs the editor's direction: this assignment has none")
             brief = pack["user"]
         outcome = run_multi_search(brief, llm=llm or openai_llm(model=model), providers=providers, model=model,
                                    system_prefix=pack["system"] if pack else "", context_pack=pack)

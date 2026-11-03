@@ -27,6 +27,7 @@ import re
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Any
 
+from .assignments import assignment_metadata
 from .editorial_context import _body, _check_tenant, _digest, find_section, hosted_publication, resolve_editorial_context
 from .env import graphql_endpoint, load_dotenv
 from .content_item_lifecycle import SYSTEM_ITEM_TYPES
@@ -126,6 +127,11 @@ def _json_object(raw: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _assignment_metadata(store: Any, assignment: Mapping[str, Any]) -> dict[str, Any]:
+    """An Assignment's metadata lives in a ModelAttachment, not on the row the API returns, so it has to be read from there."""
+    return assignment_metadata(store, dict(assignment)) if assignment else {}
+
+
 class Situation:
     """What every layer needs: the store, the Story, the section it sits in and the room left to fill."""
 
@@ -196,7 +202,7 @@ class Situation:
 
 def assignment_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     assignment = situation.assignment or {}
-    metadata = _json_object(assignment.get("metadata"))
+    metadata = _assignment_metadata(situation.store, assignment)
     direction = situation.direction or metadata.get("direction") or assignment.get("instructions")
     if not (direction or assignment):
         return [], "no assignment or direction was given"
@@ -365,7 +371,7 @@ def prior_research_layer(situation: Situation) -> tuple[list[Entry], str | None]
 
     found: list[tuple[str, Entry]] = []
     for assignment in situation.store.list_by_index("assignmentsByItemLineageAndCreatedAt", situation.lineage):
-        direction = _json_object(assignment.get("metadata")).get("direction") or assignment.get("instructions")
+        direction = _assignment_metadata(situation.store, assignment).get("direction") or assignment.get("instructions")
         for item in load_assignment_research_packet_entries(situation.store, assignment["id"]):
             packet = item["packet"]
             created = str(item["message"].get("createdAt") or "")
