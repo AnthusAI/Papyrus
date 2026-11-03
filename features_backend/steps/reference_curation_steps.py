@@ -15,7 +15,7 @@ for path in (REPO_ROOT / "src", REPO_ROOT / "procedures" / "newsroom" / "tests")
         sys.path.insert(0, str(path))
 
 from curation_support import (  # noqa: E402
-    NOW, MemoryClient, Grobid, Summarizer, article_html, page, paper_pdf, reference, services as build_services,
+    NOW, MemoryClient, Grobid, Summarizer, article_html, directed_world, page, paper_pdf, reference, services as build_services,
 )
 from papyrus_content import reference_curation as curation, youtube_transcript  # noqa: E402
 from papyrus_content.reference_curation_store import CurationError, apply_editor_correction, correct_reference_capture  # noqa: E402
@@ -34,6 +34,7 @@ def svc(context):
 
 
 def curate(context, **kwargs):
+    kwargs.setdefault("origin_assignment_id", getattr(context, "origin_assignment_id", None))
     context.result = curation.curate_reference(context.client, context.ref, services=svc(context), **kwargs)
     return context.result
 
@@ -181,6 +182,98 @@ def _(context):
 @then('the card says GROBID was skipped as "{reason}"')
 def _(context, reason):
     assert card(context)["grobid"] == {"status": "skipped", "reason": reason}
+
+
+@given('the Reference came from the Assignment "{title}" with the direction "{direction}"')
+def _(context, title, direction):
+    context.origin_assignment_id = directed_world(context.client, context.ref, direction=direction, assignment_title=title)
+
+
+@given('the Story "{headline}" with the deck "{deck}" in the section "{section}" is linked to the Reference as "{role}"')
+def _(context, headline, deck, section, role):
+    created = {"Older headline": "2026-10-01T00:00:00Z"}.get(headline, "2026-11-01T00:00:00Z")
+    directed_world(context.client, context.ref, stories=[(f"story-{headline.split()[0].lower()}", headline, deck, section, role, created)])
+
+
+@given('the model fails with "{reason}"')
+def _(context, reason):
+    context.summarizer = Summarizer(fail_with=reason)
+    context.services = None
+
+
+@when('the curation procedure runs for the Reference with force')
+def _(context):
+    curate(context, force=True)
+
+
+@when('a research run for the Assignment "{assignment_id}" takes in the Reference')
+def _(context, assignment_id):
+    from papyrus_content import multi_search_research
+
+    context.research_curation = multi_search_research.curate_found_references(context.client, assignment_id, [context.ref["id"]], services=svc(context))
+
+
+def purpose_sent(context):
+    return context.summarizer.calls[-1].get("purposeContext")
+
+
+@then("the model was given no purpose context")
+def _(context):
+    assert all("purposeContext" not in call for call in context.summarizer.calls)
+
+
+@then('the model\'s purpose context includes "{text}"')
+def _(context, text):
+    assert text in purpose_sent(context)
+
+
+@then('the model\'s purpose context does not include "{text}"')
+def _(context, text):
+    assert text not in purpose_sent(context)
+
+
+@then('the model\'s purpose context lists "{first}" before "{second}"')
+def _(context, first, second):
+    sent = purpose_sent(context)
+    assert sent.index(first) < sent.index(second)
+
+
+def reference_metadata(context):
+    return json.loads(svc(context).store.text(context.ref, "metadata") or "{}")
+
+
+@then('the Reference\'s metadata holds no "summary_purpose"')
+def _(context):
+    assert "summary_purpose" not in reference_metadata(context) and "purpose" not in card(context)["summary"]
+
+
+@then('the Reference\'s metadata holds a "summary_purpose" with its Story ids and a hash of the context')
+def _(context):
+    recorded = reference_metadata(context)["summary_purpose"]
+    assert set(recorded) == {"assignmentId", "storyLineageIds", "contextHash"}
+    assert recorded["storyLineageIds"] and len(recorded["contextHash"]) == 64
+
+
+@then('the recorded purpose names the Assignment "{assignment_id}"')
+def _(context, assignment_id):
+    assert reference_metadata(context)["summary_purpose"]["assignmentId"] == assignment_id
+
+
+@then("the summary was written with the directed prompt version")
+def _(context):
+    assert reference_metadata(context)["summary_resolution"]["promptVersion"] == curation.SUMMARY_DIRECTED_PROMPT_VERSION
+    assert card(context)["summary"]["purpose"]["contextHash"] == reference_metadata(context)["summary_purpose"]["contextHash"]
+
+
+@then("the research run still reports its References as curated")
+def _(context):
+    assert context.research_curation["curated"] == [context.ref["id"]] and not context.research_curation["failed"]
+
+
+@then('the card records the summary failure "{reason}"')
+def _(context, reason):
+    summary = card(context)["summary"]
+    assert (summary["status"], summary["reason"]) == ("failed", reason)
 
 
 @then("the model was asked for a summary only once")

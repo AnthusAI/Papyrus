@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 
-from curation_support import (ARTICLE_PARAGRAPHS, NOW, TEI, Explorer, Grobid, MemoryClient, Summarizer, article_html, page, paper_pdf,
+from curation_support import (ARTICLE_PARAGRAPHS, NOW, TEI, Explorer, Grobid, MemoryClient, Summarizer, article_html, directed_world, page, paper_pdf,
                               reference, services)
 from pdf_fixtures import make_pdf
 from papyrus_content import reference_capture, reference_curation as curation
@@ -294,6 +294,57 @@ def test_the_summary_model_is_gpt_6_luna_with_the_source_voice_prompt_of_the_pro
     for line in curation.SUMMARY_MESSAGE.splitlines()[:21]:
         if line.strip() and "{" not in line:
             assert line.strip() in tac, line
+
+
+def test_the_directed_rule_and_version_are_the_same_in_the_procedure_and_the_summarizer():
+    tac = (ROOT / "procedures/newsroom/reference_summarization.tac").read_text()
+    for sentence in curation.SUMMARY_PURPOSE_RULE.strip().replace("{block}", "%s").split(". "):
+        assert sentence.strip().rstrip(".") in tac, sentence
+    assert curation.SUMMARY_DIRECTED_PROMPT_VERSION in tac and "purpose_context_text" in tac
+
+
+def _prompt_sent(request):
+    seen = {}
+
+    def transport(url, headers, payload):
+        seen.update(payload=payload)
+        return {"output_text": "Summary.", "usage": {"input_tokens": 10, "output_tokens": 5}}
+
+    made = curation.openai_summarizer("key", transport=transport)({"text": "Body.", "title": "T", "sourceUri": "https://x.test/a", **request})
+    return seen["payload"]["input"], made
+
+
+def test_a_summary_with_no_purpose_sends_exactly_the_general_prompt():
+    sent, made = _prompt_sent({})
+    assert sent == curation.SUMMARY_MESSAGE.format(tokens=curation.SUMMARY_MAX_TOKENS, title="T", source_uri="https://x.test/a", text="Body.")
+    assert made["promptVersion"] == curation.SUMMARY_PROMPT_VERSION
+
+
+def test_a_summary_with_a_purpose_leads_with_the_rule_and_keeps_the_general_prompt_after_it():
+    sent, made = _prompt_sent({"purposeContext": "Assignment: Synthetic assignment"})
+    general = curation.SUMMARY_MESSAGE.format(tokens=curation.SUMMARY_MAX_TOKENS, title="T", source_uri="https://x.test/a", text="Body.")
+    assert sent == curation.SUMMARY_PURPOSE_RULE.format(block="Assignment: Synthetic assignment") + general
+    assert "It is not evidence" in sent and made["promptVersion"] == curation.SUMMARY_DIRECTED_PROMPT_VERSION
+
+
+def test_a_reference_with_no_assignment_and_no_story_has_no_purpose():
+    ref = reference()
+    assert curation.reference_purpose_context(MemoryClient([ref]), ref) is None
+
+
+def test_the_purpose_names_the_assignment_direction_and_every_story_newest_first_without_any_body():
+    ref = reference()
+    client = MemoryClient([ref])
+    assignment_id = directed_world(client, ref, direction="Find other synthetic cases of the same failure.", stories=[
+        ("story-old", "Older headline", "Older deck", "news", "consulted", "2026-10-01T00:00:00Z"),
+        ("story-new", "Newer headline", "Newer deck", "features", "cited", "2026-11-01T00:00:00Z")])
+    purpose = curation.reference_purpose_context(client, ref, origin_assignment_id=assignment_id)
+    text = purpose["text"]
+    assert "Editor's direction: Find other synthetic cases of the same failure." in text and "Assignment: Synthetic assignment" in text
+    assert text.index("Newer headline") < text.index("Older headline")
+    assert "Newer deck" in text and "Older deck" in text and "Section features" in text and "BODY-SENTINEL" not in text
+    assert purpose["assignmentId"] == "assignment-1" and purpose["storyLineageIds"] == ["story-new", "story-old"]
+    assert len(purpose["contextHash"]) == 64
 
 
 def test_the_summarizer_posts_to_the_responses_api_with_gpt_6_luna():

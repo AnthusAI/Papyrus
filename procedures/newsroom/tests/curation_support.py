@@ -101,6 +101,13 @@ class MemoryClient:
         self.writes += 1
         self.tables[model][row["id"]].update(copy.deepcopy(row))
 
+    def list_semantic_relations_by_object_state(self, object_state_key):
+        return [copy.deepcopy(r) for r in self.tables.setdefault("SemanticRelation", {}).values() if r.get("objectStateKey") == object_state_key]
+
+    def list_by_index(self, index_name, key_value, **kwargs):
+        assert index_name == "itemsByLineageAndVersion", index_name
+        return [copy.deepcopy(r) for r in self.tables.setdefault("Item", {}).values() if r.get("lineageId") == key_value]
+
     def card(self, reference_id):
         for row in self.tables["ReferenceAttachment"].values():
             if row.get("role") == "curation" and row.get("referenceId") == reference_id:
@@ -150,6 +157,22 @@ def reference(name="r1", **fields):
             "curationStatus": "pending", "title": f"Title {name}", "sourceUri": f"https://news.example.org/{name}", **fields}
 
 
+def directed_world(client, reference, *, direction=None, assignment_title="Synthetic assignment", stories=()):
+    """An Assignment and Stories, linked to ``reference`` the way a research run and an editor link them. ``stories`` are (lineage, headline, deck, section, role, created)."""
+    assignment_id = None
+    if direction is not None:
+        assignment_id = "assignment-1"
+        client.tables.setdefault("Assignment", {})[assignment_id] = {"id": assignment_id, "title": assignment_title, "metadata": json.dumps({"direction": direction})}
+    for lineage, headline, deck, section, role, created in stories:
+        client.tables.setdefault("Item", {})[f"{lineage}-v1"] = {"id": f"{lineage}-v1", "lineageId": lineage, "versionNumber": 1, "versionState": "current",
+            "headline": headline, "deck": deck, "section": section, "bodyMarkus": "BODY-SENTINEL never goes in a prompt", "createdAt": created}
+        client.tables.setdefault("NewsroomSection", {})[section] = {"id": section, "title": f"Section {section}"}
+        relation_id = f"relation-{lineage}"
+        client.tables.setdefault("SemanticRelation", {})[relation_id] = {"id": relation_id, "predicate": "uses_evidence", "subjectKind": "item", "subjectLineageId": lineage,
+            "objectStateKey": f"reference#{reference['lineageId']}#current", "metadata": json.dumps({"role": role})}
+    return assignment_id
+
+
 def page(body: str, content_type="text/html; charset=utf-8", *, truncated=False) -> Response:
     return Response(200, {"content-type": content_type}, body.encode("utf-8") if isinstance(body, str) else body, truncated=truncated)
 
@@ -176,12 +199,13 @@ class Summarizer:
         self.text, self.fail_with, self.calls = text, fail_with, []
 
     def __call__(self, request):
-        from papyrus_content.reference_curation import SUMMARY_MODEL, SUMMARY_PROMPT_VERSION, SummaryFailed
+        from papyrus_content.reference_curation import SUMMARY_DIRECTED_PROMPT_VERSION, SUMMARY_MODEL, SUMMARY_PROMPT_VERSION, SummaryFailed
 
         self.calls.append(request)
         if self.fail_with:
             raise SummaryFailed(self.fail_with)
-        return {"text": self.text, "model": SUMMARY_MODEL, "promptVersion": SUMMARY_PROMPT_VERSION, "inputTruncated": False,
+        return {"text": self.text, "model": SUMMARY_MODEL,
+                "promptVersion": SUMMARY_DIRECTED_PROMPT_VERSION if request.get("purposeContext") else SUMMARY_PROMPT_VERSION, "inputTruncated": False,
                 "usage": {"inputTokens": 100, "cachedInputTokens": 0, "outputTokens": 20}}
 
 
