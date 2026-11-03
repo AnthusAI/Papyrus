@@ -354,7 +354,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok((await needs.nth(1).innerText()).includes("We could not collect this. Upload a PDF or paste the text."));
       assert.match(await page.locator("[data-notification-summary]").innerText(), /\b3 references to capture\b.*waiting for you/);
       const see = page.locator("[data-capture-needed-see-all]");
-      assert.match((await see.getAttribute("href")) ?? "", /\/newsroom\/references\?reviewed=accepted&captured=no&sort=quality&minStars=0/, "See all opens Reviewed Accepted, Captured No, Sort Quality");
+      assert.match((await see.getAttribute("href")) ?? "", /\/newsroom\/references\?reviewed=accepted&captured=no&sort=newest&minStars=0/, "See all opens Reviewed Accepted, Captured No, Sort Newest");
       assert.equal(await page.locator("[data-capture-needed-strip] svg").count() >= 1, true, "a Lucide icon");
       const borders = await page.locator("[data-capture-needed-strip], [data-capture-needed-strip] *, [data-capture-needed-open]").evaluateAll((elements) => elements.filter((element) => parseFloat(getComputedStyle(element).borderTopWidth) > 0 && getComputedStyle(element).borderTopStyle !== "none").length);
       assert.equal(borders, 0, "no borders");

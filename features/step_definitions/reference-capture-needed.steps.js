@@ -59,7 +59,7 @@ When("the read of the capture list fails", T, async function () { this.out = awa
 const homeThens = [
   "three are listed, most stars first and newest first within a level, and the running, the rejected and the captured ones are left out",
   "each says \"We could not collect this. Upload a PDF or paste the text.\" with the reason when it is known, the header and a To capture pill count them, and How this is ordered says why",
-  "See all links to the References page on Reviewed Accepted, Captured No and Sort Quality, nothing scrolls sideways and nothing has a border",
+  "See all links to the References page on Reviewed Accepted, Captured No and Sort Newest, nothing scrolls sideways and nothing has a border",
   "the capture is saved with the text and the verdict, the Reference leaves the list at once, and the next one joins behind the new items button",
   "no capture cards and no See all are shown and the other cards are untouched",
 ];
