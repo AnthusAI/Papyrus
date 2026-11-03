@@ -15,11 +15,10 @@ function Fixture() {
   return <PapyrusConsoleFrame available={available} open={open} reserveSpace={open} onClose={closeConsole} page={
     <div className="newsroom-organizer" data-sidebar-collapsed="true">
       <div className="organizer-workspace">
-        <header className="organizer-topbar"><a className="organizer-masthead" href="#overview">Papyrus</a><h1>Notification Center</h1><div className="organizer-header-actions"><a href="#settings">Settings</a><button>Search</button>{available && !open ? <button className="edition-progress__button--console" aria-label="Open console" onClick={openConsole}>Console</button> : null}</div><button className="organizer-account">Editor</button></header>
+        <header className="organizer-topbar"><a className="organizer-masthead" href="#overview">Papyrus</a><h1>Newsroom home</h1><div className="organizer-header-actions"><a href="#settings">Settings</a><button>Search</button>{available && !open ? <button className="edition-progress__button--console" aria-label="Open console" onClick={openConsole}>Console</button> : null}</div><button className="organizer-account">Editor</button></header>
         <main className="organizer-main"><a href="#references">References</a><div style={{ height: 1800 }}>Synthetic newsroom content</div></main>
       </div>
-      <NewsroomMobileNavigation activeTab="overview" items={[
-        { key: "overview", label: "Overview", description: "Overview", href: "#overview" },
+      <NewsroomMobileNavigation activeTab="articles" items={[
         { key: "articles", label: "Stories", description: "Stories", href: "#stories" },
         { key: "references", label: "References", description: "References", href: "#references" },
         { key: "messages", label: "Messages", description: "Messages", href: "#messages" },

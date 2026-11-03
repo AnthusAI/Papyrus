@@ -506,20 +506,32 @@ def _resolve_openai_api_key() -> str:
         if direct_key and not _is_amplify_secret_placeholder(direct_key):
             _cached_openai_api_key = direct_key
             return direct_key
-        parameter_name = _resolve_amplify_ssm_secret_path("OPENAI_API_KEY")
-        if not parameter_name:
+        parameter_names = _resolve_amplify_ssm_secret_paths("OPENAI_API_KEY")
+        if not parameter_names:
             return ""
         try:
             import boto3  # type: ignore
         except ImportError as exc:  # pragma: no cover - deployment guard
             raise RuntimeError("boto3 is required to load OPENAI_API_KEY from SSM") from exc
-        response = boto3.client("ssm", region_name=os.environ.get("AWS_REGION")).get_parameter(
-            Name=parameter_name,
-            WithDecryption=True,
-        )
-        key_value = _normalize_optional_string((response.get("Parameter") or {}).get("Value"))
+        client = boto3.client("ssm", region_name=os.environ.get("AWS_REGION"))
+        key_value = ""
+        for parameter_name in parameter_names:
+            try:
+                response = client.get_parameter(Name=parameter_name, WithDecryption=True)
+            except Exception as exc:
+                # Only a missing parameter moves on to the next path; access denied,
+                # throttling and every other failure surface unchanged.
+                if _is_parameter_not_found(exc):
+                    continue
+                raise
+            key_value = _normalize_optional_string((response.get("Parameter") or {}).get("Value"))
+            if not key_value:
+                raise RuntimeError(f"SSM parameter {parameter_name} did not include a value.")
+            break
         if not key_value:
-            raise RuntimeError(f"SSM parameter {parameter_name} did not include a value.")
+            raise RuntimeError(
+                "OPENAI_API_KEY was not found in SSM at any configured path: " + ", ".join(parameter_names)
+            )
         _cached_openai_api_key = key_value
         return key_value
 
@@ -528,20 +540,32 @@ def _is_amplify_secret_placeholder(value: str) -> bool:
     return bool(re.match(r"^<.*will be resolved.*>$", value, re.IGNORECASE))
 
 
-def _resolve_amplify_ssm_secret_path(name: str) -> str:
+def _is_parameter_not_found(exc: BaseException) -> bool:
+    response = getattr(exc, "response", None)
+    error = response.get("Error") if isinstance(response, dict) else None
+    return isinstance(error, dict) and error.get("Code") == "ParameterNotFound"
+
+
+def _resolve_amplify_ssm_secret_paths(name: str) -> list[str]:
+    """Candidate SSM names for a secret: the branch path first, then the shared path."""
     raw_config = _normalize_optional_string(os.environ.get("AMPLIFY_SSM_ENV_CONFIG"))
     if not raw_config:
-        return ""
+        return []
     try:
         config = json.loads(raw_config)
     except json.JSONDecodeError as exc:
         raise RuntimeError("AMPLIFY_SSM_ENV_CONFIG contains invalid JSON.") from exc
     if not isinstance(config, dict):
-        return ""
+        return []
     entry = config.get(name)
     if not isinstance(entry, dict):
-        return ""
-    return _normalize_optional_string(entry.get("path")) or _normalize_optional_string(entry.get("sharedPath")) or ""
+        return []
+    names: list[str] = []
+    for key in ("path", "sharedPath"):
+        candidate = _normalize_optional_string(entry.get(key))
+        if candidate and candidate not in names:
+            names.append(candidate)
+    return names
 
 
 def _normalize_optional_string(value: Any) -> str:

@@ -65,6 +65,11 @@ module.exports = {
     require: ["features/step_definitions/notification-center.steps.js"],
     format: ["summary"],
   },
+  homeCyclotron: {
+    paths: ["features/newsroom-home-cyclotron.feature"],
+    require: ["features/step_definitions/home-cyclotron.steps.js"],
+    format: ["summary"],
+  },
   needsMeLinks: {
     paths: ["features/needs-me-link-suggestions.feature", "features/needs-me-phone-detail.feature"],
     require: ["features/step_definitions/needs-me-links.steps.js"],
