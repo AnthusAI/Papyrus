@@ -2500,12 +2500,17 @@ class Router:
                 stop_at = max(self.time_left() - share, MIN_REMAINING_SECONDS)
                 # The vector pass (index, suggestions) comes first but is held to the first half of this share, so a big backlog of vectors cannot starve the drafting;
                 # what it does not finish is saved and continues next run, or after the drafting if time is left.
-                vector_stop_at = stop_at + (self.time_left() - stop_at) / 2
+                # A publication's share, in three parts: the vector pass the first quarter, reading the signals the next sixth, and the rest (more than half) for
+                # drafting, which is what the run is for. What the vector pass does not finish continues after the drafting if time is left.
+                span = self.time_left() - stop_at
+                vector_stop_at = stop_at + span * 0.75
+                signal_stop_at = stop_at + span * (0.75 - 1 / 6)
                 try:
                     result = self.story_drafter(self.client(publication), publication, transport=self.story_transport,
                                                 now=datetime.fromtimestamp(self.now + passes, timezone.utc),   # a pass's run id (and so its review request) is its own
                                                 out_of_time=lambda stop_at=stop_at: self.time_left() < stop_at,
                                                 vector_out_of_time=lambda vector_stop_at=vector_stop_at: self.time_left() < vector_stop_at,
+                                                signal_out_of_time=lambda signal_stop_at=signal_stop_at: self.time_left() < signal_stop_at,
                                                 handled_references=self.automation_handled_references(publication), embedding_key=self.embedding_key,
                                                 retry_memory=self.retry_memory(pid),
                                                 read_watermark=lambda pid=pid: (self.store.get_any(self.monitor_id, watermark_sort_key(pid)) or {}).get("watermark"),

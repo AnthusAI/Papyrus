@@ -11,7 +11,7 @@ Feature: The router keeps each site's vector index current and writes suggestion
   accepted group an interval of the Reference positions (time and id) it has been through. A Reference newer than the interval is a new arrival and is done first at
   the next pass, so it never waits behind the backlog; the backlog is what is older than the interval and goes on newest first. A pass the time or cost stops
   saves exactly how far it got, the log line says how many suggestions are left, and a Reference that gains a vote after it was suggested as bulk is suggested
-  again as a signal. A watermark that is a plain time, written by an older pass, means everything up to it is done. The pass is held to the first half of a
+  again as a signal. A watermark that is a plain time, written by an older pass, means everything up to it is done. The pass is held to the first quarter of a
   publication's time so that it cannot starve the drafting, and it continues after the drafting if time is left. There is no fixed number of References or
   suggestions: the pass is bounded only by the run's time and its cost meter, to which the embeddings add their price. A site with no index
   recorded in its router entry runs without vectors, and the log line says why suggestions are off. The index addresses and storage buckets are copied from each
@@ -133,10 +133,10 @@ Feature: The router keeps each site's vector index current and writes suggestion
     When the router runs its daily monitor stories with the vector pass
     Then the log line says 2 suggestions written and no suggestions left
 
-  Scenario: The router holds the vector pass to the first half of a publication's time
+  Scenario: The router holds the vector pass to the first quarter of a publication's time
     Given the router has 400 seconds left when a publication starts
     When the router runs its daily monitor stories with a fake drafter
-    Then drafting is out of time at 120 seconds left and the vector pass at 260 seconds left
+    Then drafting is out of time at 120 seconds left and the vector pass at 330 seconds left
 
   Scenario: Concept cards and concept suggestions leave out authors and the graph's own bookkeeping
     Given a site whose graph has the concepts "voice cloning" (task) and "pitch" (concept), an author, a coverage question, a comment concept, a quality rating and a relevance decision

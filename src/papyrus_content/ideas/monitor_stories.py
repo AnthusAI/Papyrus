@@ -35,6 +35,7 @@ import json
 import math
 import re
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -202,7 +203,7 @@ def automated_monitor_ids(client: Any) -> tuple[set[str], str | None]:
 def collect_monitored_items(
     client: Any, *, site: str, since: str | None = None, now: datetime, drafted: set[str] = frozenset(), excluded_hosts: Iterable[str] = (),
     automated_monitors: Iterable[str] = (), automation_handled: Iterable[str] = (), statuses: Iterable[str] = DEFAULT_STATUSES, workers: int = 1,
-    out_of_time: Callable[[], bool] | None = None,
+    out_of_time: Callable[[], bool] | None = None, priority_lineages: Iterable[str] = (), count_pending: bool = True,
 ) -> tuple[list[MonitoredItem], dict[str, int]]:
     """Every monitored Reference of ``site`` (all of them, or only those that arrived inside ``since`` when it is given), each with the monitor,
     the stored details and the Cyclotron's verdict. One indexed query per Reference for its provenance and one more for its decision; the
@@ -221,7 +222,8 @@ def collect_monitored_items(
     statuses = list(dict.fromkeys(statuses))
     window = now - parse_window(since) if since else None
     rows = collect_references(client, [f"{CORPUS_PREFIX}{site}"], statuses, window)
-    not_accepted = 0 if "pending" in statuses else len(collect_references(client, [f"{CORPUS_PREFIX}{site}"], ["pending"], window))
+    # Listing every pending Reference only to count them costs a page per thousand: a run that must hurry (``count_pending=False``) leaves the count to later.
+    not_accepted = 0 if ("pending" in statuses or not count_pending) else len(collect_references(client, [f"{CORPUS_PREFIX}{site}"], ["pending"], window))
     counts = {"inWindow": len(rows), "notAccepted": not_accepted, "notMonitored": 0, "pendingNotCandidate": 0, "noSourceUri": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0, "hasStory": 0}
     automated = set(automated_monitors)
     handled = {str(identifier) for identifier in automation_handled}
@@ -268,7 +270,17 @@ def collect_monitored_items(
         )
         return ("judgedNotRelevant", None) if item.relevant is False else ("item", item)
 
+    # What a person worked on is read first (a vote, stars, a conversation, a tag), then the rest newest first: when the time stops the reading, the Reference an
+    # editor cares about are candidates and the bulk imports are what is left for the next run. The order was by id, which is neither.
+    priority = set(priority_lineages)
+
+    def attention(entry: dict[str, Any]) -> int:
+        human = entry.get("curationActorKind") == HUMAN or latest_stars(entry) is not None or str(entry.get("lineageId") or entry["id"]) in priority
+        return 0 if human else 1
+
     ordered = sorted(rows, key=lambda entry: str(entry["id"]))
+    ordered.sort(key=lambda entry: str(entry.get("curationStatusUpdatedAt") or entry.get("createdAt") or ""), reverse=True)   # newest first (stable)
+    ordered.sort(key=attention)
     if workers > 1:
         with ThreadPoolExecutor(max_workers=workers) as pool:
             outcomes = list(pool.map(read, ordered))
@@ -631,6 +643,8 @@ def draft_monitor_stories(
     knowledge: connection_rules.Knowledge | None = None,
     retry_memory: retry_rules.RetryMemory | None = None,
     suggestions_waiting: bool = False,
+    priority_lineages: Iterable[str] = (),
+    count_pending: bool = True,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing.
 
@@ -677,10 +691,12 @@ def draft_monitor_stories(
     proposals = idea_store.story_drafts() if idea_store else []
     already = drafted_lineage_ids(proposals, stored)
     automated, automation_error = automated_monitor_ids(client)
+    started = time.monotonic()
     items, counts = collect_monitored_items(
         client, site=corpus_key or site, since=since, now=moment, drafted=already, excluded_hosts=excluded_hosts, automated_monitors=automated, automation_handled=automation_handled, statuses=statuses,
-        workers=read_workers, out_of_time=out_of_time,
+        workers=read_workers, out_of_time=out_of_time, priority_lineages=priority_lineages, count_pending=count_pending,
     )
+    timings = {"collectSeconds": round(time.monotonic() - started, 1)}
     if counts.get("readStopped"):
         run["stoppedBy"] = "time"   # the time ran out while reading: what was read is drafted if any time is left, the rest waits for the next run
     run["automatedMonitors"] = sorted(automated)
@@ -900,6 +916,10 @@ def draft_monitor_stories(
         if run["stoppedBy"] == "file_error":
             break
     run["usage"] = _usage(model, run["modelCalls"])
+    timings["afterCollectSeconds"] = round(time.monotonic() - started - timings["collectSeconds"], 1)
+    if not count_pending and "pending" not in list(statuses) and (out_of_time is None or not out_of_time()):
+        counts["notAccepted"] = len(collect_references(client, [f"{CORPUS_PREFIX}{corpus_key or site}"], ["pending"], None))   # counted last, and only if the time allows
+    run["timings"] = timings
     if memory_errors:
         run["retryMemoryErrors"] = dict(memory_errors)
     if pack_model_calls:

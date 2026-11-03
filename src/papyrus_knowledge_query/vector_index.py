@@ -126,6 +126,7 @@ class VectorIndexOptions:
     worker_count: int = 8
     skip_references: bool = False
     stop_check: Callable[[dict[str, Any]], str | None] | None = None
+    skip_indexed: bool = False   # leave out a Reference whose summary vector is in the index with the Reference's current status: no attachment read, no text read, no hash
     concept_kinds: tuple[str, ...] | None = None   # the publication's allowlist of concept kinds; None: every kind but the bookkeeping ones (concept_kinds.py)
 
 
@@ -261,6 +262,19 @@ def index_reference_passages(services: KnowledgeQueryServices, options: VectorIn
     if not options.dry_run:
         _apply_status_reconciliation(vector_index_arn, stale, stats)
         existing_keys -= set(stale["delete"])
+
+    stats["referencesSkippedIndexed"] = 0
+    if options.skip_indexed:
+        # The router's daily pass: preparing a Reference costs a GraphQL read of its attachments (and a storage read of its text) before the index is even asked
+        # whether the vector exists, so a site of thousands of References spent its whole time walking ones that were already done. A Reference whose summary vector
+        # is there with the status the Reference has now needs nothing; a status change (pending to accepted, say) differs and is prepared as before, and the
+        # full sync (the command line) still checks every summary against its hash.
+        statuses = {str(vector.get("key")): str((vector.get("metadata") or {}).get("curationStatus") or "") for vector in existing_vectors
+                    if (vector.get("metadata") or {}).get("vectorKind") == "reference_summary"}
+        waiting = [reference for reference in references
+                   if statuses.get(reference_summary_vector_key(str(reference.get("lineageId") or reference.get("id")))) != reference_curation_status(reference)]
+        stats["referencesSkippedIndexed"] = len(references) - len(waiting)
+        references = waiting
 
     pending_vectors: list[dict[str, Any]] = []
     completed = 0
