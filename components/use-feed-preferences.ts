@@ -25,7 +25,7 @@ export function useFeedPreferences() {
   const [show, setShowState] = useState<FeedShow>(DEFAULT_FEED_SHOW);
   useEffect(() => {
     setSortState(read<FeedSort>(SORT_KEY, ["best", "newest"], DEFAULT_FEED_SORT));
-    setShowState(read<FeedShow>(SHOW_KEY, ["unrated", "all"], DEFAULT_FEED_SHOW));
+    setShowState(read<FeedShow>(SHOW_KEY, ["unrated", "all", "rated"], DEFAULT_FEED_SHOW));
   }, []);
   const setSort = useCallback((next: FeedSort) => { setSortState(next); write(SORT_KEY, next); }, []);
   const setShow = useCallback((next: FeedShow) => { setShowState(next); write(SHOW_KEY, next); }, []);

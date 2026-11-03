@@ -12,6 +12,7 @@ const records = Array.from({ length: 300 }, (_, i) => make(i, ["a", "b", "c"][i 
 test("partitions are one per corpus and state", () => {
   assert.deepEqual(feedStateKeys(["x", "y"], "unrated"), ["x#unrated", "y#unrated"]);
   assert.deepEqual(feedStateKeys(["x", "x"], "all"), ["x#unrated", "x#rated"]);
+  assert.deepEqual(feedStateKeys(["x", "y"], "rated"), ["x#rated", "y#rated"], "Rated reads the rated partitions alone");
 });
 
 for (const sort of ["best", "newest"] as const) {
