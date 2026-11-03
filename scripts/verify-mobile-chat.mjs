@@ -20,7 +20,7 @@ export async function verifyMobileChat(page, origin) {
       const r = el.getBoundingClientRect(), nav = el.closest('nav')?.getBoundingClientRect();
       return !!nav && r.top >= nav.top && r.bottom <= nav.bottom && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('button') === el;
     }), true, "Chat is an unobstructed navigation item, not a content overlay");
-    assert.equal(await page.locator('.organizer-bottom-nav > ul > li').count(), 5);
+    assert.equal(await page.locator('.organizer-bottom-nav > ul > li').count(), 4, "Stories, References, Chat and More: the newsroom home is the wordmark, not a tab");
     await page.touchscreen.tap(target.x + target.width / 2, target.y + target.height / 2);
     await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
     await composer.waitFor();
