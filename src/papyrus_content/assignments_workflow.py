@@ -1687,7 +1687,7 @@ def normalize_research_packet_bundle(
         },
         "researchTrace": trace,
         # multi-search (research.multi) fields: claims with their sources, disagreements, per-provider provenance and contribution
-        **{key: research[key] for key in ("claims", "disagreements", "multiSearch") if research.get(key)},
+        **{key: research[key] for key in ("claims", "unverifiedClaims", "factCheck", "disagreements", "multiSearch") if research.get(key)},
         "openQuestions": open_questions,
         "coverageGaps": coverage_gaps,
         "recommendedAngle": recommended_angle,
@@ -1885,6 +1885,7 @@ def research_packet_body(packet: dict[str, Any]) -> str:
             lines.append(f"{label}: {value}")
     lines = [line for line in lines if line]
     claims = [c for c in _parse_array(packet.get("claims")) if isinstance(c, dict)]
+    unverified = [c for c in _parse_array(packet.get("unverifiedClaims")) if isinstance(c, dict)]
     if claims:
         lines.extend(["", "Claims:"])
         lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}]" for c in claims)
@@ -1894,9 +1895,14 @@ def research_packet_body(packet: dict[str, Any]) -> str:
         for item in disagreements:
             lines.append(f"- {item.get('topic')}")
             lines.extend(f"  - {p.get('position')} [{', '.join(str(i) for i in _parse_array(p.get('sources')))}]"
+                         + (f" (could not verify: {'; '.join(str(r) for r in _parse_array(p.get('reasons')))})" if p.get("unverified") else "")
                          for p in _parse_array(item.get("positions")) if isinstance(p, dict))
+    if unverified:
+        lines.extend(["", "Could not verify:"])
+        lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}] ({'; '.join(str(r) for r in _parse_array(c.get('reasons')))})"
+                     for c in unverified)
     open_questions = [q for q in _parse_array(packet.get("openQuestions")) if q]
-    if claims and open_questions:
+    if (claims or unverified) and open_questions:
         lines.extend(["", "Open questions:", *(f"- {q}" for q in open_questions)])
     return "\n".join(lines)
 

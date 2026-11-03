@@ -218,6 +218,8 @@ papyrus assignments research-multi <assignment-id> [--dry-run]
 contribution, and writes nothing. Also accepted: `--corpus-key`, `--config`, `--model`, `--intake-proposals false`, `--json`.
 The newsroom lists no assignment types today, so the CLI (and `Assignment.create` with `type`) is where an editor picks the mode.
 
+Every claim is fact checked after synthesis: only verified claims stay in `claims`, the rest are held in `unverifiedClaims` with reasons, and the summary is written again from the verified claims. See [fact-checking.md](fact-checking.md). `papyrus assignments fact-check --message <id>` replays the check on a stored packet and writes nothing.
+
 **What it does** (`src/papyrus_content/multi_search_research.py`):
 
 1. *Plan.* One model call (`DEFAULT_LLM_MODEL`, the OpenAI Responses API) turns the brief (title, summary, notes, instructions and
