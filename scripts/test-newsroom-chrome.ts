@@ -25,6 +25,10 @@ const html = `<html><head><meta name="viewport" content="width=device-width"><st
   <nav class="organizer-bottom-nav"><ul><li><a aria-current="page">Articles</a></li></ul></nav>
 </div></body></html>`;
 
+assert.match(shell, /className="organizer-public-site" href=\{backHref\}/, "the phone More menu links to the public site");
+assert.match(readFileSync("components/needs-me-feed.tsx", "utf8"), /Each answer is saved as a label for the Cyclotron\./);
+assert.doesNotMatch(readFileSync("components/needs-me-feed.tsx", "utf8"), /teaches the Cyclotron|reorders what comes next/, "no sentence claims a vote retrains or reorders");
+
 void (async () => {
   const browser = await chromium.launch();
   try {
@@ -50,6 +54,15 @@ void (async () => {
       assert.equal(bar.title, width > 900, width > 900 ? "the bar names the page on a wide screen" : "on a phone the page's own heading names it, so the bar drops the cut-off title");
       assert.equal(bar.settings, width > 900, "on a phone Settings lives in the account menu");
       assert.equal(bar.overflow, false, `nothing in the bar is cut off at ${width}px`);
+      if (width <= 900) for (const count of [3, 4, 5]) {
+        // The bottom tabs centre for any count (Chat is offered on some sites): equal space left and right of the row.
+        const offsets = await page.evaluate((tabs) => {
+          document.querySelector(".organizer-bottom-nav ul")!.innerHTML = Array.from({ length: tabs }, (_, index) => `<li><a>Tab ${index}</a></li>`).join("");
+          const items = Array.from(document.querySelectorAll(".organizer-bottom-nav li")).map((item) => item.getBoundingClientRect());
+          return { left: items[0].left, right: window.innerWidth - items[items.length - 1].right };
+        }, count);
+        assert.ok(Math.abs(offsets.left - offsets.right) < 1, `${count} bottom tabs are centred at ${width}px (${offsets.left} left, ${offsets.right} right)`);
+      }
       await page.close();
     }
   } finally {

@@ -219,7 +219,7 @@ export function ShapingStrip({ stats }: { stats: ShapingStats }) {
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-[20px] bg-[var(--feed-card)] px-4 py-3 text-sm" data-shaping-strip role="status">
       <span className="inline-flex items-center gap-1.5 font-semibold"><SlidersHorizontalIcon aria-hidden="true" className="size-4" />You&rsquo;re shaping this</span>
       {none ? (
-        <span className="text-muted-foreground" data-shaping-empty>Nothing decided yet this week. Each answer teaches the Cyclotron and reorders what comes next.</span>
+        <span className="text-muted-foreground" data-shaping-empty>Nothing decided yet this week. Each answer is saved as a label for the Cyclotron.</span>
       ) : (
         <>
           <span className="text-muted-foreground">This week</span>

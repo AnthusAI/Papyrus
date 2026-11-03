@@ -98,3 +98,19 @@ Then("the page title says Newsroom home, while the queue's own heading still ask
   assert.match(source("components/needs-me-feed.tsx"), /What needs me\?/);
   assert.match(source("lib/newsroom-index-filters.ts"), /\/newsroom\/needs-me\//);
 });
+
+When("the editor has decided nothing this week and reads the home page banner", function () { this.bannerSource = fs.readFileSync(path.join(root, "components/needs-me-feed.tsx"), "utf8"); });
+Then("the banner says each answer is saved as a label for the Cyclotron, and no sentence says an answer retrains the classifier or reorders the feed", function () {
+  assert.match(this.bannerSource, /Each answer is saved as a label for the Cyclotron\./);
+  assert.doesNotMatch(this.bannerSource, /teaches the Cyclotron|reorders what comes next/);
+});
+When("the editor looks at bottom tabs of three, four and five, and opens the More menu on a phone", async function () { this.chromeResult = await run("scripts/test-newsroom-chrome.ts"); });
+Then("every row of tabs has equal space on its left and right", function () { assert.match(this.chromeResult, /newsroom chrome: ok/); });
+Then("the More menu ends with a plain link, with a globe icon, to the public site, the address the top-bar wordmark used before", function () {
+  const shell = fs.readFileSync(path.join(root, "components/newsroom-ops-shell.tsx"), "utf8");
+  assert.match(shell, /className="organizer-public-site" href=\{backHref\}[^]*<Globe size=\{18\}/);
+});
+Then("on a desktop screen there is no link to the public site in the sidebar, so a collapsed or expanded sidebar leaves the editor with the account menu and the address bar only", function () {
+  const shell = fs.readFileSync(path.join(root, "components/newsroom-ops-shell.tsx"), "utf8");
+  assert.equal(shell.split("organizer-public-site\" href").length - 1, 1, "the public-site link exists only in the phone More menu");
+});

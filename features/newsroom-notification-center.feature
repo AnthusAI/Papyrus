@@ -106,3 +106,15 @@ Feature: The newsroom home answers "What needs me?" with one feed that mixes eve
     Then none of them lists a Needs me entry or a second link to the home page, and the bottom tabs are Stories, References and Messages with Chat and More
     And the wordmark in the sidebar, and the wordmark in the top bar that a phone shows, both open the newsroom home
     And the page title says Newsroom home, while the queue's own heading still asks "What needs me?" and the deep links under needs-me keep working
+
+  Scenario: The home page says only what is true about a vote on every site
+    Given the newsroom shell at 375 and 1440 pixels
+    When the editor has decided nothing this week and reads the home page banner
+    Then the banner says each answer is saved as a label for the Cyclotron, and no sentence says an answer retrains the classifier or reorders the feed
+
+  Scenario: The phone's bottom tabs stay centred whatever their number, and More links to the public site
+    Given the newsroom shell at 375 and 1440 pixels
+    When the editor looks at bottom tabs of three, four and five, and opens the More menu on a phone
+    Then every row of tabs has equal space on its left and right
+    And the More menu ends with a plain link, with a globe icon, to the public site, the address the top-bar wordmark used before
+    And on a desktop screen there is no link to the public site in the sidebar, so a collapsed or expanded sidebar leaves the editor with the account menu and the address bar only

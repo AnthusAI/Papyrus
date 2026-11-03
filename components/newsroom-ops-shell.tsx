@@ -7,7 +7,7 @@ import { cn } from "../lib/utils";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Menu, Search, PanelLeftClose, PanelLeftOpen, Settings, UserRound, LogIn, LogOut } from "lucide-react";
+import { Globe, Menu, Search, PanelLeftClose, PanelLeftOpen, Settings, UserRound, LogIn, LogOut } from "lucide-react";
 import { ORGANIZER_NAV_GROUPS, ORGANIZER_PRIMARY_NAV, ORGANIZER_SETTINGS_DESTINATION } from "../lib/newsroom-organizer-nav";
 import { browserPathToInternalNewsroomPath } from "../lib/newsroom-base-path";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
@@ -173,6 +173,7 @@ export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabe
       more={<Sheet open={menuOpen} onOpenChange={setMenuOpen}><SheetTrigger className="organizer-more" aria-label="More"><Menu size={18} aria-hidden="true" /><span>More</span></SheetTrigger>
         <SheetContent side="bottom" className="organizer-menu" {...themeAttributes}><SheetHeader><SheetTitle>Newsroom</SheetTitle><SheetDescription>Workspaces and administration</SheetDescription></SheetHeader>
           <Navigation activePath={activePath} demo={demo} admin={admin} surface="menu" onNavigate={() => setMenuOpen(false)} />
+          <Link className="organizer-public-site" href={backHref} onClick={() => setMenuOpen(false)} data-organizer-public-site><Globe size={18} aria-hidden="true" /><span>{backLabel}</span></Link>
         </SheetContent>
       </Sheet>} />}
   </div>;
