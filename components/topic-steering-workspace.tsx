@@ -3119,7 +3119,7 @@ function NewsDeskDashboard({
     return entries;
   }, [summaryStatus, tabCounts]);
   const opsPageTitle = activeTab === "overview"
-    ? "Notification Center"
+    ? "Newsroom home"
     : activeTab === "administration" && administrationPanel === "sections"
       ? "Sections"
       : formatDeskSectionHeadline(activeTab);

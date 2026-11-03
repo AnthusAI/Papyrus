@@ -163,7 +163,7 @@ export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabe
     <div className="organizer-workspace">
       <header className="organizer-topbar" data-newsroom-ops-topbar>
         {showNavigation && collapsed && sidebarToggle}
-        <Link className="organizer-masthead" href={backHref} title={backLabel}>{MastheadLogo ? <MastheadLogo className="organizer-masthead-logo" /> : appTitle}</Link>
+        <Link className="organizer-masthead" href={showNavigation ? getNewsroomNavHref("/newsroom", demo) : backHref} title={showNavigation ? "Newsroom home" : backLabel}>{MastheadLogo ? <MastheadLogo className="organizer-masthead-logo" /> : appTitle}</Link>
         <h1 data-newsroom-ops-title>{pageTitle}</h1><OrganizerSearch demo={demo} /><div className="organizer-header-actions">{headerActions}</div><Account placement="header" />
       </header>
       <main className="organizer-main">{demo && !session?.shell.dashboard?.realDataPreview && <p className="organizer-demo-notice">Demo workspace · synthetic examples</p>}{children}</main>

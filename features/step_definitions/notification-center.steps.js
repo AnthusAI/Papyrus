@@ -84,3 +84,17 @@ Then("signing in from a deep link comes back to that link, not to the overview",
   assert.match(gate, /<ReaderAuthControl showIdentity \/>/);
   assert.match(control, /window\.location\.replace\(nextPath\)/);
 });
+
+// The home is reached by the wordmark, not a navigation entry: the nav tests read the entries and the shell's wordmark links.
+Given("the newsroom navigation on a desktop and on a phone", function () { this.navResult = ""; });
+When("the editor looks at the sidebar, the bottom tabs, the More menu and the wordmark", async function () {
+  this.navResult = (await run("scripts/test-newsroom-organizer-nav.ts")) + (await run("scripts/test-newsroom-nav.ts"));
+});
+Then("none of them lists a Needs me entry or a second link to the home page, and the bottom tabs are Stories, References and Messages with Chat and More", function () { assert.match(this.navResult, /complete grouped organizer navigation/); });
+Then("the wordmark in the sidebar, and the wordmark in the top bar that a phone shows, both open the newsroom home", function () { assert.match(this.navResult, /newsroom navigation ok/); });
+Then("the page title says Newsroom home, while the queue's own heading still asks \"What needs me?\" and the deep links under needs-me keep working", function () {
+  const source = (file) => fs.readFileSync(path.join(root, file), "utf8");
+  assert.match(source("components/topic-steering-workspace.tsx"), /\? "Newsroom home"/);
+  assert.match(source("components/needs-me-feed.tsx"), /What needs me\?/);
+  assert.match(source("lib/newsroom-index-filters.ts"), /\/newsroom\/needs-me\//);
+});

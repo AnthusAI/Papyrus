@@ -24,7 +24,7 @@ export function NewsDeskAccessGate({ initialTab, shell, showSectionTabs = false 
       headerActions={(
         <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "organizer-header-settings")} href="/settings">Settings</Link>
       )}
-      pageTitle={referencesPage ? "References" : showSectionTabs ? "Notification Center" : "Newsroom"}
+      pageTitle={referencesPage ? "References" : showSectionTabs ? "Newsroom home" : "Newsroom"}
       showNavigation={showSectionTabs || referencesPage}
     >
       {/* The loading state is the feed's own skeleton, so what loads replaces it in place. */}
