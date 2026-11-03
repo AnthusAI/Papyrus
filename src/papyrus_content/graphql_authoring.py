@@ -63,7 +63,7 @@ REFERENCE_FIELDS = (
     "sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount "
     "importRunId importedAt createdAt curationStatus "
     "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey "
-    "discoveredByMonitorId discoveryDetails discoveryRule feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey starFeedKey updatedAt"
+    "discoveredByMonitorId discoveryDetails discoveryRule feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey starFeedKey captureState updatedAt"
 )
 REFERENCE_ATTACHMENT_FIELDS = (
     "id referenceId referenceLineageId referenceVersionNumber referenceVersionKey role sortKey storagePath "
@@ -677,7 +677,7 @@ MUTATIONS = {model: _model_mutations(model) for model in LIST_DEFINITIONS}
 
 # Reference fields newer than some deployed sites. One router serves sites on different versions, so a site whose
 # schema does not have these yet is read without them instead of failing every Reference read.
-NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starFeedKey")
+NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starFeedKey", "captureState")
 _UNDEFINED_NEWER_FIELD = re.compile(r"FieldUndefined: Field '(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")' in type")
 _NEWER_FIELD_SELECTION = re.compile(r"(?<![$\w])(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")\b\s*")
 

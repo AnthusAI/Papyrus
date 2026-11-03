@@ -11,9 +11,11 @@ import { learnConfidenceThreshold, shapingThisWeek } from "../lib/needs-me-ranki
 import { buildNeedsMeItems, type LinkDecision } from "../lib/needs-me-items";
 import type { LinkSuggestion, LinkSuggestionPage } from "../lib/link-suggestions";
 import { captureStatusesByLineage } from "../lib/reference-capture";
+import { captureNeededSourceFromRecords, readCaptureNeeded } from "../lib/capture-needed";
 import { normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import type { ReferencePreview } from "../lib/reference-preview";
 import { referenceLineageId } from "../lib/newsroom-references";
+import { referencePreviewsByLineage } from "../lib/reference-preview";
 import { loadNotificationSnapshot, saveNotificationSnapshot } from "../lib/reference-feed-cache";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import type { HomeCyclotronState } from "../lib/hosted-cyclotron-status";
@@ -24,6 +26,9 @@ import { NeedsMeView, type NeedsMeDecision } from "./needs-me-feed";
 import type { NeedsMeEntry } from "../lib/needs-me-items";
 import type { CorrectCaptureAction } from "./reference-capture-client";
 import type { ReviewChoice } from "./reference-review-card";
+
+/** What the "Needs capture" list reads: the References, and their attachments (the preview picture, why the capture failed). */
+export type CaptureNeededLoad = { references: ReferenceRecord[]; attachments: ReferenceAttachmentRecord[] };
 
 export type NotificationLoadState = "loading" | "ready" | "forbidden" | "unavailable";
 
@@ -51,6 +56,8 @@ export type NotificationApi = {
   loadLinkSuggestions?: (cursor: string | null) => Promise<LinkSuggestionPage>;
   /** Decides a suggested link. Optional: without it the related-links store's decide, the Related section's own call, is used. */
   decideLink?: (relationId: string, decision: "accept" | "reject", reason: string) => Promise<void>;
+  /** The first accepted References that need a person to capture them (best first), with their attachments. Optional: a failure leaves the rest of the page as it is. */
+  loadCaptureNeeded?: () => Promise<CaptureNeededLoad>;
   /** The Cyclotron classifier status of this site's own publication (one small read). Optional: without it the home page shows no classifier panel. */
   loadCyclotronStatus?: () => Promise<HomeCyclotronState>;
 };
@@ -76,6 +83,13 @@ const liveApi: NotificationApi = {
   loadEmail: async (receiptId) => (await import("../lib/monitoring-client")).loadMonitoringEmailSubmission(receiptId),
   decideEmail: async (receiptId, decision, reason) => (await import("../lib/monitoring-client")).decideMonitoringEmailSubmission(receiptId, decision, reason),
   loadCyclotronStatus: async () => (await import("../lib/monitoring-client")).loadCyclotronStatusRows(),
+  // The star partitions, then the rated partition, a page at a time until enough are found. It also serves the local preview and the test mock.
+  loadCaptureNeeded: async () => {
+    const client = await import("./news-desk-taxonomy-client");
+    const corpusIds = await client.loadReferenceFeedCorpusIds();
+    const references = await readCaptureNeeded({ corpusIds, readStarStream: client.readReferenceStarStream, readStream: client.readReferenceFeedStream });
+    return { references, attachments: await client.loadReferenceAttachmentsForLineages(references.map(referenceLineageId)) };
+  },
 };
 
 /** The demo and the real-data preview answer in memory with the same rules as the live data API; nothing leaves the page. */
@@ -175,6 +189,8 @@ export function NotificationCenter({
   const [stay, setStay] = useState<ReadonlySet<string>>(new Set());
   const [visitRated, setVisitRated] = useState<ReadonlySet<string>>(new Set());
   const [now] = useState(() => Date.now());
+  const [captureNeeded, setCaptureNeeded] = useState<CaptureNeededLoad>({ references: [], attachments: [] });
+  const [capturedNow, setCapturedNow] = useState<ReadonlySet<string>>(new Set());
   const demoStarted = useRef(false);
   const preview = useMemo(() => previewState(), []);
   const sample = useMemo(() => {
@@ -196,6 +212,40 @@ export function NotificationCenter({
       .catch(() => { if (!cancelled) setCyclotron({ state: "unavailable" }); });
     return () => { cancelled = true; };
   }, [api]);
+
+  // Accepted References nobody could capture: one more source among the others. The demo and the local preview read the records the page holds. A site
+  // whose schema lacks the star index or the field, or any failed read, simply lists none; the rest of the page never waits for it.
+  const demoReferences = useRef({ references, referenceAttachments });
+  demoReferences.current = { references, referenceAttachments };
+  const loadCaptureNeededNow = useCallback(async () => {
+    if (preview === "caught-up") { setCaptureNeeded({ references: [], attachments: [] }); return; }
+    try {
+      if (api.loadCaptureNeeded) { setCaptureNeeded(await api.loadCaptureNeeded()); return; }
+      if (!demo) return;
+      const held = demoReferences.current;
+      // The local preview reads its own seeded References (the same ones the References page lists), as the feed's readers do.
+      const records = isLocalPreviewEnabled() ? (await import("../lib/local-preview-seed")).createLocalPreviewReferences() : held.references;
+      const found = await readCaptureNeeded(captureNeededSourceFromRecords(records));
+      const lineages = new Set(found.map(referenceLineageId));
+      setCaptureNeeded({ references: found, attachments: held.referenceAttachments.filter((attachment) => lineages.has(attachment.referenceLineageId)) });
+    } catch {
+      // The capture list is optional.
+    }
+  }, [api, demo, preview]);
+  const heldReferenceCount = references.length;
+  useEffect(() => { void loadCaptureNeededNow(); }, [loadCaptureNeededNow, heldReferenceCount]);
+  const captureNeededRef = useRef(captureNeeded);
+  captureNeededRef.current = captureNeeded;
+  /** A person pasted or uploaded the text: the Reference leaves the list at once, and the next one is read in. */
+  const correctCapture = useMemo<CorrectCaptureAction | undefined>(() => (onCorrectCapture ? async (input) => {
+    const result = await onCorrectCapture(input);
+    if (input.text !== undefined || input.pdfAttachmentId !== undefined) {
+      const held = captureNeededRef.current.references.find((reference) => reference.id === input.referenceId);
+      if (held) setCapturedNow((current) => new Set(current).add(referenceLineageId(held)));
+      void loadCaptureNeededNow();
+    }
+    return result;
+  } : undefined), [loadCaptureNeededNow, onCorrectCapture]);
 
   const keep = useCallback((key: string) => setStay((current) => (current.has(key) ? current : new Set(current).add(key))), []);
 
@@ -380,15 +430,25 @@ export function NotificationCenter({
   }, [answer, onRateReference, sendEmailDecision, sendLinkDecision]);
 
   const shownReferences = preview === "caught-up" ? references.filter((reference) => normalizeReferenceCurationStatus(reference.curationStatus) !== "pending") : references;
-  const lineageIds = useMemo(() => shownReferences.map(referenceLineageId), [shownReferences]);
-  const { statuses: captures, teaserLine } = useMemo(() => captureStatusesByLineage(referenceAttachments, lineageIds), [lineageIds, referenceAttachments]);
+  const everyAttachment = useMemo(() => {
+    if (!captureNeeded.attachments.length) return referenceAttachments;
+    const known = new Set(referenceAttachments.map((attachment) => attachment.id));
+    return [...referenceAttachments, ...captureNeeded.attachments.filter((attachment) => !known.has(attachment.id))];
+  }, [captureNeeded.attachments, referenceAttachments]);
+  const lineageIds = useMemo(() => [...shownReferences.map(referenceLineageId), ...captureNeeded.references.map(referenceLineageId)], [captureNeeded.references, shownReferences]);
+  const { statuses: captures, teaserLine } = useMemo(() => captureStatusesByLineage(everyAttachment, lineageIds), [lineageIds, everyAttachment]);
 
+  const capturePreviews = useMemo(() => {
+    if (!captureNeeded.attachments.length) return previews;
+    return new Map([...referencePreviewsByLineage(captureNeeded.attachments), ...previews]);
+  }, [captureNeeded.attachments, previews]);
   const entries = useMemo(
     () => buildNeedsMeItems({
-      references: shownReferences, decisions, previews, captures, visitRated, requests, stay, demo, ideaStages,
+      references: shownReferences, decisions, previews: capturePreviews, captures, visitRated, requests, stay, demo, ideaStages,
       storyTitles, storyExcerpts, deletedStories, emails, emailsDecided, linkSuggestions, linksDecided,
+      captureNeeded: captureNeeded.references, capturedNow,
     }),
-    [shownReferences, decisions, previews, captures, visitRated, requests, stay, demo, ideaStages, storyTitles, storyExcerpts, deletedStories, emails, emailsDecided, linkSuggestions, linksDecided],
+    [shownReferences, decisions, capturePreviews, captures, visitRated, requests, stay, demo, ideaStages, storyTitles, storyExcerpts, deletedStories, emails, emailsDecided, linkSuggestions, linksDecided, captureNeeded.references, capturedNow],
   );
   const threshold = useMemo(() => learnConfidenceThreshold(shownReferences, decisions, visitRated), [shownReferences, decisions, visitRated]);
   const recent = useMemo(() => recentDecisions(requests, references, demo), [requests, references, demo]);
@@ -406,9 +466,9 @@ export function NotificationCenter({
   return (
     <NeedsMeView
       below={below} captureTeaserLine={teaserLine} cyclotron={cyclotron} demo={demo} entries={entries} error={error} legacyAuto={legacyAuto}
-      loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason} onSetStars={onSetReferenceStars}
+      loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} now={now} onCorrectCapture={correctCapture} onDecide={decide} onEditReason={editReason} onSetStars={onSetReferenceStars}
       moreLinks={linksCursor !== null} loadingMoreLinks={linksLoadingMore} onLoadMoreLinks={loadMoreLinks}
-      predictionLoading={predictionLoading} recent={recent} referenceAttachments={referenceAttachments}
+      predictionLoading={predictionLoading} recent={recent} referenceAttachments={everyAttachment}
       referenceDisabledReason={referenceDisabledReason} referencesLoading={referencesLoading} settled={settled} shaping={shaping} stale={stale} threshold={threshold}
     />
   );

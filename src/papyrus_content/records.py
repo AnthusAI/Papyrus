@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
@@ -8,7 +9,10 @@ from typing import Any, Callable
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, strip_unsupported_payload_fields
 from .ids import hash_short
 from .model_attachments import expand_private_payload_records, upload_attachment_body
+from .reference_capture_state import EXTRACTED_TEXT_ROLES, sync_capture_state
 from .reference_feed_keys import feed_keys, prediction_sort_key, star_feed_key
+
+LOGGER = logging.getLogger(__name__)
 
 
 APPEND_ONLY_EXISTING_NOOP_MODELS = frozenset(
@@ -108,7 +112,7 @@ KEPT_FEED_FIELDS = ("predictedAcceptProbability", "predictionDecidedAt", "predic
 
 
 def _feed_keys_for_new_version(next_reference: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
-    """A new version of a Reference is in the feed like the one it replaces: the original prediction, arrival and an editor's stars carry over."""
+    """A new version of a Reference is in the feed like the one it replaces: the original prediction, arrival and an editor's stars and its capture state carry over."""
     carried = {key: current[key] for key in ("predictedAcceptProbability", "predictionDecidedAt", "feedArrivalAt") if current.get(key) is not None}
     keys = feed_keys({**next_reference, **carried})
     if carried.get("feedArrivalAt"):
@@ -117,7 +121,10 @@ def _feed_keys_for_new_version(next_reference: dict[str, Any], current: dict[str
     stars = {key: current[key] for key in ("starRating", "starRatedAt", "starRatedBy") if current.get(key) is not None}
     if stars.get("starRating") is not None:
         stars["starFeedKey"] = star_feed_key(next_reference.get("corpusId"), stars["starRating"])
-    return {**carried, **keys, **stars}
+    # The capture state carries too (the curation card and the captured text belong to the old version's id, but the newsroom reads a Reference's
+    # attachments by lineage). A new version whose own batch writes extracted text has that state re-derived afterwards by apply_record_changes.
+    capture = {"captureState": current["captureState"]} if current.get("captureState") and not next_reference.get("captureState") else {}
+    return {**carried, **keys, **stars, **capture}
 
 
 def build_record_change_from_current(
@@ -452,12 +459,33 @@ def apply_record_changes(
         if errors:
             raise errors[0]
 
+    _sync_capture_states_after(client, owner_changes)
     for change in attachment_changes:
         # createModelAttachmentUpload/completeModelAttachmentUpload already upserts
         # the ModelAttachment record. Avoid a second direct model mutation here,
         # because ModelAttachment writes may be intentionally restricted to the
         # upload handlers.
         upload_attachment_body(client, change["expected"], change["attachmentBody"])
+
+
+def _sync_capture_states_after(client: PapyrusGraphQLAuthoringClient, changes: list[dict[str, Any]]) -> None:
+    """Older captured text is a ``ReferenceAttachment`` with role ``extracted_text`` or ``extracted_text_raw`` (``papyrus references
+    process-fetch-url-text`` / ``attach-extracted-text``, assignment registration and the text filter all apply their plans here): keep the
+    stored ``Reference.captureState`` of each Reference they belong to right. A failure to do so never fails the write that caused it."""
+    written: dict[str, list[dict[str, Any]]] = {}
+    for change in changes:
+        expected = change.get("expected") or {}
+        if (change.get("modelName") == "ReferenceAttachment" and change.get("action") in {"create", "update", "upsert"}
+                and expected.get("role") in EXTRACTED_TEXT_ROLES and expected.get("referenceId")):
+            written.setdefault(str(expected["referenceId"]), []).append(expected)
+    for reference_id, rows in sorted(written.items()):
+        try:
+            reference = client.get_record("Reference", reference_id)
+            # The index may not show a row written a moment ago, so the rows just written are passed along.
+            if reference and reference.get("versionState", "current") == "current":
+                sync_capture_state(client, reference, extra_attachments=rows)
+        except Exception as error:   # noqa: BLE001 - the text is written; the state is repaired by the next write or the backfill
+            LOGGER.warning("captureState of %s could not be updated: %s", reference_id, error)
 
 
 def _apply_change(client: PapyrusGraphQLAuthoringClient, change: dict[str, Any]) -> None:

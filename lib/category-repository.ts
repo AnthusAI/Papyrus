@@ -301,6 +301,8 @@ export type ReferenceRecord = {
   predictionSortKey?: string | null;
   /** `<corpusId>#stars#<n>` while the Reference has stars: the star index's partition (docs/reference-feed-indexes.md). */
   starFeedKey?: string | null;
+  /** How much content is held: `full`, `thin`, `none` or `running`; empty means `none` (`storedCaptureState` in lib/reference-capture.ts). */
+  captureState?: string | null;
   /** The monitor that delivered this Reference (set at intake; the Reference is the record, no Message). */
   discoveredByMonitorId?: string | null;
   /** What the monitor's source said about it (a Hub model's structured fields, say). */

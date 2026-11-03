@@ -450,7 +450,7 @@ const MODEL_ATTACHMENTS_BY_OWNER_QUERY = `
 
 /** Matches Reference model fields in amplify/data/resource.ts (no metadata on Reference). */
 const REFERENCE_RECORD_GRAPHQL_FIELDS =
-  "id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey discoveredByMonitorId updatedAt";
+  "id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey captureState discoveredByMonitorId updatedAt";
 
 const LIST_REFERENCES_BY_LINEAGE_AND_VERSION_QUERY = `
   query ListReferencesByLineageAndVersion($lineageId: ID!, $limit: Int, $nextToken: String) {
@@ -2125,7 +2125,9 @@ export const searchReferences: ReferenceSearchReader = async (input) => {
     args: { input: string },
     options: { authMode: typeof USER_POOL_AUTH_MODE },
   ) => Promise<{ data?: unknown; errors?: unknown[] | null }>;
-  const response = await query({ input: JSON.stringify(input) }, { authMode: USER_POOL_AUTH_MODE });
+  // `captured` is sent only when chosen: a site whose search has not been updated still answers every other request.
+  const { captured, ...rest } = input;
+  const response = await query({ input: JSON.stringify(captured && captured !== "any" ? { ...rest, captured } : rest) }, { authMode: USER_POOL_AUTH_MODE });
   assertNoGraphQLErrors(response.errors);
   return parseSearchPage(response.data);
 };

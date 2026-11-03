@@ -90,6 +90,11 @@ module.exports = {
     require: ["features/step_definitions/reference-quality.steps.js"],
     format: ["summary"],
   },
+  referenceCaptureNeeded: {
+    paths: ["features/newsroom-reference-capture-needed.feature"],
+    require: ["features/step_definitions/reference-capture-needed.steps.js"],
+    format: ["summary"],
+  },
   conversations: {
     paths: ["features/newsroom-conversations.feature"],
     require: ["features/step_definitions/conversations.steps.js"],

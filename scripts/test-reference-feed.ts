@@ -5,7 +5,7 @@ import { chromium, type Page } from "playwright";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 
-declare global { interface Window { requests: Array<{ kind: string; sort?: string; limit?: number; ids?: string[]; key?: string }>; site: any[]; searches: Array<{ query: string; show: string; limit: number; cursor: string | null; sort?: string; minStars?: number | null }> } }
+declare global { interface Window { requests: Array<{ kind: string; sort?: string; limit?: number; ids?: string[]; key?: string }>; site: any[]; searches: Array<{ query: string; show: string; limit: number; cursor: string | null; sort?: string; minStars?: number | null; captured?: string }> } }
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const origin = "http://reference-feed.test";
@@ -294,11 +294,16 @@ function buildQualitySite() {
   const day = (days) => new Date(NOW - days * DAY).toISOString();
   const row = (id, stars, state, days, extra = {}) => ({ ...make(id, { title: "Quality topic " + id, curationStatus: state === "unrated" ? "pending" : state, createdAt: day(days), sourcePublishedAt: day(days), ...(stars ? { starRating: stars } : {}), ...extra }) });
   const rows = [
-    row("five-new", 5, "accepted", 1), row("five-old", 5, "unrated", 6), row("four-new", 4, "rejected", 2, { corpusId: "d" }), row("four-old", 4, "unrated", 7),
-    row("three", 3, "accepted", 3), row("two", 2, "accepted", 4, { corpusId: "d" }), row("one", 1, "unrated", 5),
-    row("plain-new", 0, "unrated", 0.5), row("plain-old", 0, "unrated", 8),
+    row("five-new", 5, "accepted", 1, { captureState: "none" }), row("five-old", 5, "unrated", 6, { captureState: "full" }), row("four-new", 4, "rejected", 2, { corpusId: "d", captureState: "thin" }), row("four-old", 4, "unrated", 7),
+    row("three", 3, "accepted", 3, { captureState: "full" }), row("two", 2, "accepted", 4, { corpusId: "d", captureState: "running" }), row("one", 1, "unrated", 5, { captureState: "none" }),
+    row("plain-new", 0, "unrated", 0.5, { captureState: "full" }), row("plain-old", 0, "unrated", 8, { captureState: "none" }),
     row("archived-five", 5, "archived", 0.2), row("superseded-four", 4, "unrated", 0.3, { versionState: "superseded" }),
   ].filter((reference) => !(params.has("noFive") && reference.starRating === 5 && reference.curationStatus !== "archived"));
+  if (params.has("filtered")) {
+    // Sixty newer References we hold in full, ahead of three we could not collect: Captured No filters whole pages away before the first match.
+    for (let index = 0; index < 60; index += 1) rows.push(row("held-" + index, 0, "unrated", 0.001 * (index + 1), { captureState: "full" }));
+    for (let index = 0; index < 3; index += 1) rows.push(row("tail-" + index, 0, "unrated", 20 + index, { captureState: "none" }));
+  }
   if (params.has("ghosts")) {
     for (let index = 0; index < 60; index += 1) rows.push(row("ghost-" + index, 5, "archived", 0.001 * (index + 1)));
   }
@@ -313,13 +318,13 @@ const qualitySource = {
   readStarStream: async (query) => { window.requests.push({ kind: "stars", key: query.feedStateKey, sort: query.sort, limit: query.limit }); return qualityStarRead(query); },
 };
 const qualitySearch = async (input) => {
-  window.searches.push({ query: input.query, show: input.show, limit: input.limit, cursor: input.cursor, sort: input.sort, minStars: input.minStars });
+  window.searches.push({ query: input.query, show: input.show, limit: input.limit, cursor: input.cursor, sort: input.sort, minStars: input.minStars, captured: input.captured });
   return previewSearch(QUALITY_SITE, input);
 };
 function QualityHarness() {
   const controls = useFeedControls({ searchRead: qualitySearch });
-  const { search, minStars } = controls;
-  const feed = useIndexedReferenceFeed({ enabled: !search.searching, source: qualitySource, sort: controls.saved.sort, show: controls.saved.show, minStars });
+  const { search, minStars, captured } = controls;
+  const feed = useIndexedReferenceFeed({ enabled: !search.searching, source: qualitySource, sort: controls.saved.sort, show: controls.saved.show, minStars, captured });
   const active = search.searching ? search.feed : feed;
   const items = useMemo(() => active.records.map((record) => scoreFeedItem(record, undefined)), [active.records]);
   return <ReferenceFeed
@@ -329,8 +334,10 @@ function QualityHarness() {
     leadId={undefined}
     loading={active.status === "loading" || active.status === "idle"}
     loadingMore={active.loadingMore}
+    captured={captured}
     minStars={minStars}
     now={NOW}
+    onCapturedChange={controls.setCaptured}
     onLoadMore={() => { void active.loadMore(); }}
     onMinStarsChange={controls.setMinStars}
     onOpen={() => undefined}
@@ -705,7 +712,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await cards(page).first().waitFor();
       const pressed = (kind: string, key: string) => page.locator(`[data-feed-${kind}-button=${key}]`).getAttribute("aria-pressed");
       assert.equal(await pressed("sort", "best"), "true", "Predictions is the default");
-      assert.equal(await pressed("show", "unrated"), "true", "Unrated is the default");
+      assert.equal(await pressed("show", "unrated"), "true", "Reviewed No is the default");
       for (const kind of ["sort", "show"]) {
         for (const button of await page.locator(`[data-feed-${kind}-button]`).all()) {
           assert.ok((await button.locator("svg").count()) >= 1, "a Lucide icon beside the words");
@@ -762,7 +769,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok((await skeleton.locator(".animate-pulse").count()) > 10);
       assert.equal(await cards(page).count(), 0);
       assert.equal(await page.locator("[data-feed-sort-button]").count(), 3, "the feed's controls are already on the page");
-      assert.equal(await page.locator("[data-feed-show-button]").count(), 3);
+      assert.equal(await page.locator("[data-feed-show-button]").count(), 4);
       assert.ok(!/checking|credentials/i.test(await page.locator("body").innerText()));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     });
@@ -806,7 +813,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await button.click();
       const panel = page.locator("[data-feed-ranking-panel]");
       const text = await panel.innerText();
-      for (const expected of ["A feed run by algorithms you control", "Predictions", "Newest", "Unrated", "All", "Your answers stay put", "Age does not change"]) {
+      for (const expected of ["A feed run by algorithms you control", "Predictions", "Newest", "Reviewed", "Accepted", "Captured", "Any", "Your answers stay put", "Age does not change"]) {
         assert.ok(text.includes(expected), `the popover says: ${expected}`);
       }
       const box = (await panel.boundingBox())!;
@@ -929,7 +936,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.locator("[data-feed-show-button=rated]").click();
       await page.waitForFunction(() => window.requests.some((request) => request.kind === "index"));
       await page.locator("[data-feed-empty]").waitFor();
-      assert.match(await page.locator("[data-feed-empty]").innerText(), /Nothing rated yet/, "an empty Rated says so in plain words");
+      assert.match(await page.locator("[data-feed-empty]").innerText(), /Nothing reviewed yet/, "an empty Reviewed Yes says so in plain words");
       const keys = await page.evaluate(() => window.requests.filter((request) => request.kind === "index").map((request) => (request as unknown as { key: string }).key));
       assert.ok(keys.length > 0 && keys.every((key) => key.endsWith("#rated")), "Rated reads the rated partitions alone");
     });
@@ -1067,7 +1074,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await card(page, "rejected-by-author").waitFor();
       await page.locator("[data-feed-show-button=unrated]").click();
       await page.locator("[data-feed-search-empty]").waitFor();
-      assert.ok((await page.locator("[data-feed-search-empty]").innerText()).startsWith("No unrated matches"));
+      assert.ok((await page.locator("[data-feed-search-empty]").innerText()).startsWith("No matches with Reviewed No"));
       if (shotDir) await page.screenshot({ path: `${shotDir}/search-empty-filtered-${width}.png` });
       await page.locator("[data-feed-show-all]").click();
       await card(page, "rejected-by-author").waitFor();
@@ -1248,7 +1255,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await pressed(sortButton(page, "relevance")), true, "a search opens on Relevance");
       await sortButton(page, "newest").click();
       await waitOrder(page, ["plain-new", "five-new", "four-new", "three", "two", "one", "five-old", "four-old", "plain-old"]);
-      assert.deepEqual((await searches(page)).at(-1), { query: "quality topic", show: "all", limit: 24, cursor: null, sort: "newest", minStars: null });
+      assert.deepEqual((await searches(page)).at(-1), { query: "quality topic", show: "all", limit: 24, cursor: null, sort: "newest", minStars: null, captured: "any" });
       await sortButton(page, "quality").click();
       await waitOrder(page, [...QUALITY, "plain-new", "plain-old"]);
       assert.equal((await searches(page)).at(-1)!.sort, "quality");
@@ -1281,6 +1288,124 @@ const scenarios: Record<string, () => Promise<void>> = {
       await waitOrder(page, QUALITY);
       const reads = (await requests(page)).filter((request) => request.kind === "stars" && request.key === "c#stars#5").length;
       assert.ok(reads >= 3, "three pages of the 5 star partition were read to get past 60 archived rows, got " + reads);
+    });
+  },
+
+  /**
+   * Reviewed (Any, Accepted, Yes, No) and Captured (Any, Yes, No): the words, the buttons, the filtering of the feed and of a search, the saved
+   * choice, a page address that opens a view without saving it, the empty state, and a run of filtered pages that does not end the list.
+   */
+  async captured() {
+    const shotDir = process.env.CAPTURE_SHOTS;
+    if (shotDir) fs.mkdirSync(shotDir, { recursive: true });
+    const button = (page: Page, kind: string, key: string) => page.locator(`[data-feed-${kind}-button="${key}"]`);
+    const pressed = async (page: Page, kind: string, key: string) => (await button(page, kind, key).getAttribute("aria-pressed")) === "true";
+    const waitOrder = async (page: Page, expected: string[]) => {
+      await page.waitForFunction((ids) => JSON.stringify(Array.from(document.querySelectorAll("[data-feed-card]")).map((element) => element.getAttribute("data-feed-card"))) === JSON.stringify(ids), expected, { timeout: 8000 });
+      assert.deepEqual(await order(page), expected);
+    };
+    const noSideScroll = async (page: Page) => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal scroll");
+    const searches = (page: Page) => page.evaluate(() => window.searches.slice());
+
+    await run("?quality=1", [375, 1440], async (page, width) => {
+      await cards(page).first().waitFor();
+      // The words: a labelled row for Reviewed and one for Captured, each a group of buttons with an icon and words; no drop-downs, no borders.
+      assert.ok((await page.locator("[data-feed-control=show]").innerText()).startsWith("Reviewed"));
+      assert.ok((await page.locator("[data-feed-control=captured]").innerText()).startsWith("Captured"));
+      assert.deepEqual(await page.locator("[data-feed-show-button]").evaluateAll((buttons) => buttons.map((b) => (b.textContent ?? "").trim())), ["Any", "Accepted", "Yes", "No"]);
+      assert.deepEqual(await page.locator("[data-feed-show-button]").evaluateAll((buttons) => buttons.map((b) => b.getAttribute("data-feed-show-button"))), ["all", "accepted", "rated", "unrated"], "the saved values keep their names");
+      assert.deepEqual(await page.locator("[data-feed-captured-button]").evaluateAll((buttons) => buttons.map((b) => (b.textContent ?? "").trim())), ["Any", "Yes", "No"]);
+      for (const selector of ["[data-feed-show-button]", "[data-feed-captured-button]"]) {
+        for (const each of await page.locator(selector).all()) assert.ok((await each.locator("svg").count()) >= 1, "a Lucide icon beside the words");
+      }
+      assert.equal(await page.locator("select").count(), 0, "no drop-downs");
+      assert.equal(await pressed(page, "captured", "any"), true, "Captured is Any by default");
+      assert.equal(await pressed(page, "show", "unrated"), true, "Reviewed is No by default");
+      const borders = await page.locator("[data-feed-control=show] *, [data-feed-control=captured] *").evaluateAll((elements) => elements.filter((element) => {
+        const style = getComputedStyle(element);
+        return ["Top", "Right", "Bottom", "Left"].some((side) => parseFloat((style as unknown as Record<string, string>)[`border${side}Width`]) > 0 && (style as unknown as Record<string, string>)[`border${side}Style`] !== "none");
+      }).length);
+      assert.equal(borders, 0, "no borders on the new controls");
+      await noSideScroll(page);
+      if (shotDir) await page.screenshot({ path: `${shotDir}/capture-controls-${width}.png` });
+
+      // Quality shows every starred card; Reviewed moves from No to Any with it (the existing rule).
+      await page.locator("[data-feed-sort-button=quality]").click();
+      assert.equal(await pressed(page, "show", "all"), true, "Quality moved Reviewed to Any");
+      await waitOrder(page, ["five-new", "five-old", "four-new", "four-old", "three", "two", "one"]);
+      await button(page, "captured", "no").click();
+      assert.equal(await pressed(page, "captured", "no"), true);
+      await waitOrder(page, ["five-new", "four-new", "four-old", "two", "one"]);   // thin, none, empty and running are all not captured
+      await button(page, "captured", "yes").click();
+      await waitOrder(page, ["five-old", "three"]);
+      await button(page, "captured", "any").click();
+      await button(page, "show", "accepted").click();
+      await waitOrder(page, ["five-new", "three", "two"]);   // the rejected one is not here
+      await button(page, "captured", "no").click();
+      await waitOrder(page, ["five-new", "two"]);   // accepted, not captured, including one still being captured
+      await button(page, "show", "rated").click();
+      await button(page, "captured", "any").click();
+      await waitOrder(page, ["five-new", "four-new", "three", "two"]);   // Yes is accepted or rejected
+      assert.equal(await page.evaluate(() => localStorage.getItem("papyrus:reference-feed:show")), "rated");
+
+      // The choices are remembered in this browser.
+      await button(page, "captured", "no").click();
+      await page.reload();
+      await cards(page).first().waitFor();
+      assert.equal(await page.evaluate(() => localStorage.getItem("papyrus:reference-feed:captured")), "no");
+      assert.equal(await pressed(page, "captured", "no"), true, "Captured is remembered");
+      assert.equal(await pressed(page, "show", "rated"), true, "and so is Reviewed");
+
+      // The empty state names what found nothing, and offers a way out.
+      await button(page, "show", "accepted").click();
+      await page.locator("[data-feed-min-stars-button='5']").click();
+      await button(page, "captured", "yes").click();
+      await page.locator("[data-feed-captured-empty]").waitFor();
+      assert.equal((await page.locator("[data-feed-captured-empty]").innerText()).replace(/\n+/g, " / "), "Nothing here has 5 stars and has been captured. / Show any stars / Show any Captured");
+      if (shotDir) await page.screenshot({ path: `${shotDir}/capture-empty-${width}.png` });
+      await page.locator("[data-feed-captured-clear]").click();
+      await waitOrder(page, ["five-new"]);   // accepted with 5 stars, whether captured or not
+      assert.equal(await page.locator("[data-feed-empty]").count(), 0);
+    });
+
+    // A search takes Captured and Reviewed Accepted too.
+    await run("?quality=1", [375], async (page) => {
+      await cards(page).first().waitFor();
+      await button(page, "captured", "no").click();
+      await page.locator("[data-feed-search-input]").fill("Quality topic");
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(() => window.searches.length > 0);
+      assert.equal((await searches(page))[0]!.captured, "no", "the search is asked for Captured No");
+      await waitOrder(page, ["five-new", "four-new", "two", "one", "four-old", "plain-old"]);
+      await button(page, "show", "accepted").click();
+      await waitOrder(page, ["five-new", "two"]);
+      assert.equal((await searches(page)).at(-1)!.show, "accepted");
+      assert.equal(await page.evaluate(() => localStorage.getItem("papyrus:reference-feed:show")), null, "choosing Reviewed during a search is not saved");
+    });
+
+    // A page address opens a view for this visit without saving it (the home page's See all).
+    await run("?quality=1&reviewed=accepted&captured=no&sort=quality&minStars=0", [375, 1440], async (page, width) => {
+      await cards(page).first().waitFor();
+      assert.equal(await pressed(page, "show", "accepted"), true);
+      assert.equal(await pressed(page, "captured", "no"), true);
+      assert.equal(await pressed(page, "sort", "quality"), true);
+      await waitOrder(page, ["five-new", "two"]);
+      for (const key of ["show", "captured", "sort", "min-stars"]) assert.equal(await page.evaluate((name) => localStorage.getItem(`papyrus:reference-feed:${name}`), key), null, `${key} was not saved`);
+      await button(page, "captured", "any").click();
+      assert.equal(await page.evaluate(() => localStorage.getItem("papyrus:reference-feed:captured")), null, "changing a control inside an address-chosen view does not save either");
+      await waitOrder(page, ["five-new", "three", "two"]);
+      if (shotDir) await page.screenshot({ path: `${shotDir}/capture-see-all-view-${width}.png` });
+    });
+
+    // Sixty filtered rows ahead of the three that match: scrolling goes on until they come.
+    await run("?quality=1&filtered=1", [375], async (page) => {
+      await cards(page).first().waitFor();
+      await page.locator("[data-feed-sort-button=newest]").click();
+      await button(page, "captured", "no").click();
+      await page.waitForFunction(() => document.querySelectorAll("[data-feed-card^='tail-']").length === 3, undefined, { timeout: 15000 });
+      const ids = await order(page);
+      assert.ok(ids.includes("tail-0") && ids.includes("tail-2"), "the cards behind sixty filtered rows were reached");
+      assert.ok(!ids.some((id) => id?.startsWith("held-")), "none of the captured ones is shown");
     });
   },
 

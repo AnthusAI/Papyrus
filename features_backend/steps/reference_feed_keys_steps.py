@@ -43,6 +43,8 @@ class Backend:
         return "created"
 
     def list_by_index(self, index, key):
+        if index == "referenceAttachmentsByReferenceLineageAndSortKey":
+            return []   # no captured text anywhere in these scenarios
         assert index == "referencesByCurationStatusKey", index
         return [dict(row) for row in self.rows.values() if f"{row['corpusId']}#{row['curationStatus']}" == key]
 

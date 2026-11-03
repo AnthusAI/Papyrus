@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MergedFeedReader, compareFeedRecords, feedReaderFromRecords, feedStateKeys, liveStarRows, shownInFeed, starFeedKeys, starReaderFromRecords, starsOf } from "../lib/reference-feed-pages";
+import { MergedFeedReader, acceptedRows, capturedRows, compareFeedRecords, feedReaderFromRecords, feedStateKeys, liveStarRows, shownInFeed, starFeedKeys, starReaderFromRecords, starsOf } from "../lib/reference-feed-pages";
 import type { ReferenceRecord } from "../lib/category-repository";
+import { CAPTURE_NEEDED_SHOWN, captureNeededSourceFromRecords, readCaptureNeeded } from "../lib/capture-needed";
 
 const make = (i: number, corpusId: string, extra: Partial<ReferenceRecord> = {}): ReferenceRecord => ({
   id: `r${i}-v1`, lineageId: `r${i}`, versionState: "current", corpusId, externalItemId: `r${i}`, curationStatus: "pending",
@@ -114,4 +115,63 @@ test("a page that filters to nothing does not end the feed: the reader keeps rea
   while (reader.hasMore) { calls += 1; placed.push(...(await reader.more(24)).map((row) => row.lineageId!)); assert.ok(calls < 10); }
   assert.deepEqual(placed.sort(), ["r100", "r101", "r102"]);
   assert.equal(reads, 3, "three pages of 24 cover the 63 rows");
+});
+
+const held = (i: number, fields: Partial<ReferenceRecord> = {}): ReferenceRecord => ({
+  ...make(i, "g"), curationStatus: "accepted", feedStateKey: "g#rated", feedArrivalAt: new Date(Date.UTC(2026, 10, 1) + i * 1000).toISOString(), ...fields,
+});
+
+test("Reviewed Accepted reads the rated partition and keeps only the accepted", async () => {
+  assert.deepEqual(feedStateKeys(["x"], "accepted"), ["x#rated"]);
+  const rows = [held(1), held(2, { curationStatus: "rejected" }), held(3), held(4, { curationStatus: "pending", feedStateKey: "g#unrated" })];
+  assert.deepEqual([shownInFeed(rows[0], "accepted"), shownInFeed(rows[1], "accepted"), shownInFeed(rows[3], "accepted")], [true, false, false]);
+  const reader = new MergedFeedReader({ keys: feedStateKeys(["g"], "accepted"), sort: "newest", read: acceptedRows(feedReaderFromRecords(rows), "accepted") });
+  assert.deepEqual((await reader.more(24)).map((row) => row.lineageId), ["r3", "r1"]);
+  assert.equal(acceptedRows(feedReaderFromRecords(rows), "all") !== undefined, true);
+});
+
+test("Captured keeps full (Yes) or everything else (No), and a long run of filtered rows does not end the list", async () => {
+  // Sixty captured rows arrive after three uncaptured ones: every page of the first rounds filters to nothing for Captured No.
+  const captured = Array.from({ length: 60 }, (_, i) => held(200 + i, { captureState: "full", feedArrivalAt: new Date(Date.UTC(2026, 11, 2) + i * 1000).toISOString() }));
+  const missing = [held(1, { captureState: "thin" }), held(2, { captureState: "none" }), held(3, { captureState: "running" }), held(4, { captureState: null })];
+  const inner = feedReaderFromRecords([...captured, ...missing]);
+  let reads = 0;
+  const reader = new MergedFeedReader({ keys: feedStateKeys(["g"], "rated"), sort: "newest", pageSize: 24, read: capturedRows(async (query) => { reads += 1; return inner(query); }, "no") });
+  const first = await reader.more(24);
+  assert.deepEqual(first, [], "the first page of 24 filters to nothing");
+  assert.equal(reader.hasMore, true, "but the partition is not finished");
+  const placed: string[] = [];
+  let calls = 1;
+  while (reader.hasMore) { calls += 1; placed.push(...(await reader.more(24)).map((row) => row.lineageId!)); assert.ok(calls < 10); }
+  assert.deepEqual(placed.sort(), ["r1", "r2", "r3", "r4"], "thin, none, running and empty are all not captured");
+  const yes = new MergedFeedReader({ keys: feedStateKeys(["g"], "rated"), sort: "newest", pageSize: 100, read: capturedRows(inner, "yes") });
+  assert.equal((await yes.more(100)).length, 60);
+  assert.equal(capturedRows(inner, "any"), inner, "Any reads the pages as they are");
+});
+
+test("the home list: accepted, not captured, not running; stars first then newest; unstarred after; stops when it has enough", async () => {
+  const rows: ReferenceRecord[] = [
+    held(1, { starRating: 3, starFeedKey: "g#stars#3", captureState: "none" }),
+    held(2, { starRating: 5, starFeedKey: "g#stars#5", captureState: "thin" }),
+    held(3, { starRating: 5, starFeedKey: "g#stars#5", captureState: "full" }),
+    held(4, { starRating: 5, starFeedKey: "g#stars#5", captureState: "running" }),
+    held(5, { starRating: 5, starFeedKey: "g#stars#5", captureState: "none", curationStatus: "rejected" }),
+    held(6, { starRating: 5, starFeedKey: "g#stars#5", captureState: "none", versionState: "superseded" }),
+    held(7, { starRating: 5, starFeedKey: "g#stars#5" }),
+    ...Array.from({ length: 80 }, (_, i) => held(100 + i, { captureState: i % 2 ? "full" : "none" })),
+  ];
+  let reads = 0;
+  const source = captureNeededSourceFromRecords(rows);
+  const counted = { ...source, readStarStream: async (q: Parameters<typeof source.readStarStream>[0]) => { reads += 1; return source.readStarStream(q); }, readStream: async (q: Parameters<typeof source.readStream>[0]) => { reads += 1; return source.readStream(q); } };
+  const found = await readCaptureNeeded(counted);
+  assert.equal(CAPTURE_NEEDED_SHOWN, 3);
+  assert.deepEqual(found.map((row) => row.lineageId), ["r7", "r2", "r1"], "5 stars newest first, then 5 stars older, then 3 stars; running, captured, rejected and superseded left out");
+  const more = await readCaptureNeeded(source, 6);
+  assert.deepEqual(more.map((row) => row.lineageId), ["r7", "r2", "r1", "r178", "r176", "r174"], "the unstarred follow every starred one, newest first");
+  assert.ok(reads <= 12, `it stops once it has enough (${reads} reads)`);
+  // A site without the star index still lists the unstarred; one that fails both lists none and does not throw.
+  const noStars = await readCaptureNeeded({ ...source, readStarStream: async () => { throw new Error("no index"); } });
+  assert.deepEqual(noStars.map((row) => row.lineageId), ["r178", "r176", "r174"]);
+  const none = await readCaptureNeeded({ ...source, readStarStream: async () => { throw new Error("x"); }, readStream: async () => { throw new Error("y"); } });
+  assert.deepEqual(none, []);
 });

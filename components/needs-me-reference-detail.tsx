@@ -40,6 +40,7 @@ export function ReferenceBody(props: DetailProps & { payload: Extract<NeedsMeEnt
   const summary = capture.summary ?? referenceMetadataField(null, reference.metadata, "summary");
   const dek = referenceDek(reference, referencePreviewsByLineage(previewAttachments).get(lineageId));
   const incomplete = item.type === "incomplete_capture";
+  const captureNeeded = item.type === "capture_needed";
   const auto = isAutoAccepted(reference);
   return (
     <div className="space-y-4" data-reference-curation-status={status} data-news-desk-reference-detail={lineageId}>
@@ -65,6 +66,7 @@ export function ReferenceBody(props: DetailProps & { payload: Extract<NeedsMeEnt
       </ReviewCard>
       <DefaultOutcome item={item} />
       {incomplete ? <p className="text-sm text-muted-foreground" data-needs-me-capture-note>The captured text looks cut off or missing. Read it below. If it is incomplete, choose Paste or correct the text and say whether the capture was complete, or rate the Reference as it is.</p> : null}
+      {captureNeeded ? <p className="text-sm text-muted-foreground" data-needs-me-capture-needed-note>{item.dek} Choose Upload a PDF or Paste or correct the text below. It leaves this list when the text is saved.</p> : null}
       <ReferenceCapturePanel capture={capture} showSummary={false} />
       <dl className="grid grid-cols-2 gap-3 text-sm">
         <div>

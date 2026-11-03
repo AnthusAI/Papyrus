@@ -90,3 +90,20 @@ test("the preview matcher orders by newest or quality and keeps a minimum of sta
   assert.deepEqual(ask({ minStars: 5 }).sort(), ["a", "d"], "relevance order with a minimum");
   assert.equal(ask({ minStars: null }).length, 5);
 });
+
+test("the in-browser search takes Captured and Reviewed Accepted like the site's", () => {
+  const records = [
+    make("a", { title: "Topic a", curationStatus: "accepted", captureState: "none" }),
+    make("b", { title: "Topic b", curationStatus: "accepted", captureState: "full" }),
+    make("c", { title: "Topic c", curationStatus: "rejected", captureState: "none" }),
+    make("d", { title: "Topic d", captureState: "thin" }),
+    make("e", { title: "Topic e", captureState: "running" }),
+  ];
+  const ids = (input: Partial<Parameters<typeof previewSearch>[1]>) => previewSearch(records, { query: "topic", show: "all", limit: 24, cursor: null, ...input }).items.map((item) => item.reference.lineageId).sort();
+  assert.deepEqual(ids({}), ["a", "b", "c", "d", "e"]);
+  assert.deepEqual(ids({ captured: "yes" }), ["b"]);
+  assert.deepEqual(ids({ captured: "no" }), ["a", "c", "d", "e"], "thin, running and empty are not captured");
+  assert.deepEqual(ids({ show: "accepted" }), ["a", "b"], "Reviewed Accepted never lists the rejected");
+  assert.deepEqual(ids({ show: "rated" }), ["a", "b", "c"]);
+  assert.deepEqual(ids({ show: "accepted", captured: "no" }), ["a"]);
+});

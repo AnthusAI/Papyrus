@@ -5,6 +5,8 @@
  *   reference          a pending Reference                          reads the Reference, the Cyclotron's decision on it, its preview
  *   incomplete_capture a pending Reference whose captured text is   reads the same, plus the Reference's capture status (the
  *                      missing or cut off                            `curation` card, else the extracted-text attachments)
+ *   capture_needed     an accepted Reference whose content we   reads the Reference (lib/capture-needed.ts reads the star and
+ *                      could not collect (not running)          rated partitions), its preview and capture status (the reason)
  *   idea_batch         one batch of generated story ideas            reads the review request and the titles of the ideas it names;
  *                      with an idea still in the Idea column         the ideas are decided on the Stories board, not here
  *   stage_review       an open hard gate or soft review that is      reads the review request (reason, ask, deadline, subject) and the
@@ -24,7 +26,8 @@ import { referenceDisplayTitle, referenceLineageId } from "./newsroom-references
 import { normalizeReferenceCurationStatus } from "./reference-policy";
 import { dekAddsInformation, referenceDek, referenceSourceHost, type ReferencePreview } from "./reference-preview";
 import { referenceArrivalTime, referenceDisplayTime } from "./reference-feed-ranking";
-import type { CaptureStatus } from "./reference-capture";
+import { captureReasonWords, type CaptureStatus } from "./reference-capture";
+import { starsOf } from "./reference-policy";
 import type { RelevanceDecisionView } from "./relevance-decisions";
 import { closeMatchText, type RelatedItem } from "./reference-links";
 import type { LinkSuggestion } from "./link-suggestions";
@@ -118,6 +121,45 @@ export function referenceItems(input: ReferenceSources): NeedsMeEntry[] {
       hardGate: false,
       askedForReview: Boolean(decision?.reviewRecommended),
       payload: { kind: "reference", reference, lineageId, decision, preview, capture, displayTime: referenceDisplayTime(reference) },
+    });
+  }
+  return items;
+}
+
+// --- accepted References nobody could capture -----------------------------------------------------------------------
+
+export const CAPTURE_NEEDED_WORDS = "We could not collect this. Upload a PDF or paste the text.";
+
+/**
+ * Accepted References whose content we could not collect, in the order they were read (stars, then newest; `readCaptureNeeded`). The item is open as a
+ * task: the Reference is already accepted, so its Accept shows as given. Ranked by stars within the type (importance 1 + stars, so more stars
+ * score higher; the feed's tie-break is newest first); the unstarred follow every starred one. A Reference captured in this visit is not listed.
+ */
+export function captureNeededItems(input: { references: readonly ReferenceRecord[]; previews: ReadonlyMap<string, ReferencePreview>; captures: ReadonlyMap<string, CaptureStatus> | undefined; capturedNow?: ReadonlySet<string> }): NeedsMeEntry[] {
+  const items: NeedsMeEntry[] = [];
+  for (const reference of input.references) {
+    const lineageId = referenceLineageId(reference);
+    if (input.capturedNow?.has(lineageId)) continue;
+    const preview = input.previews.get(lineageId);
+    const capture = input.captures?.get(lineageId);
+    const why = captureReasonWords(capture?.reason);
+    const host = referenceSourceHost(reference);
+    items.push({
+      type: "capture_needed",
+      id: `capture#${lineageId}`,
+      title: referenceDisplayTitle(reference),
+      dek: why ? `${CAPTURE_NEEDED_WORDS} ${why}` : CAPTURE_NEEDED_WORDS,
+      image: preview?.imageUrl ?? null,
+      source: preview?.siteName ?? host ?? "Unknown source",
+      host,
+      createdAt: referenceArrivalTime(reference) ?? referenceDisplayTime(reference),
+      importance: 1 + starsOf(reference),
+      uncertainty: uncertaintyOf(undefined),
+      decisionState: "open",
+      defaultOutcome: "If you leave it, the Reference stays accepted with only its address. Nothing can be written from its content.",
+      hardGate: false,
+      askedForReview: true,
+      payload: { kind: "reference", reference, lineageId, decision: undefined, preview, capture, displayTime: referenceDisplayTime(reference) },
     });
   }
   return items;
@@ -290,6 +332,10 @@ export function conceptProposalItems(_rows: readonly ConceptProposalRow[]): Need
 // --- all of it -----------------------------------------------------------------------------------------------------
 
 export type NeedsMeSources = ReferenceSources & {
+  /** Accepted References that need a person to capture them, already ordered and limited (`readCaptureNeeded`). */
+  captureNeeded?: readonly ReferenceRecord[];
+  /** Lineage ids a person captured in this visit: they leave the list. */
+  capturedNow?: ReadonlySet<string>;
   requests: ReviewRequest[];
   /** Request ids kept on screen in this visit. */
   stay: ReadonlySet<string>;
@@ -314,6 +360,7 @@ export function buildNeedsMeItems(sources: NeedsMeSources): NeedsMeEntry[] {
   const ideaContext = { titles: sources.storyTitles, stages: sources.ideaStages ?? {}, demo: Boolean(sources.demo) };
   return [
     ...referenceItems(sources),
+    ...captureNeededItems({ references: sources.captureNeeded ?? [], previews: sources.previews, captures: sources.captures, capturedNow: sources.capturedNow }),
     ...fromRequests.ideas.map((item) => ideaBatchItem(item, ideaContext)),
     ...fromRequests.reviews.map((item) => requestItem(item, context)),
     ...fromRequests.flags.map((item) => requestItem(item, context)),
@@ -335,6 +382,7 @@ export function waitingTextFor(counts: NeedsMeCounts): string {
     counts.stories ? plural(counts.stories, "story review") : null,
     counts.email ? plural(counts.email, "held email", "held emails") : null,
     counts.captures ? plural(counts.captures, "capture to check", "captures to check") : null,
+    counts.tocapture ? plural(counts.tocapture, "reference to capture", "references to capture") : null,
     counts.links ? plural(counts.links, "link suggestion") : null,
     counts.other ? plural(counts.other, "other item") : null,
   ].filter((part): part is string => part !== null);
