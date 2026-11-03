@@ -347,6 +347,7 @@ def step_budget_run(context):
                       time_left=lambda: remaining[0], story_transport=StoryModel(), story_drafter=drafter)
     finally:
         patches.undo()
+    current.seen, current.remaining = seen, remaining
     current.checks = lambda left: (remaining.__setitem__(0, left), seen["out_of_time"](), seen["vector_out_of_time"]())[1:]
 
 
