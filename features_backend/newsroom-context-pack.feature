@@ -215,3 +215,16 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     When the multi-search run is made for the assignment
     Then the run does not stop with an error and its result says the intake failed with "Unknown --corpus-key: ai-ml-research"
     And the assignment records an intake failure event instead of a completed event
+
+  Scenario: The direction is read from where an assignment really keeps it
+    The API returns no metadata on the Assignment row; it lives in a ModelAttachment. A pack that reads only the row sends
+    the reporter out with a title and no direction, so this is held against the stored shape.
+    Given a Story with an assignment whose metadata is only in its attachment
+    When the reporter pack is built for that assignment
+    Then the pack's first layer has the editor's direction
+
+  Scenario: A research run on a Story with no direction stops instead of searching blind
+    Given a reporter assignment on a Story with no direction stored
+    When its research run starts
+    Then the run fails saying it needs the editor's direction
+    And no search or model call was made
