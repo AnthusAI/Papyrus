@@ -31,16 +31,27 @@ go in the order an editor looks at the site, not in the order of the data:
   that, so the next pass resumes without redoing anything, and a Reference that arrives meanwhile is never behind the backlog: it is above ``high``.
   A plain timestamp written by an older pass reads as "everything up to it is done" (``high`` = it, ``low`` = nothing). A watermark in any other shape starts over.
 
-A pass whose index sync stopped or failed leaves the watermark where it was (the vectors already written are skipped by key). The result says how much is
-left (``suggestionsRemaining``).
+Suggestions need only a Reference's own summary vector, so they do not wait for the index sync: the pass suggests first, in that order, for every Reference
+that has a vector; one that has none is remembered as *owed* (``OwedMemory``) and passed over, so it never holds the saved place back. The index sync then
+indexes the owed References (and the newly accepted ones) in the same order, and the owed ones that now have a vector are suggested for at once. A Reference the
+sync found nothing to index for (no extracted text and no summary text: ``no_text``) is remembered with the reason and with a signature of what indexing reads
+(version, status, title, source address, stored text); it is not tried again until that signature changes, so a site with thousands of such References no longer
+walks them at every run. The result says how much is left (``suggestionsRemaining``: still in the plan, or owed to the index) and how many are parked
+(``parkedUnindexable``), with the seconds each step took (``timings``).
+
+``run_suggest_backlog`` is the same pass without the sync: the router's hourly ``suggest-backlog`` task, which spends nothing on embeddings.
 
 Without ``vectorIndexArn`` in the publication's ``monitorStories`` the pass does nothing and says why, and packs run without vectors.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import threading
+import time
 from collections.abc import Callable, Iterable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
@@ -50,13 +61,79 @@ CHARACTERS_PER_TOKEN = 4   # the usual English estimate; the exact count is only
 ACCEPTED_INDEX = "referencesByCurationStatusKey"
 INDEXED_STATUSES = ("accepted", "pending")
 WATERMARK_SORT_KEY_PREFIX = "STATE#vectorSync#"
+OWED_SORT_KEY_PREFIX = "STATE#vectorOwed#"   # + publication id + "#" + shard: References passed over for lack of a vector, or parked as unindexable
+OWED_SHARDS = 64   # a Reference is one short entry, so the shards stay far below the table's 400 KB item limit however many are parked
+UNINDEXABLE_STATUSES = ("no_text", "empty_extracted_text")   # the sync's per-Reference results that say "nothing to index"; an error is not one (it is tried again)
+SUGGEST_WORKERS = 8   # References suggested for at once: the API's throughput, not a limit on the work
 WRITTEN_OUTCOMES = ("created", "updated")
 EMPTY_RESULT = {"indexed": 0, "conceptCardsWritten": 0, "linkExplanationsWritten": 0, "suggestionsWritten": 0, "suggestionsSkippedReason": None, "indexSkippedReason": None,
-                "costUsd": 0.0, "stoppedBy": None, "newlyAccepted": 0, "newlyPending": 0, "suggestionsRemaining": 0}
+                "costUsd": 0.0, "stoppedBy": None, "newlyAccepted": 0, "newlyPending": 0, "suggestionsRemaining": 0, "parkedUnindexable": 0, "awaitingIndex": 0}
 
 
 def watermark_sort_key(publication_id: str) -> str:
     return f"{WATERMARK_SORT_KEY_PREFIX}{publication_id}"
+
+
+def owed_prefix(publication_id: str) -> str:
+    return f"{OWED_SORT_KEY_PREFIX}{publication_id}#"
+
+
+def owed_sort_key(publication_id: str, shard: int) -> str:
+    return f"{owed_prefix(publication_id)}{shard:02d}"
+
+
+def shard_of(lineage_id: str) -> int:
+    return int(hashlib.sha256(lineage_id.encode("utf-8")).hexdigest()[:8], 16) % OWED_SHARDS
+
+
+def index_signature(row: dict[str, Any]) -> str:
+    """What indexing a Reference reads from its row: when none of it changed, trying again finds what it found. Fields that change all the time without
+    changing the answer (a prediction, a feed state, ``updatedAt``) are left out."""
+    fields = ("versionNumber", "curationStatus", "title", "sourceUri", "storagePath", "sha256")
+    return hashlib.sha256("|".join(str(row.get(field) or "") for field in fields).encode("utf-8")).hexdigest()[:16]
+
+
+class OwedMemory:
+    """The router's memory of References that have no summary vector, in its own table (sharded rows, one JSON object of entries each).
+
+    An entry ``{"r": reason or None, "s": signature}`` means: the suggestion pass passed this Reference over because it has no vector (``r`` is None: the index
+    sync owes it one) or the sync found nothing to index (``r`` is the reason: parked until the Reference's signature changes). ``read`` returns the stored rows
+    (each with an ``entries`` JSON string) and ``write(shard, json)`` stores one; without them the memory lasts for one pass."""
+
+    def __init__(self, read: Callable[[], list[dict[str, Any]]] | None = None, write: Callable[[int, str], None] | None = None) -> None:
+        self._read, self._write = read, write
+        self.entries: dict[str, dict[str, Any]] = {}
+        self._dirty: set[int] = set()
+
+    def load(self) -> None:
+        self.entries = {}
+        for row in (self._read() if self._read else []):
+            try:
+                loaded = json.loads(row.get("entries") or "{}")
+            except (TypeError, ValueError):
+                continue
+            if isinstance(loaded, dict):
+                self.entries.update({str(lineage): entry for lineage, entry in loaded.items() if isinstance(entry, dict)})
+
+    def parked(self, lineage_id: str, signature: str) -> bool:
+        entry = self.entries.get(lineage_id)
+        return bool(entry and entry.get("r") and entry.get("s") == signature)
+
+    def set(self, lineage_id: str, reason: str | None, signature: str) -> None:
+        entry = {"r": reason, "s": signature}
+        if self.entries.get(lineage_id) != entry:
+            self.entries[lineage_id] = entry
+            self._dirty.add(shard_of(lineage_id))
+
+    def drop(self, lineage_id: str) -> None:
+        if self.entries.pop(lineage_id, None) is not None:
+            self._dirty.add(shard_of(lineage_id))
+
+    def save(self) -> None:
+        shards, self._dirty = sorted(self._dirty), set()
+        for shard in shards:
+            if self._write:
+                self._write(shard, json.dumps({lineage: entry for lineage, entry in sorted(self.entries.items()) if shard_of(lineage) == shard}, separators=(",", ":")))
 
 
 def embedding_cost_usd(characters: int) -> float:
@@ -191,7 +268,7 @@ def plan_since(client: Any, publication: dict[str, Any], watermark: str | None, 
         news += [row for row in members if high is not None and _beyond(_key(row), high)]
         backlog[tier] = [row for row in reversed(members) if low is not None and _key(row) < low]
     ordered = [*signal, *news, *backlog["pending"], *backlog["accepted"]]
-    parts = {"signal": len(signal), "news": len(news), "backlog": {tier: len(backlog[tier]) for tier in TIERS}, "state": state}
+    parts = {"signal": len(signal), "news": len(news), "backlog": {tier: len(backlog[tier]) for tier in TIERS}, "state": state, "rows": rows, "signalled": signalled}
     return ordered, parts
 
 
@@ -249,11 +326,15 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
                     maximum_cost_usd: float, embedding_key: str | None, read_watermark: Callable[[], str | None], write_watermark: Callable[[str], None],
                     services_for: Callable[..., Any] = build_services, indexer: Callable[..., dict] | None = None,
                     suggester: Callable[..., dict] | None = None, provider_for: Callable[..., Any] | None = None,
-                    calibration_loader: Callable[[Any], Any] | None = None) -> dict[str, Any]:
-    """Syncs the index and suggests for the References accepted or pending since the watermark; returns ``{"indexed", "conceptCardsWritten", "suggestionsWritten",
-    "suggestionsSkippedReason", "indexSkippedReason", "costUsd", "stoppedBy", "newlyAccepted", "newlyPending"}``. Never raises: a failure is reported as the reason.
-    The callables are the real ones unless a test passes fakes."""
+                    calibration_loader: Callable[[Any], Any] | None = None, owed: OwedMemory | None = None, workers: int = 1,
+                    sync: bool = True) -> dict[str, Any]:
+    """Suggests for the References accepted or pending since the watermark, then syncs the index for the ones that had no vector (and the concept cards), then
+    suggests for those; returns ``{"indexed", "conceptCardsWritten", "suggestionsWritten", "suggestionsSkippedReason", "indexSkippedReason", "costUsd",
+    "stoppedBy", "newlyAccepted", "newlyPending", "suggestionsRemaining", "parkedUnindexable", "awaitingIndex", "timings"}``. Never raises: a failure is
+    reported as the reason. The callables are the real ones unless a test passes fakes. ``workers`` References are suggested for at once (the router passes
+    ``SUGGEST_WORKERS``); ``sync=False`` is the suggestion-only task (no embedding, no cost)."""
     result = dict(EMPTY_RESULT)
+    result["timings"] = timings = {}
     arn = policy.get("vectorIndexArn")
     if not arn:
         reason = "no vectorIndexArn in the publication's monitorStories"
@@ -261,49 +342,107 @@ def run_vector_pass(client: Any, publication: dict[str, Any], policy: dict[str, 
     missing_client = s3vectors_client_missing_reason()
     if missing_client:
         return {**result, "indexSkippedReason": missing_client, "suggestionsSkippedReason": missing_client}
+    memory = owed or OwedMemory()
+    mark = time.monotonic()
     try:
         watermark = read_watermark()
         newly, parts = plan_since(client, publication, watermark, signal_lineages(client))
+        memory.load()
     except Exception as error:  # noqa: BLE001
         reason = f"could not read the accepted and pending References ({type(error).__name__}: {str(error)[:160]})"
         return {**result, "indexSkippedReason": reason, "suggestionsSkippedReason": reason}
+    timings["planSeconds"] = round(time.monotonic() - mark, 1)
+    rows = parts.get("rows") or {str(row["id"]): row for row in newly}
+    by_lineage = {str(row.get("lineageId") or row["id"]): row for row in rows.values()}
+    for lineage in [lineage for lineage in memory.entries if lineage not in by_lineage]:
+        memory.drop(lineage)   # rejected, archived or superseded since: nothing is owed for it
     result["newlyPending"] = sum(1 for row in newly if _status_of(row) == "pending")
     result["newlyAccepted"] = len(newly) - result["newlyPending"]
     result["suggestionsRemaining"] = len(newly)
-    bucket = policy.get("storageBucketName")
-    indexing_ok = False
-    if not embedding_key:
+    suggestions_on = bool((policy.get("suggestions") or {}).get("enabled", True))
+    indexing_possible = sync and bool(embedding_key) and bool(policy.get("storageBucketName"))
+    if sync and not embedding_key:
         result["indexSkippedReason"] = "openai_not_configured"
-    elif not bucket:
+    elif sync and not policy.get("storageBucketName"):
         result["indexSkippedReason"] = "no storageBucketName in the publication's monitorStories"
-    else:
-        indexing_ok = _sync_index(publication, policy, newly, result, services_for=services_for, indexer=indexer, embedding_key=embedding_key,
-                                  out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd)
     done = 0   # how many of `newly` the pass got through
-    if not (policy.get("suggestions") or {}).get("enabled", True):
+    suggest_step = None
+    if not suggestions_on:
         result["suggestionsSkippedReason"] = "suggestions are off in the publication's monitorStories"
-        done = len(newly) if indexing_ok else 0
-    elif result["stoppedBy"]:
-        result["suggestionsSkippedReason"] = f"stopped by {result['stoppedBy']} while indexing"
     else:
-        done = _suggest(client, publication, arn, newly, result, now=now, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd, suggester=suggester,
-                        provider_for=provider_for, calibration_loader=calibration_loader)
-    result["suggestionsRemaining"] = len(newly) - done
-    if newly and indexing_ok and not result.get("suggestionsError"):
-        # The index is complete for everything in `newly`; the watermark moves over the References the pass got through (all of them when it finished).
-        value = advance(parts, newly[:done]) if done else None
-        if value:
-            try:
-                write_watermark(value)
-            except Exception as error:  # noqa: BLE001
-                result["watermarkError"] = f"{type(error).__name__}: {str(error)[:160]}"
+        suggest_step = _Suggesting.start(client, publication, arn, memory, result, now=now, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd,
+                                         suggester=suggester, provider_for=provider_for, calibration_loader=calibration_loader, workers=workers)
+        if suggest_step is not None:
+            mark = time.monotonic()
+            done = suggest_step.run(newly)
+            timings["suggestSeconds"] = round(time.monotonic() - mark, 1)
+            if done:
+                _save_place(parts, newly, done, result, write_watermark)
+    if indexing_possible and (result["stoppedBy"] or out_of_time() or result["costUsd"] >= maximum_cost_usd):
+        # The sync begins by listing every Reference and every vector in the index, which takes tens of seconds: not worth starting with no time or money left.
+        result["stoppedBy"] = result["stoppedBy"] or ("time" if out_of_time() else "cost")
+        indexing_possible = False
+    if indexing_possible:
+        mark = time.monotonic()
+        synced = _sync_index(publication, policy, _sync_candidates(newly, parts, memory, by_lineage), result, memory=memory, by_lineage=by_lineage,
+                             services_for=services_for, indexer=indexer, embedding_key=embedding_key, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd)
+        timings["syncSeconds"] = round(time.monotonic() - mark, 1)
+        if not suggestions_on:
+            done = len(newly) if synced else 0   # with suggestions off, the saved place moves over what the sync covered
+            if done:
+                _save_place(parts, newly, done, result, write_watermark)
+        if suggest_step is not None:
+            mark = time.monotonic()
+            suggest_step.run_owed(_owed_rows(memory, by_lineage, parts), after_sync=True)   # the owed ones the sync just indexed
+            timings["owedSeconds"] = round(time.monotonic() - mark, 1)
+    elif suggest_step is not None:
+        suggest_step.run_owed(_owed_rows(memory, by_lineage, parts))   # a vector may have appeared since (the daily sync, a hand run)
+    if suggest_step is not None:
+        suggest_step.finish()
+    memory.save()
+    result["awaitingIndex"] = sum(1 for entry in memory.entries.values() if not entry.get("r"))
+    result["parkedUnindexable"] = sum(1 for lineage, entry in memory.entries.items() if entry.get("r") and memory.parked(lineage, index_signature(by_lineage[lineage])))
+    result["suggestionsRemaining"] = len(newly) - done + (result["awaitingIndex"] if suggestions_on else 0)
     result["costUsd"] = round(result["costUsd"], 6)
     return result
 
 
-def _sync_index(publication: dict[str, Any], policy: dict[str, Any], newly: list[dict[str, Any]], result: dict[str, Any], *, services_for: Callable[..., Any],
-                indexer: Callable[..., dict] | None, embedding_key: str, out_of_time: Callable[[], bool], maximum_cost_usd: float) -> bool:
-    """Runs ``index_reference_passages(action="sync")`` for the newly accepted and pending References and the concept cards. True when it completed."""
+def _save_place(parts: dict[str, Any], newly: list[dict[str, Any]], done: int, result: dict[str, Any], write_watermark: Callable[[str], None]) -> None:
+    """Moves the saved place over the first ``done`` References of the plan, at once, so a run that is cut off later keeps what it did."""
+    try:
+        write_watermark(advance(parts, newly[:done]))
+    except Exception as error:  # noqa: BLE001
+        result["watermarkError"] = f"{type(error).__name__}: {str(error)[:160]}"
+
+
+def _priority(rows: Iterable[dict[str, Any]], signalled: set[str]) -> list[dict[str, Any]]:
+    """The order an editor looks at the site: a person's signal first, then pending, then the rest; newest first inside each."""
+    newest_first = sorted(rows, key=_key, reverse=True)
+    return sorted(newest_first, key=lambda row: (not _is_signal(row, signalled), _status_of(row) != "pending"))
+
+
+def _owed_rows(memory: OwedMemory, by_lineage: dict[str, dict[str, Any]], parts: dict[str, Any]) -> list[dict[str, Any]]:
+    """The References the index owes a vector (not the parked ones), in the order an editor looks."""
+    waiting = [by_lineage[lineage] for lineage, entry in memory.entries.items() if not entry.get("r") and lineage in by_lineage]
+    return _priority(waiting, parts.get("signalled") or set())
+
+
+def _sync_candidates(newly: list[dict[str, Any]], parts: dict[str, Any], memory: OwedMemory, by_lineage: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """What the sync is given: the plan and the owed References, in that order of priority, without the parked ones (a Reference whose signature still
+    matches what the sync found before). The sync itself leaves out what is already in the index with the right status."""
+    seen: dict[str, dict[str, Any]] = {}
+    for row in [*_owed_rows(memory, by_lineage, parts), *newly]:
+        lineage = str(row.get("lineageId") or row["id"])
+        if lineage not in seen and not memory.parked(lineage, index_signature(row)):
+            seen[lineage] = row
+    return list(seen.values())
+
+
+def _sync_index(publication: dict[str, Any], policy: dict[str, Any], candidates: list[dict[str, Any]], result: dict[str, Any], *, memory: OwedMemory,
+                by_lineage: dict[str, dict[str, Any]], services_for: Callable[..., Any], indexer: Callable[..., dict] | None, embedding_key: str,
+                out_of_time: Callable[[], bool], maximum_cost_usd: float) -> bool:
+    """Runs ``index_reference_passages(action="sync")`` for the candidates and the concept cards, then remembers the References it found nothing to index for.
+    True when it completed."""
     from papyrus_knowledge_query import vector_index
 
     def stop_check(stats: dict[str, Any]) -> str | None:
@@ -314,7 +453,7 @@ def _sync_index(publication: dict[str, Any], policy: dict[str, Any], newly: list
         return None
 
     options = vector_index.VectorIndexOptions(
-        action="sync", corpus_id=publication["corpusId"], reference_ids=tuple(str(row["id"]) for row in newly), skip_references=not newly,
+        action="sync", corpus_id=publication["corpusId"], reference_ids=tuple(str(row["id"]) for row in candidates), skip_references=not candidates,
         include_ontology_vectors=False, include_concept_cards=True, stop_check=stop_check, skip_indexed=True, include_notes=False)
     try:
         with process_environment(PAPYRUS_S3_VECTOR_INDEX_ARN=policy["vectorIndexArn"], OPENAI_API_KEY=embedding_key):
@@ -326,50 +465,133 @@ def _sync_index(publication: dict[str, Any], policy: dict[str, Any], newly: list
     result["linkExplanationsWritten"] = int(stats.get("linkExplanationsToWrite") or 0)
     result["indexed"] = max(int(stats.get("vectorsWritten") or 0) - result["conceptCardsWritten"] - result["linkExplanationsWritten"], 0)
     result["costUsd"] += embedding_cost_usd(int(stats.get("embeddingInputCharacters") or 0))
-    result["stoppedBy"] = stats.get("stoppedBy")
-    return not result["stoppedBy"]
+    result["stoppedBy"] = result["stoppedBy"] or stats.get("stoppedBy")
+    result["timings"].update({f"index{name[0].upper()}{name[1:]}": seconds for name, seconds in (stats.get("timings") or {}).items()})
+    parked = 0
+    for entry in stats.get("referenceResults") or []:
+        lineage = str(entry.get("referenceLineageId") or "")
+        if entry.get("status") in UNINDEXABLE_STATUSES and lineage in by_lineage:
+            memory.set(lineage, str(entry["status"]), index_signature(by_lineage[lineage]))
+            parked += 1
+    result["newlyParked"] = parked
+    return not stats.get("stoppedBy")
 
 
-def _suggest(client: Any, publication: dict[str, Any], arn: str, newly: list[dict[str, Any]], result: dict[str, Any], *, now: datetime,
-             out_of_time: Callable[[], bool], maximum_cost_usd: float, suggester: Callable[..., dict] | None, provider_for: Callable[..., Any] | None,
-             calibration_loader: Callable[[Any], Any] | None) -> int:
-    """Suggests for each Reference of ``newly`` in order until the time or the cost stops it; returns how many it got through (a Reference that fails or
-    has no vector is passed over, as it always was)."""
-    from papyrus_knowledge_query.services import S3VectorsProvider
+class _Suggesting:
+    """The suggestion step of a pass: ``suggest_for`` for References in order, ``workers`` at a time, between looks at the time and the cost meter."""
 
-    from . import reference_suggestions, suggestion_calibration
+    def __init__(self, client, publication, provider, calibration, memory, result, *, now, out_of_time, maximum_cost_usd, suggester, workers):
+        self.client, self.publication, self.provider, self.calibration, self.memory, self.result = client, publication, provider, calibration, memory, result
+        self.out_of_time, self.maximum_cost_usd, self.suggest, self.workers = out_of_time, maximum_cost_usd, suggester, max(int(workers or 1), 1)
+        self.timestamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.local = threading.local()
+        self.failures = self.missing = 0
+        self.just_found_missing: set[str] = set()
 
-    suggest = suggester or reference_suggestions.suggest_for
-    try:
-        provider = provider_for(arn) if provider_for else S3VectorsProvider(vector_index_arn=arn, region_name=os.environ.get("AWS_REGION"))
-        calibration = (calibration_loader or suggestion_calibration.load_calibration)(client)
-    except Exception as error:  # noqa: BLE001
-        result["suggestionsSkippedReason"] = f"suggestions could not start ({type(error).__name__}: {str(error)[:160]})"
-        result["suggestionsError"] = True
-        return 0
-    timestamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-    missing_vector = 0
-    failures = 0
-    done = 0
-    for row in newly:
-        if out_of_time():
-            result["stoppedBy"] = "time"
-            break
-        if result["costUsd"] >= maximum_cost_usd:
-            result["stoppedBy"] = "cost"
-            break
-        done += 1
+    @classmethod
+    def start(cls, client, publication, arn, memory, result, *, now, out_of_time, maximum_cost_usd, suggester, provider_for, calibration_loader, workers):
+        from papyrus_knowledge_query.services import S3VectorsProvider
+
+        from . import reference_suggestions, suggestion_calibration
+
         try:
-            outcome = suggest(client, provider, str(row["id"]), corpus_id=publication["corpusId"], calibration=calibration, now=timestamp)
+            provider = provider_for(arn) if provider_for else S3VectorsProvider(vector_index_arn=arn, region_name=os.environ.get("AWS_REGION"))
+            calibration = (calibration_loader or suggestion_calibration.load_calibration)(client)
+        except Exception as error:  # noqa: BLE001
+            result["suggestionsSkippedReason"] = f"suggestions could not start ({type(error).__name__}: {str(error)[:160]})"
+            result["suggestionsError"] = True
+            return None
+        return cls(client, publication, provider, calibration, memory, result, now=now, out_of_time=out_of_time, maximum_cost_usd=maximum_cost_usd,
+                   suggester=suggester or reference_suggestions.suggest_for, workers=workers)
+
+    def _client(self):
+        if self.workers == 1:
+            return self.client
+        if not hasattr(self.local, "client"):
+            from .ideas.signal_inputs import independent_copy
+
+            self.local.client = independent_copy(self.client)   # a connection of its own per worker thread
+        return self.local.client
+
+    def _stopped(self) -> bool:
+        if self.out_of_time():
+            self.result["stoppedBy"] = "time"
+            return True
+        if self.result["costUsd"] >= self.maximum_cost_usd:
+            self.result["stoppedBy"] = "cost"
+            return True
+        return False
+
+    def _one(self, row: dict[str, Any]) -> tuple[str, int]:
+        """(what happened, links written) for one Reference: ``parked`` (the sync found nothing to index and nothing changed since), ``missing`` (it has no
+        summary vector), ``failed`` or ``done``."""
+        if self.memory.parked(str(row.get("lineageId") or row["id"]), index_signature(row)):
+            return "parked", 0
+        try:
+            outcome = self.suggest(self._client(), self.provider, str(row["id"]), corpus_id=self.publication["corpusId"], calibration=self.calibration, now=self.timestamp)
         except Exception:  # noqa: BLE001 - one Reference that fails does not stop the rest
-            failures += 1
-            continue
+            return "failed", 0
         if outcome.get("skipped"):
-            missing_vector += 1
-            continue
-        result["suggestionsWritten"] += sum(1 for entry in (*outcome.get("references", []), *outcome.get("concepts", [])) if entry.get("outcome") in WRITTEN_OUTCOMES)
-    if failures:
-        result["suggestionsFailed"] = failures
-    if missing_vector:
-        result["suggestionsWithoutVector"] = missing_vector
-    return done
+            return "missing", 0
+        return "done", sum(1 for entry in (*outcome.get("references", []), *outcome.get("concepts", [])) if entry.get("outcome") in WRITTEN_OUTCOMES)
+
+    def _work(self, rows: list[dict[str, Any]]) -> list[tuple[str, int]]:
+        """The outcomes for the longest prefix of ``rows`` it got through before the time or the cost stopped it."""
+        outcomes: list[tuple[str, int]] = []
+        if self.workers == 1:
+            for row in rows:
+                if self._stopped():
+                    break
+                outcomes.append(self._one(row))
+            return outcomes
+        window = self.workers * 2
+        with ThreadPoolExecutor(max_workers=self.workers) as pool:
+            for start in range(0, len(rows), window):
+                if self._stopped():
+                    break
+                outcomes.extend(pool.map(self._one, rows[start:start + window]))
+        return outcomes
+
+    def run(self, rows: list[dict[str, Any]]) -> int:
+        """Suggests for the plan in order; a Reference with no vector is remembered as owed and passed over. Returns how many of ``rows`` it got through."""
+        outcomes = self._work(rows)
+        for row, (kind, written) in zip(rows, outcomes):
+            lineage = str(row.get("lineageId") or row["id"])
+            self.result["suggestionsWritten"] += written
+            if kind == "missing":
+                self.missing += 1
+                self.just_found_missing.add(lineage)
+                self.memory.set(lineage, None, index_signature(row))
+            elif kind == "failed":
+                self.failures += 1
+            elif kind == "done":
+                self.memory.drop(lineage)
+        return len(outcomes)
+
+    def run_owed(self, rows: list[dict[str, Any]], *, after_sync: bool = False) -> None:
+        """Suggests for the References the index owed a vector, in the order an editor looks; those that have one now are no longer owed. Without a sync in
+        between, the ones this pass has only just found to have no vector are not asked again."""
+        if not after_sync:
+            rows = [row for row in rows if str(row.get("lineageId") or row["id"]) not in self.just_found_missing]
+        outcomes = self._work(rows)
+        for row, (kind, written) in zip(rows, outcomes):
+            self.result["suggestionsWritten"] += written
+            if kind == "done":
+                self.memory.drop(str(row.get("lineageId") or row["id"]))
+            elif kind == "failed":
+                self.failures += 1
+
+    def finish(self) -> None:
+        if self.failures:
+            self.result["suggestionsFailed"] = self.failures
+        if self.missing:
+            self.result["suggestionsWithoutVector"] = self.missing
+
+
+def run_suggest_backlog(client: Any, publication: dict[str, Any], policy: dict[str, Any], *, now: datetime, out_of_time: Callable[[], bool],
+                        read_watermark: Callable[[], str | None], write_watermark: Callable[[str], None], owed: OwedMemory | None = None,
+                        workers: int = SUGGEST_WORKERS, **fakes: Any) -> dict[str, Any]:
+    """The router's hourly ``suggest-backlog`` task for one publication: the vector pass's suggestions, in the same order and from the same saved place, with no
+    index sync, no embedding and no model call. Spends on S3 Vectors reads and queries and on the publication's API only (``costUsd`` is always 0)."""
+    return run_vector_pass(client, publication, policy, now=now, out_of_time=out_of_time, maximum_cost_usd=float("inf"), embedding_key=None,
+                           read_watermark=read_watermark, write_watermark=write_watermark, owed=owed, workers=workers, sync=False, **fakes)

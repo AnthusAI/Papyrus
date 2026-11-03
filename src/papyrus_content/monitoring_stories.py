@@ -188,17 +188,21 @@ VECTOR_LINE_KEYS = ("indexed", "conceptCardsWritten", "suggestionsWritten", "sug
 def vector_summary(vectors: dict[str, Any]) -> dict[str, Any]:
     """The vector pass's part of a publication's log line; what is left to do is there too (``suggestionsRemaining``), so a big first run shows how many runs it needs."""
     line = {key: vectors[key] for key in VECTOR_LINE_KEYS}
-    for key in ("indexSkippedReason", "newlyAccepted", "newlyPending", "suggestionsFailed", "suggestionsWithoutVector", "watermarkError", "suggestionsRemaining"):
+    for key in ("indexSkippedReason", "newlyAccepted", "newlyPending", "suggestionsFailed", "suggestionsWithoutVector", "watermarkError", "suggestionsRemaining",
+                "awaitingIndex", "parkedUnindexable", "newlyParked"):
         if vectors.get(key):
             line[key] = vectors[key]
+    if vectors.get("timings"):
+        line["vectorTimings"] = vectors["timings"]   # the seconds each step of the pass took: plan, suggest, sync (and the sync's own listing steps), owed
     return line
 
 
 def merge_vector_passes(first: dict[str, Any], second: dict[str, Any]) -> dict[str, Any]:
     """Two passes of one run: the work adds up, the counts of what the run started with are the first's, the rest (where it stopped, what is left) is the second's."""
     merged = {**first, **{key: value for key, value in second.items() if key not in ("newlyAccepted", "newlyPending")}}
-    for key in ("indexed", "conceptCardsWritten", "linkExplanationsWritten", "suggestionsWritten", "suggestionsFailed", "suggestionsWithoutVector", "costUsd"):
+    for key in ("indexed", "conceptCardsWritten", "linkExplanationsWritten", "suggestionsWritten", "suggestionsFailed", "suggestionsWithoutVector", "newlyParked", "costUsd"):
         merged[key] = (first.get(key) or 0) + (second.get(key) or 0)
+    merged["timings"] = {**(first.get("timings") or {}), **{f"{name}Again": seconds for name, seconds in (second.get("timings") or {}).items()}}
     return merged
 
 
@@ -206,7 +210,8 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
                     fetch: Any = None, explorer: Any = REAL_EXPLORER, maximum_cost_usd: float = MAXIMUM_COST_USD,
                     handled_references: Any = (), gate: Any = None, embedding_key: str | None = None,
                     read_watermark: Callable[[], str | None] = lambda: None, write_watermark: Callable[[str], None] = lambda value: None,
-                    retry_memory: Any = None, vector_out_of_time: Callable[[], bool] | None = None, signal_out_of_time: Callable[[], bool] | None = None) -> dict[str, Any]:
+                    retry_memory: Any = None, vector_out_of_time: Callable[[], bool] | None = None, signal_out_of_time: Callable[[], bool] | None = None,
+                    owed: Any = None) -> dict[str, Any]:
     """Drafts one publication's undrafted accepted monitored References and returns its log record (the shape the router prints).
     ``fetch`` and ``explorer`` default to the real page reader and link explorer; tests pass fakes. ``handled_references`` are the ids of the References
     an Automation has a procedure run recorded or in progress for (the router reads them from its trigger rows); those are left to it. ``retry_memory`` (``ideas/retry_memory.py``)
@@ -221,12 +226,12 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
     from .ideas.signal_queue import prepare_signal_run
     from .ideas.store import legacy_story_drafts
 
-    from .monitoring_vectors import run_vector_pass, signal_lineages, vector_provider_for
+    from .monitoring_vectors import SUGGEST_WORKERS, run_vector_pass, signal_lineages, vector_provider_for
 
     policy = validate_monitor_stories(publication["publicationId"], publication.get("monitorStories"))
     def vector_pass(stop: Callable[[], bool], spent_usd: float = 0.0) -> dict[str, Any]:
         return run_vector_pass(client, publication, policy, now=now, out_of_time=stop, maximum_cost_usd=max(maximum_cost_usd - spent_usd, 0.0), embedding_key=embedding_key,
-                               read_watermark=read_watermark, write_watermark=write_watermark)
+                               read_watermark=read_watermark, write_watermark=write_watermark, owed=owed, workers=SUGGEST_WORKERS)
 
     drafting = policy["contextPacks"]["enabled"] or policy["singleItem"]
     started = time.monotonic()
