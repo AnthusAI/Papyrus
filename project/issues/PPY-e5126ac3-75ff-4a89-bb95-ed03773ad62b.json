@@ -17,10 +17,17 @@
       "text": "Phase 1 built and pushed: branch feature/references-search, PR https://github.com/AnthusAI/Papyrus/pull/1087 (into develop, not merged). Verified: pytest, behave features_backend/reference-search.feature (11 scenarios), npm run test:reference-feed, typecheck, lint, schema parity. Needs a site backend deploy (data schema plus knowledgeQuery Lambda). Not in this phase: rejected vectors, S3 cached index, body-word search, top-bar search.",
       "created_at": "2026-11-03T04:31:35.652900Z",
       "comment_type": "default"
+    },
+    {
+      "id": "dbd4d2fb-c7d3-451f-b725-d3502176e8dd",
+      "author": "home",
+      "text": "Reference search ranking fix in PR #1101 (fix/reference-search-ranking). Cause: the meaning lane's knee_cut_count (largest single drop) kept one hit of a smoothly falling neighbour list, so no meaning-only card appeared, while single common title words flooded the word lane. Fix: search_cut_count (bend of the whole curve), question stop words, rarity-weighted terms, low-coverage partials dropped for 3+ term queries, and tiers: exact title phrase, all terms in title/author, all terms anywhere, meaning, partial words. Not merged or released.",
+      "created_at": "2026-11-03T07:45:11.758982Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-03T03:53:06.102500Z",
-  "updated_at": "2026-11-03T04:31:35.653136Z",
+  "updated_at": "2026-11-03T07:45:11.759560Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
