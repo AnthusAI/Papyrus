@@ -577,7 +577,7 @@ export function NewsroomReferencesView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shownIdsKey, serverMode]);
   const feedItems = serverMode ? serverItems : feedWindowState.items;
-  // The large lead card is a pick among cards still to answer: Rated only has none.
+  // The large lead card is a pick among cards still to answer: Rated has none.
   const feedLead = feedShow === "rated" ? undefined : serverMode ? feedLeadId(serverItems) : feedWindowState.leadId;
   const hasMoreItems = serverMode ? indexed.hasMore : feedWindowState.hasMore;
   const loadingMoreItems = serverMode ? indexed.loadingMore : feedWindowState.loadingMore;

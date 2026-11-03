@@ -4,7 +4,7 @@
  *     Accept at 80% is P = 0.8, a prediction of Reject at 80% is P = 0.2, no prediction is P = 0.5. Age does not change it.
  *   - "Newest" is reverse chronological by when the Reference arrived.
  *   - Ties go to the newest item, then to a stable id order.
- *   - "Unrated only" shows References nobody has answered; "Include rated" adds the answered ones to the same list.
+ *   - "Unrated" shows References nobody has answered; "All" adds the answered ones to the same list.
  * Nothing is cut off by age, and age never changes the order of Best bets: the original confidence is what ranks.
  */
 import type { ReferenceRecord } from "./category-repository";
@@ -97,7 +97,7 @@ export function orderFeedItems(items: FeedItem[], sort: FeedSort): FeedItem[] {
 }
 
 /**
- * The visible list: ordered by `sort`; "Unrated only" keeps the items answered during this visit, which stay in place. "Rated only"
+ * The visible list: ordered by `sort`; "Unrated" keeps the items answered during this visit, which stay in place. "Rated"
  * lists the answered items, and keeps one whose answer was cleared this visit, so it does not vanish under the editor's hand.
  */
 export function visibleFeedItems(items: FeedItem[], sort: FeedSort, show: FeedShow, visitRated: ReadonlySet<string> = new Set()): FeedItem[] {
@@ -117,7 +117,7 @@ export function feedLeadId(items: FeedItem[]): string | undefined {
 export type FeedOrderSnapshot = {
   /** Every Reference lineage the snapshot knew about: anything else is new. */
   known: ReadonlySet<string>;
-  /** The ones nobody had answered when the snapshot was taken: they stay listed under "Unrated only" after being rated this visit. */
+  /** The ones nobody had answered when the snapshot was taken: they stay listed under "Unrated" after being rated this visit. */
   unrated: ReadonlySet<string>;
   best: string[];
   newest: string[];

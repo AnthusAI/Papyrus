@@ -51,9 +51,9 @@ const SORTS: Array<{ key: FeedSort; label: string; Icon: typeof SparklesIcon }> 
   { key: "newest", label: "Newest", Icon: ClockIcon },
 ];
 const SHOWS: Array<{ key: FeedShow; label: string; Icon: typeof SparklesIcon }> = [
-  { key: "unrated", label: "Unrated only", Icon: CircleDashedIcon },
-  { key: "all", label: "Include rated", Icon: CheckCheckIcon },
-  { key: "rated", label: "Rated only", Icon: ListChecksIcon },
+  { key: "unrated", label: "Unrated", Icon: CircleDashedIcon },
+  { key: "all", label: "All", Icon: CheckCheckIcon },
+  { key: "rated", label: "Rated", Icon: ListChecksIcon },
 ];
 
 export const PILL = "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
@@ -460,7 +460,7 @@ function RankingPopover() {
           <ol className="list-decimal space-y-2.5 pl-5">
             <li><strong>Best bets</strong> puts the items the Cyclotron is most sure you will Accept first. It goes by confidence alone: an Accept at 90% ranks above an Accept at 60%, and the ones it expects you to Reject most surely come last. Items with no prediction sit in the middle. Age does not change this order.</li>
             <li><strong>Newest</strong> puts the items that arrived most recently first.</li>
-            <li><strong>Unrated only</strong> shows items nobody has answered yet. <strong>Include rated</strong> adds the ones you have already accepted or rejected to the same list, showing your answer, in the same sort. <strong>Rated only</strong> lists just those answered ones, in the same sort, so you can find one again; Best bets there still goes by the Cyclotron&apos;s original confidence, not by your answer. Nothing is hidden because it is old.</li>
+            <li><strong>Unrated</strong> shows items nobody has answered yet. <strong>All</strong> adds the ones you have already accepted or rejected to the same list, showing your answer, in the same sort. <strong>Rated</strong> lists just those answered ones, in the same sort, so you can find one again; Best bets there still goes by the Cyclotron&apos;s original confidence, not by your answer. Nothing is hidden because it is old.</li>
             <li><strong>Your answers stay put.</strong> A card you rate stays where it is for this visit, and new items wait behind a button until you ask for them.</li>
           </ol>
         </div>
@@ -635,7 +635,7 @@ export function ReferenceFeed({
           <FeedMoreSentinel hasMore={hasMore} itemCount={0} loadingMore={loadingMore} onLoadMore={onLoadMore} />
         ) : empty(show === "rated"
           ? "Nothing rated yet. Accept or reject a reference and it will be listed here."
-          : ratedCount && show === "unrated" ? "You are all caught up. Choose Include rated to see your answers." : "No references yet.")
+          : ratedCount && show === "unrated" ? "You are all caught up. Choose All to see your answers." : "No references yet.")
       )}
     </div>
   );

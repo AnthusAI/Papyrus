@@ -58,7 +58,7 @@ const outcomes = [
     "both read as accepted, and the editor can still change either",
   ]],
   ["popover", [
-    "it explains Best bets, Newest, Unrated only, Include rated and why a rated card stays put",
+    "it explains Best bets, Newest, Unrated, All and why a rated card stays put",
     "it says that age does not change the order",
   ]],
   ["cached", [
@@ -70,11 +70,11 @@ const outcomes = [
     "the answered button says Confirmed or Overturned, in words and a marker as well as colour",
     "Rejecting asks for a written reason in words and changes nothing until one is given",
     "while an answer is being saved the button says Sending, or Updating when it changes a saved answer, and never says it is unrecorded",
-    "choosing Include rated keeps the answered cards where they were",
+    "choosing All keeps the answered cards where they were",
   ]],
 ];
 When("the editor opens the feed at 375 and 1440 pixels", function () { this.feedResult = ""; });
-When("the editor chooses Include rated at 375 and 1440 pixels", function () { this.feedResult = ""; });
+When("the editor chooses All at 375 and 1440 pixels", function () { this.feedResult = ""; });
 for (const action of [
   "the editor opens each of them",
   "the editor opens the full-text one at 375 pixels and shows all of the captured text",
@@ -162,18 +162,18 @@ Then("ties go to the newest item and then to a stable order", function () { asse
 Then("a card rated this visit does not move any other card", function () { assert.match(this.feedResult, /The feed order is taken once and kept, in both sorts/); });
 Then("it stays in the one list where its original confidence puts it, and last when sorted by Newest, with no Earlier section and no tabs", async function () { assert.ok((await browser("aged")).includes("passed: aged")); });
 Then("an old card can be rated and stays where it is", async function () { assert.ok((await browser("aged")).includes("passed: aged")); });
-Then("Best bets and Unrated only are pressed, and each choice is a pair of buttons with an icon and words", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+Then("Best bets and Unrated are pressed, and each choice is a pair of buttons with an icon and words", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("choosing Newest orders the cards by arrival, newest first, whatever the predictions say", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("the answered cards join the same list in the active sort, each showing its recorded vote", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
-Then("the page remembers Newest and Include rated for this browser, with no tabs on the page", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
-When("the editor chooses Rated only", function () { this.feedResult = ""; });
+Then("the page remembers Newest and All for this browser, with no tabs on the page", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+When("the editor chooses Rated", function () { this.feedResult = ""; });
 for (const text of [
   "only the answered cards are listed, in the active sort, each showing its recorded vote, with no large lead card",
   "the answered cards are read from the rated partitions alone, a page at a time, and a vote changed there leaves the card where it is",
-  "a site with nothing rated yet says \"Nothing rated yet\" in plain words, and the page remembers Rated only for this browser",
+  "a site with nothing rated yet says \"Nothing rated yet\" in plain words, and the page remembers Rated for this browser",
 ]) Then(text, async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("Best bets there goes by the Cyclotron's original confidence and Newest by arrival, never by the editor's answer", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
-When("the editor chooses Include rated and reloads the page", function () { this.feedResult = ""; });
+When("the editor chooses All and reloads the page", function () { this.feedResult = ""; });
 Then("the pictures are lazy, in a fixed frame and requested with no referrer", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("a missing or failing picture shows a soft gradient tile with the source's mark and name", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("the page header, the sort and show buttons and card skeletons are on screen and no text says it is checking credentials", async function () { assert.ok((await browser("skeleton")).includes("passed: skeleton")); });

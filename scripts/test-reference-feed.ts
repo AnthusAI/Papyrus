@@ -519,7 +519,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     });
   },
 
-  /** A rated card stays in place showing the answer, undo is the other choice, then it is hidden under Unrated only on the next visit. */
+  /** A rated card stays in place showing the answer, undo is the other choice, then it is hidden under Unrated on the next visit. */
   async lifecycle() {
     await run("", [375, 1440], async (page) => {
       await cards(page).first().waitFor();
@@ -559,7 +559,7 @@ const scenarios: Record<string, () => Promise<void>> = {
 
       assert.deepEqual(await order(page), before, "both answers stay where they were");
       await page.locator("[data-feed-show-button=all]").click();
-      assert.deepEqual(await order(page), before, "Include rated adds nothing here: they are already listed");
+      assert.deepEqual(await order(page), before, "All adds nothing here: they are already listed");
       await card(page, "weak-reject").locator("[data-review-choice=accept]").first().waitFor();
       await card(page, "strong-accept").locator("[data-feed-open]").click();
       assert.deepEqual((await page.evaluate(() => (window as unknown as { calls: Array<{ type: string; id: string }> }).calls)).at(-1), { type: "open", id: "strong-accept" }, "the card body opens the review");
@@ -582,13 +582,13 @@ const scenarios: Record<string, () => Promise<void>> = {
     });
   },
 
-  /** Best bets by default, Newest by date; Unrated only by default, Include rated adds the answered cards; both choices are remembered. */
+  /** Best bets by default, Newest by date; Unrated by default, All adds the answered cards; both choices are remembered. */
   async sorting() {
     await run("?auto", [375, 1440], async (page) => {
       await cards(page).first().waitFor();
       const pressed = (kind: string, key: string) => page.locator(`[data-feed-${kind}-button=${key}]`).getAttribute("aria-pressed");
       assert.equal(await pressed("sort", "best"), "true", "Best bets is the default");
-      assert.equal(await pressed("show", "unrated"), "true", "Unrated only is the default");
+      assert.equal(await pressed("show", "unrated"), "true", "Unrated is the default");
       for (const kind of ["sort", "show"]) {
         for (const button of await page.locator(`[data-feed-${kind}-button]`).all()) {
           assert.ok((await button.locator("svg").count()) >= 1, "a Lucide icon beside the words");
@@ -607,7 +607,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.locator("[data-feed-show-button=all]").click();
       assert.equal(await pressed("show", "all"), "true");
       const all = await order(page);
-      for (const id of ["auto-accepted", "rule-accepted", "editor-accepted"]) assert.ok(all.includes(id), `${id} is listed under Include rated`);
+      for (const id of ["auto-accepted", "rule-accepted", "editor-accepted"]) assert.ok(all.includes(id), `${id} is listed under All`);
       assert.equal(all.length, 9);
       assert.deepEqual(all.slice(0, 3), ["auto-accepted", "rule-accepted", "editor-accepted"], "rated cards sit in the active sort (these three arrived last)");
       assert.equal(await card(page, "editor-accepted").getAttribute("data-feed-rated"), "accept", "a rated card shows its recorded vote");
@@ -621,7 +621,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await pressed("show", "rated"), "true");
       assert.equal(await pressed("show", "all"), "false");
       const rated = await order(page);
-      assert.deepEqual(rated, ["auto-accepted", "rule-accepted", "editor-accepted"], "Rated only lists the answered cards alone, newest first");
+      assert.deepEqual(rated, ["auto-accepted", "rule-accepted", "editor-accepted"], "Rated lists the answered cards alone, newest first");
       assert.equal(await card(page, "editor-accepted").getAttribute("data-feed-rated"), "accept", "a rated card still shows its recorded vote");
       assert.equal(await page.locator("[data-feed-lead]").count(), 0, "and has no lead card");
       await page.locator("[data-feed-sort-button=best]").click();
@@ -629,7 +629,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await page.locator("[data-feed-show-button=rated] svg").count(), 1, "a Lucide icon beside the words");
       await page.reload();
       await cards(page).first().waitFor();
-      assert.equal(await pressed("show", "rated"), "true", "Rated only is remembered too");
+      assert.equal(await pressed("show", "rated"), "true", "Rated is remembered too");
       await page.locator("[data-feed-show-button=unrated]").click();
       assert.equal((await order(page)).length, 6);
     });
@@ -689,7 +689,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await button.click();
       const panel = page.locator("[data-feed-ranking-panel]");
       const text = await panel.innerText();
-      for (const expected of ["A feed run by algorithms you control", "Best bets", "Newest", "Unrated only", "Include rated", "Your answers stay put", "Age does not change"]) {
+      for (const expected of ["A feed run by algorithms you control", "Best bets", "Newest", "Unrated", "All", "Your answers stay put", "Age does not change"]) {
         assert.ok(text.includes(expected), `the popover says: ${expected}`);
       }
       const box = (await panel.boundingBox())!;
@@ -812,9 +812,9 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.locator("[data-feed-show-button=rated]").click();
       await page.waitForFunction(() => window.requests.some((request) => request.kind === "index"));
       await page.locator("[data-feed-empty]").waitFor();
-      assert.match(await page.locator("[data-feed-empty]").innerText(), /Nothing rated yet/, "an empty Rated only says so in plain words");
+      assert.match(await page.locator("[data-feed-empty]").innerText(), /Nothing rated yet/, "an empty Rated says so in plain words");
       const keys = await page.evaluate(() => window.requests.filter((request) => request.kind === "index").map((request) => (request as unknown as { key: string }).key));
-      assert.ok(keys.length > 0 && keys.every((key) => key.endsWith("#rated")), "Rated only reads the rated partitions alone");
+      assert.ok(keys.length > 0 && keys.every((key) => key.endsWith("#rated")), "Rated reads the rated partitions alone");
     });
     await run("?indexed=1&slow=900", [375], async (page) => {
       await page.waitForTimeout(300);

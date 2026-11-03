@@ -1,7 +1,7 @@
 /**
  * Pages of the References feed, read from the feed-state indexes (docs/reference-feed-indexes.md).
  *
- * A site can have several corpora and the feed shows rated and unrated Reference together under "Include rated", so the feed is
+ * A site can have several corpora and the feed shows rated and unrated Reference together under "All", so the feed is
  * several index partitions (`<corpusId>#unrated`, `<corpusId>#rated`), each already in feed order. `MergedFeedReader` merges them
  * into one list in the same order as a single partition would give: Best bets by `predictionSortKey`, Newest by `feedArrivalAt`,
  * both newest-first on ties. One call to `more` makes at most one round of reads (one page per partition whose buffer ran dry, in
