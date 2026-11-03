@@ -761,7 +761,9 @@ def step_plain_system(context):
 
 @then("the packet has no context pack record")
 def step_no_record(context):
-    assert "contextPack" not in context.packet["multiSearch"] and not context.store.writes
+    # Finishing the run completes the assignment and records that; anything else written would be the context pack's.
+    assert "contextPack" not in context.packet["multiSearch"]
+    assert {model for _, model, _ in context.store.writes} <= {"Assignment", "AssignmentEvent"}
 
 
 @then("the earlier research appears after the conversation with its direction, summary, claims and open questions")
