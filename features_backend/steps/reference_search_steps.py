@@ -226,6 +226,19 @@ def cold_build(context):
     assert context.index.search("gamma", "all") == []
 
 
+@given("the search is asked for through an Amplify resolver by an editor")
+def amplify_event(context):
+    context.event = {"fieldName": "searchReferences", "identity": {"claims": {"cognito:groups": ["editor"]}}, "arguments": {"input": "{}"}}
+
+
+@then("the search runs instead of the knowledge query")
+def search_runs(context):
+    from papyrus_knowledge_query import lambda_handler, reference_search
+
+    assert lambda_handler._field_name(context.event) == "searchReferences"
+    reference_search.require_editor(context.event)
+
+
 @given("the search is asked for by someone in the reader group")
 def reader(context):
     context.event = {"info": {"fieldName": "searchReferences"}, "identity": {"groups": ["reader"]}}

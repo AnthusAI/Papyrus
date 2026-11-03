@@ -429,6 +429,8 @@ def require_editor(event: dict[str, Any] | None) -> None:
     if not isinstance(identity, dict):
         return
     groups = identity.get("groups")
+    if groups is None and isinstance(identity.get("claims"), dict):
+        groups = identity["claims"].get("cognito:groups")
     if not isinstance(groups, list) or not set(map(str, groups)) & set(EDITOR_GROUPS):
         raise SearchError("Not Authorized: searching References is for editors and admins.")
 

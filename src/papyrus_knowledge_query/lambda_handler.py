@@ -17,8 +17,11 @@ def handler(event: dict[str, Any], context: Any = None) -> dict[str, Any]:
 
 
 def _field_name(event: dict[str, Any]) -> str:
-    info = event.get("info") if isinstance(event, dict) else None
-    return str(info.get("fieldName") or "") if isinstance(info, dict) else ""
+    """Amplify's Lambda resolvers send ``fieldName`` at the top of the event; a direct AppSync resolver sends it under ``info``."""
+    if not isinstance(event, dict):
+        return ""
+    info = event.get("info")
+    return str((info.get("fieldName") if isinstance(info, dict) else None) or event.get("fieldName") or "")
 
 
 def _search_references(event: dict[str, Any], input_payload: dict[str, Any], services: Any) -> dict[str, Any]:
