@@ -7,10 +7,12 @@ import {
   applyFeedOrderSnapshot,
   buildFeedItems,
   feedLeadId,
+  filterByStars,
   orderFeedItems,
   takeFeedOrderSnapshot,
   visibleFeedItems,
 } from "../lib/reference-feed-ranking";
+import { choose } from "../components/use-feed-preferences";
 import { withoutSiteName } from "../lib/newsroom-references";
 import { dekAddsInformation, formatFeedAge, referenceDek, referencePreviewsByLineage, referenceSourceHost } from "../lib/reference-preview";
 import { captureLine, captureStatus, curationCardOf, completenessFlags, captureStatusesByLineage, countWords, structuredRows, teaserWords, DEFAULT_TEASER_WORDS } from "../lib/reference-capture";
@@ -287,4 +289,36 @@ test("Completeness signals become plain facts, and a paywall phrase in the tail 
   assert.equal(captureStatus([attach("a", "source"), vouched]).state, "full", "an editor's Complete is not second-guessed");
   const edited = curation({ status: "ready", capture: { status: "completed", wordCount: 5 }, signals: { wordCount: 5 }, editedSignals: { wordCount: 1500 }, current: { textSortKey: "curation-edit-0001-text" } });
   assert.equal(captureStatus([attach("a", "source"), edited]).words, 1500, "the edited text's own word count");
+});
+
+test("Quality: most stars first, newest first within a star level, unstarred last; a minimum keeps that many or more", () => {
+  const references = [
+    reference("three-old", { starRating: 3, createdAt: ago(5) }), reference("five-old", { starRating: 5, createdAt: ago(4) }), reference("five-new", { starRating: 5, createdAt: ago(1) }),
+    reference("none", { createdAt: ago(0.1) }), reference("four", { starRating: 4, createdAt: ago(2) }), reference("float", { starRating: 4.5, createdAt: ago(0.2) }),
+  ];
+  const all = items(references);
+  assert.deepEqual(ids(orderFeedItems(all, "quality")), ["five-new", "five-old", "four", "three-old", "none", "float"], "a rating that is not a whole 1 to 5 counts as none, so these two follow newest first");
+  assert.deepEqual(ids(filterByStars(orderFeedItems(all, "quality"), "quality", 0)), ["five-new", "five-old", "four", "three-old"], "Quality shows the starred only");
+  assert.deepEqual(ids(filterByStars(orderFeedItems(all, "newest"), "newest", 4)), ["five-new", "four", "five-old"], "4+ in Newest keeps 4 and 5 by arrival");
+  assert.deepEqual(ids(filterByStars(orderFeedItems(all, "newest"), "newest", 5)), ["five-new", "five-old"]);
+  assert.equal(filterByStars(all, "newest", 0).length, 6, "Any keeps everything");
+});
+
+test("the order snapshot keeps a Quality order of its own", () => {
+  const live = items([reference("a", { starRating: 2 }), reference("b", { starRating: 5 }), reference("c")]);
+  const snapshot = takeFeedOrderSnapshot(live);
+  assert.deepEqual(snapshot.quality, ["b", "a", "c"]);
+  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "quality", "all").items), ["b", "a", "c"]);
+});
+
+test("the rules between the choices: stars follow the vote and the prediction, and Show stays the editor's", () => {
+  const start = { sort: "best", show: "unrated", minStars: 0 } as const;
+  assert.deepEqual(choose(start, { minStars: 4 }), { sort: "newest", show: "all", minStars: 4 }, "a minimum moves Best bets to Newest and Unrated to All");
+  assert.deepEqual(choose(start, { sort: "quality" }), { sort: "quality", show: "all", minStars: 0 }, "Quality moves Unrated to All");
+  assert.deepEqual(choose({ sort: "newest", show: "rated", minStars: 3 }, { sort: "best" }), { sort: "best", show: "rated", minStars: 0 }, "Best bets takes the minimum back to Any");
+  assert.deepEqual(choose({ sort: "newest", show: "all", minStars: 5 }, { show: "unrated" }), { sort: "newest", show: "unrated", minStars: 5 }, "Show is honoured afterwards");
+  assert.deepEqual(choose({ sort: "quality", show: "all", minStars: 0 }, { show: "unrated" }), { sort: "quality", show: "unrated", minStars: 0 });
+  assert.deepEqual(choose({ sort: "newest", show: "all", minStars: 4 }, { minStars: 0 }), { sort: "newest", show: "all", minStars: 0 }, "Any moves nothing else");
+  assert.deepEqual(choose({ sort: "newest", show: "unrated", minStars: 0 }, { minStars: 0 }), { sort: "newest", show: "unrated", minStars: 0 });
+  assert.deepEqual(choose({ sort: "quality", show: "unrated", minStars: 0 }, { sort: "newest" }), { sort: "newest", show: "unrated", minStars: 0 }, "leaving Quality does not move Show");
 });

@@ -1801,6 +1801,9 @@ const definitions = {
       predictedAcceptProbability: a.float(),
       predictionDecidedAt: a.datetime(),
       predictionSortKey: a.string(),
+      // "<corpusId>#stars#<n>" for a current, not archived Reference an editor has starred (null otherwise): one partition per star level,
+      // read newest first by `feedArrivalAt` for the Quality sort and the minimum-stars filter.
+      starFeedKey: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [
@@ -1816,6 +1819,7 @@ const definitions = {
       index("discoveredByMonitorId").sortKeys(["createdAt"]).queryField("listReferencesByMonitorAndCreatedAt"),
       index("feedStateKey").sortKeys(["predictionSortKey"]).queryField("listReferencesByFeedStateAndPrediction"),
       index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival"),
+      index("starFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByStarFeedAndArrival"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),

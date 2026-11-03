@@ -53,11 +53,15 @@ feed, the Python readers and the idea pipeline need no extra query. It is **sepa
 can be set before or after a vote, and the newest rating wins (a tap on the same star clears it, which clears who and when too). It is **not relevance**: stars
 are editorial interest, and nothing sends them to the Cyclotron as a label (`reference_vote.vote_fields` carries none; `reference_vote.latest_vote` ignores
 them). The writer is the `setReferenceStars` mutation (`amplify/functions/category-action`, editor groups, like `reviewReferenceCuration`); Python reads with
-`reference_stars.latest_stars` and writes with `reference_stars.star_fields`. The older `setReferenceQualityRating` mutation was not reused: it
+`reference_stars.latest_stars` and writes with `reference_stars.star_fields` (which now also needs the Reference's `corpus_id`, for `starFeedKey`). The older `setReferenceQualityRating` mutation was not reused: it
 turns three stars or more into an Accept and fewer into a Reject, which is the opposite of "stars do not change the vote", and it keeps the rating as a
 `quality_rating_is` relation to a quality node, which costs a relation read per Reference. The idea pipeline reads stars as one of the strongest human signals
 ([ideas from context packs, "Editor interest"](idea-context-packs.md#editor-interest-stars-messages-and-accept-reasons)). A schema change: it needs the
 backend deployed (a site release), and the `p.apyr.us` docs page for curation should gain a short "stars" section (follow-up PPY-3247f1).
+
+### Finding the good ones again: Quality and Minimum stars
+
+An editor curating with stars needs to go back for "the most recent, highest quality things". The References page has a third Sort, **Quality** (most stars first, newest first within a star level; only starred References), and a **Minimum stars** row (Any, 3+, 4+, 5), both in the feed and in search results ([reference search](reference-search.md)). They read a sparse index on `Reference`, `starFeedKey` (`<corpusId>#stars#<n>`, sorted by `feedArrivalAt`, query `listReferencesByStarFeedAndArrival`), one partition per star level, merged by the same reader as the feed ([reference feed indexes](reference-feed-indexes.md#the-star-index)). `setReferenceStars` writes `starFeedKey` with the rating (clearing the rating clears the key) and gives a Reference with no `feedArrivalAt` one, since the index sorts by it. Stars are still separate from the vote and from relevance, and still never reach the Cyclotron: this changes what an editor can look up, not what the Cyclotron learns. A new version of a Reference does **not** carry the rating (the version's record is built from the import, which has no stars, and `moveReferenceCorpus` does not copy it), so a re-versioned Reference loses its stars and its star key stays on the old, superseded version until the reader drops it (the ghost-row rule in the index doc). Carrying stars over to a new version is not part of this change.
 
 ## Suggested links on the card (PPY-3c11bd follow-up, Ryan 2026-11-02)
 

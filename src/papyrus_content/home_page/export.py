@@ -75,6 +75,7 @@ EXCLUDED_REFERENCE_FIELDS = {
     "reviewedFeedKey": PLUMBING,
     "feedStateKey": PLUMBING,
     "predictionSortKey": PLUMBING,
+    "starFeedKey": PLUMBING,
     "versionState": PLUMBING + " (only current versions are read)",
     "versionCreatedAt": PLUMBING,
     "curationStatusKey": PLUMBING,

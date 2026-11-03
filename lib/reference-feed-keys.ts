@@ -53,6 +53,17 @@ export function referenceFeedStateKey(reference: ReferenceFeedKeyInput): string 
   return `${reference.corpusId}#${status === "pending" ? "unrated" : "rated"}`;
 }
 
+/**
+ * The star partition a Reference is in: "<corpusId>#stars#<n>" for a whole star rating of 1 to 5, null when it has none or no corpus.
+ * It is not part of `referenceFeedKeys`: callers spread those keys on partial patches whose input may lack `starRating`, which would wrongly
+ * clear it. A star write sets it (`setReferenceStars`); the index is sparse, so an unstarred Reference is in no star partition. It does not look
+ * at the feed state: the reader drops a row with no `feedStateKey` (archived or superseded) instead.
+ */
+export function starFeedKeyFor(corpusId: string | null | undefined, stars: number | null | undefined): string | null {
+  if (!corpusId || typeof stars !== "number" || !Number.isInteger(stars) || stars < 1 || stars > 5) return null;
+  return `${corpusId}#stars#${stars}`;
+}
+
 export function predictionSortKeyFor(probability: number | null | undefined, arrival: string, referenceId: string): string {
   const chosen = probability === null || probability === undefined ? UNDECIDED_PROBABILITY : Math.min(1, Math.max(0, probability));
   return `${chosen.toFixed(6)}#${arrival}#${referenceId}`;

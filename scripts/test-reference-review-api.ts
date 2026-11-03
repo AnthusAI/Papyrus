@@ -183,6 +183,24 @@ async function main() {
   assert.equal(voteOnReference().actorKind, "agent");
   assert.equal(current().curationDelegation, null, "no delegation is invented");
 
+  // A star rating keeps the Reference in the right star partition (`starFeedKey`), and gives a row with no arrival one, since the index sorts by it.
+  const stars = (count: number | null) => handler({ info: { fieldName: "setReferenceStars" }, identity: editor, arguments: { referenceId, stars: count } });
+  assert.equal((await stars(4)).ok, true);
+  assert.equal(current().starRating, 4);
+  assert.equal(current().starFeedKey, "corpus-fixture#stars#4");
+  assert.equal(current().feedArrivalAt, "2026-10-28T08:00:00.000Z", "an arrival the row already has is left alone");
+  await stars(2);
+  assert.equal(current().starFeedKey, "corpus-fixture#stars#2", "the newest rating wins, in the partition for its stars");
+  await stars(null);
+  assert.deepEqual([current().starRating, current().starRatedBy, current().starFeedKey], [null, null, null], "clearing the rating takes it out of the star index");
+  await assert.rejects(stars(6), /stars must be an integer from 1 to 5/);
+  table("Reference").set("reference-no-arrival-v1", { id: "reference-no-arrival-v1", lineageId: "reference-no-arrival", versionNumber: 1, versionState: "current",
+    corpusId: "corpus-fixture", curationStatus: "pending", createdAt: "2026-10-01T00:00:00Z" });
+  await handler({ info: { fieldName: "setReferenceStars" }, identity: editor, arguments: { referenceId: "reference-no-arrival-v1", stars: 5 } });
+  const fresh = table("Reference").get("reference-no-arrival-v1")!;
+  assert.deepEqual([fresh.starFeedKey, fresh.feedArrivalAt], ["corpus-fixture#stars#5", "2026-10-01T00:00:00.000Z"], "a Reference with no feedArrivalAt gets one, or it would not be in the index");
+  assert.equal(current().curationStatus, "accepted", "stars never change the vote");
+
   // The typed schema keeps the same declared authorization as the deployed schema.
   const typedSource = readFileSync(resolve(root, "amplify/data/resource.ts"), "utf8");
   const typedMutation = typedSource.slice(typedSource.indexOf("  reviewReferenceCuration:"), typedSource.indexOf("  createCurationDelegation:"));

@@ -1,14 +1,28 @@
 import json
 from pathlib import Path
 
-from .reference_feed_keys import accept_probability, feed_keys, original_prediction_fields
+from .reference_feed_keys import accept_probability, feed_keys, original_prediction_fields, stale_star_feed_key, star_feed_key
 
 VECTORS = json.loads((Path(__file__).resolve().parents[2] / "scripts" / "fixtures" / "reference-feed-key-vectors.json").read_text())
 
 
 def test_the_keys_match_the_vectors_the_typescript_twin_is_tested_against():
     for vector in VECTORS:
-        assert feed_keys(vector["reference"]) == vector["keys"], vector["name"]
+        assert feed_keys(vector["reference"]) == vector["keys"], vector["name"]   # never carries the star key: callers spread it on partial patches
+        if "starFeedKey" in vector:
+            reference = vector["reference"]
+            assert star_feed_key(reference.get("corpusId"), reference.get("starRating")) == vector["starFeedKey"], vector["name"]
+
+
+def test_star_keys_ignore_what_is_not_a_rating_and_the_stale_check_names_only_the_key():
+    assert star_feed_key("c", None) is None and star_feed_key("c", 0) is None and star_feed_key("c", 6) is None and star_feed_key("c", True) is None
+    assert star_feed_key("c", float("nan")) is None and star_feed_key("c", float("inf")) is None
+    assert star_feed_key("", 3) is None and star_feed_key("c", "4") is None
+    assert star_feed_key("c", 4.0) == "c#stars#4"
+    assert stale_star_feed_key({"corpusId": "c", "starRating": 4, "starFeedKey": "c#stars#4"}) == {}
+    assert stale_star_feed_key({"corpusId": "c", "starRating": 4}) == {"starFeedKey": "c#stars#4"}
+    assert stale_star_feed_key({"corpusId": "c", "starFeedKey": "c#stars#2"}) == {"starFeedKey": None}
+    assert stale_star_feed_key({"corpusId": "c"}) == {}
 
 
 def test_accept_probability_is_the_include_confidence_or_one_minus_the_exclude_confidence():

@@ -60,6 +60,19 @@ Feature: The References page pages through two indexes whose keys every writer k
     Given a pending Reference that is not the current version
     Then it is in no feed
 
+  Scenario: A star rating puts the Reference in the star partition for its stars and clearing it takes it out
+    The Quality sort and the minimum-stars choice read a third index, partitioned by "<corpus>#stars#<n>" and sorted by arrival. It is sparse:
+    a Reference with no stars is in no partition. The key is written with the rating, never with the feed keys, so a write that carries
+    the feed keys alone cannot clear it.
+    Given a pending Reference that arrived at "2026-10-28T12:00:00Z" and has no prediction
+    When an editor's rating of 4 stars is recorded on it
+    Then it is in the star partition for 4 stars of its corpus
+    When an editor's rating of 2 stars is recorded on it
+    Then it is in the star partition for 2 stars of its corpus
+    When the editor's rating is cleared on it
+    Then it is in no star partition of its corpus
+    And the feed keys of a Reference never include the star key
+
   Scenario: The backfill sets the keys and changes nothing else
     Given a corpus with these References and no feed keys
       | name    | status   | decision                    |
@@ -101,6 +114,36 @@ Feature: The References page pages through two indexes whose keys every writer k
     And the "fresh" Reference already records an accept probability of 0.4
     When the feed key backfill runs for that corpus
     Then the "fresh" Reference still records an accept probability of 0.4
+
+  Scenario: The backfill puts a starred Reference in its star partition
+    The Quality sort and the minimum-stars choice read the star index, one partition per star level, "<corpus>#stars#<n>". A Reference starred
+    before that index existed has no star key, so the backfill sets it from the stars the Reference already records. One without stars gets none.
+    Given a corpus with these References and no feed keys
+      | name    | status   | decision |
+      | picked  | pending  | none     |
+      | voted   | accepted | none     |
+      | plain   | pending  | none     |
+    And the "picked" Reference is starred 4 stars
+    And the "voted" Reference is starred 5 stars
+    When the feed key backfill runs for that corpus
+    Then the "picked" Reference is in the star partition "stars#4"
+    And the "voted" Reference is in the star partition "stars#5"
+    And the "plain" Reference is in no star partition
+    And the backfill reports 2 star keys changed
+    And each backfill write names only the Reference id and feed key fields
+
+  Scenario: The backfill clears a star key whose stars are gone and writes nothing the second time
+    Given a corpus with these References and no feed keys
+      | name    | status  | decision |
+      | cleared | pending | none     |
+      | picked  | pending | none     |
+    And the "picked" Reference is starred 3 stars
+    And the "cleared" Reference still has the star key "stars#2" though it has no stars
+    When the feed key backfill runs for that corpus
+    And the feed key backfill runs for that corpus again
+    Then the "cleared" Reference is in no star partition
+    And the "picked" Reference is in the star partition "stars#3"
+    And the second run wrote nothing
 
   Scenario Outline: Every way of creating a Reference is in the feed
     The feed reads References only through their feed keys, so a Reference created without them would be invisible there. Whatever the

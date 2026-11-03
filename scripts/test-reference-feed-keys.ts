@@ -2,14 +2,20 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { schema } from "../amplify/data/schema";
-import { referenceFeedKeys, type ReferenceFeedKeyInput } from "../lib/reference-feed-keys";
+import { referenceFeedKeys, starFeedKeyFor, type ReferenceFeedKeyInput } from "../lib/reference-feed-keys";
 
-type Vector = { name: string; reference: ReferenceFeedKeyInput; keys: ReturnType<typeof referenceFeedKeys> };
+type Vector = { name: string; reference: ReferenceFeedKeyInput & { starRating?: number | null }; keys: ReturnType<typeof referenceFeedKeys>; starFeedKey?: string | null };
 const vectors = JSON.parse(readFileSync(join(process.cwd(), "scripts/fixtures/reference-feed-key-vectors.json"), "utf8")) as Vector[];
 
 for (const vector of vectors) {
-  assert.deepEqual(referenceFeedKeys(vector.reference), vector.keys, vector.name);
+  assert.deepEqual(referenceFeedKeys(vector.reference), vector.keys, vector.name);   // never carries the star key: callers spread it on partial patches
+  if ("starFeedKey" in vector) assert.equal(starFeedKeyFor(vector.reference.corpusId, vector.reference.starRating), vector.starFeedKey, vector.name);
 }
+assert.equal(starFeedKeyFor("c", undefined), null);
+assert.equal(starFeedKeyFor("c", 0), null);
+assert.equal(starFeedKeyFor("c", 6), null);
+assert.equal(starFeedKeyFor("c", Number.NaN), null);
+assert.equal(starFeedKeyFor(null, 3), null);
 
 // Best bets reads the index newest-key-first: the highest P(accept) first, then the newest arrival.
 const keyed = (id: string, probability: number | null, createdAt: string) =>
@@ -34,6 +40,9 @@ const referenceType = generated.slice(generated.indexOf("type Reference @model")
 const partition = referenceType.split("\n").find((line) => /^\s+feedStateKey: String/.test(line)) ?? "";
 assert.match(partition, /@index\(sortKeyFields: \["predictionSortKey"\], queryField: "listReferencesByFeedStateAndPrediction"\)/, "Best bets index");
 assert.match(partition, /@index\(sortKeyFields: \["feedArrivalAt"\], queryField: "listReferencesByFeedStateAndArrival"\)/, "Newest index");
+// And the sparse star index: one partition per star level, read by arrival.
+const starPartition = referenceType.split("\n").find((line) => /^\s+starFeedKey: String/.test(line)) ?? "";
+assert.match(starPartition, /@index\(sortKeyFields: \["feedArrivalAt"\], queryField: "listReferencesByStarFeedAndArrival"\)/, "star index");
 assert.match(referenceType, /predictedAcceptProbability: Float/);
 assert.match(referenceType, /predictionDecidedAt: AWSDateTime/);
 assert.match(referenceType, /feedArrivalAt: AWSDateTime/);

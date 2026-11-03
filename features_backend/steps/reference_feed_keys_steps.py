@@ -17,9 +17,10 @@ from papyrus_content.auto_reject import reject_reference_automatically  # noqa: 
 from papyrus_content.monitoring_router import record_original_prediction  # noqa: E402
 from papyrus_content.reference_feed_backfill import backfill_feed_keys  # noqa: E402
 from papyrus_content.reference_feed_keys import feed_keys  # noqa: E402
+from papyrus_content.reference_stars import star_fields  # noqa: E402
 
 CORPUS = "knowledge-corpus-example-site"
-FEED_FIELDS = {"id", "feedStateKey", "feedArrivalAt", "predictedAcceptProbability", "predictionDecidedAt", "predictionSortKey"}
+FEED_FIELDS = {"id", "feedStateKey", "feedArrivalAt", "predictedAcceptProbability", "predictionDecidedAt", "predictionSortKey", "starFeedKey"}
 
 
 class Backend:
@@ -136,6 +137,31 @@ def step_unrated(context):
 @then("it is in the rated feed of its corpus")
 def step_rated(context):
     assert stored(context)["feedStateKey"] == f"{CORPUS}#rated", stored(context)
+
+
+@when("an editor's rating of {stars:d} stars is recorded on it")
+def step_rating_recorded(context, stars):
+    stored(context).update(star_fields(stars, corpus_id=CORPUS, rated_by="an editor", rated_at="2026-10-29T00:00:00Z"))
+
+
+@when("the editor's rating is cleared on it")
+def step_rating_cleared(context):
+    stored(context).update(star_fields(None, corpus_id=CORPUS))
+
+
+@then("it is in the star partition for {stars:d} stars of its corpus")
+def step_in_star_partition(context, stars):
+    assert stored(context)["starFeedKey"] == f"{CORPUS}#stars#{stars}", stored(context)
+
+
+@then("it is in no star partition of its corpus")
+def step_not_in_star_partition(context):
+    assert stored(context)["starFeedKey"] is None, stored(context)
+
+
+@then("the feed keys of a Reference never include the star key")
+def step_feed_keys_without_star_key(context):
+    assert "starFeedKey" not in feed_keys({**stored(context), "starRating": 5})
 
 
 @then("it is in no feed")
@@ -261,6 +287,31 @@ def step_dry(context):
 @then("the dry run wrote nothing to the References")
 def step_wrote_nothing(context):
     assert world(context).backend.written == [], world(context).backend.written
+
+
+@given('the "{name}" Reference is starred {stars:d} stars')
+def step_starred(context, name, stars):
+    row_named(context, name)["starRating"] = stars
+
+
+@given('the "{name}" Reference still has the star key "{suffix}" though it has no stars')
+def step_stale_star_key(context, name, suffix):
+    row_named(context, name)["starFeedKey"] = f"{CORPUS}#{suffix}"
+
+
+@then('the "{name}" Reference is in the star partition "{suffix}"')
+def step_star_partition(context, name, suffix):
+    assert row_named(context, name).get("starFeedKey") == f"{CORPUS}#{suffix}", row_named(context, name)
+
+
+@then('the "{name}" Reference is in no star partition')
+def step_no_star_partition(context, name):
+    assert row_named(context, name).get("starFeedKey") is None, row_named(context, name)
+
+
+@then("the backfill reports {count:d} star keys changed")
+def step_star_keys_changed(context, count):
+    assert world(context).counts["starKeysChanged"] == count, world(context).counts
 
 
 @then("each backfill write names only the Reference id and feed key fields")

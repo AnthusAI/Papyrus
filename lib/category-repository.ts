@@ -299,6 +299,8 @@ export type ReferenceRecord = {
   predictedAcceptProbability?: number | null;
   predictionDecidedAt?: string | null;
   predictionSortKey?: string | null;
+  /** `<corpusId>#stars#<n>` while the Reference has stars: the star index's partition (docs/reference-feed-indexes.md). */
+  starFeedKey?: string | null;
   /** The monitor that delivered this Reference (set at intake; the Reference is the record, no Message). */
   discoveredByMonitorId?: string | null;
   /** What the monitor's source said about it (a Hub model's structured fields, say). */
