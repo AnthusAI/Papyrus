@@ -1614,11 +1614,9 @@ Resources:
     Properties:
       Name: papyrus-monitoring-hn-suggest-backlog
       Description: >-
-        Every hour at minute 44, start the suggest-backlog task for the hn monitor (docs/monitoring-cloud.md#suggestion-backlog). The run suggests nothing
-        itself: it invokes the router once per publication that has a vector index and suggestions on, so each publication has the Lambda's whole time budget
-        and its own lock (LOCK#suggest-backlog#<publicationId>). Each run writes the Related and concept suggestions of the References that already have a
-        summary vector, in the order an editor looks at the site, from the saved place the daily monitor-stories pass uses. It does no indexing, no embedding and
-        no model call. It is offset from the daily 07:30 monitor-stories run so the two do not overlap. No retry: the next hour repeats it.
+        Every hour at minute 44, start the suggest-backlog task for the hn monitor (docs/monitoring-cloud.md#suggestion-backlog).
+        It invokes the router once per publication with a vector index and suggestions on, and writes the suggestions of References
+        that have a summary vector. No indexing and no model call. No retry: the next hour repeats it.
       ScheduleExpression: cron(44 * * * ? *)
       FlexibleTimeWindow: { Mode: "OFF" }
       State: !Ref ScheduleState
