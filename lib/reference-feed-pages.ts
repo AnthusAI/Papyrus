@@ -10,6 +10,7 @@
  */
 import type { ReferenceRecord } from "./category-repository";
 import { referenceFeedKeys, starFeedKeyFor } from "./reference-feed-keys";
+import { starsOf } from "./reference-policy";
 
 /** Quality is stars first, then newest: the star partitions are read by arrival and merged by stars (docs/reference-feed-indexes.md). */
 export type FeedStreamSort = "best" | "newest" | "quality";
@@ -29,10 +30,7 @@ export function feedStateKeys(corpusIds: readonly string[], show: FeedStreamShow
 }
 
 /** The whole star rating of a Reference, 0 when it has none or the value is not a rating (a missing, null, fractional or out of range value). */
-export function starsOf(reference: Pick<ReferenceRecord, "starRating">): number {
-  const stars = reference.starRating;
-  return typeof stars === "number" && Number.isInteger(stars) && stars >= 1 && stars <= 5 ? stars : 0;
-}
+export { starsOf };
 
 /**
  * The star partitions a minimum reads: one per star level from `minStars` up to 5, for each corpus. `minStars` 1 is every starred Reference
