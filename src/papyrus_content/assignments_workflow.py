@@ -1274,6 +1274,10 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
     }
     plan = build_reference_catalog_registration_records(catalog_payload, plan_options)
     assert_reference_catalog_plan_safety(plan)
+    # Taking in a research packet adds References; it does not describe the corpus. The plan's corpus row carries this batch's count and dates, and writing it
+    # over an existing corpus erases what the corpus record says about the whole publication.
+    if client.get_record("KnowledgeCorpus", plan_options["corpusId"]):
+        plan["records"] = [entry for entry in plan["records"] if entry["modelName"] != "KnowledgeCorpus"]
     changes = build_record_changes(client, plan["records"])
     registration = {"plan": plan, "changes": changes}
     url_text_result: dict[str, Any] | None = None

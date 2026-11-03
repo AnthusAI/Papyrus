@@ -54,6 +54,7 @@ def test_the_intake_writes_its_catalog_under_the_temporary_directory(unwritable_
     entry = {"assignment": {"id": "assignment-1"}, "message": {"id": "message-1", "createdAt": "2026-11-03T12:00:00Z"}, "packet": packet}
     client = mock.Mock()
     client.get_record.return_value = {"id": "assignment-1", "metadata": json.dumps({"corpusKey": "example"})}
+    client.list_records.return_value = []
     with mock.patch.object(aw, "load_assignment_research_packet_entries", return_value=[entry]):
         result = aw.intake_research_packet_proposals(client, {"assignment": "assignment-1", "corpus-key": "example", "dry-run": True})
     assert result["catalogPath"].startswith(str(tmp_path / "temporary")) and Path(result["catalogPath"]).is_file()

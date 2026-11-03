@@ -29,3 +29,11 @@ Feature: A research run that cannot write to disk, or whose sources were not tak
     Given a Story whose research assignment has no reporter profile
     When the sources are taken in by the operator command with cited-only
     Then the Story has 0 References
+
+  Scenario: Taking in a packet leaves an existing corpus record as it was
+    The corpus record describes the whole publication. A research packet's intake once overwrote its count and creation date with those of one small batch.
+    Given a publication whose corpus record says it was created long ago and holds many items
+    When a research packet's cited sources are taken in
+    Then the corpus record is unchanged
+    And the cited sources are registered
+

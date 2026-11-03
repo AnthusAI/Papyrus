@@ -51,6 +51,7 @@ def step_take_in_dir(context):
     entry = {"assignment": {"id": "assignment-1"}, "message": {"id": "message-1", "createdAt": "2026-11-03T12:00:00Z"}, "packet": packet}
     client = mock.Mock()
     client.get_record.return_value = {"id": "assignment-1", "metadata": json.dumps({"corpusKey": "example"})}
+    client.list_records.return_value = []
     with mock.patch.object(aw, "load_assignment_research_packet_entries", return_value=[entry]):
         context.followups.result = aw.intake_research_packet_proposals(client, {"assignment": "assignment-1", "corpus-key": "example", "dry-run": True})
 
@@ -169,3 +170,44 @@ def step_open_question(context, text):
 @then("the packet has no direction gaps")
 def step_no_gaps(context):
     assert not context.packet["factCheck"].get("directionGaps")
+
+
+# --- the corpus record ---------------------------------------------------------------------------------------------------------
+
+OLD_CORPUS = {"id": "knowledge-corpus-example", "name": "Example", "role": "canonical", "itemCount": 5000, "createdAt": "2020-01-01T00:00:00Z"}
+
+
+@given("a publication whose corpus record says it was created long ago and holds many items")
+def step_old_corpus(context):
+    context.corpus_client = mock.Mock()
+    context.corpus_client.get_record.side_effect = lambda model, record_id: (dict(OLD_CORPUS) if model == "KnowledgeCorpus" else {"id": record_id})
+    context.corpus_client.list_records.return_value = []
+
+
+@when("a research packet's cited sources are taken in")
+def step_take_in_keeping_corpus(context):
+    packet = {"proposedReferences": [{"url": "https://example.org/report", "title": "A report", "ingestion_rationale": "cited"}]}
+    entry = {"assignment": {"id": "assignment-1"}, "message": {"id": "message-1", "createdAt": "2026-11-03T12:00:00Z"}, "packet": packet}
+    captured = {}
+
+    def changes(client, records):
+        captured["models"] = [row["modelName"] for row in records]
+        return []
+
+    publication = {"key": "example", "corpusId": "knowledge-corpus-example", "name": "Example"}
+    with mock.patch.object(aw, "load_assignment_research_packet_entries", return_value=[entry]), \
+         mock.patch("papyrus_content.editorial_context.hosted_publication", return_value=publication), \
+         mock.patch.object(aw, "build_record_changes", side_effect=changes):
+        aw.intake_research_packet_proposals(context.corpus_client, {"assignment": "assignment-1", "corpus-key": "example", "dry-run": True,
+                                                                    "config": "does-not-exist.yml"})
+    context.corpus_models = captured["models"]
+
+
+@then("the corpus record is unchanged")
+def step_corpus_unchanged(context):
+    assert "KnowledgeCorpus" not in context.corpus_models, context.corpus_models
+
+
+@then("the cited sources are registered")
+def step_registered(context):
+    assert "Reference" in context.corpus_models, context.corpus_models
