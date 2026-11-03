@@ -136,6 +136,65 @@ Feature: References are curated before an editor reviews them
     Then the card's text is the video's short description
     And the capture records that the text came from the video description because the transcript was "no_transcript"
 
+  Scenario: A Reference with no Assignment and no Story is summarized exactly as before
+    When the curation procedure runs for the Reference
+    Then the model was given no purpose context
+    And the card holds a summary written by "gpt-6-luna"
+    And the Reference's metadata holds no "summary_purpose"
+
+  Scenario: A Reference that came from an Assignment is summarized with the editor's direction
+    Given the Reference came from the Assignment "Synthetic assignment" with the direction "Find other synthetic cases of the same failure."
+    When the curation procedure runs for the Reference
+    Then the model's purpose context includes "Synthetic assignment"
+    And the model's purpose context includes "Find other synthetic cases of the same failure."
+
+  Scenario: A Reference linked to a Story brings the Story's title and deck but not its body
+    Given the Story "Newer headline" with the deck "Newer deck" in the section "features" is linked to the Reference as "cited"
+    When the curation procedure runs for the Reference
+    Then the model's purpose context includes "Newer headline"
+    And the model's purpose context includes "Newer deck"
+    And the model's purpose context includes "Section features"
+    And the model's purpose context does not include "BODY-SENTINEL"
+
+  Scenario: Every Story linked to the Reference appears, newest first
+    Given the Story "Older headline" with the deck "Older deck" in the section "news" is linked to the Reference as "consulted"
+    And the Story "Newer headline" with the deck "Newer deck" in the section "features" is linked to the Reference as "cited"
+    When the curation procedure runs for the Reference
+    Then the model's purpose context lists "Newer headline" before "Older headline"
+
+  Scenario: A directed summary records what it was directed by
+    Given the Reference came from the Assignment "Synthetic assignment" with the direction "Find other synthetic cases of the same failure."
+    And the Story "Newer headline" with the deck "Newer deck" in the section "features" is linked to the Reference as "cited"
+    When the curation procedure runs for the Reference
+    Then the Reference's metadata holds a "summary_purpose" with its Story ids and a hash of the context
+    And the recorded purpose names the Assignment "assignment-1"
+    And the summary was written with the directed prompt version
+
+  Scenario: A general summary is not rewritten when a Story is linked later, unless the editor forces it
+    Given the curation procedure has run for the Reference
+    And the Story "Newer headline" with the deck "Newer deck" in the section "features" is linked to the Reference as "cited"
+    When the curation procedure runs for the Reference
+    Then the model was asked for a summary only once
+    When the curation procedure runs for the Reference with force
+    Then the model's purpose context includes "Newer headline"
+    And the Reference's metadata holds a "summary_purpose" with its Story ids and a hash of the context
+
+  Scenario: A research run's summaries are keyed from the configured parameter when the environment has no key
+    Given the environment has no OPENAI_API_KEY and names an SSM parameter holding the key
+    When curation services are built for a research run
+    Then the summarizer is keyed from the parameter and writes a summary
+
+  Scenario: A later summary still gets the direction the research run recorded on the Story link
+    Given the Reference came from the Assignment "Synthetic assignment" with the direction "Find other synthetic cases of the same failure."
+    When the curation procedure runs for the Reference with force
+    Then the model's purpose context includes "Find other synthetic cases of the same failure."
+
+  Scenario: A summary that fails while a research run takes in its References leaves the run complete
+    Given the model fails with "model_failed"
+    When a research run for the Assignment "assignment-1" takes in the Reference
+    Then the research run still reports its References as curated
+    And the card records the summary failure "model_failed"
+
   Scenario: The backfill curates existing pending References once
     Given a corpus with 2 pending References, 1 accepted Reference and 1 Reference in another corpus
     When the backfill runs for the pending References

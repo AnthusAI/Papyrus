@@ -516,12 +516,55 @@ def create_multi_error_records(*, assignment: Mapping[str, Any], error: str, act
     ]
 
 
+def research_summary_services(client: PapyrusGraphQLAuthoringClient, *, environ: Mapping[str, str] | None = None, read_secret: Any = None,
+                              transport: Any = None) -> Any:
+    """Curation services whose summarizer is keyed the way research runs are keyed: ``OPENAI_API_KEY``, else the SSM parameter named by
+    ``PAPYRUS_OPENAI_KEY_PARAMETER`` (the same resolution as ``openai_llm``), else the local config. With no key the summary stage is a typed skip."""
+    from .reference_curation import default_services, openai_summarizer
+
+    services = default_services(client)
+    if services.summarizer is None:
+        try:
+            key = OpenAIProvider(environ=environ, read_secret=read_secret).api_key()
+        except Exception:   # noqa: BLE001 - no key from either source: the stage records the typed skip
+            key = ""
+        if key:
+            services.summarizer = openai_summarizer(key, transport=transport)
+    return services
+
+
+def curate_found_references(client: PapyrusGraphQLAuthoringClient, assignment_id: str, reference_ids: Sequence[str], *,
+                            services: Any = None) -> dict[str, Any]:
+    """Capture and summarize the References a research run took in, each summarized with the Assignment (and any linked Story) as its purpose.
+    Uses the existing curation stages; a failure on one Reference is recorded and never stops the others or the run."""
+    from .reference_curation import curate_reference
+    from .story_reporting import current_reference
+
+    curated: list[str] = []
+    failed: list[dict[str, str]] = []
+    services = services or research_summary_services(client)
+    for reference_id in reference_ids:
+        try:
+            reference = current_reference(client, reference_id)
+            if reference is None:
+                raise ValueError("Reference not found")
+            result = curate_reference(client, reference, services=services)
+            if result.get("outcome") in ("curated", "already_curated"):
+                curated.append(reference_id)
+            else:
+                failed.append({"referenceId": reference_id, "error": str(result.get("outcome"))})
+        except Exception as error:   # noqa: BLE001 - a summary or capture failure is recorded; it never fails the research run
+            failed.append({"referenceId": reference_id, "error": f"{type(error).__name__}: {error}"})
+    return {"curated": curated, "failed": failed}
+
+
 def research_multi(
     client: PapyrusGraphQLAuthoringClient,
     options: dict[str, Any],
     *,
     llm: Llm | None = None,
     providers: Mapping[str, Any] | None = None,
+    curation_services: Any = None,
 ) -> dict[str, Any]:
     apply = resolve_mutation_apply(options, "assignments research-multi")
     assignment_id = normalize_string(options.get("assignment"))
@@ -582,6 +625,7 @@ def research_multi(
                                                   "research-mode": research_mode, "actor-label": actor_label})
     intake_result: dict[str, Any] | None = None
     intake_error: str | None = None
+    curation: dict[str, Any] | None = None
     if parse_boolean_option(options.get("intake-proposals"), True, "--intake-proposals"):
         try:
             intake_result = intake_research_packet_proposals(client, {
@@ -598,9 +642,12 @@ def research_multi(
             if pack:
                 link_found_references_as_consulted(
                     client, story_lineage, [row["referenceId"] for row in intake_result.get("references") or [] if row.get("referenceId")],
-                    actor=actor_label, note=f"Found by research assignment {assignment_id}")
+                    actor=actor_label, note=f"Found by research assignment {assignment_id}", assignment_id=assignment_id)
         except Exception as error:   # noqa: BLE001 - the packet is already written; the failure is recorded on the assignment, not left half-done
             intake_error = f"{type(error).__name__}: {error}"
+        if intake_result and intake_result.get("citedOnly"):
+            taken_in = [row["referenceId"] for row in intake_result.get("references") or [] if row.get("referenceId") and row.get("action") != "held"]
+            curation = curate_found_references(client, assignment_id, taken_in, services=curation_services)
     now = _utc_now()
     summary_note = (f"Multi-search completed: {len(outcome['queries'])} queries, {len(outcome['sources'])} sources from "
                     f"{', '.join(outcome['packet']['multiSearch']['answeredProviders'])}.")
@@ -615,6 +662,7 @@ def research_multi(
     return {**result, "researchPacketMessageId": (apply_result or {}).get("messageId"),
             "registeredReferenceCount": (intake_result or {}).get("registeredReferenceCount", 0),
             **({"intakeError": intake_error} if intake_error else {}),
+            **({"curation": curation} if curation else {}),
             **({"intake": {key: intake_result.get(key) for key in ("citedOnly", "consideredSourceCount", "dedupedProposalCount", "heldReferenceCount")}} if intake_result else {})}
 
 

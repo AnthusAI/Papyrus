@@ -5,7 +5,8 @@ card (``reference_curation_store``; shapes in ``docs/reference-curation-pipeline
 
 1. **capture**: resolve the source address and read the whole article or PDF (``reference_capture``), then compute the completeness
    signals. Signals are stored as facts; no stage decides whether a capture is complete.
-2. **summary**: one gpt-6-luna summary of the captured text, in source voice (the prompt mirrors ``reference_summarization.tac``).
+2. **summary**: one gpt-6-luna summary of the captured text, in source voice (the prompt mirrors ``reference_summarization.tac``). A Reference that
+   came from an Assignment or is linked to a Story is summarized with that as context (``reference_purpose_context``); any other is summarized as before.
 3. **GROBID** (research papers only): title, authors, abstract, sections and references from a GROBID service
    (``reference_grobid``), or a typed skip when none is configured.
 
@@ -62,6 +63,7 @@ from .reference_grobid import (
 
 SUMMARY_MODEL = "gpt-6-luna"   # the only model curation uses (Ryan, 2026-10); not an option
 SUMMARY_PROMPT_VERSION = "reference-summary-v3-source-voice"
+SUMMARY_DIRECTED_PROMPT_VERSION = "reference-summary-v3-source-voice-directed"   # the contextual path only; a general summary keeps the version above
 SUMMARY_MAX_TOKENS = 500
 SUMMARY_MAX_OUTPUT_TOKENS = 4000          # includes the model's reasoning, so it is much larger than the summary itself
 SUMMARY_INPUT_CHARACTERS = 120_000        # the model's input window, not a policy: longer text keeps its head and its tail
@@ -107,6 +109,10 @@ Source URI: {source_uri}
 {text}
 """
 
+SUMMARY_PURPOSE_RULE = """Why the newsroom is reading this source: {block}. Use this to choose what to bring forward and to say plainly where the source does not address the question. It is not evidence. Every statement must still come from the source text; never carry a fact, name or claim from this block into the summary.
+
+"""
+
 Summarizer = Callable[[dict[str, Any]], dict[str, Any]]
 
 
@@ -131,6 +137,9 @@ def openai_summarizer(api_key: str, *, transport: Any = None) -> Summarizer:
             text = text[:SUMMARY_HEAD_CHARACTERS] + "\n\n[...]\n\n" + text[-(SUMMARY_INPUT_CHARACTERS - SUMMARY_HEAD_CHARACTERS):]
         message = SUMMARY_MESSAGE.format(tokens=request.get("maxTokens") or SUMMARY_MAX_TOKENS, title=request.get("title") or "",
                                          source_uri=request.get("sourceUri") or "", text=text)
+        purpose_context = str(request.get("purposeContext") or "").strip()
+        if purpose_context:
+            message = SUMMARY_PURPOSE_RULE.format(block=purpose_context) + message
         payload = {"model": SUMMARY_MODEL, "instructions": SUMMARY_INSTRUCTIONS, "input": message,
                    "max_output_tokens": SUMMARY_MAX_OUTPUT_TOKENS, "store": False}
         try:
@@ -141,7 +150,8 @@ def openai_summarizer(api_key: str, *, transport: Any = None) -> Summarizer:
         if body.get("status") == "incomplete" or not answer or not answer.strip():
             raise SummaryFailed("empty_summary")
         usage = synthesis.usage_of(body, SUMMARY_MODEL)
-        return {"text": answer.strip(), "model": SUMMARY_MODEL, "promptVersion": SUMMARY_PROMPT_VERSION, "inputTruncated": truncated,
+        return {"text": answer.strip(), "model": SUMMARY_MODEL, "inputTruncated": truncated,
+                "promptVersion": SUMMARY_DIRECTED_PROMPT_VERSION if purpose_context else SUMMARY_PROMPT_VERSION,
                 "usage": {"inputTokens": usage.input_tokens, "cachedInputTokens": usage.cached_input_tokens, "outputTokens": usage.output_tokens}}
 
     return summarize
@@ -169,6 +179,64 @@ def default_services(client: Any, *, start_grobid: bool = False, grobid_url: str
     except GrobidUnavailable:
         resolved = None
     return Services(store=AttachmentStore(client), summarizer=openai_summarizer(api_key) if api_key else None, grobid_url=resolved)
+
+
+# --- why the newsroom is reading a Reference -------------------------------------------------------------------------
+
+
+def reference_purpose_context(client: Any, reference: dict[str, Any]) -> dict[str, Any] | None:
+    """The Assignment a Reference came from and the Stories linked to it, as a block of text for the summary prompt, or None when it has neither.
+
+    The Reference row keeps no pointer to the Assignment that proposed it (``Reference`` has no metadata field). The origin is the ``assignmentId`` a
+    research run writes on the Story link's metadata (``link_found_references_as_consulted``). The direction is the Assignment's metadata ``direction`` (read through ``assignment_metadata``: it lives in an attachment),
+    else its ``instructions``. Stories are the ``uses_evidence`` links
+    (consulted, cited, based_on) to the Reference's lineage, newest first, each by title, deck and section title; never the body."""
+    from .assignments import assignment_metadata
+    from .story_reporting import current_story_version, stories_based_on_reference
+    from .editorial_context import find_section
+
+    lines: list[str] = []
+    assignment_id = ""
+    links = stories_based_on_reference(client, str(reference.get("lineageId") or reference["id"]))
+    assignment_ids = list(dict.fromkeys(link["assignmentId"] for link in links if link.get("assignmentId")))
+    for candidate in assignment_ids:
+        assignment = client.get_record("Assignment", candidate)
+        if not assignment:
+            continue
+        assignment_id = assignment_id or candidate
+        direction = str(assignment_metadata(client, assignment).get("direction") or assignment.get("instructions") or "").strip()
+        lines.append(f"Assignment: {str(assignment.get('title') or '').strip()}")
+        if direction:
+            lines.append(f"Editor's direction: {direction}")
+    stories = []
+    for link in links:
+        try:
+            story = current_story_version(client, link["storyLineageId"])
+        except ValueError:
+            continue
+        stories.append((str(story.get("createdAt") or story.get("versionCreatedAt") or ""), link, story))
+    stories.sort(key=lambda entry: entry[0], reverse=True)
+    for _, link, story in stories:
+        section_value = str(story.get("section") or "").strip()
+        section = find_section(client, section_value) if section_value else None
+        parts = [f"Story: {str(story.get('headline') or story.get('title') or '').strip()} ({link['role']})"]
+        if str(story.get("deck") or "").strip():
+            parts.append(f"deck: {str(story['deck']).strip()}")
+        if section_value:
+            parts.append(f"section: {str((section or {}).get('title') or section_value).strip()}")
+        lines.append("; ".join(parts))
+    if not lines:
+        return None
+    text = "\n".join(lines)
+    return {"text": text, "assignmentId": assignment_id or None, "storyLineageIds": [link["storyLineageId"] for _, link, _ in stories],
+            "contextHash": sha256_text(text)}
+
+
+def purpose_record(purpose: dict[str, Any] | None) -> dict[str, Any] | None:
+    """What goes on the Reference beside ``summary_resolution`` so a reader can tell a directed summary from a general one."""
+    if not purpose:
+        return None
+    return {"assignmentId": purpose["assignmentId"], "storyLineageIds": purpose["storyLineageIds"], "contextHash": purpose["contextHash"]}
 
 
 # --- planning --------------------------------------------------------------------------------------------------------
@@ -246,7 +314,7 @@ def curate_reference(client: Any, reference: dict[str, Any], *, services: Servic
             _record_capture(card, captured, reference, store, services.now())
             _publication_date_stage(client, reference, card, captured, services.now())
         if plan["summary"]:
-            _summary_stage(card, reference, store, services, captured, force)
+            _summary_stage(client, card, reference, store, services, captured, force)
         if plan["grobid"]:
             _grobid_stage(card, reference, store, services, captured)
     except Exception as error:  # noqa: BLE001 - an unexpected bug must leave the card retryable, not stuck in "running"
@@ -296,7 +364,7 @@ def _record_capture(card: dict[str, Any], captured: Capture, reference: dict[str
     card["page"] = captured.page
 
 
-def _summary_stage(card: dict[str, Any], reference: dict[str, Any], store: AttachmentStore, services: Services, captured: Capture | None,
+def _summary_stage(client: Any, card: dict[str, Any], reference: dict[str, Any], store: AttachmentStore, services: Services, captured: Capture | None,
                    force: bool) -> None:
     previous = card.get("summary") or {}
     text = captured.text if captured is not None and captured.ok and not has_text_edit(card) else current_text(card, reference, store)
@@ -311,16 +379,21 @@ def _summary_stage(card: dict[str, Any], reference: dict[str, Any], store: Attac
         card["summary"] = {**{k: v for k, v in previous.items() if k == "text"}, "status": "skipped", "reason": "openai_not_configured"}
         return
     stamp = iso(services.now())
+    purpose = reference_purpose_context(client, reference)
+    request = {"text": text, "title": reference.get("title") or "", "sourceUri": reference.get("sourceUri") or "", "maxTokens": SUMMARY_MAX_TOKENS}
+    if purpose:
+        request["purposeContext"] = purpose["text"]
     try:
-        made = services.summarizer({"text": text, "title": reference.get("title") or "", "sourceUri": reference.get("sourceUri") or "",
-                                    "maxTokens": SUMMARY_MAX_TOKENS})
+        made = services.summarizer(request)
     except SummaryFailed as failure:
         card["summary"] = {**{k: v for k, v in previous.items() if k == "text"}, "status": "failed", "reason": failure.reason, "attemptedAt": stamp}
         return
     card["summary"] = {"status": "completed", "text": made["text"], "model": made["model"], "promptVersion": made["promptVersion"],
                        "generatedAt": stamp, "inputTruncated": bool(made.get("inputTruncated")), "usage": made.get("usage") or {},
                        "basedOn": (card.get("current") or {}).get("textSortKey"), "textSha256": sha256_text(text)}
-    _write_reference_summary(reference, store, made, stamp, services.now())
+    if purpose:
+        card["summary"]["purpose"] = purpose_record(purpose)
+    _write_reference_summary(reference, store, made, stamp, services.now(), purpose_record(purpose))
 
 
 def _existing_summary(reference: dict[str, Any], store: AttachmentStore) -> str:
@@ -328,13 +401,18 @@ def _existing_summary(reference: dict[str, Any], store: AttachmentStore) -> str:
     return str(metadata.get("summary") or "").strip()
 
 
-def _write_reference_summary(reference: dict[str, Any], store: AttachmentStore, made: dict[str, Any], stamp: str, now: datetime) -> None:
+def _write_reference_summary(reference: dict[str, Any], store: AttachmentStore, made: dict[str, Any], stamp: str, now: datetime,
+                             purpose: dict[str, Any] | None = None) -> None:
     """Also put the summary where earlier summaries live (the Reference's ``metadata.json``), so every reader of it sees this one."""
     metadata = store.read_json(reference, METADATA_SORT_KEY) or {}
     metadata["summary"] = made["text"]
     metadata["summary_resolution"] = {"model": made["model"], "promptVersion": made["promptVersion"], "source": "llm_reference_summary",
                                       "run_id": f"reference-curation-{hash_short([reference['id'], stamp])}", "resolved_at": stamp,
                                       "rationale": "Generated by curation before review from the captured source text."}
+    if purpose:
+        metadata["summary_purpose"] = purpose
+    else:
+        metadata.pop("summary_purpose", None)
     store.write(reference, METADATA_SORT_KEY, "metadata.json", "application/json", json.dumps(metadata, indent=2, sort_keys=True) + "\n", now)
 
 

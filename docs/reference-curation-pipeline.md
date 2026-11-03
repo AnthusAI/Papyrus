@@ -144,6 +144,23 @@ earlier summary lives. An existing summary from elsewhere is kept unless `--forc
 `OPENAI_API_KEY` the stage is a typed skip (`openai_not_configured`) and a later run fills it in.
 Not included yet: the publication doctrine block that `references summarize` adds to the prompt.
 
+#### Directed summaries: why the newsroom is reading this source
+
+A summary is one text shared by every reader of the Reference: the Cyclotron input, the suggestion vectors, the card and the reporter pack all read the same words. So it is written once, and when the Reference has a reason to be read, that reason is part of the prompt.
+
+`reference_purpose_context(client, reference)` builds the reason as a block of text, or returns `None`:
+
+* **The Assignment it came from**: its title and the editor's direction (the Assignment's metadata `direction`, read through `assignment_metadata` because it lives in an attachment, else its `instructions`). The Reference row keeps no pointer to the Assignment that proposed it (`Reference` has no metadata field), so a research run writes `assignmentId` into the `metadata` of the `uses_evidence` link it makes to the Story, beside the note, and the context reads it from the Reference's links. Links made before this change carry no `assignmentId` and are not migrated; a Reference with no Story link has no origin to read.
+* **Every Story linked by `uses_evidence`** (`consulted`, `cited`, `based_on`), newest first: headline, deck, section title and role. Never the Story's body. There is no fixed count; the model's input window is the only bound.
+
+With a block, the message starts with the rule *Why the newsroom is reading this source: ... It is not evidence. Every statement must still come from the source text*, and the rest of the prompt (source voice, grounding) is unchanged. With none, the prompt is byte-identical to the general one and the prompt version stays `reference-summary-v3-source-voice`; a directed summary is `reference-summary-v3-source-voice-directed`. Both paths use it: `references summarize` sends `purpose_context_text` to the procedure `newsroom.reference.summarization`, and curation (`_summary_stage`, `openai_summarizer`) sends `purposeContext`. A test keeps the rule and versions in step with the `.tac`.
+
+A directed summary records `summary_purpose` in the Reference's `metadata.json` beside `summary_resolution`, and on the card's `summary.purpose`: `{assignmentId, storyLineageIds, contextHash}` (the hash is of the block). A general summary carries neither, so a reader can tell the two apart.
+
+**When it is written.** The existing rule stands: a present summary is kept unless `--force` (`papyrus references curate`); `papyrus references summarize` replaces one with `--refresh`. A general summary is not rewritten when a Story is linked later, because the same text feeds the Cyclotron and the suggestion vectors. The router's enrichment runs before any link exists, so it stays general. A summary belongs to the Reference and is seen by every reader of it, whichever Story or Assignment asked for it first.
+
+**Research runs.** `research.multi` registered its References with no text and no summary (`process-proposals` from a run passes `url-text` and `metadata-from-text` as false), so a reporter pack showed nothing for them. A cited-only run now runs the existing curation (`curate_found_references`: capture, then the summary with the Assignment as its purpose) on just the References it took in. The summary is keyed the way research runs are: `OPENAI_API_KEY`, else the SSM parameter named by `PAPYRUS_OPENAI_KEY_PARAMETER`; with neither the stage is the typed skip `openai_not_configured`. A failure on one Reference is recorded on its card and never fails the run; the result carries `curation: {curated, failed}`.
+
 ### Stage 3: GROBID (research papers)
 
 `paper.isPaper` is decided from facts (`paper.basis`): `arxiv`, `doi` (a `doi.org` address),
