@@ -441,3 +441,8 @@ def test_the_router_zip_can_load_everything_a_research_run_uses_with_nothing_but
                           env={"PAPYRUS_ROOT": str(unpacked)})
     assert done.stdout.strip() == "loaded", done.stderr[-800:]
 
+
+def test_the_desk_lookup_of_a_section_s_stories_is_granted():
+    """The pack finds the desk's Stories through this query. A recording with a fake store never reached it, and the first live run on a tenant site was refused."""
+    assert ("Query", "listItemsBySectionStatusAndPublishedAt") in worker_grants()
+
