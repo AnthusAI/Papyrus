@@ -145,3 +145,20 @@ test("only a concept an editor made can be described, and the words are kept wit
   world.nodes.set("semantic-node-generated", { id: "semantic-node-generated-v1", lineageId: "semantic-node-generated", nodeKind: "model" });
   await assert.rejects(describeEditorConcept(world.store, { lineageId: "semantic-node-generated", description: "x", callerSub: "editor-2", now: "2026-11-02T13:00:00Z" }), /Only a concept an editor made/);
 });
+
+// --- the concept the command line makes must be the concept the hashtag box makes ----------------------------------------------------------------
+type EditorConceptCase = { name: string; actor: string; now: string; slug: string; node: Record<string, unknown> | null };
+const editorConceptVectors: { cases: EditorConceptCase[] } = JSON.parse(readFileSync("scripts/fixtures/editor-concept-vectors.json", "utf8"));
+
+for (const vector of editorConceptVectors.cases) {
+  test(`byte-compatible with the Python editor concept writer: ${vector.name.slice(0, 40)}`, async () => {
+    assert.equal(conceptSlug(vector.name), vector.slug);
+    const world = conceptStore();
+    if (vector.node === null) {
+      await assert.rejects(ensureEditorConcept(world.store, vector.name, vector.actor, vector.now), /needs a name/);
+      return;
+    }
+    await ensureEditorConcept(world.store, vector.name, vector.actor, vector.now);
+    assert.deepEqual(world.nodes.get(vector.node.lineageId as string), vector.node);
+  });
+}

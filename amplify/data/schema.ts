@@ -1497,6 +1497,7 @@ const definitions = {
       defaultPageBudget: a.integer(),
       assignmentGuidance: a.string(),
       killCriteria: a.string(),
+      trackedConcepts: a.json(),
       visualGuidance: a.string(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
