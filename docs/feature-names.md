@@ -20,6 +20,7 @@ Rules for the names: no newspaper or newsprint metaphors; "section", never "desk
 | **Editor Override** | The editor tier on Proposals: approve, decline, pin, hold, override the community with a public reason, set aside votes with a public note. | Built |
 | **Automations** | Records that bind a trigger (a monitor, a story entering a stage) to a procedure, with enable, limits, cost, history and Run now. | Built |
 | **Editorial Checks** | A publication's own policies, applied to a draft by Humanus policy packs, as findings that warn and never block publishing. | Built |
+| **Share a draft** | A link that shows a Story in progress in the site's public layout, labelled DRAFT, to anyone with the link or only to signed-in editors, for 7, 30 or 90 days; publishing or spiking the Story ends it. | Built; not yet deployed |
 | **Relevance Routing** | One shared relevance Cyclotron deciding, for each collected item, which Account's sites want it. | Beta |
 
 ## Cited Trends
@@ -120,6 +121,16 @@ Rules for the names: no newspaper or newsprint metaphors; "section", never "desk
 **Demo.** Distinctive Mark's TTAB monitor; the Hacker News monitor that feeds several Anthus publications.
 
 **Alternatives.** Shared Relevance (shorter, vaguer), One Classifier, Many Sites (a tagline, not a name).
+
+## Share a draft
+
+**Definition.** The Share icon on a Story makes a link to the Story in the website's public layout, with a DRAFT band, for people who have no newsroom sign-in. The person chooses who can open it (anyone with the link, or only people signed in as editors or admins), what it shows (the current version, which follows new versions, or one version) and how long it lasts (7, 30 or 90 days). Every link can be revoked, and publishing or spiking the Story ends its links.
+
+**Not.** It is not staging and not the newsroom preview, it does not publish anything, and it does not put the Story on any listing, feed or sitemap. "Anyone with the link" means anyone: whoever has the URL can read the draft until it expires or is revoked.
+
+**Where.** The Share icon in the Story editor; `papyrus stories share`, `stories shares`, `stories share-revoke`; [story-share-links.md](story-share-links.md). Specs: `features_backend/story-share-links.feature`, `features/story-share-links.feature`.
+
+**Alternatives considered.** "Preview link" (it is not a preview of the published page, it is the draft in the published layout), "Staging link" (staging is a whole site behind a sign-in), "Public draft" (misleading when a link is limited to signed-in people).
 
 ## Using the names
 

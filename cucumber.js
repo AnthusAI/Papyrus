@@ -125,6 +125,11 @@ module.exports = {
     require: ["features/step_definitions/data-table-point-in-time-recovery.steps.js"],
     format: ["summary"],
   },
+  storyShareLinks: {
+    paths: ["features/story-share-links.feature"],
+    require: ["features/step_definitions/story-share-links.steps.js"],
+    format: ["summary"],
+  },
   messageHashtags: {
     paths: ["features/message-hashtags.feature"],
     require: ["features/step_definitions/message-hashtags.steps.js"],

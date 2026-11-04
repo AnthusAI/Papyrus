@@ -58,6 +58,7 @@
     "test:content-actions-client": "tsx scripts/test-content-actions-client.ts",
     "test:newsroom-articles": "tsx scripts/test-newsroom-articles.ts",
     "test:newsroom-media": "tsx scripts/test-newsroom-media.ts",
+    "test:story-share": "tsx --test scripts/test-story-share.ts && cucumber-js --profile storyShareLinks && poetry run behave features_backend/story-share-links.feature && poetry run pytest -q procedures/newsroom/tests/test_story_shares.py procedures/newsroom/tests/test_content_actions_story_share.py procedures/newsroom/tests/test_story_share_commands.py",
     "test:media-route": "tsx scripts/test-media-route-response.ts",
     "test:notification-center": "tsx scripts/test-needs-me-ranking.ts && tsx scripts/test-notification-center.ts && tsx scripts/test-notification-center-feed.ts && tsx scripts/test-newsroom-organizer-nav.ts && cucumber-js --profile notificationCenter",
     "test:newsroom-nav": "tsx scripts/test-newsroom-nav.ts",

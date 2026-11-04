@@ -20,6 +20,7 @@ INDEX_MODELS = {
     "semanticRelationsByObjectState": "SemanticRelation",
     "referencesByLineageAndVersion": "Reference",
     "assignmentsByItemLineageAndCreatedAt": "Assignment",
+    "storySharesByStoryAndCreatedAt": "StoryShare",
 }
 
 

@@ -121,6 +121,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [Context packs for newsroom agents](newsroom-context-packs.md): the one pack every agent in a section works from, and how to change it.
 - [Choosing which ideas become Stories](idea-selection.md): the editor agent's picky selection, what recent means and the rate limit.
 - [story-reporting.md](story-reporting.md): story versions, reference links and the reporting trail.
+- [story-share-links.md](story-share-links.md): share a draft Story by URL in the public layout, labelled DRAFT, with or without a newsroom sign-in; expiry, revoking, the CLI, and which sites it works on.
 - [fact-checking.md](fact-checking.md): the shared fact check (literal check, independent judge, source strength), what is built and what is not.
 - [biblicus-1-14-upgrade.md](biblicus-1-14-upgrade.md): Biblicus catalog changes and upgrade steps.
 

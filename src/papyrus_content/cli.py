@@ -357,6 +357,9 @@ PORTED_COMMANDS = frozenset(
         "stories:assign-research",
         "stories:repair-versions",
         "stories:set-slug",
+        "stories:share",
+        "stories:shares",
+        "stories:share-revoke",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
         "assignments:cleanup-automatic",
@@ -810,6 +813,18 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_writing import stories_draft
 
         stories_draft(flags)
+    elif route == "stories:share":
+        from .story_share_commands import stories_share
+
+        stories_share(flags)
+    elif route == "stories:shares":
+        from .story_share_commands import stories_shares
+
+        stories_shares(flags)
+    elif route == "stories:share-revoke":
+        from .story_share_commands import stories_share_revoke
+
+        stories_share_revoke(flags)
     elif route == "stories:set-slug":
         from .story_commands import stories_set_slug
 
