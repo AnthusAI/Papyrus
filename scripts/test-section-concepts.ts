@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import * as React from "react";
-import { createElement } from "react";
+import { createElement, type ComponentType, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createMemoryReferenceLinksStore, ReferenceLinksStoreProvider } from "../components/reference-links-context";
 import { SectionConceptsEditor } from "../components/section-concepts-editor";
@@ -49,7 +49,8 @@ test("the sections that have a concept are found, and a concept with no node is 
 });
 
 const store = createMemoryReferenceLinksStore({ items: [] });
-const render = (node: ReturnType<typeof createElement>) => renderToStaticMarkup(createElement(ReferenceLinksStoreProvider, { store, children: node }));
+const StoreProvider = ReferenceLinksStoreProvider as ComponentType<{ store: typeof store; children?: ReactNode }>;
+const render = (node: ReturnType<typeof createElement>) => renderToStaticMarkup(createElement(StoreProvider, { store }, node));
 
 test("section settings show 'Core concepts', the help sentence, and a row with a note box and a Remove button for each concept", () => {
   const html = render(createElement(SectionConceptsEditor, { entries: parseCoreConcepts(stored), names: { "semantic-node-editor_concept--containment-problem": "containment problem" }, onChange: () => undefined }));
