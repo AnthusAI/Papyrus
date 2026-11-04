@@ -169,6 +169,42 @@ Parameters:
     Default: /papyrus/shipped/knowledge-run/alarm-email
     Description: SSM parameter holding the address alarm email goes to, the same mailbox as the knowledge runs. Never in the repository.
 
+  # --- the operator alert listener (PPY-e92c8e, PPY-dd8c18); see docs/operator-alerts.md ---
+  OperatorCodeKey:
+    Type: String
+    Description: S3 key of the operator zip (content-hash named by build.py --operator), in CodeBucket.
+  OperatorSendingDomain:
+    Type: String
+    Default: notify.anth.us
+    Description: Domain operator mail sends from (the SES identity of stack papyrus-newsletter-sending-operators). The sender is alerts at this domain.
+  OperatorConfigurationSet:
+    Type: String
+    Default: papyrus-operators
+    Description: SES configuration set operator mail sends with (no open or click tracking).
+  OperatorsParameterName:
+    Type: String
+    Default: /papyrus/shipped/knowledge-run/alarm-email
+    Description: >-
+      Name of the SSM parameter holding the operator address, or several separated by commas. The default is the same mailbox the
+      alarm topic's email subscription uses. Never in the repository.
+  TriageParameterName:
+    Type: String
+    Default: /papyrus/monitoring/triage
+    Description: >-
+      Name of the optional JSON SSM parameter with portalUrl, roleName, accounts and sites (app id to site name). Written by hand, never
+      in Git. When it does not exist, alarm links go to the plain CloudWatch console.
+  TriageRoleName:
+    Type: String
+    Default: AdministratorAccess
+    Description: >-
+      IAM Identity Center permission set the alarm links open with when the triage parameter names none (and has a portalUrl).
+      Change it to a read-only permission set when there is one.
+  OperatorHeartbeatState:
+    Type: String
+    Default: ENABLED
+    AllowedValues: [ENABLED, DISABLED]
+    Description: DISABLED stops the 15 minute heartbeat, which makes the dead-man alarm fire after about 45 minutes. Used to prove the alarm.
+
   EmailReferenceMonitorId:
     Type: String
     Default: ""
@@ -2387,6 +2423,690 @@ Resources:
       Protocol: email
       Endpoint: !Ref AlarmEmailParameter
 
+  # ===== Operator alert listener (PPY-e92c8e) =====
+  # Every CloudWatch alarm state change in this account and Region reaches the default bus. The rule below sends each one (except the
+  # last-resort alarms below, which already email by SNS) to a queue; caducus.notify turns it into one triage-ready email per incident.
+  # Only additions: the collector and router above are untouched. Addresses are read from SSM at run time and are never in this file.
+  OperatorTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: papyrus-operator-alerts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+        - { AttributeName: recipientKey, AttributeType: S }
+        - { AttributeName: queuedAt, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: byRecipient
+          KeySchema:
+            - { AttributeName: recipientKey, KeyType: HASH }
+            - { AttributeName: queuedAt, KeyType: RANGE }
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  OperatorIngestDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: papyrus-operator-ingest-dlq
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  OperatorIngestQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: papyrus-operator-ingest
+      VisibilityTimeout: 360
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OperatorIngestDeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  OperatorEmailDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: papyrus-operator-email-dlq
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  OperatorEmailQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: papyrus-operator-email
+      VisibilityTimeout: 360
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OperatorEmailDeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  OperatorAlarmRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: papyrus-operator-alarm-changes
+      Description: Every CloudWatch alarm state change on the default bus, except the last-resort alarms (papyrus-operator-*), to the operator ingest queue.
+      State: ENABLED
+      EventPattern:
+        source: [aws.cloudwatch]
+        detail-type: [CloudWatch Alarm State Change]
+        detail:
+          alarmName:
+            - anything-but:
+                prefix: papyrus-operator-
+      Targets:
+        - Id: ingest
+          Arn: !GetAtt OperatorIngestQueue.Arn
+
+  OperatorIngestQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref OperatorIngestQueue]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AlarmRuleSends
+            Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sqs:SendMessage
+            Resource: !GetAtt OperatorIngestQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt OperatorAlarmRule.Arn
+
+  # The generated key that makes recipient pseudonyms in the delivery log: created once, never overwritten, kept on delete.
+  OperatorRecipientKeyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: put-recipient-key
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ssm:PutParameter
+                Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/monitoring/recipient-key"
+
+  OperatorRecipientKeyFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: index.handler
+      Timeout: 30
+      Role: !GetAtt OperatorRecipientKeyRole.Arn
+      Description: Creates the operator recipient-key SecureString once; never returns or logs the value, never overwrites it.
+      Code:
+        ZipFile: |
+          import secrets, string
+          import boto3
+          import cfnresponse
+
+          def handler(event, context):
+              name = event["ResourceProperties"]["ParameterName"]
+              try:
+                  if event["RequestType"] != "Delete":
+                      ssm = boto3.client("ssm")
+                      alphabet = string.ascii_letters + string.digits
+                      try:
+                          ssm.put_parameter(Name=name, Description=event["ResourceProperties"]["Description"], Type="SecureString",
+                                            Tier="Standard", Overwrite=False,
+                                            Value="".join(secrets.choice(alphabet) for _ in range(64)))
+                      except ssm.exceptions.ParameterAlreadyExists:
+                          pass
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, name)
+              except Exception:
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {}, name)
+
+  OperatorRecipientKey:
+    Type: Custom::SecureStringParameter
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ServiceToken: !GetAtt OperatorRecipientKeyFunction.Arn
+      ParameterName: /papyrus/monitoring/recipient-key
+      Description: Key that turns operator addresses into the pseudonyms in the operator delivery log. Generated once by the stack.
+
+  OperatorCoreLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/papyrus-operator-router
+      RetentionInDays: 30
+
+  OperatorFlushLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/papyrus-operator-flush
+      RetentionInDays: 30
+
+  OperatorReconcileLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/papyrus-operator-reconcile
+      RetentionInDays: 30
+
+  OperatorEmailLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/papyrus-operator-email
+      RetentionInDays: 30
+
+  OperatorSesEventsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/papyrus-operator-ses-events
+      RetentionInDays: 30
+
+  # Router, group flush and reconcile share one role: the table, the ingest queue, the email queue, the three parameters, and the one
+  # account-wide read CloudWatch needs (DescribeAlarms has no resource-level permission).
+  OperatorCoreRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: operator-core
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: OperatorTable
+                Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query]
+                Resource:
+                  - !GetAtt OperatorTable.Arn
+                  - !Sub "${OperatorTable.Arn}/index/byRecipient"
+              - Sid: IngestQueue
+                Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+                Resource: !GetAtt OperatorIngestQueue.Arn
+              - Sid: EmailQueueSend
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt OperatorEmailQueue.Arn
+              - Sid: OperatorParameters
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OperatorsParameterName}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/monitoring/recipient-key"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TriageParameterName}"
+              - Sid: ReadAlarmStates
+                Effect: Allow
+                Action: cloudwatch:DescribeAlarms
+                Resource: "*"
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource:
+                  - !Sub "${OperatorCoreLogGroup.Arn}:*"
+                  - !Sub "${OperatorFlushLogGroup.Arn}:*"
+                  - !Sub "${OperatorReconcileLogGroup.Arn}:*"
+
+  OperatorEmailRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: operator-email
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: OperatorTable
+                Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query]
+                Resource:
+                  - !GetAtt OperatorTable.Arn
+                  - !Sub "${OperatorTable.Arn}/index/byRecipient"
+              - Sid: EmailQueue
+                Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+                Resource: !GetAtt OperatorEmailQueue.Arn
+              - Sid: OperatorParameters
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OperatorsParameterName}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/monitoring/recipient-key"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TriageParameterName}"
+              - Sid: SendFromTheOperatorIdentityOnly
+                Effect: Allow
+                Action: ses:SendEmail
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/${OperatorSendingDomain}"
+                  - !Sub "arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/${OperatorConfigurationSet}"
+                Condition:
+                  StringEquals:
+                    ses:FromAddress: !Sub "alerts@${OperatorSendingDomain}"
+              - Sid: ReadSendRate
+                Effect: Allow
+                Action: ses:GetAccount
+                Resource: "*"
+              - Sid: HeartbeatFailedMetric
+                Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: Papyrus/Operator
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${OperatorEmailLogGroup.Arn}:*"
+
+  OperatorSesEventsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: operator-ses-events
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: HeartbeatMetrics
+                Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: Papyrus/Operator
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${OperatorSesEventsLogGroup.Arn}:*"
+
+  OperatorRouterFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: [OperatorCoreLogGroup, OperatorRecipientKey]
+    Properties:
+      FunctionName: papyrus-operator-router
+      Description: Turns each alarm state change (and each heartbeat) into incidents and deliveries. caducus.notify.handlers.router
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: caducus.notify.handlers.router.handler
+      MemorySize: 256
+      Timeout: 60
+      Role: !GetAtt OperatorCoreRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref OperatorCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OperatorTable
+          OPERATORS_PARAMETER: !Ref OperatorsParameterName
+          RECIPIENT_KEY_PARAMETER: /papyrus/monitoring/recipient-key
+          EMAIL_QUEUE_URL: !Ref OperatorEmailQueue
+          FROM_ADDRESS: !Sub "alerts@${OperatorSendingDomain}"
+          CONFIGURATION_SET: !Ref OperatorConfigurationSet
+          TRIAGE_PARAMETER: !Ref TriageParameterName
+          TRIAGE_ROLE_NAME: !Ref TriageRoleName
+          CADUCUS_CONFIG_DIR: /var/task/config
+          METRIC_NAMESPACE: Papyrus/Operator
+
+  OperatorFlushFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: [OperatorFlushLogGroup, OperatorRecipientKey]
+    Properties:
+      FunctionName: papyrus-operator-flush
+      Description: Each minute, sends clearing messages that are due and the group messages whose window ended. caducus.notify.handlers.flush
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: caducus.notify.handlers.flush.handler
+      MemorySize: 256
+      Timeout: 60
+      Role: !GetAtt OperatorCoreRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref OperatorCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OperatorTable
+          OPERATORS_PARAMETER: !Ref OperatorsParameterName
+          RECIPIENT_KEY_PARAMETER: /papyrus/monitoring/recipient-key
+          EMAIL_QUEUE_URL: !Ref OperatorEmailQueue
+          FROM_ADDRESS: !Sub "alerts@${OperatorSendingDomain}"
+          CONFIGURATION_SET: !Ref OperatorConfigurationSet
+          TRIAGE_PARAMETER: !Ref TriageParameterName
+          TRIAGE_ROLE_NAME: !Ref TriageRoleName
+          CADUCUS_CONFIG_DIR: /var/task/config
+          METRIC_NAMESPACE: Papyrus/Operator
+
+  OperatorReconcileFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: [OperatorReconcileLogGroup, OperatorRecipientKey]
+    Properties:
+      FunctionName: papyrus-operator-reconcile
+      Description: Opens incidents for alarms already in ALARM, and for any state change the bus lost. caducus.notify.handlers.reconcile
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: caducus.notify.handlers.reconcile.handler
+      MemorySize: 256
+      Timeout: 120
+      Role: !GetAtt OperatorCoreRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref OperatorCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OperatorTable
+          OPERATORS_PARAMETER: !Ref OperatorsParameterName
+          RECIPIENT_KEY_PARAMETER: /papyrus/monitoring/recipient-key
+          EMAIL_QUEUE_URL: !Ref OperatorEmailQueue
+          FROM_ADDRESS: !Sub "alerts@${OperatorSendingDomain}"
+          CONFIGURATION_SET: !Ref OperatorConfigurationSet
+          TRIAGE_PARAMETER: !Ref TriageParameterName
+          TRIAGE_ROLE_NAME: !Ref TriageRoleName
+          CADUCUS_CONFIG_DIR: /var/task/config
+          METRIC_NAMESPACE: Papyrus/Operator
+          IGNORE_ALARM_PREFIXES: papyrus-operator-
+
+  OperatorEmailFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: [OperatorEmailLogGroup, OperatorRecipientKey]
+    Properties:
+      FunctionName: papyrus-operator-email
+      Description: Sends one queued operator email through SES. caducus.notify.handlers.email_sender
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: caducus.notify.handlers.email_sender.handler
+      MemorySize: 256
+      Timeout: 60
+      Role: !GetAtt OperatorEmailRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref OperatorCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OperatorTable
+          OPERATORS_PARAMETER: !Ref OperatorsParameterName
+          RECIPIENT_KEY_PARAMETER: /papyrus/monitoring/recipient-key
+          EMAIL_QUEUE_URL: !Ref OperatorEmailQueue
+          FROM_ADDRESS: !Sub "alerts@${OperatorSendingDomain}"
+          CONFIGURATION_SET: !Ref OperatorConfigurationSet
+          TRIAGE_PARAMETER: !Ref TriageParameterName
+          TRIAGE_ROLE_NAME: !Ref TriageRoleName
+          CADUCUS_CONFIG_DIR: /var/task/config
+          METRIC_NAMESPACE: Papyrus/Operator
+
+  OperatorSesEventsFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: OperatorSesEventsLogGroup
+    Properties:
+      FunctionName: papyrus-operator-ses-events
+      Description: Counts the heartbeat's delivery (or failure) from SES events. caducus.notify.handlers.ses_events
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: caducus.notify.handlers.ses_events.handler
+      MemorySize: 128
+      Timeout: 30
+      Role: !GetAtt OperatorSesEventsRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref OperatorCodeKey
+      Environment:
+        Variables:
+          METRIC_NAMESPACE: Papyrus/Operator
+
+  OperatorIngestMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt OperatorIngestQueue.Arn
+      FunctionName: !Ref OperatorRouterFunction
+      BatchSize: 10
+      FunctionResponseTypes: [ReportBatchItemFailures]
+
+  OperatorEmailMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt OperatorEmailQueue.Arn
+      FunctionName: !Ref OperatorEmailFunction
+      BatchSize: 5
+      FunctionResponseTypes: [ReportBatchItemFailures]
+      ScalingConfig:
+        MaximumConcurrency: 2
+
+  OperatorSesEventsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: papyrus-operator-ses-events
+      Description: SES events of the operator configuration set only.
+      State: ENABLED
+      EventPattern:
+        source: [aws.ses]
+        detail:
+          mail:
+            tags:
+              ses:configuration-set: [!Ref OperatorConfigurationSet]
+      Targets:
+        - Id: ses-events
+          Arn: !GetAtt OperatorSesEventsFunction.Arn
+
+  OperatorSesEventsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OperatorSesEventsFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt OperatorSesEventsRule.Arn
+
+  OperatorScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      Policies:
+        - PolicyName: operator-schedules
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !GetAtt OperatorFlushFunction.Arn
+                  - !GetAtt OperatorReconcileFunction.Arn
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource:
+                  - !GetAtt OperatorIngestQueue.Arn
+                  - !GetAtt ScheduleDeadLetterQueue.Arn
+
+  OperatorFlushSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-operator-flush
+      Description: Each minute, send due clearing messages and ended group windows.
+      ScheduleExpression: rate(1 minute)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: ENABLED
+      Target:
+        Arn: !GetAtt OperatorFlushFunction.Arn
+        RoleArn: !GetAtt OperatorScheduleRole.Arn
+        Input: '{}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 120
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  OperatorReconcileSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-operator-reconcile
+      Description: Hourly, open incidents for alarms that are in ALARM now and were never announced.
+      ScheduleExpression: rate(1 hour)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: ENABLED
+      Target:
+        Arn: !GetAtt OperatorReconcileFunction.Arn
+        RoleArn: !GetAtt OperatorScheduleRole.Arn
+        Input: '{}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 2
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  # The heartbeat runs the whole path: ingest queue, router, email queue, SES to the mailbox simulator, the delivery event on the bus,
+  # the SES-events function, metric Papyrus/Operator HeartbeatDelivered. The scheduler fills in the time, so each beat is its own event.
+  OperatorHeartbeatSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-operator-heartbeat
+      Description: Every 15 minutes, a caducus.heartbeat event on the operator ingest queue. The dead-man alarm watches for its delivery.
+      ScheduleExpression: rate(15 minutes)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref OperatorHeartbeatState
+      Target:
+        Arn: !GetAtt OperatorIngestQueue.Arn
+        RoleArn: !GetAtt OperatorScheduleRole.Arn
+        Input: '{"detail-type":"Notification Requested","detail":{"schema":1,"eventId":"heartbeat-<aws.scheduler.scheduled-time>","kind":"caducus.heartbeat","product":"caducus","occurredAt":"<aws.scheduler.scheduled-time>","severity":"info","facts":{"title":"Operator mail heartbeat","summary":"Proof that alarm email still works end to end."}}}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 2
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  # ----- The two last-resort alerts (PPY-dd8c18): the only human alerts that stay on SNS, because they must not depend on the listener -----
+  # The listener ignores every alarm named papyrus-operator-*, so these do not also arrive as operator mail.
+  OperatorDeadmanAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-operator-deadman
+      AlarmDescription: >-
+        Operator alarm email has not completed its heartbeat for three 15 minute periods, so alarms may not be reaching you. A
+        heartbeat travels the ingest queue, router, email queue and SES (to the mailbox simulator), and its delivery event is counted
+        by papyrus-operator-ses-events. Look at which hop stopped: the heartbeat schedule, the dead-letter queues
+        (papyrus-operator-ingest-dlq, papyrus-operator-email-dlq), the functions' log groups (/aws/lambda/papyrus-operator-*), SES sending
+        status and IAM changes. See docs/operator-alerts.md. This cannot see account suspension, a Region-wide CloudWatch or SNS failure,
+        or your mailbox.
+      Namespace: Papyrus/Operator
+      MetricName: HeartbeatDelivered
+      Statistic: Sum
+      Period: 900
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 3
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  OperatorSesBounceRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-operator-ses-at-risk-bounce-rate
+      AlarmDescription: The account's SES bounce rate is at SES's recommended line (5 percent). SES may pause sending at 10 percent. Part of papyrus-operator-ses-at-risk.
+      Namespace: AWS/SES
+      MetricName: Reputation.BounceRate
+      Statistic: Maximum
+      Period: 900
+      EvaluationPeriods: 1
+      Threshold: 0.05
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  OperatorSesComplaintRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-operator-ses-at-risk-complaint-rate
+      AlarmDescription: The account's SES complaint rate is at SES's recommended line (0.1 percent). SES may pause sending at 0.5 percent. Part of papyrus-operator-ses-at-risk.
+      Namespace: AWS/SES
+      MetricName: Reputation.ComplaintRate
+      Statistic: Maximum
+      Period: 900
+      EvaluationPeriods: 1
+      Threshold: 0.001
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  OperatorHeartbeatSendFailedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-operator-ses-at-risk-send-refused
+      AlarmDescription: >-
+        SES refused a heartbeat send, or bounced or rejected it. SES documents no event for a paused account, so a refused send is how
+        "unable to send" shows. Part of papyrus-operator-ses-at-risk.
+      Namespace: Papyrus/Operator
+      MetricName: HeartbeatSendFailed
+      Statistic: Sum
+      Period: 900
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  OperatorSesAtRiskAlarm:
+    Type: AWS::CloudWatch::CompositeAlarm
+    Properties:
+      AlarmName: papyrus-operator-ses-at-risk
+      AlarmDescription: >-
+        SES is in trouble for the whole account (the sites' newsletters and Prospectus too): the bounce rate or complaint rate is at SES's
+        recommended line, or a heartbeat send was refused. Open SES in the console: reputation, the account's sending status and the
+        configuration sets' event logs. Stop whatever is sending badly before SES pauses the account. See docs/operator-alerts.md.
+      AlarmRule: !Sub 'ALARM("${OperatorSesBounceRateAlarm}") OR ALARM("${OperatorSesComplaintRateAlarm}") OR ALARM("${OperatorHeartbeatSendFailedAlarm}")'
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # A dedicated alarm to prove the path with a real email, with no actions of its own and no data to evaluate (missing data is OK).
+  # `aws cloudwatch set-alarm-state --alarm-name papyrus-notify-test-alarm --state-value ALARM ...` raises it; see docs/operator-alerts.md.
+  OperatorTestAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-notify-test-alarm
+      AlarmDescription: A test alarm raised by hand to prove operator email. Nothing publishes to its metric, it has no actions, and nothing depends on it.
+      Namespace: Papyrus/Operator
+      MetricName: TestAlarmNeverPublished
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
   TableNameParameter:
     Type: AWS::SSM::Parameter
     Properties:
@@ -2414,3 +3134,13 @@ Outputs:
     Value: !Ref RouterDeadLetterQueue
   CyclotronDecisionsBusArn:
     Value: !GetAtt CyclotronDecisionsBus.Arn
+  OperatorTableName:
+    Value: !Ref OperatorTable
+  OperatorIngestQueueUrl:
+    Value: !Ref OperatorIngestQueue
+  OperatorIngestDeadLetterQueueUrl:
+    Value: !Ref OperatorIngestDeadLetterQueue
+  OperatorEmailDeadLetterQueueUrl:
+    Value: !Ref OperatorEmailDeadLetterQueue
+  OperatorTestAlarmName:
+    Value: !Ref OperatorTestAlarm

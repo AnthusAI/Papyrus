@@ -2,7 +2,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Papyrus newsletter sending (PPY-874ad4): the per-site Amazon SES sending identity
   (Easy DKIM, custom MAIL FROM, DMARC), its configuration set, and the SNS topic and
-  CloudWatch destination that carry delivery events. One stack per site.
+  CloudWatch destination that carry delivery events. One stack per site. EventTransport chooses
+  where delivery events go: the SNS topic (the default, what every site stack uses), the account's
+  default EventBridge bus, or both. The operator stack (PPY-bf63d5) uses the bus.
 
 Parameters:
   SiteId:
@@ -30,8 +32,19 @@ Parameters:
     AllowedValues: ["true", "false"]
     Description: Set false when the domain already publishes its own DMARC record.
 
+  EventTransport:
+    Type: String
+    Default: sns
+    AllowedValues: [sns, eventbridge, both]
+    Description: >-
+      Where SEND, DELIVERY, BOUNCE, COMPLAINT, REJECT and DELIVERY_DELAY events go. sns keeps the
+      per-site topic (default, unchanged for existing stacks); eventbridge sends them to the account's
+      default bus and creates no topic; both does both.
+
 Conditions:
   CreateDmarc: !Equals [!Ref CreateDmarcRecord, "true"]
+  UseSns: !Not [!Equals [!Ref EventTransport, eventbridge]]
+  UseEventBridge: !Not [!Equals [!Ref EventTransport, sns]]
 
 Resources:
   ConfigurationSet:
@@ -117,11 +130,13 @@ Resources:
 
   EventTopic:
     Type: AWS::SNS::Topic
+    Condition: UseSns
     Properties:
       TopicName: !Sub papyrus-newsletter-events-${SiteId}
 
   EventTopicPolicy:
     Type: AWS::SNS::TopicPolicy
+    Condition: UseSns
     Properties:
       Topics: [!Ref EventTopic]
       PolicyDocument:
@@ -139,6 +154,7 @@ Resources:
 
   SnsEventDestination:
     Type: AWS::SES::ConfigurationSetEventDestination
+    Condition: UseSns
     DependsOn: EventTopicPolicy
     Properties:
       ConfigurationSetName: !Ref ConfigurationSet
@@ -155,6 +171,25 @@ Resources:
           - DELIVERY_DELAY
         SnsDestination:
           TopicARN: !Ref EventTopic
+
+  # Never OPEN or CLICK: no tracking pixels or rewritten links (a test fails if either appears).
+  EventBridgeEventDestination:
+    Type: AWS::SES::ConfigurationSetEventDestination
+    Condition: UseEventBridge
+    Properties:
+      ConfigurationSetName: !Ref ConfigurationSet
+      EventDestination:
+        Name: eventbridge-events
+        Enabled: true
+        MatchingEventTypes:
+          - SEND
+          - DELIVERY
+          - BOUNCE
+          - COMPLAINT
+          - REJECT
+          - DELIVERY_DELAY
+        EventBridgeDestination:
+          EventBusArn: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
 
   CloudWatchEventDestination:
     Type: AWS::SES::ConfigurationSetEventDestination
@@ -178,5 +213,6 @@ Outputs:
     Description: SES configuration set to send with.
     Value: !Ref ConfigurationSet
   EventTopicArn:
+    Condition: UseSns
     Description: SNS topic that receives SES delivery events.
     Value: !Ref EventTopic

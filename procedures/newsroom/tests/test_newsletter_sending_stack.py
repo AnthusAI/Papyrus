@@ -46,7 +46,7 @@ def _of_type(resources, type_name):
 def test_parameters(template):
     params = template["Parameters"]
     assert set(params) == {
-        "SiteId", "SendingDomain", "HostedZoneId", "MailFromSubdomain", "DmarcPolicy", "CreateDmarcRecord",
+        "SiteId", "SendingDomain", "HostedZoneId", "MailFromSubdomain", "DmarcPolicy", "CreateDmarcRecord", "EventTransport",
     }
     assert params["MailFromSubdomain"]["Default"] == "bounce"
     assert params["DmarcPolicy"]["AllowedValues"] == ["none", "quarantine", "reject"]
@@ -104,7 +104,7 @@ def test_topic_and_policy(resources):
 
 def test_event_destinations(resources):
     destinations = _of_type(resources, "AWS::SES::ConfigurationSetEventDestination")
-    assert set(destinations) == {"SnsEventDestination", "CloudWatchEventDestination"}
+    assert set(destinations) == {"SnsEventDestination", "EventBridgeEventDestination", "CloudWatchEventDestination"}
     sns = destinations["SnsEventDestination"]["Properties"]["EventDestination"]
     assert set(sns["MatchingEventTypes"]) == {
         "SEND", "DELIVERY", "BOUNCE", "COMPLAINT", "REJECT", "RENDERING_FAILURE", "DELIVERY_DELAY",
@@ -117,6 +117,27 @@ def test_event_destinations(resources):
     assert dims[0]["DimensionName"] == "ses:configuration-set"
     assert dims[0]["DimensionValueSource"] == "MESSAGE_TAG"
     assert dims[0]["DefaultDimensionValue"] == {"Fn::Sub": "papyrus-${SiteId}"}
+
+
+def test_event_transport_defaults_to_sns_so_existing_site_stacks_do_not_change(template, resources):
+    parameter = template["Parameters"]["EventTransport"]
+    assert parameter["Default"] == "sns" and parameter["AllowedValues"] == ["sns", "eventbridge", "both"]
+    conditions = template["Conditions"]
+    assert conditions["UseSns"] == {"Fn::Not": [{"Fn::Equals": [{"Ref": "EventTransport"}, "eventbridge"]}]}
+    assert conditions["UseEventBridge"] == {"Fn::Not": [{"Fn::Equals": [{"Ref": "EventTransport"}, "sns"]}]}
+    for name in ("EventTopic", "EventTopicPolicy", "SnsEventDestination"):
+        assert resources[name]["Condition"] == "UseSns", name
+    assert template["Outputs"]["EventTopicArn"]["Condition"] == "UseSns"
+
+
+def test_event_bridge_destination_sends_to_the_default_bus_and_never_tracks(resources):
+    destination = resources["EventBridgeEventDestination"]
+    assert destination["Condition"] == "UseEventBridge"
+    detail = destination["Properties"]["EventDestination"]
+    assert set(detail["MatchingEventTypes"]) == {"SEND", "DELIVERY", "BOUNCE", "COMPLAINT", "REJECT", "DELIVERY_DELAY"}
+    assert detail["EventBridgeDestination"]["EventBusArn"]["Fn::Sub"].endswith(":event-bus/default")
+    for name, resource in _of_type(resources, "AWS::SES::ConfigurationSetEventDestination").items():
+        assert not {"OPEN", "CLICK"} & set(resource["Properties"]["EventDestination"]["MatchingEventTypes"]), name
 
 
 def test_outputs(template):
