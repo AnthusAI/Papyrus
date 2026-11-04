@@ -553,7 +553,7 @@ Classification of the fork's diff against merge-base `95df656` (126 files,
 | `lib/graphql-content-repository.ts`, `cached-content-repository.ts`, `content-repository.ts`, `content-types.ts`, `amplify-server-runtime.ts`, `amplify-client-provider.tsx` | **Upstream, check first** | Develop already reads with guest IAM (`authMode: identityPool`); port only what is missing |
 | `lib/blog-feature-solver.ts`, `blog-rhythm.ts`, `components/presentation-header.tsx`, `presentation-shell.tsx`, `article-page.tsx`, `archive-shell.tsx`, `presentation-rhythm-hrule.tsx`, `use-rhythm-overlay.ts`, `lib/newspaper-layout.ts`, `pretext-layout.ts`, `edition-sections.ts`, `app/**` | **Upstream: Pretext `blog` layout** | Largest and riskiest. Generic engine into `renderers/pretext/`; TI header art and obstacles to the brand. Component by component |
 | `.storybook/**`, `src/stories/**` | Drop | Scaffold |
-| `components/topic-steering-workspace.tsx`, `corpora/threat-intelligence-newsroom-sections.yml`, `src/papyrus_content/{cli,papyrus_config,seed_edition}.py`, `procedures/**`, `features/**`, `scripts/ensure-sandbox-amplify-outputs.mjs`, `package.json` | Mixed | Review individually; most are stale versions of files develop reworked |
+| `components/topic-steering-workspace.tsx`, `corpora/example-newsroom-sections.yml`, `src/papyrus_content/{cli,papyrus_config,seed_edition}.py`, `procedures/**`, `features/**`, `scripts/ensure-sandbox-amplify-outputs.mjs`, `package.json` | Mixed | Review individually; most are stale versions of files develop reworked |
 | `AGENTS.md`, `README.md`, `.env.example`, `.gitignore` | Rewrite | Standard skeleton |
 
 Method: no 210-commit rebase. Fresh publication-repo history from the standard

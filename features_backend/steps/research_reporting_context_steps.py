@@ -18,7 +18,7 @@ from papyrus_content.cloud_procedures import write_llm_context_trace_artifacts
 
 @given("the newsroom sections seed file")
 def step_given_newsroom_sections_seed(context):
-    sections_path = REPO_ROOT / "corpora" / "threat-intelligence-newsroom-sections.yml"
+    sections_path = REPO_ROOT / "corpora" / "example-newsroom-sections.yml"
     parsed = yaml.safe_load(sections_path.read_text(encoding="utf-8"))
     sections = parsed.get("sections") if isinstance(parsed, dict) else None
     assert isinstance(sections, list) and sections, "sections seed must contain non-empty sections list"
