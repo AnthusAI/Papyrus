@@ -238,6 +238,20 @@ Feature: The scheduled cloud knowledge run
     And the commands include "--corpus-key shipped"
     And the state in S3 holds "runs/2026-W44/reference-documents.json"
 
+  Scenario: A site that asks for its accepted References as documents needs no bucket
+    Given the site asks for its accepted References as the Reference documents
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--reference-documents-accepted --reference-documents-out"
+    And the commands include "--corpus-key shipped"
+    And no command was given "--reference-documents-bucket"
+
+  Scenario: A site that asks for its accepted References has them read by the import, the snapshot, the archive and the wiki
+    Given the site asks for its accepted References as the Reference documents
+    And the stages "corpus-sync", "topic-model", "typed-extraction" have run
+    When the stages "publish-run", "snapshot", "archive", "wiki-sync" run
+    Then each of the commands "knowledge publish-run", "knowledge snapshot", "knowledge archive", "knowledge wiki sync" was given "--reference-documents" with the week's Reference documents file
+
   Scenario: The import, the snapshot, the archive and the wiki read the same Reference documents file
     Given the site sets the Reference documents bucket "media-bucket" with the extractor "markitdown"
     And the stages "corpus-sync", "topic-model", "typed-extraction" have run

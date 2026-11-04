@@ -8,6 +8,7 @@ and never switches lanes by itself.
 from __future__ import annotations
 
 import dataclasses
+from dataclasses import dataclass, field
 import json
 import os
 import sys
@@ -95,6 +96,7 @@ from .relation_review import (
 from .corpus_export import DEFAULT_TYPES, biblicus_item_id, export_items, render_record, write_export
 from .reference_documents import (
     S3TextStore,
+    load_accepted_reference_documents,
     biblicus_reference_id,
     export_reference_documents,
     load_reference_documents,
@@ -331,6 +333,40 @@ def knowledge_publish_run(flags: list[str]) -> None:
             print(f"knowledge\tpublish-run\tapplied\t{sum(1 for change in changes if change['action'] != 'noop')}")
 
 
+@dataclass
+class AcceptedDocuments:
+    """The accepted-only selection of Reference documents (``--reference-documents-accepted``)."""
+
+    documents: list
+    store: Any
+    without_text: list[dict[str, str]]
+    accepted_ids: list[str]
+    skipped: list[str] = field(default_factory=list)
+
+
+def _accepted_reference_documents(client: Any, options: dict[str, Any]) -> AcceptedDocuments | None:
+    if not options.get("reference-documents-accepted"):
+        return None
+    if normalize_string(options.get("reference-documents-bucket")):
+        raise ValueError("Pass --reference-documents-accepted or --reference-documents-bucket, not both: they choose the documents in different ways.")
+    corpus_key = normalize_string(options.get("corpus-key"))
+    if not corpus_key:
+        raise ValueError("--reference-documents-accepted needs --corpus-key (the publication's knowledge corpus key).")
+    corpus_id = knowledge_corpus_id({"key": corpus_key})
+    documents, without_text, store = load_accepted_reference_documents(client, corpus_id=corpus_id)
+    accepted_ids = [str(row["id"]) for row in store.references]
+    return AcceptedDocuments(documents, store, without_text, accepted_ids)
+
+
+def _no_accepted_documents_message(accepted: AcceptedDocuments) -> str:
+    reasons = "; ".join(f"{entry['referenceId']}: {entry['reason']}" for entry in accepted.without_text[:10])
+    more = f" (and {len(accepted.without_text) - 10} more)" if len(accepted.without_text) > 10 else ""
+    return (
+        f"--reference-documents-accepted found no accepted Reference with a text to read ({len(accepted.accepted_ids)} accepted). Nothing was written "
+        f"and no earlier file or state was removed. {reasons}{more}"
+    ).strip()
+
+
 def knowledge_corpus_export(flags: list[str]) -> None:
     options = parse_options(flags)
     out = _path_option(options, "out")
@@ -341,6 +377,7 @@ def knowledge_corpus_export(flags: list[str]) -> None:
     client = authoring_client(options)
     projector = load_projector(_projection_environment(options))
     items = export_items(client.list_records("PublishedItem"), url_resolver(projector), types)
+    accepted = _accepted_reference_documents(client, options)
     records, warnings = [], []
     if sources:
         corpus_key = normalize_string(options.get("corpus-key"))
@@ -351,13 +388,32 @@ def knowledge_corpus_export(flags: list[str]) -> None:
         records, warnings = load_monitor_records(
             client, corpus_id=knowledge_corpus_id({"key": corpus_key}), sources=sources, as_of=as_of, weeks=weeks,
         )
+        if accepted is not None:  # an accepted Reference is a document in this mode; counted as a record too it would hide its entities' pages
+            documented = {document.reference_id for document in accepted.documents}
+            records = [record for record in records if record.reference_id not in documented]
         if normalize_string(options.get("monitor-records-out")):
             write_records(Path(options["monitor-records-out"]), records, as_of=as_of, sources=sources)
     in_topic_model = bool(options.get("records-in-topic-model"))
     reference_files = []
     reference_counts: dict[str, int] = {}
     bucket = normalize_string(options.get("reference-documents-bucket"))
-    if bucket:  # explicit and opt-in: the corpus's own References with extracted text are documents (records stay data)
+    keep: frozenset[str] = frozenset()
+    if accepted is not None:
+        reference_files, reference_counts = export_reference_documents(
+            accepted.documents, accepted.store, out, skipped=accepted.skipped,
+            on_progress=lambda done, total: print(f"knowledge\tcorpus-export\treference documents {done}/{total}", flush=True),
+        )
+        kept = {file.item_id for file in reference_files}
+        accepted.without_text.extend(
+            {"referenceId": reference_id, "reason": accepted.store.reason_not_a_document(reference_id)} for reference_id in accepted.skipped
+        )
+        if not reference_files:
+            raise ValueError(_no_accepted_documents_message(accepted))
+        keep = frozenset(f"ref-{reference_id}.md" for reference_id in accepted.accepted_ids)  # a Reference still accepted keeps its earlier file
+        reference_counts["leftStubs"] = len(accepted.without_text)
+        if normalize_string(options.get("reference-documents-out")):
+            write_documents_file(Path(options["reference-documents-out"]), [d for d in accepted.documents if d.reference_id in kept], accepted.without_text)
+    elif bucket:  # explicit and opt-in: the corpus's own References with extracted text are documents (records stay data)
         corpus_key = normalize_string(options.get("corpus-key"))
         if not corpus_key:
             raise ValueError("--reference-documents-bucket needs --corpus-key (the publication's knowledge corpus key).")
@@ -371,19 +427,22 @@ def knowledge_corpus_export(flags: list[str]) -> None:
         kept = {file.item_id for file in reference_files}
         if normalize_string(options.get("reference-documents-out")):
             write_documents_file(Path(options["reference-documents-out"]), [document for document in documents if document.reference_id in kept])
-    counts = write_export(items, out, [render_record(record) for record in records] if in_topic_model else [], reference_files)
+    counts = write_export(items, out, [render_record(record) for record in records] if in_topic_model else [], reference_files, keep)
     counts.update({f"reference{name[0].upper()}{name[1:]}": count for name, count in reference_counts.items()})
     if records and not in_topic_model:  # data for counts and relations only: the topic model reads the site's own items
         counts["recordsAsData"] = len(records)
     for warning in warnings[:20]:
         print(f"knowledge\tcorpus-export\twarning\t{warning}", file=sys.stderr)
+    without_text = accepted.without_text if accepted is not None else []
     if options.get("json"):
-        print(json.dumps({"out": str(out), "types": list(types), **counts}, indent=2, sort_keys=True))
+        print(json.dumps({"out": str(out), "types": list(types), **counts, **({"referenceWithoutText": without_text} if accepted is not None else {})}, indent=2, sort_keys=True))
         return
     monitor = f"{counts['records']} monitor records\t" if "records" in counts else (f"{counts['recordsAsData']} monitor records (data only, not in the corpus)\t" if "recordsAsData" in counts else "")
     if "referenceDocuments" in counts:
         monitor += f"{counts['referenceDocuments']} reference documents ({counts['referenceDownloaded']} downloaded, {counts['referenceReused']} unchanged, {counts['referenceLeftStubs']} without text)\t"
     print(f"knowledge\tcorpus-export\t{counts['items']} items\t{monitor}{counts['undated']} undated\t{counts['removed']} removed\t{out}")
+    for entry in without_text:
+        print(f"knowledge\tcorpus-export\treference-without-text\t{entry['referenceId']}\t{entry['reason']}")
 
 
 def _whole(value: Any, flag: str, default: int | None) -> int | None:

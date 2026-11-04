@@ -147,9 +147,12 @@ def _is_exported_file(path: Path) -> bool:
         return any(line.startswith((ITEM_MARKER, RECORD_MARKER, REFERENCE_MARKER)) for _, line in zip(range(20), handle))
 
 
-def write_export(items: list[ExportedItem], out: Path, records: list[ExportedItem] | None = None, references: list[ExportedItem] | None = None) -> dict[str, int]:
+def write_export(
+    items: list[ExportedItem], out: Path, records: list[ExportedItem] | None = None, references: list[ExportedItem] | None = None, keep: frozenset[str] = frozenset(),
+) -> dict[str, int]:
     """Write the files; remove files of an earlier export (they carry ``papyrus_item_id`` or ``papyrus_record_id``) that are
-    no longer published or delivered."""
+    no longer published or delivered. A file named in ``keep`` is never removed (the accepted-only Reference documents keep the file of a
+    Reference whose text could not be read this time)."""
     out.mkdir(parents=True, exist_ok=True)
     records = records or []
     references = references or []
@@ -157,7 +160,7 @@ def write_export(items: list[ExportedItem], out: Path, records: list[ExportedIte
     wanted = {item.file for item in items}
     removed = 0
     for stale in sorted(out.glob("*.md")):
-        if stale.name not in wanted and _is_exported_file(stale):
+        if stale.name not in wanted and stale.name not in keep and _is_exported_file(stale):
             stale.unlink()
             removed += 1
     for item in items:
