@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e0848914-28af-4070-97ad-8a7128cc5e72",
+  "title": "Share a draft Story by link: public site layout, labeled DRAFT, no sign-in",
+  "description": "Ryan, 2026-11-04: editors need to show a Story in progress to stakeholders who have no newsroom sign-in, in the real public layout, clearly labeled DRAFT. Nothing does this today. The newsroom preview needs sign-in. Staging is whole-site, needs the editor or admin group, is off on Machines on Machines (cms.staging false), and its banner says STAGING rather than DRAFT. Giving stakeholders editor access would also give them write access.\n\nProposed: an editor creates a link for one Story from the newsroom or the CLI. The link carries an unguessable token, stored hashed, with an expiry, and it can be revoked. It serves that Story rendered by the site's own projection and theme, under a non-public prefix, with a DRAFT band on every view and in the page title, noindex and no-store headers, no analytics, and no listing on any home, section, feed or sitemap. The creator chooses whether the link follows the latest version or stays pinned to one. Pictures must load without sign-in. Creating, opening and revoking are recorded on the Story. Publishing or spiking the Story ends its links.\n\nMust never write into the live site prefix (see the 10-31 home-page snapshot incident). Needs Gherkin specs and screenshot review. Open: whether the DRAFT band belongs in the Papyrus shell or the site's design system.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T16:06:29.404835Z",
+  "updated_at": "2026-11-04T16:06:29.405227Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
