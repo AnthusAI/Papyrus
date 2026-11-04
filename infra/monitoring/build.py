@@ -56,7 +56,7 @@ LOCK = ROOT / "poetry.lock"
 ROUTER_WHEEL_ROOTS = ("humanus", "typesafe-sdk", "anthus-markus", "latex2mathml", "linkify-it-py", "pypdf")
 LAMBDA_PLATFORMS = ("manylinux_2_28_aarch64", "manylinux_2_17_aarch64", "manylinux2014_aarch64")
 LAMBDA_PYTHON = "3.13"
-ROUTER_DATA = ("corpora/papyrus-semantic-relation-types.yml", "corpora/threat-intelligence-publication-doctrine.yml")
+ROUTER_DATA = ("corpora/papyrus-semantic-relation-types.yml", "corpora/example-publication-doctrine.yml")
 
 
 def build(out: Path = OUT) -> str:

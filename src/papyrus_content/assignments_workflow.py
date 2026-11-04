@@ -167,7 +167,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     if section_key and not section:
         raise ValueError(
             f"Unknown NewsroomSection for --section {section_key}. "
-            "Run: poetry run papyrus sections import --config corpora/threat-intelligence-newsroom-sections.yml"
+            "Run: poetry run papyrus sections import --config corpora/example-newsroom-sections.yml"
         )
     queue_key = normalize_string(options.get("queue")) or f"research:{section_key or 'unsectioned'}:exploratory"
     assignment_id = normalize_string(options.get("id")) or (
@@ -323,7 +323,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
     if section_key and not section:
         raise ValueError(
             f"Unknown NewsroomSection for --section {section_key}. "
-            "Run: poetry run papyrus sections import --config corpora/threat-intelligence-newsroom-sections.yml"
+            "Run: poetry run papyrus sections import --config corpora/example-newsroom-sections.yml"
         )
     queue_key = normalize_string(options.get("queue")) or f"reporting:{section_key or 'unsectioned'}:exploratory"
     assignment_id = normalize_string(options.get("id")) or (
