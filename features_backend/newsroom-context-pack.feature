@@ -18,7 +18,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
 
   Scenario: The layers come in order, most specific first
     When the reporter context pack is built for the Story and the assignment
-    Then the layers are, in order, "assignment, story, story_references, related_references, story_conversation, prior_research, desk_published, desk_references, publication_published, publication_references"
+    Then the layers are, in order, "assignment, story, process, story_references, related_references, story_conversation, prior_research, desk_published, desk_references, publication_published, publication_references"
     And every layer holds at least one entry
     And the user text shows the editor's direction before the Story's draft and the Story's draft before the section's published record
     And the system text carries the role, the publication policy and the section mission
@@ -239,7 +239,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
 
   Scenario: The copywriter's layers put the rules first and the publication's voice before the wider record
     When the copywriter's context pack is built for the Story
-    Then the layers are, in order, "editorial_policies, assignment, story, story_references, related_references, story_conversation, prior_research, voice_examples, desk_published, desk_references, publication_published, publication_references"
+    Then the layers are, in order, "editorial_policies, assignment, story, process, story_references, related_references, story_conversation, prior_research, voice_examples, desk_published, desk_references, publication_published, publication_references"
     And the system text says it is a copywriter and it writes a draft, never publishing
 
   Scenario: The copywriter reads the rules the draft will be checked against
@@ -251,6 +251,12 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
   Scenario: Research claims that did not pass stay marked for the copywriter
     When the copywriter's context pack is built for the Story
     Then the research layer is the one the reporter reads, which marks the claims that did not pass
+
+  Scenario: Every agent is told where the Story is in the procedure
+    When the context pack is built for each of the reporter, the copywriter and the editor on the Story
+    Then each pack says what stage the Story is in, what is done and what is next
+    When the editor's context pack is built for the section alone
+    Then the pack holds no process layer
 
   Scenario: An outline is named as the editor's outline
     Given the Story's current version is marked as the editor's outline

@@ -346,6 +346,8 @@ PORTED_COMMANDS = frozenset(
         "stories:note",
         "stories:show",
         "stories:next",
+        "stories:outline",
+        "stories:draft",
         "stories:create",
         "stories:move",
         "stories:fire-triggers",
@@ -783,6 +785,14 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         stories_show(flags)
     elif route == "stories:next":
         stories_next(flags)
+    elif route == "stories:outline":
+        from .story_writing import stories_outline
+
+        stories_outline(flags)
+    elif route == "stories:draft":
+        from .story_writing import stories_draft
+
+        stories_draft(flags)
     elif route == "stories:set-slug":
         from .story_commands import stories_set_slug
 

@@ -86,6 +86,9 @@ class FakeNewsroom:
             return copy.deepcopy(self.messages[key])
         raise AssertionError(f"the fake store does not serve index {index}")
 
+    def read_check_run(self, item_id):
+        return None
+
     def list_policies(self):
         return copy.deepcopy(getattr(self, "policies", []))
 
@@ -1316,3 +1319,15 @@ def step_refused(context, request):
 @then('the pack is refused saying "{reason}"')
 def step_refusal(context, reason):
     assert context.error and reason in context.error, context.error
+
+
+@then("each pack says what stage the Story is in, what is done and what is next")
+def step_process_named(context):
+    for pack in context.packs:
+        text = pack["user"].split(f"## {pack_module.HEADINGS['process']}\n\n", 1)[1].split("\n\n## ", 1)[0]
+        assert "Stage:" in text and "Done:" in text and "Next:" in text, text
+
+
+@then("the pack holds no process layer")
+def step_no_process(context):
+    assert "process" not in {row["name"] for row in context.pack["layers"]}
