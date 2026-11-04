@@ -75,6 +75,11 @@ module.exports = {
     require: ["features/step_definitions/needs-me-links.steps.js"],
     format: ["summary"],
   },
+  connectCli: {
+    paths: ["features/newsroom-connect-cli.feature"],
+    require: ["features/step_definitions/connect-cli.steps.js"],
+    format: ["summary"],
+  },
   referenceFeed: {
     paths: ["features/newsroom-reference-feed.feature"],
     require: ["features/step_definitions/reference-feed.steps.js"],
