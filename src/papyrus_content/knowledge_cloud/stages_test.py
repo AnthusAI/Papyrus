@@ -584,3 +584,61 @@ def test_a_failed_command_with_its_output_redirected_prints_that_output_to_the_t
     with pytest.raises(StageFailed, match="exited with 1"):
         run_shell([sys.executable, "-c", script], cwd=tmp_path, env={}, stdout=out)
     assert "bad vocabulary" in capfd.readouterr().err
+
+
+def review_with_many_entities(tmp_path, monkeypatch, max_calls):
+    """The ai-review stage over 45 generated entities (three batches), one new cluster and one proposed relation; returns the log's budget."""
+    from ..knowledge_snapshot.commands_test import published_row
+    from .ai_review_test import ACTOR as _actor, Model, TEXT, TYPED, cluster, node, relation  # noqa: F401
+
+    names = [f"Thing {number}" for number in range(45)]  # three batches of entities
+    text = TEXT + " " + ". ".join(names) + "."
+    entities = list(TYPED["items"][0]["entities"])
+    for number, name in enumerate(names):
+        start = text.index(name + ".") if name + "." in text else text.index(name)
+        entities.append({"id": f"t{number}", "kind": "model", "text": name, "span": {"start": start, "end": start + len(name)}})
+    typed = {"items": [{**TYPED["items"][0], "entities": entities}]}
+
+    run, _shell = make_run(tmp_path)
+    for stage in ("corpus-sync", "topic-model", "typed-extraction"):
+        run_stage(stage, run)
+    typed_dir = run.run_dir / "typed"
+    typed_dir.mkdir(parents=True, exist_ok=True)
+    (typed_dir / "output.json").write_text(json.dumps(typed))
+    texts = run.corpus / "extracted" / "pipeline" / "ext1" / "text"
+    texts.mkdir(parents=True)
+    (texts / "i1.txt").write_text(text)
+    run.push(corpus=True, run=True)
+    monkeypatch.setattr("papyrus_content.records.apply_record_changes", lambda client, changes: None)
+
+    nodes = [node(name) for name in names] + [node("VoxCPM2", status="accepted"), node("MiniCPM-4", kind="model_family", status="accepted")]
+    proposal = cluster()
+    proposal["evidenceItemIds"] = ["lineage-a", "lineage-b", "lineage-c", "lineage-d"]
+
+    class Client(FakeClient):
+        def list_records(self, model):
+            return {"SemanticNode": self.nodes, "SteeringProposal": [proposal]}.get(model, [])
+
+        def list_published_item_summaries(self):
+            return [published_row(name, "2026-10-13T08:00:00Z") for name in "abcd"]
+
+        def list_semantic_relations_by_subject_state(self, _state):
+            return [relation()]
+
+    class Services(FakeServices):
+        def __init__(self):
+            self.client, self.key_parameter = Client(nodes), None
+
+        def model(self, api_key, guidance):
+            return Model({}, max_calls=max_calls)
+
+    run.services = Services()
+    assert run_stage("ai-review", run) == 0
+    return json.loads(run.state.read_text("runs/2026-W44/ai-review.json"))["budget"]
+
+
+def test_the_review_budget_keeps_clusters_and_relations_from_being_starved_by_the_entities(tmp_path, monkeypatch):
+    budget = review_with_many_entities(tmp_path, monkeypatch, 3)
+    assert budget["needed"] == {"entities": 3, "clusters": 1, "relations": 1}
+    assert budget["owed"] == {"entities": 1, "clusters": 1, "relations": 1}
+    assert budget["used"] == {"entities": 1, "clusters": 1, "relations": 1}, "without the rule the entities take all 3 calls and nothing else is reviewed"
