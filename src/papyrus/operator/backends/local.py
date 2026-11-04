@@ -63,7 +63,7 @@ class LocalPodBackend(OperatorBackend):
     rows.sort(key=lambda row: row.identifier, reverse=reverse)
     return rows[: max(limit, 1)]
 
-  def show_reference(self, reference_id: str) -> OperatorRow:
+  def show_reference(self, reference_id: str, corpus_key: str | None = None) -> OperatorRow:
     pod_root = self._pod_root()
     if self._uses_readonly_fixture_manifest(pod_root):
       payload = load_fixture_json(self._config.fixture_root, "pod-references.json")

@@ -37,8 +37,3 @@ Feature: Reference commands without a corpus key use the publication the signed-
     And the site chose a steering file whose canonical corpus is "site-chosen-corpus"
     When a signed-in person lists references with no corpus key
     Then the references are listed from the corpus "site-chosen-corpus"
-
-  Scenario: The show command looks in the site's canonical corpus
-    Given the signed-in site serves the one canonical corpus "ai-ml-research"
-    When a signed-in person shows a reference with no corpus key
-    Then the reference is looked up in the corpus "ai-ml-research"

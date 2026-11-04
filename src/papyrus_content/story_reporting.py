@@ -274,8 +274,13 @@ def create_story(client, *, title: str, section_key: str | None, stage: str = "i
 
     if stage not in ("idea", "assignment", "reporting"):
         raise ValueError("stage must be idea, assignment or reporting.")
-    if section_key and not client.get_record("NewsroomSection", section_key):
-        raise ValueError(f"Unknown NewsroomSection {section_key}.")
+    if section_key:
+        from .editorial_context import find_section
+
+        section = find_section(client, section_key)   # the id, slug or name that `editorial context --section` takes
+        if not section:
+            raise ValueError(f"Unknown NewsroomSection {section_key}.")
+        section_key = section["id"]
     now = now or utc_now_iso()
     lineage_id = content_item_lineage_id_for_first_work(title=title, first_assignment_id=f"story-create-{now}")
     item = build_new_content_item_version(

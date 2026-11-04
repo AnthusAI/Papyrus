@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +60,8 @@ class CloudBackend(OperatorBackend):
         status=status,
         order=order,
       )
+      if not payload.get("items"):
+        self._require_known_corpus(corpus_key)
       rows = [
         OperatorRow(
           kind="cloud-reference",
@@ -69,6 +72,7 @@ class CloudBackend(OperatorBackend):
             "corpus": corpus_key,
             "url": str(item.get("sourceUri") or item.get("url") or ""),
             "why": str(item.get("why") or item.get("ingestionRationale") or ""),
+            "lineageId": str(item.get("lineageId") or ""),
           },
         )
         for item in payload.get("items") or []
@@ -78,12 +82,39 @@ class CloudBackend(OperatorBackend):
     rows = _sort_reference_rows(rows, order)
     return rows[: max(limit, 1)]
 
-  def show_reference(self, reference_id: str) -> OperatorRow:
-    rows = self.list_references(corpus_key=resolve_default_corpus_key(self._config), limit=10_000, status="", order="newest")
-    for row in rows:
-      if row.identifier == reference_id:
-        return row
-    raise OperatorError(f"Reference not found: {reference_id}")
+  def _require_known_corpus(self, corpus_key: str) -> None:
+    """An empty list is only an empty corpus when the corpus exists; a key that names nothing is an error, not an empty table."""
+    from papyrus_content.graphql_authoring import create_authoring_client
+
+    client, _ = create_authoring_client()
+    if client.get_record("KnowledgeCorpus", f"knowledge-corpus-{corpus_key}"):
+      return
+    served = [str(row.get("id") or "").removeprefix("knowledge-corpus-") for row in client.list_by_index("knowledgeCorporaByRoleAndName", "canonical")]
+    hint = f" This site serves {', '.join(served)}." if served else ""
+    raise OperatorError(f"Unknown corpus {corpus_key}: no such KnowledgeCorpus.{hint} Pass --corpus-key <key>, or omit it to use the site's own corpus.")
+
+  def show_reference(self, reference_id: str, corpus_key: str | None = None) -> OperatorRow:
+    """A Reference by record id (``...-v1``), by lineage id (what ``stories show`` prints), or, on a fixture, by either."""
+    if self._fixture_root():
+      key = corpus_key or resolve_default_corpus_key(self._config)
+      rows = self.list_references(corpus_key=key, limit=10_000, status="", order="newest")
+      wanted = {reference_id, re.sub(r"-v\d+$", "", reference_id)}
+      for row in rows:
+        if {row.identifier, row.extra.get("lineageId", ""), re.sub(r"-v\d+$", "", row.identifier)} & wanted:
+          return row
+      raise OperatorError(f"Reference not found: {reference_id}")
+    self._ensure_auth()
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.story_reporting import current_reference
+
+    client, _ = create_authoring_client()
+    record = current_reference(client, reference_id)
+    if record is None:
+      raise OperatorError(f"Reference not found: {reference_id}. Pass an id or lineage id that `papyrus stories show` or `references list` prints.")
+    record_corpus = str(record.get("corpusId") or "").removeprefix("knowledge-corpus-")
+    if corpus_key and record_corpus != corpus_key:
+      raise OperatorError(f"Reference {reference_id} is in corpus {record_corpus or 'none'}, not {corpus_key}.")
+    return _reference_row(record, record_corpus)
 
   def list_assignments(
     self,
@@ -118,6 +149,21 @@ class CloudBackend(OperatorBackend):
     if assignment_type:
       rows = [row for row in rows if row.extra.get("type") == assignment_type]
     return rows[: max(limit, 1)]
+
+
+def _reference_row(record: dict[str, Any], corpus_key: str) -> OperatorRow:
+  return OperatorRow(
+    kind="cloud-reference",
+    status=str(record.get("curationStatus") or record.get("status") or ""),
+    identifier=str(record.get("id") or ""),
+    title=str(record.get("title") or ""),
+    extra={
+      "corpus": corpus_key,
+      "url": str(record.get("sourceUri") or record.get("url") or ""),
+      "why": str(record.get("why") or record.get("ingestionRationale") or ""),
+      "lineageId": str(record.get("lineageId") or ""),
+    },
+  )
 
 
 def _filter_status(rows: list[OperatorRow], status: str) -> list[OperatorRow]:

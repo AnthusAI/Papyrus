@@ -64,6 +64,33 @@ def assignments_list(flags: list[str]) -> None:
         )
 
 
+def assignments_show(flags: list[str]) -> None:
+    """papyrus assignments show --assignment <id>
+
+    Read only. The Assignment's status, type, section, Story and who holds it, then its events, newest last. `assignments list` prints the ids."""
+    options = parse_options(flags)
+    assignment_id = normalize_string(options.get("assignment"))
+    if not assignment_id:
+        raise ValueError("assignments show requires --assignment <id>. `papyrus assignments list` prints the ids.")
+    client, _ = create_authoring_client()
+    assignment = client.get_record("Assignment", assignment_id)
+    if not assignment:
+        raise ValueError(f"Assignment not found: {assignment_id}")
+    from .assignments_workflow import assignment_section_key, list_assignment_events
+
+    fields = (
+        ("status", assignment.get("status")), ("type", assignment.get("assignmentTypeKey")), ("title", assignment.get("title")),
+        ("queue", assignment.get("queueKey")), ("section", assignment_section_key(assignment)),
+        ("story", assignment.get("contentItemLineageId") or assignment.get("itemLineageId")), ("priority", assignment.get("priority")),
+        ("held by", assignment.get("assigneeKey")),
+        ("created", assignment.get("createdAt")), ("updated", assignment.get("updatedAt")),
+    )
+    for label, value in fields:
+        if value not in (None, ""):
+            print(f"assignments\tshow\t{assignment_id}\t{label}\t{value}")
+    list_assignment_events(client, {"assignment": assignment_id})
+
+
 def assignments_create_research(flags: list[str]) -> None:
     options = parse_options(flags)
     client, _ = create_authoring_client()

@@ -13,6 +13,7 @@ from .projection_trigger import (
     SKIP_LINE,
     item_task,
     projection_enabled,
+    projection_unknown,
     retry_command,
     skipped_projection,
     trigger_projection,
@@ -68,7 +69,7 @@ def resolve_item_id(client, options: dict[str, Any]) -> str:
 
 
 def run_site_triggers(client, options: dict[str, Any], result, *, unpublished: bool = False) -> dict[str, Any]:
-    projecting = projection_enabled()
+    projecting = projection_enabled() or projection_unknown()
     if options.get("no-trigger"):
         return {"projection": skipped_projection()} if projecting else {}
     triggers: dict[str, Any] = {}
@@ -81,7 +82,7 @@ def run_site_triggers(client, options: dict[str, Any], result, *, unpublished: b
     if not result.changed:
         return triggers
     item = client.get_record("Item", result.item_id) or {}
-    if item.get("slug") and not projecting:
+    if item.get("slug") and not projection_enabled():
         try:
             revalidated = trigger_pretext_revalidation([item["slug"]], None)
         except Exception as error:  # noqa: BLE001 - a trigger failure never fails the publish
@@ -118,7 +119,7 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
         raise SystemExit(1)
     planned = [] if apply else target.planned
     triggers: dict[str, Any] = {}
-    if apply and (result.changed or projection_enabled()):
+    if apply and (result.changed or projection_enabled() or projection_unknown()):
         triggers = run_site_triggers(client, options, result, unpublished=unpublished)
     projection = triggers.get("projection") or {}
     page_failed = projection.get("ok") is False
