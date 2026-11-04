@@ -25,6 +25,7 @@ SECTIONS_COMMANDS = {
   "import-doctrine": "import-doctrine",
   "doctrine": "set-doctrine",
   "update": "update-section",
+  "concepts": "section-concepts",
   "recount-summary": "recount-summary",
   "repair-message-status": "repair-message-status",
   "backfill-feed-fields": "backfill-feed-fields",
