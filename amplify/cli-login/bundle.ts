@@ -11,7 +11,7 @@ import { packageRoot } from "../functions/shared/python-bundle";
  * bundle below; scripts/test-cli-remote-login.ts asserts it equals the pin in pyproject.toml. A broker and pages from
  * different releases once broke Cyclotron's sign-in without any error, so they never come from different places.
  */
-export const CLI_LOGIN_VERSION = "0.4.0";
+export const CLI_LOGIN_VERSION = "0.4.1";
 
 export const cliLoginRequirement = (): string => `cli-login==${CLI_LOGIN_VERSION}`;
 
