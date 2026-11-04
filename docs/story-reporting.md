@@ -44,7 +44,7 @@ papyrus stories save-version --story <lineage> --body-file draft.md --images ./p
 
 Every local picture the text uses is uploaded exactly as the newsroom editor's "Insert image" does it: a `MediaAsset`
 row on the new version (id `media-<version id>-<first 10 hex of sha256 of the stored path>`, the same id the editor and
-the Markus import derive) and an S3 object at `media/assets/<story slug>/<file name>`. The saved text then points at
+the Markus import derive) and an S3 object at `media/assets/<story slug>/<file name>` (the same on a tenant site). The saved text then points at
 those stored paths. What counts as a picture:
 
 - an `::image{src="..."}` line, or a Markdown `![...](...)`, whose `src` is a relative path that resolves to a file inside the folder (web addresses, absolute paths, and paths the folder does not hold are left alone; the latter are listed as `image-unresolved`);
@@ -69,6 +69,34 @@ the file is first stored; a story with no real slug yet has the generated `draft
 uses it exactly as the editor does. The path does not move afterwards: publishing, `stories set-slug` and a section
 change never rewrite media keys or the saved body (the body keeps the stored `srcPath`), so pictures keep working, and
 their URLs stay the same, after publish. A later slug change only affects pictures added after it.
+
+**One key on every site, tenant or not.** The key is always `media/<srcPath>`, never `media/<tenant>/<srcPath>`. The text, the
+`MediaAsset` row and the site's renditions all name a picture by its `srcPath` (`assets/<slug>/<file>`), and the renditions
+function makes them from the object's key without `media/`, so the key and the `srcPath` must say the same thing. A tenant
+site is told apart by its rows and its own backend and site bucket (see [multi-tenancy.md](multi-tenancy.md#story-pictures-and-the-one-key-rule)).
+`renditions.media_key_for_source` is the one function that makes the key; the editor, `save-version --images` and the repair
+below use it.
+
+**Publishing needs the renditions.** A publish is refused before anything is written when a picture's renditions are not in
+the site store yet; the refusal names the picture and gives the command that asks for them. A picture uploaded a moment ago
+may simply not be ready: ask again in a few seconds. Signed in, `papyrus ops content renditions --source assets/<slug>/<file>`
+asks for a picture's renditions with no AWS login (`--dry-run` lists what it would ask for): it writes the stored picture over
+itself, unchanged, using the editor's own access to the bucket, and the site's image function reacts as it does to an upload.
+If there is no object at `media/<srcPath>` the command says so. `--backfill` asks for every image under `media/`.
+
+**Pictures saved on a tenant site before the one-key rule** sit at `media/<tenant>/assets/<slug>/<file>` and can never be
+published. Repair them without uploading anything again:
+
+```bash
+papyrus stories repair-image-paths --story <lineage>           # prints what it would do; writes nothing
+papyrus stories repair-image-paths --story <lineage> --write   # copies inside the bucket, then points the media rows at the new keys
+```
+
+It reads every version's `MediaAsset` rows, copies each object whose key is not `media/<srcPath>` to that key inside the
+bucket (a server-side copy, the same access `--images` uses), and updates the rows' `storagePath`. The copies make the bucket
+announce new objects, so the renditions are made as for an upload. The old objects are left where they are. A source object
+that is missing is reported and its rows are left alone; the command exits non-zero. It plans by default and writes only
+with `--write` (unlike most mutation commands, which write unless given `--dry-run`).
 
 Both sign-in lanes work, and they reach S3 differently:
 

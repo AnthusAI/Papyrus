@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .graphql_authoring import create_authoring_client
 from .newsroom_process import assess, next_lines, print_next_lines, print_reminder, reminder_assessment, step_lines, story_facts, warn_skipped
-from .options import normalize_string, parse_options, parse_repeated_option, resolve_mutation_apply
+from .options import normalize_string, parse_boolean_option, parse_options, parse_repeated_option, resolve_mutation_apply
 from .story_reporting import (
     STAGE_MOVES_KEY,
     STORY_MESSAGE_KINDS,
@@ -119,9 +119,7 @@ def stories_save_version(flags: list[str]) -> None:
             row for version in story_versions(client, lineage_id)
             for row in client.list_by_index("mediaAssetsByItemAndSortKey", version["id"])
         ]
-        image_plan = plan_story_images(
-            body, Path(images_dir), slug=latest["slug"], tenant_id=getattr(client, "tenant_id", None), existing=existing_assets(stored)
-        )
+        image_plan = plan_story_images(body, Path(images_dir), slug=latest["slug"], existing=existing_assets(stored))
         body = image_plan.body
     header = f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t"
     plan_output: list[str] = []
@@ -189,6 +187,43 @@ def stories_repair_versions(flags: list[str]) -> None:
     for update in updates:
         print("\t".join(["stories", "repair-versions", str(update["id"]), json.dumps({k: v for k, v in update.items() if k != "id"})]))
     print(f"stories\trepair-versions\t{lineage_id}\t{len(updates)} record(s) {'updated' if apply else 'would change (dry run)'}")
+
+
+def stories_repair_image_paths(flags: list[str]) -> None:
+    """papyrus stories repair-image-paths --story <lineage> [--write] [--bucket <bucket>] [--identity-pool-id <id>]
+
+    Brings the pictures of a story saved with `save-version --images` before the one-key rule (a tenant site stored them at
+    media/<tenant>/assets/<slug>/<file>) to media/assets/<slug>/<file>, the key the renditions are made and looked up under.
+    Objects are copied inside the bucket, not uploaded again, and the story's MediaAsset rows are pointed at the new keys; the old
+    objects stay. Dry run unless --write is given (the usual --dry-run default does not apply: this command only plans until told).
+    Writing to the bucket needs the same access `save-version --images` does (the editor's temporary credentials when signed in).
+    The copies make the bucket announce new objects, which is what makes the renditions; `papyrus ops content renditions --source
+    assets/<slug>/<file>` asks for them again."""
+    from .story_image_repair import apply_image_path_repair, plan_image_path_repair, plan_lines, story_media_rows
+
+    options = parse_options(flags)
+    if options.get("apply") is not None or options.get("dry-run") is not None:
+        raise ValueError("stories repair-image-paths plans by default and writes only with --write; --apply and --dry-run are not used.")
+    write = parse_boolean_option(options.get("write"), default=False, label="--write")
+    lineage_id = _required_option(options, "story")
+    client, _ = create_authoring_client()
+    plan = plan_image_path_repair(story_media_rows(client, lineage_id))
+    for line in plan_lines(lineage_id, plan):
+        print(line)
+    if not plan.needed:
+        print(f"stories\trepair-image-paths\t{lineage_id}\tnothing to repair\t{plan.already_canonical} picture row(s) already at media/<srcPath>")
+        return
+    if not write:
+        print(f"stories\trepair-image-paths\t{lineage_id}\tdry run\t{len(plan.copies)} object(s) to copy, {len(plan.row_updates)} row(s) to update; pass --write to do it")
+        return
+    from .story_images import open_media_store
+
+    store = open_media_store(normalize_string(options.get("bucket")), normalize_string(options.get("identity-pool-id")))
+    results = apply_image_path_repair(client, store, plan)
+    for kind, subject, outcome in results:
+        print(f"stories\trepair-image-paths\t{lineage_id}\t{kind}-{outcome}\t{subject}")
+    if any(outcome in ("source-missing", "left-alone") for _kind, _subject, outcome in results):
+        raise SystemExit(1)
 
 
 def stories_link_reference(flags: list[str]) -> None:
