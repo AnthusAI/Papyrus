@@ -242,6 +242,49 @@ def test_a_failed_enrollment_stores_no_session(tmp_path, monkeypatch):
     assert cli_user_auth.enrolled_person(ORIGIN) is None
 
 
+def test_a_remote_login_always_enrolls_and_never_asks_the_site_whether_it_enrolls(tmp_path, monkeypatch):
+    """The local login decides from /cli/challenge; the remote login cannot, so a failed probe cannot change which nonce it expects."""
+    monkeypatch.setenv("PAPYRUS_CLI_STATE_DIR", str(tmp_path))
+    asked = []
+    session = cli_user_auth.SiteSession(config(), store=None, enroll_opener=Opener(error=refusal(404, "cli_enrollment_not_configured")))
+    monkeypatch.setattr(cli_user_auth, "site_enrolls", lambda *arguments, **keywords: asked.append(arguments) or False)
+    seen = {}
+    monkeypatch.setattr(cli_user_auth, "remote_login", lambda target, store, *, enroll=None, **options: seen.update(enroll=enroll) or {"subject": "s", "label": "l"})
+    session.login_remote()
+    assert callable(seen["enroll"]) and asked == []
+
+
+def test_a_nonce_mismatch_tells_the_person_to_start_again_and_keeps_the_library_diagnostics(tmp_path, monkeypatch):
+    from cli_login.remote import RemoteLoginError
+
+    monkeypatch.setenv("PAPYRUS_CLI_STATE_DIR", str(tmp_path))
+    session = cli_user_auth.SiteSession(config(), store=None)
+
+    def mismatch(*arguments, **keywords):
+        raise RemoteLoginError("nonce_mismatch", "The sign-in answered tokens for a different request; nothing was saved. (enroll=on received_nonce=ab12cd34)")
+
+    monkeypatch.setattr(cli_user_auth, "remote_login", mismatch)
+    with pytest.raises(AuthError) as raised:
+        session.login_remote()
+    message = str(raised.value)
+    assert "nothing was saved" in message and "received_nonce=ab12cd34" in message
+    assert message.endswith("Start again with `papyrus login --remote site.example.test`.")
+
+
+def test_other_remote_login_errors_pass_through_unchanged(tmp_path, monkeypatch):
+    from cli_login.remote import RemoteLoginError
+
+    monkeypatch.setenv("PAPYRUS_CLI_STATE_DIR", str(tmp_path))
+    session = cli_user_auth.SiteSession(config(), store=None)
+
+    def denied(*arguments, **keywords):
+        raise RemoteLoginError("access_denied", "The sign-in was denied on the approval page.")
+
+    monkeypatch.setattr(cli_user_auth, "remote_login", denied)
+    with pytest.raises(RemoteLoginError):
+        session.login_remote()
+
+
 def test_the_person_id_is_recorded_next_to_the_registry_without_tokens(tmp_path, monkeypatch):
     monkeypatch.setenv("PAPYRUS_CLI_STATE_DIR", str(tmp_path))
     cli_user_auth.save_selection(config())
