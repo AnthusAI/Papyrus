@@ -40,6 +40,7 @@ from html.parser import HTMLParser
 from typing import Any
 
 from papyrus_content import pdf_text
+from papyrus_content.monitoring import _SESSION_PATH_PARAMETER, without_session_junk
 from papyrus_content.ideas.excerpt import MAXIMUM_BYTES, TIMEOUT_SECONDS, USER_AGENT, excerpt_from_html
 from papyrus_content.ideas.source_text import MAXIMUM_PDF_BYTES, WRAPPER_TEXT_CHARACTERS, excerpt_from_pdf, main_pdf_link
 from papyrus_content.link_search import (
@@ -302,8 +303,9 @@ def canonical_url(url: str) -> str:
         host = f"{host}:{port}"
     if ":" in (parts.hostname or "") and not host.startswith("["):
         host = f"[{host}]"
-    kept = [(key, value) for key, value in urllib.parse.parse_qsl(parts.query, keep_blank_values=True) if not is_tracking_parameter(key)]
-    return urllib.parse.urlunsplit((parts.scheme.lower(), host, parts.path or "/", urllib.parse.urlencode(kept, quote_via=urllib.parse.quote), ""))
+    kept = without_session_junk([(key, value) for key, value in urllib.parse.parse_qsl(parts.query, keep_blank_values=True) if not is_tracking_parameter(key)])
+    path = _SESSION_PATH_PARAMETER.sub("", parts.path) or "/"
+    return urllib.parse.urlunsplit((parts.scheme.lower(), host, path, urllib.parse.urlencode(kept, quote_via=urllib.parse.quote), ""))
 
 
 _WRAPPER_HOST_LABELS = frozenset({"click", "clicks", "link", "links", "track", "trk", "tracking", "email", "mail", "e", "em", "r", "url",

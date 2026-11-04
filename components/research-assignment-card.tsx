@@ -1,15 +1,15 @@
 "use client";
 
-import { BanIcon, CheckCircle2Icon, CircleHelpIcon, ClockIcon, ExternalLinkIcon, Loader2Icon, MinusCircleIcon, SearchCheckIcon, SearchIcon, TriangleAlertIcon, XCircleIcon } from "lucide-react";
+import { BanIcon, CheckCircle2Icon, CircleHelpIcon, ClockIcon, ExternalLinkIcon, Loader2Icon, MinusCircleIcon, SearchCheckIcon, SearchIcon, SearchXIcon, TriangleAlertIcon, XCircleIcon } from "lucide-react";
 import Link from "next/link";
 import { assignmentStateView } from "../lib/assign-research";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { verdictLabel, type ClaimVerdict, type PacketSource, type ResearchPacketView } from "../lib/research-packet";
+import { HELD_GROUP_ORDER, HELD_GROUP_TEXT, heldGroup, verdictLabel, type HeldGroup, type PacketSource, type ResearchPacketView } from "../lib/research-packet";
 import { failureReasonOf, type TrailAssignment } from "../lib/story-reporting-trail";
 
 const stateIcons = { waiting: ClockIcon, running: Loader2Icon, finished: CheckCircle2Icon, failed: XCircleIcon, other: CircleHelpIcon } as const;
 
-const verdictIcons = { needs_check: SearchCheckIcon, rejected: BanIcon, unchecked: MinusCircleIcon } as const;
+const verdictIcons: Record<HeldGroup, typeof BanIcon> = { needs_check: SearchCheckIcon, contradicted: BanIcon, not_shown: SearchXIcon, unchecked: MinusCircleIcon };
 
 function SourceLinks({ sources }: { sources: PacketSource[] }) {
   if (!sources.length) return null;
@@ -27,7 +27,12 @@ export function ResearchPacket({ packet }: { packet: ResearchPacketView }) {
     {packet.disagreements.length > 0 && <div data-research-disagreements><h4>Where sources disagree</h4><ul>{packet.disagreements.map(item => <li key={item.topic}><strong>{item.topic}</strong><ul>{item.positions.map(position => <li key={position.position}>{position.position} <SourceLinks sources={position.sources} /></li>)}</ul></li>)}</ul></div>}
     {packet.openQuestions.length > 0 && <div data-research-open-questions><h4>Open questions</h4><ul>{packet.openQuestions.map(question => <li key={question}>{question}</li>)}</ul></div>}
     {packet.directionGaps.length > 0 && <div className="research-unverified" data-research-direction-gaps><h4><TriangleAlertIcon aria-hidden="true" size={14} /> Named in the direction, not covered</h4><ul>{packet.directionGaps.map(gap => <li key={gap.name}><strong>{gap.name}</strong> {gap.note}</li>)}</ul></div>}
-    {packet.unverifiedClaims.length > 0 && <div className="research-unverified" data-research-unverified><h4><TriangleAlertIcon aria-hidden="true" size={14} /> Could not verify</h4><ul>{packet.unverifiedClaims.map(item => <li key={item.claim}><span className="research-verdict" data-research-verdict={item.verdict ?? "needs_check"}>{(() => { const VerdictIcon = verdictIcons[(item.verdict ?? "needs_check") as ClaimVerdict]; return <VerdictIcon aria-hidden="true" size={12} />; })()} {verdictLabel(item.verdict)}</span> {item.claim} <SourceLinks sources={item.sources} />{item.reasons.length > 0 && <ul className="research-reasons">{item.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}</li>)}</ul></div>}
+    {packet.unverifiedClaims.length > 0 && <div className="research-unverified" data-research-unverified><h4><TriangleAlertIcon aria-hidden="true" size={14} /> Could not verify</h4>{HELD_GROUP_ORDER.map(group => {
+      const members = packet.unverifiedClaims.filter(item => heldGroup(item.verdict) === group);
+      if (!members.length) return null;
+      const GroupIcon = verdictIcons[group];
+      return <div data-research-held-group={group} key={group}><h5>{HELD_GROUP_TEXT[group].heading}</h5>{HELD_GROUP_TEXT[group].note && <p className="research-reasons">{HELD_GROUP_TEXT[group].note}</p>}<ul>{members.map(item => <li key={item.claim}><span className="research-verdict" data-research-verdict={group}><GroupIcon aria-hidden="true" size={12} /> {verdictLabel(item.verdict)}</span> {item.claim} <SourceLinks sources={item.sources} />{item.reasons.length > 0 && <ul className="research-reasons">{item.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}</li>)}</ul></div>;
+    })}</div>}
   </div>;
 }
 

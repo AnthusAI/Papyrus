@@ -38,6 +38,7 @@ from typing import Any
 from .assignments import assignment_metadata
 from .editorial_context import _body, _check_tenant, _digest, find_section, hosted_publication, resolve_editorial_context
 from .env import graphql_endpoint, load_dotenv
+from .fact_check import HELD_GROUPS, held_group
 from .content_item_lifecycle import SYSTEM_ITEM_TYPES
 from .reference_stars import latest_stars
 from .section_ids import is_type_shaped, slug_of
@@ -316,6 +317,36 @@ def edge_notes(store: Any, lineage: str) -> list[dict[str, str]]:
     return sorted(notes, key=lambda note: (note["with"], note["predicate"], note["note"]))
 
 
+_DECISION_LABELS = {"accepted": "Accepted because", "rejected": "Rejected because", "archived": "Archived because"}
+
+
+def reason_line(row: Mapping[str, Any]) -> tuple[str, str] | None:
+    """(label, words) for the note stored in ``curationStatusReason``, or None when there is none. That one field holds two different things, and a label has to say which:
+
+    * how a research run found the Reference ("Found by perplexity (undecidability proof): ..."). It is filed pending and its ingestion rationale is copied
+      into the note, so the note is the same text as the Reference's ``metadata.ingestion_rationale``. This is "How it was found", whatever the status;
+    * the note of a decision, labelled by the status the decision left: accepted, rejected or archived. A Reference with a vote that is pending again
+      was reopened; its note is "Note from the last decision".
+
+    A pending Reference nobody has voted on has only its discovery note. A Cyclotron's reason for rejecting a Reference is therefore never shown as a reason to accept it."""
+    words = " ".join(str(row.get("curationStatusReason") or "").split())
+    if not words:
+        return None
+    status = str(row.get("curationStatus") or "pending")
+    found_by = " ".join(str(_json_object(row.get("metadata")).get("ingestion_rationale") or "").split())
+    if found_by and found_by == words:
+        return "How it was found", words
+    if status in _DECISION_LABELS:
+        return _DECISION_LABELS[status], words
+    return ("Note from the last decision" if str(row.get("curationActorKind") or "").strip() else "How it was found"), words
+
+
+def reason_phrase(reason: tuple[str, str]) -> str:
+    """A ``reason_line`` in one line: "accepted because ...", "how it was found: ..."."""
+    label, words = reason
+    return f"{label[0].lower()}{label[1:]}{'' if label.endswith('because') else ':'} {words}"
+
+
 def reference_text(situation: Situation, row: Mapping[str, Any], *, summary: bool = True, extra: Iterable[str] = ()) -> str:
     lineage = str(row.get("lineageId") or row["id"])
     stars = latest_stars(row)
@@ -323,7 +354,7 @@ def reference_text(situation: Situation, row: Mapping[str, Any], *, summary: boo
         _line("Title", clean_title(row.get("title"), row.get("sourceUri"))),
         _line("URL", row.get("sourceUri")),
         _line("Published", _day(row.get("sourcePublishedAt"))),
-        _line("Accepted because", row.get("curationStatusReason")),
+        *([_line(*reason_line(row))] if reason_line(row) else []),
         _line("Editor stars", stars["stars"] if stars else None),
         *extra,
     ])
@@ -338,9 +369,9 @@ def reference_one_line(situation: Situation, row: Mapping[str, Any]) -> str:
     stars = latest_stars(row)
     title = clean_title(row.get("title"), row.get("sourceUri"))
     sentence = first_sentence(situation.summaries()[lineage])
-    reason = " ".join(str(row.get("curationStatusReason") or "").split())
+    reason = reason_line(row)
     return one_line(title or sentence or row.get("sourceUri"), _day(row.get("sourcePublishedAt")), row.get("sourceUri"),
-                    sentence if title else "", f"accepted because {reason}" if reason else "", f"{stars['stars']} stars" if stars else "")
+                    sentence if title else "", reason_phrase(reason) if reason else "", f"{stars['stars']} stars" if stars else "")
 
 
 def story_references_layer(situation: Situation) -> tuple[list[Entry], str | None]:
@@ -450,16 +481,12 @@ def prior_research_layer(situation: Situation) -> tuple[list[Entry], str | None]
             claims = [str(claim["claim"]) + (" (search snippet only; the source was not read)" if claim.get("snippetOnly") else "")
                       for claim in packet.get("claims") or [] if isinstance(claim, dict) and claim.get("claim")]
             held = [claim for claim in packet.get("unverifiedClaims") or [] if isinstance(claim, dict) and claim.get("claim")]
-            needs_check = [str(claim["claim"]) for claim in held if claim.get("verdict") == "needs_check"]
-            unchecked = [str(claim["claim"]) for claim in held if claim.get("verdict") == "unchecked"]
-            unverified = [str(claim["claim"]) for claim in held if claim.get("verdict") not in ("needs_check", "unchecked")]
             questions = [str(question) for question in packet.get("openQuestions") or [] if question]
             text = _block([
                 _line("Researched", _day(created)), _line("Direction given", direction), _line("Summary", packet.get("summary")),
                 "Claims:\n" + "\n".join(f"- {claim}" for claim in claims) if claims else "",
-                "Needs a check (partly supported, or the attribution is unclear), do not rely on:\n" + "\n".join(f"- {claim}" for claim in needs_check) if needs_check else "",
-                "Unchecked (the check could not run), do not rely on:\n" + "\n".join(f"- {claim}" for claim in unchecked) if unchecked else "",
-                "Rejected (not supported by its sources), do not rely on:\n" + "\n".join(f"- {claim}" for claim in unverified) if unverified else "",
+                *(f"{heading}, do not rely on:\n" + "\n".join(f"- {claim['claim']}" for claim in members)
+                  for group, heading in HELD_GROUPS if (members := [claim for claim in held if held_group(claim.get("verdict")) == group])),
                 "Open questions:\n" + "\n".join(f"- {question}" for question in questions) if questions else "",
             ])
             found.append((created, _entry("research_packet", str(item["message"]["id"]), text, assignmentId=str(assignment["id"]))))
@@ -513,7 +540,8 @@ def other_section_slugs(situation: Situation) -> set[str]:
 def reference_rank(row: Mapping[str, Any]) -> tuple:
     stars = latest_stars(row)
     human = row.get("curationActorKind") == HUMAN
-    reason = bool(str(row.get("curationStatusReason") or "").strip())
+    line = reason_line(row)
+    reason = bool(line) and line[0] != "How it was found"      # how a research run found it is not an editor's reason
     return (not (human or stars), -(stars["stars"] if stars else 0), not reason)
 
 

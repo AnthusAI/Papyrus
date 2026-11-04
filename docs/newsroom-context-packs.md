@@ -50,6 +50,15 @@ The character budget is the only bound, with no fixed counts and no day windows.
 
 The editorial policies are the same rules Humanus checks a draft against, so the writer reads them first. A section's policy replaces the publication's policy of the same key.
 
+## The note on a Reference
+
+A Reference keeps one free-text note, `curationStatusReason`, and it holds two different things, so a pack labels it by what it is (`reason_line` in `newsroom_context_pack.py`):
+
+- *How it was found.* A research run files a Reference pending, and its discovery note ("Found by perplexity (undecidability proof): ...") is copied into `curationStatusReason` and into `metadata.ingestion_rationale`. A note equal to that rationale, or any note on a pending Reference nobody has voted on, is "How it was found". It is not an editorial reason and does not raise the Reference in `reference_rank`.
+- *The note of a decision*, labelled by the status the decision left: "Accepted because", "Rejected because", "Archived because". A Reference that was voted on and is pending again was reopened: "Note from the last decision".
+
+Before 2026-11-04 every note printed as "Accepted because", whatever the status. A Cyclotron's reason for rejecting a Reference ("This doesn't seem to relate to AI/ML ...") therefore read as a reason for accepting it. Whatever status such a Reference holds, the label now follows the status. In the one-line form of the outer layers the same notes read "accepted because ...", "rejected because ..." and "how it was found: ...". The idea pipeline reads accept reasons only from a person's vote (`curationActorKind == human`) and is not affected.
+
 ## Older builders
 
 Two other builders exist. `ideas/context_packs.py` finds signals for the idea writer. `papyrus_build_assignment_agent_context` in `papyrus_newsroom/newsroom.py` still serves `reporter.tac`, `editor.tac` and `copywriter.tac`, and has fixed budgets. It is retired when those procedures move to this pack.

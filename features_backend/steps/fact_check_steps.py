@@ -176,10 +176,10 @@ def step_judge_recorded(context, verdict):
     assert result(context, 1)["judge"]["verdict"] == verdict and result(context, 1)["judge"]["quoteVerified"] is False
 
 
-@then("the counts are {verified:d} verified, {needs:d} needs_check, {rejected:d} rejected, {unchecked:d} unchecked")
-def step_counts(context, verified, needs, rejected, unchecked):
+@then("the counts are {verified:d} verified, {needs:d} needs_check, {contradicted:d} contradicted, {not_shown:d} not_shown, {unchecked:d} unchecked")
+def step_counts(context, verified, needs, contradicted, not_shown, unchecked):
     counts = context.fc_report["counts"]
-    assert (counts["verified"], counts["needs_check"], counts["rejected"], counts["unchecked"]) == (verified, needs, rejected, unchecked), counts
+    assert (counts["verified"], counts["needs_check"], counts["contradicted"], counts["not_shown"], counts["unchecked"]) == (verified, needs, contradicted, not_shown, unchecked), counts
 
 
 @then('the judge was shown the title "{title}" and the host "{host}" for "{source_id}"')
@@ -305,16 +305,16 @@ def step_summary_is(context, text):
     assert context.packet["summary"] == text, context.packet["summary"]
 
 
-@then("the packet carries its fact check counts of {verified:d} verified and {rejected:d} rejected")
-def step_packet_counts(context, verified, rejected):
+@then("the packet carries its fact check counts of {verified:d} verified and {not_shown:d} not shown")
+def step_packet_counts(context, verified, not_shown):
     counts = context.packet["factCheck"]["counts"]
-    assert (counts["verified"], counts["rejected"]) == (verified, rejected), counts
+    assert (counts["verified"], counts["not_shown"]) == (verified, not_shown), counts
 
 
-@then("the packet carries its fact check counts of {verified:d} verified and {rejected:d} rejected and {unchecked:d} unchecked")
-def step_packet_counts_unchecked(context, verified, rejected, unchecked):
+@then("the packet carries its fact check counts of {verified:d} verified and {not_shown:d} not shown and {unchecked:d} unchecked")
+def step_packet_counts_unchecked(context, verified, not_shown, unchecked):
     counts = context.packet["factCheck"]["counts"]
-    assert (counts["verified"], counts["rejected"], counts["unchecked"]) == (verified, rejected, unchecked), counts
+    assert (counts["verified"], counts["not_shown"], counts["unchecked"]) == (verified, not_shown, unchecked), counts
 
 
 def body_of(context):
@@ -334,16 +334,16 @@ def step_position_plain(context, text):
     assert positions and "unverified" not in positions[0], positions
 
 
-@then('the position "{text}" is labelled rejected because of "{reason}"')
+@then('the position "{text}" is labelled not shown because of "{reason}"')
 def step_position_labelled(context, text, reason):
     positions = [p for d in context.packet["disagreements"] for p in d["positions"] if p["position"] == text]
     assert positions and positions[0]["unverified"] is True and reason in positions[0]["reasons"], positions
 
 
-@then('the research packet body marks the position "{text}" as rejected')
+@then('the research packet body marks the position "{text}" as not shown by the sources')
 def step_body_position(context, text):
     line = next(line for line in body_of(context).splitlines() if text in line)
-    assert "rejected" in line, line
+    assert "not shown by the sources" in line and "rejected" not in line, line
 
 
 @then("the cited-only intake would consider only page 1")
@@ -353,11 +353,12 @@ def step_intake(context):
 
 # --- a later reporter -------------------------------------------------------------------------------------------------------------
 
-@given('a Story whose earlier research packet has the verified claim "{claim}", the needs-check claim "{needs}" and the rejected claim "{unverified}"')
-def step_story_packet(context, claim, needs, unverified):
+@given('a Story whose earlier research packet has the verified claim "{claim}", the needs-check claim "{needs}", the not-shown claim "{unverified}" and the contradicted claim "{contradicted}"')
+def step_story_packet(context, claim, needs, unverified, contradicted):
     packet = {"summary": "Checked.", "claims": [{"claim": claim, "sources": [1]}],
               "unverifiedClaims": [{"claim": needs, "sources": [1], "verdict": "needs_check", "reasons": ["judge_partly_supported"]},
-                                   {"claim": unverified, "sources": [2], "verdict": "rejected", "reasons": ["unmatched_terms: Ohio"]}]}
+                                   {"claim": unverified, "sources": [2], "verdict": "not_shown", "reasons": ["unmatched_terms: Ohio"]},
+                                   {"claim": contradicted, "sources": [1], "verdict": "contradicted", "reasons": ["judge_contradicted"]}]}
     context.pack_entry = {"message": {"id": "message-1", "createdAt": "2026-11-01T00:00:00Z"}, "packet": packet}
 
 
@@ -377,7 +378,8 @@ def step_pack_lists(context, claim, heading):
     text = context.pack_text
     assert heading in text and text.index(heading) < text.index(claim), text
     following = [h for h in ("Claims:", "Needs a check (partly supported, or the attribution is unclear), do not rely on:",
-                             "Rejected (not supported by its sources), do not rely on:", "Open questions:") if h in text and text.index(h) > text.index(heading)]
+                             "Not shown by the sources this run had (it may still be true), do not rely on:",
+                             "Contradicted by its sources, do not rely on:", "Open questions:") if h in text and text.index(h) > text.index(heading)]
     assert not following or text.index(claim) < min(text.index(h) for h in following), text
 
 
@@ -430,9 +432,9 @@ def step_verified(context):
     assert context.agreement_verdict == "verified", context.agreement_verdict
 
 
-@then("the claim is rejected")
-def step_rejected(context):
-    assert context.agreement_verdict == "rejected", context.agreement_verdict
+@then("the claim is not shown")
+def step_not_shown(context):
+    assert context.agreement_verdict == "not_shown", context.agreement_verdict
 
 
 @then("the judge was asked twice")
@@ -463,3 +465,20 @@ def step_quote_found(context, quote):
 @then('a quote "{quote}" is not found in it')
 def step_quote_not_found(context, quote):
     assert not context.source_text.has_phrase(quote)
+
+
+@then('the research packet body does not contain "{text}"')
+def step_body_without(context, text):
+    assert text not in body_of(context), body_of(context)
+
+
+@given('a Story whose earlier research packet has the claim "{claim}" marked "rejected" before claims were split into contradicted and not shown')
+def step_story_old_packet(context, claim):
+    packet = {"summary": "Checked.", "claims": [], "unverifiedClaims": [{"claim": claim, "sources": [1], "verdict": "rejected", "reasons": ["unmatched_terms: Ohio"]}]}
+    context.pack_entry = {"message": {"id": "message-1", "createdAt": "2026-10-01T00:00:00Z"}, "packet": packet}
+    context.old_packet = packet
+
+
+@then('the research packet body of the stored packet lists "{heading}"')
+def step_old_body(context, heading):
+    assert heading in research_packet_body(context.old_packet), research_packet_body(context.old_packet)

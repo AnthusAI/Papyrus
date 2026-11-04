@@ -15,6 +15,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import sqlite3
 import time
@@ -33,13 +34,25 @@ MAX_FEED_BYTES = 2_000_000
 USER_AGENT = "Papyrus-Monitor/0.2 (+https://github.com/AnthusAI/Papyrus)"
 
 
+#: Parameters that name a visitor's session, not a document. They differ on every visit, so they defeat de-duplication of the same page.
+SESSION_PARAMETERS = frozenset({"jsessionid", "phpsessid", "sessionid", "session_id", "aspsessionid", "cfid", "cftoken"})
+_SESSION_PATH_PARAMETER = re.compile(r";(?:jsessionid|phpsessid|sessionid)=[^/?#;]*", re.IGNORECASE)
+
+
+def without_session_junk(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Query pairs without session identifiers and without the ``error=cookies_not_supported&code=<id>`` pair a publisher adds when it could not set a cookie."""
+    cookie_error = any(key.lower() == "error" and "cookie" in value.lower() for key, value in pairs)
+    return [(key, value) for key, value in pairs
+            if key.lower() not in SESSION_PARAMETERS and not (cookie_error and key.lower() in {"error", "code"})]
+
+
 def canonical_url(value: str) -> str:
     url = urlsplit(value.strip())
     if url.scheme not in {"http", "https"} or not url.hostname or url.username or url.password:
         raise ValueError("An HTTP(S) source URL without credentials is required")
-    query = [(k, v) for k, v in parse_qsl(url.query, keep_blank_values=True)
-             if not k.lower().startswith("utm_") and k.lower() not in {"fbclid", "gclid"}]
-    return urlunsplit((url.scheme.lower(), url.netloc.lower(), url.path or "/", urlencode(query), ""))
+    query = without_session_junk([(k, v) for k, v in parse_qsl(url.query, keep_blank_values=True)
+                                  if not k.lower().startswith("utm_") and k.lower() not in {"fbclid", "gclid"}])
+    return urlunsplit((url.scheme.lower(), url.netloc.lower(), _SESSION_PATH_PARAMETER.sub("", url.path) or "/", urlencode(query), ""))
 
 
 def _digest(value) -> str:
