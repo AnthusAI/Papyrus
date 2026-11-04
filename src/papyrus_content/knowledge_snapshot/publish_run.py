@@ -29,7 +29,7 @@ from ..semantic_node_writes import acceptance_mark_patch, acceptance_patch, crea
 from .actors import ACTOR_AI, Actor, ReviewMarks, decode_review
 from .candidate_filter import CandidateFilter, Dropped
 from .cluster_records import CLUSTER_KIND, cluster_proposal_id, proposal_record
-from .keys import contains_email, entity_key, kind_key, normalize_name
+from .keys import contains_email, entity_key, kind_key, name_identity
 from .model import KIND_REFERENCE_DOCUMENT, LINK_EXTRACTOR, LINK_FRONT_MATTER, PublishedItem
 from .run_input import ClusterRun, TypedItem
 
@@ -81,7 +81,7 @@ class PublishPlan:
 
 
 class NodeIndex:
-    """Existing and planned node rows by kind and normalized name or alias."""
+    """Existing and planned node rows by kind and name identity (``keys.name_identity``) of their name or alias."""
 
     def __init__(self, rows: Iterable[Mapping[str, Any]]) -> None:
         self._by_name: dict[tuple[str, str], list[dict]] = {}
@@ -96,7 +96,7 @@ class NodeIndex:
                 self._by_key.setdefault(str(identifier), row)
         kind = kind_key(row.get("nodeKind") or "")
         for name in [row.get("displayName"), *(row.get("aliases") or ())]:
-            normal = normalize_name(name or "")
+            normal = name_identity(name or "")
             if normal:
                 self._by_name.setdefault((kind, normal), []).append(row)
 
@@ -112,7 +112,7 @@ class NodeIndex:
         return self._by_key.get(key)
 
     def resolve(self, kind: str, name: str) -> dict | None:
-        candidates = self._by_name.get((kind_key(kind), normalize_name(name)), [])
+        candidates = self._by_name.get((kind_key(kind), name_identity(name)), [])
         for status in (STATUS_ACCEPTED, STATUS_GENERATED):
             matches = sorted((row for row in candidates if row.get("status") == status), key=lambda row: str(row.get("id")))
             if matches:
@@ -332,6 +332,9 @@ def plan_extractor(
         for entity in typed_item.entities:
             if not _usable(entity.kind, entity.text, plan, typed_item.item_id):
                 continue
+            if candidate_filter is not None and candidate_filter.is_rejected(entity.kind, entity.text):
+                plan.count("linksSkippedRejected")
+                continue  # a name somebody (a person, or the AI review) rejected: no node, no link, and the report says so
             node = None
             if entity.state == "resolved" and entity.entity_key:
                 node = index.by_key(entity.entity_key)

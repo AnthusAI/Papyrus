@@ -13,7 +13,8 @@ files, the third is learned from the run's own extraction.
 * **Undeclared kind.** The kind is not one of the ``entity_kinds`` of the site's ``config/vocabulary.yml``.
 
 A candidate that matches a node already on the map is never filtered: an existing concept is not changed by a machine (``semantic_node_writes``).
-Every dropped candidate is kept with its reason; ``publish-run`` prints them and counts them by reason.
+A fourth rule applies to every candidate, new or not: a **rejected** name (a rejection by a person or by the AI review, on the map) is dropped and collects no
+link, whatever its spelling (the key of ``GPT-4`` and of ``GPT 4`` is one). Every dropped candidate is kept with its reason; ``publish-run`` prints them and counts them by reason.
 """
 
 from __future__ import annotations
@@ -26,12 +27,13 @@ from pathlib import Path
 
 import yaml
 
-from .keys import kind_key, slug
+from .keys import entity_key, kind_key, slug
 from .topic_config import english_stop_words, read_extra_stop_words
 
 REASON_STOP_WORD = "stop word"
 REASON_COMMON_WORD = "common word"
 REASON_UNDECLARED_KIND = "kind not in the vocabulary"
+REASON_REJECTED = "rejected earlier"
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,19 @@ def vocabulary_kinds(vocabulary_text: str) -> frozenset[str]:
     return frozenset(kind_key(str(row["key"])) for row in document.get("entity_kinds") or [] if isinstance(row, dict) and row.get("key"))
 
 
+def rejected_keys(node_rows: Iterable[dict]) -> frozenset[str]:
+    """The entity keys of the rejected nodes: one for the name and one for each alias, so a rejection also covers the spellings it was given."""
+    keys: set[str] = set()
+    for row in node_rows:
+        if row.get("status") != "rejected":
+            continue
+        keys.add(str(row.get("nodeKey") or ""))
+        for name in [row.get("displayName"), *(row.get("aliases") or ())]:
+            keys.add(entity_key(row.get("nodeKind") or "", str(name or "")))
+    keys.discard("")
+    return frozenset(keys)
+
+
 def upper_fence(counts: list[int]) -> float | None:
     """The third quartile plus one and a half times the inter-quartile range; ``None`` when there are too few counts to have quartiles."""
     if len(counts) < 2:
@@ -79,6 +94,7 @@ class CandidateFilter:
     kinds: frozenset[str] | None = None
     common_words: frozenset[str] = frozenset()
     fence: float | None = None
+    rejected: frozenset[str] = frozenset()  # entity keys of the rejected nodes, by their name and their aliases
     dropped: list[Dropped] = field(default_factory=list)
     _seen: set[tuple[str, str]] = field(default_factory=set, repr=False)
 
@@ -117,12 +133,22 @@ class CandidateFilter:
             return Dropped(kind, name, REASON_COMMON_WORD, f"in more documents than the fence of {self.fence:g}, and mostly written in lower case")
         return None
 
+    def is_rejected(self, kind: str, name: str) -> bool:
+        """True when a person or the AI review rejected this name for this kind; it is recorded as dropped (``rejected earlier``)."""
+        if entity_key(kind, name) not in self.rejected:
+            return False
+        self._record(Dropped(kind, name, REASON_REJECTED, "rejected on the map; a rejected name collects no new link"))
+        return True
+
+    def _record(self, dropped: Dropped) -> None:
+        if (dropped.kind, dropped.name) not in self._seen:
+            self._seen.add((dropped.kind, dropped.name))
+            self.dropped.append(dropped)
+
     def check(self, kind: str, name: str) -> bool:
         """True when the candidate may become a node; a dropped one is recorded (once per kind and name) with its reason."""
         dropped = self.reason(kind, name)
         if dropped is None:
             return True
-        if (dropped.kind, dropped.name) not in self._seen:
-            self._seen.add((dropped.kind, dropped.name))
-            self.dropped.append(dropped)
+        self._record(dropped)
         return False
