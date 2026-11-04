@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c2586a81-7dcb-478a-ab94-8fdfd82381f6",
+  "title": "Candidate filter so extraction stops proposing common words",
+  "description": "publish_run.py has no stoplist, part-of-speech or document-frequency filter, which is how 'attachments', 'shows' and 'material' became concepts. Read config/stop-words.txt and config/vocabulary.yml from the state bucket, and filter before AI review. No fixed caps: thresholds learned from the corpus or stated as a site setting.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T18:22:36.589135Z",
+  "updated_at": "2026-11-04T18:22:36.589167Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

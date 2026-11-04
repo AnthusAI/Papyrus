@@ -1,0 +1,20 @@
+{
+  "id": "PPY-4bdb02af-a01e-4c5b-905b-ccab9fdad5bd",
+  "title": "AI review evidence gate requires the mention to be about the concept",
+  "description": "ai_review.py:333: snippets surround the mention, so a quote naming a thing passes. Tighten the gate and record the reason. Review cap of 150 calls times 20 candidates must not starve clusters and relations.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T18:22:36.789234Z",
+  "updated_at": "2026-11-04T18:22:36.789257Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
