@@ -58,7 +58,9 @@ jobs:
       - run: node scripts/check-consumer-site-typecheck.mjs dist-packages/anthusai-papyrus-0.0.0-smoke.1.tgz --build
 
   # The documented install is `pipx install papyrus-newsroom`, with no extras. Saving a story version derives
-  # bodyIr with Markus, so a plain install must be able to do that (PPY-a4ae21).
+  # bodyIr with Markus, so a plain install must be able to do that (PPY-a4ae21). Pictures (`stories save-version --images`,
+  # `stories repair-image-paths`, `ops content renditions`) need boto3 and Pillow, so the job also imports and runs those
+  # code paths with no extras: a dependency that slips back into an extra fails here (PPY-a89c4d).
   cli-clean-install:
     name: cli-clean-install
     runs-on: ubuntu-latest
@@ -75,6 +77,29 @@ jobs:
           from papyrus_content.markus_renderer.derive import derive_body
           result = derive_body(None, '# A heading\n\nA paragraph.\n')
           assert result.ok, result.errors
+          "
+      - name: A plain install can reach the picture code paths
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$RUNNER_TEMP/plain/bin/python" -c "
+          import io
+          import PIL.Image
+          from papyrus_content import story_images, media_store, renditions_commands, story_commands
+          from papyrus_content.story_images import _cognito_identity_client, _s3_client, read_dimensions
+          from papyrus_content.media_store import S3MediaStore
+          import botocore.exceptions
+          # The same clients the commands build, with no network call: boto3 is importable and constructs them.
+          _cognito_identity_client('us-east-1')
+          _s3_client({'AccessKeyId': 'a', 'SecretKey': 'b', 'SessionToken': 'c'}, 'us-east-1')
+          S3MediaStore('example-bucket', region='us-east-1')
+          buffer = io.BytesIO()
+          PIL.Image.new('RGB', (3, 2)).save(buffer, 'PNG')
+          from pathlib import Path
+          Path('probe.png').write_bytes(buffer.getvalue())
+          assert read_dimensions(Path('probe.png'), buffer.getvalue()) == (3, 2)
+          import importlib
+          for name in ('papyrus_content.story_image_repair', 'papyrus_content.references_commands', 'papyrus_content.newsroom_commands'):
+              importlib.import_module(name)
           "
 
   github-tarball-pins:
