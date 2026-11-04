@@ -297,6 +297,17 @@ function renderBlock(block: MarkusBlock, index: number, context: PreviewContext)
         </blockquote>
       );
     case "code":
+      if (block.lang === "math") {
+        // The published page draws this as MathML (built server-side from the TeX); the preview shows the TeX itself.
+        return (
+          <figure className="my-3 rounded-lg bg-muted p-3" data-testid="markus-preview-equation" key={index}>
+            <figcaption className="mb-1 text-xs text-muted-foreground">Equation (TeX source; drawn on the published page)</figcaption>
+            <pre className="overflow-x-auto font-mono text-sm">
+              <code>{block.value}</code>
+            </pre>
+          </figure>
+        );
+      }
       return (
         <pre className="my-3 overflow-x-auto rounded-lg bg-muted p-3 font-mono text-xs" key={index}>
           <code>{block.value}</code>
