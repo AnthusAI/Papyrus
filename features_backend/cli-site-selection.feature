@@ -89,6 +89,41 @@ Feature: An editor picks a signed-in site and runs any newsroom command from any
     When the bucket and identity pool are read after the person names "b.anth.us" with the leading site flag
     Then neither is taken from that file
 
+  Scenario: A signed-in editor needs no outputs file for the media bucket and identity pool of picture uploads
+    Given the person is signed in to "a.anth.us" only
+    And the working directory has no Amplify outputs file
+    And "a.anth.us" publishes its media bucket and identity pool in its site file
+    When the media bucket and identity pool are read
+    Then they are the ones "a.anth.us" published
+
+  Scenario: An explicit bucket and identity pool win over what the site publishes
+    Given the person is signed in to "a.anth.us" only
+    And "a.anth.us" publishes its media bucket and identity pool in its site file
+    When the person passes a bucket and an identity pool of their own
+    Then the bucket and identity pool used are the ones the person passed
+
+  Scenario: A site that publishes neither gives a clear error that says what to pass
+    Given the person is signed in to "a.anth.us" only
+    And the working directory has no Amplify outputs file
+    And "a.anth.us" publishes no site file
+    When the media bucket and identity pool are required
+    Then the bucket error names "a.anth.us" and says to pass "--bucket"
+    And the identity pool error names "a.anth.us" and says to pass "--identity-pool-id"
+
+  Scenario: A copy of the site file kept before the site published them is refreshed once
+    Given the person is signed in to "a.anth.us" only
+    And the CLI kept an older site file for "a.anth.us" that names a tenant only
+    And "a.anth.us" publishes its media bucket and identity pool in its site file
+    When the media bucket and identity pool are read
+    Then they are the ones "a.anth.us" published
+
+  Scenario: An operator who chose IAM never borrows a signed-in site's bucket or identity pool
+    Given the person is signed in to "a.anth.us" only
+    And the operator chose the IAM lane
+    And "a.anth.us" publishes its media bucket and identity pool in its site file
+    When the media bucket and identity pool are read
+    Then neither is taken from that file
+
   Scenario: The tenant comes from the site the person is signed in to
     Given the person is signed in to "a.anth.us" only
     And "a.anth.us" publishes the tenant "machines-on-machines" in its site file

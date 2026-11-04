@@ -83,6 +83,7 @@ def body_with(directive: str, n: int = 2) -> str:
 def step_story(context, slug):
     context.slug = slug
     context.client = FakeAuthoringClient()
+    context.client.endpoint = "https://example.test/graphql"
     context.tmp = tempfile.mkdtemp(prefix="story-images-")
     context.tmp_dirs.append(context.tmp)
     save_item(
@@ -174,8 +175,9 @@ def fake_boto_client(context):
 def run_save(context, dry_run: bool = False) -> None:
     body_path = Path(context.tmp) / "body.md"
     body_path.write_text(context.body_text, encoding="utf-8")
-    flags = ["--story", LINEAGE, "--body-file", str(body_path), "--reason", "pictures", "--author-label", "t",
-             "--images", str(context.folder), "--no-check"]
+    flags = ["--story", LINEAGE, "--body-file", str(body_path), "--reason", "pictures", "--images", str(context.folder), "--no-check"]
+    if context.lane == "iam":
+        flags += ["--author-label", "t"]   # signed in, the session names the author
     if dry_run:
         flags.append("--dry-run")
     environment = {"PAPYRUS_GRAPHQL_AUTH": context.lane, "PAPYRUS_MEDIA_BUCKET": "media-bucket"}
@@ -186,6 +188,7 @@ def run_save(context, dry_run: bool = False) -> None:
         mock.patch.object(story_commands, "create_authoring_client", lambda: (context.client, {})),
         mock.patch("boto3.client", fake_boto_client(context)),
         mock.patch.object(story_images, "user_identity", lambda: (ID_TOKEN, ISSUER)),
+        mock.patch("papyrus_content.cli_user_auth.signed_in_label", lambda endpoint: "Ada Example"),
         mock.patch("papyrus_content.env.amplify_outputs_path", lambda: Path(context.tmp) / "no-amplify-outputs.json"),
     ]
     output = io.StringIO()

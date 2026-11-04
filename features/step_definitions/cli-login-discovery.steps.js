@@ -33,6 +33,9 @@ for (const [text, name] of [
   ["a site with a tenant that runs Papyrus 5.81.0", "tenant_and_version"],
   ["a site with no tenant that runs Papyrus 5.81.0", "no_tenant"],
   ["a site whose tenant and version settings are not valid values", "invalid_values_are_left_out"],
+  ["a site whose outputs name a media bucket and an identity pool", "media_bucket_and_identity_pool"],
+  ["a site with no outputs file that runs Papyrus 5.81.0", "no_outputs_file"],
+  ["a site whose outputs hold values that are not a bucket or an identity pool", "malformed_outputs_values_are_left_out"],
 ]) given(text, name);
 
 When("the site file is requested", { timeout: 120_000 }, async function () {
@@ -46,10 +49,16 @@ Then("it names the tenant and the Papyrus version", function () {
 Then("the sign-in file is a different file that gains no field", async function () {
   const result = await behaviour("only_public_fields");
   assert.ok(!("tenant_id" in result.body) && !("papyrus_version" in result.body));
+  assert.ok(!("media_bucket" in result.body) && !("identity_pool_id" in result.body), "the strict sign-in file gained a field");
 });
 
 Then("it names the Papyrus version and no tenant", function () {
   assert.deepEqual(this.siteDocumentResult.body, { papyrus_version: "5.81.0" });
+});
+
+Then("it also names the media bucket and the identity pool", function () {
+  assert.equal(this.siteDocumentResult.body.media_bucket, "example-site-media-bucket");
+  assert.equal(this.siteDocumentResult.body.identity_pool_id, "us-east-1:00000000-0000-4000-8000-000000000000");
 });
 
 Then("it is empty", function () {
