@@ -182,6 +182,15 @@ A process that cannot fill a line says so in that line.
 - **Measured.** The run's own counts against the site's history. A quality measure of the topics themselves: **no spec**.
 - **Gherkin.** `knowledge-cloud-run`, `knowledge-run-any-site`, `knowledge-run-cost`, `knowledge-run-preview`, `knowledge-run-undo`, `knowledge-archive`, `knowledge-polish`, `knowledge-run-monitor-stories`. Details: [knowledge-cloud-run.md](knowledge-cloud-run.md), [knowledge-workstation-run.md](knowledge-workstation-run.md).
 
+## Restoring newsroom data
+
+Every Amplify Data table (references, messages, votes, curation decisions and the rest) has DynamoDB point-in-time recovery on, for every site, with no site setting (PPY-39a16b). It is set in `amplify/site-backend.ts` and reaches a site with that site's next deploy.
+
+- **What it covers.** Any second in the last 35 days, per table.
+- **What a restore does.** It creates a new table beside the old one; it never overwrites. An operator compares the two, copies the wanted records back, and deletes the restored table. The site keeps using the original table until then.
+- **What it does not cover.** Attachments and other files in S3 (S3 versioning is the separate safeguard, see [site hosting](site-hosting.md#rollback)); the newsletter subscriber table, which keeps recovery off so that erasing a subscriber is real erasure; rate-limit, throttle, lease and ledger tables, which hold no editorial data.
+- **Cost.** About 5 cents a month across the seven sites at the current size.
+
 ## Reference identity: the one gate for every path that creates a Reference
 
 The same document arrives repeatedly because the same searches rerun and because different paths each had their own idea of "the same". `src/papyrus_content/reference_identity.py` is now the one definition. `identity_keys(reference)` returns the keys a row answers to, pure and standard-library only (it loads in the router zip):

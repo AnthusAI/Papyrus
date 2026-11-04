@@ -133,6 +133,7 @@
     "test:shared-credentials-provider": "tsx scripts/test-shared-credentials-provider.ts",
     "test:site-env": "tsx scripts/test-site-env.ts",
     "test:robots-policy": "tsx scripts/test-robots-policy.ts",
+    "test:data-table-recovery": "tsx scripts/test-data-table-recovery.ts && cucumber-js --profile dataTableRecovery",
     "test:site-backend-names": "tsx scripts/test-site-backend-names.ts",
     "test:site-backend-synth": "tsx scripts/test-site-backend-synth.ts",
     "test:scheduled-job-synth": "tsx scripts/test-scheduled-job-synth.ts",

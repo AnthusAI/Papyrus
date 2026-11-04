@@ -1074,6 +1074,7 @@ Known differences to expect after a flip: the cache-bust token does not cover me
 ### Rollback
 
 - **A bad edit.** Restore the previous version of the item in the newsroom and save: that is a normal save and re-projects. S3 versioning keeps earlier copies of each page for 90 days for single-page undelete, but it does not roll back a whole site, and it does not record who changed what.
+- **A bad write to newsroom data.** Every Amplify Data table has point-in-time recovery for 35 days. A restore creates a new table that an operator compares and copies back from; S3 attachments are not covered. See [restoring newsroom data](automated-processes.md#restoring-newsroom-data).
 - **A bad site-code or theme deploy.** Redeploy the previous code, then run `papyrus ops content project --all`. Pages mix old and new chrome for about the length of that run.
 - **A bad edge change.** Update the edge stack with the previous template (or the previous change set's template). Aliases and DNS never moved, so this is the whole rollback.
 - **Back to the Amplify reader.** While the reader app still exists and has not been deleted, swap the origin back with the edge stack's previous template and re-enable the reader id in the site config. After the reader app is deleted, this path is gone.
