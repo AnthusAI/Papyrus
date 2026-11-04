@@ -23,7 +23,11 @@ pending references. On a data-driven publication (no repo steering file) the com
 resolves the publication from the backend's single canonical corpus, so
 `--corpus-key` is optional (if given it must match), and catalog items without an
 `item_id` get one computed from their source URL, as `references make-catalog` does.
-A stored `papyrus login` session for another publication is not used for a different
+A signed-in editor needs no `--backend` flag and no outputs file for the operator
+commands (`references list`, `references show`): with no endpoint variable the
+signed-in site chosen by [site selection](../cli-login.md#picking-the-site-for-a-command)
+selects the cloud backend, even when a local pod is configured. An IAM operator is
+unchanged. A stored `papyrus login` session for another publication is not used for a different
 endpoint; set `PAPYRUS_GRAPHQL_AUTH=iam` for that endpoint.
 
 ## Publication and actor boundary
@@ -37,10 +41,37 @@ to which the server will connect. The immutable first version and provenance
 record use the validated subject (`user:<sub>`), without supplied human labels.
 
 This operation supports **one publication per backend**. Knowledge models do not
-currently carry tenant-level authorization, so configured tenant environments
-and tenant-bearing identities/requests are refused. Supporting shared-publication
-knowledge data requires a separately reviewed tenancy design, not trusting a
-caller-supplied publication or corpus field.
+currently carry tenant-level authorization, so shared-publication knowledge data
+is refused (it needs a separately reviewed tenancy design, not a caller-supplied
+publication or corpus field):
+
+- A token that carries `tenantId` or `custom:tenantId` is always refused.
+- A backend whose content-actions Lambda has `PAPYRUS_TENANT_ID` is refused,
+  unless its environment has `PAPYRUS_SINGLE_PUBLICATION_BACKEND=true`. Only the
+  exact text `true` counts; anything else (`True`, `1`, empty, a space) leaves it
+  off, so the check fails closed. With no tenant set, nothing changes.
+- The issuer, subject and editor-group checks apply either way, so the flag never
+  makes a reader an editor.
+
+A site with its own backend and exactly one publication (a tenant id only so its
+sections and stories carry the site's tenant, as on Machines on Machines) sets the
+declaration in `infra/site.json`:
+
+```json
+"cms": { "environment": { "PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true" } }
+```
+
+`amplify/site-backend.ts` passes it to the content-actions Lambda only when the
+build also has `PAPYRUS_TENANT_ID` and the value is `true`. **Whoever adds a second
+publication to that backend must remove the declaration first**, in the same
+change. The check is shared by the email-candidate import (`email_reference_handoff`)
+and the email-submission decision (`monitoring_view`); those run in the
+monitoring-view Lambda, which is never given a tenant, so the flag is not needed
+there.
+
+`papyrus references create-from-catalog --dry-run` skips server authorization, so
+it can pass where the real call is refused. If the refusal names the declaration,
+the backend carries a tenant and has not been declared single-publication.
 
 ## Sources, deduplication and provenance
 

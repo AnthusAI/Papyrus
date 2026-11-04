@@ -362,3 +362,31 @@ def warns_older(context, host):
 @then('the line was flushed immediately')
 def flushed(context):
     assert context.selection.stream.line_buffering is True
+
+
+@given('a local pod is configured for the operator commands')
+def local_pod(context):
+    world = _world(context)
+    pod = world.root/'pod'
+    pod.mkdir()
+    (world.root/'operator.yaml').write_text(f'local:\n  podPath: {pod}\n')
+    patcher = patch.dict(os.environ, {'PAPYRUS_OPERATOR_CONFIG': str(world.root/'operator.yaml')})
+    patcher.start(); context.add_cleanup(patcher.stop)
+    os.environ.pop('PAPYRUS_BACKEND', None)
+
+
+@when('an operator reference command picks its backend with no backend flag')
+def operator_backend_default(context):
+    from papyrus.operator.config import load_operator_config
+    _world(context).backend = load_operator_config(corpus_key_override='some-corpus').backend
+
+
+@when('an operator reference command picks its backend with the backend flag "{name}"')
+def operator_backend_flag(context, name):
+    from papyrus.operator.config import load_operator_config
+    _world(context).backend = load_operator_config(backend_override=name, corpus_key_override='some-corpus').backend
+
+
+@then('the backend is "{name}"')
+def backend_is(context, name):
+    assert _world(context).backend == name

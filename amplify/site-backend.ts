@@ -473,6 +473,11 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
     }
   }
+  // A backend that carries a tenant but serves one publication says so (exactly "true"), which lets an editor add References
+  // (docs/multi-tenancy.md). Only content-actions runs Reference intake with the tenant set; the monitoring-view Lambda never gets the tenant.
+  if (backendTenantId !== "" && (process.env.PAPYRUS_SINGLE_PUBLICATION_BACKEND ?? "").trim() === "true") {
+    contentActionsLambda.addEnvironment("PAPYRUS_SINGLE_PUBLICATION_BACKEND", "true");
+  }
   if ((activeBrand?.corpusKey ?? "").trim() !== "") {
     // A deploy creates the publication's canonical corpus from the brand when the backend has none.
     contentActionsLambda.addEnvironment("PAPYRUS_PUBLICATION_CORPUS_KEY", (activeBrand?.corpusKey ?? "").trim());

@@ -258,6 +258,11 @@ and `references auto-accept` take a publication key, `references search` takes a
 the leading position is read as the global choice; those commands keep their own option. A token still goes only to the
 registered site that owns the endpoint, as in [How a request picks its session](#how-a-request-picks-its-session).
 
+The operator reference commands (`papyrus references list`, `references show`, `assignments list`) choose `local` or `cloud` when no
+`--backend`, `PAPYRUS_BACKEND` or config value says. The signed-in site chosen by this order counts as the endpoint: a signed-in editor
+gets `cloud` with no flag and no outputs file, even when a local pod is configured. On the IAM lane, or with an explicit backend,
+nothing changes.
+
 Steps 3 and 5 look at the registry only on the signed-in lane (a session exists and `PAPYRUS_GRAPHQL_AUTH` is unset or `user`).
 An operator who sets `PAPYRUS_GRAPHQL_AUTH=iam` is never sent to a signed-in site by them; with no outputs file and no
 endpoint variable the command fails and names `papyrus login`. Naming a site (step 1) is the only way the registry

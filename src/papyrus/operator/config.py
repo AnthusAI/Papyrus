@@ -97,7 +97,7 @@ def load_operator_config(
   backend = _resolve_backend(
     backend_override=backend_override,
     configured_backend=_optional_string(raw.get("backend")),
-    graphql_endpoint=graphql_endpoint,
+    graphql_endpoint=graphql_endpoint or _signed_in_endpoint(),
     pod_path=pod_path,
   )
 
@@ -111,6 +111,18 @@ def load_operator_config(
     config_path=resolved_config_path,
     fixture_root=fixture_root,
   )
+
+
+def _signed_in_endpoint() -> str | None:
+  """The endpoint of the signed-in site the CLI would talk to (`papyrus --site`, the directory's site, the only signed-in
+  site), so an editor with no endpoint variable and no outputs file auto-selects the cloud backend. None on the IAM lane
+  and when several sites are signed in without a choice (the command then says so when it needs the site)."""
+  from papyrus_content import env
+
+  try:
+    return env.selected_site_endpoint()
+  except ValueError:
+    return None
 
 
 def _resolve_backend(
