@@ -10,9 +10,17 @@
   "parent": "PPY-e6e82b61-7bde-4bc3-be9f-a1855419d3ab",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a46baa40-6565-439c-a9ba-39aa68f19bcd",
+      "author": "home",
+      "text": "Ryan 2026-11-03: the 1,428 'accepted' References on Machines on Machines are mostly not editorial decisions. 1,341 carry the reason 'trusted import' and 1,372 date from 2026-05-23 (updated by 'Papyrus content CLI' 1,002 and 'biblicus-import' 369). 52 are recorded as a person's decision, 4 more were updated by a person's account without the actor kind, and 30 were accepted on 2026-11-02, 21 on 11-03, 1 on 11-04. So accepted must split into a person's acceptance, automatic acceptance, and bulk import, and every rank, section view and pack layer weights them differently. A bulk import is background, not an editor's signal. Open: whether to leave these accepted and labelled, or move them to their own status; no data changes until Ryan decides.",
+      "created_at": "2026-11-04T02:55:09.118229Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T02:52:45.976223Z",
-  "updated_at": "2026-11-04T02:52:45.976249Z",
+  "updated_at": "2026-11-04T02:55:09.118788Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

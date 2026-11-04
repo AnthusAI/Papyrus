@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f4f39618-ee8c-4da2-b91b-0a18230c80e1",
+      "author": "home",
+      "text": "Correction to the measurements above: 'accepted' here does not mean an editor accepted them. About 56 of the 1,428 were a person's decision; 1,341 are a bulk 'trusted import' from May. See PPY-94eef8.",
+      "created_at": "2026-11-04T02:55:09.206973Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T02:52:45.624959Z",
-  "updated_at": "2026-11-04T02:52:45.625045Z",
+  "updated_at": "2026-11-04T02:55:09.207197Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
