@@ -341,6 +341,32 @@ def test_an_existing_card_is_kept(copied):
     assert me.copy_curation(copied.client, reference, row, copied.enrich.texts, me.utc_now()) == "kept"
 
 
+LINKS = [{"url": "https://example.org/series/1", "label": "Part one", "kind": "content", "listed": True, "position": 1},
+         {"url": "https://example.org/about", "label": "About", "kind": "navigation", "listed": False, "position": 2}]
+
+
+def test_delivery_stores_the_pages_links_beside_the_text_and_counts_them_on_the_card(monkeypatch, table):
+    references = [{"id": f"reference-{p}-101", "lineageId": f"reference-{p}-101", "versionNumber": 1} for p in PUBS]
+    client, stores = MemoryClient(references), []
+    monkeypatch.setattr(me, "AttachmentStore", lambda c: stores.append(MemoryStore(c)) or stores[-1])
+    capture = good()
+    capture.links = LINKS
+    store, cyclotron = setup_router(table)
+    go(table, store, cyclotron, enricher=enricher(capture), appsync=lambda endpoint: client)
+    row = table.items[("MONITOR#hn", "ENRICH#101#000001")]
+    assert row["curation"]["links"] == {"total": 2, "content": 1} and row["linksKey"].endswith("links.json")
+    card = client.card("reference-anth-us-101")
+    assert card["links"] == {"total": 2, "content": 1} and card["current"]["linksSortKey"] == "curation-links"
+    stored = json.loads(stores[0].text({"id": "reference-anth-us-101"}, "curation-links"))
+    assert stored["links"] == LINKS and "links" not in row["curation"]["capture"]
+
+
+def test_an_item_whose_page_had_no_links_stores_none(copied):
+    row = copied.table.items[("MONITOR#hn", "ENRICH#101#000001")]
+    assert "linksKey" not in row and "links" not in row["curation"]
+    assert "links" not in copied.client.card("reference-anth-us-101")
+
+
 # --- the Lambda wiring --------------------------------------------------------------------------------------------------------------
 
 

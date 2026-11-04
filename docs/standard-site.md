@@ -458,6 +458,20 @@ contradicts the mode). `customHttp.yml` stays app-wide and never carries
 staging, for every app. No manual zips. CI (GitHub Actions) validates: brand
 config, `markus validate` on content, `check-guards` for staging and production.
 
+### Videos on a public page
+
+A site shows its accepted videos with the references include it already has for the home page ([home page](home-page.md#the-references-include)), filtered by medium:
+
+```
+::include{kind="references" select="recent" medium="video" count="12" heading="Videos" empty="No videos yet."}
+```
+
+Place it on any authored page (a `videos` page, a home page band, a section front). `medium` takes `video` (anything else is a build error that names the page); `select="recent"` is the accepted ones, newest accepted first; `count`, `heading`, `empty`, `more`, `card="tile|row"`, `section` and the page ledger work as for any references include. Each card shows the page's own preview image (the existing preview metadata of the Reference, `image` in the snapshot), the title as a link out to the source, the host, the dates, and no per-card "Video" label (every card in the block is one; a block that mixes media keeps the label, a small word with a Lucide `video` icon, never colour alone); flat tones, rounded corners, no borders. **Nothing is embedded and no third-party script is loaded**: the link goes to the platform. An editor's stars may order cards (`select="confident"`) but are never printed or published: only `rank` is in the snapshot. A Reference with no preview image shows no image.
+
+**Off by default, per site.** Nothing appears until a site adds the include to a page; a site without `homePage` fails the build naming the page, exactly as any references include does. To turn it on for a site: 1. have `homePage` in its `projection.json` (and `references.fields` either `"all"` or a list that includes `medium`, which is a public field now: the snapshot gains it, so the first snapshot after the engine ships rewrites every page that places a references include, once); 2. the engine release that carries the medium (the snapshot reads `medium` from the Reference, or from its address when the Reference has none stored yet, so **the block works before the backfill**); 3. add the include to a page, and a nav or section entry if it should be linked; 4. (optional) run `papyrus references backfill-medium` so the newsroom card shows the label and the medium index is filled. The home-page trigger watches `medium`, so a backfill reaches the pages through the usual debounce. No data API deploy is needed for the public block; it is needed for the stored fields and the index.
+
+Tests: `features_backend/reference-medium.feature` (the page lists only accepted videos, newest first; the stars never appear in any file; no embeds or scripts; unknown medium is a build error) and `src/papyrus_content/projection/standard` card markup in `procedures/newsroom/tests/test_home_page_references.py`.
+
 ### 1.11 Capabilities Papyrus provides to every site
 
 Beyond the above, the package ships **VideoML video pipeline** as a standard

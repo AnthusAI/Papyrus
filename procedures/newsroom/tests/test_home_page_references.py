@@ -469,3 +469,23 @@ def test_a_bucket_takes_the_arrival_for_a_recommended_reference_and_keeps_the_le
 def test_a_snapshot_with_no_ranks_orders_as_it_always_did_with_or_without_a_bucket(snapshot):
     assert pick(snapshot, select="confident", count="10") == ["old", "tie-late", "tie-early", "new", "no-confidence"]
     assert pick(snapshot, select="recent", bucket="day", count="10") == ["new", "tie-late", "tie-early", "no-confidence", "old"]
+
+
+@pytest.mark.parametrize("draw", [home_page_components.tile, home_page_components.row])
+def test_once_an_editor_accepted_it_no_card_shows_the_confidence_but_a_cyclotron_or_rule_acceptance_keeps_it(draw):
+    human = draw(record("a", acceptedAt="2026-10-20T09:12:00.000Z", confidence=0.92, actor="human"))
+    assert "home-page-confidence" not in human and "gauge" not in human
+    for actor in ("cyclotron", "rule", "agent", "catalog"):
+        assert "92%" in draw(record("a", acceptedAt="2026-10-20T09:12:00.000Z", confidence=0.92, actor=actor)), actor
+    assert "80%" in draw(record("a", "recommended", confidence=0.8, actor="human")), "a recommended Reference has no editor's word yet"
+
+
+def test_a_block_of_one_medium_drops_the_per_card_label_and_a_mixed_block_keeps_it():
+    video = record("v", acceptedAt="2026-10-20T09:12:00.000Z", medium="video")
+    assert 'data-kind="medium"' in home_page_components.tile(video) and 'data-kind="medium"' in home_page_components.row(video)
+    assert 'data-kind="medium"' not in home_page_components.tile(video, show_medium=False)
+    assert 'data-kind="medium"' not in home_page_components.row(video, show_medium=False)
+    settings = home_page_settings_from_mapping({"references": {"corpus": "c"}})
+    mixed = home_page_blocks.render({"select": "recent"}, document(video, record("a", acceptedAt="2026-10-19T00:00:00.000Z")), PageLedger(), settings)
+    only = home_page_blocks.render({"select": "recent", "medium": "video"}, document(video, record("a", acceptedAt="2026-10-19T00:00:00.000Z")), PageLedger(), settings)
+    assert mixed.count('data-kind="medium"') == 1 and 'data-kind="medium"' not in only

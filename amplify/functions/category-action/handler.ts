@@ -25,7 +25,7 @@ import {
   type DelegationStore,
 } from "../shared/curation-delegation-flow";
 import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
-import { referenceFeedArrivalAt, referenceFeedKeys, referenceFeedStateKey, starFeedKeyFor } from "../../../lib/reference-feed-keys";
+import { referenceFeedArrivalAt, referenceFeedKeys, referenceFeedStateKey, referenceMediumFeedKey, referenceMediumKeyPatch, starFeedKeyFor } from "../../../lib/reference-feed-keys";
 import { claimGroups } from "../../../lib/staff-groups";
 import { isStoryItemType } from "../../../lib/content-item-lifecycle";
 import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
@@ -284,6 +284,7 @@ async function reviewReferenceCuration(
       reviewedFeedKey: reviewedFeedKeyForStatus(nextStatus),
       // A vote moves the Reference between the unrated and rated feeds; its original prediction and arrival stay as they were.
       feedStateKey: referenceFeedStateKey({ ...reference, curationStatus: nextStatus }),
+      ...referenceMediumKeyPatch(reference, { curationStatus: nextStatus }),
       updatedAt: now,
     }),
     "update Reference curation status",
@@ -655,6 +656,7 @@ async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandl
       reviewedFeedKey: reviewedFeedKeyForStatus(nextStatus),
       // A vote moves the Reference between the unrated and rated feeds; its original prediction and arrival stay as they were.
       feedStateKey: referenceFeedStateKey({ ...reference, curationStatus: nextStatus }),
+      ...referenceMediumKeyPatch(reference, { curationStatus: nextStatus }),
       updatedAt: now,
     }),
     "update Reference quality status",
@@ -966,6 +968,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
         id: normalizeRequiredString(current.id, "reference.id"),
         versionState: "superseded",
         feedStateKey: null,   // a superseded version is in no feed
+        ...(current.mediumFeedKey ? { mediumFeedKey: null } : {}),   // nor in a medium list
         updatedAt: now,
       }),
       "supersede current Reference version",
@@ -1000,6 +1003,9 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       createdAt: normalizeOptionalString(current.createdAt) ?? now,
       ...(current.starRating ? { starRating: current.starRating, starRatedAt: current.starRatedAt, starRatedBy: current.starRatedBy, starFeedKey: starFeedKeyFor(targetCorpusId, current.starRating) } : {}),
       ...(current.captureState ? { captureState: current.captureState } : {}),
+      ...(current.medium ? { medium: current.medium } : {}),
+      ...(current.evidenceLevel ? { evidenceLevel: current.evidenceLevel } : {}),
+      ...(current.playlistUrl ? { playlistUrl: current.playlistUrl } : {}),
       curationStatus,
       curationStatusKey: `${targetCorpusId}#${curationStatus}`,
       curationStatusUpdatedAt: normalizeOptionalString(current.curationStatusUpdatedAt) ?? now,
@@ -1026,6 +1032,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
         retrievedAt: normalizeOptionalString(current.retrievedAt),
         sourcePublishedAt: normalizeOptionalString(current.sourcePublishedAt),
       }),
+      ...(current.medium ? { mediumFeedKey: referenceMediumFeedKey({ id: nextReferenceId, corpusId: targetCorpusId, curationStatus, versionState: "current", medium: current.medium }) } : {}),
       updatedAt: now,
     }),
     "create moved Reference version",

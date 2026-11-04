@@ -7,6 +7,9 @@ The page asks two indexes on ``Reference`` for a page at a time instead of loadi
 * ``listReferencesByFeedStateAndArrival``: partition ``feedStateKey``, sort ``feedArrivalAt``. Read descending it is "Newest".
 * ``listReferencesByStarFeedAndArrival``: partition ``starFeedKey`` (``<corpusId>#stars#<n>``, one per star level), sort ``feedArrivalAt``.
   The Quality sort and the minimum-stars filter merge the levels they want.
+* ``listReferencesByMediumFeedAndArrival``: partition ``mediumFeedKey`` (``<corpusId>#<medium>#<status>``, for example ``corpus#video#accepted``),
+  sort ``feedArrivalAt``. Sparse: only a current, not archived Reference with a medium has the key. A public page reads the ``accepted``
+  partition and gets nothing else.
 
 ``feedStateKey`` is ``<corpusId>#unrated`` for a pending Reference and ``<corpusId>#rated`` for an accepted or rejected one. A Reference
 that is not the current version, or is archived, has no key and is in neither feed. The prediction is a value on the Reference, written
@@ -21,6 +24,7 @@ import math
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+from .reference_medium import medium_of
 from .reference_policy import normalize_reference_curation_status
 
 UNDECIDED_PROBABILITY = 0.5
@@ -28,6 +32,7 @@ UNRECORDED_CONFIDENCE = 0.6   # a label with no recorded confidence is a mild le
 EPOCH = "1970-01-01T00:00:00.000Z"
 ARRIVAL_FIELDS = ("createdAt", "importedAt", "retrievedAt", "sourcePublishedAt", "versionCreatedAt")
 FEED_KEY_FIELDS = ("feedStateKey", "feedArrivalAt", "predictionSortKey")
+MEDIUM_FEED_KEY_FIELD = "mediumFeedKey"
 PREDICTION_FIELDS = ("predictedAcceptProbability", "predictionDecidedAt")
 
 
@@ -66,6 +71,28 @@ def feed_state_key(reference: Mapping[str, Any]) -> str | None:
     return f"{reference['corpusId']}#{'unrated' if status == 'pending' else 'rated'}"
 
 
+def medium_feed_key(reference: Mapping[str, Any]) -> str | None:
+    """The medium partition a Reference is in: ``<corpusId>#<medium>#<pending|accepted|rejected>``, None when it has no medium, no corpus, is not the
+    current version or is archived. The medium is the stored one, or what the address says when none is stored yet (the rule is a pure function of the
+    address, so a vote written before the backfill still lands in the right partition)."""
+    if reference.get("versionState") not in (None, "current") or not reference.get("corpusId"):
+        return None
+    status = normalize_reference_curation_status(reference.get("curationStatus"))
+    medium = reference.get("medium") or medium_of(reference.get("sourceUri"))
+    if status == "archived" or not medium:
+        return None
+    return f"{reference['corpusId']}#{medium}#{status}"
+
+
+def medium_key_patch(reference: Mapping[str, Any], **changes: Any) -> dict[str, Any]:
+    """``{"mediumFeedKey": ...}`` for a vote or an archive written as a patch (``changes`` overrides the Reference's fields, for example the next
+    ``curationStatus``). {} for a Reference with no medium (stored, by its address, or an index key it still holds), so a patch for an ordinary page
+    names no new field and works on a backend that does not have the index yet."""
+    if not (reference.get("medium") or medium_of(reference.get("sourceUri")) or reference.get(MEDIUM_FEED_KEY_FIELD)):
+        return {}
+    return {MEDIUM_FEED_KEY_FIELD: medium_feed_key({**reference, **changes})}
+
+
 def star_feed_key(corpus_id: Any, stars: Any) -> str | None:
     """The star partition a Reference is in: ``<corpusId>#stars#<n>`` for a whole star rating of 1 to 5, None when it has none or no corpus.
 
@@ -87,8 +114,14 @@ def feed_keys(reference: Mapping[str, Any], *, probability: float | None = None)
     """The three feed keys for a Reference as it stands. ``probability`` overrides the one stored on the Reference."""
     arrival = arrival_at(reference)
     stored = probability if probability is not None else reference.get("predictedAcceptProbability")
-    return {"feedStateKey": feed_state_key(reference), "feedArrivalAt": arrival,
+    keys = {"feedStateKey": feed_state_key(reference), "feedArrivalAt": arrival,
             "predictionSortKey": prediction_sort_key(stored, arrival, str(reference["id"]))}
+    # The medium key is sparse: written when the Reference has one, cleared only when it is currently set. Never an explicit null on a Reference
+    # that has none, because a null on an index key attribute of a new row is not a missing attribute.
+    wanted = medium_feed_key(reference)
+    if wanted or reference.get("mediumFeedKey"):
+        keys["mediumFeedKey"] = wanted
+    return keys
 
 
 def original_prediction_fields(reference: Mapping[str, Any], *, label: str | None, positive_label: str | None, confidence: Any,
@@ -110,4 +143,5 @@ def stale_star_feed_key(reference: Mapping[str, Any]) -> dict[str, Any]:
 def stale_feed_keys(reference: Mapping[str, Any]) -> dict[str, Any]:
     """The feed keys that differ from what ``feed_keys`` says now (empty when they are right)."""
     wanted = feed_keys(reference)
+    wanted.pop(MEDIUM_FEED_KEY_FIELD, None)   # the medium key belongs to `papyrus references backfill-medium`, which writes medium and key together
     return {key: value for key, value in wanted.items() if reference.get(key) != value}

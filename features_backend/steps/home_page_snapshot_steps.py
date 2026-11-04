@@ -233,6 +233,18 @@ def has_confidence(context, title: str, confidence: float) -> None:
     assert titled(context, title)["confidence"] == confidence, titled(context, title)
 
 
+@then('the record titled "{title}" has no confidence')
+def has_no_confidence(context, title: str) -> None:
+    record = titled(context, title)
+    assert record["actor"] == "human" and record["confidence"] is None, record
+
+
+@then('the record titled "{title}" has actor "{actor}" and confidence {confidence:f}')
+def has_actor_and_confidence(context, title: str, actor: str, confidence: float) -> None:
+    record = titled(context, title)
+    assert (record["actor"], record["confidence"]) == (actor, confidence), record
+
+
 @then('the record titled "{title}" has no image, no summary and no site name')
 def has_no_preview(context, title: str) -> None:
     record = titled(context, title)

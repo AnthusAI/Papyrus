@@ -32,9 +32,11 @@ from .link_exploration import explore
 from .options import normalize_string, parse_options, resolve_mutation_apply
 from .publication_dates import normalize_html_date, publication_date_resolution_record
 from .reference_capture import SHORT_BODY_CHARACTERS, Capture, capture_source
+from .reference_outbound_links import links_document, summarize_links
 from .reference_curation_store import (
     GROBID_SORT_KEY,
     GROBID_TEI_SORT_KEY,
+    LINKS_SORT_KEY,
     LEASE_SECONDS,
     METADATA_SORT_KEY,
     PIPELINE_VERSION,
@@ -359,9 +361,20 @@ def _record_capture(card: dict[str, Any], captured: Capture, reference: dict[str
     else:
         capture.update(reason=captured.failure, transient=captured.transient)
     card["capture"] = {key: value for key, value in capture.items() if value is not None}
+    _record_links(card, captured, reference, store, now)
     card["signals"] = captured.signals
     card["paper"] = captured.paper
     card["page"] = captured.page
+
+
+def _record_links(card: dict[str, Any], captured: Capture, reference: dict[str, Any], store: AttachmentStore, now: datetime) -> None:
+    """Store every outbound link the page had (a body attachment, so the card stays small) and its counts on the card. Nothing is followed.
+    Recorded for a failed or thin capture too, whenever a page was read; a PDF or a failed fetch has none and leaves the card as it was."""
+    if not captured.links:
+        return
+    store.write(reference, LINKS_SORT_KEY, "curation-links.json", "application/json", links_document(captured.links, captured.destination_url), now)
+    card.setdefault("current", {})["linksSortKey"] = LINKS_SORT_KEY
+    card["links"] = summarize_links(captured.links)
 
 
 def _summary_stage(client: Any, card: dict[str, Any], reference: dict[str, Any], store: AttachmentStore, services: Services, captured: Capture | None,

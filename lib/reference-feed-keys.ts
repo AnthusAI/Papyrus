@@ -64,6 +64,31 @@ export function starFeedKeyFor(corpusId: string | null | undefined, stars: numbe
   return `${corpusId}#stars#${stars}`;
 }
 
+/**
+ * The medium partition a Reference is in: "<corpusId>#<medium>#<pending|accepted|rejected>" for a current, not archived Reference with a medium;
+ * null otherwise. Python twin: `medium_feed_key` (the Python one also reads the medium off the address when none is stored; the writers here
+ * use the stored medium, and `papyrus references backfill-medium` fills in the rest).
+ */
+export function referenceMediumFeedKey(reference: ReferenceFeedKeyInput & { medium?: string | null }): string | null {
+  if (reference.versionState && reference.versionState !== "current") return null;
+  if (!reference.corpusId || !reference.medium) return null;
+  const status = normalizeReferenceCurationStatus(reference.curationStatus);
+  if (status === "archived") return null;
+  return `${reference.corpusId}#${reference.medium}#${status}`;
+}
+
+/**
+ * `{ mediumFeedKey }` for a vote or archive written as a patch, `{}` for a Reference that has no medium and no key, so an ordinary page's patch
+ * names no new field. `changes` overrides the Reference's own values (the next `curationStatus`, the target `corpusId`).
+ */
+export function referenceMediumKeyPatch(
+  reference: ReferenceFeedKeyInput & { medium?: string | null; mediumFeedKey?: string | null },
+  changes: Partial<ReferenceFeedKeyInput> = {},
+): { mediumFeedKey?: string | null } {
+  if (!reference.medium && !reference.mediumFeedKey) return {};
+  return { mediumFeedKey: referenceMediumFeedKey({ ...reference, ...changes }) };
+}
+
 export function predictionSortKeyFor(probability: number | null | undefined, arrival: string, referenceId: string): string {
   const chosen = probability === null || probability === undefined ? UNDECIDED_PROBABILITY : Math.min(1, Math.max(0, probability));
   return `${chosen.toFixed(6)}#${arrival}#${referenceId}`;

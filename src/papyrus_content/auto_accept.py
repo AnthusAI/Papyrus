@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .ideas.digest import parse_time, relations_of, relevance_of
-from .reference_feed_keys import feed_state_key
+from .reference_feed_keys import feed_state_key, medium_key_patch
 from .reference_vote import CYCLOTRON, RULE, vote_fields
 
 AUTO_ACTOR = "auto:cyclotron"
@@ -188,7 +188,7 @@ def accept_reference_automatically(client: Any, reference: Mapping[str, Any], *,
         "curationStatusUpdatedAt": now, "curationStatusUpdatedBy": actor, "curationStatusReason": reason,
         **vote_fields(RULE_ACTOR_KIND if by_rule else CYCLOTRON_CURATION_ACTOR_KIND),
         "reviewedFeedKey": REVIEWED_FEED_KEY, "feedStateKey": feed_state_key({**current, "curationStatus": "accepted"}),   # a vote moves it to the rated feed; its prediction stays
-        "updatedAt": now})
+        **medium_key_patch(current, curationStatus="accepted"), "updatedAt": now})
     return True
 
 

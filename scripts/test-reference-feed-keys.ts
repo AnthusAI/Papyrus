@@ -2,15 +2,21 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { schema } from "../amplify/data/schema";
-import { referenceFeedKeys, starFeedKeyFor, type ReferenceFeedKeyInput } from "../lib/reference-feed-keys";
+import { referenceFeedKeys, referenceMediumFeedKey, referenceMediumKeyPatch, starFeedKeyFor, type ReferenceFeedKeyInput } from "../lib/reference-feed-keys";
 
-type Vector = { name: string; reference: ReferenceFeedKeyInput & { starRating?: number | null }; keys: ReturnType<typeof referenceFeedKeys>; starFeedKey?: string | null };
+type Vector = { name: string; reference: ReferenceFeedKeyInput & { starRating?: number | null; medium?: string | null }; mediumFeedKey?: string | null; keys: ReturnType<typeof referenceFeedKeys>; starFeedKey?: string | null };
 const vectors = JSON.parse(readFileSync(join(process.cwd(), "scripts/fixtures/reference-feed-key-vectors.json"), "utf8")) as Vector[];
 
 for (const vector of vectors) {
   assert.deepEqual(referenceFeedKeys(vector.reference), vector.keys, vector.name);   // never carries the star key: callers spread it on partial patches
   if ("starFeedKey" in vector) assert.equal(starFeedKeyFor(vector.reference.corpusId, vector.reference.starRating), vector.starFeedKey, vector.name);
+  if ("mediumFeedKey" in vector) assert.equal(referenceMediumFeedKey(vector.reference), vector.mediumFeedKey, vector.name);
 }
+// The medium key patch names a field only for a Reference that has a medium or a key: an ordinary page's patch stays as it was.
+assert.deepEqual(referenceMediumKeyPatch({ id: "r", corpusId: "c", curationStatus: "pending" }, { curationStatus: "accepted" }), {});
+assert.deepEqual(referenceMediumKeyPatch({ id: "r", corpusId: "c", curationStatus: "pending", medium: "video" }, { curationStatus: "accepted" }), { mediumFeedKey: "c#video#accepted" });
+assert.deepEqual(referenceMediumKeyPatch({ id: "r", corpusId: "c", curationStatus: "accepted", medium: "video" }, { curationStatus: "archived" }), { mediumFeedKey: null });
+assert.deepEqual(referenceMediumKeyPatch({ id: "r", corpusId: "c", curationStatus: "accepted", mediumFeedKey: "c#video#accepted" }, { curationStatus: "pending" }), { mediumFeedKey: null });
 assert.equal(starFeedKeyFor("c", undefined), null);
 assert.equal(starFeedKeyFor("c", 0), null);
 assert.equal(starFeedKeyFor("c", 6), null);
@@ -43,6 +49,9 @@ assert.match(partition, /@index\(sortKeyFields: \["feedArrivalAt"\], queryField:
 // And the sparse star index: one partition per star level, read by arrival.
 const starPartition = referenceType.split("\n").find((line) => /^\s+starFeedKey: String/.test(line)) ?? "";
 assert.match(starPartition, /@index\(sortKeyFields: \["feedArrivalAt"\], queryField: "listReferencesByStarFeedAndArrival"\)/, "star index");
+// And the sparse medium index: one partition per corpus, medium and status, read by arrival.
+const mediumPartition = referenceType.split("\n").find((line) => /^\s+mediumFeedKey: String/.test(line)) ?? "";
+assert.match(mediumPartition, /@index\(sortKeyFields: \["feedArrivalAt"\], queryField: "listReferencesByMediumFeedAndArrival"\)/, "medium index");
 assert.match(referenceType, /predictedAcceptProbability: Float/);
 assert.match(referenceType, /predictionDecidedAt: AWSDateTime/);
 assert.match(referenceType, /feedArrivalAt: AWSDateTime/);

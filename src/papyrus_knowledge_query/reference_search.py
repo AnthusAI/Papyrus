@@ -70,7 +70,7 @@ REFERENCE_FIELDS = (
     "title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount "
     "outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy "
     "curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId "
-    "starRating starRatedAt starRatedBy captureState newsroomFeedKey reviewedFeedKey feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt "
+    "starRating starRatedAt starRatedBy captureState medium evidenceLevel playlistUrl newsroomFeedKey reviewedFeedKey feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt "
     "predictionSortKey discoveredByMonitorId updatedAt"
 )
 LIST_CURRENT_REFERENCES_QUERY = (

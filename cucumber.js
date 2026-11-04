@@ -95,6 +95,11 @@ module.exports = {
     require: ["features/step_definitions/reference-quality.steps.js"],
     format: ["summary"],
   },
+  referenceMedium: {
+    paths: ["features/newsroom-reference-medium.feature"],
+    require: ["features/step_definitions/reference-medium.steps.js"],
+    format: ["summary"],
+  },
   referenceCaptureNeeded: {
     paths: ["features/newsroom-reference-capture-needed.feature"],
     require: ["features/step_definitions/reference-capture-needed.steps.js"],

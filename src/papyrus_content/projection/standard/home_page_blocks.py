@@ -6,6 +6,10 @@ takes the ones not yet accepted). ``confident`` and ``recommended`` use the shar
 order inside each bucket, on any selection. Several includes on one page share a :class:`~.page_ledger.PageLedger`: the first component to
 place a Reference keeps it, and a later one refills up to its ``count`` from its own ordering. ``count`` defaults to
 ``homePage.references.defaultCount``. A missing or empty snapshot draws the ``empty`` text, or nothing when there is none.
+
+``medium="video"`` keeps only the References whose medium is video (a videos block or page): accepted ones with ``select="recent"``. The cards
+show the page's own preview image and link out to the source (no per-card "Video" label: every card is one); nothing is embedded and no third-party
+script is loaded.
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ from typing import Any
 from ...home_page.export import clip_summary
 from ...home_page.ordering import BUCKETS, order_in_buckets, order_public_records
 from ...home_page.settings import HomePageSettings
+from ...reference_medium import MEDIUMS
 from . import home_page_components as parts
 from .knowledge_components import esc, safe_href
 from .page_ledger import PageLedger
@@ -26,7 +31,7 @@ THREADS_ATTRIBUTES = {"select", "count", "layout", "heading", "empty"}
 THREAD_SELECTIONS = ("recent",)
 THREAD_LAYOUTS = ("list", "grid")
 THREAD_LEDGER_PREFIX = "thread:"
-ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket"}
+ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket", "medium"}
 SELECTIONS = ("recent", "confident", "recommended")
 CARDS = ("tile", "row")
 DEFAULT_COUNT = 6
@@ -53,6 +58,8 @@ def check(attributes: Mapping, source: str) -> None:
         raise ValueError(f"{source}: ::include references count must be a whole number, got {attributes['count']!r}")
     if "bucket" in attributes and attributes["bucket"] not in BUCKETS:
         raise ValueError(f"{source}: ::include references bucket must be one of {', '.join(BUCKETS)}, got {attributes['bucket']!r}")
+    if "medium" in attributes and attributes["medium"] not in MEDIUMS:
+        raise ValueError(f"{source}: ::include references medium must be one of {', '.join(MEDIUMS)}, got {attributes['medium']!r}")
     if attributes.get("card", "tile") not in CARDS:
         raise ValueError(f"{source}: ::include references card must be one of {', '.join(CARDS)}, got {attributes['card']!r}")
     if "more" in attributes and not safe_href(attributes["more"]):
@@ -100,6 +107,8 @@ def select_references(
     """The References one include places: its ordering, minus what the page already shows, up to ``count``; each one is claimed in the ledger."""
     records = (document or {}).get("references") or []
     candidates = ordered(records, attributes["select"], attributes.get("bucket"))
+    if attributes.get("medium"):   # only the References whose address certainly says this medium; a record with no `medium` field never matches
+        candidates = [record for record in candidates if record.get("medium") == attributes["medium"]]
     if attributes.get("section"):
         candidates = [record for record in candidates if _in_section(record, attributes["section"], section_labels or {})]
     count = int(attributes["count"]) if "count" in attributes else default_count
@@ -127,10 +136,12 @@ def render(
     card = attributes.get("card", "tile")
     heading = f'<h2 class="home-page-heading">{esc(attributes["heading"])}</h2>' if attributes.get("heading") else ""
     draw = parts.tile if card == "tile" else parts.row
-    cards = "".join(f"<li>{draw(reference)}</li>" for reference in chosen)
+    show_medium = not attributes.get("medium")   # a block of one medium needs no label on every card; a block that mixes media keeps it
+    cards = "".join(f"<li>{draw(reference, show_medium=show_medium)}</li>" for reference in chosen)
     more = f'<p class="home-page-more"><a href="{esc(safe_href(attributes["more"]))}">More</a></p>' if attributes.get("more") else ""
+    medium_attribute = f' data-medium="{esc(attributes["medium"])}"' if attributes.get("medium") else ""
     return (
-        f'<section class="home-page-references" data-select="{esc(attributes["select"])}" data-card="{esc(card)}">{heading}'
+        f'<section class="home-page-references" data-select="{esc(attributes["select"])}" data-card="{esc(card)}"{medium_attribute}>{heading}'
         f'<ul class="home-page-grid" data-card="{esc(card)}">{cards}</ul>{more}</section>'
     )
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any, Mapping, Sequence
 
 from .auto_decision_gate import AUTO_REJECT_CLEAR_MISSES
-from .reference_feed_keys import feed_state_key
+from .reference_feed_keys import feed_state_key, medium_key_patch
 from .reference_vote import CYCLOTRON, vote_fields
 
 CYCLOTRON_CURATION_ACTOR_KIND = CYCLOTRON
@@ -56,5 +56,5 @@ def reject_reference_automatically(client, reference: Mapping[str, Any], *, cycl
         "curationStatusUpdatedBy": actor_label, "curationStatusReason": reason,
         **vote_fields(CYCLOTRON_CURATION_ACTOR_KIND, reason_code=AUTO_REJECT_REASON_CODE),
         "feedStateKey": feed_state_key({**current, "curationStatus": "rejected"}),   # a vote moves it to the rated feed; its prediction stays
-        "updatedAt": now})
+        **medium_key_patch(current, curationStatus="rejected"), "updatedAt": now})
     return True

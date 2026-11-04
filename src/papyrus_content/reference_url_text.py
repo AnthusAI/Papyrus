@@ -16,6 +16,7 @@ from .corpus_storage_paths import corpus_storage_path_prefix
 from .ids import hash_short, reference_lineage_id_for, semantic_node_lineage_id_for, safe_id
 from .model_defaults import DEFAULT_REFERENCE_FILTER_MODEL
 from .reference_feed_keys import feed_keys
+from .reference_medium import medium_fields
 from .relation_types import semantic_relation_type_fields_for_predicate
 from .semantic_node_writes import create_only_record
 from .source_site_plugins import (
@@ -2754,6 +2755,7 @@ def _resolve_or_build_cited_reference_record(
         "metadata": json.dumps(metadata, sort_keys=True),
         "updatedAt": now,
     }
+    record.update(medium_fields(record))
     record.update(feed_keys({**record, "versionState": "current"}))
     existing_lookup[external_item_id] = record
     if identity_index is not None:
