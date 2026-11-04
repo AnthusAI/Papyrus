@@ -230,7 +230,7 @@ def try_login(context):
 def agent_guidance(context, namespace):
     assert context.error, 'login should have failed'
     assert 'No secure credential store is available' in context.error
-    assert f'python -m cli_login.stores.agent serve --namespace {namespace}' in context.error
+    assert f'-m cli_login.stores.agent serve --namespace {namespace}' in context.error
     assert 'Plaintext storage is never used' in context.error
     assert context.interactions == [] and context.provider.calls == []
 

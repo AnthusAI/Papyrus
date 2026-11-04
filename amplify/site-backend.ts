@@ -469,7 +469,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   // Set PAPYRUS_TENANT_ID on the site's build (docs/multi-tenancy.md); a site with no tenant sets nothing and is unchanged.
   const backendTenantId = (process.env.PAPYRUS_TENANT_ID ?? "").trim();
   if (backendTenantId !== "") {
-    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda]) {
+    // editorialChecks too: it compares the site's editorial context (a tenant's publication) with its own tenant and refuses a mismatch,
+    // so without the variable every check after a save-version on a tenant site fails with "Editorial context tenant mismatch" (PPY-49303f).
+    for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda]) {
       (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
     }
   }

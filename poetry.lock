@@ -1117,14 +1117,14 @@ tests = ["citeproc-py-styles", "tox"]
 
 [[package]]
 name = "cli-login"
-version = "0.4.0"
+version = "0.4.1"
 description = "Browser sign-in for CLIs without long-lived keys: PKCE, remote approval, secure storage and renewal."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "cli_login-0.4.0-py3-none-any.whl", hash = "sha256:4ef80c0eb083bd68c42c117fe297a50f14932099a9b8d5c9354e5e106d5406c5"},
-    {file = "cli_login-0.4.0.tar.gz", hash = "sha256:1e701ed977c2b665e22fbdfbb4bc4d2df75c6992b9707e0301bf2bd3316de9e3"},
+    {file = "cli_login-0.4.1-py3-none-any.whl", hash = "sha256:b542aec1dd3376f0ebdabf61cea00a3d40531606f42020ed84cb776c4d9b42c5"},
+    {file = "cli_login-0.4.1.tar.gz", hash = "sha256:ab1e85a05ad6840785400996b5ce403c99c69ef1299d77bdd5408a8703372c20"},
 ]
 
 [package.dependencies]
@@ -9041,4 +9041,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "ed9148ab39b65ed9ae1ceb59e7320fb1ff6a0149237d0a3893f1db771e62c446"
+content-hash = "0053382f6d8afdcfed419534620a0015d0595184b05fbf7d0ab752c2e14ae1c9"

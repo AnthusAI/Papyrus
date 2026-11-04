@@ -7,9 +7,10 @@ import { cn } from "../lib/utils";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Globe, Menu, Search, PanelLeftClose, PanelLeftOpen, Settings, UserRound, LogIn, LogOut } from "lucide-react";
+import { Globe, Menu, Search, PanelLeftClose, PanelLeftOpen, Plug, Settings, UserRound, LogIn, LogOut } from "lucide-react";
 import { ORGANIZER_NAV_GROUPS, ORGANIZER_PRIMARY_NAV, ORGANIZER_SETTINGS_DESTINATION } from "../lib/newsroom-organizer-nav";
 import { browserPathToInternalNewsroomPath } from "../lib/newsroom-base-path";
+import { CONNECT_CLI_PATH } from "../lib/cli-connect";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { SITE_BRAND } from "../lib/site-brand";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
@@ -95,6 +96,7 @@ function Account({ placement }: { placement: "sidebar" | "header" }) {
         <DropdownMenuLabel>{auth.label}</DropdownMenuLabel><DropdownMenuSeparator />
         <ProspectusAccountChooser />
         <DropdownMenuItem render={<Link href={getNewsroomNavHref(ORGANIZER_SETTINGS_DESTINATION.path)} />}><Settings aria-hidden="true" />{ORGANIZER_SETTINGS_DESTINATION.label}</DropdownMenuItem>
+        <DropdownMenuItem render={<Link href={getNewsroomNavHref(CONNECT_CLI_PATH)} />}><Plug aria-hidden="true" />Connect the CLI or an agent</DropdownMenuItem>
         <ReaderAuthControl authState={auth} renderAction={({ disabled, onClick, signedIn }) => <DropdownMenuItem disabled={disabled} closeOnClick={false} onClick={onClick}>
           {signedIn ? <LogOut aria-hidden="true" /> : <LogIn aria-hidden="true" />}{signedIn ? "Sign out" : "Sign in"}
         </DropdownMenuItem>} />
