@@ -23,6 +23,7 @@ from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 from ..categories_steering import semantic_relation_record
+from ..semantic_node_writes import create_only_record
 from .actors import ACTOR_AI, Actor, ReviewMarks
 from .keys import entity_key
 from .model import LINK_MONITOR
@@ -31,7 +32,6 @@ from .monitor_records import MonitorRecord, record_entities
 from .publish_run import (
     NODE_KIND,
     STATUS_ACCEPTED,
-    STATUS_GENERATED,
     STATUS_REJECTED,
     MENTIONS,
     NodeIndex,
@@ -157,19 +157,12 @@ def plan_monitor_records(
             node = index.by_key(entity_key(kind, name)) or index.resolve(kind, name)
             if node is None:
                 node = new_node_row(kind, name, STATUS_ACCEPTED, import_run_id=MONITOR_IMPORT_RUN, corpus_id=corpus_id, now=now, reason=reason)
-                plan.records.append({"modelName": "SemanticNode", "expected": node})
+                plan.records.append(create_only_record(node))
                 plan.count("recordNodesCreated")
                 index.add(node)
             elif node.get("status") == STATUS_REJECTED:
                 plan.count("recordLinksSkippedRejected")
                 continue
-            elif node.get("status") == STATUS_GENERATED:
-                node["status"] = STATUS_ACCEPTED
-                node["changeReason"] = reason
-                plan.patches.append(
-                    {"modelName": "SemanticNode", "expected": {"id": node["id"], "status": STATUS_ACCEPTED, "changeReason": reason, "updatedAt": now}}
-                )
-                plan.count("recordNodesAccepted")
             if kind == "model" and name == record.model_id:
                 model_nodes[record.model_id] = node
             row = mention_row(record, node, now=now)

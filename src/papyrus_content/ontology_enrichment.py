@@ -26,6 +26,7 @@ from .model_attachments import (
 from .options import parse_options, resolve_mutation_apply
 from .records import apply_record_changes, build_record_changes
 from .relation_types import semantic_relation_type_fields_for_predicate
+from .semantic_node_writes import derived_fields_patch_change
 from .relations_commands import print_category_import_summary
 
 RELATION_EXPLANATION_ROLE = "ontology_relation_explanation"
@@ -143,8 +144,8 @@ def ontology_recompute_authority(flags: list[str]) -> None:
     )
     scoped = scoped_ranked_concepts(state, ranked, options)
     apply = resolve_mutation_apply(options, "knowledge ontology recompute-authority")
-    records = build_concept_authority_records(state, scoped)
-    result = apply_or_report(client, "ontology-recompute-authority", records, apply=apply)
+    records = build_concept_authority_changes(state, scoped, now=_utc_now())
+    result = apply_changes_or_report(client, records, apply=apply)
     limit = _int_option(options, "limit", 25)
     top = scoped[:limit] if limit else scoped
     payload = {
@@ -588,22 +589,25 @@ def scoped_ranked_concepts(
     return sorted(scoped, key=lambda row: int(row.get("authorityRank") or 0))
 
 
-def build_concept_authority_records(state: dict[str, Any], ranked: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def build_concept_authority_changes(state: dict[str, Any], ranked: list[dict[str, Any]], *, now: str) -> list[dict[str, Any]]:
+    """Partial updates of the derived authority numbers only; a concept that already has them is left alone."""
     nodes_by_id = {str(node.get("id")): node for node in current_semantic_nodes(state) if node.get("id")}
-    records: list[dict[str, Any]] = []
+    changes: list[dict[str, Any]] = []
     for row in ranked:
-        node_id = str(row.get("id") or "")
-        node = nodes_by_id.get(node_id)
+        node = nodes_by_id.get(str(row.get("id") or ""))
         if not node:
             continue
-        expected = dict(node)
-        expected["authorityScore"] = float(row.get("score") or 0.0)
-        expected["authorityRank"] = int(row.get("authorityRank") or 0)
-        expected["acceptedReferenceMentionCount"] = int(row.get("acceptedReferenceMentions") or 0)
-        expected["distinctSourceKindCount"] = int(row.get("distinctSourceKinds") or 0)
-        expected["relationCount"] = int(row.get("relationCount") or 0)
-        records.append({"modelName": "SemanticNode", "expected": expected})
-    return records
+        wanted = {
+            "authorityScore": float(row.get("score") or 0.0),
+            "authorityRank": int(row.get("authorityRank") or 0),
+            "acceptedReferenceMentionCount": int(row.get("acceptedReferenceMentions") or 0),
+            "distinctSourceKindCount": int(row.get("distinctSourceKinds") or 0),
+            "relationCount": int(row.get("relationCount") or 0),
+        }
+        change = derived_fields_patch_change(node, wanted, now=now)
+        if change is not None:
+            changes.append(change)
+    return changes
 
 
 def compute_pagerank(nodes: set[str], edges: dict[str, dict[str, float]], *, damping: float = 0.85, iterations: int = 32) -> dict[str, float]:
@@ -1397,6 +1401,12 @@ def relation_identity_key(subject_kind: str, subject: dict[str, Any], predicate:
 def normalize_predicate(value: str, state: dict[str, Any]) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_") or "related_to"
     return normalized if normalized in state.get("relationTypes", {}) else "related_to"
+
+
+def apply_changes_or_report(client: PapyrusGraphQLAuthoringClient, changes: list[dict[str, Any]], *, apply: bool) -> dict[str, Any]:
+    if apply and changes:
+        apply_record_changes(client, changes)
+    return {"changedRecords": len(changes), "changes": changes}
 
 
 def apply_or_report(client: PapyrusGraphQLAuthoringClient, label: str, records: list[dict[str, Any]], *, apply: bool) -> dict[str, Any]:

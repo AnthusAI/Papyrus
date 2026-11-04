@@ -104,7 +104,10 @@ def build_record_changes_targeted_by_id(
     changes: list[dict[str, Any]] = []
     for record in records:
         current = client.get_record(record["modelName"], record["expected"]["id"])
-        changes.append(build_record_change_from_current(record["modelName"], record["expected"], current))
+        if record.get("createOnly"):
+            changes.append(create_only_change(record["modelName"], record["expected"], current))
+        else:
+            changes.append(build_record_change_from_current(record["modelName"], record["expected"], current))
     return changes
 
 
@@ -185,12 +188,26 @@ def build_record_changes(
         model_name = record["modelName"]
         expected = record["expected"]
         current = existing_by_model.get(model_name, {}).get(expected["id"])
-        change = build_record_change_from_current(model_name, expected, current)
+        if record.get("createOnly"):
+            change = create_only_change(model_name, expected, current)
+        else:
+            change = build_record_change_from_current(model_name, expected, current)
         if "attachmentBody" in record:
             change["attachmentBody"] = record["attachmentBody"]
         changes.append(change)
     changes.extend(prepared["postChanges"])
     return changes
+
+
+def create_only_change(
+    model_name: str,
+    expected: dict[str, Any],
+    current: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """A record that must never overwrite: created when missing, left alone when it exists."""
+    if current:
+        return {"modelName": model_name, "expected": current, "current": current, "action": "noop", "createOnly": True}
+    return {"modelName": model_name, "expected": strip_unsupported_payload_fields(model_name, dict(expected)), "current": None, "action": "create", "createOnly": True}
 
 
 def list_existing_records_by_model(
@@ -498,6 +515,8 @@ def _apply_change(client: PapyrusGraphQLAuthoringClient, change: dict[str, Any])
         else:
             client.upsert(change["modelName"], change["expected"])
     except RuntimeError as error:
+        if action == "create" and change.get("createOnly") and _is_conditional_conflict_error(error):
+            return
         if action == "create" and _is_conditional_conflict_error(error):
             try:
                 client.update_record(change["modelName"], change["expected"])
