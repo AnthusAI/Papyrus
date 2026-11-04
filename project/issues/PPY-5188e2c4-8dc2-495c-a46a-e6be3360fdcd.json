@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5188e2c4-8dc2-495c-a46a-e6be3360fdcd",
+  "title": "stories link-reference prints write but does not change an existing link from consulted to cited",
+  "description": "On Machines on Machines on 5.83.0, 2026-11-04: eight References already linked as consulted were linked again with --role cited --citation-key KEY. Each printed a write line, exit looked clean, and stories show still lists them as consulted with no citation key, on a repeat read. Two References with no earlier link took cited and the key correctly. story_reporting.link_reference_to_story documents the consulted to cited change, so the update path for an existing relation does not take effect or the read shows the old row. stories draft uses the same call, so its cited marks are probably lost on References research already linked. Article citations still render, because they come from front matter.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T12:19:08.308142Z",
+  "updated_at": "2026-11-04T12:19:08.308612Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
