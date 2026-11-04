@@ -40,7 +40,9 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
 - **Reading one thing.** `papyrus stories list [--stage STAGE] [--section ID|SLUG|NAME] [--limit N]`
   prints one line per Story (lineage id, stage, section, title; newest change first; spiked and
   held Stories only with `--stage`). `papyrus assignments show --assignment ID` prints one
-  Assignment's status, type, queue, section, Story and holder, then its events. Both are read only.
+  Assignment's status, type, queue, section, Story and holder, then its direction (what it asks for, read whole from the Assignment's
+  metadata attachment), then its events. The direction prints as one `direction` row per line so a multi-line direction stays
+  readable in the tab-separated output. Both are read only.
   `stories create --section` and `assignments create-research|create-reporting --section` take a
   section's id, slug or name, the same as `editorial context --section`, and store the id.
 - **Object kinds are explicit.** Cloud `assignments list` rows are GraphQL
@@ -154,6 +156,15 @@ signed-in sites and no choice is an error that lists them. The flag is leading b
 after the command name, and those keep their meaning. An operator on `PAPYRUS_GRAPHQL_AUTH=iam` is never sent to a signed-in site
 by the directory or the only-site rules. Full order, the site file that carries the tenant, and the upgrade hint for an unknown
 command: [CLI login](cli-login.md#picking-the-site-for-a-command). Executable spec: `features_backend/cli-site-selection.feature`.
+
+`stories save-version` follows the same lane rule as `link-reference`: signed in, the version names the signed-in person and
+`--author-label` is optional and ignored; on `PAPYRUS_GRAPHQL_AUTH=iam` it is required. `stories save-version --images` needs no outputs file
+signed in: the site publishes its media bucket and identity pool ([CLI login](cli-login.md#the-site-file-tenant-and-version)).
+
+Run from inside a Papyrus checkout, an installed `papyrus` stops at `papyrus-root-guard`, because it is a different install from that
+checkout's. The message tells you to run it from another folder (any folder outside a Papyrus checkout) or to use the checkout's own
+`poetry run papyrus`. `--allow-cross-root` (or `PAPYRUS_ALLOW_CROSS_ROOT=1`) is an explicit choice to run the install there anyway; the
+check itself is unchanged.
 
 ## Creating stories and discovering commands
 

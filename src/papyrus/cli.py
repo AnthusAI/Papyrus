@@ -280,8 +280,10 @@ def _enforce_root_guard(args: list[str], *, cwd: Path | None = None, module_root
         f"papyrus-root-guard\toperator-root\t{operator_root}\n"
         f"papyrus-root-guard\tmodule-root\t{resolved_module_root}\n"
         f"papyrus-root-guard\tmodule-file\t{module_file}\n"
+        "papyrus-root-guard\tmessage\tYou are inside a Papyrus checkout, but this papyrus is a different install. Run it from another "
+        "folder (any folder outside a Papyrus checkout), or use the checkout's own papyrus with the next command below.\n"
         f"papyrus-root-guard\tnext\t{recovery}\n"
-        "papyrus-root-guard\toverride\tpass --allow-cross-root or set PAPYRUS_ALLOW_CROSS_ROOT=1"
+        "papyrus-root-guard\toverride\t--allow-cross-root (or PAPYRUS_ALLOW_CROSS_ROOT=1) is an explicit choice to run this install here anyway"
     )
 
 

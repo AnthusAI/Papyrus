@@ -86,17 +86,41 @@ def _check(element: ET.Element) -> None:
         _check(child)
 
 
+_SCRIPTS = ("msub", "msup", "msubsup", "munder", "mover", "munderover")
+
+
+def _script_operators(element: ET.Element) -> dict[str, set[int]]:
+    """The ``<mo>`` elements (by ``id``) that are the base of a script element, and those inside a script (every child after the base)."""
+    bases: set[int] = set()
+    inside: set[int] = set()
+    for node in element.iter():
+        if _local(node.tag) in _SCRIPTS and len(node):
+            if _local(node[0].tag) == "mo":
+                bases.add(id(node[0]))
+            for script in list(node)[1:]:
+                inside.update(id(inner) for inner in script.iter() if _local(inner.tag) == "mo")
+    return {"bases": bases, "inside": inside}
+
+
 def _tidy(element: ET.Element) -> None:
     """Spacing for named operators (``Pr``, ``max``, ``lim``...).
 
     latex2mathml writes them as ``<mo>``; an ``<mo>`` between other things gets the wide spacing of an infix sign such as
     ``=``, so ``\\Pr[X]`` came out as ``Pr   [X]``. A named operator wants no space before it and a thin space after it.
     """
+    scripted = _script_operators(element)
     for node in element.iter():
         text = node.text or ""
-        if _local(node.tag) == "mo" and len(text) > 1 and text.isalpha() and "lspace" not in node.attrib:
+        if _local(node.tag) == "mo" and len(text) > 1 and text.isalpha() and "lspace" not in node.attrib and id(node) not in scripted["bases"]:
             node.set("lspace", "0em")
             node.set("rspace", "0.1667em")
+    # WebKit puts an operator's own lspace/rspace between a script's base and its script (``\\max_x`` came out as ``max x``,
+    # ``H_\\infty`` as ``H ∞``), and around the signs inside a script. Chromium and Firefox ignore it there. So an operator
+    # that is the base of a script, or inside one, carries no spacing of its own; the thin space after a base comes from an <mspace> below.
+    for node in element.iter():
+        if _local(node.tag) == "mo" and (id(node) in scripted["bases"] or id(node) in scripted["inside"]):
+            node.set("lspace", "0em")
+            node.set("rspace", "0em")
     # Function names written as <mi> (``\\log``, ``\\sin``), alone or as the base of a subscript, need the same thin space
     # after them, or ``\\log_2 \\max_x`` runs together.
     for parent in list(element.iter()):
@@ -108,7 +132,7 @@ def _tidy(element: ET.Element) -> None:
             if _local(child.tag) in ("msub", "msup", "msubsup") and len(child):
                 name = child[0]
             text = name.text or ""
-            if _local(name.tag) == "mi" and len(text) > 1 and text.isalpha() and position + 1 < len(children):
+            if _local(name.tag) in ("mi", "mo") and len(text) > 1 and text.isalpha() and position + 1 < len(children):
                 gap = ET.Element("mspace", {"width": "0.1667em"})
                 parent.insert(position + 1, gap)
 

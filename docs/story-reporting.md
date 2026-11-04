@@ -20,9 +20,15 @@ Every time an agent changes the article, it records a **new version**; it does n
 ```bash
 papyrus stories save-version --story <lineage> --body-file draft.md \
   [--front-matter-file front-matter.yml] \
-  --reason "added the Vercel corroboration" --author-label "ChatGPT"
+  --reason "added the Vercel corroboration" [--author-label "ChatGPT"]
 papyrus stories versions --story <lineage>
 ```
+
+Signed in (`papyrus login`), the version records the person who signed in, taken from the sign-in session, as its author, the same
+way `stories link-reference` does. `--author-label` is optional there and is ignored (the command says so on stderr), so a version
+never names someone else; the backend does not verify the name, so the CLI does not accept one. A session that names no one stops
+the save and points at `papyrus whoami`. With an operator's AWS credentials (`PAPYRUS_GRAPHQL_AUTH=iam`) there is no sign-in, so
+`--author-label` is required and is recorded as given.
 
 A new version keeps the previous version's board stage. Add `--stage <stage>` (or `--advance` for the next stage before publication) to save the draft and move the stage in one recorded step.
 
@@ -33,7 +39,7 @@ pass `--images <folder>`:
 
 ```bash
 papyrus stories save-version --story <lineage> --body-file draft.md --images ./pictures \
-  --reason "added the architecture diagram" --author-label "ChatGPT" [--dry-run]
+  --reason "added the architecture diagram" [--author-label "ChatGPT"] [--dry-run]
 ```
 
 Every local picture the text uses is uploaded exactly as the newsroom editor's "Insert image" does it: a `MediaAsset`
@@ -74,8 +80,11 @@ Both sign-in lanes work, and they reach S3 differently:
 A site that moved the CLI onto its Prospectus federation client (`cliOnFederationClient`) has the backend register that
 client on the identity pool too, with the same Token role mapping as the web client, so a CLI ID token gets the same
 `editor` or `admin` group role as the browser. Until a site runs a backend with that change, the exchange fails with "Token
-is not from a supported provider of this identity pool". The user lane needs the identity pool id: `--identity-pool-id`, `PAPYRUS_IDENTITY_POOL_ID`, or `auth.identity_pool_id` in
-`amplify_outputs.json`. The `createModelAttachmentUpload` presigned-URL mutation cannot serve this command: it only
+is not from a supported provider of this identity pool". The user lane needs the identity pool id and the media bucket. Signed in, neither needs a file: the site publishes both in
+its public `/.well-known/papyrus-site.json` (`media_bucket`, `identity_pool_id`; both public, the bucket is private and reachable only
+through the pool's role), and the CLI uses them for the site it is signed in to. An explicit `--bucket` / `PAPYRUS_MEDIA_BUCKET` and
+`--identity-pool-id` / `PAPYRUS_IDENTITY_POOL_ID` win, and so does an `amplify_outputs.json` of the chosen site. A site that has not
+been rebuilt on a release that publishes them fails with a message that names the site and says to pass the flag or variable. The `createModelAttachmentUpload` presigned-URL mutation cannot serve this command: it only
 issues keys under `newsroom/payloads` and `media/payloads`, never `media/assets`.
 
 **Publishing from the CLI.** `papyrus ops content publish --id <item-id>` writes the published records and then projects the

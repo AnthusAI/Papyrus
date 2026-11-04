@@ -3,7 +3,7 @@
   "title": "Machines on Machines: the article Story type has no public address",
   "description": "web/projection.json in AnthusAI/Machines-on-Machines declares storyTypes post and article, but urls.types has only post at /posts/. An article Story has no declared address, and listings include article. The sitemap shows no Story pages yet, so this first Story is likely to be the site's first test of the address scheme.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -31,11 +31,25 @@
       "text": "Raised 2026-11-04: Ryan says this Story is the first article Machines on Machines will ever publish, and the article type still has no address, so this blocks the launch.",
       "created_at": "2026-11-04T13:52:17.148181Z",
       "comment_type": "default"
+    },
+    {
+      "id": "2dd97075-9630-41d8-ad09-377b132953bd",
+      "author": "home",
+      "text": "Fixed: /articles/ is declared on Machines on Machines (AnthusAI/Machines-on-Machines#32), live with 5.85.0. A published article page has not been seen yet.",
+      "created_at": "2026-11-04T15:03:53.124706Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "b9d79915-08ed-480b-bf9f-0b46d1e9cc82",
+      "author": "home",
+      "text": "Checked 2026-11-04: Machines on Machines origin/main web/projection.json now gives the article type the base articles (Papyrus 5.85.0 commit). Looks fixed by config; not yet seen working on a live article page.",
+      "created_at": "2026-11-04T16:06:29.488332Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-04T00:14:55.246390Z",
-  "updated_at": "2026-11-04T13:52:17.385337Z",
-  "closed_at": null,
+  "updated_at": "2026-11-04T16:06:29.488591Z",
+  "closed_at": "2026-11-04T15:03:53.205907Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

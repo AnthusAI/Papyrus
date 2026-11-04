@@ -337,6 +337,17 @@ Feature: Everything a model writes from sources is fact checked, in layers, befo
     And the packet names no direction gap for "Gemini"
     And the packet names no direction gap for "Vexley"
 
+  Scenario: A real direction's venue citation and described document label are not subjects
+    Given a research run whose pages say "NeurIPS and Gemini were both mentioned here."
+    And the writer produced the claims "Councilor Marlow spoke on Tuesday."
+    And the editor's direction is the text of "non-interference-direction.txt"
+    When the research run is made
+    Then the packet names no direction gap for "NeurIPS"
+    And the packet names no direction gap for "Gemini"
+    And the packet names no direction gap for "Bob"
+    And the packet names no direction gap for "GibberLink"
+    And the packet names "Zdancewic" as a direction gap and the sources do not mention it
+
   Scenario: A leading article is not part of a name
     Given a research run whose pages say "Councilor Marlow spoke on Tuesday."
     And the writer produced the claims "Councilor Marlow spoke on Tuesday."

@@ -143,6 +143,11 @@ def step_direction(context, text):
     context.run.direction = text
 
 
+@given('the editor\'s direction is the text of "{fixture}"')
+def step_direction_from_fixture(context, fixture):
+    context.run.direction = (Path(__file__).resolve().parent.parent / "fixtures" / "research" / fixture).read_text(encoding="utf-8")
+
+
 @then("the packet angle is empty")
 def step_angle_empty(context):
     assert context.packet["recommended_angle"] == "", context.packet["recommended_angle"]

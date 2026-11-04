@@ -46,14 +46,23 @@ def configured_media_bucket(explicit_bucket: str | None = None) -> str | None:
     return storage_bucket_from_amplify_outputs()
 
 
+def _no_bucket_message() -> str:
+    from .env import site_host_in_use
+
+    host = site_host_in_use()
+    if host:
+        return (
+            f"No media bucket: {host} does not publish one (a site that has not been upgraded to a Papyrus release that does serves "
+            "none in /.well-known/papyrus-site.json). Pass --bucket, or set PAPYRUS_MEDIA_BUCKET."
+        )
+    return "No media bucket configured: pass --bucket, set PAPYRUS_MEDIA_BUCKET, or provide amplify_outputs.json with a storage bucket."
+
+
 class S3MediaStore:
     def __init__(self, bucket: str | None = None, *, region: str | None = None, client: Any = None) -> None:
         resolved_bucket = configured_media_bucket(bucket)
         if not resolved_bucket:
-            raise ValueError(
-                "No media bucket configured: pass --bucket, set PAPYRUS_MEDIA_BUCKET, "
-                "or provide amplify_outputs.json with a storage bucket."
-            )
+            raise ValueError(_no_bucket_message())
         self.bucket = resolved_bucket
         if client is not None:
             self._client = client

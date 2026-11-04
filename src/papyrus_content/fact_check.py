@@ -338,11 +338,14 @@ _EXCLUSION_CUE = re.compile(
 _CLAUSE_END = re.compile(r"[.!?;\n]|,\s*(?:and|but|so)\s+(?-i:(?=[a-z]))|\b(?:but|however|instead|then|although|though)\b", re.IGNORECASE)
 _NAME_WORD = r"[A-Z][\w\-]*"
 #: A name that labels material ("the Gemini documents are leads") rather than a subject to cover.
-_LABELS_MATERIAL = re.compile(rf"\b(?:{_NAME_WORD}\s+){{0,2}}{_NAME_WORD}\s+(?:documents?|docs?|links?|pages?|files?|slides|materials?)\b")
+#: Up to two lowercase describing words may sit between the name and the material word ("the Gemini deep-research documents").
+_LABELS_MATERIAL = re.compile(rf"\b(?:{_NAME_WORD}\s+){{0,2}}{_NAME_WORD}\s+(?:[a-z]+(?:-[a-z]+)*\s+){{0,2}}(?:documents?|docs?|links?|pages?|files?|slides|materials?)\b")
 #: A venue: a name before a venue word ("the ICML workshop"), an acronym with two or more capitals before the work it published ("NeurIPS papers"), or after
 #: "published at" and the like. A person's name has one capital per word, so "Smith papers" stays a subject.
 _VENUE_WORD = re.compile(rf"\b(?:{_NAME_WORD}\s+){{0,2}}{_NAME_WORD}\s+(?:conferences?|workshops?|symposi(?:um|a)|proceedings|journals?|tracks?)\b")
 _ACRONYM_WORK = re.compile(r"\b(?:[A-Z][a-z]*){1,}(?=\s+(?:papers?|articles?|talks?|posts?|work|submissions?)\b)")
+#: A venue and year in parentheses after the work it published ("(NeurIPS 2026)"): a citation tag. Only a name with two or more capitals counts, so "(Smith 2019)" stays.
+_VENUE_YEAR = re.compile(r"\(\s*([A-Z]\w*)\s+(?:19|20)\d\d\s*\)")
 _PUBLISHED_AT = re.compile(r"\b(?:published|presented|accepted|appeared|appearing|papers?|talks?|work)\s+(?:at|in)\s+(?:the\s+)?([A-Z]\w*)")
 
 
@@ -366,6 +369,9 @@ def subjects_text(direction: str) -> str:
         if _capitals(match.group(0)) >= 2:
             blanks.append((match.start(), match.end()))
     for match in _PUBLISHED_AT.finditer(text):
+        if _capitals(match.group(1)) >= 2:
+            blanks.append((match.start(1), match.end(1)))
+    for match in _VENUE_YEAR.finditer(text):
         if _capitals(match.group(1)) >= 2:
             blanks.append((match.start(1), match.end(1)))
     chars = list(text)

@@ -1,0 +1,29 @@
+Find the primary sources for this argument and report what each one actually shows.
+
+The question: can a system keep a secret from an attacker who can compromise an agent that interacts with that secret? This is about non-interference and the mathematical limits on containment. Steganography is one example, not the subject.
+
+The adversary: an attacker five years from now who poisons the model at the centre of a system designed today. Future models will find any vulnerability that exists, however unlikely, so the question is what the mathematics allows, not how likely an attack is.
+
+The class of system: it can reach a secret, an attacker can influence it, and an attacker can observe something it affects. Almost all modern AI systems fit.
+
+Working thesis, to be tested and not assumed: if a compromised agent can reach a secret and the attacker can observe results, containment is bounded by a formula in which attacker skill never appears. The only levers are what the agent can reach and what the attacker can observe.
+
+Keep these claims apart, because the sources blur them:
+1. Impossibility: a compromised reader cannot be contained. Goguen and Meseguer, Lampson, and the information-theory bound (leakage per observation, Smith min-entropy).
+2. Undecidability: checking arbitrary programs for non-interference. Rice, the halting reduction, termination channels (Askarov et al.), and enforcement that rejects safe programs (Sabelfeld and Myers).
+3. Intractability: a specific neural network is finite, so Rice does not strictly apply.
+4. Achievable: keeping the secret outside the agent's domain (the seL4 proof, and what it excludes). Declassification (Zdancewic and Myers, Rushby). Computational hardness and obfuscation limits (Barak et al.). Confused deputy.
+
+Real-world evidence on models communicating and on poisoning, to read and weigh:
+- OpenAI, "Securing our frontier model training environment" (cache-timing channel across microVMs; most tests were directed or given a protocol).
+- Dineen et al., arXiv 2609.32701.
+- Bezick, Tailor and Zhang, unilateral steganography (NeurIPS 2026).
+- Vaikuntanathan and Zamir, arXiv 2604.04757.
+- Goldwasser et al., arXiv 2204.06974.
+- Sleeper Agents, arXiv 2401.05566.
+- Anthropic, 250 poisoned documents.
+- Subliminal Learning, arXiv 2507.14805.
+
+Do not rely on: Facebook's Bob and Alice, GibberLink, or arXiv 2608.19161. No live-deployment case has been confirmed; say so unless a primary source shows one.
+
+The Gemini deep-research documents that started this are leads only. Find and read each primary source before relying on it. A title or snippet is not evidence. Label what a source shows separately from what it merely claims, and say what a defender can check.
