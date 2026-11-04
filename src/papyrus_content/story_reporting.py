@@ -318,6 +318,20 @@ def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason:
     return {"changed": True, "stage": stage, "from": previous, "itemId": latest["id"]}
 
 
+OUTLINE_KEY = "outline"
+
+
+def mark_story_outline(client, record: dict[str, Any], *, actor: str, now: str | None = None) -> dict[str, Any]:
+    """Marks a saved version as the Story's outline, in place on the version's metadata (``outline``); the draft step counts versions after it."""
+    now = now or utc_now_iso()
+    stored = client.get_record("Item", record["id"]) or record
+    metadata = json.loads(stored.get("metadata") or "{}") if isinstance(stored.get("metadata"), str) else dict(stored.get("metadata") or {})
+    marker = {"versionId": record["id"], "versionNumber": int(record.get("versionNumber") or 1), "at": now, "by": actor}
+    metadata[OUTLINE_KEY] = marker
+    client.update_record("Item", {"id": record["id"], "metadata": to_aws_json(metadata)})
+    return marker
+
+
 def story_reference_relation_id(lineage_id: str, reference_lineage_id: str) -> str:
     return "semantic-relation-" + hash_short(["story-reference", lineage_id, reference_lineage_id])
 

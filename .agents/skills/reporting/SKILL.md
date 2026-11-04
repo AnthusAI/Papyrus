@@ -35,8 +35,10 @@ The current catalog shape is `{"items":[{"item_id":"stable-source-id","source_ur
 
 ## Reporting sequence
 
-1. Read back the story and versions. Save a first outline draft with frontmatter `title`, `deck` (subtitle), and `blurb` (two or three lines for board/listings). On an existing story, this means the next version, preserving earlier versions.
-2. Research. Immediately attach every source you read as `consulted`; register it through supported intake if missing. Record findings in the draft itself (as reporting notes in the outline) and in each saved version's change reason; do not append Messages. Separate source findings, attributed claims, inference and open questions; never claim more than the source establishes.
+The order of the steps for a Story, who does each and what comes next is defined once in [docs/story-procedure.md](../../../docs/story-procedure.md). Run `papyrus stories next --story LINEAGE` to see it for this Story; the outline is the editor's step and comes after the research.
+
+1. Read back the story and its versions (`papyrus stories show`, `papyrus stories versions`).
+2. Research. Immediately attach every source you read as `consulted`; register it through supported intake if missing. Record findings in your reporting notes and in each saved version's change reason; do not append Messages. Separate source findings, attributed claims, inference and open questions; never claim more than the source establishes.
 3. After each substantial article change, save a new version with a clear reason. Use valid Markus citation syntax and keys supported by the current renderer.
 4. Change every Reference actually cited in the draft to `cited` with its matching Markus citation key. Leave uncited sources `consulted`.
 5. Finish with a handoff (your final report, not a Message) listing unresolved questions, limitations and next reporting steps; raise a review request (`papyrus reviews raise --subject-type item --subject-id <version id> --mode soft_review ...`) when a person must decide something. Read back versions, Reference roles/keys and notes; verify the publication, stage and unpublished status. Report the lineage, versions, references, notes, all commands executed, input files and any blockers.
