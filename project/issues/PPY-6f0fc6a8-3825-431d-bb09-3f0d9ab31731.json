@@ -12,9 +12,17 @@
     "cli"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "dc6db8b2-4f27-4083-b237-565a89a1b384",
+      "author": "home",
+      "text": "Possible lead, not confirmed: AGENTS.md:243 says Messages come only from people (epic PPY-781d26), and PPY-59edce covers agent chat and console notes without machine Messages. If the refusal of createMessage is deliberate, then docs/story-reporting.md is wrong to tell agents to use stories note, and agents need another place to record reporting. Check that first.",
+      "created_at": "2026-11-04T00:14:55.308402Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-03T23:58:53.629684Z",
-  "updated_at": "2026-11-03T23:58:53.629851Z",
+  "updated_at": "2026-11-04T00:14:55.308596Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9cc5e7c8-a436-4082-a84f-daf0ef603f60",
+  "issue_id": "PPY-e1de144a-c3cc-414c-8518-ef6b5b752b76",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T00:14:54.717Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Stories cannot show math: no equation support in Markus or the renderer",
+    "description": "A Machines on Machines Story on non-interference needs to state formal bounds, such as an attacker's chance being at most m / 2^k. A search of src, docs, web, components, package.json and pyproject.toml found no KaTeX, MathJax or MathML, apart from the bundled mermaid.min.js, and docs/markus*.md has no mention of math. Decide the markup, render it statically in the projection, and support both themes and the newsletter fallback.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

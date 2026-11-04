@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "51047cc3-a7f5-477f-b791-8378890b8fe4",
+  "issue_id": "PPY-e45f993a-328b-4c9b-b296-52f8d410ea44",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T00:14:54.897Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "corpora/papyrus-publication-doctrine.yml and papyrus-newsroom-sections.yml describe Anthus Threat Intelligence, not Papyrus",
+    "description": "Named papyrus-*, but the doctrine's mission opens 'Anthus Threat Intelligence publishes practical AI/ML security analysis' and the sections file has that publication's sections. A reporting agent looking for Machines on Machines doctrine can easily read these as the publication's rules. The live doctrine is backend data. Rename or remove the files, and say where doctrine really lives. Related: the hosted publication on Machines on Machines reports key ai-ml-research and name AI-ML-research in papyrus editorial context.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

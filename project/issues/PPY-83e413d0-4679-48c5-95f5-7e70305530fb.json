@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0a0de7c2-e872-417a-8ce5-27bf47464a83",
+      "author": "home",
+      "text": "Update 2026-11-03: not fixed yet. The workaround is to set PAPYRUS_GRAPHQL_ENDPOINT from the site's public /.well-known/papyrus-cli.json with PAPYRUS_GRAPHQL_AUTH=user. A signed-in site record already has the endpoint available through that file, so the fix should select it from the signed-in site. See PPY-5180e0 for the same problem with PAPYRUS_TENANT_ID.",
+      "created_at": "2026-11-04T00:14:55.370937Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-03T20:05:11.030992Z",
-  "updated_at": "2026-11-03T20:05:11.031068Z",
+  "updated_at": "2026-11-04T00:14:55.371132Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

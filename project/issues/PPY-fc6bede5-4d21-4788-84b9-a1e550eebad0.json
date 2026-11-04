@@ -1,0 +1,20 @@
+{
+  "id": "PPY-fc6bede5-4d21-4788-84b9-a1e550eebad0",
+  "title": "AGENTS.md lists a stale set of content stages",
+  "description": "AGENTS.md:241 gives idea, assignment, research, report, editor_select, copywriting, illustration, typesetting, published. docs/story-reporting.md and the CLI use idea, assignment, reporting, copywriting, illustration, typesetting, published, held, spiked. An agent following AGENTS.md would pass stages the CLI rejects.",
+  "type": "bug",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T00:14:54.985637Z",
+  "updated_at": "2026-11-04T00:14:54.985659Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
