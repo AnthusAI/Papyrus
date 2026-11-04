@@ -913,7 +913,7 @@ def step_direction_rules(context):
     systems = {name: system for name, system, _ in context.llm.calls}
     assert ms.PLAN_DIRECTION_RULES in systems["search_plan"] and "each item is its own claim" in systems["research_synthesis"]
     assert "Each thing it asks for gets its own queries" in systems["search_plan"] or "each thing it asks for gets its own queries" in systems["search_plan"].lower()
-    assert "Answer it in its order" in systems["research_synthesis"] and "only titles and snippets count as evidence" in systems["research_synthesis"].lower()
+    assert "Answer it in its order" in systems["research_synthesis"] and "only page text, titles and snippets count as evidence" in systems["research_synthesis"].lower()
 
 
 @then("the brief begins with the editor's direction, labelled as the editor's, before the Story")

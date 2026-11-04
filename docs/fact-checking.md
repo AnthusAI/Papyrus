@@ -8,7 +8,7 @@ A prompt that says "use only the sources" is not a safeguard. A real research pa
 
 | Layer | What it does | Built |
 | --- | --- | --- |
-| 1. Instructions to the writer | The writer is told to use only the titles and snippets it is given. Necessary, not sufficient. | Yes (the research prompts) |
+| 1. Instructions to the writer | The writer is told to use only the titles, snippets and page text it is given. Necessary, not sufficient. | Yes (the research prompts) |
 | 2. Citations exist | Every claim cites a source that exists; a claim without one is dropped (`droppedClaims`). | Yes (research, ideas) |
 | 3. Literal check | Each name, number, date, place and quotation in a claim must appear in the texts of the sources the claim cites. Code, free, certain. | Yes |
 | 4. Independent judge | A separate model call, told nothing about how the claim was written, says whether the cited text supports it and must quote the text word for word. Code looks for the quote. It fails closed. | Yes, wired into multi-search research. Not yet run live in CI: the specs use a fake judge. |
@@ -22,7 +22,7 @@ Where the check applies, in the order of the epic: research packets (done), Refe
 
 ## `check_claims(claims, sources, *, judge=None, urls=None)`
 
-`claims` is a list of `{claim, sources}`; `sources` maps a source id to its text. For research the text is the source's title plus its snippets, because that is all the writer was told to use. `urls` maps source ids to URLs for the source-strength count. It returns `{contract, counts, claims, sourceLoad}`; each claim has `verdict`, `literal.unmatched` (`[{term, kind}]`, kind is `name`, `number` or `quotation`), `judge` (or `null`), `reasons` and `sourceStrength` (`{domains, singleSource}`).
+`claims` is a list of `{claim, sources}`; `sources` maps a source id to its text. For research the text is the source's title, its snippets and the page text the run read, because that is all the writer was told to use. `urls` maps source ids to URLs for the source-strength count. It returns `{contract, counts, claims, sourceLoad}`; each claim has `verdict`, `literal.unmatched` (`[{term, kind}]`, kind is `name`, `number` or `quotation`), `judge` (or `null`), `reasons` and `sourceStrength` (`{domains, singleSource}`).
 
 Verdicts, in two tiers of doubt so an editor can tell a nuance from an invention:
 
@@ -53,7 +53,7 @@ What it cannot do: it does not know that a name is wrong, only that the cited so
 After synthesis, `run_multi_search` calls `fact_check_synthesis`:
 
 - `claims` keeps verified claims only. The rest, `needs_check`, `rejected` and `unchecked`, are in `unverifiedClaims`, each `{claim, sources, reasons, verdict}`.
-- With a Story context pack the writer is told to give one fact per claim, to put a caveat in its own claim or in the open questions, and a year or date only if a title or snippet gives it, because a claim with one unsupported part fails whole.
+- With a Story context pack the writer is told to give one fact per claim, to put a caveat in its own claim or in the open questions, and a year or date only if the page text, a title or a snippet gives it, because a claim with one unsupported part fails whole.
 - Disagreement positions get the literal check only. A failing position stays, labelled `unverified: true` with `reasons`.
 - The summary and recommended angle are written again by one model call from the verified claims alone. The rewrite must pass the literal check against the sources of all verified claims; if it does not, or there are no verified claims, a plain summary built from the counts is used (`factCheck.plainSummaryBecause` says why). The summary and the angle are checked apart, a single capitalized word that opens a sentence is not taken for a name unless the sources also capitalize it inside a sentence, and the plain summary leaves the angle empty.
 - Direction coverage: when the editor's direction names people or places, each name (found with the literal check's own name extraction) must appear in a verified or unverified claim, a disagreement or an open question. A name that does not goes into `factCheck.directionGaps` (`name`, `inSources`, `note`), gets an open question (the run has sources but wrote nothing on it, or found nothing), and is listed in the packet body under "Named in the direction, not covered:" and in the Work section.

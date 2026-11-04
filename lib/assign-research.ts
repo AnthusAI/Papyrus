@@ -12,6 +12,8 @@
 export const RESEARCH_ASSIGNMENT_TYPE = "research.multi";
 export const RESEARCH_CONTEXT_PROFILE = "reporter";
 export const RESEARCH_MODE = "source_discovery";
+/** What a run will and will not do, said where the editor writes the direction. `papyrus stories assign-research` prints the same words. */
+export const RESEARCH_RUN_NOTE = "The run searches the web, opens the sources it finds and reads as much of each as fits, then checks its claims against that text. It cannot open pages behind a login or paywall; the packet lists them.";
 
 /** The words the Work section shows for an assignment's status. The status word is stored; the label and the icon name are for people. */
 export type AssignmentStateView = { state: "waiting" | "running" | "finished" | "failed" | "other"; label: string };

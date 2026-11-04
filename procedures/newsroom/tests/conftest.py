@@ -12,6 +12,13 @@ def _no_preview_network(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_research_page_reads(monkeypatch):
+    from papyrus_content import multi_search_research
+
+    monkeypatch.setattr(multi_search_research, "fetch_source", lambda url: None)
+
+
+@pytest.fixture(autouse=True)
 def _site_without_enrollment_for_local_login(monkeypatch):
     """A local login asks its site for an enrollment challenge; tests answer as a site that has not switched it on."""
     from papyrus_content import cli_user_auth

@@ -444,7 +444,7 @@ def _claim_entry(claim: Mapping[str, Any], sources: Mapping[str, str], urls: Map
 
 def check_claims(claims: Sequence[Mapping[str, Any]], sources: Mapping[str, str], *, judge: Judge | None = None,
                  urls: Mapping[str, str] | None = None, titles: Mapping[str, str] | None = None) -> dict[str, Any]:
-    """Check each claim (``{"claim", "sources": [source ids]}``) against ``sources`` (source id to its text: for research the title and snippets, because that
+    """Check each claim (``{"claim", "sources": [source ids]}``) against ``sources`` (source id to its text: for research the title, snippets and page text, because that
     is all the writer was told to use). ``urls`` maps source ids to their URLs for the source-strength count and, with ``titles``, labels each source for the judge; without it an id that is a URL counts as one.
 
     Returns ``{"contract", "counts", "claims", "sourceLoad"}``. Each claim carries ``verdict`` (verified, needs_check, rejected, unchecked), ``literal.unmatched``,

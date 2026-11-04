@@ -30,6 +30,9 @@ def before_scenario(context, scenario):
 
     context.real_site_enrolls = cli_user_auth.site_enrolls
     cli_user_auth.site_enrolls = lambda config, **kwargs: False
+    from papyrus_content import multi_search_research
+
+    multi_search_research.fetch_source = lambda url: None     # no scenario reaches the network; one that reads pages passes its own reader
     if WORK_IN_PROGRESS_TAG in scenario.effective_tags:
         scenario.skip("work in progress: waits for a task that has not landed")
         return

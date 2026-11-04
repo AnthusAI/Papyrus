@@ -124,3 +124,18 @@ Then("the page should not scroll sideways", async function () {
   const overflow = await requirePage(this).evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.equal(overflow <= 0, true, `the page is ${overflow}px wider than the screen`);
 });
+
+Then("the finished assignment should say it read 2 of 3 sources and link the one it could not open", async function () {
+  const reading = requirePage(this).locator("[data-research-state='finished'] [data-research-reading]");
+  assert.match(await reading.innerText(), /Read 2 of 3 sources, 1 of them in part\. 1 could not be opened/);
+  assert.equal(await reading.locator("[data-research-not-opened]").getAttribute("href"), "https://contractor.example.com/schedule");
+});
+
+Then("the claim from that source should be labelled {string}", async function (label) {
+  const claim = requirePage(this).locator("[data-research-state='finished'] [data-research-claims] li", { hasText: "scheduled to start in September" });
+  assert.match(await claim.locator("[data-research-snippet-only]").innerText(), new RegExp(label.replace(".", "\\.")));
+});
+
+Then("the box should explain {string}", async function (text) {
+  assert.ok((await box(this).locator("[data-assign-research-explains]").innerText()).includes(text));
+});

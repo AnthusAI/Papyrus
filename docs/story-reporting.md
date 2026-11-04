@@ -220,7 +220,7 @@ papyrus stories assign-research --story <lineage> --direction "Find the court ru
   [--direction-file direction.md] [--type research.multi] [--title "..."] [--dry-run]
 ```
 
-The assignment is open, its type defaults to `research.multi`, its title to the Story's title, its `instructions` and `metadata.direction` hold the direction, and its `metadata.contextProfile` is `reporter`. An `AssignmentEvent` records the creation. A Story at the `idea` stage moves to `assignment` through the recorded stage move (`stories show` lists it); a Story at any other stage stays where it is. The command does not fire stage-entry triggers; run `papyrus stories fire-triggers` if the stage should start one. `--dry-run` writes nothing.
+The run opens and reads the sources it finds; its packet lists any it could not open ([what a run reads](automated-publication-research-workflow.md#multi-search-research-researchmulti)). The assignment is open, its type defaults to `research.multi`, its title to the Story's title, its `instructions` and `metadata.direction` hold the direction, and its `metadata.contextProfile` is `reporter`. An `AssignmentEvent` records the creation. A Story at the `idea` stage moves to `assignment` through the recorded stage move (`stories show` lists it); a Story at any other stage stays where it is. The command does not fire stage-entry triggers; run `papyrus stories fire-triggers` if the stage should start one. `--dry-run` writes nothing.
 
 ### Assigning research in the newsroom
 

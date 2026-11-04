@@ -149,7 +149,7 @@ def test_the_per_provider_contribution():
 
 def test_the_packet_carries_claims_disagreements_open_questions_and_provenance():
     packet = ms.run_multi_search("brief", llm=FakeLlm(), providers=two_providers())["packet"]
-    assert packet["claims"] == [{"claim": "GLiDE was released in October.", "sources": [1, 2]}]    # the claim citing source 99 is dropped
+    assert packet["claims"] == [{"claim": "GLiDE was released in October.", "sources": [1, 2], "snippetOnly": True}]    # the claim citing source 99 is dropped; no page was opened
     assert packet["multiSearch"]["droppedClaims"] == 1
     assert packet["disagreements"][0]["positions"][1]["sources"] == [2]                           # source 42 does not exist
     assert packet["open_questions"] == ["Who ran the independent benchmark?"]

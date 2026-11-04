@@ -510,11 +510,15 @@ def research_assignment_options(story: dict, lineage_id: str, direction: str, se
     }
 
 
+RESEARCH_RUN_NOTE = ("The run searches the web, opens the sources it finds and reads as much of each as fits, then checks its claims against that text. "
+                     "It cannot open pages behind a login or paywall; the packet lists them.")
+
+
 def stories_assign_research(flags: list[str]) -> None:
     """papyrus stories assign-research --story <lineage> --direction TEXT|--direction-file FILE [--type research.multi] [--title TEXT] [--actor-label NAME] [--dry-run]
 
     An editor's research assignment on a Story: an Assignment working on the Story's lineage, in the Story's section, with the direction as its
-    instructions. Its context profile is ``reporter`` (``papyrus assignments context-pack`` shows what the reporting agent is given). A Story at the
+    instructions. The run searches the web, opens the sources it finds and reads as much of each as fits the model's input; its packet says which it read. Its context profile is ``reporter`` (``papyrus assignments context-pack`` shows what the reporting agent is given). A Story at the
     idea stage moves to the assignment stage through the recorded stage move; a Story at any other stage stays where it is."""
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories assign-research")
@@ -535,6 +539,7 @@ def stories_assign_research(flags: list[str]) -> None:
         **options,
         **research_assignment_options(story, lineage_id, direction, section, actor=actor, title=options.get("title"), kind=options.get("type")),
     })
+    print(f"stories\tassign-research\tnote\t{RESEARCH_RUN_NOTE}")
     moves = story.get("stage") == "idea"
     print(f"stories\tassign-research\t{lineage_id}\t{result['assignmentId']}\t{'moves the Story to assignment' if moves else 'Story stays at ' + str(story.get('stage'))}\t{'write' if apply else 'dry run'}")
     if apply and moves:
