@@ -13,6 +13,7 @@ export { resolveHomePageConfig };
 export type { HomePageConfig };
 
 export const HOME_PAGE_SNAPSHOT_SCHEDULE_PREFIX = "papyrus-home-page-snapshot-";
+/** The interval rule's task: it names neither `incremental` nor a scope, so it reads the whole corpus. The trigger schedules the incremental form itself. */
 export const HOME_PAGE_SNAPSHOT_TASK = { projectionTask: { task: "home-page-snapshot" } };
 export const HOME_PAGE_STREAM_BATCH_SIZE = 100;
 export const HOME_PAGE_STREAM_BATCH_WINDOW_SECONDS = 10;
@@ -31,7 +32,7 @@ export const homePageManifest: PluginManifest = {
 
 /**
  * Lambda event filter for the Reference stream: a record that carries a curation status (an insert or a change) or a REMOVE, which has
- * no new image. The handler then compares the six public fields itself.
+ * no new image. The handler then compares the public fields itself, and ignores a Reference that no page can show.
  */
 export function homePageStreamFilterPattern(): string {
   return JSON.stringify({
@@ -187,11 +188,12 @@ export const homePagePlugin: PapyrusPlugin<HomePageConfig, { homePageTrigger: ty
       });
     }
 
-    // The debounce item lives in the shared projection lock table (partition key `publication`), under a key of its own.
+    // The debounce item, the set of changed Reference ids, the Message counter and the full-read flag live in the shared projection lock table
+    // (partition key `publication`), each under a key of its own. UpdateItem adds to the set and raises the counters.
     trigger.addToRolePolicy(
       new PolicyStatement({
         effect: Effect.ALLOW,
-        actions: ["dynamodb:PutItem", "dynamodb:DeleteItem"],
+        actions: ["dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:UpdateItem"],
         resources: [projectionLeaseTableArn(stack.region, stack.account)],
       }),
     );

@@ -12,7 +12,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
@@ -274,6 +275,122 @@ def section_labels_of(client: Any) -> dict[str, str]:
     return {str(section["id"]): str(section.get("title") or "") for section in client.list_records("NewsroomSection") if section.get("id")}
 
 
+@dataclass(frozen=True)
+class Standing:
+    """What the shared order (and the run that keeps the snapshot current) remembers about one public Reference besides its public record.
+
+    ``stars`` is an editor's private rating and ``confidence`` the live P(accept) the order reads (a record that an editor accepted does not
+    publish it), so a Standing is never written to a public file: it lives only in the private state the home-page task keeps
+    (``incremental.py``). ``id`` is the id of the Reference version the record was built from, ``arrived`` its arrival time and ``section`` its
+    section id, which the section label is looked up from on every run.
+    """
+
+    id: str
+    stars: int | None
+    confidence: float | None
+    arrived: str | None
+    section: str | None
+
+    def to_json(self) -> list[Any]:
+        return [self.id, self.stars, self.confidence, self.arrived, self.section]
+
+    @classmethod
+    def from_json(cls, value: Any) -> Standing:
+        identifier, stars, confidence, arrived, section = value
+        return cls(str(identifier), stars, confidence, arrived, section)
+
+
+@dataclass(frozen=True)
+class PublicEntry:
+    """A public record without its ``rank`` (the rank is a position among all the records), and the Standing the rank is computed from."""
+
+    key: str
+    record: dict[str, Any]
+    standing: Standing
+
+
+def entry_of(
+    row: Mapping[str, Any],
+    decision: Mapping[str, Any] | None,
+    preview: Mapping[str, Any] | None,
+    section_labels: Mapping[str, str],
+    settings: HomePageSettings,
+) -> PublicEntry:
+    """The public entry of a row; raises ``WithheldReference`` when its address would carry identity."""
+    record = public_reference(row, decision, preview, section_labels, settings)
+    standing = Standing(
+        id=str(row["id"]),
+        stars=valid_stars(row.get("starRating")),
+        confidence=decimal(accept_probability(decision)),
+        arrived=row.get("feedArrivalAt") or row.get("createdAt"),
+        section=row.get("curationSectionId") or None,
+    )
+    return PublicEntry(public_key(str(row["lineageId"])), record, standing)
+
+
+def ranked_records(entries: Iterable[PublicEntry]) -> list[dict[str, Any]]:
+    """The entries' records with their ``rank`` in the shared order (``ordering.py``), in the order the entries came."""
+    chosen = list(entries)
+    # An editor's stars order the page and stay here: only the position they give each Reference is published.
+    ranks = rank_records(({"key": entry.key, "confidence": entry.standing.confidence, "arrivedAt": entry.standing.arrived}, entry.standing.stars) for entry in chosen)
+    return [{**entry.record, RANK_FIELD: ranks[entry.key]} for entry in chosen]
+
+
+def is_listed(row: Mapping[str, Any], corpus_id: str) -> bool:
+    """True for a row the full read would consider: a current Reference that is in the corpus's accepted list, or in its unrated list and not decided."""
+    if row.get("versionState", "current") != "current" or not row.get("lineageId"):
+        return False
+    if row.get("curationStatusKey") == f"{corpus_id}#{STATUS_ACCEPTED}":
+        return True
+    return row.get("feedStateKey") == f"{corpus_id}#unrated" and row.get("curationStatus") not in (STATUS_ACCEPTED, *NOT_PUBLIC_STATUSES)
+
+
+def is_chosen(row: Mapping[str, Any], decision: Mapping[str, Any] | None, settings: HomePageSettings) -> bool:
+    return row.get("curationStatus") == STATUS_ACCEPTED or accept_probability(decision) >= settings.references.recommended_threshold
+
+
+def entry_for_row(client: Any, row: Mapping[str, Any], corpus_id: str, settings: HomePageSettings, labels: Mapping[str, str]) -> PublicEntry | None:
+    """The public entry of one row, read the way the full read reads it: its decision, then (only when it will show) its preview. ``None`` when it is not public.
+
+    The cost is a fixed three requests at most, whatever the size of the corpus.
+    """
+    if not is_listed(row, corpus_id):
+        return None
+    decision = decision_of(client, row)
+    if not is_chosen(row, decision, settings):
+        return None
+    try:
+        return entry_of(row, decision, preview_of(client, row), labels, settings)
+    except WithheldReference:
+        return None
+
+
+def collect_entries(
+    client: Any,
+    corpus_id: str,
+    settings: HomePageSettings,
+    *,
+    client_factory: Callable[[], Any] | None = None,
+    workers: int = 1,
+) -> list[PublicEntry]:
+    """Every public entry of a corpus, newest accepted first and then the recommended ones newest first, read from the whole corpus (a full read)."""
+    accepted = current_references(client, "referencesByCurationStatusKey", f"{corpus_id}#{STATUS_ACCEPTED}")
+    pending = [row for row in current_references(client, "referencesByFeedStateAndPrediction", f"{corpus_id}#unrated") if row.get("curationStatus") not in (STATUS_ACCEPTED, *NOT_PUBLIC_STATUSES)]
+    decisions = map_with_clients([*accepted, *pending], lambda worker, row: decision_of(worker, row), client=client, client_factory=client_factory, workers=workers)
+    decided = list(zip([*accepted, *pending], decisions))
+    chosen = [(row, decision) for row, decision in decided if is_chosen(row, decision, settings)]
+    previews = map_with_clients([row for row, _ in chosen], lambda worker, row: preview_of(worker, row), client=client, client_factory=client_factory, workers=workers)
+    labels = section_labels_of(client)
+    ordered = sorted(zip(chosen, previews), key=lambda entry: _newest_first(entry[0][0]), reverse=True)
+    kept: list[PublicEntry] = []
+    for (row, decision), preview in ordered:
+        try:
+            kept.append(entry_of(row, decision, preview, labels, settings))
+        except WithheldReference:
+            continue
+    return kept
+
+
 def collect_references(
     client: Any,
     corpus_id: str,
@@ -286,34 +403,10 @@ def collect_references(
 
     Newest accepted first, then the recommended ones newest first, each with its ``rank`` in the shared order (``ordering.py``). Rejected, archived and superseded References are never read into
     the result. A Reference whose address would carry identity is left out rather than published.
+
+    This reads the whole corpus. The Lambda does it once, to start the private state ``incremental.py`` keeps; after that a change costs a fixed number of requests.
     """
-    accepted = current_references(client, "referencesByCurationStatusKey", f"{corpus_id}#{STATUS_ACCEPTED}")
-    pending = [row for row in current_references(client, "referencesByFeedStateAndPrediction", f"{corpus_id}#unrated") if row.get("curationStatus") not in (STATUS_ACCEPTED, *NOT_PUBLIC_STATUSES)]
-    decisions = map_with_clients([*accepted, *pending], lambda worker, row: decision_of(worker, row), client=client, client_factory=client_factory, workers=workers)
-    decided = list(zip([*accepted, *pending], decisions))
-    threshold = settings.references.recommended_threshold
-    chosen = [(row, decision) for row, decision in decided if row.get("curationStatus") == STATUS_ACCEPTED or accept_probability(decision) >= threshold]
-    previews = map_with_clients([row for row, _ in chosen], lambda worker, row: preview_of(worker, row), client=client, client_factory=client_factory, workers=workers)
-    labels = section_labels_of(client)
-    ordered = sorted(zip(chosen, previews), key=lambda entry: _newest_first(entry[0][0]), reverse=True)
-    kept: list[tuple[Mapping[str, Any], Mapping[str, Any], dict[str, Any]]] = []
-    for (row, decision), preview in ordered:
-        try:
-            kept.append((row, decision, public_reference(row, decision, preview, labels, settings)))
-        except WithheldReference:
-            continue
-    # An editor's stars order the page and stay here: only the position they give each Reference is published.
-    ranks = rank_records((standing_of(row, decision), valid_stars(row.get("starRating"))) for row, decision, _record in kept)
-    return [{**record, RANK_FIELD: ranks[public_key(str(row["lineageId"]))]} for row, _decision, record in kept]
-
-
-def standing_of(row: Mapping[str, Any], decision: Mapping[str, Any] | None) -> dict[str, Any]:
-    """The public signals the shared order reads, taken from the row itself so that a ``fields`` setting that leaves one out cannot change the order."""
-    return {
-        "key": public_key(str(row["lineageId"])),
-        "confidence": decimal(accept_probability(decision)),
-        "arrivedAt": row.get("feedArrivalAt") or row.get("createdAt"),
-    }
+    return ranked_records(collect_entries(client, corpus_id, settings, client_factory=client_factory, workers=workers))
 
 
 def _newest_first(row: Mapping[str, Any]) -> tuple[int, str, str, str]:

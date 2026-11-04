@@ -17,10 +17,11 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 HANDLER_PATH = REPO_ROOT / "amplify" / "plugins" / "home-page" / "function" / "handler.py"
 PLUGIN_TEST = REPO_ROOT / "scripts" / "test-home-page-plugin.ts"
 START = 1_800_000_000
-ACCEPTED_RECORD = {"eventName": "MODIFY", "dynamodb": {"OldImage": {"curationStatus": {"S": "pending"}}, "NewImage": {"curationStatus": {"S": "accepted"}}}}
+KEYS = {"id": {"S": "reference-1-v1"}}
+ACCEPTED_RECORD = {"eventName": "MODIFY", "dynamodb": {"Keys": KEYS, "OldImage": {"curationStatus": {"S": "pending"}}, "NewImage": {"curationStatus": {"S": "accepted"}}}}
 PRIVATE_RECORD = {
     "eventName": "MODIFY",
-    "dynamodb": {"OldImage": {"curationStatus": {"S": "accepted"}, "curationStatusReason": {"S": "a"}}, "NewImage": {"curationStatus": {"S": "accepted"}, "curationStatusReason": {"S": "b"}}},
+    "dynamodb": {"Keys": KEYS, "OldImage": {"curationStatus": {"S": "accepted"}, "curationStatusReason": {"S": "a"}}, "NewImage": {"curationStatus": {"S": "accepted"}, "curationStatusReason": {"S": "b"}}},
 }
 
 
@@ -41,6 +42,8 @@ class LockTable:
     def __init__(self) -> None:
         self.items: dict[str, int] = {}
         self.claims = 0
+        self.ids: dict[str, set[str]] = {}
+        self.counters: dict[tuple[str, str], int] = {}
 
     def put_item(self, *, TableName, Item, ConditionExpression, ExpressionAttributeValues):
         key = Item["publication"]["S"]
@@ -48,6 +51,16 @@ class LockTable:
             raise StepError("ConditionalCheckFailedException")
         self.claims += 1
         self.items[key] = int(Item["lockedUntil"]["N"])
+
+    def update_item(self, *, TableName, Key, UpdateExpression, ExpressionAttributeValues, ReturnValues=None):
+        key = Key["publication"]["S"]
+        if UpdateExpression == "ADD ids :ids":
+            held = self.ids.setdefault(key, set())
+            held |= set(ExpressionAttributeValues[":ids"]["SS"])
+            return {"Attributes": {"ids": {"SS": sorted(held)}}}
+        attribute = UpdateExpression.removeprefix("ADD ").split(" ")[0]
+        self.counters[(key, attribute)] = self.counters.get((key, attribute), 0) + int(next(iter(ExpressionAttributeValues.values()))["N"])
+        return {}
 
     def delete_item(self, *, TableName, Key, ConditionExpression, ExpressionAttributeValues):
         key = Key["publication"]["S"]
@@ -138,6 +151,55 @@ def message_soft_deleted(context) -> None:
     context.site.receive([{"eventName": "MODIFY", "dynamodb": {"OldImage": MESSAGE_COMMENT, "NewImage": deleted}}], 0)
 
 
+def reference_record(identifier: str, old: dict, new: dict, event: str = "MODIFY") -> dict:
+    images = {"Keys": {"id": {"S": identifier}}, "NewImage": new}
+    if event == "MODIFY":
+        images["OldImage"] = old
+    return {"eventName": event, "dynamodb": images}
+
+
+PENDING_IMAGE = {"curationStatus": {"S": "pending"}, "title": {"S": "A"}}
+PREDICTION = {"predictionDecidedAt": {"S": "2026-11-04T10:00:00.000Z"}, "predictedAcceptProbability": {"N": "0.9"}, "predictionSortKey": {"S": "0.900000#a#b"}}
+
+
+@when("a pending Reference is delivered that nobody has predicted")
+def pending_delivered(context) -> None:
+    context.site.receive([reference_record("reference-new-v1", {}, PENDING_IMAGE, "INSERT")], 0)
+
+
+@when("the Cyclotron's first prediction is written onto a pending Reference")
+def first_prediction(context) -> None:
+    context.site.receive([reference_record("reference-new-v1", PENDING_IMAGE, {**PENDING_IMAGE, **PREDICTION})], 0)
+
+
+@when("an unpredicted pending Reference is retitled and rated")
+def unpredicted_edited(context) -> None:
+    context.site.receive([reference_record("reference-new-v1", PENDING_IMAGE, {**PENDING_IMAGE, "title": {"S": "B"}, "starRating": {"N": "5"}})], 0)
+
+
+@when("ten changes arrive for three different References")
+def ten_changes_three_references(context) -> None:
+    for number in range(10):
+        context.site.receive([reference_record(f"reference-{number % 3}-v1", PENDING_IMAGE, {"curationStatus": {"S": "accepted"}, "title": {"S": f"T{number}"}})], number)
+
+
+@when("{count:d} References are accepted in one batch")
+def many_accepted(context, count: int) -> None:
+    context.site.receive([reference_record(f"reference-{number}-v1", PENDING_IMAGE, {"curationStatus": {"S": "accepted"}, "title": {"S": "A"}}) for number in range(count)], 0)
+
+
+@then("the run's list holds exactly those {count:d} Reference ids")
+def list_holds(context, count: int) -> None:
+    [listed] = context.site.lock_table.ids.values()
+    assert listed == {f"reference-{number}-v1" for number in range(count)}, listed
+
+
+@then("the full-read flag is raised once")
+def full_read_flag(context) -> None:
+    flags = {key: value for key, value in context.site.lock_table.counters.items() if key[0].startswith("home-page-full#")}
+    assert list(flags.values()) == [1], context.site.lock_table.counters
+
+
 @when("another Reference is accepted {later:d} seconds later")
 def accepted_later(context, later: int) -> None:
     context.site.receive([ACCEPTED_RECORD], later)
@@ -150,13 +212,13 @@ def private_change(context) -> None:
 
 @when("a Reference is rated")
 def reference_rated(context) -> None:
-    context.site.receive([{"eventName": "MODIFY", "dynamodb": {"OldImage": {"curationStatus": {"S": "accepted"}}, "NewImage": {"curationStatus": {"S": "accepted"}, "starRating": {"N": "5"}}}}], 0)
+    context.site.receive([{"eventName": "MODIFY", "dynamodb": {"Keys": KEYS, "OldImage": {"curationStatus": {"S": "accepted"}}, "NewImage": {"curationStatus": {"S": "accepted"}, "starRating": {"N": "5"}}}}], 0)
 
 
 @when("a Reference changes only who rated it")
 def rater_changed(context) -> None:
     rated = {"curationStatus": {"S": "accepted"}, "starRating": {"N": "5"}}
-    context.site.receive([{"eventName": "MODIFY", "dynamodb": {"OldImage": {**rated, "starRatedBy": {"S": "a"}, "starRatedAt": {"S": "t1"}}, "NewImage": {**rated, "starRatedBy": {"S": "b"}, "starRatedAt": {"S": "t2"}}}}], 0)
+    context.site.receive([{"eventName": "MODIFY", "dynamodb": {"Keys": KEYS, "OldImage": {**rated, "starRatedBy": {"S": "a"}, "starRatedAt": {"S": "t1"}}, "NewImage": {**rated, "starRatedBy": {"S": "b"}, "starRatedAt": {"S": "t2"}}}}], 0)
 
 
 @when("a Reference is accepted and creating the schedule fails")
@@ -204,7 +266,8 @@ def runs_scheduled(context, count: int) -> None:
 def schedule_shape(context) -> None:
     call = context.schedule
     assert call["Name"].startswith("papyrus-home-page-snapshot-")
-    assert json.loads(call["Target"]["Input"]) == {"projectionTask": {"task": "home-page-snapshot"}}
+    task = json.loads(call["Target"]["Input"])["projectionTask"]
+    assert task["task"] == "home-page-snapshot" and task["incremental"] is True and task["scope"]
     assert call["Target"]["RetryPolicy"] == {"MaximumRetryAttempts": 0}
     assert call["ActionAfterCompletion"] == "DELETE"
     assert call["FlexibleTimeWindow"] == {"Mode": "OFF"}

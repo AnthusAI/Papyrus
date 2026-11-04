@@ -6,6 +6,7 @@ fall back to IAM, update curation or fabricate classifier/feedback receipts.
 from __future__ import annotations
 
 import json
+import weakref
 
 from .catalog import catalog_item_with_external_item_id, reference_attachment_records, reference_record
 from .ids import hash_short, knowledge_corpus_id
@@ -24,8 +25,52 @@ def _rule_text(rule) -> str:
     return " or ".join(reasons) if reasons else "matching the monitor's filters"
 
 
+class ReferenceListing:
+    """Every Reference row of a backend, read once and kept for the deliveries of one run.
+
+    The identity gate needs to see the whole table to prove that an item is new, and a table is read 100 rows to a request, so reading it again for
+    each of a run's deliveries (25 to 40 of them on a web monitor) costs that many times the table. A run reads it once; a row the run creates or
+    changes is put into the copy as it happens, so one delivery sees the previous one. A row another writer adds meanwhile is not seen until the next
+    run, and the id of a Reference is its address, so a second write of the same address still fails on the conditional create and reuses the row.
+    """
+
+    def __init__(self, client) -> None:
+        self.client = client
+        self._rows: list | None = None
+        self.reads = 0
+
+    def rows(self) -> list:
+        if self._rows is None:
+            self._rows = list(self.client.list_records("Reference"))
+            self.reads += 1
+        return self._rows
+
+    def remember(self, row: dict) -> None:
+        """Put a row the run just created or changed into the copy, replacing the one with its id."""
+        if self._rows is None:
+            return
+        for position, held in enumerate(self._rows):
+            if held.get("id") == row.get("id"):
+                self._rows[position] = row
+                return
+        self._rows.append(row)
+
+
+_LISTINGS: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+
+
+def listing_for(client) -> ReferenceListing | None:
+    """The one ``ReferenceListing`` of this client, for a run that delivers many items through it; ``None`` for a client that cannot be tracked."""
+    try:
+        if client not in _LISTINGS:
+            _LISTINGS[client] = ReferenceListing(client)
+        return _LISTINGS[client]
+    except TypeError:
+        return None
+
+
 class ReferenceIntake:
-    def __init__(self, client, monitor: Monitor, *, auth_mode: str, persist=None):
+    def __init__(self, client, monitor: Monitor, *, auth_mode: str, persist=None, listing: ReferenceListing | None = None):
         if auth_mode != "iam":
             raise ValueError("This Monitor worker requires explicitly configured IAM; editorial-session intake is owned by PR367. No IAM fallback.")
         if client.endpoint.rstrip("/") != monitor.endpoint.rstrip("/") or getattr(client, "tenant_id", None):
@@ -35,6 +80,7 @@ class ReferenceIntake:
                 or knowledge_corpus_id({"key": monitor.publication}) != monitor.corpus_id):
             raise ValueError("Monitor binding requires the publication's single verified canonical KnowledgeCorpus")
         self.client, self.monitor = client, monitor
+        self.listing = listing   # a run that delivers many items passes one, so the table is read once (see ReferenceListing); without it each delivery reads the table
         self.persist = persist or (lambda rows: apply_record_changes(client, build_record_changes(client, rows)))
 
     @staticmethod
@@ -96,7 +142,7 @@ class ReferenceIntake:
                     or selected.get("versionState") != "current" or selected.get("sourceUri") != item.canonical_url):
                 raise ValueError("Selected Reference no longer matches the imported candidate")
             matches = [selected]
-        listing = [] if reference_id else self.client.list_records("Reference")
+        listing = [] if reference_id else (self.listing.rows() if self.listing is not None else self.client.list_records("Reference"))
         for row in listing:
             if row.get("corpusId") != self.monitor.corpus_id or row.get("versionState") not in {None, "current"}:
                 continue
@@ -147,6 +193,8 @@ class ReferenceIntake:
             reference = self.client.get_record("Reference", proposed["id"])
             if not reference or reference.get("corpusId") != self.monitor.corpus_id:
                 raise ValueError("Reference creation has no verified persisted readback")
+            if self.listing is not None:
+                self.listing.remember(reference)
         restored = False
         if matches and reference.get("corpusId") == self.monitor.corpus_id and is_machine_retired(reference):
             # The one exception to "never touch curation": a citation stub the machine archived (reference_citation_stubs.py) returns to
@@ -157,6 +205,8 @@ class ReferenceIntake:
                 fields = restored_fields(current, now=provenance["observedAt"])
                 self.client.update_record("Reference", {"id": current["id"], **fields})
                 reference, restored = {**current, **fields}, True
+                if self.listing is not None:
+                    self.listing.remember(reference)
         if matches and (not identity_match or identity_match.get("corpusId") == self.monitor.corpus_id):
             # A Reference some monitor already delivered keeps its first monitor; a new revision of the same source item
             # refreshes the stored details. Only these fields are written, so human curation is never touched.

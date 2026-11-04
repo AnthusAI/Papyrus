@@ -35,3 +35,23 @@ Feature: A monitor delivery records its monitor on the Reference and writes no M
     Then it counts one planned update and writes nothing
     When the monitor delivery backfill runs for real
     Then the Reference names the monitor and holds the details from the old relation
+
+  Scenario Outline: A run of deliveries reads the Reference table once, not once per delivery
+    The identity gate has to see the whole Reference table to prove that a delivered item is new, and a table is read 100 rows to a request. A web monitor
+    delivers 25 to 40 items in a run, so reading the table for each of them multiplied the cost of the table by that many. A run now reads it once and
+    puts each Reference it creates into its copy, so a later delivery of the same document still finds the earlier one.
+    Given a publication that already holds <size> References
+    When a run delivers 30 new items through one shared listing
+    Then the table was read <pages> requests in all
+    And a run that read the table for each delivery would have made more than <pages> requests
+    And the 30 items became 30 References
+
+    Examples:
+      | size | pages |
+      | 200  | 2     |
+      | 5000 | 50    |
+
+  Scenario: Two deliveries of one document in a run make one Reference
+    Given a publication that already holds 5 References
+    When a run delivers the same document twice through one shared listing
+    Then there is one new Reference and the second delivery reused it
