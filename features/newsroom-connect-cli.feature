@@ -20,7 +20,7 @@ Feature: The console shows an editor how to connect the Papyrus CLI or a reporti
   Scenario: Signing in from a phone is offered only where the site switched it on
     Given a synthetic site that names a remote sign-in broker and one that does not
     When the editor opens the page at 375 and 1440 pixels
-    Then the first site shows the remote command and says to open the link yourself
+    Then the first site shows the remote command straight after install, for an agent on a cloud computer approved from a phone, and says to open the link yourself
     And the second shows no remote command and says approving from a phone is not switched on
     And a site with no sign-in file shows no command at all
 

@@ -52,32 +52,34 @@ export function ConnectCliBody({ plan }: { plan: CliConnectPlan | null }) {
     <div className="space-y-4" data-connect-cli>
       <section className="connect-cli-card" data-connect-about>
         <h2 className="m-0 flex items-center gap-2 font-sans text-base font-semibold"><UserCheckIcon aria-hidden="true" size={18} />What connecting does</h2>
-        <p className={prose}>A reporting agent, or the Papyrus command line on your own computer, has to sign in to {plan.site} before it can work here. When it does, it acts as you. It can read and change what you can read and change in this newsroom, and nothing more.</p>
+        <p className={prose}>A reporting agent on a cloud computer, or the Papyrus command line on your own computer, has to sign in to {plan.site} before it can work here. When it does, it acts as you. It can read and change what you can read and change in this newsroom, and nothing more.</p>
         <p className={prose}>The sign-in renews itself and lasts days, not minutes. When it ends, run the same command again. Run <code className="connect-cli-inline">papyrus logout {plan.site}</code> on that computer to end it sooner.</p>
       </section>
 
       <Step icon={<DownloadIcon aria-hidden="true" size={18} />} title="Install the command line, once">
-        <p className={prose}>Paste this into a terminal. It needs Python 3.12 or newer. If you use uv, <code className="font-mono text-xs">{CLI_INSTALL_ALTERNATIVE}</code> does the same.</p>
+        <p className={prose}>Run this on the computer that will do the work: the agent&apos;s cloud computer, or your own. It needs Python 3.12 or newer. If you use uv, <code className="font-mono text-xs">{CLI_INSTALL_ALTERNATIVE}</code> does the same.</p>
         <CommandLine command={plan.install} label="Install command" />
       </Step>
 
-      <Step icon={<LaptopIcon aria-hidden="true" size={18} />} title="Sign in on a computer with a browser">
-        <p className={prose}>Run this. Your browser opens; sign in with Google. When the browser says you are done, the command line is connected.</p>
-        <CommandLine command={plan.browserCommand} label="Sign-in command for a computer with a browser" />
-      </Step>
-
       {plan.remoteCommand ? (
-        <Step icon={<SmartphoneIcon aria-hidden="true" size={18} />} title="Sign in an agent that has no browser">
-          <p className={prose}>Give the agent this command. It prints a link and a short code, then waits up to 10 minutes. Open the link on your phone, sign in with Google, check that the page shows the same code, and approve.</p>
-          <CommandLine command={plan.remoteCommand} label="Sign-in command for an agent with no browser" />
+        <Step icon={<SmartphoneIcon aria-hidden="true" size={18} />} title="Connect an agent on a cloud computer, from your phone">
+          <p className={prose}>An agent on a cloud computer has no browser, so you approve its sign-in from your phone or any other device of your own. No keys or passwords go to the agent.</p>
+          <p className={prose}>Give the agent this command. It prints a link and a short code, then waits up to 10 minutes. Open the link, sign in with Google, check that the page shows the same code, and approve.</p>
+          <CommandLine command={plan.remoteCommand} label="Sign-in command for an agent on a cloud computer" />
           <p className={prose} data-connect-remote-warning>Open the link yourself. Whoever approves first becomes the signed-in person.</p>
+          <p className={prose} data-connect-remote-keyring>A cloud computer often has no keyring to keep the sign-in in. If so, the command says what to run first, and the sign-in then lasts until that computer restarts.</p>
         </Step>
       ) : (
         <section className="connect-cli-card" data-connect-remote-unavailable>
-          <h2 className="m-0 flex items-center gap-2 font-sans text-base font-semibold"><SmartphoneIcon aria-hidden="true" size={18} />Approving from a phone is not switched on</h2>
-          <p className={prose}>An agent with no browser cannot connect to {plan.site} yet. Use a computer with a browser, or ask whoever runs {SITE_BRAND.appTitle} to switch on remote sign-in.</p>
+          <h2 className="m-0 flex items-center gap-2 font-sans text-base font-semibold"><SmartphoneIcon aria-hidden="true" size={18} />Connecting an agent from your phone is not switched on</h2>
+          <p className={prose}>An agent on a cloud computer cannot connect to {plan.site} yet. Ask whoever runs {SITE_BRAND.appTitle} to switch on remote sign-in. Until then, the command line can only sign in on a computer with a browser.</p>
         </section>
       )}
+
+      <Step icon={<LaptopIcon aria-hidden="true" size={18} />} title="Sign in on your own computer">
+        <p className={prose}>On a computer with a browser, run this. Your browser opens; sign in with Google. When the browser says you are done, the command line is connected.</p>
+        <CommandLine command={plan.browserCommand} label="Sign-in command for a computer with a browser" />
+      </Step>
 
       <Step icon={<CheckIcon aria-hidden="true" size={18} />} title="Check that it worked">
         <p className={prose}>This shows who the command line is signed in as.</p>

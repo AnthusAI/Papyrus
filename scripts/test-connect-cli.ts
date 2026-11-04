@@ -87,9 +87,12 @@ const scenarios: Record<string, () => Promise<void>> = {
   async remote() {
     assert.equal(planFor(outputsMain)!.remoteCommand, null);
     await each(planFor(withRemote), async (page) => {
-      assert.deepEqual(await page.locator("[data-connect-command]").allInnerTexts(), ["pipx install papyrus-newsroom", "papyrus login newsroom.example.test", "papyrus login --remote newsroom.example.test", "papyrus whoami newsroom.example.test"]);
+      assert.deepEqual(await page.locator("[data-connect-command]").allInnerTexts(), ["pipx install papyrus-newsroom", "papyrus login --remote newsroom.example.test", "papyrus login newsroom.example.test", "papyrus whoami newsroom.example.test"]);
       assert.equal(await page.locator("[data-connect-remote-unavailable]").count(), 0);
       assert.ok((await page.locator("[data-connect-remote-warning]").innerText()).includes("Open the link yourself"));
+      const about = await page.locator("[data-connect-step]").nth(1).innerText();
+      assert.ok(about.includes("cloud computer") && about.includes("phone"), "the agent card comes straight after install and names the case");
+      assert.ok((await page.locator("[data-connect-remote-keyring]").innerText()).includes("keyring"));
     });
     await each(planFor(outputsMain), async (page) => {
       assert.deepEqual(await page.locator("[data-connect-command]").allInnerTexts(), ["pipx install papyrus-newsroom", "papyrus login newsroom.example.test", "papyrus whoami newsroom.example.test"]);
@@ -105,11 +108,11 @@ const scenarios: Record<string, () => Promise<void>> = {
     await each(planFor(withRemote), async (page) => {
       const buttons = page.locator("[data-connect-copy]");
       assert.equal(await buttons.count(), 4);
-      await buttons.nth(2).click();
+      await buttons.nth(1).click();
       assert.deepEqual(await page.evaluate(() => (window as unknown as { copied: string[] }).copied), ["papyrus login --remote newsroom.example.test"]);
-      assert.equal((await buttons.nth(2).innerText()).trim(), "Copied");
-      assert.equal(await buttons.nth(2).locator("svg.lucide-check").count(), 1);
-      assert.equal(await buttons.nth(1).locator("svg.lucide-copy").count(), 1);
+      assert.equal((await buttons.nth(1).innerText()).trim(), "Copied");
+      assert.equal(await buttons.nth(1).locator("svg.lucide-check").count(), 1);
+      assert.equal(await buttons.nth(2).locator("svg.lucide-copy").count(), 1);
     });
   },
   /** Flat tones and rounded rectangles: no visible border, outline or rule; buttons, not drop-downs; Lucide icons. */

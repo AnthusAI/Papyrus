@@ -24,7 +24,7 @@ const outcomes = [
     "a site that does not publish the sign-in file gets no commands and a plain explanation",
   ]],
   ["remote", [
-    "the first site shows the remote command and says to open the link yourself",
+    "the first site shows the remote command straight after install, for an agent on a cloud computer approved from a phone, and says to open the link yourself",
     "the second shows no remote command and says approving from a phone is not switched on",
     "a site with no sign-in file shows no command at all",
   ]],
