@@ -122,7 +122,7 @@ export function SectionConceptsEditor({ actor = "editor", disabled = false, entr
             type="button"
           >
             <HashIcon aria-hidden="true" className="size-3.5" />{item.hashtag}
-            <span className="font-normal text-muted-foreground">{item.title}{item.nodeKind ? ` · ${item.nodeKind.replace(/_/g, " ")}` : ""}</span>
+            <span className="font-normal text-foreground">{item.title}{item.nodeKind ? ` · ${item.nodeKind.replace(/_/g, " ")}` : ""}</span>
             {entries.some(entry => entry.conceptLineageId === item.lineageId) ? <span className="ml-auto inline-flex items-center gap-1 text-sm font-semibold text-foreground" data-section-concepts-added><CheckIcon aria-hidden="true" className="size-4" />Added</span> : null}
           </button>
         ))}
