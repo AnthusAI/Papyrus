@@ -351,8 +351,9 @@ def references_backfill_feed_keys(flags: list[str]) -> None:
 def references_backfill_medium(flags: list[str]) -> None:
     """``papyrus references backfill-medium (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--write]``.
 
-    Sets ``medium``, ``playlistUrl``, ``evidenceLevel`` (aggregation only, only where empty) and ``mediumFeedKey`` from each current Reference's
-    address (src/papyrus_content/reference_medium_backfill.py). Unlike the other backfills it is SAFE BY DEFAULT: without ``--write`` it prints one
+    Sets ``medium``, ``playlistUrl``, ``evidenceLevel`` (aggregation only, only where empty), ``mediumFeedKey`` and ``contentNeededKey`` (the videos
+    still waiting for content, for ``references capture-transcripts``) from each current Reference's address and stored capture state
+    (src/papyrus_content/reference_medium_backfill.py). Unlike the other backfills it is SAFE BY DEFAULT: without ``--write`` it prints one
     line per Reference it would change and the counts, and writes nothing. ``--dry-run`` is accepted and means the same. Run it only after the
     site's data API has the fields and the index (docs/reference-feed-indexes.md#the-medium-index).
     """

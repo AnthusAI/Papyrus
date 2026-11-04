@@ -109,6 +109,7 @@ Feature: A Reference's medium is read from its address by rule, kept in a sparse
     And it reports 2 videos, 1 aggregation and 1 playlist address to record
     When the medium backfill runs with the write flag
     Then the video is tagged "video" and listed in "knowledge-corpus-demo#video#accepted"
+    And both videos wait in the content-needed list "knowledge-corpus-demo#video#needs_content#accepted", because nothing is captured yet
     And the video with a playlist records "https://www.youtube.com/playlist?list=PLJkNSeYcYBlCaamscxip0l2LGYCZ2TIom"
     And the playlist has the evidence level "aggregation" and no medium
     And the article is not written

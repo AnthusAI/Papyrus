@@ -77,16 +77,43 @@ export function referenceMediumFeedKey(reference: ReferenceFeedKeyInput & { medi
   return `${reference.corpusId}#${reference.medium}#${status}`;
 }
 
+/** Verdicts after which no automatic attempt can capture a video: it leaves the content-needed list and stays in To capture for a person. */
+export const SETTLED_CAPTURE_REASONS: readonly string[] = ["no_transcript", "unavailable", "unsupported_platform"];
+
+/**
+ * The content-needed partition: "<corpusId>#<medium>#needs_content#<pending|accepted|rejected>" for a current, not archived Reference with a medium whose
+ * content is not captured in full (`captureState` empty, "none" or "thin"; "running" will finish by itself) and with no settled `captureReason`; null otherwise.
+ * Python twin: `content_needed_key`. The writers here use the stored medium; `papyrus references backfill-medium` fills in the rest.
+ */
+export function referenceContentNeededKey(
+  reference: ReferenceFeedKeyInput & { medium?: string | null; captureState?: string | null; captureReason?: string | null },
+): string | null {
+  const mediumKey = referenceMediumFeedKey(reference);
+  if (!mediumKey || reference.captureState === "full" || reference.captureState === "running") return null;
+  if (reference.captureReason && SETTLED_CAPTURE_REASONS.includes(reference.captureReason)) return null;
+  const [corpusId, medium, status] = mediumKey.split("#");
+  return `${corpusId}#${medium}#needs_content#${status}`;
+}
+
 /**
  * `{ mediumFeedKey }` for a vote or archive written as a patch, `{}` for a Reference that has no medium and no key, so an ordinary page's patch
- * names no new field. `changes` overrides the Reference's own values (the next `curationStatus`, the target `corpusId`).
+ * names no new field. `changes` overrides the Reference's own values (the next `curationStatus`, the target `corpusId`). A held `contentNeededKey`
+ * moves with the vote (same key, new status) or is cleared on archive; it needs no capture state (Python twin: `medium_key_patch`).
  */
 export function referenceMediumKeyPatch(
-  reference: ReferenceFeedKeyInput & { medium?: string | null; mediumFeedKey?: string | null },
+  reference: ReferenceFeedKeyInput & { medium?: string | null; mediumFeedKey?: string | null; contentNeededKey?: string | null },
   changes: Partial<ReferenceFeedKeyInput> = {},
-): { mediumFeedKey?: string | null } {
+): { mediumFeedKey?: string | null; contentNeededKey?: string | null } {
   if (!reference.medium && !reference.mediumFeedKey) return {};
-  return { mediumFeedKey: referenceMediumFeedKey({ ...reference, ...changes }) };
+  const merged = { ...reference, ...changes };
+  const patch: { mediumFeedKey?: string | null; contentNeededKey?: string | null } = { mediumFeedKey: referenceMediumFeedKey(merged) };
+  const held = reference.contentNeededKey;
+  if (held) {
+    const medium = merged.medium ?? reference.mediumFeedKey?.split("#")[1] ?? null;
+    const moved = medium ? referenceMediumFeedKey({ ...merged, medium }) : null;
+    patch.contentNeededKey = moved ? `${held.slice(0, held.lastIndexOf("#"))}#${moved.slice(moved.lastIndexOf("#") + 1)}` : null;
+  }
+  return patch;
 }
 
 export function predictionSortKeyFor(probability: number | null | undefined, arrival: string, referenceId: string): string {

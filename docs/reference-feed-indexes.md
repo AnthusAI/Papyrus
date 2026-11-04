@@ -15,6 +15,8 @@ The page's search box does not use these indexes; it asks `searchReferences` ([r
 | `predictionSortKey` | `<P to six places>#<feedArrivalAt>#<id>`. An unpredicted Reference sorts as 0.5: after every predicted Accept, before every predicted Reject. |
 | `captureState` | `full`, `thin`, `none` or `running`: how much of the Reference's content the newsroom holds; empty means `none`. Not a key and in no index. See [the capture state](reference-curation-pipeline.md#4a-referencecapturestate-whether-a-person-is-still-needed-2026-11-03). |
 | `mediumFeedKey` | `<corpusId>#<medium>#<pending\|accepted\|rejected>` while the Reference has a medium (`video`), is current and not archived. Null (so in no medium partition) otherwise. See [the medium index](#the-medium-index). |
+| `contentNeededKey` | `<corpusId>#<medium>#needs_content#<pending\|accepted\|rejected>` while a current, not archived Reference with a medium (`video`) has no captured content and no settled `captureReason`. Null otherwise. See [the content-needed index](#the-content-needed-index). |
+| `captureReason` | `no_transcript`, `unavailable` or `unsupported_platform` once the transcript worker found nothing it can capture on a video; empty otherwise. Not a key and in no index; it only keeps a settled video out of the content-needed list. |
 | `starFeedKey` | `<corpusId>#stars#<n>` while the Reference has a whole star rating of 1 to 5 and a corpus. Null (so in no star partition) when it has no stars. Not part of the feed keys above: see [the star index](#the-star-index). |
 
 The prediction is a value on the original record, written once. A later decision, a vote and a re-delivery do not rewrite it.
@@ -58,10 +60,35 @@ The newsroom does not read this index yet. The public videos block reads the hom
 
 ```bash
 papyrus references backfill-medium --site KEY                      # preview, writes nothing
-papyrus references backfill-medium --site KEY --write              # writes medium, playlistUrl, evidenceLevel (aggregation only, only where empty) and mediumFeedKey
+papyrus references backfill-medium --site KEY --write              # writes medium, playlistUrl, evidenceLevel (aggregation only, only where empty), mediumFeedKey and contentNeededKey
 ```
 
 Rollout order, with the other Reference fields: data API first (schema and index), then the engine, then the backfill, then a videos page. See [the curation pipeline](reference-curation-pipeline.md#4b-referencemedium-what-kind-of-thing-the-address-is-2026-11-04).
+
+## The content-needed index
+
+`listReferencesByContentNeededAndArrival` (partition `contentNeededKey`, sort key `feedArrivalAt`), read descending, lists the videos the newsroom holds no content for, newest first, without a scan. It exists for `papyrus references capture-transcripts` ([the transcript worker](reference-curation-pipeline.md#4d-video-transcripts-the-worker-2026-11-04)).
+
+**Why the medium index plus a filter is not enough.** `listReferencesByMediumFeedAndArrival` lists every video of a corpus and vote. A corpus can hold thousands of them, nearly all waiting for a transcript at first and captured over weeks. Reading that partition and dropping the captured ones (what `lib/capture-needed.ts` does with the star partitions for its short list) reads the whole partition on every run to find the few that matter: a scan with a filter in front of it. So the index is keyed on the one thing the worker asks for.
+
+**The key.** `<corpusId>#<medium>#needs_content#<status>`, for example `knowledge-corpus-site#video#needs_content#accepted`. It is present while the Reference is current, not archived, has a medium, its `captureState` is `none`, `thin` or empty (not `full`; a capture `running` finishes by itself), and it has no settled `captureReason`. It is removed the moment the content arrives (`captureState` becomes `full`) or the worker records that nothing can be captured. The status is in the key so that the default run reads `accepted` and `pending` and never touches the rejected videos, which are usually most of them; `--status` reads others. The medium is in the key because it costs nothing: it is already in the medium key, and another medium with a reader later needs no new index. Nothing else is general.
+
+**Not sorted by stars.** Stars change often (any vote on a star level) and the index sorts by one field, so "stars before arrival" would mean a composite sort key rewritten by every star write. Not worth it for a list read once a week: the order is newest first.
+
+**Who keeps it right.**
+
+| Writer | What it does |
+| --- | --- |
+| `catalog.reference_record`, `reference_url_text` citation stubs, accession (`feed_keys`) | A new video has no content: the key is set with the other feed keys. A page that is not a video gets no field at all |
+| `sync_capture_state` (every writer of captured text or of the curation card) | Sets and clears the key with `captureState`, and sets `captureReason` from the card's `capture.textReason` |
+| `correctReferenceCapture` with `captureReason` | The worker's record of a video it cannot capture; `sync_capture_state` takes the key out |
+| Votes (`reviewReferenceCuration`, `rateReferenceQuality`, chat, auto-accept, auto-reject), archive, retiring a citation stub | The held key moves to the new status, or is cleared on archive (`medium_key_patch`, `referenceMediumKeyPatch`); it needs no capture state, so a writer that read only part of the Reference cannot get it wrong |
+| New version, superseded version, corpus move (`records.py`, `category-action`) | The new version carries `captureState` and `captureReason` and gets its key; the old one loses it |
+| `papyrus references backfill-medium` | Sets and clears it for existing References, from the stored capture state (below) |
+
+The key functions are `content_needed_key` and `moved_content_key` (`reference_feed_keys.py`) and `referenceContentNeededKey` and `referenceMediumKeyPatch` (`lib/reference-feed-keys.ts`), tested against the shared vectors; `reference_creation_paths_test.py` covers every creating path, a vote, a supersede and a retire.
+
+**Rollout.** This is **one** new global secondary index on `Reference`, and DynamoDB allows one index change per deploy per table. The medium index ships in the release before this one, so this index must go out in a later, separate deploy: do not release the two together (the two index lines in `amplify/data/schema.ts` and `amplify/data/resource.ts` are the last commit of the pull request that added them, so they can be held back). The fields (`captureReason`, `contentNeededKey`) are plain attributes and can ship with anything; the engine tolerates a site whose data API does not have them yet (the client drops them and retries). Order, per site: (1) the deploy with the fields (no index), (2) the deploy with the index alone, (3) `papyrus references backfill-feed-keys --site KEY` if the site's capture states were never stored, then `papyrus references backfill-medium --site KEY` to preview and `--write` to set `contentNeededKey` (it reports `contentKeysSet`), (4) `papyrus references capture-transcripts` from a non-cloud connection. Until step 3 the index is empty for existing videos, and until step 2 the command says the index is not there yet.
 
 ## The Captured filter and the capture list
 
@@ -88,7 +115,7 @@ A failed read shows the error with a Retry; an empty site shows the empty messag
 | `reviewReferenceCuration` (`amplify/functions/category-action/handler.ts`) | An editor's accept or reject moves it to `#rated`; reopen moves it to `#unrated`; archive clears the key. A corpus move recomputes the keys for the new version. |
 | `records.py` supersede | A superseded version loses `feedStateKey`. It keeps its `starFeedKey`: the reader drops it by its missing feed state (the ghost-row rule, below). |
 | `setReferenceStars` (`category-action`) | Writes `starFeedKey` with the rating, clears it with the rating, and gives a Reference with no `feedArrivalAt` one. |
-| `sync_capture_state` (`reference_capture_state.py`), from `write_card` (the curation run and every editor correction) and `apply_record_changes` (older extracted text); `_feed_keys_for_new_version` carries it | Keeps `captureState` right; writes only when it differs, and never writes `none`. |
+| `sync_capture_state` (`reference_capture_state.py`), from `write_card` (the curation run and every editor correction) and `apply_record_changes` (older extracted text); `_feed_keys_for_new_version` carries it | Keeps `captureState` right (and, for a video, `captureReason` and `contentNeededKey`); writes only when it differs, and never writes `none`. |
 
 The key functions live in `src/papyrus_content/reference_feed_keys.py` and `lib/reference-feed-keys.ts`; `scripts/fixtures/reference-feed-key-vectors.json` holds the vectors both test.
 

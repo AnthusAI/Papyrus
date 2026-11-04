@@ -28,6 +28,7 @@ query GetReference($id: ID!) {
     versionState
     curationStatus
     newsroomFeedKey
+    contentNeededKey
   }
 }
 """

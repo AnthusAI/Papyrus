@@ -83,6 +83,8 @@ EXCLUDED_REFERENCE_FIELDS = {
     "starFeedKey": PLUMBING,
     "captureState": PLUMBING,
     "mediumFeedKey": PLUMBING,
+    "contentNeededKey": PLUMBING,
+    "captureReason": PLUMBING,
     "evidenceLevel": "editorial classification: not shown to readers yet (the decision model will write it, PPY-f8ff49)",
     "playlistUrl": "plumbing: the playlist a video address also names, kept for following it later (PPY-566e82)",
     "versionState": PLUMBING + " (only current versions are read)",

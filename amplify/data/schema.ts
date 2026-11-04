@@ -1862,6 +1862,13 @@ const definitions = {
       // "<corpusId>#<medium>#<pending|accepted|rejected>" for a current, not archived Reference that has a medium (null otherwise): the partition a
       // public videos page reads as "<corpusId>#video#accepted", newest first by `feedArrivalAt`. Sparse. Same corpus-per-site isolation as feedStateKey.
       mediumFeedKey: a.string(),
+      // Why no automatic attempt can capture this Reference's content: "no_transcript", "unavailable" or "unsupported_platform" (a video; recorded by
+      // `papyrus references capture-transcripts` through the capture action), else empty. It stays in the To capture queue for a person.
+      captureReason: a.string(),
+      // "<corpusId>#<medium>#needs_content#<pending|accepted|rejected>" while a current, not archived Reference with a medium has no captured content
+      // (`captureState` not "full" or "running") and no `captureReason` (null otherwise): the partition the transcript worker reads as
+      // "<corpusId>#video#needs_content#accepted", newest first by `feedArrivalAt`. Sparse: removed when the content arrives.
+      contentNeededKey: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [
@@ -1879,6 +1886,7 @@ const definitions = {
       index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival"),
       index("starFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByStarFeedAndArrival"),
       index("mediumFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByMediumFeedAndArrival"),
+      index("contentNeededKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByContentNeededAndArrival"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),

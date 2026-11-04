@@ -239,6 +239,7 @@ def apply_editor_correction(
     store: AttachmentStore | None = None,
     text_source: dict[str, Any] | None = None,
     paper: dict[str, Any] | None = None,
+    capture_reason: str | None = None,
 ) -> dict[str, Any]:
     """Store an editor's correction as a new version, keep the original, and record the label it gives.
 
@@ -247,13 +248,25 @@ def apply_editor_correction(
     ``incorrect``; it is required with ``text`` because replacing the text is itself a judgment of the capture, and it is the training
     label for the future completeness classifier. A correction appends to ``edits`` and ``labels``; it never edits or deletes an earlier
     body. ``text_source`` says where ``text`` came from when it was not typed (an uploaded PDF: ``via`` and the attachment id); it is
-    kept on the edit and as ``current.textVia``. ``paper`` is the paper detection for that text and replaces the card's. The summary of replaced text is marked ``stale`` and is rewritten by the next ``papyrus references curate`` run.
+    kept on the edit and as ``current.textVia``. ``capture_reason`` (``no_transcript``, ``unavailable`` or ``unsupported_platform``, a video only, never with ``text``) records that a person
+    or the transcript worker tried and nothing can be captured automatically; it goes on the card's capture as ``textReason`` and takes the Reference
+    out of the transcript worker's list (``sync_capture_state``). ``paper`` is the paper detection for that text and replaces the card's. The summary of replaced text is marked ``stale`` and is rewritten by the next ``papyrus references curate`` run.
     """
     editor = (editor or "").strip()
     if not editor:
         raise CurationError("A correction needs the editor who made it.")
-    if text is None and grobid is None and assessment is None:
+    if text is None and grobid is None and assessment is None and capture_reason is None:
         raise CurationError("Provide corrected text, corrected GROBID fields or an assessment of the capture.")
+    if capture_reason is not None:
+        from .reference_capture_state import SETTLED_CAPTURE_REASONS
+        from .reference_medium import medium_of
+
+        if capture_reason not in SETTLED_CAPTURE_REASONS:
+            raise CurationError(f"captureReason must be one of {', '.join(SETTLED_CAPTURE_REASONS)}.")
+        if text is not None:
+            raise CurationError("Send either the text or a reason it cannot be captured, not both.")
+        if medium_of(reference.get("sourceUri")) != "video":
+            raise CurationError("A reason for a missing transcript can only be recorded on a video.")
     if assessment is not None and assessment not in ASSESSMENTS:
         raise CurationError(f"assessment must be one of {', '.join(ASSESSMENTS)}.")
     if text is not None and (not isinstance(text, str) or not text.strip()):
@@ -316,6 +329,10 @@ def apply_editor_correction(
             "originalSourceKind": capture.get("sourceKind"), "originalTextSortKey": TEXT_SORT_KEY if original_text_sha else None,
             "originalTextSha256": original_text_sha, "originalSignals": card.get("signals") or {},
             "originalPaper": (card.get("paper") or {}).get("isPaper"), "editSortKeys": [edit["sortKey"] for edit in made]})
+    if capture_reason is not None:
+        capture = dict(card.get("capture") or {})
+        capture.update(textReason=capture_reason, textReasonBy=editor, textReasonAt=stamp)
+        card["capture"] = capture
     card["edits"].extend(made)
     card["status"] = compute_status(card)
     write_card(client, reference, card, now)
@@ -338,10 +355,11 @@ def correct_reference_capture(client: Any, arguments: dict[str, Any], identity: 
     """The AppSync action ``correctReferenceCapture`` (content-actions Lambda): validated request in, stored correction out.
 
     ``arguments`` holds ``referenceId`` and any of ``text``, ``grobid`` (object), ``assessment``, ``note``, or ``pdfAttachmentId`` (the
-    id of a PDF the editor uploaded to this Reference; its text replaces the capture's, instead of ``text``). The editor recorded is the
+    id of a PDF the editor uploaded to this Reference; its text replaces the capture's, instead of ``text``) or ``captureReason``
+    (``no_transcript``, ``unavailable`` or ``unsupported_platform``: the transcript worker found nothing to capture on this video). The editor recorded is the
     signed-in caller (never a field of the request).
     """
-    if set(arguments) - {"referenceId", "text", "grobid", "assessment", "note", "pdfAttachmentId"}:
+    if set(arguments) - {"referenceId", "text", "grobid", "assessment", "note", "pdfAttachmentId", "captureReason"}:
         raise CurationError("Unsupported correction fields; the editor is taken from the signed-in session.")
     reference_id = arguments.get("referenceId")
     if not isinstance(reference_id, str) or not _REFERENCE_ID.match(reference_id):
@@ -363,5 +381,5 @@ def correct_reference_capture(client: Any, arguments: dict[str, Any], identity: 
         paper = detect_paper(str(reference.get("sourceUri") or ""), None, text=text)
     result = apply_editor_correction(client, reference, editor=editor, text=text, grobid=arguments.get("grobid"),
                                      assessment=arguments.get("assessment"), note=note, now=now(), store=store,
-                                     text_source=text_source, paper=paper)
+                                     text_source=text_source, paper=paper, capture_reason=arguments.get("captureReason"))
     return {"ok": True, **result}

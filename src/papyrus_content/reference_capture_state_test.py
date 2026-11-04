@@ -56,3 +56,52 @@ def test_sync_does_not_read_attachments_when_the_card_holds_text():
     client = FakeClient()
     assert sync_capture_state(client, {"id": "r"}, card) == "full"
     assert client.listed == 0
+
+
+# --- a video waiting for its transcript: the capture reason and the sparse content-needed key ------------------------------------------------
+
+
+def _video(**extra):
+    return {"id": "r", "lineageId": "l", "corpusId": "c", "versionState": "current", "curationStatus": "accepted", "medium": "video", **extra}
+
+
+def _card(reason=None, edited=False):
+    capture = {"status": "completed", "wordCount": 900, "textSortKey": "curation-text", **({"textReason": reason} if reason else {})}
+    return {"kind": "reference-curation", "status": "degraded", "capture": capture, "signals": {"wordCount": 900}, "labels": [],
+            "current": {"textSortKey": "curation-edit-0001-text" if edited else "curation-text"}}
+
+
+def test_a_video_captured_from_its_page_is_thin_and_in_the_content_needed_list():
+    client, reference = FakeClient(), _video()
+    assert sync_capture_state(client, reference, _card("awaiting_transcript")) == "thin"
+    assert client.updates == [("Reference", {"id": "r", "captureState": "thin", "contentNeededKey": "c#video#needs_content#accepted"})]
+
+
+def test_the_transcript_a_person_or_the_worker_saved_makes_it_full_and_removes_the_key():
+    client = FakeClient()
+    reference = _video(captureState="thin", contentNeededKey="c#video#needs_content#accepted")
+    assert sync_capture_state(client, reference, _card("awaiting_transcript", edited=True)) == "full"
+    assert client.updates == [("Reference", {"id": "r", "captureState": "full", "contentNeededKey": None})]
+    assert sync_capture_state(client, reference, _card("awaiting_transcript", edited=True)) is None   # nothing more to write
+
+
+def test_a_settled_reason_keeps_the_video_thin_records_the_reason_and_takes_it_out_of_the_list():
+    client = FakeClient()
+    reference = _video(captureState="thin", contentNeededKey="c#video#needs_content#accepted")
+    assert sync_capture_state(client, reference, _card("no_transcript")) is None   # the state itself did not change
+    assert client.updates == [("Reference", {"id": "r", "captureReason": "no_transcript", "contentNeededKey": None})]
+    assert reference["captureReason"] == "no_transcript"
+    assert sync_capture_state(client, reference, _card("no_transcript")) is None and len(client.updates) == 1
+
+
+def test_text_supplied_after_a_settled_reason_clears_the_reason():
+    client = FakeClient()
+    reference = _video(captureState="thin", captureReason="no_transcript")
+    sync_capture_state(client, reference, _card("no_transcript", edited=True))
+    assert client.updates == [("Reference", {"id": "r", "captureState": "full", "captureReason": None})]
+
+
+def test_an_ordinary_page_never_gets_either_field():
+    client = FakeClient()
+    sync_capture_state(client, {"id": "r", "corpusId": "c", "curationStatus": "accepted", "sourceUri": "https://example.org/a"}, _card())
+    assert client.updates == [("Reference", {"id": "r", "captureState": "full"})]

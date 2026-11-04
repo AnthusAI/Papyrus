@@ -985,6 +985,7 @@ def _reference_feed_patch(record: dict[str, Any], created_at: str) -> dict[str, 
         return {}
     keys = feed_keys({**record, "createdAt": created_at})
     keys.pop("mediumFeedKey", None)   # the medium key belongs to `papyrus references backfill-medium`, which writes it with the medium
+    keys.pop("contentNeededKey", None)   # and so does the content-needed key (kept right afterwards by sync_capture_state)
     return keys
 
 
