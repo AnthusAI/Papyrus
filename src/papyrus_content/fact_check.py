@@ -22,9 +22,27 @@ from urllib.parse import urlparse
 
 CONTRACT = "fact-check/v1"
 
-VERIFIED, NEEDS_CHECK, REJECTED, UNCHECKED = "verified", "needs_check", "rejected", "unchecked"
-SUPPORTED, PARTLY_SUPPORTED, NOT_SUPPORTED, SOURCE_SILENT = "supported", "partly_supported", "not_supported", "source_silent"
-JUDGE_VERDICTS = (SUPPORTED, PARTLY_SUPPORTED, NOT_SUPPORTED, SOURCE_SILENT)
+VERIFIED, NEEDS_CHECK, CONTRADICTED, NOT_SHOWN, UNCHECKED = "verified", "needs_check", "contradicted", "not_shown", "unchecked"
+#: The held groups in the order readers show them, each with its heading. ``not_shown`` is not "false": the sources the run had did not show the claim, and a
+#: person could still find it true. Only ``contradicted`` says a source states otherwise.
+HELD_GROUPS = (
+    (CONTRADICTED, "Contradicted by its sources"),
+    (NOT_SHOWN, "Not shown by the sources this run had (it may still be true)"),
+    (NEEDS_CHECK, "Needs a check (partly supported, or the attribution is unclear)"),
+    (UNCHECKED, "Unchecked (the check could not run)"),
+)
+
+
+def held_group(verdict: Any) -> str:
+    """The group of a held claim's verdict. A packet made before ``contradicted`` and ``not_shown`` existed says ``rejected`` (or nothing) for both, so it is ``not_shown``."""
+    return verdict if verdict in (CONTRADICTED, NEEDS_CHECK, UNCHECKED) else NOT_SHOWN
+
+
+#: Packets made before PPY-4b8e46 used one ``rejected`` verdict for both failures below. It cannot be told apart afterwards, so every reader treats it as ``not_shown``.
+REJECTED = "rejected"
+HELD_AS_NOT_SHOWN = (NOT_SHOWN, REJECTED)
+SUPPORTED, PARTLY_SUPPORTED, NOT_SUPPORTED, SOURCE_SILENT, JUDGE_CONTRADICTED = "supported", "partly_supported", "not_supported", "source_silent", "contradicted"
+JUDGE_VERDICTS = (SUPPORTED, PARTLY_SUPPORTED, NOT_SUPPORTED, SOURCE_SILENT, JUDGE_CONTRADICTED)
 
 # The judge's answer on the same claim and text changes between runs: on 2026-11-03, 4 of 28 real claims changed verdict across three replays,
 # one of them an allegation stated as fact. A claim is verified only if every pass agrees, so one doubt is enough to stop it.
@@ -312,16 +330,71 @@ def literal_check(claim: str, texts: Sequence[str], hosts: Sequence[str] = (), *
 
 # --- the editor's direction --------------------------------------------------------------------------------------------------------
 
+#: What an editor says to leave out ("do not rely on Bob and Alice", "ignore the vendor blog", "other than the 2019 report"). The names after the cue, to the end
+#: of the clause, are not subjects the packet must cover.
+_EXCLUSION_CUE = re.compile(
+    r"\b(?:(?:do not|don't|dont|does not|doesn't|should not|shouldn't|must not|never|not to|no need to)\s+(?:rely on|relying on|use|using|cite|citing|cover|include|trust|depend on)"
+    r"|ignore|ignoring|avoid|avoiding|exclude|excluding|skip|skipping|except|other than|rather than|instead of|without|not about)\b", re.IGNORECASE)
+_CLAUSE_END = re.compile(r"[.!?;\n]|,\s*(?:and|but|so)\s+(?-i:(?=[a-z]))|\b(?:but|however|instead|then|although|though)\b", re.IGNORECASE)
+_NAME_WORD = r"[A-Z][\w\-]*"
+#: A name that labels material ("the Gemini documents are leads") rather than a subject to cover.
+_LABELS_MATERIAL = re.compile(rf"\b(?:{_NAME_WORD}\s+){{0,2}}{_NAME_WORD}\s+(?:documents?|docs?|links?|pages?|files?|slides|materials?)\b")
+#: A venue: a name before a venue word ("the ICML workshop"), an acronym with two or more capitals before the work it published ("NeurIPS papers"), or after
+#: "published at" and the like. A person's name has one capital per word, so "Smith papers" stays a subject.
+_VENUE_WORD = re.compile(rf"\b(?:{_NAME_WORD}\s+){{0,2}}{_NAME_WORD}\s+(?:conferences?|workshops?|symposi(?:um|a)|proceedings|journals?|tracks?)\b")
+_ACRONYM_WORK = re.compile(r"\b(?:[A-Z][a-z]*){1,}(?=\s+(?:papers?|articles?|talks?|posts?|work|submissions?)\b)")
+_PUBLISHED_AT = re.compile(r"\b(?:published|presented|accepted|appeared|appearing|papers?|talks?|work)\s+(?:at|in)\s+(?:the\s+)?([A-Z]\w*)")
+
+
+def _capitals(word: str) -> int:
+    return sum(character.isupper() for character in word)
+
+
+def subjects_text(direction: str) -> str:
+    """The editor's direction with what is not a subject to cover blanked out: the names after an exclusion cue, a name that only labels material, and venues.
+    A simple reading of the text, with no list of sites or names; what it misses stays a gap an editor can ignore, and what it blanks wrongly is the cost
+    (docs/fact-checking.md, "Direction coverage")."""
+    text = str(direction or "")
+    blanks: list[tuple[int, int]] = []
+    for cue in _EXCLUSION_CUE.finditer(text):
+        end = _CLAUSE_END.search(text, cue.end())
+        blanks.append((cue.end(), end.start() if end else len(text)))
+    for pattern in (_LABELS_MATERIAL, _VENUE_WORD):
+        for match in pattern.finditer(text):
+            blanks.append((match.start(), match.end()))
+    for match in _ACRONYM_WORK.finditer(text):
+        if _capitals(match.group(0)) >= 2:
+            blanks.append((match.start(), match.end()))
+    for match in _PUBLISHED_AT.finditer(text):
+        if _capitals(match.group(1)) >= 2:
+            blanks.append((match.start(1), match.end(1)))
+    chars = list(text)
+    for first, last in blanks:
+        for position in range(first, last):
+            chars[position] = " "
+    return "".join(chars)
+
+
+def _without_leading_articles(run: list[str]) -> list[str]:
+    """``The Gemini`` is the name ``Gemini``: a capitalized article or generic word before a longer name is not part of it."""
+    words = list(run)
+    while len(words) > 1 and (fold(words[0]) in GENERIC_WORDS or fold(words[0]) in NAME_CONNECTORS):
+        words.pop(0)
+    return words
+
+
 def direction_gaps(direction: str, covered_texts: Sequence[str], source_texts: Sequence[str]) -> list[dict[str, Any]]:
-    """The names an editor's direction asks about that the finished packet says nothing on: ``[{"name", "inSources", "note"}]``. A name is the same extraction as the
-    literal check uses (``name_runs``; a lone word that opens a sentence is an ordinary word, not a name). It is covered when its last word (a person's surname)
+    """The names an editor's direction asks about that the finished packet says nothing on: ``[{"name", "inSources", "note"}]``. A name is the same extraction as
+    the literal check uses (``name_runs``; a lone word that opens a sentence is an ordinary word, not a name), taken from ``subjects_text``, so a name the editor
+    excluded ("do not rely on ...") or that only labels material or a venue is not asked about. It is covered when its last word (a person's surname)
     appears in ``covered_texts``: the verified and unverified claims, the disagreements and the open questions. ``inSources`` says whether the sources' text has it."""
     lone: list[list[str]] = []
     covered = SourceText(covered_texts)
     sources = SourceText(source_texts)
     gaps: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for run in name_runs(direction, lone):
+    for run in name_runs(subjects_text(direction), lone):
+        run = _without_leading_articles(run)
         words = [word for word in run if fold(word) not in NAME_CONNECTORS]
         name = " ".join(run)
         key = fold(words[-1]) if words else ""
@@ -370,10 +443,11 @@ Some statements say what a source does not say or does not establish ("the accou
 "verdict":
 - "supported": the sources say what the statement says, including every name, number, place and date in it, and every part has a quote or is a statement of what the source does not say.
 - "partly_supported": the sources support some parts of the statement but not all of them, or say something close but different.
-- "not_supported": the sources say something that contradicts the statement, or the statement adds a name, number, place, date or fact the sources do not give.
+- "contradicted": a passage in the sources says the opposite of the statement, or something that cannot be true together with it. Use this only when you can quote that passage. A statement that merely goes beyond the sources is not contradicted.
+- "not_supported": the sources do not contradict the statement, but they do not show it either: the statement adds a name, number, place, date or fact the sources do not give.
 - "source_silent": the sources do not address the statement.
 
-"quotes": for "supported" and "partly_supported", a list with one passage per part of the statement that the sources support, each copied exactly, word for word, from one source's text. Never paraphrase. Never join passages in one quote: where two places support one part, give two quotes. An ellipsis inside a quote marks a skipped stretch, and each side of it must be exact. Empty for the other verdicts.
+"quotes": for "supported" and "partly_supported", a list with one passage per part of the statement that the sources support; for "contradicted", the passage that contradicts it. Each is copied exactly, word for word, from one source's text. Never paraphrase. Never join passages in one quote: where two places support one part, give two quotes. An ellipsis inside a quote marks a skipped stretch, and each side of it must be exact. Empty for "not_supported" and "source_silent".
 "claim_is_only_about_source_limits": true only when the whole statement says what the sources do not say or establish, so no quote is possible.
 "explanation": one plain sentence saying why, for the person checking your work.
 "attribution_lost": true if the sources only attribute what the statement says to a party (an allegation in a complaint, a claim in a press release, what someone says or argues) and the statement presents it as established fact, or attributes it to a different party than the source does. False when the statement keeps the attribution correctly or the sources themselves state it as fact."""
@@ -415,7 +489,9 @@ def quote_pieces(quote: str) -> list[str]:
 
 def _judgement(raw: Mapping[str, Any], cited_texts: Sequence[str]) -> dict[str, Any]:
     """The judge's answer, with every quote (and every piece of a quote with an ellipsis) looked for in the cited text. Raises ``ValueError`` for an
-    answer that is not a verdict. A supported or partly supported answer needs at least one quote unless the claim is only about what the source lacks."""
+    answer that is not a verdict. A supported or partly supported answer needs at least one quote unless the claim is only about what the source lacks, and a
+    ``contradicted`` answer needs the quote of the contradicting passage: without it the answer is only ``not_supported`` (the evidence did not show the claim),
+    because calling a claim contradicted is the stronger thing to say."""
     if not isinstance(raw, Mapping) or raw.get("verdict") not in JUDGE_VERDICTS:
         raise ValueError("the judge did not answer with a verdict")
     verdict = str(raw["verdict"])
@@ -426,7 +502,7 @@ def _judgement(raw: Mapping[str, Any], cited_texts: Sequence[str]) -> dict[str, 
     source = SourceText(cited_texts)
     checked = [{"text": quote, "verified": bool(quote_pieces(quote)) and all(source.has_phrase(piece) for piece in quote_pieces(quote))} for quote in quotes]
     verified: bool | None = None
-    if checked or verdict in (SUPPORTED, PARTLY_SUPPORTED):
+    if checked or verdict in (SUPPORTED, PARTLY_SUPPORTED, JUDGE_CONTRADICTED):
         verified = all(row["verified"] for row in checked) and (bool(checked) or (limits_only and verdict == SUPPORTED))
         if not verified:
             verdict = NOT_SUPPORTED
@@ -446,7 +522,7 @@ def _claim_entry(claim: Mapping[str, Any], sources: Mapping[str, str], urls: Map
     cited_texts = {source_id: str(sources.get(source_id) or "") for source_id in cited}
     hosts = [host for host in ((urlparse(urls.get(source_id) or "").hostname or "") for source_id in cited) if host]
     unmatched = literal_check(text, list(cited_texts.values()), hosts)
-    entry = {"claim": text, "sources": cited, "verdict": REJECTED, "literal": {"unmatched": unmatched}, "judge": None, "reasons": [],
+    entry = {"claim": text, "sources": cited, "verdict": NOT_SHOWN, "literal": {"unmatched": unmatched}, "judge": None, "reasons": [],
              "sourceStrength": source_strength(cited, urls)}
     return entry, [t for t in cited_texts.values()], text
 
@@ -456,8 +532,9 @@ def check_claims(claims: Sequence[Mapping[str, Any]], sources: Mapping[str, str]
     """Check each claim (``{"claim", "sources": [source ids]}``) against ``sources`` (source id to its text: for research the title, snippets and page text, because that
     is all the writer was told to use). ``urls`` maps source ids to their URLs for the source-strength count and, with ``titles``, labels each source for the judge; without it an id that is a URL counts as one.
 
-    Returns ``{"contract", "counts", "claims", "sourceLoad"}``. Each claim carries ``verdict`` (verified, needs_check, rejected, unchecked), ``literal.unmatched``,
-    ``judge`` (None when none was asked), ``reasons`` and ``sourceStrength``. Nothing here raises for a claim: a judge that fails makes that claim ``unchecked``."""
+    Returns ``{"contract", "counts", "claims", "sourceLoad"}``. Each claim carries ``verdict`` (verified, needs_check, contradicted, not_shown, unchecked), ``literal.unmatched``,
+    ``judge`` (None when none was asked), ``reasons`` and ``sourceStrength``. ``contradicted`` means a quoted passage of the sources says otherwise; ``not_shown``
+    covers every other hard failure (a name, number or quotation the sources lack, a judge that found the sources silent or short of the claim, a missing quote). Nothing here raises for a claim: a judge that fails makes that claim ``unchecked``."""
     urls, titles = urls or {}, titles or {}
     prepared = [_claim_entry(claim, sources, urls) for claim in claims]
 
@@ -498,9 +575,10 @@ def check_claims(claims: Sequence[Mapping[str, Any]], sources: Mapping[str, str]
                 reasons.append(f"judge_{judgement['verdict']}")
             if judgement["attributionLost"]:
                 reasons.append(ATTRIBUTION_LOST)
-        hard = bool(unmatched) or NO_CITED_TEXT in reasons or (judgement is not None and judgement["verdict"] in (NOT_SUPPORTED, SOURCE_SILENT))
+        contradicted = judgement is not None and judgement["verdict"] == JUDGE_CONTRADICTED
+        hard = bool(unmatched) or NO_CITED_TEXT in reasons or (judgement is not None and judgement["verdict"] in (NOT_SUPPORTED, SOURCE_SILENT, JUDGE_CONTRADICTED))
         if hard:
-            entry["verdict"] = REJECTED
+            entry["verdict"] = CONTRADICTED if contradicted else NOT_SHOWN
         elif reasons:
             entry["verdict"] = NEEDS_CHECK
         elif judge is None:
@@ -509,7 +587,7 @@ def check_claims(claims: Sequence[Mapping[str, Any]], sources: Mapping[str, str]
             entry["verdict"], reasons = UNCHECKED, [f"{JUDGE_FAILED}: {failure}"]
         else:
             entry["verdict"] = VERIFIED
-        if failure is not None and entry["verdict"] == REJECTED:
+        if failure is not None and entry["verdict"] in (NOT_SHOWN, CONTRADICTED):
             reasons.append(f"{JUDGE_FAILED}: {failure}")
         entry["reasons"] = reasons
         results.append(entry)
@@ -519,7 +597,8 @@ def check_claims(claims: Sequence[Mapping[str, Any]], sources: Mapping[str, str]
 
 def counts_of(results: Sequence[Mapping[str, Any]]) -> dict[str, int]:
     return {"total": len(results), VERIFIED: sum(r["verdict"] == VERIFIED for r in results), NEEDS_CHECK: sum(r["verdict"] == NEEDS_CHECK for r in results),
-            REJECTED: sum(r["verdict"] == REJECTED for r in results), UNCHECKED: sum(r["verdict"] == UNCHECKED for r in results), "singleSource": sum(bool(r["sourceStrength"]["singleSource"]) for r in results)}
+            CONTRADICTED: sum(r["verdict"] == CONTRADICTED for r in results),
+            NOT_SHOWN: sum(r["verdict"] in HELD_AS_NOT_SHOWN for r in results), UNCHECKED: sum(r["verdict"] == UNCHECKED for r in results), "singleSource": sum(bool(r["sourceStrength"]["singleSource"]) for r in results)}
 
 
 def source_load(results: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:

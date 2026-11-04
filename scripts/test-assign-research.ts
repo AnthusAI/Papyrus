@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { assignmentStateView, buildResearchAssignmentPlan, directionProblem } from "../lib/assign-research";
-import { factCheckSentence, plainReason, readingSentence, researchPacketOf } from "../lib/research-packet";
+import { HELD_GROUP_ORDER, HELD_GROUP_TEXT, factCheckSentence, heldGroup, plainReason, readingSentence, researchPacketOf, verdictLabel } from "../lib/research-packet";
 import { failureReasonOf, isResearchAssignment } from "../lib/story-reporting-trail";
 
 export const BROWSER_PLAN_INPUT = {
@@ -96,11 +96,15 @@ test("unverifiedClaims and factCheck are shown when present and the packet reads
   const view = researchPacketOf({ ...packet, unverifiedClaims: [
     { claim: "It won an award.", verdict: "needs_check", sources: [1], reasons: ["judge_partly_supported"] },
     { claim: "Rodney signed it.", verdict: "rejected", sources: [2], reasons: ["unmatched_terms: Rodney"] },
+    { claim: "It shipped in May.", verdict: "contradicted", sources: [1], reasons: ["judge_contradicted"] },
+    { claim: "It cost a lot.", verdict: "not_shown", sources: [1], reasons: ["judge_not_supported"] },
     { claim: "Old shape.", sources: [1], reasons: ["Only the maker says so."] }, { reasons: ["no claim"] }], factCheck: { summary: "One claim could not be verified." } });
   assert.ok(view);
   assert.deepEqual(view.unverifiedClaims.map(item => [item.claim, item.verdict, item.reasons, item.sources.length]), [
     ["It won an award.", "needs_check", ["The source only partly supports this"], 1],
     ["Rodney signed it.", "rejected", ["Not in the cited source: Rodney"], 1],
+    ["It shipped in May.", "contradicted", ["A source says otherwise"], 1],
+    ["It cost a lot.", "not_shown", ["The sources this run had do not show this"], 1],
     ["Old shape.", null, ["Only the maker says so."], 1]]);
   assert.equal(view.factCheckSummary, "One claim could not be verified.");
 });
@@ -115,6 +119,14 @@ test("the names a direction asked about and the run did not cover are listed, an
   assert.deepEqual(researchPacketOf(packet)?.directionGaps, []);
 });
 
+test("held claims are grouped, a stored rejected reads as not shown, and not shown is not worded as false", () => {
+  assert.deepEqual((["contradicted", "not_shown", "rejected", "needs_check", "unchecked", null] as const).map(heldGroup), ["contradicted", "not_shown", "not_shown", "needs_check", "unchecked", "needs_check"]);
+  assert.deepEqual((["contradicted", "not_shown", "rejected", "needs_check", "unchecked"] as const).map(verdictLabel), ["Contradicted", "Not shown", "Not shown", "Needs a check", "Not checked"]);
+  assert.ok(!Object.values(HELD_GROUP_TEXT).some(text => /reject/i.test(text.heading)));
+  assert.match(HELD_GROUP_TEXT.not_shown.note ?? "", /does not mean they are false/);
+  assert.deepEqual(HELD_GROUP_ORDER, ["contradicted", "not_shown", "needs_check", "unchecked"]);
+});
+
 test("something that is not a packet reads as none", () => {
   assert.equal(researchPacketOf(null), null);
   assert.equal(researchPacketOf({ claims: [] }), null);
@@ -122,7 +134,8 @@ test("something that is not a packet reads as none", () => {
 });
 
 test("the fact check sentence is made from the counts", () => {
-  assert.equal(factCheckSentence({ verified: 12, needs_check: 8, rejected: 8, unchecked: 0, total: 28, singleSource: 23 }), "12 verified, 8 need a check, 8 rejected; 23 rest on one site");
+  assert.equal(factCheckSentence({ verified: 12, needs_check: 8, contradicted: 2, not_shown: 6, unchecked: 0, total: 28, singleSource: 23 }), "12 verified, 8 need a check, 2 contradicted, 6 not shown by the sources; 23 rest on one site");
+  assert.equal(factCheckSentence({ verified: 12, needs_check: 8, rejected: 8, unchecked: 0, total: 28, singleSource: 23 }), "12 verified, 8 need a check, 8 not shown by the sources; 23 rest on one site");
   assert.equal(factCheckSentence({ verified: 3, unchecked: 2, singleSource: 0 }), "3 verified, 2 not checked");
   const view = researchPacketOf({ ...packet, factCheck: { counts: { verified: 1, needs_check: 1, rejected: 0, unchecked: 0, total: 2, singleSource: 1 } } });
   assert.equal(view?.factCheckSummary, "1 verified, 1 need a check; 1 rest on one site");

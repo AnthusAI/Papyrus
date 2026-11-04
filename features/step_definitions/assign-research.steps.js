@@ -109,11 +109,16 @@ Then("the packet should list {string} with a claim and its reasons", async funct
   assert.match(await section.innerText(), /The source only partly supports this/);
 });
 
-Then("each unverified claim should be labelled {string}, {string} or {string} with an icon, and its reasons in plain words", async function (first, second, third) {
+Then("each unverified claim should be labelled {string}, {string}, {string} or {string} with an icon, in groups, and its reasons in plain words", async function (first, second, third, fourth) {
   const labels = await packet(this).locator("[data-research-verdict]").allInnerTexts();
-  assert.deepEqual(labels.map((label) => label.trim().toLowerCase()), [first, second, third].map((label) => label.toLowerCase()));
-  assert.equal(await packet(this).locator("[data-research-verdict] svg").count(), 3);
-  assert.match(await packet(this).locator("[data-research-unverified]").innerText(), /Not in the cited source: Rodney/);
+  assert.deepEqual(labels.map((label) => label.trim().toLowerCase()), [first, second, third, fourth].map((label) => label.toLowerCase()));
+  assert.equal(await packet(this).locator("[data-research-verdict] svg").count(), 4);
+  assert.deepEqual(await packet(this).locator("[data-research-held-group]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-research-held-group"))), ["contradicted", "not_shown", "needs_check", "unchecked"]);
+  const text = await packet(this).locator("[data-research-unverified]").innerText();
+  assert.match(text, /Not in the cited source: Rodney/);
+  assert.match(text, /Not shown by the sources this run had/i);
+  assert.match(text, /does not mean they are false/);
+  assert.doesNotMatch(text, /rejected/i);
 });
 
 Then("the fact check line should read {string}", async function (sentence) {

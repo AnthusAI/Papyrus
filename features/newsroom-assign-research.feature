@@ -5,7 +5,7 @@ Feature: An editor assigns research from the Story page and sees it through to a
   assignment as the papyrus stories assign-research command, which a worker runs without anyone at a terminal. An empty direction is refused in words before
   anything is written. The Work section then shows each research assignment with the editor's direction, its state in words and with an icon (waiting, running,
   finished or failed with the reason), when it was made and, once finished, its packet: the summary, the recommended angle, each claim with links to the sources it
-  cites, where the sources disagree, the open questions and a "Could not verify" list when the packet has one, each entry labelled Needs a check, Rejected or Not checked in words and with an icon, with its reasons in plain words, and a fact check line made from the counts. The box has no visible label and no outline, even when it has focus. The packet is read from the assignment and never
+  cites, where the sources disagree, the open questions and a "Could not verify" list when the packet has one, each entry labelled Contradicted, Not shown, Needs a check or Not checked in words and with an icon, in groups ("Not shown" is not "false": it means the sources the run had did not show the claim), with its reasons in plain words, and a fact check line made from the counts. The box has no visible label and no outline, even when it has focus. The packet is read from the assignment and never
   added to a message thread. These scenarios run in demo mode with in-memory data, where no worker runs, so a new assignment stays waiting.
 
   Scenario: The box is there and is a text area and one button
@@ -53,8 +53,8 @@ Feature: An editor assigns research from the Story page and sees it through to a
     And its claims should link to the sources they cite
     And the packet should list where the sources disagree and the open questions
     And the packet should list "Could not verify" with a claim and its reasons
-    And each unverified claim should be labelled "Needs a check", "Rejected" or "Not checked" with an icon, and its reasons in plain words
-    And the fact check line should read "12 verified, 8 need a check, 8 rejected; 23 rest on one site"
+    And each unverified claim should be labelled "Contradicted", "Not shown", "Needs a check" or "Not checked" with an icon, in groups, and its reasons in plain words
+    And the fact check line should read "12 verified, 8 need a check, 2 contradicted, 6 not shown by the sources; 23 rest on one site"
 
   Scenario: The Messages view does not scroll sideways on a phone
     Given I open the demo story that is based on a Reference at 390 by 844

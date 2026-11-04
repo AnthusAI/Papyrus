@@ -10,7 +10,9 @@
 export type PacketSource = { rank: number; url: string; title: string; domain: string | null };
 export type PacketClaim = { claim: string; sources: PacketSource[]; snippetOnly?: boolean };
 export type PacketDisagreement = { topic: string; positions: { position: string; sources: PacketSource[] }[] };
-export type ClaimVerdict = "needs_check" | "rejected" | "unchecked";
+/** `rejected` is what packets made before the check told "contradicted" from "not shown" say; it reads as `not_shown`. */
+export type ClaimVerdict = "needs_check" | "contradicted" | "not_shown" | "rejected" | "unchecked";
+export type HeldGroup = "contradicted" | "not_shown" | "needs_check" | "unchecked";
 export type PacketUnverifiedClaim = { claim: string; sources: PacketSource[]; verdict: ClaimVerdict | null; reasons: string[] };
 
 /** A machine reason from the fact check (`fact_check.py`), in plain words. A reason it does not know is shown as it is. */
@@ -20,7 +22,8 @@ export function plainReason(reason: string): string {
   if (/^judge_failed\b/.test(reason)) return /short of time/.test(reason) ? "The run ran short of time before this claim was checked" : "The second check could not run";
   const known: Record<string, string> = {
     judge_partly_supported: "The source only partly supports this",
-    judge_not_supported: "The source does not support this",
+    judge_contradicted: "A source says otherwise",
+    judge_not_supported: "The sources this run had do not show this",
     judge_source_silent: "The source does not say this",
     quote_not_in_source: "The quotation is not in the source",
     attribution_lost: "The claim drops who said it",
@@ -30,17 +33,34 @@ export function plainReason(reason: string): string {
   return known[reason] ?? reason;
 }
 
+/** The group a held claim belongs to. A packet from before the split, or a claim with no verdict at all, says `rejected` or nothing: that reads as not shown only when it says `rejected`. */
+export function heldGroup(verdict: ClaimVerdict | null): HeldGroup {
+  return verdict === "contradicted" ? "contradicted" : verdict === "not_shown" || verdict === "rejected" ? "not_shown" : verdict === "unchecked" ? "unchecked" : "needs_check";
+}
+
+/** Each group's heading and, where the label alone could be misread, one plain sentence. Not shown is not false: only "contradicted" says a source states otherwise. */
+export const HELD_GROUP_TEXT: Record<HeldGroup, { heading: string; note: string | null }> = {
+  contradicted: { heading: "Contradicted by its sources", note: null },
+  not_shown: { heading: "Not shown by the sources this run had", note: "This does not mean they are false. The sources this run had did not show them." },
+  needs_check: { heading: "Needs a check", note: null },
+  unchecked: { heading: "Not checked", note: null },
+};
+export const HELD_GROUP_ORDER: HeldGroup[] = ["contradicted", "not_shown", "needs_check", "unchecked"];
+
 export function verdictLabel(verdict: ClaimVerdict | null): string {
-  return verdict === "rejected" ? "Rejected" : verdict === "unchecked" ? "Not checked" : "Needs a check";
+  const group = heldGroup(verdict);
+  return group === "contradicted" ? "Contradicted" : group === "not_shown" ? "Not shown" : group === "unchecked" ? "Not checked" : "Needs a check";
 }
 
 const count = (counts: Record<string, unknown>, key: string): number => (typeof counts[key] === "number" && Number.isFinite(counts[key]) ? counts[key] as number : 0);
 
-/** "12 verified, 8 need a check, 8 rejected; 23 rest on one site", from the counts of `factCheck`. Parts that are zero are left out, except verified. */
+/** "12 verified, 8 need a check, 2 contradicted, 6 not shown by the sources; 23 rest on one site", from the counts of `factCheck`. Parts that are zero are left out, except verified. */
 export function factCheckSentence(counts: Record<string, unknown>): string {
   const parts = [`${count(counts, "verified")} verified`];
   if (count(counts, "needs_check")) parts.push(`${count(counts, "needs_check")} need a check`);
-  if (count(counts, "rejected")) parts.push(`${count(counts, "rejected")} rejected`);
+  if (count(counts, "contradicted")) parts.push(`${count(counts, "contradicted")} contradicted`);
+  const notShown = count(counts, "not_shown") + count(counts, "rejected");      // a packet from before the split counts them all as rejected
+  if (notShown) parts.push(`${notShown} not shown by the sources`);
   if (count(counts, "unchecked")) parts.push(`${count(counts, "unchecked")} not checked`);
   const single = count(counts, "singleSource");
   return parts.join(", ") + (single ? `; ${single} rest on one site` : "");
@@ -112,7 +132,7 @@ export function researchPacketOf(raw: unknown): ResearchPacketView | null {
   const unverifiedClaims = list(packet.unverifiedClaims).flatMap(entry => {
     const claim = text(record(entry).claim);
     const raw = record(entry).verdict;
-    const verdict: ClaimVerdict | null = raw === "rejected" || raw === "unchecked" || raw === "needs_check" ? raw : null;
+    const verdict: ClaimVerdict | null = raw === "rejected" || raw === "contradicted" || raw === "not_shown" || raw === "unchecked" || raw === "needs_check" ? raw : null;
     return claim ? [{ claim, sources: sourcesOf(record(entry).sources, byRank), verdict, reasons: list(record(entry).reasons).flatMap(reason => text(reason) ?? []).map(plainReason) }] : [];
   });
   const factCheck = record(packet.factCheck);

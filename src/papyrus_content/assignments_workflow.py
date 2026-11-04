@@ -20,6 +20,7 @@ from .content_item_lifecycle import (
 )
 from .copywriting import COPYWRITING_ASSIGNMENT_TYPES, build_copywriting_run_plan
 from .env import PAPYRUS_ROOT
+from .fact_check import HELD_GROUPS, held_group
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 from .ids import hash_short, knowledge_corpus_id, safe_id
 from .model_defaults import DEFAULT_REFERENCE_SUMMARY_MODEL
@@ -1925,12 +1926,16 @@ def research_packet_body(packet: dict[str, Any]) -> str:
         for item in disagreements:
             lines.append(f"- {item.get('topic')}")
             lines.extend(f"  - {p.get('position')} [{', '.join(str(i) for i in _parse_array(p.get('sources')))}]"
-                         + (f" (rejected: {'; '.join(str(r) for r in _parse_array(p.get('reasons')))})" if p.get("unverified") else "")
+                         + (f" (not shown by the sources: {'; '.join(str(r) for r in _parse_array(p.get('reasons')))})" if p.get("unverified") else "")
                          for p in _parse_array(item.get("positions")) if isinstance(p, dict))
     if unverified:
         lines.extend(["", "Could not verify:"])
-        lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}] ({c.get('verdict') or 'unverified'}: {'; '.join(str(r) for r in _parse_array(c.get('reasons')))})"
-                     for c in unverified)
+        for group, heading in HELD_GROUPS:
+            members = [c for c in unverified if held_group(c.get("verdict")) == group]
+            if members:
+                lines.append(f"{heading}:")
+                lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}] ({'; '.join(str(r) for r in _parse_array(c.get('reasons')))})"
+                             for c in members)
     open_questions = [q for q in _parse_array(packet.get("openQuestions")) if q]
     gaps = [g for g in _parse_array((packet.get("factCheck") or {}).get("directionGaps") if isinstance(packet.get("factCheck"), dict) else None) if isinstance(g, dict)]
     if gaps:

@@ -167,6 +167,17 @@ def step_open_question(context, text):
     assert text in context.packet["open_questions"], context.packet["open_questions"]
 
 
+@then('the packet names no direction gap for "{name}"')
+def step_no_gap_for(context, name):
+    names = [gap["name"] for gap in context.packet["factCheck"].get("directionGaps") or []]
+    assert not any(name.lower() == entry.lower() or name.lower() in entry.lower().split() for entry in names), names
+
+
+@then('the packet\'s open questions do not mention "{text}"')
+def step_open_question_absent(context, text):
+    assert not any(text in question for question in context.packet["open_questions"]), context.packet["open_questions"]
+
+
 @then("the packet has no direction gaps")
 def step_no_gaps(context):
     assert not context.packet["factCheck"].get("directionGaps")
