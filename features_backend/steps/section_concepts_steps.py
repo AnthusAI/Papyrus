@@ -12,7 +12,7 @@ from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
 from papyrus_content.newsroom_context_pack import build_context_pack
 from papyrus_content.section_concepts import build_editor_concept_node, concept_slug
 
-from newsroom_context_pack_steps import ENDPOINT, SECTION_ID, TENANT, build_newsroom, layer, moment, track_concepts
+from newsroom_context_pack_steps import ENDPOINT, SECTION_ID, TENANT, build_newsroom, layer, moment, give_core_concepts
 
 FIXTURE = "scripts/fixtures/editor-concept-vectors.json"
 
@@ -24,8 +24,8 @@ def node_row(name, *, aliases=(), status="accepted", description=None):
             "status": status, "description": description}
 
 
-def tracked(context):
-    raw = context.store.records["NewsroomSection"][SECTION_ID].get("trackedConcepts")
+def core(context):
+    raw = context.store.records["NewsroomSection"][SECTION_ID].get("coreConcepts")
     return json.loads(raw) if raw else []
 
 
@@ -45,10 +45,10 @@ def pack(context, profile="reporter", **kwargs):
         return build_context_pack(context.store, profile=profile, story_lineage_id="story-1", **kwargs)
 
 
-@given('a newsroom whose section "law-policy" tracks one concept and a Story "story-1" in it')
+@given('a newsroom whose section "law-policy" has one core concept and a Story "story-1" in it')
 def step_newsroom(context):
     context.store = build_newsroom()
-    track_concepts(context.store)
+    give_core_concepts(context.store)
 
 
 @given('the newsroom knows a concept "{name}" with the alias "{alias}"')
@@ -63,18 +63,18 @@ def step_known_rejected(context, name):
     context.store.records["SemanticNode"][row["id"]] = row
 
 
-@given('the section tracks "{name}" too')
-def step_tracks_too(context, name):
-    entries = tracked(context) + [{"conceptLineageId": f"concept-{concept_slug(name)}", "note": None, "addedBy": "An Editor", "addedAt": moment(2)}]
-    context.store.records["NewsroomSection"][SECTION_ID]["trackedConcepts"] = json.dumps(entries)
+@given('the section has "{name}" as a core concept too')
+def step_has_too(context, name):
+    entries = core(context) + [{"conceptLineageId": f"concept-{concept_slug(name)}", "note": None, "addedBy": "An Editor", "addedAt": moment(2)}]
+    context.store.records["NewsroomSection"][SECTION_ID]["coreConcepts"] = json.dumps(entries)
 
 
-@given("the section tracks no concepts")
-def step_tracks_none(context):
-    context.store.records["NewsroomSection"][SECTION_ID]["trackedConcepts"] = None
+@given("the section has no core concepts")
+def step_has_none(context):
+    context.store.records["NewsroomSection"][SECTION_ID]["coreConcepts"] = None
 
 
-@when("the editor lists the concepts the section tracks")
+@when("the editor lists the core concepts of the section")
 def step_list(context):
     run_command(context, ["--section", "law-policy"])
 
@@ -111,28 +111,28 @@ def step_reject(context, name):
     row["status"] = "rejected"
 
 
-@then('the list shows the concept "{name}" as tracked')
+@then('the list shows the concept "{name}" as a core concept')
 def step_list_shows(context, name):
     assert context.error is None, context.error
-    assert name in context.output and "\ttracked\t" in context.output, context.output
+    assert name in context.output and "\tcore\t" in context.output, context.output
 
 
-@then("the section tracks both concepts in the order they were added")
+@then("the section has both core concepts in the order they were added")
 def step_both(context):
-    assert [entry["conceptLineageId"] for entry in tracked(context)] == ["concept-containment", "concept-confinement-problem"], tracked(context)
+    assert [entry["conceptLineageId"] for entry in core(context)] == ["concept-containment", "concept-confinement-problem"], core(context)
 
 
 @then("the new entry holds the note, who added it and when")
 def step_entry(context):
-    entry = tracked(context)[-1]
+    entry = core(context)[-1]
     assert entry["note"] == "The sibling of containment" and entry["addedBy"] == "papyrus-cli" and entry["addedAt"], entry
 
 
-@then('the section tracks the concept "{name}"')
-def step_tracks(context, name):
+@then('the section has the core concept "{name}"')
+def step_has(context, name):
     assert context.error is None, context.error
     nodes = {row["lineageId"]: row for row in context.store.records["SemanticNode"].values()}
-    assert name in [nodes[entry["conceptLineageId"]]["displayName"] for entry in tracked(context)], tracked(context)
+    assert name in [nodes[entry["conceptLineageId"]]["displayName"] for entry in core(context)], core(context)
 
 
 @then('the command is refused saying "{text}"')
@@ -140,14 +140,14 @@ def step_refused(context, text):
     assert context.error and text in context.error, context.error
 
 
-@then("the section still tracks one concept")
+@then("the section still has one core concept")
 def step_still_one(context):
-    assert len(tracked(context)) == 1, tracked(context)
+    assert len(core(context)) == 1, core(context)
 
 
-@then("the section tracks no concepts")
+@then("the section has no core concepts")
 def step_none(context):
-    assert tracked(context) == [], tracked(context)
+    assert core(context) == [], core(context)
 
 
 @then("the newsroom has written nothing")
@@ -179,13 +179,13 @@ def step_fixture(context):
 
 # --- the pack ----------------------------------------------------------------------------------------------------------------------------
 
-@given('the tracked concept has an alias, a description and the editor\'s note "{note}"')
+@given('the core concept has an alias, a description and the editor\'s note "{note}"')
 def step_concept_details(context, note):
     node = context.store.records["SemanticNode"]["concept-containment-v1"]
     node.update(aliases=["the containment issue"], description="Keeping a capable system inside its limits.")
-    entries = tracked(context)
+    entries = core(context)
     entries[0]["note"] = note
-    context.store.records["NewsroomSection"][SECTION_ID]["trackedConcepts"] = json.dumps(entries)
+    context.store.records["NewsroomSection"][SECTION_ID]["coreConcepts"] = json.dumps(entries)
 
 
 @given('the concept is linked to another concept by a suggestion and by a link an editor accepted with the note "{note}"')
@@ -240,14 +240,14 @@ def step_before_published(context):
         assert names.index("section_concepts") < names.index("concept_references") < names.index("desk_published"), names
 
 
-@given("the section also tracks a concept that no longer exists")
+@given("the section also has a core concept that no longer exists")
 def step_gone(context):
-    entries = tracked(context) + [{"conceptLineageId": "concept-vanished", "note": None, "addedBy": "An Editor", "addedAt": moment(2)}]
-    context.store.records["NewsroomSection"][SECTION_ID]["trackedConcepts"] = json.dumps(entries)
+    entries = core(context) + [{"conceptLineageId": "concept-vanished", "note": None, "addedBy": "An Editor", "addedAt": moment(2)}]
+    context.store.records["NewsroomSection"][SECTION_ID]["coreConcepts"] = json.dumps(entries)
 
 
-@given('the tracked concept "{name}" is rejected')
-def step_tracked_rejected(context, name):
+@given('the core concept "{name}" is rejected')
+def step_core_rejected(context, name):
     step_reject(context, name)
 
 
@@ -275,7 +275,7 @@ def tag(context, relation_id, reference, predicate, *, status="accepted", human=
         "objectStateKey": "semanticNode#concept-containment#current", "metadata": json.dumps({"decision": "accepted", "decidedBy": "An Editor"})})
 
 
-@given("an accepted Reference mentions the tracked concept and an editor-rated Reference is tagged with it")
+@given("an accepted Reference mentions the core concept and an editor-rated Reference is tagged with it")
 def step_ring(context):
     tag(context, "mention-1", "concept-mention", "mentions", human=False)
     tag(context, "tag-1", "concept-rated", "related_to", stars=5)
@@ -304,7 +304,7 @@ def step_pending_absent(context):
     assert "concept-pending" not in [entry["id"] for entry in layer(context, "concept_references")["entries"]]
 
 
-@given("the Story's own Reference is tagged with the tracked concept")
+@given("the Story's own Reference is tagged with the core concept")
 def step_own(context):
     context.store.relations.append({
         "id": "tag-own", "relationState": "current", "predicate": "related_to", "subjectKind": "reference", "objectKind": "semanticNode",
@@ -325,7 +325,7 @@ def step_empty_reason(context, reason):
         assert row["entries"] == [] and row["emptyReason"] == reason, row
 
 
-class SchemaWithoutTrackedConcepts:
+class SchemaWithoutCoreConcepts:
     def __init__(self):
         self.asked = 0
 
@@ -333,9 +333,9 @@ class SchemaWithoutTrackedConcepts:
         self.last = json.loads(body)["query"]
 
     def getresponse(self):
-        refused = "trackedConcepts" in self.last
+        refused = "coreConcepts" in self.last
         self.asked += refused
-        answer = ({"errors": [{"message": "Validation error of type FieldUndefined: Field 'trackedConcepts' in type 'NewsroomSection' is undefined"}]}
+        answer = ({"errors": [{"message": "Validation error of type FieldUndefined: Field 'coreConcepts' in type 'NewsroomSection' is undefined"}]}
                   if refused else {"data": {"listNewsroomSections": {"items": [{"id": "section-1"}]}}})
         return SimpleNamespace(status=200, reason="OK", read=lambda: json.dumps(answer).encode("utf-8"))
 
@@ -343,16 +343,16 @@ class SchemaWithoutTrackedConcepts:
         pass
 
 
-@given("a site whose schema has no tracked concepts on a section")
+@given("a site whose schema has no core concepts on a section")
 def step_old_site(context):
-    context.old_connection = SchemaWithoutTrackedConcepts()
+    context.old_connection = SchemaWithoutCoreConcepts()
     context.old_client = PapyrusGraphQLAuthoringClient(endpoint="https://example.test/graphql", header_factory=lambda _payload: {}, tenant_id="old-site")
     context.old_client._connection = context.old_connection
 
 
 @when("the router reads that site's sections twice")
 def step_read_sections(context):
-    query = "query { listNewsroomSections { items { id title trackedConcepts } } }"
+    query = "query { listNewsroomSections { items { id title coreConcepts } } }"
     context.old_reads = [context.old_client.graphql(query), context.old_client.graphql(query)]
 
 
@@ -360,3 +360,29 @@ def step_read_sections(context):
 def step_old_reads(context):
     assert [read["listNewsroomSections"]["items"] for read in context.old_reads] == [[{"id": "section-1"}]] * 2
     assert context.old_connection.asked == 1, context.old_connection.asked
+
+
+# --- the budget -------------------------------------------------------------------------------------------------------------------------
+
+@when("the reporter context pack is built with room for the core layers minus one character")
+def step_tight_budget(context):
+    from newsroom_context_pack_steps import core_room
+
+    full = pack(context, assignment="assignment-1")
+    context.pack = pack(context, assignment="assignment-1", max_characters=len(full["system"]) + core_room(full) - 1)
+
+
+@then("the card still lists the accepted link with its note")
+def step_accepted_kept(context):
+    assert "related_to: confinement problem; accepted by an editor; the editor's note on the link: Two sides of one fence" in card_text(context), card_text(context)
+
+
+@then("the card no longer lists the suggested link")
+def step_machine_gone(context):
+    assert "alignment tax" not in card_text(context), card_text(context)
+
+
+@then("the section concepts layer records the dropped machine link")
+def step_dropped_recorded(context):
+    row = layer(context, "section_concepts")
+    assert row["droppedCount"] == 1 and "machine links dropped" in row["droppedReason"], row

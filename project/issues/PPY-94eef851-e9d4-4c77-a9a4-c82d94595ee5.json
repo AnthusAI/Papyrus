@@ -17,10 +17,17 @@
       "text": "Ryan 2026-11-03: the 1,428 'accepted' References on Machines on Machines are mostly not editorial decisions. 1,341 carry the reason 'trusted import' and 1,372 date from 2026-05-23 (updated by 'Papyrus content CLI' 1,002 and 'biblicus-import' 369). 52 are recorded as a person's decision, 4 more were updated by a person's account without the actor kind, and 30 were accepted on 2026-11-02, 21 on 11-03, 1 on 11-04. So accepted must split into a person's acceptance, automatic acceptance, and bulk import, and every rank, section view and pack layer weights them differently. A bulk import is background, not an editor's signal. Open: whether to leave these accepted and labelled, or move them to their own status; no data changes until Ryan decides.",
       "created_at": "2026-11-04T02:55:09.118229Z",
       "comment_type": "default"
+    },
+    {
+      "id": "340431b9-32ed-4a0d-99f4-29cf2def4783",
+      "author": "home",
+      "text": "Ryan 2026-11-03 decided: drop the May and June bulk import entirely, do not label or weight it; start from what Ryan accepted. Dry run: archive 1,586 (1,414 accepted, 172 pending); keep 58 accepted (57 by a person's account, 1 used by a Story). Archives, never deletes; manifest and script in ~/Projects/knowledge-runs/machines-on-machines/. Not run yet: the permission system blocked my bulk write. After it runs, check: nothing re-imports them (the 'trusted import' path), mined concepts and 9,680 suggested links from them, the vector index, the newsroom summary counts, and that a monitor finding one again brings it back to pending.",
+      "created_at": "2026-11-04T03:04:04.027036Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-04T02:52:45.976223Z",
-  "updated_at": "2026-11-04T02:55:09.118788Z",
+  "updated_at": "2026-11-04T03:04:04.027561Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

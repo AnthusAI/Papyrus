@@ -17,10 +17,17 @@
       "text": "Correction to the measurements above: 'accepted' here does not mean an editor accepted them. About 56 of the 1,428 were a person's decision; 1,341 are a bulk 'trusted import' from May. See PPY-94eef8.",
       "created_at": "2026-11-04T02:55:09.206973Z",
       "comment_type": "default"
+    },
+    {
+      "id": "16c3d3f8-10e5-404b-8046-e30f0a2764c7",
+      "author": "home",
+      "text": "Wording, Ryan 2026-11-03: 'track' and 'tracked' are out, because 'track in' is confusing. A section has core concepts. Read 'tracked concept' in these stories as 'core concept'.",
+      "created_at": "2026-11-04T03:15:46.064250Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-04T02:52:45.624959Z",
-  "updated_at": "2026-11-04T02:55:09.207197Z",
+  "updated_at": "2026-11-04T03:15:46.064931Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -100,9 +100,9 @@ SHARED_LAYERS = ("related_references",)
 #: Each agent: its role text, its layers in order, and whether it can only work on a Story.
 PROFILES: dict[str, dict[str, Any]] = {
     "reporter": {"role": REPORTER_ROLE, "needsStory": True, "layers": (*STORY_BLOCK, *SECTION_BLOCK, *PUBLICATION_BLOCK)},
-    "copywriter": {"role": COPYWRITER_ROLE, "needsStory": True, "sheds": ("story_references", "story_conversation", "prior_research"),
+    "copywriter": {"role": COPYWRITER_ROLE, "needsStory": True, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"),
                    "layers": ("editorial_policies", *STORY_BLOCK, "voice_examples", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
-    "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("story_references", "story_conversation", "prior_research"), "layers": (*STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
+    "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"), "layers": (*STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
 }
 
 
@@ -190,17 +190,17 @@ class Situation:
             self._concept_nodes = nodes_by_lineage(current_concept_nodes(self.store))
         return self._concept_nodes
 
-    def usable_tracked_concepts(self) -> list[tuple[dict[str, Any], dict[str, Any]]]:
-        """The section's tracked concepts that still resolve to a current, non-rejected concept, as (tracked entry, node). The others are warnings."""
-        from .section_concepts import concept_label, tracked_concepts
+    def usable_core_concepts(self) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+        """The section's core concepts that still resolve to a current, non-rejected concept, as (core concept entry, node). The others are warnings."""
+        from .section_concepts import concept_label, core_concepts
 
         usable = []
-        for entry in tracked_concepts(self.section):
+        for entry in core_concepts(self.section):
             node = self.concept_nodes().get(entry["conceptLineageId"])
             if node is None:
-                self.warnings.append(f"The section tracks the concept {entry['conceptLineageId']}, which no longer resolves: it is left out.")
+                self.warnings.append(f"The section has the core concept {entry['conceptLineageId']}, which no longer resolves: it is left out.")
             elif node.get("status") == "rejected":
-                self.warnings.append(f"The section tracks the concept {concept_label(node)}, which was rejected: it is left out.")
+                self.warnings.append(f"The section has the core concept {concept_label(node)}, which was rejected: it is left out.")
             else:
                 usable.append((entry, node))
         return usable
@@ -609,9 +609,21 @@ def shed_summaries(core: dict[str, list[Entry]], dropped: dict[str, tuple[int, s
     return over
 
 
-SHEDDING = {"story_conversation": shed_conversation, "prior_research": shed_research, "story_references": shed_summaries}
+def shed_machine_links(core: dict[str, list[Entry]], dropped: dict[str, tuple[int, str]], over: int) -> int:
+    """Machine-suggested links on the core concept cards give way first; the links an editor accepted stay whole. What went is recorded as dropped."""
+    for entry in reversed(core.get("section_concepts", [])):
+        if over <= 0:
+            break
+        if entry.get("bare") and entry["text"] != entry["bare"]:
+            over -= len(entry["text"]) - len(entry["bare"])
+            entry["text"] = entry["bare"]
+            dropped["section_concepts"] = (dropped.get("section_concepts", (0, ""))[0] + entry.get("machineLinks", 0), "machine links dropped: the core layers fill the budget")
+    return over
+
+
+SHEDDING = {"section_concepts": shed_machine_links, "story_conversation": shed_conversation, "prior_research": shed_research, "story_references": shed_summaries}
 #: What goes first when the core does not fit, unless a profile says otherwise. A reporter is about to read sources afresh, so old research can go early; an editor or a copywriter works from it.
-DEFAULT_SHEDDING = ("story_conversation", "prior_research", "story_references")
+DEFAULT_SHEDDING = ("section_concepts", "story_conversation", "prior_research", "story_references")
 
 
 def build_context_pack(store: Any, *, profile: str, assignment: Any = None, story_lineage_id: str | None = None, section_id: str | None = None,
@@ -811,38 +823,45 @@ def concept_links(situation: Situation, lineage: str) -> list[dict[str, Any]]:
 
 
 def section_concepts_layer(situation: Situation) -> tuple[list[Entry], str | None]:
-    """One card for each concept the section's editors track: what it is, the editor's note, and its links to other concepts."""
+    """One card for each core concept of the section: what it is, why the section cares, and its links to other concepts. Links an editor accepted are always whole; the machine links go first when the core is over budget."""
     from .section_concepts import concept_label
 
     if situation.section is None:
         return [], situation.section_problem
     entries = []
-    for tracked, node in situation.usable_tracked_concepts():
-        lineage = tracked["conceptLineageId"]
-        links = [f"- {link['predicate']}{'' if link['outgoing'] else ' (from the other concept)'}: {link['name']}"
-                 + ("; accepted by an editor" if link["person"] else "") + (f"; the editor's note on the link: {link['note']}" if link["note"] else "")
-                 for link in concept_links(situation, lineage)]
-        text = _block([
-            _line("Concept", concept_label(node)),
-            _line("Also called", ", ".join(str(alias) for alias in node.get("aliases") or [])),
-            _line("Kind", node.get("nodeKind")),
-            _line("Description", node.get("description")),
-            _line("The section's editor's note", tracked["note"]),
-            "Links to other concepts:\n" + "\n".join(links) if links else "",
-        ])
-        entries.append(_entry("concept", lineage, text, name=concept_label(node)))
-    return entries, None if entries else "the section tracks no concepts"
+    for core_entry, node in situation.usable_core_concepts():
+        lineage = core_entry["conceptLineageId"]
+        found = concept_links(situation, lineage)
+
+        def written(link: dict[str, Any]) -> str:
+            return (f"- {link['predicate']}{'' if link['outgoing'] else ' (from the other concept)'}: {link['name']}"
+                    + ("; accepted by an editor" if link["person"] else "") + (f"; the editor's note on the link: {link['note']}" if link["note"] else ""))
+
+        def card(links: list[dict[str, Any]]) -> str:
+            return _block([
+                _line("Concept", concept_label(node)),
+                _line("Also called", ", ".join(str(alias) for alias in node.get("aliases") or [])),
+                _line("Kind", node.get("nodeKind")),
+                _line("Description", node.get("description")),
+                _line("Why this section cares", core_entry["note"]),
+                "Links to other concepts:\n" + "\n".join(written(link) for link in links) if links else "",
+            ])
+
+        entry = _entry("concept", lineage, card(found), name=concept_label(node), machineLinks=sum(1 for link in found if not link["person"]))
+        entry["bare"] = card([link for link in found if link["person"]])
+        entries.append(entry)
+    return entries, None if entries else "the section has no core concepts"
 
 
 def concept_reference_candidates(situation: Situation) -> list[tuple[dict[str, Any], list[str]]]:
-    """Accepted References tagged with (related_to) or mentioning (mentions) a tracked concept, best first, each with the labels of the concepts."""
+    """Accepted References tagged with (related_to) or mentioning (mentions) a core concept, best first, each with the labels of the concepts."""
     from .concept_link_predicates import RELATED_TO, is_reference_concept_link
     from .section_concepts import concept_label
 
     accepted = {str(row.get("lineageId") or row["id"]): row for row in situation.accepted_references()}
     attached = situation.attached_lineages()
     labels: dict[str, dict[str, str]] = {}
-    for _, node in situation.usable_tracked_concepts():
+    for _, node in situation.usable_core_concepts():
         lineage = str(node.get("lineageId") or node["id"])
         for relation in situation.store.list_semantic_relations_by_object_state(f"semanticNode#{lineage}#current"):
             reference = str(relation.get("subjectLineageId") or "")
@@ -862,12 +881,12 @@ def concept_references_layer(situation: Situation) -> tuple[Iterable[Entry], str
     if situation.section is None:
         return [], situation.section_problem
     candidates = concept_reference_candidates(situation)
-    if not candidates and not situation.usable_tracked_concepts():
-        return [], "the section tracks no concepts"
+    if not candidates and not situation.usable_core_concepts():
+        return [], "the section has no core concepts"
     return LazyEntries(candidates, lambda candidate: _entry(
-        "reference", str(candidate[0]["id"]), one_line(reference_one_line(situation, candidate[0]), "tracked concepts: " + ", ".join(candidate[1])),
+        "reference", str(candidate[0]["id"]), one_line(reference_one_line(situation, candidate[0]), "core concepts: " + ", ".join(candidate[1])),
         lineageId=str(candidate[0].get("lineageId") or candidate[0]["id"]), acceptedBy=HUMAN if candidate[0].get("curationActorKind") == HUMAN else "machine")), \
-        "no accepted References are tagged with or mention a tracked concept"
+        "no accepted References are tagged with or mention a core concept"
 
 
 def desk_published_layer(situation: Situation) -> tuple[Iterable[Entry], str | None]:
@@ -916,8 +935,8 @@ LAYERS: dict[str, Layer] = {
     "prior_research": Layer("Research already done on this Story, newest first", True, prior_research_layer, needs_story=True),
     "voice_examples": Layer("Published Stories, in full, for the publication's voice", False, voice_layer),
     "desk_in_progress": Layer("Stories in progress in the section, best first", False, desk_in_progress_layer),
-    "section_concepts": Layer("Concepts this section tracks", True, section_concepts_layer),
-    "concept_references": Layer("Accepted References tagged with or mentioning a tracked concept, best first", False, concept_references_layer),
+    "section_concepts": Layer("Core concepts of this section", True, section_concepts_layer),
+    "concept_references": Layer("Accepted References tagged with or mentioning a core concept, best first", False, concept_references_layer),
     "desk_published": Layer("Published in the section, newest first", False, desk_published_layer),
     "desk_references": Layer("Accepted References in the section, best first", False, desk_references_layer),
     "publication_published": Layer("Published in other sections, newest first", False, publication_published_layer),
