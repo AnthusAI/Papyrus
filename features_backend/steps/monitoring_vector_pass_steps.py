@@ -1,6 +1,7 @@
-"""The router's daily vector pass (features_backend/monitoring-vector-pass.feature). The index, the embeddings and the backends are fakes."""
+"""The router's daily vector pass (features_backend/monitoring-vector-pass.feature). The index, the embeddings and the backends are fakes; the call counts are real."""
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -15,9 +16,291 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
 import test_monitoring_vectors as tv  # noqa: E402
-from test_monitor_stories import world  # noqa: E402
 
 REASON_NO_ARN = "no vectorIndexArn in the publication's monitorStories"
+
+
+def sites(context):
+    if not hasattr(context, "sites"):
+        context.sites = []
+        context.policy = {}
+        context.results = []
+    return context.sites
+
+
+def up_to_date(size):
+    site = tv.Site([tv.row(n, n) for n in range(1, size + 1)], place=tv.quiet_place(size))
+    site.fill_index()
+    return site
+
+
+@given("a site of {size:d} References that are all indexed, with the pass up to date")
+def step_up_to_date(context, size):
+    sites(context).append(up_to_date(size))
+
+
+@given("{count:d} References on each were voted on or starred")
+def step_voted_each(context, count):
+    for site in context.sites:
+        size = len(site.feed.references)
+        for n in (3, 5, 7)[:count]:
+            site.feed.references[f"ref-{n}"]["updatedAt"] = tv.stamp(size + n)
+
+
+@given("{count:d} new References have arrived")
+def step_new(context, count):
+    site = context.sites[0]
+    size = len(site.feed.references)
+    for n in range(size + 1, size + count + 1):
+        site.feed.references[f"ref-{n}"] = tv.row(n, n)
+    context.new_lineages = [f"lineage-{n}" for n in range(size + 1, size + count + 1)]
+
+
+@given("an editor starred a Reference")
+def step_starred(context):
+    context.sites[0].feed.references["ref-1"].update(updatedAt=tv.stamp(10), starRating=5)
+
+
+@when("the vector pass runs")
+def step_run(context):
+    sites(context)
+    site = context.sites[0]
+    options = {"policy": context.policy}
+    if getattr(context, "out_of_time", None):
+        options["out_of_time"] = context.out_of_time
+    if site.watermark.value is None:
+        context.full_calls = []
+
+        def full(services, config):
+            context.full_calls.append({"explanations": config.include_link_explanations, "notes": config.include_notes, "skip_indexed": config.skip_indexed})
+            site.feed.references["ref-9"] = tv.row(9, 50)   # changed while the sync ran: after the saved place
+            return {"vectorsWritten": 3, "conceptCardsToWrite": 0, "embeddingInputCharacters": 0}
+
+        options["full_indexer"] = full
+    context.result = site.run(**options)
+
+
+@when("the vector pass runs on both")
+def step_run_both(context):
+    context.results = [site.run() for site in context.sites]
+
+
+@then("the pass made {count:d} requests to the API, none to the vector index and none for text")
+def step_quiet_calls(context, count):
+    site = context.sites[0]
+    assert site.graphql_calls() == count and site.vector_calls() == 0 and site.corpus.reads == 0, (site.graphql_calls(), site.index.calls)
+
+
+@then("the pass reports {count:d} changed References")
+def step_changed(context, count):
+    assert context.result["changedReferences"] == count, context.result
+
+
+@then("no saved place is written")
+def step_no_place(context):
+    assert context.sites[0].watermark.writes == []
+
+
+@then("each pass made {count:d} requests to the API: 2 reads of the change feeds and 3 reads of attachments")
+def step_each_calls(context, count):
+    assert [site.graphql_calls() for site in context.sites] == [count, count], [site.graphql_calls() for site in context.sites]
+
+
+@then("each pass made the same number of requests to the vector index and embedded nothing")
+def step_each_vectors(context):
+    assert context.sites[0].vector_calls() == context.sites[1].vector_calls() and all(site.index.embedded == [] for site in context.sites)
+
+
+@then("the {count:d} new References have a summary vector and each was announced once")
+def step_new_announced(context, count):
+    site = context.sites[0]
+    announced = sorted(entry["referenceLineageId"] for entry in site.heard)
+    assert announced == sorted(context.new_lineages), announced
+    from papyrus_knowledge_query import vector_index
+
+    assert all(vector_index.reference_summary_vector_key(lineage) in site.index.stored for lineage in context.new_lineages)
+
+
+@then("nothing is announced again")
+def step_not_again(context):
+    assert len(context.sites[0].heard) == len(context.new_lineages)
+
+
+@then("nothing was embedded and nothing was announced")
+def step_nothing(context):
+    assert context.sites[0].index.embedded == [] and context.sites[0].heard == []
+
+
+@given("a pending Reference that is indexed")
+def step_pending_indexed(context):
+    site = tv.Site([tv.row(1, 1, "pending")], place=tv.saved_place(1))
+    site.fill_index()
+    from papyrus_knowledge_query import vector_index
+
+    context.key = vector_index.reference_summary_vector_key("lineage-1")
+    context.data = site.index.stored[context.key]["data"]
+    sites(context).append(site)
+
+
+@given("an editor accepted it")
+def step_accepted(context):
+    context.sites[0].feed.references["ref-1"].update(**tv.row(1, 5, "accepted"))
+
+
+@then("its summary vector is marked accepted with the same vector data, its passages are written and nothing was announced")
+def step_marked(context):
+    site = context.sites[0]
+    assert site.index.stored[context.key]["metadata"]["curationStatus"] == "accepted" and site.index.stored[context.key]["data"] == context.data
+    assert any(v["metadata"].get("vectorKind") == "reference_passage" for v in site.index.stored.values()) and site.heard == []
+
+
+@given("an accepted Reference that is indexed and another that is not rejected")
+def step_two(context):
+    site = tv.Site([tv.row(1, 1), tv.row(2, 2)], place=tv.saved_place(2))
+    site.fill_index()
+    sites(context).append(site)
+
+
+@given("an editor rejected the first")
+def step_rejected(context):
+    context.sites[0].feed.references["ref-1"].update(**tv.row(1, 5, "rejected"))
+
+
+@then("the first has no vector, the other keeps its vectors and the index was not listed")
+def step_deleted(context):
+    site = context.sites[0]
+    owners = {v["metadata"].get("referenceLineageId") for v in site.index.stored.values()}
+    assert owners == {"lineage-2"} and site.index.count("list_vectors") == 0
+
+
+@given("a pending Reference whose summary vector was made from its summary alone")
+def step_summary_only(context):
+    site = tv.Site([tv.row(1, 1, "pending")], place=tv.saved_place(1))
+    context.texts = {"value": "First summary of the piece, long enough to be a summary of the piece on its own."}
+
+    def attachments(reference):
+        site.graph.attachment_reads += 1
+        return [{"role": "curation", "metadata": json.dumps({"summary": {"text": context.texts["value"]}})}]
+
+    site.graph.list_reference_attachments = attachments
+    sites(context).append(site)
+
+
+@when("the summary is rewritten and the vector pass runs")
+def step_rewritten(context):
+    context.texts["value"] = "A different summary of the piece, written later and also long enough to stand as a summary."
+    context.sites[0].feed.references["ref-1"]["updatedAt"] = tv.stamp(9)
+    context.sites[0].run()
+
+
+@then("the Reference was announced twice with two different hashes")
+def step_twice(context):
+    heard = context.sites[0].heard
+    assert len(heard) == 2 and heard[0]["contentHash"] != heard[1]["contentHash"] and {e["referenceLineageId"] for e in heard} == {"lineage-1"}, heard
+
+
+@given("a site with {count:d} References and no saved place")
+def step_no_place_site(context, count):
+    sites(context).append(tv.Site([tv.row(n, n) for n in range(1, count + 1)], place=None))
+
+
+@then("the full sync ran once with link explanations and notes left out")
+def step_full_sync(context):
+    assert context.full_calls == [{"explanations": False, "notes": False, "skip_indexed": True}], context.full_calls
+
+
+@then("the saved place is the newest change read before the sync began")
+def step_place_before(context):
+    assert json.loads(context.sites[0].watermark.value)["since"] == tv.stamp(3)
+
+
+@given("a site with {count:d} References changed since the saved place, read 2 to a page")
+def step_paged(context, count):
+    from papyrus_content import monitoring_vectors
+
+    monitoring_vectors.PAGE_SIZE = 2
+    context.clock = {"pages": 0}
+    original = monitoring_vectors.read_changed_page
+
+    def counting(*arguments):
+        context.clock["pages"] += 1
+        return original(*arguments)
+
+    monitoring_vectors.read_changed_page = counting
+    context.restore = lambda: (setattr(monitoring_vectors, "PAGE_SIZE", 1000), setattr(monitoring_vectors, "read_changed_page", original))
+    sites(context).append(tv.Site([tv.row(n, n) for n in range(1, count + 1)], place=tv.saved_place(0), page_size=2))
+
+
+@given("the time runs out while the second page is being indexed")
+def step_time(context):
+    context.out_of_time = lambda: context.clock["pages"] >= 2
+
+
+@when("the vector pass runs with time to spare")
+def step_spare(context):
+    context.clock["pages"] = -99
+    context.result = context.sites[0].run()
+    context.restore()
+
+
+@then("the saved place is the end of the first page")
+def step_first_page(context):
+    assert json.loads(context.sites[0].watermark.value)["since"] == tv.stamp(2) and context.result["stoppedBy"] == "time"
+
+
+@then("the saved place is the newest change and every Reference was announced")
+def step_newest(context):
+    site = context.sites[0]
+    assert json.loads(site.watermark.value)["since"] == tv.stamp(7)
+    assert sorted({e["referenceLineageId"] for e in site.heard}) == [f"lineage-{n}" for n in range(1, 8)]
+
+
+@given("a site with {count:d} Reference and a saved place")
+def step_one_site(context, count):
+    sites(context).append(tv.Site([tv.row(n, n) for n in range(1, count + 1)], place=tv.saved_place(0)))
+
+
+@given("the publication has no vector index recorded")
+def step_no_index(context):
+    context.policy = {"vectorIndexArn": None}
+
+
+@given("suggestions are off for the publication")
+def step_off(context):
+    context.policy = {"suggestions": {"enabled": False}}
+
+
+@then("the reason says there is no vectorIndexArn in the publication's monitorStories")
+def step_no_arn(context):
+    assert context.result["indexSkippedReason"] == REASON_NO_ARN, context.result
+
+
+@then("the pass made {count:d} requests to the API")
+def step_requests(context, count):
+    assert context.sites[0].graphql_calls() == count
+
+
+@then("the Reference is indexed, nothing is announced and the reason says suggestions are off")
+def step_indexed_off(context):
+    assert context.result["indexed"] >= 1 and context.sites[0].heard == [] and "off" in context.result["suggestionsSkippedReason"], context.result
+
+
+@then("the vector pass module has no plan, no owed memory, no suggestion step and no backlog task")
+def step_no_plan(context):
+    from papyrus_content import monitoring_router, monitoring_vectors
+
+    for name in ("plan_since", "OwedMemory", "_Suggesting", "run_suggest_backlog", "parse_watermark"):
+        assert not hasattr(monitoring_vectors, name), name
+    assert "suggest-backlog" not in monitoring_router.FAN_OUT_TASKS
+
+
+@then("the monitoring template has no suggest-backlog schedule")
+def step_no_schedule(context):
+    text = tv.template_text()
+    assert "suggest-backlog" not in text and "SuggestBacklog" not in text
+
+
+# --- the router run: the vector pass comes first, then the drafting ---------------------------------------------------------------------------
 
 
 def state(context):
@@ -25,242 +308,18 @@ def state(context):
 
 
 def reset(context):
-    context.vector = SimpleNamespace(policy={}, watermark=tv.Watermark(), rows=[], pending=[], threads=[], pass_=tv.Pass(), out_of_time=lambda: False, result=None, line=None, order=[], table=None,
-                                     owed=tv.Rows(), no_vector=set(), unindexable=set(), workers=1, key="sk-test", fail_index=None)
-    tv.vectors.s3vectors_client_missing_reason = lambda region_name=None: None
+    context.vector = SimpleNamespace(policy={}, order=[], result=None, line=None, table=None, drafter_options=None)
 
 
-@given('a publication with an index whose watermark is "{watermark}"')
-def step_index_with_watermark(context, watermark):
-    reset(context)
-    state(context).watermark = tv.Watermark(watermark)
-
-
-@given("a publication with no index recorded")
-def step_no_index(context):
-    reset(context)
-    state(context).policy = {"vectorIndexArn": None}
-
-
-@given("suggestions are off for the publication")
-def step_suggestions_off(context):
-    state(context).policy = {**state(context).policy, "suggestions": {"enabled": False}}
-
-
-@given("the sync embeds {millions:d} million characters")
-def step_embeds(context, millions):
-    state(context).pass_ = tv.Pass(characters=millions * 1_000_000)
-
-
-@given("the run is out of time")
-def step_out_of_time(context):
-    state(context).out_of_time = lambda: True
-
-
-@given("References accepted at {times}")
-def step_references_accepted(context, times):
-    stamps = [part.strip().strip('"') for part in times.replace(" and ", ",").split(",") if part.strip()]
-    state(context).rows = [tv.accepted(number, stamp) for number, stamp in enumerate(stamps, start=1)]
-
-
-@given('a pending Reference with id "{identifier}" changed at "{stamp}"')
-def step_pending_reference(context, identifier, stamp):
-    state(context).pending.append({**tv.accepted(0, stamp), "id": identifier, "lineageId": f"lineage-{identifier}", "curationStatus": "pending"})
-
-
-STAMPS = {1: "2026-10-30T10:00:00Z", 2: "2026-10-30T11:00:00Z", 3: "2026-10-30T12:00:00Z", 4: "2026-10-31T10:00:00Z"}
-
-
-def position(identifier):
-    number = int(identifier.removeprefix("ref-"))
-    return f"{STAMPS[number]}#{identifier}"
-
-
-def actual_position(context, identifier):
-    row = next(row for row in state(context).rows if row["id"] == identifier)
-    return f"{row['curationStatusUpdatedAt']}#{identifier}"
-
-
-@given("a publication with an index and no saved place")
-def step_no_place(context):
-    reset(context)
-
-
-@given('a publication whose saved place for accepted References runs from "{low}" to "{high}"')
-def step_saved_place(context, low, high):
-    import json
-
-    reset(context)
-    state(context).watermark = tv.Watermark(json.dumps({"v": 2, "done": [], "accepted": {"high": position(high), "low": position(low)}, "pending": {"high": None, "low": None}}))
-
-
-@given('a Reference "{identifier}" accepted at "{stamp}" has arrived')
-def step_arrived(context, identifier, stamp):
-    state(context).rows.append(tv.accepted(int(identifier.removeprefix("ref-")), stamp))
-
-
-@given('an editor voted on "{identifier}"')
-def step_voted(context, identifier):
-    state(context).rows = [{**row, "curationActorKind": "human"} if row["id"] == identifier else row for row in state(context).rows]
-
-
-@when('an editor voted on "{identifier}"')
-def step_voted_when(context, identifier):
-    step_voted(context, identifier)
-
-
-@given('a conversation is anchored on "{identifier}"')
-def step_conversation(context, identifier):
-    state(context).threads.append({"id": f"thread-{identifier}", "primaryAnchorKey": f"reference#lineage-{identifier.removeprefix('ref-')}"})
-
-
-def time_for(context, suggestions):
-    ticks = iter([False] * suggestions)   # one look at the time before each suggestion; then the time is gone
-    state(context).out_of_time = lambda: next(ticks, True)
-
-
-@given("the time lasts for {count:d} suggestion")
-def step_time_one(context, count):
-    time_for(context, count)
-
-
-@given("the time lasts for {count:d} suggestions")
-def step_time_many(context, count):
-    time_for(context, count)
-
-
-@when("the vector pass runs")
-def step_run_pass(context):
-    current = state(context)
-    if current.pass_.order:
-        current.pass_ = tv.Pass()   # a second pass of the same scenario starts a fresh record of its steps
-    run_with_state(context)
-
-
-def run_with_state(context):
-    current = state(context)
-    pass_ = current.pass_
-    pass_.no_vector, pass_.unindexable = current.no_vector, current.unindexable
-    pass_.fail_index = current.fail_index or pass_.fail_index
-    current.result = tv.run_pass(tv.AcceptedClient(current.rows, current.pending, current.threads), pass_, current.watermark, policy=current.policy,
-                                 out_of_time=current.out_of_time, key=current.key, owed=current.owed, workers=current.workers)
-
-
-@then("the index is synced for the {count:d} References accepted after the watermark after the suggestions")
-def step_synced_for(context, count):
-    current = state(context)
-    assert current.pass_.order[-1] == "index" and len(current.pass_.options.reference_ids) == count, (current.pass_.order, current.pass_.options)
-    assert all(step.startswith("suggest:") for step in current.pass_.order[:-1]), current.pass_.order   # every suggestion came before the sync
-
-
-@then("suggestions are made for those {count:d} References, the older first")
-def step_suggested(context, count):
-    current = state(context)
-    assert suggested_order(context) == [f"suggest:{identifier}" for identifier in ("ref-2", "ref-3")][:count], current.pass_.order
-
-
-@then("suggestions are made for {identifiers} only")
-def step_suggested_only(context, identifiers):
-    import re
-
-    wanted = re.findall(r'"([^"]+)"', identifiers)
-    assert suggested_order(context) == [f"suggest:{identifier}" for identifier in wanted], state(context).pass_.order
-
-
-def suggested_order(context):
-    return [step for step in state(context).pass_.order if step.startswith("suggest:")]
-
-
-@then('suggestions are made in the order {identifiers}')
-def step_suggested_order(context, identifiers):
-    import re
-
-    wanted = re.findall(r'"([^"]+)"', identifiers)
-    assert suggested_order(context) == [f"suggest:{identifier}" for identifier in wanted], state(context).pass_.order
-
-
-@then("{count:d} suggestions are left")
-def step_left_many(context, count):
-    assert state(context).result["suggestionsRemaining"] == count, state(context).result
-
-
-@then("{count:d} suggestion is left")
-def step_left_one(context, count):
-    assert state(context).result["suggestionsRemaining"] == count, state(context).result
-
-
-@then("no suggestions are left")
-def step_left_none(context):
-    assert state(context).result["suggestionsRemaining"] == 0, state(context).result
-
-
-@then('the saved place for accepted References runs from "{low}" to "{high}"')
-def step_place(context, low, high):
-    import json
-
-    place = json.loads(state(context).watermark.value)["accepted"]
-    assert (place["low"], place["high"]) == (actual_position(context, low), actual_position(context, high)), place
-
-
-@then('the saved place for accepted References runs from nothing older to "{high}"')
-def step_place_new(context, high):
-    import json
-
-    place = json.loads(state(context).watermark.value)["accepted"]
-    assert place["high"] == actual_position(context, high) and place["low"] == "", place
-
-
-@then("the index is synced for the concept cards only")
-def step_cards_only(context):
-    options = state(context).pass_.options
-    assert options.skip_references and options.include_concept_cards and options.reference_ids == (), options
-
-
-@then("no suggestion is made")
-def step_no_suggestion(context):
-    assert not [step for step in state(context).pass_.order if step.startswith("suggest")], state(context).pass_.order
-
-
-@then("nothing is indexed and no suggestion is made")
-def step_nothing(context):
-    assert state(context).pass_.order == [], state(context).pass_.order
-
-
-@then("the reason says there is no vectorIndexArn in the publication's monitorStories")
-def step_reason_no_arn(context):
-    assert state(context).result["suggestionsSkippedReason"] == REASON_NO_ARN, state(context).result
-
-
-@then("the reason says suggestions are off")
-def step_reason_off(context):
-    assert state(context).result["suggestionsSkippedReason"] == "suggestions are off in the publication's monitorStories", state(context).result
-
-
-@then("no watermark is written")
-def step_no_watermark(context):
-    assert state(context).watermark.writes == [], state(context).watermark.writes
-
-
-@then("the pass was stopped by {reason}")
-def step_stopped_by(context, reason):
-    assert state(context).result["stoppedBy"] == reason, state(context).result
-
-
-@given('a router publication whose entry names an index and a storage bucket')
+@given("a router publication whose entry names an index and a storage bucket")
 def step_router_with_index(context):
     reset(context)
     context.vector.policy = {**tv.tms.SINGLE_ITEM_ONLY, "vectorIndexArn": tv.ARN, "storageBucketName": tv.BUCKET}
 
 
-@given("a router publication whose entry names no index")
-def step_router_without_index(context):
-    reset(context)
-    context.vector.policy = dict(tv.tms.SINGLE_ITEM_ONLY)
-
-
 @given('2 accepted References that the "hn" monitor delivered, one accepted since the last pass')
 def step_router_references(context):
-    context.vector.rows = [tv.accepted(1, "2026-10-30T10:00:00Z")]
+    pass   # the fixture world has them
 
 
 @given("the vector pass's share of the time is already spent")
@@ -268,38 +327,13 @@ def step_share_spent(context):
     state(context).drafter_options = {"vector_out_of_time": lambda: True}
 
 
-def run_router_task(context):
-    from _pytest.monkeypatch import MonkeyPatch
-
-    from fake_idea_store import FakeIdeaStore
-    from test_idea_items import FakeGate
-
-    current = state(context)
-    patches = MonkeyPatch()
-    try:
-        patches.setenv("PAPYRUS_GRAPHQL_AUTH", "iam")
-        patches.setattr("papyrus_content.ideas.items.ItemStore", lambda client, **options: FakeIdeaStore(client, gate=options.get("gate")))
-        patches.setattr("papyrus_content.ideas.gate.HumanusGate.for_client", classmethod(lambda cls, client, **options: FakeGate()))
-        table, store = tv.router_with(current.policy)
-        _, client = world(2)
-        current.table = table
-        current.result, current.line, _ = tv.run_task(store, client, current.order, patches, accepted_rows=current.rows, drafter_options=getattr(current, 'drafter_options', None))
-    finally:
-        patches.undo()
-
-
 @when("the router runs its daily monitor stories with the vector pass")
 def step_router_runs_with_pass(context):
-    run_router_task(context)
-
-
-@when("the router runs its daily monitor stories without an index")
-def step_router_runs(context):
     from _pytest.monkeypatch import MonkeyPatch
 
     from fake_idea_store import FakeIdeaStore
     from test_idea_items import FakeGate
-    from test_monitor_stories import StoryModel
+    from test_monitor_stories import world
 
     current = state(context)
     patches = MonkeyPatch()
@@ -310,21 +344,14 @@ def step_router_runs(context):
         table, store = tv.router_with(current.policy)
         _, client = world(2)
         current.table = table
-        current.result, lines = tv.tms.run_task(store, {tv.tms.PUBLICATION: client}, StoryModel())
-        current.line = lines[tv.tms.PUBLICATION]
+        current.result, current.line = tv.run_task(store, client, current.order, patches, drafter_options=current.drafter_options)
     finally:
         patches.undo()
 
 
-@then("the steps ran in the order drafting, suggestions, index sync")
-def step_order_after(context):
-    assert state(context).order == ["drafting", "suggest", "index"], state(context).order
-
-
-@then("the log line says {count:d} suggestions written and no suggestions left")
-def step_log_written_none_left(context, count):
-    line = state(context).line
-    assert line["suggestionsWritten"] == count and not line.get("suggestionsRemaining"), line
+@then("2 ideas are drafted")
+def step_two_drafted(context):
+    assert state(context).line["drafted"] == 2, state(context).line
 
 
 @then("the log line shows no raised curation flag")
@@ -342,7 +369,7 @@ def step_budget_given(context, seconds):
 def step_budget_run(context):
     from _pytest.monkeypatch import MonkeyPatch
 
-    from test_monitor_stories import StoryModel
+    from test_monitor_stories import StoryModel, world
 
     current = state(context)
     remaining = [current.seconds]
@@ -369,40 +396,9 @@ def step_budget_run(context):
 @then("drafting is out of time at {drafting:d} seconds left and the vector pass at {vectors:d} seconds left")
 def step_budget_then(context, drafting, vectors):
     check = state(context).checks
-    assert check(vectors + 1) == (False, False)   # plenty of time: neither is over
-    assert check(vectors - 1) == (False, True)   # between the two limits only the vector pass is over: the drafting still has its half
-    assert check(drafting - 1) == (True, True)   # below the drafting limit both are over
-
-
-@then("the steps ran in the order suggestions, index sync, drafting")
-def step_order(context):
-    assert state(context).order == ["suggest", "index", "drafting"], state(context).order
-
-
-@then("the log line says {indexed:d} vectors indexed, {cards:d} concept cards written, {suggestions:d} suggestions written and no suggestions reason")
-def step_log_counts(context, indexed, cards, suggestions):
-    line = state(context).line
-    assert (line["indexed"], line["conceptCardsWritten"], line["suggestionsWritten"], line["suggestionsSkippedReason"]) == (indexed, cards, suggestions, None), line
-
-
-@then("the router's table holds the watermark of the publication")
-def step_table_watermark(context):
-    row = state(context).table.get_item({"pk": "MONITOR#hn", "sk": tv.vectors.watermark_sort_key(tv.tms.PUBLICATION)})["Item"]
-    import json
-
-    assert json.loads(row["watermark"])["accepted"]["high"] == "2026-10-30T10:00:00Z#ref-1", row
-
-
-@then("2 ideas are drafted")
-def step_two_drafted(context):
-    assert state(context).line["drafted"] == 2, state(context).line
-
-
-@then("the log line says {indexed:d} vectors indexed, {cards:d} concept cards written, {suggestions:d} suggestions written and the reason that there is no vectorIndexArn")
-def step_log_no_arn(context, indexed, cards, suggestions):
-    line = state(context).line
-    assert (line["indexed"], line["conceptCardsWritten"], line["suggestionsWritten"]) == (indexed, cards, suggestions), line
-    assert line["suggestionsSkippedReason"] == REASON_NO_ARN, line
+    assert check(vectors + 1) == (False, False)
+    assert check(vectors - 1) == (False, True)
+    assert check(drafting - 1) == (True, True)
 
 
 @given('the example router configuration and the amplify_outputs.json of "{publication}"')
@@ -452,7 +448,7 @@ def step_package_modules(context):
 
 @then("they include the vector pass, the suggestions and the calibration")
 def step_package_modules_include(context):
-    assert {"monitoring_vectors", "reference_suggestions", "suggestion_calibration"} <= set(context.package.modules), context.package.modules
+    assert {"monitoring_vectors", "reference_suggest_once", "reference_suggestions", "suggestion_calibration"} <= set(context.package.modules), context.package.modules
 
 
 @then("the knowledge-query package files are added to the package without its command line")
@@ -573,138 +569,3 @@ def step_old_author_card(context):
 
 
 # --- suggestions do not wait for the index: owed and parked References, the failing sync, the time, several workers -----------------------------------
-
-
-@given('"{identifier}" has no summary vector yet')
-def step_no_vector(context, identifier):
-    state(context).no_vector.add(identifier)
-
-
-@given('"{identifier}" has no summary vector and the sync finds nothing to index for it')
-def step_unindexable(context, identifier):
-    state(context).no_vector.add(identifier)
-    state(context).unindexable.add(identifier)
-
-
-@given("the index sync fails")
-def step_sync_fails(context):
-    state(context).fail_index = "throttled"
-
-
-@given("there is no embedding key")
-def step_no_key(context):
-    state(context).key = None
-
-
-@given("{count:d} workers suggest at once")
-def step_workers(context, count):
-    state(context).workers = count
-
-
-@given("References accepted on {count:d} different days")
-def step_many_days(context, count):
-    state(context).rows = [tv.accepted(number, f"2026-10-{number:02d}T10:00:00Z") for number in range(1, count + 1)]
-
-
-@given("the time lasts for {count:d} windows of suggestions")
-def step_windows(context, count):
-    ticks = iter([False] * count)
-    state(context).out_of_time = lambda: next(ticks, True)
-
-
-@then('the index sync was asked for "{identifier}" only')
-def step_sync_asked(context, identifier):
-    assert state(context).pass_.sync_calls[-1] == (identifier,), state(context).pass_.sync_calls
-
-
-@then('the index sync was asked for "{identifier}" first')
-def step_sync_asked_first(context, identifier):
-    assert state(context).pass_.sync_calls[-1][0] == identifier, state(context).pass_.sync_calls
-
-
-@then('"{identifier}" was suggested for again once it had a vector')
-def step_suggested_again(context, identifier):
-    order = state(context).pass_.order
-    assert order.count(f"suggest:{identifier}") == 2 and order.index("index") < len(order) - 1 and order[-1] == f"suggest:{identifier}", order
-
-
-@then('"{identifier}" is parked with the reason "{reason}"')
-def step_parked(context, identifier, reason):
-    entries = state(context).owed.entries()
-    lineage = f"lineage-{identifier.removeprefix('ref-')}"
-    assert entries[lineage]["r"] == reason, entries
-    assert state(context).result["parkedUnindexable"] >= 1, state(context).result
-
-
-@then("{count:d} Reference is parked")
-def step_parked_count(context, count):
-    assert state(context).result["parkedUnindexable"] == count, state(context).result
-
-
-@when('a Reference "{identifier}" is accepted at "{stamp}" and the vector pass runs again')
-def step_arrival_run(context, identifier, stamp):
-    current = state(context)
-    current.rows.append(tv.accepted(int(identifier.removeprefix("ref-")), stamp))
-    current.pass_ = tv.Pass()
-    run_with_state(context)
-
-
-@when('"{identifier}" is retitled by an editor and the vector pass runs again')
-def step_retitle_run(context, identifier):
-    current = state(context)
-    current.rows = [{**row, "title": "A better title", "curationActorKind": "human"} if row["id"] == identifier else row for row in current.rows]
-    current.no_vector = {identifier}   # it still has no vector when the sync looks again
-    current.unindexable = set()
-    current.pass_ = tv.Pass()
-    run_with_state(context)
-
-
-@when("the vector pass runs again")
-def step_run_again(context):
-    state(context).pass_ = tv.Pass()
-    run_with_state(context)
-
-
-@then("the index sync was not started")
-def step_sync_not_started(context):
-    assert "index" not in state(context).pass_.order, state(context).pass_.order
-
-
-@then("the reason says the index sync failed")
-def step_sync_failed(context):
-    assert "index sync failed" in state(context).result["indexSkippedReason"], state(context).result
-
-
-@then("the reason says there is no embedding key")
-def step_no_key_reason(context):
-    assert state(context).result["indexSkippedReason"] == "openai_not_configured", state(context).result
-
-
-@then("the saved place has moved")
-def step_place_moved(context):
-    assert state(context).watermark.writes, "no watermark was written"
-
-
-@then("{count:d} suggestions are awaiting the index")
-def step_awaiting(context, count):
-    assert state(context).result["awaitingIndex"] == count, state(context).result
-
-
-@then("the result says how many seconds the plan, the suggestions and the sync took")
-def step_timings(context):
-    assert {"planSeconds", "suggestSeconds", "syncSeconds"} <= set(state(context).result["timings"]), state(context).result
-
-
-@then("each Reference was suggested for once")
-def step_once(context):
-    order = suggested_order(context)
-    assert len(order) == len(set(order)) and len(order) > 0, order
-
-
-@then("the saved place for accepted References runs from day {low:d} to day {high:d}")
-def step_place_days(context, low, high):
-    import json
-
-    place = json.loads(state(context).watermark.value)["accepted"]
-    day = lambda text: int(text.split("#")[0][8:10])   # noqa: E731
-    assert (day(place["low"]), day(place["high"])) == (low, high), place

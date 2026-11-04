@@ -171,17 +171,20 @@ def test_a_dry_run_and_the_switch_change_nothing():
     assert index.stored == {}
 
 
-def test_the_routers_pass_counts_explanations_apart_from_references():
+def test_the_routers_daily_pass_leaves_link_explanations_to_the_by_hand_sync():
+    seen = {}
+
     def indexer(services, options):
-        return {"vectorsWritten": 5, "conceptCardsToWrite": 1, "linkExplanationsToWrite": 2, "embeddingInputCharacters": 40}
+        seen["explanations"] = options.include_link_explanations
+        return {"vectorsWritten": 0, "conceptCardsToWrite": 0, "embeddingInputCharacters": 0}
 
     with mock.patch.object(vectors, "s3vectors_client_missing_reason", lambda region_name=None: None):
-        result = vectors.run_vector_pass(
-            mock.Mock(list_by_index=lambda *a, **k: []), {"publicationId": "p", "corpusId": "c", "appsyncEndpoint": "e"},
+        vectors.run_vector_pass(
+            mock.Mock(graphql=lambda *a, **k: {}), {"publicationId": "p", "corpusId": "c", "appsyncEndpoint": "e"},
             {"vectorIndexArn": "arn:x", "storageBucketName": "b", "suggestions": {"enabled": False}}, now=__import__("datetime").datetime(2026, 11, 2),
             out_of_time=lambda: False, maximum_cost_usd=1.0, embedding_key="k", read_watermark=lambda: None, write_watermark=lambda v: None,
-            services_for=lambda p, b: "services", indexer=indexer)
-    assert (result["indexed"], result["conceptCardsWritten"], result["linkExplanationsWritten"]) == (2, 1, 2)
+            services_for=lambda p, b: "services", full_indexer=indexer)
+    assert seen == {"explanations": False}   # no changed-since index on links: they are indexed by the command-line sync (docs/monitoring-cloud.md)
 
 
 # --- audience and filters ------------------------------------------------------------------------------------------------------------------
