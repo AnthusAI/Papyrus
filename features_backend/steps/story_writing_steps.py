@@ -62,7 +62,7 @@ def step_outline_answer(context):
 
 @given("the model answers with a draft citing the accepted Reference")
 def step_draft_answer(context):
-    context.answer = draft_answer(f"A claim [@{GOOD}].")
+    context.answer = draft_answer("A claim [@R1].")
 
 
 @given("the model answers with a draft citing a key that does not exist")
@@ -77,7 +77,7 @@ def step_draft_none(context):
 
 @given("the model answers with a draft citing the accepted Reference and one evidence gap")
 def step_draft_gap(context):
-    context.answer = draft_answer(f"A claim [@{GOOD}].", ["No second source for the date"])
+    context.answer = draft_answer("A claim [@R1].", ["No second source for the date"])
 
 
 def run(context, write, apply=True):
@@ -143,7 +143,7 @@ def step_result_outline(context):
 @then("the model was given the copywriter's role and the citation key of the accepted Reference")
 def step_copywriter_given(context):
     call = context.calls[0]
-    assert "ROLE copywriter" in call["system"] and GOOD in call["user"] and "https://example.org/good" in call["user"], call
+    assert "ROLE copywriter" in call["system"] and "R1: A good source" in call["user"] and "https://example.org/good" in call["user"], call
 
 
 @then("the model was not given a citation key for the rejected Reference")
@@ -154,7 +154,7 @@ def step_rejected_not_given(context):
 @then("a new version is saved with the draft as its body and the bibliography at its end")
 def step_draft_saved(context):
     body = context.saved[0]["body_markus"]
-    assert body.startswith("A claim") and body.endswith(writing.BIBLIOGRAPHY), body
+    assert body.startswith(f"A claim [@{GOOD}]") and body.endswith(writing.BIBLIOGRAPHY), body
 
 
 @then("its front matter holds the title, deck, blurb and the citation of the accepted Reference")

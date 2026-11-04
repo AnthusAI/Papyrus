@@ -59,8 +59,13 @@ def citable_references(client: Any, lineage: str) -> dict[str, dict[str, Any]]:
     return found
 
 
-def citation_block(citable: Mapping[str, Mapping[str, Any]]) -> str:
-    lines = [f"{key}: {' | '.join(str(part) for part in (row['title'], row['url'], row['published']) if part)}" for key, row in sorted(citable.items())]
+def citation_handles(citable: Mapping[str, Any]) -> dict[str, str]:
+    """Short handles for the model, which copies them more reliably than the stored keys. They mean something only within one call."""
+    return {f"R{index}": key for index, key in enumerate(sorted(citable), start=1)}
+
+
+def citation_block(citable: Mapping[str, Mapping[str, Any]], handles: Mapping[str, str]) -> str:
+    lines = [f"{handle}: {' | '.join(str(part) for part in (citable[key]['title'], citable[key]['url'], citable[key]['published']) if part)}" for handle, key in handles.items()]
     return "## Citation keys\n\n" + "\n".join(lines)
 
 
@@ -71,14 +76,15 @@ def csl_entry(row: Mapping[str, Any]) -> dict[str, Any]:
     return entry
 
 
-def checked_citations(body: str, citable: Mapping[str, Any]) -> list[str]:
+def checked_citations(body: str, citable: Mapping[str, Any], handles: Mapping[str, str]) -> tuple[str, list[str]]:
+    """The body with each handle replaced by its stored key, and the keys it cites. Refuses a handle it was not given, or no citation at all when there could be one."""
     used = list(dict.fromkeys(CITATION.findall(body)))
-    unknown = [key for key in used if key not in citable]
+    unknown = [handle for handle in used if handle not in handles]
     if unknown:
         raise ValueError(f"The draft cites keys it was not given, so nothing was saved: {', '.join(unknown)}.")
     if citable and not used:
         raise ValueError("The draft cites nothing although the Story has References, so nothing was saved.")
-    return used
+    return CITATION.sub(lambda match: f"[@{handles[match.group(1)]}]", body), [handles[handle] for handle in used]
 
 
 def front_matter_of(row: Mapping[str, Any]) -> str | None:
@@ -104,10 +110,10 @@ def write_outline(client: Any, lineage: str, *, llm: Llm, apply: bool, direction
 def write_draft(client: Any, lineage: str, *, llm: Llm, apply: bool, direction: str | None = None) -> dict[str, Any]:
     pack = build_context_pack(client, profile="copywriter", story_lineage_id=lineage, direction=direction, max_characters=WHOLE_MAX_CHARACTERS)
     citable = citable_references(client, lineage)
-    user = pack["user"] + "\n\n" + citation_block(citable)
+    handles = citation_handles(citable)
+    user = pack["user"] + "\n\n" + citation_block(citable, handles)
     result = llm(pack["system"] + "\n\n" + DRAFT_INSTRUCTIONS, user, DRAFT_SCHEMA)
-    body = str(result["body"]).strip()
-    used = checked_citations(body, citable)
+    body, used = checked_citations(str(result["body"]).strip(), citable, handles)
     if BIBLIOGRAPHY not in body:
         body += "\n\n" + BIBLIOGRAPHY
     gaps = [str(item).strip() for item in result.get("evidence_gaps") or [] if str(item).strip()]
