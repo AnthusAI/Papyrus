@@ -1,0 +1,20 @@
+{
+  "id": "PPY-49303fcd-6b40-48a7-8086-9490a4561b6a",
+  "title": "Editorial check fails after save on Machines on Machines: Editorial context tenant mismatch",
+  "description": "After stories save-version on newsroom.machines-on-machines.anth.us in the signed-in lane, on 2026-11-04, the automatic check printed: not checked, GraphQL request failed: Editorial context tenant mismatch. The copy_edit step depends on this check, so Stories on this site may be unable to complete that step. Not yet tested with editorial check-version directly.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T11:48:25.428153Z",
+  "updated_at": "2026-11-04T11:48:25.428181Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
