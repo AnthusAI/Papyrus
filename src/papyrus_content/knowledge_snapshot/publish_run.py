@@ -27,6 +27,7 @@ from ..ids import safe_id
 from ..relation_types import normalize_relation_type_key
 from ..semantic_node_writes import acceptance_mark_patch, acceptance_patch, create_only_record
 from .actors import ACTOR_AI, Actor, ReviewMarks, decode_review
+from .candidate_filter import CandidateFilter, Dropped
 from .cluster_records import CLUSTER_KIND, cluster_proposal_id, proposal_record
 from .keys import contains_email, entity_key, kind_key, normalize_name
 from .model import KIND_REFERENCE_DOCUMENT, LINK_EXTRACTOR, LINK_FRONT_MATTER, PublishedItem
@@ -72,6 +73,8 @@ class PublishPlan:
     monitor_imported: dict[str, list[str]] = field(default_factory=dict)
     #: Reference id to the accepted entities a routed record's text names (``monitor_match.py``); the ledger hashes them.
     record_matches: dict[str, list[dict]] = field(default_factory=dict)
+    #: Extractor candidates the candidate filter kept from becoming nodes, with the reason (``candidate_filter.py``).
+    dropped: list[Dropped] = field(default_factory=list)
 
     def count(self, name: str, amount: int = 1) -> None:
         self.counts[name] = self.counts.get(name, 0) + amount
@@ -312,6 +315,7 @@ def plan_extractor(
     corpus_id: str | None,
     now: str,
     confirm_resolved: bool = False,
+    candidate_filter: CandidateFilter | None = None,
 ) -> None:
     by_id = {item.item_id: item for item in items}
     import_run_id = f"typed-entities-run-{safe_id(run_id)}"
@@ -338,6 +342,8 @@ def plan_extractor(
             if node is None:
                 node = index.resolve(entity.kind, entity.text)
                 existing = node is not None
+            if node is None and candidate_filter is not None and not candidate_filter.check(entity.kind, entity.text):
+                continue  # a candidate that would be a new node and is a common word, a stop word or of an undeclared kind: no node, no link
             if node is None:
                 node = new_node_row(
                     entity.kind, entity.text, STATUS_GENERATED, import_run_id=import_run_id, corpus_id=corpus_id, now=now, reason=f"typed-entities:{run_id}"
@@ -379,6 +385,10 @@ def plan_extractor(
             plan.count("relationsProposed")
     if unpublished:
         plan.count("extractorItemsNotPublished", unpublished)
+    if candidate_filter is not None:
+        plan.dropped.extend(candidate_filter.dropped)
+        for dropped in candidate_filter.dropped:
+            plan.count(f"candidatesDropped.{dropped.reason}")
 
 
 def plan_clusters(
@@ -423,6 +433,7 @@ def plan_publish_run(
     record_rows: list[dict] | None = None,
     record_rows_for: Callable[[list], list[dict]] | None = None,
     ledger: Any = None,
+    candidate_filter: CandidateFilter | None = None,
 ) -> PublishPlan:
     """``records`` are monitor records (``monitor_records.py``) and ``record_rows`` the current relation rows of the records' links: together
     they add the structured entities and relations of the records (``monitor_import.py``). With a ``ledger`` (``monitor_ledger.py``) only the
@@ -447,7 +458,10 @@ def plan_publish_run(
     if run is not None:
         plan.warnings.extend(run.warnings)
         if run.entities:
-            plan_extractor(run.entities, [*items, *(reference_documents or [])], index, confirmed, run.run_id, plan, corpus_id=corpus_id, now=now, confirm_resolved=confirm_resolved)
+            plan_extractor(
+                run.entities, [*items, *(reference_documents or [])], index, confirmed, run.run_id, plan,
+                corpus_id=corpus_id, now=now, confirm_resolved=confirm_resolved, candidate_filter=candidate_filter,
+            )
         if run.clusters:
             if not corpus_id:
                 raise ValueError("Importing clusters needs --corpus-key or --corpus-id (a steering proposal belongs to a corpus).")
