@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a9634767-729d-481c-a1ac-e5eba5eca35b",
+  "title": "Images saved with stories save-version --images can't be published on a tenant site: stored path and page builder disagree",
+  "description": "2026-11-04, Machines on Machines. save-version --images stored each picture at media/<tenant>/assets/<slug>/<file> (story_images.py uses tenant_stored_media_path), while the saved body says src=assets/<slug>/<file>. The renditions function takes the source from the key by dropping media/ (renditions.source_from_media_key), so renditions would land under responsive/<tenant>/assets/..., and the projector looks for responsive/assets/... . Publish then fails with MissingRenditionsError, and its suggested command can't fix it, since it maps the source to media/assets/..., where no object exists. So on a tenant site, pictures saved this way can never publish. Save and publish must agree on one path. A publish should also check for renditions before writing published data (see PPY-49eef4). Also: --images needs --bucket and --identity-pool-id (PPY-83e413), and ops content renditions needs an AWS login with --media-bucket and --function-name, against the rule that Papyrus operations go through the signed-in CLI.",
+  "type": "bug",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T18:33:27.698767Z",
+  "updated_at": "2026-11-04T18:33:27.698888Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
