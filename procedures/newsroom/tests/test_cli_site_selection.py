@@ -431,3 +431,43 @@ def test_the_remote_approval_url_is_shown_at_once_when_output_is_redirected(monk
 def test_a_stream_that_cannot_be_reconfigured_is_left_alone():
     from papyrus_content.cli_user_auth import line_buffered
     line_buffered(object())
+
+
+# --- the operator commands pick their backend from the signed-in site --------------------------------
+
+def operator_backend(tmp_path, monkeypatch, with_pod=True):
+    from papyrus.operator.config import load_operator_config
+    pod = tmp_path/'pod'
+    pod.mkdir()
+    config = tmp_path/'operator.yaml'
+    config.write_text(f'local:\n  podPath: {pod}\n' if with_pod else '')
+    monkeypatch.setenv('PAPYRUS_OPERATOR_CONFIG', str(config))
+    monkeypatch.delenv('PAPYRUS_BACKEND', raising=False)
+    return load_operator_config(corpus_key_override='some-corpus').backend
+
+
+def test_a_signed_in_editor_with_no_outputs_file_gets_the_cloud_backend_without_the_flag(tmp_path, monkeypatch):
+    sign_in(A)
+    assert operator_backend(tmp_path, monkeypatch) == 'cloud'
+
+
+def test_an_operator_on_the_iam_lane_keeps_the_local_backend(tmp_path, monkeypatch):
+    sign_in(A)
+    monkeypatch.setenv('PAPYRUS_GRAPHQL_AUTH', 'iam')
+    assert operator_backend(tmp_path, monkeypatch) == 'local'
+
+
+def test_nobody_signed_in_keeps_the_local_backend(tmp_path, monkeypatch):
+    assert operator_backend(tmp_path, monkeypatch) == 'local'
+
+
+def test_an_explicit_backend_still_beats_the_signed_in_site(tmp_path, monkeypatch):
+    from papyrus.operator.config import load_operator_config
+    sign_in(A)
+    operator_backend(tmp_path, monkeypatch)
+    assert load_operator_config(backend_override='local', corpus_key_override='some-corpus').backend == 'local'
+
+
+def test_several_signed_in_sites_without_a_choice_do_not_break_config_loading(tmp_path, monkeypatch):
+    sign_in(A, B)
+    assert operator_backend(tmp_path, monkeypatch) == 'local'

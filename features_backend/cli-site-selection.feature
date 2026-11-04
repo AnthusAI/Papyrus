@@ -164,3 +164,27 @@ Feature: An editor picks a signed-in site and runs any newsroom command from any
     Given the person is signed in to no site
     When a remote login prints its approval URL
     Then the line was flushed immediately
+
+  # The operator reference commands (list, show) pick local or cloud on their own. A signed-in editor has no endpoint
+  # variable and no outputs file, so the signed-in site stands in for the endpoint; an operator on the IAM lane, or an
+  # explicit backend, is untouched.
+
+  Scenario: A signed-in editor with a local pod configured still gets the cloud backend without the backend flag
+    Given the person is signed in to "a.anth.us" only
+    And the working directory has no Amplify outputs file
+    And a local pod is configured for the operator commands
+    When an operator reference command picks its backend with no backend flag
+    Then the backend is "cloud"
+
+  Scenario: An operator on the IAM lane keeps the local backend
+    Given the person is signed in to "a.anth.us" only
+    And the operator chose the IAM lane
+    And a local pod is configured for the operator commands
+    When an operator reference command picks its backend with no backend flag
+    Then the backend is "local"
+
+  Scenario: An explicit backend flag beats the signed-in site
+    Given the person is signed in to "a.anth.us" only
+    And a local pod is configured for the operator commands
+    When an operator reference command picks its backend with the backend flag "local"
+    Then the backend is "local"

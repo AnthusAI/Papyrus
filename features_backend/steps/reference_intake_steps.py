@@ -13,9 +13,28 @@ def isolated(context):
     context.intake_before = copy.deepcopy(context.intake_client.tables)
 
 
+def _backend_env(context):
+    return getattr(context, 'intake_env', None)
+
+
+@given('the backend carries a tenant and declares that it serves a single publication')
+def single_publication(context):
+    context.intake_env = {'PAPYRUS_TENANT_ID': 'tenant-a', 'PAPYRUS_SINGLE_PUBLICATION_BACKEND': 'true'}
+
+
+@given('the backend carries a tenant and does not declare that it serves a single publication')
+def undeclared(context):
+    context.intake_env = {'PAPYRUS_TENANT_ID': 'tenant-a', 'PAPYRUS_SINGLE_PUBLICATION_BACKEND': ''}
+
+
+@given('the backend carries a tenant and declares "{value}" for the single publication setting')
+def declared_value(context, value):
+    context.intake_env = {'PAPYRUS_TENANT_ID': 'tenant-a', 'PAPYRUS_SINGLE_PUBLICATION_BACKEND': value}
+
+
 @when('its editor registers a reporting source')
 def register(context):
-    context.intake_result = submit(context.intake_client)
+    context.intake_result = submit(context.intake_client, env=_backend_env(context))
 
 
 @then('the source is pending with attributable provenance')
@@ -53,6 +72,33 @@ def repeated(context):
     assert len(context.intake_client.uploads) == 1
 
 
+@when('intake is requested with a valid editor session')
+def valid_editor(context):
+    _attempt(context, payload(), copy.deepcopy(IDENTITY))
+
+
+@when('intake is requested with an editor session whose token has the "{claim}" claim')
+def tenant_token(context, claim):
+    identity = copy.deepcopy(IDENTITY)
+    identity['claims'][claim] = 'tenant-a'
+    _attempt(context, payload(), identity)
+
+
+@then('the refusal names the setting that declares a single publication')
+def names_setting(context):
+    assert 'PAPYRUS_SINGLE_PUBLICATION_BACKEND=true' in context.intake_refusal
+
+
+def _attempt(context, data, identity):
+    try:
+        submit(context.intake_client, data, identity, env=_backend_env(context))
+    except IntakeError as error:
+        context.intake_rejected = True
+        context.intake_refusal = str(error)
+    else:
+        raise AssertionError('Unauthorized intake succeeded')
+
+
 @when('intake is requested with {violation}')
 def rejected(context, violation):
     identity = copy.deepcopy(IDENTITY)
@@ -63,12 +109,7 @@ def rejected(context, violation):
     if violation == 'another publication': data['publicationEndpoint'] = 'https://other/graphql'
     if violation == 'another corpus': data['corpusId'] = 'foreign-corpus'
     if violation == 'a caller selected tenant': data['tenantId'] = 'foreign'
-    try:
-        submit(context.intake_client, data, identity)
-    except IntakeError:
-        context.intake_rejected = True
-    else:
-        raise AssertionError('Unauthorized intake succeeded')
+    _attempt(context, data, identity)
 
 
 @then('no intake data is written')
