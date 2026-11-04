@@ -1,0 +1,20 @@
+{
+  "id": "PPY-4b8e46c8-29bc-4927-b812-197842016bdc",
+  "title": "Research packet flags names from the do-not-use list and marks true statements as rejected",
+  "description": "Found on the Machines on Machines Story research assignment (research.multi), 2026-11-03.\n\n1. The direction said do not rely on Facebook's Bob and Alice or GibberLink, and that the Gemini documents are leads. fact_check.py then listed as open questions: 'The run has sources that mention Bob but wrote nothing on Bob', the same for Alice and NeurIPS, 'The run found nothing on GibberLink' and 'wrote nothing on The Gemini'. Names an editor excluded should not be reported as gaps, and a conference name is not a subject.\n2. The section 'Rejected (not supported by its sources), do not rely on' includes statements that look true, such as the Goguen and Meseguer definition of non-interference and the Zdancewic and Myers description of robust declassification. The cause is probably that the evidence was search snippets (PPY-d6ce1b). I have not yet confirmed each against the papers. 'Rejected' reads as false. The label should separate 'contradicted' from 'the evidence the run had did not show this'.\n\nThe packet's own open questions were otherwise useful, so this is about labels and the name list. Related: PPY-b32e85, PPY-d6ce1b.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T03:31:39.548816Z",
+  "updated_at": "2026-11-04T03:31:39.548845Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
