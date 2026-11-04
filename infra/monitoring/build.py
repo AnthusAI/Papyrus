@@ -52,7 +52,7 @@ VENDORED_DATA = frozenset({".py", ".pem"})
 LOCK = ROOT / "poetry.lock"
 # anthus-markus renders the Markus body of every filed idea (publishing.derive_body); it turns on markdown-it-py's linkify extra, which the
 # closure leaves out with the other extras, so linkify-it-py is named too.
-ROUTER_WHEEL_ROOTS = ("humanus", "typesafe-sdk", "anthus-markus", "linkify-it-py")
+ROUTER_WHEEL_ROOTS = ("humanus", "typesafe-sdk", "anthus-markus", "linkify-it-py", "pypdf")
 LAMBDA_PLATFORMS = ("manylinux_2_28_aarch64", "manylinux_2_17_aarch64", "manylinux2014_aarch64")
 LAMBDA_PYTHON = "3.13"
 ROUTER_DATA = ("corpora/papyrus-semantic-relation-types.yml", "corpora/papyrus-publication-doctrine.yml")

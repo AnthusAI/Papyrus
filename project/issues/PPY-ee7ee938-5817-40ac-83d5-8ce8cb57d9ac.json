@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ee7ee938-5817-40ac-83d5-8ce8cb57d9ac",
+  "title": "Edit any concept: name, description, kind, aliases",
+  "description": "Today `describeConcept` refuses generated concepts because runs could overwrite them; PPY-891a3f removes that reason. Edit in place on the concept page, records who and when, keeps a new SemanticNode version so edits can be seen and undone. Rename keeps the old name as an alias so links and searches still work. Also through the CLI. Requires PPY-891a3f. Screenshot review.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-46d70d7c-891b-4332-8819-012cf0b24628",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:46.364669Z",
+  "updated_at": "2026-11-04T02:52:46.364700Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

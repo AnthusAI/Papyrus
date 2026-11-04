@@ -12,9 +12,17 @@
     "cli"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3fac26eb-02af-4c00-8185-49860417faf1",
+      "author": "home",
+      "text": "Tested 2026-11-03 with CLI 5.83.0 against Machines on Machines after its 5.83.0 deploy finished at 03:20Z. Still refused, now with the new message naming PAPYRUS_SINGLE_PUBLICATION_BACKEND. infra/site.json has the flag, but cms.environment reaches the Amplify branch only through the app-shell stack, and this site's amplify.yml does not run papyrus-infra deploy; infra/README.md says a person does that deploy. So the likely missing step is an app-shell deploy, then a backend build. 'set it and redeploy' in the message and docs should say which deploy, because a merge looks like enough.",
+      "created_at": "2026-11-04T03:31:39.700761Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-03T23:58:22.822923Z",
-  "updated_at": "2026-11-03T23:58:22.823191Z",
+  "updated_at": "2026-11-04T03:31:39.700979Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

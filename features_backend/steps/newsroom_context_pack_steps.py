@@ -121,8 +121,11 @@ class FakeNewsroom:
 
     def update_record(self, model, payload):
         self.writes.append(("update", model, copy.deepcopy(payload)))
-        if payload["id"] in self.records[model]:
-            self.records[model][payload["id"]].update(payload)
+        record_id = payload["id"]
+        if model == "NewsroomSection" and record_id not in self.records[model]:
+            record_id = f"{TENANT}#{record_id}"
+        if record_id in self.records[model]:
+            self.records[model][record_id].update(payload)
         if model == "Item":
             for row in self.items:
                 if row["id"] == payload["id"]:
@@ -265,6 +268,20 @@ def build_newsroom():
     return store
 
 
+def give_core_concepts(store):
+    """The default section has one core concept that a Reference is tagged with; a scenario that wants more builds on this."""
+    store.records["SemanticNode"]["concept-containment-v1"] = {
+        "id": "concept-containment-v1", "lineageId": "concept-containment", "versionState": "current", "versionNumber": 1,
+        "nodeKey": "editor_concept--containment-problem", "nodeKind": "editor_concept", "displayName": "containment problem", "aliases": [], "status": "accepted"}
+    store.records["NewsroomSection"][SECTION_ID]["coreConcepts"] = json.dumps(
+        [{"conceptLineageId": "concept-containment", "note": "", "addedBy": "An Editor", "addedAt": moment(1)}])
+    store.add_reference("law-tagged", "Tagged with the containment problem", human=True, day=4, summary="Tagged summary. More.")
+    store.relations.append({
+        "id": "tag-law-tagged", "relationState": "current", "predicate": "related_to", "subjectKind": "reference", "objectKind": "semanticNode",
+        "subjectLineageId": "law-tagged", "objectLineageId": "concept-containment", "subjectStateKey": "reference#law-tagged#current",
+        "objectStateKey": "semanticNode#concept-containment#current", "metadata": json.dumps({"decision": "accepted", "decidedBy": "An Editor"})})
+
+
 def pack_for(context, **kwargs):
     with mock.patch.object(pack_module, "graphql_endpoint", return_value=ENDPOINT):
         return build_context_pack(context.store, profile="reporter", assignment="assignment-1", story_lineage_id="story-1", **kwargs)
@@ -294,6 +311,7 @@ def build(context, **kwargs):
 @given('a newsroom with a publication policy, a section "law-policy" and a Story "story-1" in it')
 def step_newsroom(context):
     context.store = build_newsroom()
+    give_core_concepts(context.store)
 
 
 @given('the editor\'s assignment "assignment-1" on the Story with the direction "{direction}"')
@@ -895,7 +913,7 @@ def step_direction_rules(context):
     systems = {name: system for name, system, _ in context.llm.calls}
     assert ms.PLAN_DIRECTION_RULES in systems["search_plan"] and "each item is its own claim" in systems["research_synthesis"]
     assert "Each thing it asks for gets its own queries" in systems["search_plan"] or "each thing it asks for gets its own queries" in systems["search_plan"].lower()
-    assert "Answer it in its order" in systems["research_synthesis"] and "only titles and snippets count as evidence" in systems["research_synthesis"].lower()
+    assert "Answer it in its order" in systems["research_synthesis"] and "only page text, titles and snippets count as evidence" in systems["research_synthesis"].lower()
 
 
 @then("the brief begins with the editor's direction, labelled as the editor's, before the Story")
@@ -1125,7 +1143,7 @@ def three_pack_blocks(context, names):
 
 @then("the section's published Stories and accepted References are the same in all three packs")
 def step_same_section(context):
-    first, *others = three_pack_blocks(context, pack_module.SECTION_BLOCK)
+    first, *others = three_pack_blocks(context, [name for name in pack_module.SECTION_BLOCK if name not in pack_module.SECTION_CONCEPT_LAYERS])
     assert all(other == first for other in others), (first, others)
 
 

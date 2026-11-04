@@ -8,7 +8,7 @@ from typing import Any
 import yaml
 
 from papyrus_content.env import PAPYRUS_ROOT
-from papyrus_content.steering import load_steering_config
+from papyrus_content.steering import load_steering_config, steering_config_chosen_by_site
 
 VALID_BACKENDS = frozenset({"local", "cloud"})
 DEFAULT_OPERATOR_CONFIG_RELATIVE = Path(".papyrus") / "operator-cli.config.yaml"
@@ -17,8 +17,8 @@ DEFAULT_OPERATOR_CONFIG_RELATIVE = Path(".papyrus") / "operator-cli.config.yaml"
 @dataclass(frozen=True)
 class OperatorConfig:
   backend: str
-  default_corpus_key: str
-  publication_key: str
+  default_corpus_key: str | None  # None: nothing chose a corpus; `resolve_default_corpus_key` decides
+  publication_key: str | None
   pod_path: Path | None
   default_story: str | None
   graphql_endpoint: str | None
@@ -48,6 +48,43 @@ def _default_corpus_from_steering() -> str:
   if not corpus_key:
     raise ValueError("canonicalTopicSet.corpusKey is required in the steering config.")
   return corpus_key
+
+
+def _site_chosen_corpus_key() -> str | None:
+  """The canonical corpus of a steering file the site or operator chose; None when only the wheel's packaged default exists."""
+  if not steering_config_chosen_by_site():
+    return None
+  return _default_corpus_from_steering()
+
+
+def resolve_default_corpus_key(config: OperatorConfig) -> str:
+  """The corpus a command uses when it is given no ``--corpus-key``.
+
+  A corpus the site chose (the operator config or a steering file of its own) wins. A signed-in session on the cloud backend
+  otherwise uses the backend's canonical publication corpus, as ``resolve_catalog_corpus`` does; it is an error, never a guess,
+  when the backend has none or several. The IAM lane and the local backend keep the packaged default."""
+  if config.default_corpus_key:
+    return config.default_corpus_key
+  from papyrus_content.user_auth_mode import user_auth_requested
+
+  if config.backend == "cloud" and not config.fixture_root and user_auth_requested():
+    return _hosted_corpus_key()
+  return _default_corpus_from_steering()
+
+
+def _hosted_corpus_key() -> str:
+  from papyrus_content.editorial_context import hosted_publication
+  from papyrus_content.graphql_authoring import create_authoring_client
+
+  from .errors import OperatorError
+
+  client, _ = create_authoring_client()
+  try:
+    return hosted_publication(client)["key"]
+  except ValueError as error:
+    raise OperatorError(
+      f"No corpus was chosen and this site does not name a single one: {error} Pass --corpus-key <key> to choose."
+    ) from error
 
 
 def _load_yaml_config(path: Path) -> dict[str, Any]:
@@ -84,7 +121,7 @@ def load_operator_config(
   default_corpus = (
     corpus_key_override
     or _optional_string(raw.get("defaultCorpusKey"))
-    or _default_corpus_from_steering()
+    or _site_chosen_corpus_key()
   )
   publication_key = _optional_string(raw.get("publicationKey")) or default_corpus
   pod_path = _resolve_path(_optional_string(local_section.get("podPath")), base=PAPYRUS_ROOT)

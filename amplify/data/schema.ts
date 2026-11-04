@@ -767,6 +767,21 @@ const definitions = {
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(functionHandler("categoryAction", categoryAction)),
 
+  CreateConceptResult: a.customType({
+    ok: a.boolean().required(),
+    lineageId: a.string().required(),
+    nodeKey: a.string(),
+    displayName: a.string(),
+    nodeKind: a.string(),
+  }),
+
+  createEditorConcept: a
+    .mutation()
+    .arguments({ name: a.string().required() })
+    .returns(a.ref("CreateConceptResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
   decideReferenceLink: a
     .mutation()
     .arguments({
@@ -1497,6 +1512,7 @@ const definitions = {
       defaultPageBudget: a.integer(),
       assignmentGuidance: a.string(),
       killCriteria: a.string(),
+      coreConcepts: a.json(),
       visualGuidance: a.string(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),

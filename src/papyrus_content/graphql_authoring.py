@@ -132,7 +132,7 @@ MODEL_ATTACHMENT_FIELDS = (
 )
 NEWSROOM_SECTION_FIELDS = (
     "id title shortTitle type editorialMission editorialPolicy enabled enabledStatus sortOrder "
-    "defaultArticleTypes defaultPageBudget assignmentGuidance killCriteria visualGuidance createdAt updatedAt tenantId"
+    "defaultArticleTypes defaultPageBudget assignmentGuidance killCriteria visualGuidance createdAt updatedAt tenantId coreConcepts"
 )
 EDITION_FIELDS = (
     f"{VERSION_FIELDS} id slug title status editionDate publishedAt description layoutPlan metadata"
@@ -676,9 +676,9 @@ mutation Delete{model_name}($input: Delete{model_name}Input!) {{
 MUTATIONS = {model: _model_mutations(model) for model in LIST_DEFINITIONS}
 
 
-# Reference and Item fields newer than some deployed sites (Stories got the same three star fields a Reference has). One router serves sites on different versions, so a site whose
+# Reference, Item and NewsroomSection fields newer than some deployed sites (Stories got the same three star fields a Reference has; a section got coreConcepts). One router serves sites on different versions, so a site whose
 # schema does not have these yet is read without them instead of failing every Reference read.
-NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starFeedKey", "captureState")
+NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starFeedKey", "captureState", "coreConcepts")
 _UNDEFINED_NEWER_FIELD = re.compile(r"FieldUndefined: Field '(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")' in type")
 _NEWER_FIELD_SELECTION = re.compile(r"(?<![$\w])(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")\b\s*")
 

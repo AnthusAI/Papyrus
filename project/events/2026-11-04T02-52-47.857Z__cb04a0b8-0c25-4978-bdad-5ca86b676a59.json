@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cb04a0b8-0c25-4978-bdad-5ca86b676a59",
+  "issue_id": "PPY-21b6c16b-4289-4627-a255-14e17dbfaa71",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:47.857Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Idea selection and research use tracked concepts",
+    "description": "`papyrus ideas select`: say which tracked and adjacent concepts an idea touches and whether it fills a gap, as evidence for the editor agent; not a score that picks. Research queries include a tracked concept's aliases. Requires PPY-a7dce2.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-95b47bd9-5d6f-477e-ad3b-9ea8040b00df",
+    "labels": []
+  }
+}

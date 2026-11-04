@@ -260,6 +260,7 @@ const PREVIEW_PACKET: ResearchPacketView = {
     { claim: "The authority approved a contract for four cranes in March.", sources: [
       { rank: 1, url: "https://authority.example.org/minutes/march", title: "March board minutes", domain: "authority.example.org" },
       { rank: 2, url: "https://news.example.net/cranes-approved", title: "Cranes approved for the harbor", domain: "news.example.net" }] },
+    { claim: "Delivery is scheduled to start in September.", snippetOnly: true, sources: [{ rank: 3, url: "https://contractor.example.com/schedule", title: "Delivery schedule", domain: "contractor.example.com" }] },
     { claim: "The contract is worth 41 million dollars.", sources: [{ rank: 2, url: "https://news.example.net/cranes-approved", title: "Cranes approved for the harbor", domain: "news.example.net" }] },
   ],
   disagreements: [{ topic: "Delivery date", positions: [
@@ -272,6 +273,8 @@ const PREVIEW_PACKET: ResearchPacketView = {
     { claim: "The second bidder withdrew.", verdict: "unchecked", sources: [{ rank: 2, url: "https://news.example.net/cranes-approved", title: "Cranes approved for the harbor", domain: "news.example.net" }], reasons: ["The run ran short of time before this claim was checked"] },
   ],
   factCheckSummary: "12 verified, 8 need a check, 8 rejected; 23 rest on one site",
+  readingSummary: "Read 2 of 3 sources, 1 of them in part. 1 could not be opened, so claims from them rest on search snippets.",
+  notOpened: ["https://contractor.example.com/schedule"],
   directionGaps: [],
   sourceCount: 3,
 };

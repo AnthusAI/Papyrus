@@ -17,10 +17,24 @@
       "text": "Update 2026-11-03: not fixed yet. The workaround is to set PAPYRUS_GRAPHQL_ENDPOINT from the site's public /.well-known/papyrus-cli.json with PAPYRUS_GRAPHQL_AUTH=user. A signed-in site record already has the endpoint available through that file, so the fix should select it from the signed-in site. See PPY-5180e0 for the same problem with PAPYRUS_TENANT_ID.",
       "created_at": "2026-11-04T00:14:55.370937Z",
       "comment_type": "default"
+    },
+    {
+      "id": "25b2667d-8120-434f-9f4d-d16f13ea1bc7",
+      "author": "home",
+      "text": "Tested 2026-11-03 with CLI 5.83.0: stories show, references list, assignments list and context-pack all work with no amplify_outputs.json, no endpoint and no tenant variable, given papyrus --site <site>. With several sites signed in the CLI asks for --site and names the choices. Looks fixed for these commands; issue is still open on the board.",
+      "created_at": "2026-11-04T03:31:39.763594Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "90a6c9e8-05a8-4427-8cd7-a30ac112a271",
+      "author": "home",
+      "text": "Mostly fixed in 5.83.0 (#1142, #1149); live-tested from an empty directory with --site. Open: stories save-version --images and content publish still need an outputs file or flags; references list without --corpus-key used threat-intelligence on Machines on Machines.",
+      "created_at": "2026-11-04T03:36:38.619413Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-03T20:05:11.030992Z",
-  "updated_at": "2026-11-04T00:14:55.371132Z",
+  "updated_at": "2026-11-04T03:36:38.620186Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

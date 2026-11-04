@@ -397,6 +397,7 @@ PORTED_COMMANDS = frozenset(
         "newsroom:import-doctrine",
         "newsroom:set-doctrine",
         "newsroom:update-section",
+        "newsroom:section-concepts",
         "newsroom:seed-required-procedures",
         "newsroom:register-procedure",
         "automations:list",
@@ -907,6 +908,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "newsroom:update-section":
         from .section_editing import sections_update
         sections_update(flags)
+    elif route == "newsroom:section-concepts":
+        from .section_concepts import sections_concepts
+        sections_concepts(flags)
     elif route == "newsroom:seed-required-procedures":
         newsroom_seed_required_procedures(flags)
     elif route == "newsroom:register-procedure":

@@ -2,7 +2,7 @@
 
 import { AlertCircleIcon, CheckIcon, Loader2Icon, SearchIcon } from "lucide-react";
 import { useId, useState } from "react";
-import { directionProblem } from "../lib/assign-research";
+import { directionProblem, RESEARCH_RUN_NOTE } from "../lib/assign-research";
 import { assignResearch } from "./assign-research-client";
 
 /**
@@ -52,6 +52,7 @@ export function AssignResearchBox({ demo = false, lineageId, onAssigned, section
       rows={4}
       value={direction}
     />
+    <p className="assign-research-note" data-assign-research-explains>{RESEARCH_RUN_NOTE}</p>
     <div className="assign-research-actions">
       <button aria-busy={busy || undefined} className="assign-research-button" data-assign-research-send disabled={busy} onClick={() => void send()} type="button">
         {busy ? <Loader2Icon aria-hidden="true" className="assign-research-spin" size={15} /> : <SearchIcon aria-hidden="true" size={15} />}

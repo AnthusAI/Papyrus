@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "49d5a1a9-fb4a-4347-a480-977e31f2ca5b",
+  "issue_id": "PPY-c63f187c-e74c-4bec-a327-4a91fc0e2d1c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:48.744Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Public ranked and trending concept views",
+    "description": "Directives and blocks for the public wiki from the snapshot: trending, rising, cooling, newest, most connected, most sourced, by kind. Extends `::recent-concepts` and `knowledge_components.py`. Documented on p.apyr.us.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e0b8806d-2b63-42a4-9d6c-b812a1abe34e",
+    "labels": []
+  }
+}

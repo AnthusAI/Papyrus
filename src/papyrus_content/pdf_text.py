@@ -37,6 +37,15 @@ def download_pdf(url: str, *, timeout: float = PDF_FETCH_TIMEOUT_SECONDS, maximu
         return response.read() if maximum_bytes is None else response.read(maximum_bytes)
 
 
+def iter_page_texts(data: bytes):
+    """The text of each page in order, parsed only as it is asked for."""
+    from pypdf import PdfReader
+
+    reader = PdfReader(io.BytesIO(data))
+    for page in reader.pages:
+        yield page.extract_text() or ""
+
+
 def extract_pages(data: bytes, first_page: int = 1, last_page: int = 0) -> tuple[int, list[dict]]:
     """(page count, [{page, text}]) for the pages in the range, numbered as in the file. last_page 0 means the end."""
     from pypdf import PdfReader

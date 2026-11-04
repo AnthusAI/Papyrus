@@ -35,16 +35,26 @@ class _Text(HTMLParser):
             if (fields.get("name") or fields.get("property") or "").lower() in {"description", "og:description"}:
                 self.description = (fields.get("content") or "").strip()
         elif tag == "p" and not self._skip:
+            self._finish_paragraph()     # HTML lets a paragraph end where the next begins; older pages rely on it
             self._paragraph = []
 
     def handle_endtag(self, tag: str) -> None:
         if tag in SKIPPED_TAGS and self._skip:
             self._skip -= 1
-        elif tag == "p" and self._paragraph is not None:
-            text = re.sub(r"\s+", " ", "".join(self._paragraph)).strip()
-            if len(text) >= 60:
-                self.paragraphs.append(text)
-            self._paragraph = None
+        elif tag == "p":
+            self._finish_paragraph()
+
+    def close(self) -> None:
+        super().close()
+        self._finish_paragraph()
+
+    def _finish_paragraph(self) -> None:
+        if self._paragraph is None:
+            return
+        text = re.sub(r"\s+", " ", "".join(self._paragraph)).strip()
+        if len(text) >= 60:
+            self.paragraphs.append(text)
+        self._paragraph = None
 
     def handle_data(self, data: str) -> None:
         if self._paragraph is not None and not self._skip:
@@ -55,6 +65,7 @@ def excerpt_from_html(html: str, limit: int = EXCERPT_CHARACTERS) -> str | None:
     parser = _Text()
     try:
         parser.feed(html)
+        parser.close()
     except Exception:  # noqa: BLE001 - a page that will not parse has no excerpt
         return None
     parts = ([parser.description] if parser.description else []) + parser.paragraphs

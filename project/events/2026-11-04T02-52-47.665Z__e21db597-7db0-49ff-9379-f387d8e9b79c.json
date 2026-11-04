@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e21db597-7db0-49ff-9379-f387d8e9b79c",
+  "issue_id": "PPY-59f90445-871b-4e69-bf37-267396f7c5fd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:47.665Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Section knowledge layers: adjacent, distinctive, rising, gaps",
+    "description": "Layers: adjacent concepts under each tracked concept's card, the section's distinctive and rising concepts, coverage gaps, bridges. Profile differences as data: the editor gets gaps and bridges first; the reporter gets adjacent concepts and their aliases for search terms; the copywriter mostly names and aliases for correct usage. Requires the graph epic.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-95b47bd9-5d6f-477e-ad3b-9ea8040b00df",
+    "labels": []
+  }
+}

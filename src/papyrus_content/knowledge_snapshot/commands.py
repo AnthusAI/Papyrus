@@ -201,9 +201,12 @@ def plan_changes(client: Any, plan: PublishPlan, *, workers: int = 1, client_fac
     for record, existing in zip(plan.records, current):
         model, expected = record["modelName"], record["expected"]
         if record.get("createOnly") and existing is not None:
-            changes.append({"modelName": model, "expected": existing, "current": existing, "action": "noop"})
+            changes.append({"modelName": model, "expected": existing, "current": existing, "action": "noop", "createOnly": True})
         else:
-            changes.append(build_record_change_from_current(model, expected, existing))
+            change = build_record_change_from_current(model, expected, existing)
+            if record.get("createOnly"):
+                change["createOnly"] = True
+            changes.append(change)
     for patch in plan.patches:
         changes.append({"modelName": patch["modelName"], "expected": patch["expected"], "current": None, "action": "update"})
     return changes

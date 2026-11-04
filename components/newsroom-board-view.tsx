@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { IssueCollection, IssueDetailPanel, IssueIdFormatProvider, IssueTypeFilter, issueTypeFromFilter, useBoardColumnState } from "@kanbus/ui";
 import "./newsroom-theme";
-import { PlusIcon } from "lucide-react";
 import { newsroomHref } from "../lib/newsroom-base-path";
 import {
   ASSIGNMENT_BOARD_TYPE,
@@ -32,6 +31,7 @@ import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { NewsroomBoardSkeleton } from "./newsroom-board-skeleton";
+import { NewsroomBoardHeaderActions } from "./newsroom-board-header-actions";
 import { NewsroomArticleEditor } from "./newsroom-article-editor";
 import { resolveArticlesBackend } from "../lib/newsroom-articles";
 import { StoryCardStars, useStoryCardSlots } from "./story-board-stars";
@@ -44,7 +44,6 @@ import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reade
 const SELECTED_ISSUE_PARAMETER = "open";
 const STATIC_MOTION = { mode: "static" } as const;
 const BOARD_REFRESH_INTERVAL_MILLISECONDS = 30_000;
-const COLUMN_LOAD_MORE_DISTANCE_PIXELS = 240;
 
 async function loadEveryNewsroomAssignment() {
   const assignments: AssignmentRecord[] = [];
@@ -137,23 +136,9 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const loading = supportingRecordsLoading || (showsContentItems && pagedContentItems.loading);
   const error = supportingRecordsError ?? (showsContentItems ? pagedContentItems.error : null);
   const config = useMemo(() => subject === "contentItem" ? contentItemBoardConfig(issues) : subject === "desk" ? deskBoardConfig(issues) : assignmentBoardConfig(issues), [issues, subject]);
-  const columnStageFromElement = (element: Element | null) => {
-    const columnKey = element?.closest("[data-column-key]")?.getAttribute("data-column-key");
-    return columnKey?.startsWith(contentItemColumnKeyPrefix) ? columnKey.slice(contentItemColumnKeyPrefix.length) : null;
+  const loadMoreWhenColumnIsNearItsEnd = (columnKey: string) => {
+    if (showsContentItems && columnKey.startsWith(contentItemColumnKeyPrefix)) pagedContentItems.loadMoreForStage(columnKey.slice(contentItemColumnKeyPrefix.length));
   };
-  const loadMoreWhenColumnIsNearItsEnd = (columnScroll: HTMLElement) => {
-    const distanceToEnd = columnScroll.scrollHeight - columnScroll.scrollTop - columnScroll.clientHeight;
-    const stage = columnStageFromElement(columnScroll);
-    if (stage && distanceToEnd < COLUMN_LOAD_MORE_DISTANCE_PIXELS) pagedContentItems.loadMoreForStage(stage);
-  };
-  const handleBoardScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    if (showsContentItems && target.classList?.contains("kb-column-scroll")) loadMoreWhenColumnIsNearItsEnd(target);
-  };
-  useEffect(() => {
-    if (!showsContentItems) return;
-    boardBodyRef.current?.querySelectorAll<HTMLElement>(".kb-column-scroll").forEach(loadMoreWhenColumnIsNearItsEnd);
-  });
   const deskTitle = session?.shell.dashboard?.newsroomSections?.find(section => section.id === deskId)?.title ?? (deskId ? displayNewsroomSectionShortTitle({ id: deskId } as NewsroomSectionRecord) : "Desk");
   const pageTitle = subject === "contentItem" ? getContentItemName().plural : subject === "desk" ? deskTitle : "Assignments";
   const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
@@ -166,22 +151,13 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const issue = issues.find(item => item.id === selected);
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
   return <NewsroomOpsShell activeTab={subject === "contentItem" ? "articles" : subject === "desk" ? "desks" : "assignments"} appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle={pageTitle}
-    headerActions={<>
-      {!loading ? <span role="status" className="organizer-board-note">{issues.length} records loaded.</span> : null}
-      <div role="group" aria-label="Record presentation" className="organizer-board-view-toggle"><button type="button" className="organizer-header-button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" className="organizer-header-button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
-      {showsContentItems && (
-        <Link className="organizer-header-button" data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
-          <PlusIcon size={14} aria-hidden="true" />
-          {`New ${getContentItemName().singular.toLowerCase()}`}
-        </Link>
-      )}
-    </>}>
+    headerActions={<NewsroomBoardHeaderActions view={view} onViewChange={setView} recordCount={loading ? null : issues.length} showsNewContentItemLink={showsContentItems} />}>
     <IssueIdFormatProvider formatIssueId={formatNativeIssueId}>
     <div className="organizer-native-board">
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
       {subject === "desk" && <IssueTypeFilter config={config} value={typeFilter} onChange={setTypeFilter} name="Record type" className="organizer-board-type-filter" />}
-      <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef} onScrollCapture={handleBoardScroll}>
-        {loading && !issues.length ? <NewsroomBoardSkeleton /> : <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view}
+      <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef}>
+        {loading && !issues.length ? <NewsroomBoardSkeleton /> : <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view} onColumnNearEnd={loadMoreWhenColumnIsNearItsEnd}
           motion={lowMotion ? STATIC_MOTION : undefined}
           collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn} initialScroll="start"
           selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={item => setSelected(item.id)} ariaLabel={pageTitle}

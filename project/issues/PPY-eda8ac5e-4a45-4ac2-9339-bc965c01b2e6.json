@@ -1,0 +1,20 @@
+{
+  "id": "PPY-eda8ac5e-4a45-4ac2-9339-bc965c01b2e6",
+  "title": "Merge concepts, and undo a merge",
+  "description": "Pick the winner: the loser's names become aliases, its links move to the winner, the loser stays as a retired node with `alias_of` so old links, wiki addresses (a redirect) and section lists resolve. Tracked concept lists and packs follow `alias_of`. Undo restores the links moved, from a record kept on the merge. Dry run in the CLI. A knowledge run resolving a retired name lands on the winner. Screenshot review.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-46d70d7c-891b-4332-8819-012cf0b24628",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:46.548623Z",
+  "updated_at": "2026-11-04T02:52:46.548662Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

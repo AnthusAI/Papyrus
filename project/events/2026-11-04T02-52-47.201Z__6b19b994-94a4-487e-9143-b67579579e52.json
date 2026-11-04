@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6b19b994-94a4-487e-9143-b67579579e52",
+  "issue_id": "PPY-e2401774-5717-4687-b12c-b530bcd96bd0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:47.201Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Section aggregates: what is distinctive, rising, new and published in each section",
+    "description": "For each section, from the Reference to section links: distinctive concepts (lift: share in the section against share in the site, with a support floor learned from the data), rising, newly seen, recently published about. Answers Ryan's question about filtering by section: this is not hard once References have sections, since a section's concepts are those its References and Stories mention. Written per section where packs can read it; private unless the public epic says otherwise.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-ee757023-8014-4c31-8397-e55566c7ab80",
+    "labels": []
+  }
+}

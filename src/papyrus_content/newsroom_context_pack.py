@@ -91,17 +91,18 @@ How to read what follows:
 
 #: What every agent on a Story reads about it, what every agent in a section reads about that section, and what it reads about the publication beyond.
 STORY_BLOCK = ("assignment", "story", "process", "story_references", "related_references", "story_conversation", "prior_research")
-SECTION_BLOCK = ("desk_published", "desk_references")
+SECTION_CONCEPT_LAYERS = ("section_concepts", "concept_references")
+SECTION_BLOCK = (*SECTION_CONCEPT_LAYERS, "desk_published", "desk_references")
 PUBLICATION_BLOCK = ("publication_published", "publication_references")
-OUTER_LAYERS = (*SECTION_BLOCK, *PUBLICATION_BLOCK)
+OUTER_LAYERS = ("desk_published", "desk_references", *PUBLICATION_BLOCK)
 SHARED_LAYERS = ("related_references",)
 
 #: Each agent: its role text, its layers in order, and whether it can only work on a Story.
 PROFILES: dict[str, dict[str, Any]] = {
     "reporter": {"role": REPORTER_ROLE, "needsStory": True, "layers": (*STORY_BLOCK, *SECTION_BLOCK, *PUBLICATION_BLOCK)},
-    "copywriter": {"role": COPYWRITER_ROLE, "needsStory": True, "sheds": ("story_references", "story_conversation", "prior_research"),
+    "copywriter": {"role": COPYWRITER_ROLE, "needsStory": True, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"),
                    "layers": ("editorial_policies", *STORY_BLOCK, "voice_examples", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
-    "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("story_references", "story_conversation", "prior_research"), "layers": (*STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
+    "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"), "layers": (*STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
 }
 
 
@@ -180,6 +181,29 @@ class Situation:
         self._related: dict[str, dict[str, Any]] | None = None
         self._accepted: list[dict[str, Any]] | None = None
         self._summaries: Any = None
+        self._concept_nodes: dict[str, dict[str, Any]] | None = None
+
+    def concept_nodes(self) -> dict[str, dict[str, Any]]:
+        if self._concept_nodes is None:
+            from .section_concepts import current_concept_nodes, nodes_by_lineage
+
+            self._concept_nodes = nodes_by_lineage(current_concept_nodes(self.store))
+        return self._concept_nodes
+
+    def usable_core_concepts(self) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+        """The section's core concepts that still resolve to a current, non-rejected concept, as (core concept entry, node). The others are warnings."""
+        from .section_concepts import concept_label, core_concepts
+
+        usable = []
+        for entry in core_concepts(self.section):
+            node = self.concept_nodes().get(entry["conceptLineageId"])
+            if node is None:
+                self.warnings.append(f"The section has the core concept {entry['conceptLineageId']}, which no longer resolves: it is left out.")
+            elif node.get("status") == "rejected":
+                self.warnings.append(f"The section has the core concept {concept_label(node)}, which was rejected: it is left out.")
+            else:
+                usable.append((entry, node))
+        return usable
 
     def _resolve_section(self) -> dict[str, Any] | None:
         if self.story is None:
@@ -423,7 +447,8 @@ def prior_research_layer(situation: Situation) -> tuple[list[Entry], str | None]
         for item in load_assignment_research_packet_entries(situation.store, assignment["id"]):
             packet = item["packet"]
             created = str(item["message"].get("createdAt") or "")
-            claims = [str(claim["claim"]) for claim in packet.get("claims") or [] if isinstance(claim, dict) and claim.get("claim")]
+            claims = [str(claim["claim"]) + (" (search snippet only; the source was not read)" if claim.get("snippetOnly") else "")
+                      for claim in packet.get("claims") or [] if isinstance(claim, dict) and claim.get("claim")]
             held = [claim for claim in packet.get("unverifiedClaims") or [] if isinstance(claim, dict) and claim.get("claim")]
             needs_check = [str(claim["claim"]) for claim in held if claim.get("verdict") == "needs_check"]
             unchecked = [str(claim["claim"]) for claim in held if claim.get("verdict") == "unchecked"]
@@ -585,9 +610,21 @@ def shed_summaries(core: dict[str, list[Entry]], dropped: dict[str, tuple[int, s
     return over
 
 
-SHEDDING = {"story_conversation": shed_conversation, "prior_research": shed_research, "story_references": shed_summaries}
+def shed_machine_links(core: dict[str, list[Entry]], dropped: dict[str, tuple[int, str]], over: int) -> int:
+    """Machine-suggested links on the core concept cards give way first; the links an editor accepted stay whole. What went is recorded as dropped."""
+    for entry in reversed(core.get("section_concepts", [])):
+        if over <= 0:
+            break
+        if entry.get("bare") and entry["text"] != entry["bare"]:
+            over -= len(entry["text"]) - len(entry["bare"])
+            entry["text"] = entry["bare"]
+            dropped["section_concepts"] = (dropped.get("section_concepts", (0, ""))[0] + entry.get("machineLinks", 0), "machine links dropped: the core layers fill the budget")
+    return over
+
+
+SHEDDING = {"section_concepts": shed_machine_links, "story_conversation": shed_conversation, "prior_research": shed_research, "story_references": shed_summaries}
 #: What goes first when the core does not fit, unless a profile says otherwise. A reporter is about to read sources afresh, so old research can go early; an editor or a copywriter works from it.
-DEFAULT_SHEDDING = ("story_conversation", "prior_research", "story_references")
+DEFAULT_SHEDDING = ("section_concepts", "story_conversation", "prior_research", "story_references")
 
 
 def build_context_pack(store: Any, *, profile: str, assignment: Any = None, story_lineage_id: str | None = None, section_id: str | None = None,
@@ -629,6 +666,7 @@ def build_context_pack(store: Any, *, profile: str, assignment: Any = None, stor
     for name in names:
         if LAYERS[name].core:
             core[name], empty_reasons[name] = LAYERS[name].build(situation)
+    warnings += [text for text in situation.warnings if text not in warnings]
     dropped: dict[str, tuple[int, str]] = {}
     if room is not None:
         over = sum(size(entries) for entries in core.values()) + 2 * sum(len(entries) for entries in core.values()) - room
@@ -759,6 +797,99 @@ def editorial_policies_layer(situation: Situation) -> tuple[list[Entry], str | N
     return entries, None if entries else "the site has no editorial policies"
 
 
+def concept_relations(situation: Situation, lineage: str) -> list[dict[str, Any]]:
+    key = f"semanticNode#{lineage}#current"
+    return [*situation.store.list_semantic_relations_by_subject_state(key), *situation.store.list_semantic_relations_by_object_state(key)]
+
+
+def concept_links(situation: Situation, lineage: str) -> list[dict[str, Any]]:
+    """Current links from this concept to other concepts: predicate, direction, the other concept, and the note a person wrote on the link. Person-accepted links first."""
+    from .ideas.signal_inputs import explanation_of
+    from .section_concepts import concept_label
+
+    found: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for relation in concept_relations(situation, lineage):
+        if relation.get("subjectKind") != "semanticNode" or relation.get("objectKind") != "semanticNode" or relation.get("relationState", "current") != "current":
+            continue
+        outgoing = str(relation.get("subjectLineageId")) == lineage
+        other = str(relation.get("objectLineageId") if outgoing else relation.get("subjectLineageId"))
+        node = situation.concept_nodes().get(other)
+        if other == lineage or node is None or node.get("status") == "rejected":
+            continue
+        metadata = _json_object(relation.get("metadata"))
+        person = metadata.get("decision") == "accepted" and bool(metadata.get("decidedBy")) and not str(metadata.get("decidedBy")).startswith("auto:")
+        found[(str(relation.get("predicate")), "out" if outgoing else "in", other)] = {
+            "predicate": str(relation.get("predicate")), "outgoing": outgoing, "name": concept_label(node), "person": person, "note": explanation_of(relation)}
+    return sorted(found.values(), key=lambda link: (link["predicate"], not link["person"], link["outgoing"] is False, link["name"]))
+
+
+def section_concepts_layer(situation: Situation) -> tuple[list[Entry], str | None]:
+    """One card for each core concept of the section: what it is, why the section cares, and its links to other concepts. Links an editor accepted are always whole; the machine links go first when the core is over budget."""
+    from .section_concepts import concept_label
+
+    if situation.section is None:
+        return [], situation.section_problem
+    entries = []
+    for core_entry, node in situation.usable_core_concepts():
+        lineage = core_entry["conceptLineageId"]
+        found = concept_links(situation, lineage)
+
+        def written(link: dict[str, Any]) -> str:
+            return (f"- {link['predicate']}{'' if link['outgoing'] else ' (from the other concept)'}: {link['name']}"
+                    + ("; accepted by an editor" if link["person"] else "") + (f"; the editor's note on the link: {link['note']}" if link["note"] else ""))
+
+        def card(links: list[dict[str, Any]]) -> str:
+            return _block([
+                _line("Concept", concept_label(node)),
+                _line("Also called", ", ".join(str(alias) for alias in node.get("aliases") or [])),
+                _line("Kind", node.get("nodeKind")),
+                _line("Description", node.get("description")),
+                _line("Why this section cares", core_entry["note"]),
+                "Links to other concepts:\n" + "\n".join(written(link) for link in links) if links else "",
+            ])
+
+        entry = _entry("concept", lineage, card(found), name=concept_label(node), machineLinks=sum(1 for link in found if not link["person"]))
+        entry["bare"] = card([link for link in found if link["person"]])
+        entries.append(entry)
+    return entries, None if entries else "the section has no core concepts"
+
+
+def concept_reference_candidates(situation: Situation) -> list[tuple[dict[str, Any], list[str]]]:
+    """Accepted References tagged with (related_to) or mentioning (mentions) a core concept, best first, each with the labels of the concepts."""
+    from .concept_link_predicates import RELATED_TO, is_reference_concept_link
+    from .section_concepts import concept_label
+
+    accepted = {str(row.get("lineageId") or row["id"]): row for row in situation.accepted_references()}
+    attached = situation.attached_lineages()
+    labels: dict[str, dict[str, str]] = {}
+    for _, node in situation.usable_core_concepts():
+        lineage = str(node.get("lineageId") or node["id"])
+        for relation in situation.store.list_semantic_relations_by_object_state(f"semanticNode#{lineage}#current"):
+            reference = str(relation.get("subjectLineageId") or "")
+            if (is_reference_concept_link(relation.get("predicate"), relation.get("subjectKind"), relation.get("objectKind")) and reference in accepted
+                    and reference not in attached):
+                way = "tagged" if relation["predicate"] == RELATED_TO else "mentioned"
+                labels.setdefault(reference, {}).setdefault(concept_label(node), way)
+                if way == "tagged":
+                    labels[reference][concept_label(node)] = way
+    rows = [accepted[lineage] for lineage in labels]
+    newest = sorted(sorted(rows, key=lambda row: str(row["id"])), key=lambda row: str(row.get("curationStatusUpdatedAt") or row.get("createdAt") or ""), reverse=True)
+    ranked = sorted(newest, key=reference_rank)
+    return [(row, [f"{name} ({way})" for name, way in sorted(labels[str(row.get('lineageId') or row['id'])].items())]) for row in ranked]
+
+
+def concept_references_layer(situation: Situation) -> tuple[Iterable[Entry], str | None]:
+    if situation.section is None:
+        return [], situation.section_problem
+    candidates = concept_reference_candidates(situation)
+    if not candidates and not situation.usable_core_concepts():
+        return [], "the section has no core concepts"
+    return LazyEntries(candidates, lambda candidate: _entry(
+        "reference", str(candidate[0]["id"]), one_line(reference_one_line(situation, candidate[0]), "core concepts: " + ", ".join(candidate[1])),
+        lineageId=str(candidate[0].get("lineageId") or candidate[0]["id"]), acceptedBy=HUMAN if candidate[0].get("curationActorKind") == HUMAN else "machine")), \
+        "no accepted References are tagged with or mention a core concept"
+
+
 def desk_published_layer(situation: Situation) -> tuple[Iterable[Entry], str | None]:
     if situation.section is None:
         return [], situation.section_problem
@@ -805,6 +936,8 @@ LAYERS: dict[str, Layer] = {
     "prior_research": Layer("Research already done on this Story, newest first", True, prior_research_layer, needs_story=True),
     "voice_examples": Layer("Published Stories, in full, for the publication's voice", False, voice_layer),
     "desk_in_progress": Layer("Stories in progress in the section, best first", False, desk_in_progress_layer),
+    "section_concepts": Layer("Core concepts of this section", True, section_concepts_layer),
+    "concept_references": Layer("Accepted References tagged with or mentioning a core concept, best first", False, concept_references_layer),
     "desk_published": Layer("Published in the section, newest first", False, desk_published_layer),
     "desk_references": Layer("Accepted References in the section, best first", False, desk_references_layer),
     "publication_published": Layer("Published in other sections, newest first", False, publication_published_layer),

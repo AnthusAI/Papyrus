@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { assignmentStateView, buildResearchAssignmentPlan, directionProblem } from "../lib/assign-research";
-import { factCheckSentence, plainReason, researchPacketOf } from "../lib/research-packet";
+import { factCheckSentence, plainReason, readingSentence, researchPacketOf } from "../lib/research-packet";
 import { failureReasonOf, isResearchAssignment } from "../lib/story-reporting-trail";
 
 export const BROWSER_PLAN_INPUT = {
@@ -133,4 +133,16 @@ test("machine reasons are shown in plain words and unknown ones as they are", ()
   assert.equal(plainReason("judge_partly_supported"), "The source only partly supports this");
   assert.equal(plainReason("judge_failed: TimeoutError: the run ran short of time before this claim was checked"), "The run ran short of time before this claim was checked");
   assert.equal(plainReason("something new"), "something new");
+});
+
+test("a packet says what its run read; one from before runs opened their sources says nothing", () => {
+  assert.equal(researchPacketOf(packet)?.readingSummary, null);
+  const view = researchPacketOf({ ...packet, claims: [{ claim: "It shipped.", sources: [1], snippetOnly: true }, { claim: "It sold.", sources: [1] }],
+    multiSearch: { reading: { sources: 15, read: 12, inPart: 3, notOpened: ["https://paywall.example/a"] } } });
+  assert.equal(view?.readingSummary, "Read 12 of 15 sources, 3 of them in part. 1 could not be opened, so claims from them rest on search snippets.");
+  assert.deepEqual(view?.notOpened, ["https://paywall.example/a"]);
+  assert.deepEqual(view?.claims.map(claim => claim.snippetOnly), [true, false]);
+  assert.equal(readingSentence({ sources: 2, read: 2, inPart: 0, notOpened: [] }), "Read 2 of 2 sources.");
+  assert.equal(readingSentence({ sources: 3, read: 0, inPart: 0, notOpened: ["a"], outOfRoom: ["b", "c"] }),
+    "Read 0 of 3 sources. 1 could not be opened and 2 opened with no time or room left to read, so claims from them rest on search snippets.");
 });

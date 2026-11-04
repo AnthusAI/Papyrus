@@ -436,6 +436,7 @@ def test_the_router_zip_can_load_everything_a_research_run_uses_with_nothing_but
     script = ("import sys; sys.path.insert(0, sys.argv[1]); "
               "from papyrus_content import multi_search_research, research_assignments_worker, newsroom_context_pack, fact_check; "
               "from papyrus_content import assignments_workflow, reference_curation, steering, catalog, ids, web_search; "
+              "import pypdf; assert sys.argv[1] in pypdf.__file__; "   # a research run reads PDFs; without this every PDF silently reads as no text
               "assert sys.argv[1] in multi_search_research.__file__; print('loaded')")
     done = subprocess.run([sys.executable, "-I", "-S", "-c", script, str(unpacked)], capture_output=True, text=True, cwd=tmp_path,
                           env={"PAPYRUS_ROOT": str(unpacked)})
