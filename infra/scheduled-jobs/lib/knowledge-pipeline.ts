@@ -83,6 +83,8 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     KNOWLEDGE_SITE_BRANCH: config.siteBranch,
     KNOWLEDGE_STATIC_SUBDIR: config.staticSubdir,
     KNOWLEDGE_OPENAI_KEY_PARAMETER: config.openAiKeyParameter,
+    // Read by the typed-extraction stage, which hands the key to `papyrus knowledge extract-entities` as TYPESAFE_API_KEY.
+    KNOWLEDGE_DECISION_KEY_PARAMETER: config.decisionKeyParameter,
     // Read by the optional trend-drafts step only (infra/knowledge-run/trend_drafts.py).
     TREND_DRAFTS_MAX_AGE_DAYS: String(config.trendSnapshotMaxAgeDays),
     // Read by the optional monitor-stories step only (infra/knowledge-run/monitor_stories.py); set only when the site opted in.
@@ -134,7 +136,7 @@ export function knowledgeTaskStatements(config: KnowledgeRunConfig): iam.PolicyS
     new iam.PolicyStatement({
       sid: "ReadParameters",
       actions: ["ssm:GetParameter"],
-      resources: [ssmParameterArn(config, PROJECTION_LOCK_PARAMETER_NAME), ssmParameterArn(config, config.openAiKeyParameter)],
+      resources: [ssmParameterArn(config, PROJECTION_LOCK_PARAMETER_NAME), ssmParameterArn(config, config.openAiKeyParameter), ssmParameterArn(config, config.decisionKeyParameter)],
     }),
     new iam.PolicyStatement({
       sid: "ReadContentActionsConfiguration",

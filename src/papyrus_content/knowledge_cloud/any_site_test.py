@@ -101,7 +101,7 @@ def test_a_new_site_without_a_vocabulary_gets_the_generic_one_and_keeps_it_in_it
     from ..knowledge_snapshot.registry import read_vocabulary_kinds
 
     assert read_vocabulary_kinds(run.config_dir / "vocabulary.yml") == ["organization", "product", "person", "topic"]
-    typed = commands(shell, ["biblicus", "extract", "typed-entities"])[0]
+    typed = commands(shell, ["papyrus", "knowledge", "extract-entities"])[0]
     assert value_of(typed, "--vocabulary") == str(run.config_dir / "vocabulary.yml")
 
 
@@ -154,7 +154,7 @@ def test_a_site_with_no_items_and_no_records_succeeds_every_stage_with_nothing_t
     assert all_stages(run) == {stage: 0 for stage in STAGES}
     for stage in STAGES[1:]:
         assert not [call for call in shell.calls if call[:3] == ["biblicus", "analyze", "topics"]]
-    assert not commands(shell, ["biblicus", "extract", "typed-entities"])
+    assert not commands(shell, ["papyrus", "knowledge", "extract-entities"])
     assert not commands(shell, ["papyrus", "knowledge", "publish-run"])
     assert not commands(shell, ["papyrus", "knowledge", "snapshot"])
     assert not commands(shell, ["papyrus", "ops", "content", "project"]), "nothing is projected for a run that found nothing"
@@ -190,7 +190,7 @@ def test_monitor_records_without_items_are_still_imported_and_counted_but_not_mo
     shell.items, shell.records = 0, 2
     assert all_stages(run) == {stage: 0 for stage in STAGES}
     assert run.read_state()["empty"] is False and run.read_state()["documents"] == 0
-    assert not commands(shell, ["biblicus", "analyze", "topics"]) and not commands(shell, ["biblicus", "extract", "typed-entities"])
+    assert not commands(shell, ["biblicus", "analyze", "topics"]) and not commands(shell, ["papyrus", "knowledge", "extract-entities"])
     imports = commands(shell, ["papyrus", "knowledge", "publish-run"])
     assert imports and all("--identity" not in call and "--entities" not in call for call in imports)
     assert all("--monitor-records" in call for call in imports)
