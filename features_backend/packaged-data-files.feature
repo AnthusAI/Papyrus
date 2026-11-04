@@ -39,6 +39,18 @@ Feature: The PyPI wheel carries the data files the commands read at run time
     Given the wheel built from this checkout
     Then the wheel requires anthus-markus for every install, not only for an extra
 
+  Scenario: A plain install can save and repair pictures
+    The picture commands are for an ordinary editor install: stories save-version
+    with --images, stories repair-image-paths and ops content renditions. They reach
+    the site's media bucket through boto3 and read image sizes with Pillow. Release
+    5.86.0 printed the repair plan and then failed with No module named boto3 on a
+    plain install, because both were only in the markus extra. Both are base
+    requirements of the wheel now, and the package smoke workflow installs the
+    checkout with no extras and builds the same clients those commands build.
+    Given the wheel built from this checkout
+    Then the wheel requires boto3 for every install, not only for an extra
+    And the wheel requires Pillow for every install, not only for an extra
+
   Scenario: Code that Lambda functions run works without the login library
     The Lambda bundles ship papyrus_content but not cli-login, which only the CLI
     needs. Release 5.61.0 failed on every site because a GraphQL request from a

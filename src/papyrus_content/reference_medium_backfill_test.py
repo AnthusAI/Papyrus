@@ -98,7 +98,8 @@ def test_the_command_is_safe_by_default_and_writes_only_with_the_write_flag(caps
 
     for flags, writes in ((["--site", "demo"], 0), (["--site", "demo", "--dry-run"], 0), (["--site", "demo", "--write"], 5), (["--site", "demo", "--write", "--dry-run"], 0)):
         client = Client(corpus())
-        with mock.patch("papyrus_content.references_commands.create_authoring_client", return_value=(client, None)):
+        with mock.patch("papyrus_content.references_commands.create_authoring_client", return_value=(client, None)), \
+                mock.patch("papyrus_content.user_auth_mode.user_auth_requested", return_value=False):
             references_backfill_medium(flags)
         assert len(client.updates) == writes, flags
         output = capsys.readouterr().out
