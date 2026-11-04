@@ -8,8 +8,8 @@ Feature: Pending References are in the vector index as context, so the Related s
   search all ask for accepted References only, and a search drops a pending one even if it came back. The index follows the Reference through its life: when a
   pending Reference is accepted its vectors are marked accepted without a new embedding and its passages are written, when an accepted one goes back to
   pending its passages are removed, and when a Reference is rejected, archived or superseded its vectors are deleted (or, where the router's role may not delete,
-  marked with that status so every query still skips them). The router's daily pass picks up the accepted and the pending References since its last pass and
-  suggests links for both. The index, the embeddings and the backends are fakes in these scenarios.
+  marked with that status so every query still skips them). The router's daily pass picks up the accepted and the pending References that changed since its last pass and
+  queues one related-items check for each summary vector it stores. The index, the embeddings and the backends are fakes in these scenarios.
 
   Scenario: A pending Reference is indexed as context with its summary vector only
     Given a site index with the accepted Reference "alpha" and the pending Reference "beta"
@@ -45,12 +45,12 @@ Feature: Pending References are in the vector index as context, so the Related s
     Then the vectors of "alpha" are marked rejected
     And the sync records that deleting was denied
 
-  Scenario: The router's pass indexes and suggests for the pending References too
+  Scenario: The router's pass indexes the pending References too and queues one check for each
     Given a publication whose Reference "one" was accepted at "2026-10-30T10:00:00Z" and "two" is pending since "2026-10-31T10:00:00Z"
     When the router's vector pass runs
-    Then both References are indexed and suggested for, the pending one first
-    And the pass reports 1 newly accepted and 1 newly pending Reference
-    And the pass saves a place for the pending and the accepted group
+    Then both References are indexed and a related-items check is queued for each
+    And the pass reports 2 changed References
+    And the pass saves a place after the newest change
 
   Scenario: Suggestions for a pending Reference come from accepted References only
     Given a pending Reference "reference-p" with a stored vector, another pending Reference close to it and an accepted one a little further

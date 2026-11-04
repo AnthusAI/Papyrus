@@ -335,6 +335,8 @@ def references_backfill_feed_keys(flags: list[str]) -> None:
     from .reference_feed_backfill import backfill_feed_keys, corpus_ids_for
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references backfill-feed-keys")
+    from .operator_errors import require_operator_lane
+    require_operator_lane("references backfill-feed-keys", "Reference records", writing=apply)
     client, _ = create_authoring_client()
     corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")),
                                 all_corpora=bool(options.get("all-corpora")))
@@ -357,8 +359,10 @@ def references_backfill_medium(flags: list[str]) -> None:
     """
     from .reference_feed_backfill import corpus_ids_for
     from .reference_medium_backfill import backfill_medium
+    from .operator_errors import require_operator_lane
     options = parse_options(flags)
     write = parse_boolean_option(options.get("write"), default=False, label="--write") and not parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    require_operator_lane("references backfill-medium", "Reference records", writing=write)
     client, _ = create_authoring_client()
     corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")),
                                 all_corpora=bool(options.get("all-corpora")))
@@ -415,6 +419,8 @@ def references_duplicates(flags: list[str]) -> None:
 def references_backfill_reviewed_feed_key(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references backfill-reviewed-feed-key")
+    from .operator_errors import require_operator_lane
+    require_operator_lane("references backfill-reviewed-feed-key", "Reference records", writing=apply)
     client, _ = create_authoring_client()
     references = client.list_records("Reference")
     changes: list[dict[str, Any]] = []
@@ -453,6 +459,8 @@ def references_backfill_corpus_storage_paths(flags: list[str]) -> None:
 
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references backfill-corpus-storage-paths")
+    from .operator_errors import require_operator_lane
+    require_operator_lane("references backfill-corpus-storage-paths", "Reference records", writing=apply)
     mirror_s3 = parse_boolean_option(options.get("mirror-s3"), False, "--mirror-s3")
     reference_ids = set(parse_repeated_option(flags, "reference"))
     if options.get("reference"):

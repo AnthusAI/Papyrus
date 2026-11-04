@@ -374,6 +374,8 @@ def newsroom_repair_message_status(flags: list[str]) -> None:
 def newsroom_backfill_feed_fields(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "sections backfill-feed-fields")
+    from .operator_errors import require_operator_lane
+    require_operator_lane("sections backfill-feed-fields", "Reference, Message, Assignment and semantic graph records", writing=apply)
     client, _ = create_authoring_client()
     models = ["Message", "Assignment", "Reference", "SemanticNode", "SemanticRelation"]
     changes: list[dict[str, Any]] = []
@@ -404,6 +406,8 @@ def newsroom_backfill_operational_indexes(flags: list[str]) -> None:
     options = parse_options(flags)
     started_at = datetime.now(timezone.utc)
     apply = resolve_mutation_apply(options, "sections backfill-operational-indexes")
+    from .operator_errors import require_operator_lane
+    require_operator_lane("sections backfill-operational-indexes", "Assignment and KnowledgeImportRun records", writing=apply)
     client, _ = create_authoring_client()
     _assert_operational_index_schema_ready(client)
     assignments = client.list_records("Assignment")
