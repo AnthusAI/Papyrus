@@ -1,5 +1,5 @@
 {
-  "id": "PPY-dc8593a3-5ebb-48ec-9bd6-f79c0d5e02dd",
+  "id": "PPY-e286792d-9b1a-4af7-8a31-23e58c6ef6eb",
   "title": "Roll out subscribe and manage pages to every Papyrus site as one batch",
   "description": "**Milestone:** M3, public email and new stories\n\n**Goal.** Try on Machines on Machines, the site under test for reader features. Once it works, one batch across the rest.\n\n**Build.**\nOne PR per site carrying both the version bump and the `papyrus.config.ts` plugin block, so one deploy per site, never two in a row. A site's sending setup comes first (kanbus-313b10). Full reprojection on enable. List sites from the repo, not memory; a site's Slack or Discord reader option needs public-reader registration in Prospectus, which only some have.\n\n**Acceptance.**\nEvery site's `/notifications/` page answers, in its own theme; Amplify builds succeed.\n\n**Depends on:** PPY-f361ee, PPY-17cf09, PPY-d7443d, PPY-d99539",
   "type": "task",
@@ -13,7 +13,7 @@
   ],
   "dependencies": [
     {
-      "target": "PPY-ab920595-ebfa-4357-bbb7-9da1358599d6",
+      "target": "PPY-f361ee7e-c4a1-4c05-9d27-e474859769fc",
       "type": "blocked-by"
     },
     {
@@ -27,23 +27,19 @@
     {
       "target": "PPY-d9953979-de1c-47f5-a78c-2a745ba545a4",
       "type": "blocked-by"
-    },
-    {
-      "target": "PPY-f361ee7e-c4a1-4c05-9d27-e474859769fc",
-      "type": "blocked-by"
     }
   ],
   "comments": [
     {
-      "id": "b34ec77d-f23b-48b4-a0aa-dd80dfa275f1",
+      "id": "39299a5b-5f54-41f1-95a1-2a6be3e341da",
       "author": "home",
       "text": "Caducus side: kanbus-c5bf83",
-      "created_at": "2026-11-04T13:15:37.139654Z",
+      "created_at": "2026-11-04T13:19:03.772581Z",
       "comment_type": "default"
     }
   ],
-  "created_at": "2026-11-04T13:14:31.070226Z",
-  "updated_at": "2026-11-04T13:17:12.256429Z",
+  "created_at": "2026-11-04T13:19:03.086422Z",
+  "updated_at": "2026-11-04T13:19:03.772786Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
