@@ -1,0 +1,541 @@
+#!/usr/bin/env python3
+"""Deploy shared CloudFormation stacks from the release pipeline (PPY-b8cc79).
+
+Subcommands (all read `infra/pipeline/stacks.json`):
+
+  scope --base SHA --head SHA     which stacks have inputs in the diff (writes `stacks=` and `deploy=` to $GITHUB_OUTPUT)
+  requirements                    pip requirements for the vendored packages at the poetry.lock versions (a reproducible zip)
+  plan [--stack NAME ...]         READ-ONLY dry run: what a release would change, as a job summary (pull requests)
+  deploy [--stack NAME ...]       build, upload, create a change set, read it, execute it, watch it (push to main)
+
+Safety, in this file and nowhere else:
+  * parameter values and code keys are single-line and well formed before any call;
+  * a stack in a failed or in-progress state stops the run;
+  * a change set that would Remove or Replace anything not on `allowed-changes.json` is deleted unexecuted and the run stops;
+  * progress is polled (never `aws cloudformation wait`), and a failed update fails the run with the first failure's cause;
+  * nothing is retried. The workflow's concurrency group allows one run at a time.
+
+Exit codes: 0 done or nothing to do, 1 an update failed, 2 a safety check refused.
+Needs the AWS CLI. `plan` and `scope` need PyYAML only for templates.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+CONFIG_PATH = Path(__file__).resolve().parent / "stacks.json"
+ALLOWED_PATH = Path(__file__).resolve().parent / "allowed-changes.json"
+
+CHANGE_SET_PREFIX = "papyrus-release-"
+CODE_KEY = re.compile(r"^papyrus-monitoring/(router-|operator-|email-)?[0-9a-f]{64}\.zip$")
+BUCKET = re.compile(r"^[a-z0-9][a-z0-9.-]{2,62}$")
+
+# Stack states: where a change may start, and where it must not.
+UPDATABLE = {"CREATE_COMPLETE", "UPDATE_COMPLETE", "UPDATE_ROLLBACK_COMPLETE", "IMPORT_COMPLETE", "IMPORT_ROLLBACK_COMPLETE"}
+FIRST_CREATE = {"REVIEW_IN_PROGRESS"}
+SUCCESS = {"CREATE_COMPLETE", "UPDATE_COMPLETE"}
+NOT_STARTED = {"AVAILABLE", "UNAVAILABLE", "OBSOLETE"}
+
+
+class Stop(Exception):
+    """A safety check refused to go on. Nothing was executed."""
+
+
+class Failed(Exception):
+    """An update ran and failed, or could not be confirmed."""
+
+
+class AwsError(Exception):
+    pass
+
+
+# ---------------------------------------------------------------------------------------------------------------- pure checks
+
+
+def validate_parameters(values: dict[str, str]) -> None:
+    """Every value is one line of printable text; every code key has the exact shape build.py prints.
+
+    A two-line key (a trailing newline from a pasted build log) broke a deploy on 2026-11-04.
+    """
+    for name, value in values.items():
+        if not isinstance(value, str):
+            raise Stop(f"parameter {name} is not a string")
+        if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+            raise Stop(f"parameter {name} holds a newline or control character; every value must be one line")
+        if value != value.strip():
+            raise Stop(f"parameter {name} has leading or trailing whitespace")
+        if name.endswith("CodeKey") and not CODE_KEY.match(value):
+            raise Stop(f"parameter {name} is not a papyrus-monitoring/<kind>-<sha256>.zip key")
+
+
+def classify_stack(stack: dict | None) -> tuple[str, str]:
+    """('create' | 'update', status), or raise Stop for a failed, busy or unknown state."""
+    if stack is None:
+        return "create", "DOES_NOT_EXIST"
+    status = stack["StackStatus"]
+    if status in FIRST_CREATE:
+        return "create", status
+    if status in UPDATABLE:
+        return "update", status
+    if status.endswith("_IN_PROGRESS"):
+        raise Stop(f"stack is {status}: another change is running; not starting a second")
+    raise Stop(f"stack is {status} ({stack.get('StackStatusReason') or 'no reason given'}); a person must repair it before any deploy")
+
+
+def parameter_plan(template_parameters: dict, current: dict[str, str] | None, overrides: dict[str, str], keep_previous: bool) -> list[dict]:
+    """Parameters for CreateChangeSet. Overrides win; with `keep_previous`, a parameter the stack already has stays at its value;
+    anything else takes the template default. A required parameter with no value is an error, not a guess."""
+    result = []
+    for name, spec in template_parameters.items():
+        if name in overrides:
+            result.append({"ParameterKey": name, "ParameterValue": overrides[name]})
+        elif keep_previous and current is not None and name in current:
+            result.append({"ParameterKey": name, "UsePreviousValue": True})
+        elif "Default" in spec:
+            continue
+        else:
+            raise Stop(f"parameter {name} has no default, no previous value and no configured value")
+    unknown = sorted(set(overrides) - set(template_parameters))
+    if unknown:
+        raise Stop(f"configured parameters not in the template: {', '.join(unknown)}")
+    return result
+
+
+def is_replacement(change: dict) -> bool:
+    if change.get("Replacement") in ("True", "Conditional"):
+        return True
+    if change.get("Action") == "Dynamic":
+        return True
+    return any(detail.get("Target", {}).get("RequiresRecreation") == "Always" for detail in change.get("Details", []))
+
+
+def review_changes(stack: str, changes: list[dict], allowed: list[dict]) -> tuple[list[str], list[str]]:
+    """(violations, report lines). A violation is a Remove or a Replace not listed for this stack and logical id."""
+    permitted = {(entry["stack"], entry["logicalId"], entry["change"]) for entry in allowed}
+    violations, lines = [], []
+    for item in changes:
+        if item.get("Type") != "Resource":
+            continue
+        change = item["ResourceChange"]
+        logical, action = change["LogicalResourceId"], change["Action"]
+        kinds = (["Remove"] if action == "Remove" else []) + (["Replace"] if is_replacement(change) else [])
+        flag = ""
+        for kind in kinds:
+            if (stack, logical, kind) in permitted:
+                flag = f" ({kind} allowed by allowed-changes.json)"
+            else:
+                violations.append(f"{logical} ({change.get('ResourceType', '?')}) would be {'Removed' if kind == 'Remove' else 'Replaced'}")
+                flag = " (NOT ALLOWED)"
+        lines.append(f"| {action} | `{logical}` | {change.get('ResourceType', '')} | {change.get('Replacement', '')}{flag} |")
+    return violations, lines
+
+
+def failure_cause(events: list[dict], known: set[str], stack: dict | None) -> str:
+    """The earliest failed resource event not in `known` (the events before this execution) is the cause; later ones are usually the rollback."""
+    failed = sorted((e for e in events if e["EventId"] not in known and e["ResourceStatus"].endswith("_FAILED") and e.get("ResourceStatusReason")),
+                    key=lambda e: str(e["Timestamp"]))
+    lines = [f"{e['LogicalResourceId']} {e['ResourceStatus']}: {e['ResourceStatusReason']}" for e in failed]
+    if stack and stack.get("StackStatusReason"):
+        lines.append(f"stack: {stack['StackStatusReason']}")
+    return "\n".join(lines) or "no failure event found"
+
+
+def changed_stacks(config: dict, files: list[str]) -> list[str]:
+    names = []
+    for stack in config["stacks"]:
+        if any(file == path or (path.endswith("/") and file.startswith(path)) for file in files for path in stack["paths"]):
+            names.append(stack["name"])
+    return names
+
+
+def vendored_requirements(lock_text: str, vendored: tuple[str, ...]) -> list[str]:
+    import tomllib
+
+    dist_names = {"yaml": "pyyaml", "youtube_transcript_api": "youtube-transcript-api", "charset_normalizer": "charset-normalizer"}
+    versions = {re.sub(r"[-_.]+", "-", p["name"]).lower(): p["version"] for p in tomllib.loads(lock_text)["package"]}
+    lines = []
+    for module in vendored:
+        name = dist_names.get(module, module)
+        if name not in versions:
+            raise Stop(f"{name} is not in poetry.lock")
+        lines.append(f"{name}=={versions[name]}")
+    return lines
+
+
+def _yaml_loader():
+    import yaml
+
+    class Loader(yaml.SafeLoader):
+        pass
+
+    def tag(loader, suffix, node):
+        name = suffix if suffix in ("Ref", "Condition") else f"Fn::{suffix}"
+        if isinstance(node, yaml.ScalarNode):
+            value = loader.construct_scalar(node)
+            if suffix == "GetAtt":
+                value = value.split(".", 1)
+        elif isinstance(node, yaml.SequenceNode):
+            value = loader.construct_sequence(node, deep=True)
+        else:
+            value = loader.construct_mapping(node, deep=True)
+        return {name: value}
+
+    Loader.add_multi_constructor("!", tag)
+    return Loader
+
+
+def parse_template(text: str) -> dict:
+    import yaml
+
+    return yaml.load(text, Loader=_yaml_loader())  # noqa: S506 - a SafeLoader subclass
+
+
+def diff_templates(live: dict, new: dict) -> dict:
+    """Resource and parameter differences between the live template and the one in the commit (read-only; replacement needs a real change set)."""
+    old_r, new_r = live.get("Resources", {}), new.get("Resources", {})
+    modified = {}
+    for key in sorted(set(old_r) & set(new_r)):
+        if json.dumps(old_r[key], sort_keys=True, default=str) != json.dumps(new_r[key], sort_keys=True, default=str):
+            a, b = old_r[key].get("Properties", {}), new_r[key].get("Properties", {})
+            modified[key] = sorted(k for k in set(a) | set(b) if json.dumps(a.get(k), sort_keys=True, default=str) != json.dumps(b.get(k), sort_keys=True, default=str)) or ["(non-property)"]
+    old_p, new_p = live.get("Parameters", {}), new.get("Parameters", {})
+    return {"added": sorted(set(new_r) - set(old_r)), "removed": sorted(set(old_r) - set(new_r)), "modified": modified,
+            "parameters_added": sorted(set(new_p) - set(old_p)), "parameters_removed": sorted(set(old_p) - set(new_p))}
+
+
+# ------------------------------------------------------------------------------------------------------------------ AWS access
+
+
+class AwsCli:
+    """The only code that talks to AWS. Tests replace it with a fake that has the same methods."""
+
+    def __init__(self, region: str, run=subprocess.run, sleeper=time.sleep, clock=time.monotonic):
+        self.region, self._run, self.sleep, self.now = region, run, sleeper, clock
+
+    def _aws(self, *args: str, parse: bool = True):
+        done = self._run(["aws", *args, "--region", self.region, "--output", "json"], capture_output=True, text=True)
+        if done.returncode != 0:
+            raise AwsError((done.stderr or done.stdout).strip())
+        return json.loads(done.stdout) if parse and done.stdout.strip() else done.stdout
+
+    def account(self) -> str:
+        return self._aws("sts", "get-caller-identity")["Account"]
+
+    def describe_stack(self, name: str) -> dict | None:
+        try:
+            return self._aws("cloudformation", "describe-stacks", "--stack-name", name)["Stacks"][0]
+        except AwsError as error:
+            if "does not exist" in str(error):
+                return None
+            raise
+
+    def get_template(self, name: str) -> str:
+        body = self._aws("cloudformation", "get-template", "--stack-name", name, "--template-stage", "Original")["TemplateBody"]
+        return body if isinstance(body, str) else json.dumps(body)
+
+    def list_change_sets(self, name: str) -> list[dict]:
+        return self._aws("cloudformation", "list-change-sets", "--stack-name", name)["Summaries"]
+
+    def create_change_set(self, stack: str, name: str, kind: str, template_url: str, parameters: list[dict], capabilities: list[str], tags: dict, role_arn: str) -> None:
+        args = ["cloudformation", "create-change-set", "--stack-name", stack, "--change-set-name", name, "--change-set-type", kind.upper(),
+                "--template-url", template_url, "--parameters", json.dumps(parameters), "--role-arn", role_arn]
+        if capabilities:
+            args += ["--capabilities", *capabilities]
+        if kind == "create" and tags:
+            args += ["--tags", *(f"Key={k},Value={v}" for k, v in tags.items())]
+        self._aws(*args)
+
+    def describe_change_set(self, stack: str, name: str) -> dict:
+        return self._aws("cloudformation", "describe-change-set", "--stack-name", stack, "--change-set-name", name)
+
+    def delete_change_set(self, stack: str, name: str) -> None:
+        self._aws("cloudformation", "delete-change-set", "--stack-name", stack, "--change-set-name", name, parse=False)
+
+    def execute_change_set(self, stack: str, name: str) -> None:
+        self._aws("cloudformation", "execute-change-set", "--stack-name", stack, "--change-set-name", name, parse=False)
+
+    def stack_events(self, name: str) -> list[dict]:
+        return self._aws("cloudformation", "describe-stack-events", "--stack-name", name)["StackEvents"]
+
+    def upload(self, path: Path, bucket: str, key: str) -> None:
+        self._aws("s3", "cp", str(path), f"s3://{bucket}/{key}", "--only-show-errors", parse=False)
+
+    def hosted_zones(self, dns_name: str) -> list[dict]:
+        zones = self._aws("route53", "list-hosted-zones-by-name", "--dns-name", dns_name, "--max-items", "5")["HostedZones"]
+        return [z for z in zones if z["Name"] == dns_name and not z.get("Config", {}).get("PrivateZone")]
+
+
+# ------------------------------------------------------------------------------------------------------------------ the deploy
+
+
+class Context:
+    def __init__(self, cloud, config: dict, allowed: list[dict], run_tag: str, root: Path = ROOT, runner=subprocess.run, out=print,
+                 summary: Path | None = None, change_set_timeout: float = 600, execute_timeout: float = 3000, poll: float = 10, start_grace: float = 180):
+        self.cloud, self.config, self.allowed, self.run_tag, self.root, self.runner, self.out = cloud, config, allowed, run_tag, root, runner, out
+        self.summary = summary
+        self.change_set_timeout, self.execute_timeout, self.poll, self.start_grace = change_set_timeout, execute_timeout, poll, start_grace
+
+    def write_summary(self, text: str) -> None:
+        self.out(text)
+        if self.summary:
+            with open(self.summary, "a", encoding="utf-8") as handle:
+                handle.write(text + "\n")
+
+
+def param_map(stack: dict | None) -> dict[str, str] | None:
+    return None if stack is None else {p["ParameterKey"]: p.get("ParameterValue", "") for p in stack.get("Parameters", [])}
+
+
+def template_bucket(ctx: Context) -> str:
+    source = ctx.config["templateBucketFrom"]
+    stack = ctx.cloud.describe_stack(source["stack"])
+    value = (param_map(stack) or {}).get(source["parameter"], "")
+    if not BUCKET.match(value):
+        raise Stop(f"cannot read a bucket name from {source['stack']} parameter {source['parameter']}")
+    return value
+
+
+def lookup_parameters(ctx: Context, cfg: dict) -> dict[str, str]:
+    values = {}
+    for name, spec in cfg.get("lookups", {}).items():
+        zones = ctx.cloud.hosted_zones(spec["hostedZone"].rstrip(".") + ".")
+        if len(zones) != 1:
+            raise Stop(f"expected exactly one public hosted zone for {spec['hostedZone']}, found {len(zones)}")
+        values[name] = zones[0]["Id"].removeprefix("/hostedzone/")
+    return values
+
+
+def build_keys(ctx: Context, cfg: dict, bucket: str) -> dict[str, str]:
+    """Run build.py for each configured zip (it asserts the account and uploads by content hash) and read back the printed key."""
+    keys = {}
+    for build in cfg.get("builds", []):
+        done = ctx.runner([sys.executable, str(ctx.root / build["script"]), *build.get("args", []), "--upload", bucket], capture_output=True, text=True, cwd=ctx.root)
+        if done.returncode != 0:
+            raise Failed(f"build for {build['parameter']} failed: {(done.stderr or done.stdout).strip()[-1500:]}")
+        found = [line.split(None, 1)[1] for line in done.stdout.splitlines() if line.startswith("CodeKey ")]
+        if len(found) != 1:
+            raise Failed(f"build for {build['parameter']} printed {len(found)} CodeKey lines")
+        keys[build["parameter"]] = found[0]
+    return keys
+
+
+def delete_own_stale_change_sets(ctx: Context, stack: str) -> None:
+    for item in ctx.cloud.list_change_sets(stack):
+        name = item["ChangeSetName"]
+        if name.startswith(CHANGE_SET_PREFIX):
+            if item.get("ExecutionStatus") in NOT_STARTED:
+                ctx.cloud.delete_change_set(stack, name)
+                ctx.out(f"deleted our own unexecuted change set {name}")
+        else:
+            ctx.out(f"leaving change set {name} alone: it is not ours ({item.get('Status')}, {item.get('ExecutionStatus')})")
+
+
+def wait_for_change_set(ctx: Context, stack: str, name: str) -> dict:
+    deadline = ctx.cloud.now() + ctx.change_set_timeout
+    while True:
+        described = ctx.cloud.describe_change_set(stack, name)
+        if described["Status"] in ("CREATE_COMPLETE", "FAILED"):
+            return described
+        if ctx.cloud.now() > deadline:
+            raise Failed(f"change set {name} was still {described['Status']} after {ctx.change_set_timeout:.0f}s")
+        ctx.cloud.sleep(ctx.poll)
+
+
+def wait_for_execution(ctx: Context, stack: str, name: str, known: set[str]) -> None:
+    """Poll until the stack leaves progress. Success needs a success status AND evidence that this execution ran, so a state left over
+    from an earlier deploy can never read as done (the CLI waiter returned at once on 2026-11-04)."""
+    begin = ctx.cloud.now()
+    deadline = begin + ctx.execute_timeout
+    seen_progress = False
+    while True:
+        current = ctx.cloud.describe_stack(stack)
+        change = ctx.cloud.describe_change_set(stack, name)
+        status, execution = (current or {}).get("StackStatus", "GONE"), change.get("ExecutionStatus", "")
+        if status.endswith("_IN_PROGRESS") and status != "REVIEW_IN_PROGRESS" or execution == "EXECUTE_IN_PROGRESS":
+            seen_progress = True
+        finished = execution in ("EXECUTE_COMPLETE", "EXECUTE_FAILED")
+        if status.endswith("_IN_PROGRESS") is False and status != "GONE" and (seen_progress or finished):
+            if status in SUCCESS and execution != "EXECUTE_FAILED":
+                return
+            raise Failed(f"stack {stack} ended {status}\n{failure_cause(ctx.cloud.stack_events(stack), known, current)}")
+        now = ctx.cloud.now()
+        if not seen_progress and now - begin > ctx.start_grace:
+            raise Failed(f"stack {stack} never started the change set ({status}, {execution}) after {ctx.start_grace:.0f}s; not retrying")
+        if now > deadline:
+            raise Failed(f"stack {stack} still {status} after {ctx.execute_timeout:.0f}s; not retrying, a person must look")
+        ctx.cloud.sleep(ctx.poll)
+
+
+def deploy_stack(ctx: Context, cfg: dict) -> str:
+    cloud, name = ctx.cloud, cfg["name"]
+    stack = cloud.describe_stack(name)
+    kind, status = classify_stack(stack)
+    ctx.out(f"{name}: {status}, will {kind}")
+    if stack is not None:
+        delete_own_stale_change_sets(ctx, name)
+    bucket = template_bucket(ctx)
+
+    overrides = dict(cfg.get("parameters", {}))
+    overrides.update(lookup_parameters(ctx, cfg))
+    overrides.update(build_keys(ctx, cfg, bucket))
+    validate_parameters(overrides)
+
+    template_path = ctx.root / cfg["template"]
+    text = template_path.read_text(encoding="utf-8")
+    plan = parameter_plan(parse_template(text).get("Parameters", {}), param_map(stack), overrides, cfg.get("keepPrevious", False))
+    validate_parameters({p["ParameterKey"]: p["ParameterValue"] for p in plan if "ParameterValue" in p})
+
+    key = f"papyrus-monitoring/templates/{name}-{hashlib.sha256(text.encode()).hexdigest()[:16]}.yaml"
+    cloud.upload(template_path, bucket, key)
+    change_set = f"{CHANGE_SET_PREFIX}{ctx.run_tag}"[:128]
+    cloud.create_change_set(name, change_set, kind, f"https://{bucket}.s3.{cloud.region}.amazonaws.com/{key}", plan, cfg.get("capabilities", []), cfg.get("tags", {}),
+                           f"arn:aws:iam::{cloud.account()}:role/{ctx.config['serviceRoleName']}")
+    described = wait_for_change_set(ctx, name, change_set)
+    if described["Status"] == "FAILED":
+        reason = described.get("StatusReason", "")
+        cloud.delete_change_set(name, change_set)
+        if "didn't contain changes" in reason or "No updates are to be performed" in reason:
+            ctx.write_summary(f"### {name}\nNothing to deploy: the template and parameters match the live stack.")
+            return "unchanged"
+        raise Failed(f"change set failed to create: {reason}")
+
+    violations, lines = review_changes(name, described.get("Changes", []), ctx.allowed)
+    table = "| Action | Logical id | Type | Replacement |\n| --- | --- | --- | --- |\n" + "\n".join(lines)
+    if violations:
+        cloud.delete_change_set(name, change_set)
+        ctx.write_summary(f"### {name}: STOPPED, nothing executed\n{table}\n\n" + "\n".join(f"- {v}" for v in violations) +
+                          "\n\nTo go ahead on purpose, add the entry to `infra/pipeline/allowed-changes.json` in a reviewed pull request, release, and remove it afterwards.")
+        raise Stop("; ".join(violations))
+
+    ctx.write_summary(f"### {name}: executing\n{table}")
+    try:
+        known = {e["EventId"] for e in cloud.stack_events(name)}
+    except AwsError:
+        known = set()
+    cloud.execute_change_set(name, change_set)
+    wait_for_execution(ctx, name, change_set, known)
+    ctx.write_summary(f"{name}: done.")
+    return "deployed"
+
+
+# ------------------------------------------------------------------------------------------------------------------- dry run
+
+
+def plan_stack(ctx: Context, cfg: dict) -> None:
+    """Read-only. Never builds, uploads or creates anything; says what it cannot know."""
+    cloud, name = ctx.cloud, cfg["name"]
+    stack = cloud.describe_stack(name)
+    lines = [f"### {name}"]
+    try:
+        kind, status = classify_stack(stack)
+        lines.append(f"Stack state: {status} (a release would {kind})")
+    except Stop as stop:
+        lines.append(f"**A release would STOP here:** {stop}")
+        kind = "blocked"
+    text = (ctx.root / cfg["template"]).read_text(encoding="utf-8")
+    new = parse_template(text)
+    permitted = {(e["stack"], e["logicalId"], e["change"]) for e in ctx.allowed}
+    if kind == "blocked":
+        pass
+    elif stack is not None and kind != "create":
+        diff = diff_templates(parse_template(cloud.get_template(name)), new)
+        lines.append(f"Resources added: {len(diff['added'])}, removed: {len(diff['removed'])}, modified: {len(diff['modified'])}")
+        for logical in diff["added"]:
+            lines.append(f"- add `{logical}`")
+        for logical in diff["removed"]:
+            allowed = (name, logical, "Remove") in permitted
+            lines.append(f"- remove `{logical}`" + (" (allowed by allowed-changes.json)" if allowed else " **(would STOP the release: not on allowed-changes.json)**"))
+        for logical, props in diff["modified"].items():
+            lines.append(f"- modify `{logical}`: {', '.join(props)}")
+        lines += [f"- new parameter `{p}`" for p in diff["parameters_added"]] + [f"- parameter `{p}` removed from the template" for p in diff["parameters_removed"]]
+        if cfg.get("builds"):
+            lines.append("Code: the zips are built on the release, not here; a changed zip modifies its function. Which changes replace a resource is only known from the release's change set, which stops on any Replace not on the list.")
+        current = param_map(stack) or {}
+        literals = {**cfg.get("parameters", {}), **lookup_parameters(ctx, cfg)}
+        lines += [f"- parameter `{k}` would change" for k, v in literals.items() if current.get(k) != v]
+    else:
+        count = len(new.get("Resources", {}))
+        lines.append(f"A release would create this stack with {count} resources.")
+    ctx.write_summary("\n".join(lines))
+
+
+# -------------------------------------------------------------------------------------------------------------------- command line
+
+
+def load_json(path: Path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def selected(config: dict, names: list[str] | None) -> list[dict]:
+    chosen = [s for s in config["stacks"] if not names or s["name"] in names]
+    if names and len(chosen) != len(set(names)):
+        raise Stop(f"unknown stack in {names}")
+    return chosen
+
+
+def github_output(key: str, value: str) -> None:
+    path = os.environ.get("GITHUB_OUTPUT")
+    if path:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(f"{key}={value}\n")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest="command", required=True)
+    scope = sub.add_parser("scope")
+    scope.add_argument("--base", required=True)
+    scope.add_argument("--head", required=True)
+    sub.add_parser("requirements")
+    for command in ("plan", "deploy"):
+        p = sub.add_parser(command)
+        p.add_argument("--stack", action="append")
+    args = parser.parse_args(argv)
+    config = load_json(CONFIG_PATH)
+
+    if args.command == "scope":
+        done = subprocess.run(["git", "diff", "--name-only", args.base, args.head], capture_output=True, text=True, cwd=ROOT)
+        # A base git cannot resolve (first run, force push) means every stack is in scope; the live comparison then decides.
+        names = [s["name"] for s in config["stacks"]] if done.returncode != 0 else changed_stacks(config, done.stdout.split())
+        github_output("stacks", ",".join(names))
+        github_output("deploy", "true" if names else "false")
+        print(f"stacks in scope: {names or 'none'}")
+        return 0
+    if args.command == "requirements":
+        sys.path.insert(0, str(ROOT / "infra" / "monitoring"))
+        import build  # noqa: PLC0415
+
+        print("\n".join(vendored_requirements((ROOT / "poetry.lock").read_text(encoding="utf-8"), build.VENDORED)))
+        return 0
+
+    cloud = AwsCli(config["region"])
+    expected = os.environ.get("AWS_ACCOUNT_ID", "")
+    if not expected or cloud.account() != expected:
+        print("refusing: the caller account is not the AWS_ACCOUNT_ID variable", file=sys.stderr)
+        return 2
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    tag = f"{os.environ.get('GITHUB_SHA', 'local')[:12]}-{os.environ.get('GITHUB_RUN_ID', '0')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
+    ctx = Context(cloud, config, load_json(ALLOWED_PATH)["allowed"], tag, summary=Path(summary) if summary else None)
+    try:
+        for cfg in selected(config, args.stack):
+            (plan_stack if args.command == "plan" else deploy_stack)(ctx, cfg)
+    except Stop as stop:
+        print(f"::error::STOPPED, nothing executed: {stop}")
+        return 2
+    except (Failed, AwsError) as failure:
+        print(f"::error::DEPLOY FAILED: {failure}")
+        ctx.write_summary(f"### DEPLOY FAILED\n```\n{failure}\n```")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,6 +1,8 @@
 name: tests
 
 on:
+  # Also called by stack-deploy.yml, so a release's stacks deploy only after these pass on the commit that merged.
+  workflow_call:
   pull_request:
     paths-ignore:
       - "project/**"

@@ -1,6 +1,6 @@
 # Newsletter sending stack
 
-`papyrus-newsletter-sending.yaml` creates the Amazon SES sending setup for one site (PPY-874ad4). It is a hand-run CloudFormation stack in account 712236451410, us-east-1, like the stacks in `infra/monitoring`. Use one stack per site, named `papyrus-newsletter-sending-<siteId>`.
+`papyrus-newsletter-sending.yaml` creates the Amazon SES sending setup for one site (PPY-874ad4). It is a CloudFormation stack in the production account, us-east-1. Per-site stacks are hand-run with the command below; the operator stack `papyrus-newsletter-sending-operators` deploys from the release (`infra/pipeline/README.md`). Use one stack per site, named `papyrus-newsletter-sending-<siteId>`.
 
 ## What it creates
 
@@ -35,6 +35,8 @@ aws cloudformation deploy \
 ```
 
 ### Operator stack: notify.anth.us (PPY-bf63d5)
+
+Deployed by the release (PPY-b8cc79): its parameters live in `infra/pipeline/stacks.json` and the zone is looked up at deploy time. The command below is the same thing by hand, kept for reference; do not run it.
 
 Operator mail (CloudWatch alarm emails, `docs/operator-alerts.md`) sends from the `alerts` mailbox of notify.anth.us with configuration set `papyrus-operators`, from the same template. The anth.us zone is in the same account, so there is no delegation. Look the zone's id up rather than copying it:
 
