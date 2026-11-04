@@ -4,7 +4,7 @@
   "description": "web/projection.json in AnthusAI/Machines-on-Machines declares storyTypes post and article, but urls.types has only post at /posts/. An article Story has no declared address, and listings include article. The sitemap shows no Story pages yet, so this first Story is likely to be the site's first test of the address scheme.",
   "type": "bug",
   "status": "open",
-  "priority": 3,
+  "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": null,
@@ -24,10 +24,17 @@
       "text": "Update 2026-11-03: Ryan confirmed the non-interference Story is an article, so this now blocks a real Story from publishing: the Machines on Machines projection has an address only for post. Article needs a urls.types entry before that Story reaches publishing.",
       "created_at": "2026-11-04T03:33:50.741610Z",
       "comment_type": "default"
+    },
+    {
+      "id": "0c411ff4-5a08-4dd1-82a2-03222dcb110a",
+      "author": "home",
+      "text": "Raised 2026-11-04: Ryan says this Story is the first article Machines on Machines will ever publish, and the article type still has no address, so this blocks the launch.",
+      "created_at": "2026-11-04T13:52:17.148181Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-04T00:14:55.246390Z",
-  "updated_at": "2026-11-04T03:33:50.741809Z",
+  "updated_at": "2026-11-04T13:52:17.385337Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
