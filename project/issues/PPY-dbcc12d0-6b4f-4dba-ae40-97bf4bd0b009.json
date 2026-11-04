@@ -1,0 +1,20 @@
+{
+  "id": "PPY-dbcc12d0-6b4f-4dba-ae40-97bf4bd0b009",
+  "title": "Cloud-machine sign-in advice prints a Python command that fails under a pipx install",
+  "description": "cli-login stores/agent.py agent_command() builds its advice from os.path.basename(sys.executable), and docs/cli-login.md says python -m cli_login.stores.agent serve. Under the documented pipx install, cli_login exists only in the tool's private virtualenv, so a bare python or python3.12 on PATH should not find the module. This is the path an agent on a cloud computer with no keyring takes before papyrus login --remote. Found by reading the code on 2026-11-04; not yet reproduced on a real cloud machine. Fix: print the full sys.executable in cli-login, or give the papyrus command its own subcommand to start the memory agent, then correct the docs and test from a clean pipx install on Linux with no keyring.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T12:12:19.395515Z",
+  "updated_at": "2026-11-04T12:12:19.396146Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
