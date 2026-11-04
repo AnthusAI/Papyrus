@@ -268,12 +268,12 @@ def build_newsroom():
     return store
 
 
-def track_concepts(store):
-    """The default section tracks one concept that a Reference is tagged with; a scenario that wants more builds on this."""
+def give_core_concepts(store):
+    """The default section has one core concept that a Reference is tagged with; a scenario that wants more builds on this."""
     store.records["SemanticNode"]["concept-containment-v1"] = {
         "id": "concept-containment-v1", "lineageId": "concept-containment", "versionState": "current", "versionNumber": 1,
         "nodeKey": "editor_concept--containment-problem", "nodeKind": "editor_concept", "displayName": "containment problem", "aliases": [], "status": "accepted"}
-    store.records["NewsroomSection"][SECTION_ID]["trackedConcepts"] = json.dumps(
+    store.records["NewsroomSection"][SECTION_ID]["coreConcepts"] = json.dumps(
         [{"conceptLineageId": "concept-containment", "note": "", "addedBy": "An Editor", "addedAt": moment(1)}])
     store.add_reference("law-tagged", "Tagged with the containment problem", human=True, day=4, summary="Tagged summary. More.")
     store.relations.append({
@@ -311,7 +311,7 @@ def build(context, **kwargs):
 @given('a newsroom with a publication policy, a section "law-policy" and a Story "story-1" in it')
 def step_newsroom(context):
     context.store = build_newsroom()
-    track_concepts(context.store)
+    give_core_concepts(context.store)
 
 
 @given('the editor\'s assignment "assignment-1" on the Story with the direction "{direction}"')
