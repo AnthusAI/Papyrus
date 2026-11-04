@@ -6,11 +6,11 @@ One definition of how a Story moves through the newsroom. The command line reads
 
 | Step | Stage | Who | Command | Status |
 | --- | --- | --- | --- | --- |
-| choose | idea | Editor | `papyrus stories move --story LINEAGE --stage assignment` | live |
+| choose | idea | Editor agent or a person | `papyrus ideas select --section SECTION` | live |
 | direction | assignment | Editor | `papyrus stories assign-research --story LINEAGE --direction-file direction.md` | live |
 | research | reporting | Reporter | `papyrus assignments research-multi ASSIGNMENT_ID` | live |
-| outline | reporting | Editor agent | `papyrus stories save-version --story LINEAGE --body-file outline.md --reason "outline" --author-label "AI" --outline` | live |
-| draft | copywriting | Copywriter | `papyrus stories save-version --story LINEAGE --body-file draft.md --reason "draft" --author-label "AI"` | live |
+| outline | reporting | Editor agent | `papyrus stories outline --story LINEAGE` | live |
+| draft | copywriting | Copywriter | `papyrus stories draft --story LINEAGE` | live |
 | fact_check | copywriting | Fact-check agent | none yet (PPY-719a02) | not built |
 | copy_edit | copywriting | Copywriter with Humanus | `papyrus editorial check-version --item VERSION_ID` | live |
 | editor_review | copywriting | Editor agent | none (needs the `editor_review.tac` procedure, which no site has on) | off |

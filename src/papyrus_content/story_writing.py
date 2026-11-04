@@ -15,7 +15,7 @@ from typing import Any
 
 import yaml
 
-from .newsroom_context_pack import build_context_pack, clean_title, _day, _json_object
+from .newsroom_context_pack import WHOLE_MAX_CHARACTERS, build_context_pack, clean_title, _day, _json_object
 from .newsroom_process import assess, print_reminder, story_facts
 from .story_reporting import current_reference, current_story_version, link_reference_to_story, mark_story_outline, save_story_version, story_references
 
@@ -86,7 +86,7 @@ def front_matter_of(row: Mapping[str, Any]) -> str | None:
 
 
 def write_outline(client: Any, lineage: str, *, llm: Llm, apply: bool, direction: str | None = None) -> dict[str, Any]:
-    pack = build_context_pack(client, profile="editor", story_lineage_id=lineage, direction=direction)
+    pack = build_context_pack(client, profile="editor", story_lineage_id=lineage, direction=direction, max_characters=WHOLE_MAX_CHARACTERS)
     result = llm(pack["system"] + "\n\n" + OUTLINE_INSTRUCTIONS, pack["user"], OUTLINE_SCHEMA)
     thin = [str(item).strip() for item in result.get("still_thin") or [] if str(item).strip()]
     body = str(result["outline"]).strip()
@@ -102,7 +102,7 @@ def write_outline(client: Any, lineage: str, *, llm: Llm, apply: bool, direction
 
 
 def write_draft(client: Any, lineage: str, *, llm: Llm, apply: bool, direction: str | None = None) -> dict[str, Any]:
-    pack = build_context_pack(client, profile="copywriter", story_lineage_id=lineage, direction=direction)
+    pack = build_context_pack(client, profile="copywriter", story_lineage_id=lineage, direction=direction, max_characters=WHOLE_MAX_CHARACTERS)
     citable = citable_references(client, lineage)
     user = pack["user"] + "\n\n" + citation_block(citable)
     result = llm(pack["system"] + "\n\n" + DRAFT_INSTRUCTIONS, user, DRAFT_SCHEMA)

@@ -258,6 +258,11 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     When the editor's context pack is built for the section alone
     Then the pack holds no process layer
 
+  Scenario: A copywriter keeps the research when the core does not fit, and gives up summaries first
+    When the copywriter's context pack is built with a budget that only just fits the research
+    Then the research is all there
+    And the References lost their summaries
+
   Scenario: An outline is named as the editor's outline
     Given the Story's current version is marked as the editor's outline
     When the copywriter's context pack is built for the Story
@@ -287,7 +292,27 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     And the system text carries the role, the publication policy and the section mission
     And the Stories in progress show the rated one first, with its stars and stage
     And the Stories in progress do not show the spiked one or the held one
+    And the Stories in progress do not show an idea nobody has picked
     And the section's published Stories and accepted References are shown
+
+  Scenario Outline: What "recent" means is a setting, for the section and for the site separately
+    Given Stories published in the section and in other sections over the last weeks
+    When the editor's context pack is built for the section with recent published Stories in the section meaning <section> and in the site meaning <site>
+    Then the section's published layer holds <in section> Stories
+    And the site's published layer holds <in site> Stories
+    And the pack records what recent meant
+
+    Examples:
+      | section   | site      | in section | in site |
+      | 7 days    | 7 days    | 1          | 1       |
+      | 30 days   | 7 days    | 3          | 1       |
+      | 2 stories | 1 stories | 2          | 1       |
+
+  Scenario: Without a setting the budget is the only bound on recent
+    Given Stories published in the section and in other sections over the last weeks
+    When the editor's context pack is built for the section alone
+    Then the section's published layer holds 3 Stories
+    And the site's published layer holds 2 Stories
 
   Scenario: The section's in-progress list leaves out the Story the editor is working on
     Given the section has Stories in progress, a rated one older than an unrated one, a spiked one and a held one
