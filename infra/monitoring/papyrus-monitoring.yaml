@@ -2306,6 +2306,58 @@ Resources:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
 
+  RouterDecidedMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref RouterLogGroup
+      FilterPattern: '{ $.counts.decided >= 0 }'
+      MetricTransformations:
+        - MetricNamespace: Papyrus/Monitoring
+          MetricName: RouterDecided
+          MetricValue: "$.counts.decided"
+
+  RouterAwaitingMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref RouterLogGroup
+      FilterPattern: '{ $.counts.awaiting >= 0 }'
+      MetricTransformations:
+        - MetricNamespace: Papyrus/Monitoring
+          MetricName: RouterAwaiting
+          MetricValue: "$.counts.awaiting"
+
+  DecisionsStoppedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-monitoring-decisions-stopped
+      AlarmDescription: >-
+        Cyclotron decisions stopped while items are waiting for them: for two hours in a row the router's passes, across every
+        monitor, recorded no decision (counts.decided summed to 0) while at least one pass still had jobs awaiting (counts.awaiting
+        above 0). A quiet system with nothing waiting does not alarm, and neither does a router that logs nothing at all (missing
+        data is not breaching). Check the Cyclotron run status and hand to the Cyclotron session; see docs/monitoring-cloud.md.
+      Metrics:
+        - Id: stopped
+          Label: Decisions stopped while items wait
+          Expression: IF(decided == 0 AND awaiting > 0, 1, 0)
+          ReturnData: true
+        - Id: decided
+          ReturnData: false
+          MetricStat:
+            Metric: { Namespace: Papyrus/Monitoring, MetricName: RouterDecided }
+            Period: 3600
+            Stat: Sum
+        - Id: awaiting
+          ReturnData: false
+          MetricStat:
+            Metric: { Namespace: Papyrus/Monitoring, MetricName: RouterAwaiting }
+            Period: 3600
+            Stat: Maximum
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
   TableNameParameter:
     Type: AWS::SSM::Parameter
     Properties:

@@ -23,6 +23,7 @@ from .story_reporting import (
     published_story_version,
     repair_story_versions,
     save_story_version,
+    story_messages,
     story_references,
     story_versions,
 )
@@ -93,30 +94,36 @@ def stories_save_version(flags: list[str]) -> None:
             body, Path(images_dir), slug=latest["slug"], tenant_id=getattr(client, "tenant_id", None), existing=existing_assets(stored)
         )
         body = image_plan.body
-    print(f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t{'write' if apply else 'dry run'}")
+    header = f"stories\tsave-version\t{lineage_id}\tversion {next_number}\t"
+    plan_output: list[str] = []
     if image_plan is not None:
         from .story_images import plan_lines
         from .story_reporting import planned_version_record_id
 
-        for line in plan_lines(image_plan, planned_version_record_id(client, lineage_id)):
-            print(line)
+        plan_output = list(plan_lines(image_plan, planned_version_record_id(client, lineage_id)))
     if not apply:
+        print(header + "dry run")
+        for line in plan_output:
+            print(line)
         return
     stage = normalize_string(options.get("stage"))
     if options.get("advance"):
         if stage:
             raise ValueError("Pass --stage or --advance, not both.")
         stage = advance_stage(latest.get("stage"))
+    upload_output: list[str] = []
     if image_plan is not None and image_plan.images:
         from .story_images import open_media_store, upload_planned_images
 
         store = open_media_store(normalize_string(options.get("bucket")), normalize_string(options.get("identity-pool-id")))
-        for image, outcome in upload_planned_images(image_plan, store):
-            print(f"stories\tsave-version\timage-{outcome}\t{image.storage_path}")
+        upload_output = [f"stories\tsave-version\timage-{outcome}\t{image.storage_path}" for image, outcome in upload_planned_images(image_plan, store)]
     record = save_story_version(
         client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason, stage=stage,
         media_rows=image_plan.media_rows if image_plan is not None else None,
     )
+    print(header + "write")
+    for line in [*plan_output, *upload_output]:
+        print(line)
     print(f"stories\tsave-version\tsaved\t{record['id']}")
     if options.get("outline"):
         mark_story_outline(client, record, actor=author)
@@ -156,18 +163,39 @@ def stories_repair_versions(flags: list[str]) -> None:
 
 
 def stories_link_reference(flags: list[str]) -> None:
-    """papyrus stories link-reference --story <lineage> --reference <reference id> --role consulted|cited|based_on --author-label <name> [--note <text>] [--citation-key <key>]"""
+    """papyrus stories link-reference --story <lineage> --reference <reference id> --role consulted|cited|based_on [--author-label <name>] [--note <text>] [--citation-key <key>]
+
+    Signed in, the link records the person who signed in (the label the session holds) as who added it; --author-label is ignored there, so a
+    link never names someone else. On the IAM lane (an operator's AWS credentials) --author-label is required and is recorded as given.
+    The `write` line prints only after the link was saved."""
+    from .operator_errors import OperatorError
+    from .user_auth_mode import user_auth_requested
+
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories link-reference")
     lineage_id = _required_option(options, "story")
     reference_id = _required_option(options, "reference")
     role = _required_option(options, "role")
-    author = _required_option(options, "author-label")
-    print(f"stories\tlink-reference\t{lineage_id}\t{reference_id}\t{role}\t{'write' if apply else 'dry run'}")
+    as_person = user_auth_requested()
+    label = normalize_string(options.get("author-label"))
+    if not as_person and not label:
+        raise ValueError("--author-label is required on the IAM lane, where there is no sign-in to name the author.")
     if not apply:
+        print(f"stories\tlink-reference\t{lineage_id}\t{reference_id}\t{role}\tdry run")
         return
+    if as_person and label:
+        print("stories\tlink-reference\twarning\t--author-label is ignored: the link records the person who signed in.", file=sys.stderr)
     client, _ = create_authoring_client()
+    if as_person:
+        from .cli_user_auth import signed_in_label
+
+        author = signed_in_label(client.endpoint)
+        if not author:
+            raise OperatorError("The link was not saved: the signed-in session names no one. Run `papyrus whoami` to check it.")
+    else:
+        author = label
     result = link_reference_to_story(client, lineage_id, reference_id, role=role, actor=author, note=normalize_string(options.get("note")), citation_key=normalize_string(options.get("citation-key")))
+    print(f"stories\tlink-reference\t{lineage_id}\t{reference_id}\t{role}\twrite")
     print(f"stories\tlink-reference\t{result['outcome']}\t{result['relationId']}")
     print_reminder(client, lineage_id)
 
@@ -277,6 +305,9 @@ def stories_show(flags: list[str]) -> None:
         print("\t".join(["stories", "show", "moved", str(move.get("at") or ""), f"{move.get('from')} -> {move.get('to')}", str(move.get("by") or ""), str(move.get("reason") or "")]))
     for reference in story_references(client, lineage_id):
         print(f"stories\tshow\treference\t{reference['referenceLineageId']}\t{reference['role']}\t{reference.get('citationKey') or ''}")
+    for message in story_messages(client, lineage_id):
+        summary = " ".join(str(message.get("summary") or message.get("content") or "").split())
+        print("\t".join(["stories", "show", "message", str(message.get("createdAt") or ""), f"{message.get('authorLabel') or message.get('role') or 'unknown'} ({message.get('messageKind') or 'message'})", summary]))
     from .story_agent_notes import story_agent_notes
 
     for note in story_agent_notes(client, lineage_id) if versions else []:
@@ -343,8 +374,8 @@ def stories_set_slug(flags: list[str]) -> None:
 
         if publish_approval(client) == REQUIRED:
             raise ValueError("This site needs a person's approval to publish, and a new address republishes the story: change the address in the newsroom console.")
-    print(f"stories\tset-slug\t{item_id}\t{item.get('slug')} -> {slug}\t{'write' if apply else 'dry run'}")
     if not apply:
+        print(f"stories\tset-slug\t{item_id}\t{item.get('slug')} -> {slug}\tdry run")
         return
     metadata = item.get("metadata")
     metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
@@ -357,6 +388,7 @@ def stories_set_slug(flags: list[str]) -> None:
     )
     actor = normalize_string(options.get("author-label")) or "papyrus-cli"
     save_item(client, fields, actor=actor, allow_published_slug_change=published)
+    print(f"stories\tset-slug\t{item_id}\t{item.get('slug')} -> {slug}\twrite")
     for sibling in client.list_by_index("itemsByLineageAndVersion", lineage_id):
         if sibling["id"] != item_id:  # a later draft must not publish under the old address
             client.update_record("Item", {"id": sibling["id"], "slug": slug, "aliases": aliases})
@@ -391,15 +423,17 @@ def stories_create(flags: list[str]) -> None:
     section_key = normalize_string(options.get("section"))
     summary = normalize_string(options.get("summary")) or title
     actor = normalize_string(options.get("actor-label")) or "papyrus-cli"
-    print(f"stories\tcreate\t{title}\tstage {stage}\t{'write' if apply else 'dry run'}")
     if not apply:
+        print(f"stories\tcreate\t{title}\tstage {stage}\tdry run")
         if options.get("with-assignment"):
             print("stories\tcreate\twith-assignment\ta reporting.candidate Assignment would also be opened")
         return
     client, _ = create_authoring_client()
     item = create_story(client, title=title, section_key=section_key, stage=stage, summary=summary, actor=actor)
     lineage_id = item["lineageId"]
+    print(f"stories\tcreate\t{title}\tstage {stage}\twrite")
     print(f"stories\tcreate\tcreated\t{item['id']}")
+    print(f"stories\tcreate\tlineage\t{lineage_id}")
     for reference_id in reference_ids:
         linked = link_reference_to_story(client, lineage_id, reference_id, role="based_on", actor=actor)
         print(f"stories\tcreate\tbased on\t{linked['referenceLineageId']}")
@@ -431,17 +465,20 @@ def stories_move(flags: list[str]) -> None:
     from .content_item_lifecycle import require_content_item_stage
 
     require_content_item_stage(stage)
-    print(f"stories\tmove\t{lineage_id}\t{stage}\t{'write' if apply else 'dry run'}")
-    if stage == "published":
-        # stderr, so the tab-separated lines above and below keep their format.
-        print(PUBLISHED_STAGE_WARNING, file=sys.stderr)
     if not apply:
+        print(f"stories\tmove\t{lineage_id}\t{stage}\tdry run")
+        if stage == "published":
+            print(PUBLISHED_STAGE_WARNING, file=sys.stderr)
         return
     client, _ = create_authoring_client()
     result = move_story_stage(
         client, lineage_id, stage, actor=normalize_string(options.get("author-label")) or "papyrus-cli",
         reason=normalize_string(options.get("reason")),
     )
+    print(f"stories\tmove\t{lineage_id}\t{stage}\twrite")
+    if stage == "published":
+        # stderr, so the tab-separated lines keep their format.
+        print(PUBLISHED_STAGE_WARNING, file=sys.stderr)
     print(f"stories\tmove\t{'moved' if result['changed'] else 'unchanged'}\t{result['from']}\t{result['stage']}")
     if result["changed"]:
         from .story_triggers import deliver_from_environment

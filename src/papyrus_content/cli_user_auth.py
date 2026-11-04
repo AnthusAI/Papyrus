@@ -495,6 +495,13 @@ def session_for(config):
     return _sessions[config.key]
 
 
+def signed_in_label(endpoint: str) -> str | None:
+    """Who the session for this endpoint is signed in as (the label recorded at sign-in), or None when there is no live session."""
+    status = session_for(config_for_endpoint(endpoint)).status()
+    label = status.get('label') if status.get('signed_in') else None
+    return str(label).strip() or None if label else None
+
+
 def selected_headers(endpoint):
     if not user_auth_requested():
         return None

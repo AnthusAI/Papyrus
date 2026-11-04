@@ -12,9 +12,17 @@
     "cli"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c39fde3a-1942-4ab5-a247-9c4eaf71d3f5",
+      "author": "home",
+      "text": "Cause not found. Replay, racing approvals, site_enrolls and the killed process are ruled out by tests or code. Clearer error in 5.83.0 (#1140). Diagnostics are on cli-login develop (DataParade-io/cli-login#19) and need a cli-login release and a pin bump. Keep open until a repeat gives diagnostics.",
+      "created_at": "2026-11-04T03:36:38.766588Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-03T23:58:23.011766Z",
-  "updated_at": "2026-11-03T23:58:23.011792Z",
+  "updated_at": "2026-11-04T03:36:38.766782Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
