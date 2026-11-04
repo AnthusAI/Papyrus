@@ -10276,10 +10276,22 @@ img {
   padding: 6px 10px;
 }
 
-/* Tracked concepts: flat tiles and rounded rectangles, no outlines or hairlines (the section card's generic button and field borders do not apply here). */
+/* Core concepts: flat tiles and rounded rectangles, no outlines or hairlines, sentence case. The section card's generic button and field styling does not apply here. */
 [data-section-concepts] button,
 [data-section-concepts] textarea,
-[data-wiki-section="tracked-by"] button {
+[data-wiki-section="core-concept-of"] button {
   border: 0;
   box-shadow: none;
+  border-radius: 1rem;
+  text-transform: none;
+  letter-spacing: normal;
+  background-color: color-mix(in oklab, currentColor 10%, transparent);
+  color: inherit;
+}
+[data-section-concepts] button:hover:not(:disabled),
+[data-wiki-section="core-concept-of"] button:hover:not(:disabled) {
+  background-color: color-mix(in oklab, currentColor 18%, transparent);
+}
+[data-section-concepts] textarea {
+  background-color: color-mix(in oklab, currentColor 7%, transparent);
 }

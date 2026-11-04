@@ -1,13 +1,13 @@
-export type TrackedConcept = { conceptLineageId: string; note: string | null; addedBy: string | null; addedAt: string | null };
+export type CoreConcept = { conceptLineageId: string; note: string | null; addedBy: string | null; addedAt: string | null };
 
-/** The section's tracked concepts as stored: a JSON string (or the list itself) of {conceptLineageId, note, addedBy, addedAt}. A site without the field gives none. */
-export function parseTrackedConcepts(raw: unknown): TrackedConcept[] {
+/** The section's core concepts as stored: a JSON string (or the list itself) of {conceptLineageId, note, addedBy, addedAt}. A site without the field gives none. */
+export function parseCoreConcepts(raw: unknown): CoreConcept[] {
   let value: unknown = raw;
   if (typeof raw === "string" && raw.trim()) {
     try { value = JSON.parse(raw); } catch { return []; }
   }
   if (!Array.isArray(value)) return [];
-  const found = new Map<string, TrackedConcept>();
+  const found = new Map<string, CoreConcept>();
   for (const entry of value) {
     if (!entry || typeof entry !== "object") continue;
     const row = entry as Record<string, unknown>;
@@ -24,28 +24,28 @@ export function parseTrackedConcepts(raw: unknown): TrackedConcept[] {
   return [...found.values()];
 }
 
-export function serializeTrackedConcepts(list: readonly TrackedConcept[]): string {
+export function serializeCoreConcepts(list: readonly CoreConcept[]): string {
   return JSON.stringify(list);
 }
 
-export function addTrackedConcept(list: readonly TrackedConcept[], conceptLineageId: string, addedBy: string, now: string): TrackedConcept[] {
+export function addCoreConcept(list: readonly CoreConcept[], conceptLineageId: string, addedBy: string, now: string): CoreConcept[] {
   return list.some(entry => entry.conceptLineageId === conceptLineageId) ? [...list] : [...list, { conceptLineageId, note: null, addedBy, addedAt: now }];
 }
 
-export function removeTrackedConcept(list: readonly TrackedConcept[], conceptLineageId: string): TrackedConcept[] {
+export function removeCoreConcept(list: readonly CoreConcept[], conceptLineageId: string): CoreConcept[] {
   return list.filter(entry => entry.conceptLineageId !== conceptLineageId);
 }
 
-export function setTrackedConceptNote(list: readonly TrackedConcept[], conceptLineageId: string, note: string): TrackedConcept[] {
+export function setCoreConceptNote(list: readonly CoreConcept[], conceptLineageId: string, note: string): CoreConcept[] {
   return list.map(entry => (entry.conceptLineageId === conceptLineageId ? { ...entry, note: note.trim() ? note : null } : entry));
 }
 
-/** What to call a tracked concept when its node has not been read: the name part of its lineage id. */
+/** What to call a core concept when its node has not been read: the name part of its lineage id. */
 export function fallbackConceptName(conceptLineageId: string): string {
   const afterKind = conceptLineageId.split("--").slice(1).join("--");
   return (afterKind || conceptLineageId).replace(/-/g, " ");
 }
 
-export function sectionsTracking<T extends { trackedConcepts?: unknown }>(sections: readonly T[], conceptLineageId: string): T[] {
-  return sections.filter(section => parseTrackedConcepts(section.trackedConcepts).some(entry => entry.conceptLineageId === conceptLineageId));
+export function sectionsWithCoreConcept<T extends { coreConcepts?: unknown }>(sections: readonly T[], conceptLineageId: string): T[] {
+  return sections.filter(section => parseCoreConcepts(section.coreConcepts).some(entry => entry.conceptLineageId === conceptLineageId));
 }

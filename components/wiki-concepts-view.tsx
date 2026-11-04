@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { HashIcon, PlusIcon, XIcon } from "lucide-react";
+import { PlusIcon, XIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { NewsroomSectionRecord, SemanticNodeRecord } from "../lib/category-repository";
-import { addTrackedConcept, parseTrackedConcepts, removeTrackedConcept, sectionsTracking, type TrackedConcept } from "../lib/section-concepts";
+import { addCoreConcept, parseCoreConcepts, removeCoreConcept, sectionsWithCoreConcept, type CoreConcept } from "../lib/section-concepts";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import type { createSemanticGraphSnapshot } from "../lib/semantic-graph";
@@ -73,27 +74,31 @@ function WikiIndexPageView({ demo, nodes, onOpen }: { demo: boolean; nodes: Sema
   </article>;
 }
 
-const TRACK_BUTTON = "inline-flex items-center gap-1.5 rounded-2xl !border-0 bg-muted px-3 py-1.5 text-sm font-medium normal-case tracking-normal text-foreground shadow-none outline-none hover:bg-muted/70 focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-60";
+const CORE_BUTTON = "inline-flex items-center gap-1.5 rounded-2xl !border-0 bg-muted px-3 py-1.5 text-sm font-medium normal-case tracking-normal text-foreground shadow-none outline-none hover:bg-muted/70 focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-60";
 
-/** The sections that track this concept, each with a Remove button, and a button for every section that does not yet, so a concept can be added to a section from its own page. */
-function TrackedBy({ disabled, lineage, onChange, sections }: { disabled: boolean; lineage: string; onChange: (section: NewsroomSectionRecord, next: TrackedConcept[]) => void; sections: NewsroomSectionRecord[] }) {
-  const tracking = sectionsTracking(sections, lineage);
-  const others = sections.filter(section => !tracking.includes(section));
-  return <section data-wiki-section="tracked-by">
-    <h2>Tracked by</h2>
-    {tracking.length ? <ul className="wiki-concept-list">
-      {tracking.map(section => <li className="flex flex-wrap items-center gap-2" data-tracked-by-section={section.id} key={section.id}>
-        <span>{section.title}</span><span className="inline-flex items-center gap-1 rounded-2xl bg-muted px-2 py-0.5 text-xs font-medium"><HashIcon aria-hidden="true" className="size-3" />Tracked</span>
-        <button className={TRACK_BUTTON} data-tracked-by-remove={section.id} disabled={disabled} onClick={() => onChange(section, removeTrackedConcept(parseTrackedConcepts(section.trackedConcepts), lineage))} type="button"><XIcon aria-hidden="true" className="size-4" />Remove from {section.title}</button>
+/** "Core concept of": only the sections that have this concept as a core concept, each with a Remove control. One "Add to a section" button reveals a button for each other section. */
+export function CoreConceptOf({ disabled, lineage, onChange, sections }: { disabled: boolean; lineage: string; onChange: (section: NewsroomSectionRecord, next: CoreConcept[]) => void; sections: NewsroomSectionRecord[] }) {
+  const [adding, setAdding] = useState(false);
+  const having = sectionsWithCoreConcept(sections, lineage);
+  const others = sections.filter(section => !having.includes(section));
+  return <section data-wiki-section="core-concept-of">
+    <h2>Core concept of</h2>
+    {having.length ? <ul className="wiki-concept-list">
+      {having.map(section => <li className="flex flex-wrap items-center gap-2" data-core-concept-of-section={section.id} key={section.id}>
+        <span>{section.title}</span>
+        <button className={CORE_BUTTON} data-core-concept-remove={section.id} disabled={disabled} onClick={() => onChange(section, removeCoreConcept(parseCoreConcepts(section.coreConcepts), lineage))} type="button"><XIcon aria-hidden="true" className="size-4" />Remove from {section.title}</button>
       </li>)}
-    </ul> : <p className="wiki-empty">No section tracks this concept.</p>}
-    {others.length ? <div className="mt-2 flex flex-wrap gap-2" data-tracked-by-add>
-      {others.map(section => <button className={TRACK_BUTTON} data-tracked-by-add-section={section.id} disabled={disabled} key={section.id} onClick={() => onChange(section, addTrackedConcept(parseTrackedConcepts(section.trackedConcepts), lineage, "editor", new Date().toISOString()))} type="button"><PlusIcon aria-hidden="true" className="size-4" />Track in {section.title}</button>)}
-    </div> : null}
+    </ul> : <p className="wiki-empty">This is not a core concept of any section yet.</p>}
+    {others.length ? (adding
+      ? <div className="mt-2 flex flex-wrap gap-2" data-core-concept-add>
+        {others.map(section => <button className={CORE_BUTTON} data-core-concept-add-section={section.id} disabled={disabled} key={section.id} onClick={() => { onChange(section, addCoreConcept(parseCoreConcepts(section.coreConcepts), lineage, "editor", new Date().toISOString())); setAdding(false); }} type="button"><PlusIcon aria-hidden="true" className="size-4" />Add to {section.title}</button>)}
+        <button className={CORE_BUTTON} data-core-concept-add-cancel onClick={() => setAdding(false)} type="button"><XIcon aria-hidden="true" className="size-4" />Cancel</button>
+      </div>
+      : <button className={cn(CORE_BUTTON, "mt-2")} data-core-concept-add-open disabled={disabled} onClick={() => setAdding(true)} type="button"><PlusIcon aria-hidden="true" className="size-4" />Add to a section</button>) : null}
   </section>;
 }
 
-function ConceptPageView({ demo, disabled, graph, node, nodes, onOpen, onSectionTrackedConcepts, sections }: { demo: boolean; disabled: boolean; graph: SemanticGraph; node: SemanticNodeRecord; nodes: SemanticNodeRecord[]; onOpen: (lineageId: string) => void; onSectionTrackedConcepts?: (section: NewsroomSectionRecord, next: TrackedConcept[]) => void; sections: NewsroomSectionRecord[] }) {
+function ConceptPageView({ demo, disabled, graph, node, nodes, onOpen, onSectionCoreConcepts, sections }: { demo: boolean; disabled: boolean; graph: SemanticGraph; node: SemanticNodeRecord; nodes: SemanticNodeRecord[]; onOpen: (lineageId: string) => void; onSectionCoreConcepts?: (section: NewsroomSectionRecord, next: CoreConcept[]) => void; sections: NewsroomSectionRecord[] }) {
   const lineage = conceptId(node);
   const groups = graph.neighbors("semanticNode", lineage);
   const references = graph.referencesForSemanticNode(lineage);
@@ -104,7 +109,7 @@ function ConceptPageView({ demo, disabled, graph, node, nodes, onOpen, onSection
     <p className="wiki-meta"><span className="wiki-chip">{kindLabel(node.nodeKind)}</span> {node.status !== "current" && <span className="wiki-chip">{node.status}</span>} {conceptEditedAt(node) && <>Last edited {formatEdited(conceptEditedAt(node))}</>}{node.versionCreatedBy ? ` by ${node.versionCreatedBy}` : ""}</p>
     {aliases.length > 0 && <p className="wiki-meta">Also known as {aliases.join(", ")}</p>}
     <ConceptDescription description={node.description} lineageId={lineage} nodeKind={node.nodeKind} />
-    {onSectionTrackedConcepts && sections.length > 0 && <TrackedBy disabled={disabled} lineage={lineage} onChange={onSectionTrackedConcepts} sections={sections} />}
+    {onSectionCoreConcepts && sections.length > 0 && <CoreConceptOf disabled={disabled} lineage={lineage} onChange={onSectionCoreConcepts} sections={sections} />}
     <section data-wiki-section="connections">
       <h2>Connections</h2>
       {groups.length ? groups.map(group => <div className="wiki-connection-group" key={`${group.direction}-${group.predicate}`}>
@@ -132,7 +137,7 @@ function ConceptPageView({ demo, disabled, graph, node, nodes, onOpen, onSection
  * (recently edited concepts, concept lists), and every concept in the knowledge graph is a page
  * linked to the concepts and references it connects to.
  */
-export function WikiConceptsView({ demo = false, disabled = false, graph, initialNodeLineageId, nodes, onSectionTrackedConcepts, sections = [] }: { demo?: boolean; disabled?: boolean; graph: SemanticGraph; initialNodeLineageId?: string | null; nodes: SemanticNodeRecord[]; onSectionTrackedConcepts?: (section: NewsroomSectionRecord, next: TrackedConcept[]) => void; sections?: NewsroomSectionRecord[] }) {
+export function WikiConceptsView({ demo = false, disabled = false, graph, initialNodeLineageId, nodes, onSectionCoreConcepts, sections = [] }: { demo?: boolean; disabled?: boolean; graph: SemanticGraph; initialNodeLineageId?: string | null; nodes: SemanticNodeRecord[]; onSectionCoreConcepts?: (section: NewsroomSectionRecord, next: CoreConcept[]) => void; sections?: NewsroomSectionRecord[] }) {
   const [selected, setSelected] = useState<string | null>(initialNodeLineageId ?? null);
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState("");
@@ -170,7 +175,7 @@ export function WikiConceptsView({ demo = false, disabled = false, graph, initia
     </nav>
     <div className="wiki-main">
       {node
-        ? <ConceptPageView demo={demo} disabled={disabled} graph={graph} node={node} nodes={nodes} onOpen={open} onSectionTrackedConcepts={onSectionTrackedConcepts} sections={sections} />
+        ? <ConceptPageView demo={demo} disabled={disabled} graph={graph} node={node} nodes={nodes} onOpen={open} onSectionCoreConcepts={onSectionCoreConcepts} sections={sections} />
         : selected ? <p className="wiki-empty" role="alert">That concept page was not found.</p>
         : <WikiIndexPageView demo={demo} nodes={nodes} onOpen={open} />}
     </div>

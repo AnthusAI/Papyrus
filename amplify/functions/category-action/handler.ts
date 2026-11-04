@@ -29,7 +29,7 @@ import { referenceFeedArrivalAt, referenceFeedKeys, referenceFeedStateKey, starF
 import { claimGroups } from "../../../lib/staff-groups";
 import { isStoryItemType } from "../../../lib/content-item-lifecycle";
 import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
-import { createReferenceLink, decideReferenceLink, describeEditorConcept, type ReferenceLinkStore } from "./reference-links";
+import { createReferenceLink, decideReferenceLink, describeEditorConcept, ensureEditorConcept, type ReferenceLinkStore } from "./reference-links";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
@@ -58,12 +58,14 @@ type ReviewReferenceTopicLabelHandler = Schema["reviewReferenceTopicLabel"]["fun
 type LinkMessageHashtagsHandler = Schema["linkMessageHashtags"]["functionHandler"];
 type CreateReferenceLinkHandler = Schema["createReferenceLink"]["functionHandler"];
 type DescribeConceptHandler = Schema["describeConcept"]["functionHandler"];
+type CreateEditorConceptHandler = Schema["createEditorConcept"]["functionHandler"];
 type DecideReferenceLinkHandler = Schema["decideReferenceLink"]["functionHandler"];
 type CategoryActionEvent =
   | Parameters<LinkMessageHashtagsHandler>[0]
   | Parameters<CreateReferenceLinkHandler>[0]
   | Parameters<DecideReferenceLinkHandler>[0]
   | Parameters<DescribeConceptHandler>[0]
+  | Parameters<CreateEditorConceptHandler>[0]
   | Parameters<ReviewHandler>[0]
   | Parameters<ReferenceCurationHandler>[0]
   | Parameters<CreateCurationDelegationHandler>[0]
@@ -140,6 +142,7 @@ export const handler = async (event: CategoryActionEvent) => {
     throw new Error("Unsupported steering action: missing GraphQL field name.");
   }
   if (fieldName === "createReferenceLink") return createReferenceLinkAction(event as Parameters<CreateReferenceLinkHandler>[0]);
+  if (fieldName === "createEditorConcept") return createEditorConceptAction(event as Parameters<CreateEditorConceptHandler>[0]);
   if (fieldName === "describeConcept") return describeConceptAction(event as Parameters<DescribeConceptHandler>[0]);
   if (fieldName === "decideReferenceLink") return decideReferenceLinkAction(event as Parameters<DecideReferenceLinkHandler>[0]);
   if (fieldName === "linkMessageHashtags") return linkMessageHashtagsAction(event as Parameters<LinkMessageHashtagsHandler>[0]);
@@ -776,6 +779,13 @@ async function createReferenceLinkAction(event: Parameters<CreateReferenceLinkHa
     callerSub,
     now: new Date().toISOString(),
   });
+}
+
+async function createEditorConceptAction(event: Parameters<CreateEditorConceptHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to create a concept.");
+  const node = await ensureEditorConcept((await referenceLinkStore()) as any, normalizeRequiredString(event.arguments.name, "name"), callerSub, new Date().toISOString());
+  return { ok: true, lineageId: node.lineageId ?? node.id, nodeKey: node.nodeKey ?? null, displayName: (node as { displayName?: string | null }).displayName ?? null, nodeKind: node.nodeKind ?? null };
 }
 
 async function describeConceptAction(event: Parameters<DescribeConceptHandler>[0]) {

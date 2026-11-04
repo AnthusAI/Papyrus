@@ -28,6 +28,7 @@
     "test:schema-parity": "tsx scripts/test-schema-parity.ts",
     "test:reference-link-resolvers": "tsx --test scripts/test-reference-links.ts && cucumber-js --profile referenceLinkResolvers",
     "test:message-hashtags": "tsx --test scripts/test-message-hashtags.ts && cucumber-js --profile messageHashtags",
+    "test:section-core-concepts": "tsx --test scripts/test-section-concepts.ts && cucumber-js --profile sectionCoreConcepts",
     "test:concept-hashtags": "tsx scripts/test-concept-hashtags.ts",
     "test:idea-decision": "tsx scripts/test-idea-decision.ts",
     "test:reference-feed-keys": "tsx scripts/test-reference-feed-keys.ts",
