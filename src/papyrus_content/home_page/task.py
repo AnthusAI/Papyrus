@@ -5,16 +5,21 @@
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
+import json
 import os
 from datetime import datetime, timezone
 from typing import Any
 
 from ..ids import knowledge_corpus_id
 from ..publication import PUBLICATION_KEY_ENVIRONMENT
-from .export import collect_references
+from .export import collect_entries, ranked_records
+from .incremental import StateRefused, StoredState, apply_changes, fingerprint_of, sha_of, usable_state
 from .settings import HomePageSettings
+from .state_store import DirtyBatch
 from .snapshot import (
+    GENERATED_AT,
     REFERENCES_FILE,
     THREADS_DIRECTORY,
     THREADS_FILE,
@@ -112,57 +117,103 @@ def run_home_page_snapshot(
     dry_run: bool = False,
     client_factory: Any = None,
     workers: int = 1,
+    state_store: Any = None,
+    dirty: DirtyBatch | None = None,
 ) -> dict[str, Any]:
-    """Report ``{written, unchanged, deleted, references, threads, pagesRewritten, rewritten, purged}``; a dry run adds ``wouldWrite``, ``wouldDelete`` and ``wouldRewrite``; a site without ``homePage`` settings has nothing to do.
+    """Report ``{written, unchanged, deleted, references, threads, pagesRewritten, rewritten, purged, mode}``; a dry run adds ``wouldWrite``, ``wouldDelete`` and ``wouldRewrite``; a site without ``homePage`` settings has nothing to do.
 
     With ``homePage.threads.enabled`` the task also owns ``_data/home-page/threads.json`` and ``_data/home-page/threads/``: it writes
     the files whose content changed and deletes the per-thread files of threads that are no longer public.
+
+    With a ``state_store`` and the ``dirty`` batch the stream trigger recorded, the run is ``incremental``: only the rows that changed are read again
+    (``incremental.py``). Without them, or when the stored state cannot be trusted, it reads the whole corpus (``full``) and, given a store, starts a new
+    state.
     """
     if settings is None:
         return {"skipped": "this site has no homePage setting", "written": [], "unchanged": [], "deleted": [], "references": 0, "threads": 0, "pagesRewritten": 0, "purged": []}
     settings = with_public_data_limits(settings, context.projector)
     corpus_id = corpus_id_for(settings, site)
     stamp = now or datetime.now(timezone.utc)
-    records = collect_references(client, corpus_id, settings, client_factory=client_factory, workers=workers)
-    document = build_snapshot(records, stamp, corpus=corpus_id, fields=settings.references.fields)
-    body = snapshot_bytes(document)
     key = site_key(context.projector, REFERENCES_FILE)
-    thread_files, thread_count = _thread_files(settings, client, context.projector, records, stamp)
-    report: dict[str, Any] = {"written": [], "unchanged": [], "deleted": [], "references": len(records), "threads": thread_count, "pagesRewritten": 0, "rewritten": [], "purged": [], "bytes": len(body)}
-    readers = reader_pages_of(context.projector) if context.projector is not None else None
-    if readers is not None:
-        from ..projection.engine import check_rewrite_selection
-
-        check_rewrite_selection(context, readers)  # the guard: abort before anything is written
-    with context.leased():
-        pending = {name: content for name, content in {key: body, **thread_files}.items() if changed_without_generated_at(context.writer.get(name), content)}
-        report["unchanged"] = [name for name in (key, *thread_files) if name not in pending]
-        stale = _stale_thread_files(context, settings, thread_files)
-        stale_pages = _stale_thread_pages(context, stale)
-        if not pending and not stale:
-            return report
-        if dry_run:
-            report["wouldWrite"] = sorted(pending)
-            report["wouldDelete"] = [*stale, *stale_pages]
-            if readers is not None:
-                report["wouldRewrite"] = sorted(readers)
-            return report
-        for name, content in pending.items():
-            context.writer.put(name, content)
-            report["written"].append(name)
-        for name in [*stale, *stale_pages]:
-            context.writer.delete(name)
-            report["deleted"].append(name)
+    incremental = state_store is not None and dirty is not None and not dirty.full
+    with context.leased() if incremental else contextlib.nullcontext():
+        previous_body = context.writer.get(key) if incremental else None
+        stored = state_store.load() if incremental else None
+        fingerprint = fingerprint_of(settings, corpus_id)
+        changes = None
+        refused = None
+        if incremental:
+            try:
+                previous = usable_state(stored, fingerprint=fingerprint, snapshot=previous_body)
+                changes = apply_changes(
+                    client, corpus_id, settings, previous, stored.entries, dirty.ids,
+                    since=str(json.loads(previous_body).get(GENERATED_AT) or ""), client_factory=client_factory, workers=workers,
+                )
+            except StateRefused as reason:
+                refused = str(reason)
+        if changes is not None:
+            records, entries, mode = changes.records, changes.entries, "incremental"
+            read_threads = settings.threads.enabled and (dirty.messages or changes.anchors_changed)
+        else:
+            gathered = collect_entries(client, corpus_id, settings, client_factory=client_factory, workers=workers)
+            records, entries, mode = ranked_records(gathered), {entry.key: entry.standing for entry in gathered}, "full"
+            read_threads = settings.threads.enabled
+        document = build_snapshot(records, stamp, corpus=corpus_id, fields=settings.references.fields)
+        body = snapshot_bytes(document)
+        thread_files, thread_count = _thread_files(settings, client, context.projector, records, stamp) if read_threads else ({}, 0)
+        report: dict[str, Any] = {"written": [], "unchanged": [], "deleted": [], "references": len(records), "threads": thread_count, "pagesRewritten": 0, "rewritten": [], "purged": [], "bytes": len(body), "mode": mode, "threadsRead": read_threads}
+        if changes is not None:
+            report["changedRows"] = changes.examined
+        if refused:
+            report["fullBecause"] = refused
+        readers = reader_pages_of(context.projector) if context.projector is not None else None
         if readers is not None:
-            readers = reader_pages_of(context.projector)
-        projected = _project_listings(context, readers)
-        report["rewritten"] = list(projected.written)
-        report["pagesRewritten"] = len(projected.written)
-        if settings.freshness.purge and context.invalidate is not None:
-            report["purged"] = context.invalidate([*report["written"], *report["deleted"]])
-        if projected.errors:
-            report["errors"] = list(projected.errors)
+            from ..projection.engine import check_rewrite_selection
+
+            check_rewrite_selection(context, readers)  # the guard: abort before anything is written
+        with context.leased():
+            current = previous_body if incremental else context.writer.get(key)
+            pending = {name: content for name, content in {key: body, **thread_files}.items() if changed_without_generated_at(context.writer.get(name) if name != key else current, content)}
+            report["unchanged"] = [name for name in (key, *thread_files) if name not in pending]
+            stale = _stale_thread_files(context, settings, thread_files) if read_threads else []
+            stale_pages = _stale_thread_pages(context, stale)
+            if dry_run:
+                if pending or stale:
+                    report["wouldWrite"] = sorted(pending)
+                    report["wouldDelete"] = [*stale, *stale_pages]
+                    if readers is not None:
+                        report["wouldRewrite"] = sorted(readers)
+                return report
+            if not pending and not stale:
+                _remember(state_store, fingerprint, entries, current, stored)
+                return report
+            for name, content in pending.items():
+                context.writer.put(name, content)
+                report["written"].append(name)
+            _remember(state_store, fingerprint, entries, pending.get(key, current), stored)
+            for name in [*stale, *stale_pages]:
+                context.writer.delete(name)
+                report["deleted"].append(name)
+            if readers is not None:
+                readers = reader_pages_of(context.projector)
+            projected = _project_listings(context, readers)
+            report["rewritten"] = list(projected.written)
+            report["pagesRewritten"] = len(projected.written)
+            if settings.freshness.purge and context.invalidate is not None:
+                report["purged"] = context.invalidate([*report["written"], *report["deleted"]])
+            if projected.errors:
+                report["errors"] = list(projected.errors)
     return report
+
+
+def _remember(state_store: Any, fingerprint: str, entries: dict[str, Any], snapshot: bytes | None, stored: Any) -> None:
+    """Save the private state that goes with the file now in the bucket, when it differs from the one loaded. The file is written first, so a run that stops here is read as stale."""
+    if state_store is None or snapshot is None:
+        return
+    state = StoredState(fingerprint=fingerprint, snapshot_sha=sha_of(snapshot), entries=entries)
+    if stored is not None and stored == state:
+        return
+    state_store.save(state)
 
 
 def _stale_thread_files(context: Any, settings: HomePageSettings, wanted: dict[str, bytes]) -> list[str]:

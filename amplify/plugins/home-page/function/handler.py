@@ -1,9 +1,12 @@
 """homePageTrigger: turns changes to the Reference table (and, when threads are on, to the Message table) into one debounced run of the ``home-page-snapshot`` projection task.
 
 The Reference table's DynamoDB stream invokes this function with batches of records. A record that changes none of the public fields
-is ignored. The first change in a quiet period claims a debounce slot (a conditional write in the shared projection lock table) and
-creates a one-off EventBridge Scheduler schedule at the end of the window that invokes content-actions with the snapshot task. Later
-changes inside the window find the slot taken and do nothing, because the run at the end of the window reads them all.
+is ignored, and so is one that can change no page: a Reference that is neither accepted nor predicted (so it cannot be recommended) before
+and after the change. Every other record adds the id of its Reference to a list in the shared projection lock table (a changed Message
+raises a counter beside it). The first change in a quiet period claims a debounce slot (a conditional write in the same table) and creates
+a one-off EventBridge Scheduler schedule at the end of the window that invokes content-actions with the snapshot task; the task reads
+the list and reads again only those rows. Later changes inside the window find the slot taken and only extend the list. A window with
+more changes than one item can list (a mass import) raises a flag instead, and that run reads the whole corpus once.
 
 This file imports nothing but the standard library and boto3: the Lambda bundles do not ship ``papyrus_content`` here.
 """
@@ -24,7 +27,12 @@ CHANGING_EVENTS = ("INSERT", "MODIFY")
 REMOVE_EVENT = "REMOVE"
 DEBOUNCE_KEY_PREFIX = "home-page-debounce#"
 SCHEDULE_PREFIX = "papyrus-home-page-snapshot-"
-SNAPSHOT_TASK = {"projectionTask": {"task": "home-page-snapshot"}}
+DIRTY_KEY_PREFIX = "home-page-dirty#"
+FULL_KEY_PREFIX = "home-page-full#"
+#: A DynamoDB item holds 400 KB and an id is under 200 bytes, so a list of 2,000 ids always fits; more than that is a mass import and is read in full.
+DIRTY_LIMIT = 2000
+ACCEPTED = "accepted"
+NOT_RECOMMENDABLE = ("rejected", "archived")
 HOUR_SECONDS = 3600
 CONDITION_FAILED = "ConditionalCheckFailedException"
 SCHEDULE_CONFLICT = "ConflictException"
@@ -36,19 +44,45 @@ def error_code(error: Exception) -> str:
     return str(response.get("Error", {}).get("Code") or type(error).__name__)
 
 
-def record_changed(record: Mapping[str, Any]) -> bool:
-    """True when the record inserts, removes or changes one of the fields a public page shows or ranks by."""
-    event_name = record.get("eventName")
-    if event_name == REMOVE_EVENT:
+def can_show(image: Mapping[str, Any]) -> bool:
+    """True for a Reference a page can show: an accepted one, or a pending one the Cyclotron has predicted (the only kind that is ever recommended)."""
+    status = (image.get("curationStatus") or {}).get("S")
+    if status == ACCEPTED:
         return True
-    if event_name not in CHANGING_EVENTS:
+    if not status or status in NOT_RECOMMENDABLE:
         return False
+    return any(image.get(name) is not None and not image[name].get("NULL") for name in ("predictionDecidedAt", "predictedAcceptProbability"))
+
+
+def record_change(record: Mapping[str, Any]) -> dict[str, Any] | None:
+    """What the record changes for a public page: ``{"id": <Reference id>}`` or ``{"message": True}``; ``None`` when it changes nothing a page shows."""
+    event_name = record.get("eventName")
     images = record.get("dynamodb") or {}
     old_image = images.get("OldImage") or {}
     new_image = images.get("NewImage") or {}
+    if event_name == REMOVE_EVENT:
+        if "messageKind" in old_image:
+            return {"message": True}
+        return {"id": reference_id(record)} if can_show(old_image) else None
+    if event_name not in CHANGING_EVENTS:
+        return None
     if "messageKind" in new_image:
-        return message_changed(old_image, new_image)
-    return any(old_image.get(field) != new_image.get(field) for field in CHANGE_FIELDS)
+        return {"message": True} if message_changed(old_image, new_image) else None
+    if not (can_show(old_image) or can_show(new_image)):
+        return None
+    if event_name == "MODIFY" and not any(old_image.get(field) != new_image.get(field) for field in CHANGE_FIELDS):
+        return None
+    return {"id": reference_id(record)}
+
+
+def reference_id(record: Mapping[str, Any]) -> str | None:
+    keys = (record.get("dynamodb") or {}).get("Keys") or {}
+    return (keys.get("id") or {}).get("S")
+
+
+def record_changed(record: Mapping[str, Any]) -> bool:
+    """True when the record inserts, removes or changes one of the fields a public page shows or ranks by, on a Reference a page can show."""
+    return record_change(record) is not None
 
 
 def message_changed(old_image: Mapping[str, Any], new_image: Mapping[str, Any]) -> bool:
@@ -71,6 +105,50 @@ def scope_of(function_arn: str) -> str:
 
 def debounce_key(scope: str) -> str:
     return f"{DEBOUNCE_KEY_PREFIX}{scope}"
+
+
+def dirty_key(scope: str) -> str:
+    return f"{DIRTY_KEY_PREFIX}{scope}"
+
+
+def full_key(scope: str) -> str:
+    return f"{FULL_KEY_PREFIX}{scope}"
+
+
+def record_changes(dynamodb_client: Any, table: str, scope: str, ids: set[str], messages: int) -> None:
+    """Writes what changed where the task will read it: the ids into a set, the Messages into a counter, and a flag when the set would not fit.
+
+    This runs before the schedule is created, so a run never starts without the list that explains it. The task takes out exactly what it read.
+    """
+    if messages:
+        dynamodb_client.update_item(
+            TableName=table,
+            Key={"publication": {"S": dirty_key(scope)}},
+            UpdateExpression="ADD messageSeq :count",
+            ExpressionAttributeValues={":count": {"N": str(messages)}},
+        )
+    if not ids:
+        return
+    try:
+        result = dynamodb_client.update_item(
+            TableName=table,
+            Key={"publication": {"S": dirty_key(scope)}},
+            UpdateExpression="ADD ids :ids",
+            ExpressionAttributeValues={":ids": {"SS": sorted(ids)}},
+            ReturnValues="UPDATED_NEW",
+        )
+        listed = len(((result.get("Attributes") or {}).get("ids") or {}).get("SS") or [])
+    except Exception as error:
+        if error_code(error) != "ValidationException":
+            raise
+        listed = DIRTY_LIMIT + 1  # the item is full
+    if listed > DIRTY_LIMIT:
+        dynamodb_client.update_item(
+            TableName=table,
+            Key={"publication": {"S": full_key(scope)}},
+            UpdateExpression="ADD seq :one",
+            ExpressionAttributeValues={":one": {"N": "1"}},
+        )
 
 
 def schedule_name(scope: str, locked_until: int) -> str:
@@ -112,6 +190,11 @@ def release_slot(dynamodb_client: Any, table: str, scope: str, locked_until: int
             raise
 
 
+def snapshot_task(scope: str) -> dict[str, Any]:
+    """The task the schedule invokes: incremental, and told which items hold this site's changes and state."""
+    return {"projectionTask": {"task": "home-page-snapshot", "incremental": True, "scope": scope}}
+
+
 def create_snapshot_schedule(scheduler_client: Any, scope: str, locked_until: int, function_arn: str, role_arn: str) -> None:
     scheduler_client.create_schedule(
         Name=schedule_name(scope, locked_until),
@@ -122,7 +205,7 @@ def create_snapshot_schedule(scheduler_client: Any, scope: str, locked_until: in
         Target={
             "Arn": function_arn,
             "RoleArn": role_arn,
-            "Input": json.dumps(SNAPSHOT_TASK),
+            "Input": json.dumps(snapshot_task(scope)),
             "RetryPolicy": {"MaximumRetryAttempts": 0},
         },
     )
@@ -153,13 +236,16 @@ def schedule_for_changes(
 
 def handler(event: Mapping[str, Any], context: Any = None, *, dynamodb_client: Any = None, scheduler_client: Any = None, now_seconds: float | None = None) -> dict[str, Any]:
     records = event.get("Records") or []
-    changed = sum(1 for record in records if record_changed(record))
-    if changed == 0:
+    changes = [change for change in (record_change(record) for record in records) if change is not None]
+    if not changes:
         return {"records": len(records), "changed": 0, "scheduled": False}
     if dynamodb_client is None or scheduler_client is None:
         import boto3
 
         dynamodb_client = dynamodb_client or boto3.client("dynamodb")
         scheduler_client = scheduler_client or boto3.client("scheduler")
+    ids = {change["id"] for change in changes if change.get("id")}
+    scope = scope_of(os.environ["PAPYRUS_HOME_PAGE_SNAPSHOT_FUNCTION_ARN"])
+    record_changes(dynamodb_client, os.environ["PAPYRUS_PROJECTION_LOCK_TABLE"], scope, ids, sum(1 for change in changes if change.get("message")))
     result = schedule_for_changes(dynamodb_client, scheduler_client, os.environ, time.time() if now_seconds is None else now_seconds)
-    return {"records": len(records), "changed": changed, **result}
+    return {"records": len(records), "changed": len(changes), **result}

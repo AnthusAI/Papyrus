@@ -1176,7 +1176,7 @@ def lab_decision_records(client, publication: dict, decision: dict, config: dict
 def deliver_reference(client, publication: dict, disc: dict, decision: dict, config: dict) -> dict:
     """The existing ReferenceIntake: pending Reference + provenance Message recording how it was chosen."""
     validate_email_discovery_scope(disc, config)
-    from .monitoring_intake import ReferenceIntake
+    from .monitoring_intake import ReferenceIntake, listing_for
     source_url = str(disc.get("sourceUrl") or "")
     monitor = Monitor(str(disc.get("monitorId") or "hn"), publication["corpusKey"], publication["corpusId"],
                       publication["appsyncEndpoint"], Path("/nonexistent"), source_url=source_url,
@@ -1202,7 +1202,7 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
     if disc.get("sourceType") == "email":
         provenance["emailSubmission"] = disc["emailProvenance"]
         provenance["sectionHandoff"] = "pending-reference-site-sweep"
-    intake = ReferenceIntake(client, monitor, auth_mode="iam")
+    intake = ReferenceIntake(client, monitor, auth_mode="iam", listing=listing_for(client))   # the run's deliveries share one read of the table
     if config.get("decisions") == "direct":
         return intake(item, provenance)   # the monitor's own rule: no machine decision, so no decision relation
     delivered = intake(item, provenance, lambda reference: lab_decision_records(client, publication, decision, config, reference, disc),
