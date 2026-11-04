@@ -1,0 +1,20 @@
+{
+  "id": "PPY-81df1451-90f1-4e5b-9b23-ff0bb49114af",
+  "title": "Newsroom board on phones: check on a real phone with real data",
+  "description": "Remaining acceptance from PPY-7a9355, which shipped in AnthusAI/Papyrus#1156 on develop. These need a real device or real newsroom data, so they could not be checked in headless runs. On a real phone against a deployed newsroom: the stacked board fits between the top bar and bottom navigation with the safe-area inset, with no double scrolling; long stages page in as the reader scrolls on real data, not just the fixture; opening a card and closing it returns to the same card and scroll position; collapsed sections persist; landscape shows the horizontal board. Needs Papyrus promoted to main, or a preview deployment of develop.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T08:40:46.929431Z",
+  "updated_at": "2026-11-04T08:40:46.929458Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
