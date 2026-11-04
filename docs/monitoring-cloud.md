@@ -662,6 +662,12 @@ as a new idempotent request. A 404 on a stored job is handled the same way, once
 re-posted in the same run. If the re-post's poll also answers 404 that one story ends as `error` and the sweep
 carries on; a single story's 404 never stops the run. Every other refusal behaves as before.
 
+A job the lab ended as failed, or reconciled as failed, gives no reason, and the usual one is the lab's own storage.
+It is re-posted once in the same run. If the re-post fails too, the story is not ended: it stays `collected` and backs
+off like any other non-permanent refusal (15 minutes doubling up to a day, `nextAttemptAt`, `lastRefusal`), then is
+posted under a new request id. A job with a refusal code keeps that code's meaning, so `source_refused` still ends the
+story as `refused`.
+
 ### Post first, then collect
 
 A cold lab job takes about 100 seconds, so a live sweep never waits on one story while others sit idle:
