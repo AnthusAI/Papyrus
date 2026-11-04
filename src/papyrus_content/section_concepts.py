@@ -1,6 +1,6 @@
-"""The concepts a section tracks: what an editor lists so every agent working in that section knows them (docs/newsroom-context-packs.md).
+"""The core concepts of a section: what an editor lists so every agent working in that section knows them (docs/newsroom-context-packs.md).
 
-A section's ``trackedConcepts`` is a list of ``{conceptLineageId, note, addedBy, addedAt}``. This module reads and writes it, finds the concept a name,
+A section's ``coreConcepts`` is a list of ``{conceptLineageId, note, addedBy, addedAt}``. This module reads and writes it, finds the concept a name,
 alias, ``#hashtag`` or node key means, and makes the concept an editor invents by typing a name. ``build_editor_concept_node`` writes the same node
 ``ensureEditorConcept`` writes in ``amplify/functions/category-action/reference-links.ts``; ``scripts/fixtures/editor-concept-vectors.json`` is read by
 both, so the two cannot drift.
@@ -21,7 +21,7 @@ from .options import normalize_string, parse_options, resolve_mutation_apply
 from .publishing import utc_now_iso
 from .tenancy import tenant_id_from_options
 
-TRACKED_CONCEPTS_FIELD = "trackedConcepts"
+CORE_CONCEPTS_FIELD = "coreConcepts"
 EDITOR_CONCEPT_KIND = "editor_concept"
 CONCEPT_KEY_SEPARATOR = "--"
 EDITOR_CONCEPT_CHANGE_REASON = "Invented by an editor with a hashtag"
@@ -56,9 +56,9 @@ def build_editor_concept_node(name: str, actor: str, now: str) -> dict[str, Any]
     }
 
 
-def tracked_concepts(section: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """The section's tracked concepts in the order the editor added them. A site whose schema has no such field, or a row with nothing in it, gives none."""
-    raw = (section or {}).get(TRACKED_CONCEPTS_FIELD)
+def core_concepts(section: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """The section's core concepts in the order the editor added them. A site whose schema has no such field, or a row with nothing in it, gives none."""
+    raw = (section or {}).get(CORE_CONCEPTS_FIELD)
     try:
         value = json.loads(raw) if isinstance(raw, str) and raw.strip() else raw
     except ValueError:
@@ -148,18 +148,18 @@ def _section_for(client: Any, value: str) -> dict[str, Any]:
 
 
 def _save(client: Any, section: dict[str, Any], entries: list[dict[str, Any]], now: str) -> None:
-    client.update_record("NewsroomSection", {"id": section["id"], TRACKED_CONCEPTS_FIELD: json.dumps(entries, separators=(",", ":")), "updatedAt": now})
+    client.update_record("NewsroomSection", {"id": section["id"], CORE_CONCEPTS_FIELD: json.dumps(entries, separators=(",", ":")), "updatedAt": now})
 
 
 def _list(client: Any, section: dict[str, Any]) -> None:
-    entries = tracked_concepts(section)
+    entries = core_concepts(section)
     if not entries:
         print(f"sections\tconcepts\t{section['id']}\tnone")
         return
     nodes = nodes_by_lineage(current_concept_nodes(client))
     for entry in entries:
         node = nodes.get(entry["conceptLineageId"])
-        state = "no longer found" if node is None else ("rejected" if node.get("status") == REJECTED else "tracked")
+        state = "no longer found" if node is None else ("rejected" if node.get("status") == REJECTED else "core")
         print("\t".join(["sections", "concepts", str(section["id"]), concept_label(node) if node else entry["conceptLineageId"], entry["conceptLineageId"], state, entry["note"] or ""]))
 
 
@@ -177,12 +177,12 @@ def _add(client: Any, section: dict[str, Any], options: dict[str, Any], apply: b
         invented = build_editor_concept_node(text, COMMAND_ACTOR, now) if concept_slug(text) else None
         existing = resolve_concept(nodes, text, allow_rejected=True) or (nodes_by_lineage(nodes).get(invented["lineageId"]) if invented else None)
         if existing is not None:
-            raise ValueError(f"The concept {concept_label(existing)!r} was rejected, so a section cannot track it.")
+            raise ValueError(f"The concept {concept_label(existing)!r} was rejected, so a section cannot have it as a core concept.")
         if not create or invented is None:
             raise ValueError(f"No concept is named {text!r}. Name an existing concept, or add --create to make it.")
         node, made = invented, True
     lineage = str(node.get("lineageId") or node["id"])
-    entries = tracked_concepts(section)
+    entries = core_concepts(section)
     held = next((entry for entry in entries if entry["conceptLineageId"] == lineage), None)
     mode = "write" if apply else "dry run"
     if held is not None and (note is None or note == held["note"]):
@@ -206,12 +206,12 @@ def _remove(client: Any, section: dict[str, Any], options: dict[str, Any], apply
     text = normalize_string(options.get("concept"))
     if not text or text is True:
         raise ValueError("--concept is required.")
-    entries = tracked_concepts(section)
-    tracked_ids = {entry["conceptLineageId"] for entry in entries}
+    entries = core_concepts(section)
+    core_ids = {entry["conceptLineageId"] for entry in entries}
     node = resolve_concept(current_concept_nodes(client), text, allow_rejected=True)
-    lineage = str(node.get("lineageId") or node["id"]) if node else (text if text in tracked_ids else None)
-    if lineage is None or lineage not in tracked_ids:
-        raise ValueError(f"Section {section['id']} does not track a concept {text!r}.")
+    lineage = str(node.get("lineageId") or node["id"]) if node else (text if text in core_ids else None)
+    if lineage is None or lineage not in core_ids:
+        raise ValueError(f"Section {section['id']} does not have the core concept {text!r}.")
     print(f"sections\tconcepts\tremove\t{section['id']}\t{concept_label(node) if node else lineage}\t{lineage}\t{'write' if apply else 'dry run'}")
     if not apply:
         return
