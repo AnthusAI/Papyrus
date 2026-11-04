@@ -3,7 +3,7 @@
   "title": "research.multi cannot do what a reporter's assignment asks: snippets are its only evidence",
   "description": "docs/automated-publication-research-workflow.md:252 says: fetching pages is not part of this mode; snippets are the evidence, so every claim is a lead to verify. stories assign-research defaults to this type, labelled research-mode source_discovery. An editor's direction can ask for primary sources to be read, as the non-interference assignment does, and nothing tells them the run cannot do that. Either add a mode that fetches and reads sources, or say plainly in the Assign research box and the CLI what the run will and will not do.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Merged to develop in PR 1161 (53c59308); not released or deployed. A run now opens its sources, reads what fits and records what it read. Dry run on the non-interference assignment: 149 sources, 115 read (44 in part), 34 not opened, 355 seconds, 13 of 35 claims verified with none resting on a snippet alone. That was before the PDF quote fix; 12 of the 17 quote rejections pass the new lookup on stored quotes, judge not rerun. Left: release, the router change set, a run in the Lambda, and screenshot review.",
       "created_at": "2026-11-04T09:43:39.571886Z",
       "comment_type": "default"
+    },
+    {
+      "id": "85d7e9db-5b05-4d11-a73a-eb1521ccf5cb",
+      "author": "home",
+      "text": "Proven in the Lambda on Machines on Machines, 2026-11-04, non-interference Story: 685 s of the 900 s limit, 451 MB of 1024 MB. 148 sources, 113 read (31 in part), 35 not opened and listed in the packet; 46 of 54 PDF or arXiv sources read. 33 verified, 5 need a check, 11 not shown, 0 contradicted; 0 verified claims rest only on a snippet. Packet 2.8 MB. Follow-up: move page text out of the packet.",
+      "created_at": "2026-11-04T15:59:09.444207Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-04T00:14:54.811804Z",
-  "updated_at": "2026-11-04T09:43:39.572428Z",
-  "closed_at": null,
+  "updated_at": "2026-11-04T15:59:09.687024Z",
+  "closed_at": "2026-11-04T15:59:09.686682Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
