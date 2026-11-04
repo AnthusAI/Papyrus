@@ -125,17 +125,40 @@ def accepts_outputs(outputs: dict) -> bool:
     return found == choice.config.graphql_endpoint
 
 
-def tenant_for(endpoint: str | None = None) -> str | None:
-    """The tenant published by the signed-in site that owns this endpoint (default: the one in use). Only on the signed-in lane."""
+def _owner(endpoint: str | None = None):
+    """The signed-in site that owns this endpoint (default: the one in use), or None; only on the signed-in lane."""
     from .cli_user_auth import load_registry
     try:
         if not user_auth_requested():
             return None
         target = endpoint or env.graphql_endpoint()
-        owner = next((config for config in load_registry() if config.graphql_endpoint == target), None)
+        return next((config for config in load_registry() if config.graphql_endpoint == target), None)
     except ValueError:
         return None
+
+
+def tenant_for(endpoint: str | None = None) -> str | None:
+    """The tenant published by the signed-in site that owns this endpoint (default: the one in use). Only on the signed-in lane."""
+    owner = _owner(endpoint)
     return site_document.for_site(owner.publication).get('tenant_id') if owner else None
+
+
+def published(name: str, endpoint: str | None = None) -> str | None:
+    """A value the signed-in site that owns this endpoint publishes in its site file (`media_bucket`, `identity_pool_id`), or None.
+    A kept copy written before the site published the value is refreshed once, so a site that was upgraded since is found."""
+    owner = _owner(endpoint)
+    if owner is None:
+        return None
+    found = site_document.for_site(owner.publication).get(name)
+    if found is None:
+        found = site_document.for_site(owner.publication, refresh=True).get(name)
+    return found
+
+
+def host_for(endpoint: str | None = None) -> str | None:
+    from .cli_user_auth import site_host
+    owner = _owner(endpoint)
+    return site_host(owner) if owner else None
 
 
 def _release(version: str) -> tuple[int, int, int] | None:

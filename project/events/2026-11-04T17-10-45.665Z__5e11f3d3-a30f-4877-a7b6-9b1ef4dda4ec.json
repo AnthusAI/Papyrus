@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "5e11f3d3-a30f-4877-a7b6-9b1ef4dda4ec",
+  "issue_id": "PPY-e92c8e52-6a3f-4c82-b1b6-cf153ba2431c",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-04T17:10:45.665Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "stub",
+        "to": "**Reworked 2026-11-04:** Ryan reversed the architecture. No new AWS account and no central service; see docs/notifications-plan.md in AnthusAI/Caducus.\n\n**Milestone:** M1, first slice\n\n**Goal.** One listener for the whole account, because these alarms belong to no one site, and listening per site would send one email per site. It uses the Caducus package; this issue is only wiring.\n\n**Build.**\n- `infra/monitoring/papyrus-monitoring.yaml`: rule on the default bus for `aws.cloudwatch` `CloudWatch Alarm State Change` to SQS `papyrus-operator-ingest` (with DLQ); SQS `papyrus-operator-email` (with DLQ); table `papyrus-operator-alerts` (TTL `expiresAt`, GSI `byRecipient`, KMS, no point-in-time recovery); Lambdas for router, email sender, group flush, SES events and reconcile, with handlers from `caducus.notify.handlers.*`; one-minute flush schedule; reconcile schedule (`cloudwatch:DescribeAlarms`); SES rule filtered to `detail.mail.tags.ses:configuration-set` = `papyrus-operators`.\n- Env: `TABLE_NAME`, `OPERATORS_PARAMETER` (default the stack's `AlarmEmailParameter` name), `RECIPIENT_KEY_PARAMETER`, `EMAIL_QUEUE_URL`, `FROM_ADDRESS` (mailbox `alerts` at notify.anth.us), `CONFIGURATION_SET`, `TRIAGE_PARAMETER`, `CADUCUS_CONFIG_DIR`. IAM: `ses:SendEmail` on that identity and set only, `ses:FromAddress` pinned; SSM read on the exact parameters.\n- `/papyrus/monitoring/recipient-key`: create-only SecureString. This stack is YAML, not CDK, so add an inline custom resource following `amplify/plugins/newsletter/secure-string-parameter.ts`.\n- `infra/monitoring/build.py --operator`: one zip with the `caducus` wheel at a pinned version, boto3 from the runtime, and `alarm-catalog.yaml` converted to JSON at build, so the zip needs no PyYAML. Python as the other workers (3.13).\n- `infra/monitoring/alarm-catalog.yaml`: Papyrus's own alarm knowledge, moved from the Caducus PR, extended to every alarm in the account (47 on 2026-11-04): five `papyrus-monitoring-*`; site stacks `amplify-<app>-...-CliRemoteLogin`, `reprojectondeploy`, `s3projection`, which have no actions today so nobody hears them; `papyrus-newsletter-*`; `papyrus-scheduled-job-*`; `papyrus-email-*`; `prospectus-cli-broker-*`. App id to site name: in `/papyrus/monitoring/triage`, never in Git. Deleted site stacks need a line in the runbook.\n- Alarms in `prospectus-cli-broker-*`: tell the Prospectus session they now reach operators.\n\n**Acceptance.**\n- `build.py --operator` is deterministic; a change set shows only additions; papyrus-monitoring's collector and router functions are untouched.\n- A forced labelled test alarm produces one email with what broke, site, impact, next step and a working link. Remove the test alarm afterwards.\n\n**Depends on:** PPY-bf63d5, PPY-d21c7f\n**Related:** kanbus-9cc7ec, kanbus-ad0a0d, kanbus-cfe4b9, kanbus-9a3b85, kanbus-d68036, kanbus-4eba71, kanbus-06de58, kanbus-0c7a2c"
+      }
+    }
+  }
+}

@@ -96,6 +96,16 @@ def site_tenant_id(endpoint: str | None = None) -> str | None:
     return _site_selection.tenant_for(endpoint) if _site_selection is not None else None
 
 
+def site_published(name: str) -> str | None:
+    """A public value (`media_bucket`, `identity_pool_id`) the signed-in site in use publishes in its site file; None for a Lambda
+    and for a site that does not publish it."""
+    return _site_selection.published(name) if _site_selection is not None else None
+
+
+def site_host_in_use() -> str | None:
+    return _site_selection.host_for() if _site_selection is not None else None
+
+
 def outputs_belong_to_selection(parsed: dict) -> bool:
     """False when an explicit site choice names a different backend than this file: its bucket and pool are not that site's."""
     return _site_selection is None or _site_selection.accepts_outputs(parsed)
@@ -151,6 +161,12 @@ def graphql_timeout_seconds(default: float = 30.0) -> float:
 
 
 def storage_bucket_from_amplify_outputs(filepath: str | Path | None = None) -> str | None:
+    """The media bucket: from the outputs file when it belongs to the site in use, else (signed in) the one the site publishes."""
+    found = _storage_bucket_from_file(filepath)
+    return found if found or filepath else site_published("media_bucket")
+
+
+def _storage_bucket_from_file(filepath: str | Path | None) -> str | None:
     path = Path(filepath) if filepath else amplify_outputs_path()
     if not path.is_absolute():
         path = PAPYRUS_ROOT / path
@@ -171,6 +187,11 @@ def identity_pool_id_from_amplify_outputs(filepath: str | Path | None = None) ->
     explicit = (os.environ.get("PAPYRUS_IDENTITY_POOL_ID") or "").strip()
     if explicit:
         return explicit
+    found = _identity_pool_from_file(filepath)
+    return found if found or filepath else site_published("identity_pool_id")
+
+
+def _identity_pool_from_file(filepath: str | Path | None) -> str | None:
     path = Path(filepath) if filepath else amplify_outputs_path()
     if not path.is_absolute():
         path = PAPYRUS_ROOT / path

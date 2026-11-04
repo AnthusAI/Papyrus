@@ -2,7 +2,8 @@
 
 The sign-in file (`papyrus-cli.json`, read by `cli_user_auth.discover`) is strict: an unknown field makes every installed CLI
 refuse the site. This second public file carries the rest, so it can grow without breaking anyone: the site's tenant id (only
-when the site has one) and the Papyrus version it runs. A site that has not been upgraded serves no such file, and nothing
+when the site has one), the Papyrus version it runs, and the media bucket and identity pool a signed-in editor uploads
+pictures with (`stories save-version --images`). A site that has not been upgraded serves no such file, and nothing
 fails because of that. Everything here is public and is never a credential; the tenant scopes requests and authorizes nothing.
 """
 from __future__ import annotations
@@ -20,6 +21,8 @@ from .tenancy import TenantError, validate_tenant_id
 SITE_DOCUMENT_PATH = '/.well-known/papyrus-site.json'
 SITE_DOCUMENT_MAX_BYTES = 4*1024
 SITE_DOCUMENT_TIMEOUT_SECONDS = 5
+_BUCKET = re.compile(r'^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$')
+_IDENTITY_POOL = re.compile(r'^[a-z]{2}(?:-[a-z]+)+-\d:[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$')
 _VERSION = re.compile(r'^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]{1,40})?$')
 _not_served: set[str] = set()
 
@@ -45,6 +48,12 @@ def parse(raw: bytes) -> dict | None:
         if not isinstance(version, str) or not _VERSION.match(version):
             return None
         found['papyrus_version'] = version
+    # Public like the rest: the media bucket is private (access is by the identity pool's role) and the pool id authorizes nothing
+    # without a signed-in token. A value that is not shaped like one is left out, so a bad value never reaches an S3 call.
+    for name, pattern in (('media_bucket', _BUCKET), ('identity_pool_id', _IDENTITY_POOL)):
+        value = data.get(name)
+        if isinstance(value, str) and pattern.match(value):
+            found[name] = value
     return found
 
 

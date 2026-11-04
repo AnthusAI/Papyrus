@@ -279,9 +279,12 @@ supplies an endpoint to the IAM lane.
 site projects its pages, the signed-in lane asks the newsroom's own `publishItem` mutation, which projects the page on a site that does
 and does nothing on one that does not (an `amplify_outputs.json` of the chosen site still decides first).
 
-An `amplify_outputs.json` still supplies the storage bucket and Cognito identity pool for `stories save-version --images`. Those two values are not published by the site, so that command still needs the file (or `--bucket`,
-`--identity-pool-id` and `PAPYRUS_IDENTITY_POOL_ID`); publishing them needs a design decision (see PPY-83e413). A file that names a different backend than the site you chose is ignored for
-them rather than used, so a stray file in the working directory cannot send an upload to the wrong bucket.
+`stories save-version --images` needs no outputs file either. The storage bucket and Cognito identity pool come from, in order: `--bucket` /
+`PAPYRUS_MEDIA_BUCKET` and `--identity-pool-id` / `PAPYRUS_IDENTITY_POOL_ID`; an `amplify_outputs.json` of the chosen site; then the values the
+signed-in site publishes in its site file (`media_bucket`, `identity_pool_id`, see [below](#the-site-file-tenant-and-version)). A site that
+publishes neither (it runs an older Papyrus) fails with a message that names the site and says which flag or variable to pass. A file that names a
+different backend than the site you chose is ignored for them rather than used, so a stray file in the working directory cannot send an upload to
+the wrong bucket. An operator on the IAM lane never borrows a signed-in site's values.
 
 ### The site file: tenant and version
 
@@ -290,12 +293,16 @@ login metadata"), so nothing may be added to it. A site therefore also serves
 `/.well-known/papyrus-site.json`, which a CLI that has never heard of it simply never requests:
 
 ```json
-{ "tenant_id": "machines-on-machines", "papyrus_version": "5.81.0" }
+{ "tenant_id": "machines-on-machines", "papyrus_version": "5.81.0",
+  "media_bucket": "<the site's media bucket>", "identity_pool_id": "<region>:<uuid>" }
 ```
 
 `tenant_id` is the site's `PAPYRUS_TENANT_ID` build variable and is present only when the site has one;
-`papyrus_version` is the `@anthusai/papyrus` version the site was built with. Both are public and neither is a credential:
-the tenant scopes requests, it authorizes nothing. The CLI reads the file over HTTPS only, refuses redirects, caps it at 4 KiB,
+`papyrus_version` is the `@anthusai/papyrus` version the site was built with. `media_bucket` and `identity_pool_id` are the site's Amplify
+Storage bucket and Cognito identity pool, read from its own `amplify_outputs.json` and present only when the outputs name them in the shape of
+a bucket name or a pool id; `stories save-version --images` uses them signed in. All are public and none is a credential: the tenant scopes
+requests, it authorizes nothing; the bucket is private and is reached only by trading a signed-in token with the pool, whose role limits what
+it may write. A copy kept before a site published them is fetched again once when a command needs them. The CLI reads the file over HTTPS only, refuses redirects, caps it at 4 KiB,
 ignores fields it does not know, and treats a missing or unusable file as "unknown", never as a failure. It reads it at login
 and, for a sign-in already in the registry, the first time a command needs the tenant, so nobody has to sign in again. The
 copy is kept beside the registry (`site-documents.json`, public values, mode 0600). The tenant a client uses is, in order:
@@ -324,7 +331,8 @@ exact URI is in the outputs' `auth.oauth.redirect_sign_in_uri`; otherwise it ans
 header. Every field is public. The publication API still decides what a signed-in
 person may do under the normal user/group permissions.
 
-The site file is served by the route `app/.well-known/papyrus-site.json/route.ts` (`lib/cli-site-document.ts`). Its tenant comes
+The site file is served by the route `app/.well-known/papyrus-site.json/route.ts` (`lib/cli-site-document.ts`). The bucket and pool come from the
+site's `amplify_outputs.json` at request time, so a site needs a deploy of a release that has them before its editors can drop the file. Its tenant comes
 from the `PAPYRUS_TENANT_ID` build variable (copied into `.env.production` by the build spec) and its version from the package
 the site installed (`withPapyrus` sets `PAPYRUS_ENGINE_VERSION`). A site serves it once it is rebuilt on a release that has it. A
 public host that is fronted by an edge stack needs the path routed to the app like `papyrus-cli.json`

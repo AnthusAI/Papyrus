@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "9f7ef1dc-74f0-4a3a-9918-36c61732223f",
+  "issue_id": "PPY-3e260cec-280a-45c5-9ac9-5c213e0df134",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-04T17:10:46.612Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "stub",
+        "to": "**Reworked 2026-11-04:** Ryan reversed the architecture. No new AWS account and no central service; see docs/notifications-plan.md in AnthusAI/Caducus.\n\n**Milestone:** M2, operators finished\n\n**Goal.** Operators can turn things off from the message. Operator mail belongs to no site, so it cannot use a site's pages.\n\n**Build.**\n- Papyrus-monitoring: one Lambda function URL with auth NONE, handler `caducus.notify.handlers.public`; signed tokens only, GET shows a button and changes nothing, POST acts. Link key `/papyrus/monitoring/link-key`, create-only. Throttled by reserved concurrency only if the account allows it.\n- The host name is the function URL's. A custom domain on notify.anth.us is deferred; no CloudFront now.\n- `caducus notify history` and `test` against the table with the operator's own AWS session; the `papyrus` CLI gains a thin wrapper in `PPY-d99539`.\n\n**Acceptance.**\nMute from a real message; a mail scanner's GET changes nothing.\n\n**Depends on:** PPY-e82423\n**Related:** kanbus-1c3618, kanbus-42a682, kanbus-c68e03, kanbus-b9f48f"
+      }
+    }
+  }
+}

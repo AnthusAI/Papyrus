@@ -44,8 +44,34 @@ def _text_from_option_or_file(options: dict, text_name: str, file_name: str) -> 
     return Path(path).read_text(encoding="utf-8") if path else None
 
 
+def _version_author(options: dict, apply: bool, client) -> str:
+    """Who a saved version names: the signed-in person (the session's label), or --author-label on the IAM lane, where it is required."""
+    from .operator_errors import OperatorError
+    from .user_auth_mode import user_auth_requested
+
+    label = normalize_string(options.get("author-label"))
+    if not user_auth_requested():
+        if not label:
+            raise ValueError("--author-label is required on the IAM lane, where there is no sign-in to name the author.")
+        return label
+    if not apply:
+        return label or "the signed-in person"
+    if label:
+        print("stories\tsave-version\twarning\t--author-label is ignored: the version records the person who signed in.", file=sys.stderr)
+    from .cli_user_auth import signed_in_label
+
+    author = signed_in_label(client.endpoint)
+    if not author:
+        raise OperatorError("The version was not saved: the signed-in session names no one. Run `papyrus whoami` to check it.")
+    return author
+
+
 def stories_save_version(flags: list[str]) -> None:
-    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name> [--stage <stage> | --advance] [--outline] [--no-check] [--images <dir> [--bucket <bucket>] [--identity-pool-id <id>]]
+    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> [--author-label <name>] [--stage <stage> | --advance] [--outline] [--no-check] [--images <dir> [--bucket <bucket>] [--identity-pool-id <id>]]
+
+    Signed in, the version records the person who signed in (the label the session holds) as its author, as `link-reference` does;
+    --author-label is ignored there (the backend does not verify a name, so the CLI never lets one be made up). On the IAM lane
+    (an operator's AWS credentials) --author-label is required and is recorded as given.
 
     --images <dir> uploads every local picture the body uses (::image{src=...} and ![](...) whose path resolves under
     <dir>), plus a matching <name>.dark.<ext> or srcDark file, as the newsroom editor's "Insert image" would: the same
@@ -62,7 +88,10 @@ def stories_save_version(flags: list[str]) -> None:
     publish. Auth: both lanes work. With
     PAPYRUS_GRAPHQL_AUTH=iam the AWS credentials write to S3; with PAPYRUS_GRAPHQL_AUTH=user (editor or admin group)
     the signed-in ID token is traded for temporary credentials from the site's Cognito identity pool
-    (--identity-pool-id, PAPYRUS_IDENTITY_POOL_ID or amplify_outputs.json).
+    (--identity-pool-id, PAPYRUS_IDENTITY_POOL_ID, amplify_outputs.json, or the identity pool the signed-in site publishes in
+    /.well-known/papyrus-site.json). Signed in, --bucket, PAPYRUS_MEDIA_BUCKET and --identity-pool-id win; otherwise the site's
+    published media bucket and identity pool are used, so no outputs file is needed. A site that publishes neither (it runs an
+    older Papyrus) fails with a message that says to pass the flags.
     """
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories save-version")
@@ -78,7 +107,7 @@ def stories_save_version(flags: list[str]) -> None:
         metadata = latest.get("metadata")
         front_matter = (json.loads(metadata) if isinstance(metadata, str) and metadata else {}).get("frontMatterYaml")
     reason = _required_option(options, "reason")
-    author = _required_option(options, "author-label")
+    author = _version_author(options, apply, client)
     next_number = int(latest.get("versionNumber") or 1) + 1
     image_plan = None
     if images_dir:
