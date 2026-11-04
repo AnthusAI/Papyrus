@@ -211,7 +211,7 @@ def test_direct_delivery_records_the_monitor_rule_and_the_pdf(monkeypatch):
     captured, real_intake = {}, monitoring_intake.ReferenceIntake
 
     class RecordingIntake:
-        def __init__(self, client, monitor, *, auth_mode):
+        def __init__(self, client, monitor, *, auth_mode, **options):
             captured["monitor"] = monitor
 
         def __call__(self, item, provenance):

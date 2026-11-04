@@ -143,46 +143,27 @@ def step_denied(context):
 
 @given('a publication whose Reference "{one}" was accepted at "{accepted_at}" and "{two}" is pending since "{pending_at}"')
 def step_publication(context, one, accepted_at, pending_at, two):
-    context.client = unit.ByStatusClient([unit.row(1, "accepted", accepted_at)], [unit.row(2, "pending", pending_at)])
-    context.watermark_writes = []
+    import test_monitoring_vectors as tv
+
+    context.site = tv.Site([tv.row(1, 1, "accepted"), tv.row(2, 2, "pending")], place=tv.saved_place(0))
 
 
 @when("the router's vector pass runs")
 def step_pass(context):
-    context.indexed_ids, context.suggested = [], []
-
-    def indexer(services, options):
-        context.indexed_ids = list(options.reference_ids)
-        return {"vectorsWritten": 2, "conceptCardsToWrite": 0, "embeddingInputCharacters": 10}
-
-    def suggester(client, provider, reference_id, **options):
-        context.suggested.append(reference_id)
-        return {"skipped": None, "references": [], "concepts": []}
-
-    with mock.patch.object(vectors, "s3vectors_client_missing_reason", lambda region_name=None: None):
-        context.result = vectors.run_vector_pass(
-            context.client, {"publicationId": "p", "corpusId": "c", "appsyncEndpoint": "e"},
-            {"vectorIndexArn": "arn:x", "storageBucketName": "b", "suggestions": {"enabled": True}}, now=datetime(2026, 11, 2), out_of_time=lambda: False,
-            maximum_cost_usd=1.0, embedding_key="k", read_watermark=lambda: None, write_watermark=context.watermark_writes.append,
-            services_for=lambda p, b: "services", indexer=indexer, suggester=suggester, provider_for=lambda arn: "provider", calibration_loader=lambda c: None)
+    context.result = context.site.run()
 
 
-@then("both References are indexed and suggested for, the pending one first")
+@then("both References are indexed and a related-items check is queued for each")
 def step_both(context):
-    assert sorted(context.indexed_ids) == ["ref-1", "ref-2"] and context.suggested == ["ref-2", "ref-1"], (context.indexed_ids, context.suggested)
+    assert sorted(entry["referenceLineageId"] for entry in context.site.heard) == ["lineage-1", "lineage-2"], context.site.heard
+    assert context.result["suggestionsQueued"] == 2, context.result
 
 
-@then("the pass reports {accepted:d} newly accepted and {pending:d} newly pending Reference")
-def step_counts(context, accepted, pending):
-    assert (context.result["newlyAccepted"], context.result["newlyPending"]) == (accepted, pending), context.result
-
-
-@then("the pass saves a place for the pending and the accepted group")
+@then("the pass saves a place after the newest change")
 def step_watermark(context):
     import json
 
-    place = json.loads(context.watermark_writes[-1])
-    assert place["v"] == 2 and place["pending"]["high"].endswith("#ref-2") and place["accepted"]["high"].endswith("#ref-1"), place
+    assert json.loads(context.site.watermark.value)["since"].startswith("2026-11-01T06:02"), context.site.watermark.value
 
 
 # --- suggestions and search -------------------------------------------------------------------------------------------------------------

@@ -25,7 +25,7 @@ import {
   type DelegationStore,
 } from "../shared/curation-delegation-flow";
 import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
-import { referenceFeedArrivalAt, referenceFeedKeys, referenceFeedStateKey, referenceMediumFeedKey, referenceMediumKeyPatch, starFeedKeyFor } from "../../../lib/reference-feed-keys";
+import { referenceContentNeededKey, referenceFeedArrivalAt, referenceFeedKeys, referenceFeedStateKey, referenceMediumFeedKey, referenceMediumKeyPatch, starFeedKeyFor } from "../../../lib/reference-feed-keys";
 import { claimGroups } from "../../../lib/staff-groups";
 import { isStoryItemType } from "../../../lib/content-item-lifecycle";
 import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
@@ -969,11 +969,16 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
         versionState: "superseded",
         feedStateKey: null,   // a superseded version is in no feed
         ...(current.mediumFeedKey ? { mediumFeedKey: null } : {}),   // nor in a medium list
+        ...(current.contentNeededKey ? { contentNeededKey: null } : {}),   // nor in the list of videos waiting for content
         updatedAt: now,
       }),
       "supersede current Reference version",
     );
   }
+
+  const movedContentKey = current.medium
+    ? referenceContentNeededKey({ id: nextReferenceId, corpusId: targetCorpusId, curationStatus, versionState: "current", medium: current.medium, captureState: current.captureState, captureReason: current.captureReason })
+    : null;
 
   await requireDataResult(
     client.models.Reference.create({
@@ -1003,6 +1008,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       createdAt: normalizeOptionalString(current.createdAt) ?? now,
       ...(current.starRating ? { starRating: current.starRating, starRatedAt: current.starRatedAt, starRatedBy: current.starRatedBy, starFeedKey: starFeedKeyFor(targetCorpusId, current.starRating) } : {}),
       ...(current.captureState ? { captureState: current.captureState } : {}),
+      ...(current.captureReason ? { captureReason: current.captureReason } : {}),
       ...(current.medium ? { medium: current.medium } : {}),
       ...(current.evidenceLevel ? { evidenceLevel: current.evidenceLevel } : {}),
       ...(current.playlistUrl ? { playlistUrl: current.playlistUrl } : {}),
@@ -1033,6 +1039,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
         sourcePublishedAt: normalizeOptionalString(current.sourcePublishedAt),
       }),
       ...(current.medium ? { mediumFeedKey: referenceMediumFeedKey({ id: nextReferenceId, corpusId: targetCorpusId, curationStatus, versionState: "current", medium: current.medium }) } : {}),
+      ...(movedContentKey ? { contentNeededKey: movedContentKey } : {}),   // never an explicit null on a new row: that is not a missing index key attribute
       updatedAt: now,
     }),
     "create moved Reference version",

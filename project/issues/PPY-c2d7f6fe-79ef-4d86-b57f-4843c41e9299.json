@@ -10,9 +10,17 @@
   "parent": "PPY-f8ff4916-268e-45a3-97a6-d6f2d5d780f6",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "fdfec228-1048-42aa-9634-40a79c28e1e6",
+      "author": "home",
+      "text": "Backfill on Machines on Machines 2026-11-04: 4,030 References, 2 videos written; a second preview shows nothing to do; the index lists both. Public videos block not yet placed on a page.",
+      "created_at": "2026-11-04T20:56:18.800065Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T16:29:29.418230Z",
-  "updated_at": "2026-11-04T16:29:29.418307Z",
+  "updated_at": "2026-11-04T20:56:18.800345Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ad1d2673-0284-4373-9988-e09babfba103",
+  "issue_id": "PPY-55f02cae-3d66-416e-9296-1f714df19229",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T22:12:07.830Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "og:image contains ../../ on published articles",
+    "description": "On the Machines on Machines article, og:image and twitter:image are https://<site>/../../assets/responsive/... The head makes a page-relative image path absolute without normalizing it, which may break social previews.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

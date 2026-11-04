@@ -88,7 +88,7 @@ A process that cannot fill a line says so in that line.
 - **Inputs.** The Reference's address; the page or PDF; for research papers the PDF bytes for GROBID.
 - **Decision.** Whether the text is captured, with completeness signals (facts, not a verdict); then a summary; then for research papers GROBID's title, authors, abstract and citations.
 - **May write.** The curation card (`ReferenceAttachment`), the extracted text and summary bodies, the Reference's `captureState`; GROBID may create pending Reference rows for cited works.
-- **Must never.** Change the curation status (the Reference stays pending and the editor decides); overwrite text an editor pasted or corrected; follow a non-public address.
+- **Must never.** Change the curation status (the Reference stays pending and the editor decides); overwrite text an editor pasted or corrected; follow a non-public address; ask YouTube for a video's transcript (YouTube refuses cloud addresses: a video keeps its page's description and waits for `papyrus references capture-transcripts`, run by a person on a non-cloud connection, [4d](reference-curation-pipeline.md#4d-video-transcripts-the-worker-2026-11-04)).
 - **Seen and reversed.** The card on the Reference with a status of `ready`, `degraded` or `capture_failed`. An editor corrects or pastes text; the machine capture stays as the original. `--force` redoes finished stages except over an edit.
 - **Records.** The card with typed failure reasons; `change reason` on versions; the summary prompt version.
 - **Fails.** Typed and mostly closed: `timeout`, `connection`, `http_5xx` and `dns` are transient and retried on the next run; the rest are final until `--force`. Without an OpenAI key the summary is a typed skip. A running card holds a 30 minute lease.
@@ -99,17 +99,17 @@ A process that cannot fill a line says so in that line.
 
 ### 6. Suggestions (related References and concepts)
 
-- **Trigger.** The vector pass inside the daily monitor-stories run, and the hourly `suggest-backlog` task (minute 44, and minute 14 for Distinctive Mark).
+- **Trigger.** The moment a Reference's summary vector is stored, new or rewritten because its text changed (the vector pass of the daily monitor-stories run queues one check). Never a schedule; never an accept, reject, vote or star.
 - **Inputs.** The Reference's summary vector and the publication's vector index; the site's own decided suggestions for the cut-off.
 - **Decision.** Which indexed References and concepts are close enough to suggest, cut where the site's decided suggestions say (`suggestion_calibration`).
-- **May write.** Suggested links (`related_to`, with the close-match score) and the index's vectors; the saved place and the owed-to-the-index table.
-- **Must never.** Make a model call in the backlog task; decide a link (a suggestion is only a suggestion, and the card shows two of them); index rejected or archived References as live.
+- **May write.** Suggested links (`related_to`, with the close-match score), one check record per Reference in the router's table, and the index's vectors; the saved place of the vector pass.
+- **Must never.** Repeat the check for text it already checked; walk the corpus to find work; decide a link (a suggestion is only a suggestion, and the card shows two of them); index rejected or archived References as live.
 - **Seen and reversed.** Suggested links on the card and in the Related section, each with Accept and Reject; the decision is recorded and trained on.
-- **Records.** One `{"suggestBacklog": ...}` log line per publication with counts, and the receipt.
-- **Fails.** A Reference with no vector is passed over and remembered as owed; one with nothing to embed is parked. The run stops on time without losing its place.
-- **Cost and bound.** The backlog task costs nothing in model spend (S3 Vectors reads and the publication's API). Embedding cost in the daily pass counts against the run's cost meter.
-- **Measured.** Suggestions written and remaining per run. Whether suggestions are good is measured only by editors' later decisions: no report, **no spec**.
-- **Gherkin.** `monitoring-suggest-backlog`, `monitoring-vector-pass`, `pending-reference-vectors`, `reference-links`, `link-explanation-vectors`, `junk-concept-suggestions`. Details: [monitoring-cloud.md](monitoring-cloud.md#vector-index-and-suggestions).
+- **Records.** One `{"suggestOnce": ...}` log line per check, the check record row, and the daily line's `suggestionsQueued`.
+- **Fails.** A failed check is delivered again by the queue up to three times, then waits in a dead-letter queue with an alarm. A Reference with nothing to embed has no vector and so no check.
+- **Cost and bound.** One check is a few S3 Vectors reads and queries and a handful of API requests, once per Reference text. Embedding cost in the daily pass counts against the run's cost meter.
+- **Measured.** Checks queued per daily run, and the dead-letter queue depth. Whether suggestions are good is measured only by editors' later decisions: no report, **no spec**.
+- **Gherkin.** `suggest-once`, `monitoring-vector-pass`, `pending-reference-vectors`, `reference-links`, `link-explanation-vectors`, `junk-concept-suggestions`. Details: [monitoring-cloud.md](monitoring-cloud.md#vector-index-and-suggestions).
 - **Gap.** A suggestion is never a duplicate decision: nothing here distinguishes the same document from a related one (that is the epic's next step).
 
 ### 7. Idea generation (monitor stories, trends)

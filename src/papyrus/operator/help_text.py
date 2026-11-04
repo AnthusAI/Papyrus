@@ -110,6 +110,7 @@ def build_knowledge_parser() -> argparse.ArgumentParser:
   subparsers.add_parser("archive", help="Archive the week's snapshot under _data/knowledge/history/ (same options as snapshot)")
   subparsers.add_parser("cloud-run", help="One stage of the scheduled cloud knowledge run: --stage NAME (the container command; see docs/knowledge-cloud-run.md)")
   subparsers.add_parser("topic-config", help="Write the BERTopic configuration with the stop-word vectorizer: --out FILE [--stop-words FILE]")
+  subparsers.add_parser("extract-entities", help="Find the entities in a corpus's extracted texts with Jev: --corpus DIR --extraction-snapshot EXTRACTOR:ID --vocabulary FILE --registry FILE --out DIR")
   entities = subparsers.add_parser("entities", help="Review entities (--actor ai|human required): list, accept, reject, rename, describe, retype, registry")
   entities.add_argument("entities_command")
   clusters = subparsers.add_parser("clusters", help="Review topic clusters (--actor ai|human required): list, accept, name, reject")

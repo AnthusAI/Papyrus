@@ -619,3 +619,62 @@ def test_the_content_actions_lambda_serves_the_correction_action():
         refused = handler.handler({**event, "arguments": {"input": json.dumps({"referenceId": "r1-v1"})}}, None)
     assert accepted["ok"] and accepted["edits"][0]["editedBy"] == "editor-one" and accepted["edits"][0]["provenance"] == "edited by editor"
     assert refused["ok"] is False and refused["errors"][0]["code"] == "correction-rejected"
+
+
+# --- a video: the cloud capture keeps the page, the worker's transcript completes it ---------------------------------------------------------
+
+WATCH_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+WATCH_PAGE = ("<html><head><title>Talk</title><meta property='og:description' content='"
+              + " ".join(["The speaker explains steerable feeds."] * 80) + "'></head><body></body></html>")   # a long description: still not the video's words
+
+
+def curated_video():
+    ref = reference(sourceUri=WATCH_URL, curationStatus="accepted", medium="video", mediumFeedKey="knowledge-corpus-site#video#accepted")
+    client = MemoryClient([ref])
+    svc = services(client, pages={WATCH_URL: page(WATCH_PAGE)})
+    curation.curate_reference(client, ref, services=svc)
+    return client, svc, ref
+
+
+def test_a_video_curated_in_the_cloud_is_thin_and_waits_in_the_content_needed_list_however_long_its_description():
+    client, _, ref = curated_video()
+    row = client.get_record("Reference", ref["id"])
+    assert client.card(ref["id"])["capture"]["textReason"] == "awaiting_transcript"
+    assert row["captureState"] == "thin" and row["contentNeededKey"] == "knowledge-corpus-site#video#needs_content#accepted"
+
+
+def test_the_workers_transcript_completes_it_through_the_capture_action_and_marks_the_summary_for_the_next_run():
+    client, svc, ref = curated_video()
+    result = correct_reference_capture(client, {"referenceId": ref["id"], "text": "Today we talk about feeds.", "assessment": "incomplete",
+                                                "note": "Transcript read from YouTube."}, {"username": "editor-1"}, now=lambda: NOW, store=svc.store)
+    row = client.get_record("Reference", ref["id"])
+    assert result["ok"] and row["captureState"] == "full" and row["contentNeededKey"] is None
+    assert svc.store.text(row, "curation-edit-0001-text") == "Today we talk about feeds."
+    assert client.card(ref["id"])["edits"][0]["editedBy"] == "editor-1"   # the signed-in caller, never a field of the request
+    assert result["summaryStale"] is True
+
+
+def test_no_transcript_is_recorded_on_the_card_and_the_reference_and_takes_the_video_out_of_the_list_but_not_out_of_to_capture():
+    client, svc, ref = curated_video()
+    result = correct_reference_capture(client, {"referenceId": ref["id"], "captureReason": "no_transcript"}, {"username": "editor-1"}, now=lambda: NOW, store=svc.store)
+    row = client.get_record("Reference", ref["id"])
+    assert result["ok"] and row["captureReason"] == "no_transcript" and row["contentNeededKey"] is None
+    assert row["captureState"] == "thin"   # not captured: the To capture queue still lists it
+    assert client.card(ref["id"])["capture"]["textReason"] == "no_transcript"
+    assert client.card(ref["id"])["capture"]["textReasonBy"] == "editor-1"
+
+
+@pytest.mark.parametrize("arguments,message", [
+    ({"captureReason": "because"}, "captureReason must be one of"),
+    ({"captureReason": "no_transcript", "text": "x", "assessment": "incomplete"}, "not both"),
+])
+def test_a_bad_reason_is_refused(arguments, message):
+    client, svc, ref = curated_video()
+    with pytest.raises(CurationError, match=message):
+        correct_reference_capture(client, {"referenceId": ref["id"], **arguments}, {"username": "e"}, store=svc.store)
+
+
+def test_a_reason_can_only_be_recorded_on_a_video():
+    client = MemoryClient([reference()])
+    with pytest.raises(CurationError, match="only be recorded on a video"):
+        correct_reference_capture(client, {"referenceId": "r1-v1", "captureReason": "no_transcript"}, {"username": "e"}, store=services(client).store)

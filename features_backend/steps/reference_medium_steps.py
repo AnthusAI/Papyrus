@@ -26,7 +26,7 @@ from procedures.newsroom.tests.standard_frontend_support import FIXTURES, Projec
 PLAYLIST = "PLJkNSeYcYBlCaamscxip0l2LGYCZ2TIom"
 CORPUS = "knowledge-corpus-example"
 STAR_SENTINELS = ("starRating", "starRatedAt", "starRatedBy", "star-rater@example.test")
-MEDIUM_FIELDS = {"medium", "mediumFeedKey", "evidenceLevel", "playlistUrl"}
+MEDIUM_FIELDS = {"medium", "mediumFeedKey", "contentNeededKey", "evidenceLevel", "playlistUrl"}
 
 
 # --- the rule -----------------------------------------------------------------------------------------------------------------------------
@@ -177,6 +177,13 @@ def reported(context, videos: int, aggregations: int, playlists: int) -> None:
 @then('the video is tagged "video" and listed in "{key}"')
 def video_tagged(context, key: str) -> None:
     assert context.client.rows["video"]["medium"] == "video" and context.client.rows["video"]["mediumFeedKey"] == key
+
+
+@then('both videos wait in the content-needed list "{key}", because nothing is captured yet')
+def videos_need_content(context, key: str) -> None:
+    for identifier in ("video", "listed-video"):
+        assert context.client.rows[identifier]["contentNeededKey"] == key, identifier
+    assert "contentNeededKey" not in context.client.rows["playlist"] and "contentNeededKey" not in context.client.rows["article"]
 
 
 @then('the video with a playlist records "{address}"')

@@ -1070,7 +1070,11 @@ def test_router_zip_imports_with_only_the_standard_library(tmp_path):
         sys.path.pop(0)
     root = tmp_path / "task"
     zipfile.ZipFile(out).extractall(root)
-    assert out.stat().st_size < 6_000_000  # PyYAML, youtube-transcript-api and its pure-Python imports, the drafting modules, and the editorial gate's wheels (Humanus, the Jev client, pydantic-core, rpds; about 4.9 MB)
+    names = zipfile.ZipFile(out).namelist()
+    assert not [name for name in names if name.split("/")[0] in {"youtube_transcript_api", "defusedxml", "requests", "urllib3", "certifi", "charset_normalizer"}], \
+        "the router zip carries no YouTube transcript package, nor the packages only it needed"
+    assert any(name.startswith("yaml/") for name in names) and any(name.startswith("idna/") for name in names)
+    assert out.stat().st_size < 6_000_000  # PyYAML, the drafting modules, and the editorial gate's wheels (Humanus, the Jev client, pydantic-core, rpds); no YouTube transcript package (PPY-d294d8: YouTube refuses cloud addresses)
     code = (
         "import sys; sys.path.insert(0, sys.argv[1])\n"
         "import papyrus_content.monitoring_router as r, papyrus_content.monitoring_intake as i, papyrus_content.editorial_context as e\n"
@@ -1078,7 +1082,6 @@ def test_router_zip_imports_with_only_the_standard_library(tmp_path):
         "from papyrus_content.newsroom_doctrine import DOCTRINE_DEFINITION_BY_KIND\n"
         "assert load_semantic_relation_type_seeds() and DOCTRINE_DEFINITION_BY_KIND\n"
         "import yaml; assert not yaml.__with_libyaml__\n"
-        "import youtube_transcript_api, requests, charset_normalizer\n"
         "assert not any(m in sys.modules for m in ('pydantic', 'biblicus', 'httpx', 'tiktoken'))\n")
     env = {"PAPYRUS_ROOT": str(root), "PATH": "/usr/bin:/bin"}
     done = subprocess.run([sys.executable, "-S", "-c", code, str(root)], capture_output=True, text=True, env=env, cwd=tmp_path)
@@ -1127,7 +1130,7 @@ def test_router_role_is_least_privilege():
     template = _template()
     statements = template["Resources"]["RouterRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {s["Sid"] for s in statements} == {"MonitoringTable", "OwnLogs", "FailedInvocations", "CyclotronMachineInvoker",
-                                              "PublicationReferenceIntake"}
+                                              "PublicationReferenceIntake", "SuggestQueueSend"}
     by_sid = {s["Sid"]: s for s in statements}
     assert by_sid["CyclotronMachineInvoker"]["Action"] == "sts:AssumeRole" and by_sid["CyclotronMachineInvoker"]["Resource"] == ("Ref", "CyclotronInvokerRoleArn")
     assert template["Parameters"]["CyclotronInvokerRoleArn"]["Default"] == "arn:aws:iam::682849160744:role/cyclotron-machine-invoker"

@@ -11,6 +11,7 @@ from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
 from papyrus_content.projection.lease import ProjectionLeaseHeld
 from papyrus_content.projection.engine import project, project_all, project_item_pages
+from papyrus_content.home_page.runtime import stores_for as home_page_stores_for
 from papyrus_content.home_page.task import TASK_NAME as HOME_PAGE_SNAPSHOT_TASK, home_page_settings_of, run_home_page_snapshot
 from papyrus_content.reader_steering.task import TASK_NAME as READER_SNAPSHOT_TASK, run_reader_snapshot
 from papyrus_content.projection.runtime import (
@@ -207,18 +208,27 @@ def run_deploy_render_task(client) -> dict:
     return report.to_dict()
 
 
-def run_home_page_snapshot_task(client) -> dict:
-    """Write the site's public Reference file when it changed. A site whose projection.json has no ``homePage`` setting ignores the task."""
+def run_home_page_snapshot_task(client, task: dict | None = None) -> dict:
+    """Bring the site's public Reference file up to date. A site whose projection.json has no ``homePage`` setting ignores the task.
+
+    The stream trigger schedules it as ``incremental``: only the Reference rows it recorded as changed are read again, so the cost of a change does not
+    grow with the corpus (``papyrus_content/home_page/incremental.py``). Any other run reads the whole corpus and leaves the private state for the next one.
+    """
     context = projection_context(client)
+    state_store, dirty_store, batch = home_page_stores_for(task or {})
     report = run_home_page_snapshot(
         context,
         client,
         home_page_settings_of(context.projector),
         client_factory=lambda: create_authoring_client()[0],
         workers=HOME_PAGE_SNAPSHOT_WORKERS,
+        state_store=state_store,
+        dirty=batch,
     )
     if report.get("errors"):
         raise ProjectionTaskFailed("; ".join(report["errors"]))
+    if dirty_store is not None and batch is not None:
+        dirty_store.acknowledge(batch)  # only after the run succeeded: a failed run is read again from the same list
     return {"ok": True, **report}
 
 
@@ -245,7 +255,7 @@ def _run_projection_task(task: dict) -> dict:
     elif task.get("task") == READER_SNAPSHOT_TASK:
         return run_reader_snapshot(projection_context(client), client, poll_retirements=task.get("retirementPoll") is True).to_dict()
     elif task.get("task") == HOME_PAGE_SNAPSHOT_TASK:
-        return run_home_page_snapshot_task(client)
+        return run_home_page_snapshot_task(client, task)
     elif task.get("task") == "invalidate":
         invalidate = projection_context(client).invalidate
         if invalidate is None:

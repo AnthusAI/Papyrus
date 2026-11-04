@@ -21,6 +21,8 @@ export const DEFAULT_EPHEMERAL_STORAGE_GIB = 40;
 export const DEFAULT_STAGE_TIMEOUT_SECONDS = 7200;
 export const DEFAULT_LOCK_WAIT_SECONDS = 1800;
 export const DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS = 1;
+/** The TypeSafe key the sites already share (the editorial gate and the relevance sweeps read it too); a site may name its own. */
+export const DEFAULT_DECISION_KEY_PARAMETER = "/papyrus/shared/typesafe-api-key";
 /** How many monitored items the optional monitor-stories step writes up per execution when `monitorStories` does not say. */
 export const DEFAULT_MONITOR_STORIES_LIMIT = 3;
 export const MAX_MONITOR_STORIES_LIMIT = 20;
@@ -99,6 +101,8 @@ export type KnowledgeRunSettings = {
    */
   excludedSourceHosts?: string[];
   openAiKeyParameter?: string;
+  /** The SSM SecureString that holds the TypeSafe key the `typed-extraction` stage asks Jev with. */
+  decisionKeyParameter?: string;
   alarmEmailParameter?: string;
   lockWaitSeconds?: number;
   stageTimeouts?: Record<string, number>;
@@ -139,6 +143,7 @@ export type KnowledgeRunConfig = {
   excludedSourceHosts?: string[];
   trendSnapshotMaxAgeDays: number;
   openAiKeyParameter: string;
+  decisionKeyParameter: string;
   alarmEmailParameter: string;
   lockWaitSeconds: number;
   stageTimeouts: Record<string, number>;
@@ -240,7 +245,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   rejectUnknownKeys(record, [
     "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "corpusKey", "reuseImageRepository", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
-    "monitorSources", "monitorWeeks", "monitorSuggestions", "monitorStories", "referenceDocuments", "excludedSourceHosts", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
+    "monitorSources", "monitorWeeks", "monitorSuggestions", "monitorStories", "referenceDocuments", "excludedSourceHosts", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "decisionKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
 
   const scheduleState = record.scheduleState;
@@ -320,6 +325,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     excludedSourceHosts: optionalHosts(record.excludedSourceHosts),
     trendSnapshotMaxAgeDays: optionalInteger(record.trendSnapshotMaxAgeDays, "trendSnapshotMaxAgeDays", 0, 7),
     openAiKeyParameter: optionalString(record.openAiKeyParameter, "openAiKeyParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
+    decisionKeyParameter: optionalString(record.decisionKeyParameter, "decisionKeyParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     alarmEmailParameter: optionalString(record.alarmEmailParameter, "alarmEmailParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     lockWaitSeconds: optionalInteger(record.lockWaitSeconds, "lockWaitSeconds", 0, 86400),
     stageTimeouts,
@@ -380,6 +386,7 @@ export function resolveKnowledgeRunConfig(
     excludedSourceHosts: settings.excludedSourceHosts,
     trendSnapshotMaxAgeDays: settings.trendSnapshotMaxAgeDays ?? DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS,
     openAiKeyParameter: settings.openAiKeyParameter ?? `/papyrus/${publication}/openai-api-key`,
+    decisionKeyParameter: settings.decisionKeyParameter ?? DEFAULT_DECISION_KEY_PARAMETER,
     alarmEmailParameter: settings.alarmEmailParameter ?? `/papyrus/${publication}/knowledge-run/alarm-email`,
     lockWaitSeconds: settings.lockWaitSeconds ?? DEFAULT_LOCK_WAIT_SECONDS,
     stageTimeouts: settings.stageTimeouts ?? {},

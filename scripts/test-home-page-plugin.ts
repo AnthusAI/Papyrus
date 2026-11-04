@@ -163,7 +163,7 @@ const behaviours: Record<string, () => Promise<unknown>> = {
     const policies = JSON.stringify(data.toJSON());
     assert.ok(policies.includes("scheduler:CreateSchedule") && policies.includes("schedule/default/papyrus-home-page-snapshot-*"));
     assert.ok(policies.includes("iam:PassRole") && policies.includes("papyrus-projection-locks"));
-    assert.ok(policies.includes("dynamodb:PutItem") && policies.includes("dynamodb:DeleteItem"));
+    assert.ok(policies.includes("dynamodb:PutItem") && policies.includes("dynamodb:DeleteItem") && policies.includes("dynamodb:UpdateItem"), "the trigger lists the changed Reference ids with UpdateItem");
     assert.deepEqual(extraStacks.length, 1, "one extra stack: the stream mapping");
     assert.equal(outputs.length, 1, "only the plugins output");
     const environmentVariables = Object.values(data.findResources("AWS::Lambda::Function")).map((resource) => resource.Properties.Environment?.Variables ?? {});

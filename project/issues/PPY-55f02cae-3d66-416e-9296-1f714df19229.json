@@ -1,0 +1,20 @@
+{
+  "id": "PPY-55f02cae-3d66-416e-9296-1f714df19229",
+  "title": "og:image contains ../../ on published articles",
+  "description": "On the Machines on Machines article, og:image and twitter:image are https://<site>/../../assets/responsive/... The head makes a page-relative image path absolute without normalizing it, which may break social previews.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T22:12:07.830544Z",
+  "updated_at": "2026-11-04T22:12:07.830569Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

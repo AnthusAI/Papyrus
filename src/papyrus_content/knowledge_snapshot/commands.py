@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+import yaml
+
 from ..knowledge_wiki.kinds import public_kinds_of
 from ..env import graphql_endpoint
 from ..graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
@@ -82,8 +84,9 @@ from .monitor_records import (
 )
 from .parallel import DEFAULT_WORKERS, map_with_clients, worker_count
 from .publish_run import STATUS_ACCEPTED, PublishPlan, is_extractor_mention, plan_publish_run
+from .entity_extraction import ExtractionError, JevClient, RegistryMatcher, build_output, criteria_of, decide, find_candidates
 from .registry import build_registry, read_vocabulary_kinds
-from .topic_config import read_extra_stop_words, render, topic_modeling_configuration
+from .topic_config import english_stop_words, read_extra_stop_words, render, topic_modeling_configuration
 from .relation_review import (
     RELATION_STATES,
     RelationReviewError,
@@ -850,7 +853,7 @@ def knowledge_entities_registry(flags: list[str]) -> None:
     options = parse_options(flags)
     out = _path_option(options, "out")
     if out is None:
-        raise ValueError("Pass --out FILE: the registry JSON for `biblicus extract typed-entities --registry`.")
+        raise ValueError("Pass --out FILE: the registry JSON for `papyrus knowledge extract-entities --registry`.")
     vocabulary_file = _path_option(options, "vocabulary")
     vocabulary = read_vocabulary_kinds(vocabulary_file) if vocabulary_file else None
     client = authoring_client(options)
@@ -862,6 +865,44 @@ def knowledge_entities_registry(flags: list[str]) -> None:
     aliases = sum(len(entry["aliases"]) for entry in registry)
     outside = sum(1 for warning in warnings if "which the vocabulary does not have" in warning)
     print(f"knowledge\tentities\tregistry\t{len(registry)} entities\t{aliases} aliases\t{len(warnings) - outside} ambiguous\t{outside} outside the vocabulary\t{out}")
+
+
+def knowledge_extract_entities(flags: list[str]) -> None:
+    """Find the entities in the extracted texts of a corpus: a text pass for candidate names, one Jev choice per name (``entity_extraction.py``)."""
+    options = parse_options(flags)
+    corpus, out, vocabulary_file = _path_option(options, "corpus"), _path_option(options, "out"), _path_option(options, "vocabulary")
+    snapshot = normalize_string(options.get("extraction-snapshot"))
+    if corpus is None or out is None or vocabulary_file is None or not snapshot or ":" not in snapshot:
+        raise ValueError("Pass --corpus DIR --extraction-snapshot EXTRACTOR:SNAPSHOT --vocabulary FILE --out DIR [--registry FILE] [--cache FILE] [--usage-out FILE].")
+    extractor, _colon, snapshot_id = snapshot.partition(":")
+    texts = corpus / "extracted" / extractor / snapshot_id / "text"
+    if not texts.is_dir():
+        raise ValueError(f"No extracted texts at {texts}.")
+    registry_file = _path_option(options, "registry")
+    cache = _path_option(options, "cache") or corpus / "analysis" / "entity-decisions" / "cache.jsonl"
+    vocabulary = yaml.safe_load(vocabulary_file.read_text(encoding="utf-8")) or {}
+    try:
+        criteria = criteria_of(vocabulary)
+        client = JevClient(os.environ.get("TYPESAFE_API_KEY", "").strip())
+        documents = {path.stem: path.read_text(encoding="utf-8") for path in sorted(texts.glob("*.txt"))}
+        matcher = RegistryMatcher(json.loads(registry_file.read_text(encoding="utf-8")) if registry_file else [])
+        candidates = {key: found for key, found in find_candidates(documents, english_stop_words()).items() if not matcher.knows(found["name"])}
+        publication = str(vocabulary.get("publication") or "knowledge")
+        decisions, usage, undecided = decide(candidates, criteria, lambda name, passages: client.ask(name, passages, criteria, publication), model=client.model, cache_path=cache)
+    except ExtractionError as error:
+        raise ValueError(str(error)) from error
+    usage_out = _path_option(options, "usage-out")
+    if usage_out:  # written before anything can fail, so the stage's cost counts the calls that were paid for
+        usage_out.parent.mkdir(parents=True, exist_ok=True)
+        usage_out.write_text(json.dumps(usage), encoding="utf-8")
+    print(f"knowledge\textract-entities\t{len(documents)} documents\t{len(candidates)} names\t{len(usage)} asked\t{len(candidates) - len(usage) - undecided} cached\t{undecided} undecided", file=sys.stderr)
+    if undecided:
+        raise ValueError(f"Jev gave no answer for {undecided} names ({dict(client.failures)}); the answers it gave are cached, so run again.")
+    output = build_output(documents, candidates, decisions, matcher, vocabulary, model=client.model)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "output.json").write_text(json.dumps(output, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    summary = output["summary"]
+    print(f"knowledge\textract-entities\t{summary['entities']} mentions\t{summary['resolved']} resolved\t{summary['items']} items\t{out / 'output.json'}")
 
 
 def knowledge_topic_config(flags: list[str]) -> None:
@@ -1025,6 +1066,7 @@ KNOWLEDGE_COMMANDS = {
     "entities-alias": knowledge_entities_alias,
     "entities-retype": knowledge_entities_retype,
     "entities-registry": knowledge_entities_registry,
+    "extract-entities": knowledge_extract_entities,
     "topic-config": knowledge_topic_config,
     "clusters-list": knowledge_clusters_list,
     "clusters-accept": knowledge_clusters_accept,

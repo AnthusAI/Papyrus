@@ -19,8 +19,8 @@ and the key is ignored (``RETIRED_POLICY_FIELDS``).
   ``resurfaced``; omitted means every signal that has data. With ``contextPacks.enabled`` false the task is the single-item task as it was, ranked by the
   relevance Cyclotron.
 
-Before either, the publication's vector index is kept current and suggestions are written (``monitoring_vectors.py``, docs/monitoring-cloud.md#vector-index-and-suggestions):
-the order in a run is index sync (References accepted since the last pass, concept cards), suggestions for those References, then packs and single items.
+Before either, the publication's vector index is brought up to date with what changed since the last pass (``monitoring_vectors.py``, docs/monitoring-cloud.md#vector-index-and-suggestions):
+the order in a run is the index (the References and concepts changed since the last pass; a suggestion check is queued for each Reference summary vector stored), then packs and single items.
 Three more keys: ``suggestions`` (``{"enabled": true}`` by default), ``vectorIndexArn`` and ``storageBucketName``, both read from the site's ``amplify_outputs.json``
 by ``seed_router_config.py`` and never typed. Without ``vectorIndexArn`` the sync and the suggestions are skipped and the log line says why.
 
@@ -63,7 +63,7 @@ MAXIMUM_COST_USD = 0.50   # per publication and run; see the module docstring
 READ_WORKERS = 8   # References of one publication read at a time: the API's throughput, not a limit on the work (a site with thousands of accepted
 #                    References needs two queries each, and read one by one that alone would take most of the Lambda's time)
 EMPTY_LINE = {"drafted": 0, "candidates": 0, "notAccepted": 0, "skipped": 0, "stoppedBy": None, "packs": 0, "ideasFromPacks": 0, "packsSkippedNoNewEvidence": 0, "packDetails": [],
-              "indexed": 0, "conceptCardsWritten": 0, "suggestionsWritten": 0, "suggestionsSkippedReason": None}
+              "indexed": 0, "conceptCardsWritten": 0, "suggestionsQueued": 0, "suggestionsSkippedReason": None}
 REAL_EXPLORER = object()   # `explorer` default: follow the item's link and, failing that, search for it (tests pass None for the plain page reader)
 
 
@@ -182,25 +182,25 @@ def lambda_judgment_key(environment: dict[str, str] | None = None, *, ssm: Any =
         return None
 
 
-VECTOR_LINE_KEYS = ("indexed", "conceptCardsWritten", "suggestionsWritten", "suggestionsSkippedReason")
+VECTOR_LINE_KEYS = ("indexed", "conceptCardsWritten", "suggestionsQueued", "suggestionsSkippedReason")
 
 
 def vector_summary(vectors: dict[str, Any]) -> dict[str, Any]:
-    """The vector pass's part of a publication's log line; what is left to do is there too (``suggestionsRemaining``), so a big first run shows how many runs it needs."""
+    """The vector pass's part of a publication's log line: what it indexed, how many suggestion checks it queued, and how many rows the change feeds gave it
+    (``changedReferences``, ``changedConcepts``, ``changeReads``), so a quiet site shows as zeros and a busy one as the work it did."""
     line = {key: vectors[key] for key in VECTOR_LINE_KEYS}
-    for key in ("indexSkippedReason", "newlyAccepted", "newlyPending", "suggestionsFailed", "suggestionsWithoutVector", "watermarkError", "suggestionsRemaining",
-                "awaitingIndex", "parkedUnindexable", "newlyParked"):
+    for key in ("indexSkippedReason", "changedReferences", "changedConcepts", "changeReads", "bootstrapped", "suggestionsNotQueued", "suggestionsQueueError"):
         if vectors.get(key):
             line[key] = vectors[key]
     if vectors.get("timings"):
-        line["vectorTimings"] = vectors["timings"]   # the seconds each step of the pass took: plan, suggest, sync (and the sync's own listing steps), owed
+        line["vectorTimings"] = vectors["timings"]
     return line
 
 
 def merge_vector_passes(first: dict[str, Any], second: dict[str, Any]) -> dict[str, Any]:
-    """Two passes of one run: the work adds up, the counts of what the run started with are the first's, the rest (where it stopped, what is left) is the second's."""
-    merged = {**first, **{key: value for key, value in second.items() if key not in ("newlyAccepted", "newlyPending")}}
-    for key in ("indexed", "conceptCardsWritten", "linkExplanationsWritten", "suggestionsWritten", "suggestionsFailed", "suggestionsWithoutVector", "newlyParked", "costUsd"):
+    """Two passes of one run: the work adds up, where it stopped is the second's."""
+    merged = {**first, **second}
+    for key in ("indexed", "conceptCardsWritten", "suggestionsQueued", "changedReferences", "changedConcepts", "changeReads", "costUsd"):
         merged[key] = (first.get(key) or 0) + (second.get(key) or 0)
     merged["timings"] = {**(first.get("timings") or {}), **{f"{name}Again": seconds for name, seconds in (second.get("timings") or {}).items()}}
     return merged
@@ -211,7 +211,7 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
                     handled_references: Any = (), gate: Any = None, embedding_key: str | None = None,
                     read_watermark: Callable[[], str | None] = lambda: None, write_watermark: Callable[[str], None] = lambda value: None,
                     retry_memory: Any = None, vector_out_of_time: Callable[[], bool] | None = None, signal_out_of_time: Callable[[], bool] | None = None,
-                    owed: Any = None) -> dict[str, Any]:
+                    on_summary_written: Callable[[list[dict[str, Any]]], None] | None = None) -> dict[str, Any]:
     """Drafts one publication's undrafted accepted monitored References and returns its log record (the shape the router prints).
     ``fetch`` and ``explorer`` default to the real page reader and link explorer; tests pass fakes. ``handled_references`` are the ids of the References
     an Automation has a procedure run recorded or in progress for (the router reads them from its trigger rows); those are left to it. ``retry_memory`` (``ideas/retry_memory.py``)
@@ -226,20 +226,20 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
     from .ideas.signal_queue import prepare_signal_run
     from .ideas.store import legacy_story_drafts
 
-    from .monitoring_vectors import SUGGEST_WORKERS, run_vector_pass, signal_lineages, vector_provider_for
+    from .monitoring_vectors import run_vector_pass, signal_lineages, vector_provider_for
 
     policy = validate_monitor_stories(publication["publicationId"], publication.get("monitorStories"))
     def vector_pass(stop: Callable[[], bool], spent_usd: float = 0.0) -> dict[str, Any]:
         return run_vector_pass(client, publication, policy, now=now, out_of_time=stop, maximum_cost_usd=max(maximum_cost_usd - spent_usd, 0.0), embedding_key=embedding_key,
-                               read_watermark=read_watermark, write_watermark=write_watermark, owed=owed, workers=SUGGEST_WORKERS)
+                               read_watermark=read_watermark, write_watermark=write_watermark, on_summary_written=on_summary_written)
 
     drafting = policy["contextPacks"]["enabled"] or policy["singleItem"]
     started = time.monotonic()
     timings: dict[str, float] = {}
     vectors = vector_pass((vector_out_of_time or out_of_time) if drafting else out_of_time)
     timings["vectorsSeconds"] = round(time.monotonic() - started, 1)
-    # Suggestions still to write: the editors' "nothing to connect to" is not yet true of a Reference whose suggestions have not been written.
-    suggestions_waiting = bool(vectors["suggestionsRemaining"]) and bool(policy["suggestions"]["enabled"]) and not vectors.get("indexSkippedReason")
+    # A Reference whose suggestion check is still on the queue has no suggestions yet: the editors' "nothing to connect to" is not yet true of it.
+    suggestions_waiting = bool(vectors["suggestionsQueued"]) and bool(policy["suggestions"]["enabled"]) and not vectors.get("indexSkippedReason")
     if not drafting:
         return {**EMPTY_LINE, **vector_summary(vectors), "publicationId": publication["publicationId"], "status": "stopped" if vectors["stoppedBy"] else "complete",
                 "costUsd": vectors["costUsd"], "stoppedBy": vectors["stoppedBy"]}

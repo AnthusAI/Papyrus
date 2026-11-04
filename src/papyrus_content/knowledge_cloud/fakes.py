@@ -47,7 +47,12 @@ class FakeSite:
     def __init__(self, plugins: str = "reader-steering,newsletter") -> None:
         self.variables = {"PAPYRUS_PLUGINS": plugins}
         self.objects: dict[str, bytes] = {}
+        self.key_parameter: str | None = None  # the SSM parameter the last key was read from
         self.client: Any = None  # the site's data API: review requests are raised and read here
+
+    def api_key(self, parameter: str) -> str:
+        self.key_parameter = parameter
+        return "jev-test-key"
 
     def record_client(self, options: Mapping[str, Any]) -> Any:
         if self.client is None:
@@ -89,6 +94,7 @@ class FakeShell:
         self.site_json: str | None = None  # the text of the site repo's infra/site.json, when it has one
         self.retired: list[str] = []  # the wiki lineages the fake sync takes down (written to --retired-out)
         self.records = 0  # monitor records the fake export writes when the site has monitor sources
+        self.entity_usage: list[dict] = []  # the Jev calls the fake entity extraction reports (written to --usage-out)
         self.wiki_plan: dict = {"counts": {}, "pages": [], "retired": []}  # what the fake wiki sync dry run (--json) prints
 
     def __call__(self, args: list[str], *, cwd: Path, env: Mapping[str, str], stdout: Path | None = None) -> None:
@@ -151,11 +157,12 @@ class FakeShell:
             out = json.dumps({"snapshot_id": self.trends})
         elif args[:3] == ["biblicus", "analyze", "topic-identity"]:
             out = "{}"
-        elif args[:3] == ["biblicus", "extract", "typed-entities"]:
+        elif args[:3] == ["papyrus", "knowledge", "extract-entities"]:
             typed = Path(args[args.index("--out") + 1])
             typed.mkdir(parents=True, exist_ok=True)
             (typed / "output.json").write_text("{}")
-            out = "{}"
+            usage = Path(args[args.index("--usage-out") + 1])
+            usage.write_text(json.dumps(self.entity_usage))
         elif args[:4] == ["papyrus", "ops", "content", "project"]:
             out = json.dumps({"written": 3, "deleted": 0})
         if stdout is not None:

@@ -43,6 +43,34 @@ def save_payload(**changes) -> dict:
     return values
 
 
+class HomePageSnapshotTaskTest(unittest.TestCase):
+    """The task the stream trigger schedules reads the list of changed rows, runs, and takes out exactly what it read once it succeeded."""
+
+    def run_task(self, report: dict, task: dict | None = None):
+        from papyrus_content.home_page.state_store import DirtyBatch
+
+        batch, dirty, state = DirtyBatch(ids=frozenset({"reference-1-v1"})), mock.Mock(), mock.Mock()
+        self.dirty = dirty
+        with mock.patch.object(content_actions_handler, "projection_context", return_value=mock.Mock()), \
+                mock.patch.object(content_actions_handler, "home_page_settings_of", return_value=object()), \
+                mock.patch.object(content_actions_handler, "home_page_stores_for", return_value=(state, dirty, batch)), \
+                mock.patch.object(content_actions_handler, "run_home_page_snapshot", return_value=report) as run:
+            result = content_actions_handler.run_home_page_snapshot_task(object(), task or {"task": "home-page-snapshot", "incremental": True, "scope": "abc"})
+        return result, run, dirty, batch, state
+
+    def test_a_successful_run_gets_the_state_and_the_batch_and_acknowledges_what_it_read(self) -> None:
+        result, run, dirty, batch, state = self.run_task({"mode": "incremental", "written": []})
+        self.assertTrue(result["ok"])
+        self.assertIs(run.call_args.kwargs["dirty"], batch)
+        self.assertIs(run.call_args.kwargs["state_store"], state)
+        dirty.acknowledge.assert_called_once_with(batch)
+
+    def test_a_run_that_reports_errors_keeps_the_list_for_the_retry(self) -> None:
+        with self.assertRaises(content_actions_handler.ProjectionTaskFailed):
+            self.run_task({"errors": ["a page failed"]})
+        self.dirty.acknowledge.assert_not_called()  # the list is only taken out after success, so the retry reads the same rows
+
+
 class ContentActionsHandlerTest(unittest.TestCase):
     def setUp(self) -> None:
         self.client = FakeAuthoringClient()

@@ -66,3 +66,11 @@ def test_the_research_worker_can_write_them_in_every_publication(resources):
 def test_no_worker_role_reads_the_medium_index():
     template = TEMPLATE.read_text()
     assert "listReferencesByMediumFeedAndArrival" not in template, "grant it to the role that reads it, and say which in docs/reference-feed-indexes.md"
+
+
+def test_no_worker_role_reads_the_content_needed_index_or_calls_the_capture_action():
+    """The transcript worker is a signed-in person's command (PPY-d294d8): it reads the index and calls ``correctReferenceCapture`` as the user, through
+    the data API's own group authorization. No monitoring role holds either operation, and the new ``captureReason`` and ``contentNeededKey`` attributes
+    need no grant (they ride on ``createReference`` / ``updateReference``, which the router already holds)."""
+    template = TEMPLATE.read_text()
+    assert "listReferencesByContentNeededAndArrival" not in template and "correctReferenceCapture" not in template

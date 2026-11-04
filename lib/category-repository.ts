@@ -312,6 +312,10 @@ export type ReferenceRecord = {
   playlistUrl?: string | null;
   /** `<corpusId>#<medium>#<status>` while the Reference has a medium: the medium index's partition. */
   mediumFeedKey?: string | null;
+  /** `no_transcript`, `unavailable` or `unsupported_platform` once the transcript worker found nothing to capture on a video; else empty. */
+  captureReason?: string | null;
+  /** `<corpusId>#<medium>#needs_content#<status>` while the content of a video is missing: the content-needed index's partition. */
+  contentNeededKey?: string | null;
   /** The monitor that delivered this Reference (set at intake; the Reference is the record, no Message). */
   discoveredByMonitorId?: string | null;
   /** What the monitor's source said about it (a Hub model's structured fields, say). */

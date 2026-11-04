@@ -12,11 +12,11 @@ Shipped (`https://shipped.anth.us`) is the worked example. Replace the Shipped i
 
   ```bash
   python3.12 -m venv venv && source venv/bin/activate
-  pip install -e '/path/to/Papyrus[markus]' -e '/path/to/Biblicus[typed-extraction,topic-modeling]'
+  pip install -e '/path/to/Papyrus[markus]' -e '/path/to/Biblicus[topic-modeling]'
   ```
 
-  `typed-extraction` brings GLiNER2 (PyTorch and Transformers); `topic-modeling` brings BERTopic. Papyrus already depends on Biblicus, so a released `papyrus-newsroom` pulls the base package; the extras are what a run adds.
-- The Hugging Face cache (`~/.cache/huggingface`). The first run downloads `fastino/gliner2-base-v1` (the extractor) and `sentence-transformers/all-MiniLM-L6-v2` (the BERTopic embedder). Later runs reuse them; `HF_HUB_OFFLINE=1` makes a run fail instead of reaching out. Keep more than 5 GB free.
+  `topic-modeling` brings BERTopic. Papyrus already depends on Biblicus, so a released `papyrus-newsroom` pulls the base package; the extra is what a run adds. The entity step needs no model on the workstation: it asks Jev, with the key in `TYPESAFE_API_KEY`.
+- The Hugging Face cache (`~/.cache/huggingface`). The first run downloads `sentence-transformers/all-MiniLM-L6-v2` (the BERTopic embedder). Later runs reuse it; `HF_HUB_OFFLINE=1` makes a run fail instead of reaching out. Keep more than 5 GB free.
 - The backend's `amplify_outputs.json` (gitignored; never commit it) and AWS credentials for the operator (IAM) lane. Papyrus does not use a person's login for this:
 
   ```bash
@@ -39,7 +39,7 @@ One long-lived Biblicus corpus per site, one scratch folder per run:
     analysis/topic-modeling/<id>/  one folder per run
     analysis/topic-identity/<id>/output.json
     analysis/topic-governance/<id>/output.json
-    analysis/typed-entities/...
+    analysis/entity-decisions/cache.jsonl   Jev's answers, one line per name (step 8)
   runs/2026-10-26/                 vocabulary.yml, registry.json, topic-modeling.yml, logs
 ```
 
@@ -185,7 +185,7 @@ The first run has no `--previous`. With `--previous`, clusters keep their `uid` 
 
 ### 7. Import the front matter, then build the registry
 
-The typed extractor resolves a mention to an entity that is already accepted, so import the front-matter entities first. Always a dry run before `--apply`, and read the plan.
+The entity step resolves a mention to an entity that is already accepted, so import the front-matter entities first. Always a dry run before `--apply`, and read the plan.
 
 ```bash
 papyrus knowledge publish-run --auth iam --amplify-outputs $OUT --corpus-key shipped --actor-name "Shipped research agent"
@@ -203,7 +203,7 @@ Each entry is `{key, kind, aliases}`, and `aliases` holds the node's display nam
 
 ### 8. Typed entities
 
-The vocabulary is closed and belongs to the publication. Shipped's, as an example (`label` is the only instruction the model gets for a kind or a relation type, so keep it short):
+The vocabulary is closed and belongs to the publication. Shipped's, as an example (`label` is the only instruction Jev gets for a kind, so keep it short; the step reads `entity_kinds` only, and `relation_types` are for the relations people and the review add):
 
 ```yaml
 version: 1
@@ -228,14 +228,16 @@ relation_types:
   - {key: licensed_under, label: licensed under}
 ```
 
-`model` and `model_family` are two kinds. A model is one specific named model or checkpoint (`CosyVoice2`, `CosyVoice 3`) and shows as "Model" on entity chips and wiki pages; a model family is the line above it (`CosyVoice`) and shows as "Model Family". Neither is folded into the other. `member_of` ties a model to its family and is seeded in `corpora/papyrus-semantic-relation-types.yml` (ontology, node to node, not transitive). The extractor proposes it only when the text states the membership, and a reviewer accepts it only on the same evidence; a model whose family nothing established stays without the relation. `successor_of` between two models is a separate relation and is kept as it is.
+`model` and `model_family` are two kinds. A model is one specific named model or checkpoint (`CosyVoice2`, `CosyVoice 3`) and shows as "Model" on entity chips and wiki pages; a model family is the line above it (`CosyVoice`) and shows as "Model Family". Neither is folded into the other. `member_of` ties a model to its family and is seeded in `corpora/papyrus-semantic-relation-types.yml` (ontology, node to node, not transitive). A reviewer accepts it only when the text states the membership; a model whose family nothing established stays without the relation. `successor_of` between two models is a separate relation and is kept as it is.
 
 ```bash
-biblicus extract typed-entities --corpus corpus --vocabulary $RUN/vocabulary.yml --registry $RUN/registry.json \
-  --extraction-snapshot pipeline:$EXTRACTION --out $RUN/typed > $RUN/typed-stdout.json
+papyrus knowledge extract-entities --corpus corpus --vocabulary $RUN/vocabulary.yml --registry $RUN/registry.json \
+  --extraction-snapshot pipeline:$EXTRACTION --out $RUN/typed --usage-out $RUN/typed-usage.json
 ```
 
-The model runs on the CPU and takes a few minutes for a few dozen items (GLiNER2, about 2 GB of memory); its answers are cached under `corpus/analysis/typed-entities/cache`, so a repeat with the same text, vocabulary and threshold is instant. `--extraction-snapshot` must be given as `pipeline:<id>` for a pipeline snapshot. `--out` also holds `output.json`.
+The step is in two parts. A plain text pass, with no model, finds candidate names in the extracted texts: capitalised sequences, mixed-case and versioned names (`GPT-4`, `memoryFoo`), and lower-case words and phrases that appear in two documents or three times. Then Jev answers one `choice` per distinct name, not per mention: which of the vocabulary's kinds the name is, or `not_a_concept` (an ordinary word, a code identifier, a heading, a citation), as it is used in up to three passages taken from different documents. Every mention of a name that is a concept becomes a `proposed` entity with the kind Jev chose and Jev's confidence as its `score`; nothing is cut off by confidence here, because the import's candidate filter and the AI review decide what stays. A mention of a name the registry holds (compared with case, punctuation and spacing ignored; a one-word name must match its case, so `Go` never takes `go`) is a `resolved` entity with its `entity_key`, and Jev is not asked about it.
+
+Jev proposes no relations, so `relations` is empty; relations come from the front-matter import, the reviewers and the monitor records. The key is read from `TYPESAFE_API_KEY`. Answers are cached in `corpus/analysis/entity-decisions/cache.jsonl`, keyed by the name, its passages, the vocabulary's kinds and the model, so a repeat on the same texts asks nothing and a changed text asks only about the names whose passages changed. `--usage-out` lists the calls that were paid for (the cloud run reads it for the stage's cost). If Jev leaves any name unanswered the command fails, writes no `output.json` and keeps the answers it has, so running it again pays only for the rest. `--extraction-snapshot` is given as `pipeline:<id>`; `--out` holds `output.json`.
 
 ### 9. Import the run
 
@@ -338,7 +340,7 @@ The first real run, on a Mac, from `origin/develop` of Papyrus (plus this change
 | Trends | `--bin weekly --weeks 26 --as-of 2026-10-22`; 0 undated items. Many items are older than 26 weeks, so the series count fewer items than the clusters hold (cluster of 21: 5 items in the window). |
 | Identity | First run, no `--previous`: events `new` 4, `continued` 0. Threshold 0.5. `document_count` 71, `outlier_document_count` 1, `cluster_count` 4. |
 | Front-matter import | 119 accepted nodes (54 makers, 65 tasks) and 192 confirmed links, recorded as accepted by `ai` (actor name "Shipped research agent"). |
-| Typed entities | GLiNER2 `fastino/gliner2-base-v1` (revision `f9634218`), threshold 0.7, registry of the 119 accepted entities, vocabulary above. 71 items, 2,544 mentions (406 resolved, 2,138 proposed) and 292 relations. About 3 minutes on the CPU. |
+| Typed entities | Registry of the 119 accepted entities, vocabulary above. 71 items, 2,544 mentions (406 resolved, 2,138 proposed). |
 | Run import | Dry run, then `--apply`: 4 cluster proposals, 1,173 generated nodes, 1,767 unconfirmed extractor links, 1 relation (291 skipped because an endpoint was not accepted yet). |
 | Entity review (AI editor, `--actor ai`) | 170 extractor entities accepted and 271 rejected as junk (sizes and file formats such as `27B`, `GGUF`; the word `card`; hardware, metrics, languages, generic nouns). 7 more were rejected afterwards because each repeats a front-matter maker under another name (`Mistral` for `Mistral AI`, `Moonshot` for `moonshotai`, ...). Net: 282 accepted, 277 rejected, 719 left `generated` (not public). Candidates the extractor typed wrongly (a benchmark typed as a model, a platform typed as a task) were left alone, not accepted. |
 | Second import | The same `publish-run --apply` after the review: 89 more relations between accepted entities (90 proposed in all). Reviewed: 55 accepted (the item says it, for example "Qwen releases Qwen3Guard", "under MIT", "built on the MiniCPM-4 backbone"), 30 rejected (wrong or not stated, for example `licensed_under` Hugging Face), 5 left proposed because an endpoint was one of the duplicates rejected above. |
