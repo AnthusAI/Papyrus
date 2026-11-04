@@ -550,6 +550,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   SearchProviderFailingMetricFilter:
     Type: AWS::Logs::MetricFilter
@@ -579,6 +581,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   RouterLogGroup:
     Type: AWS::Logs::LogGroup
@@ -2294,6 +2298,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   RouterDeadLetterAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -2310,6 +2316,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   RouterDecidedMetricFilter:
     Type: AWS::Logs::MetricFilter
