@@ -849,8 +849,11 @@ def research_multi_command(flags: list[str]) -> None:
     options = parse_options(flags)
     client, _ = create_authoring_client()
     result = research_multi(client, options)
+    from .assignments_commands import _assignment_reminder
+
+    reminder = _assignment_reminder(client, result["assignmentId"], result["action"] == "completed")
     if options.get("json"):
-        print(json.dumps({"ok": True, **result}, indent=2))
+        print(json.dumps({"ok": True, **result, **({"next": reminder["next"]} if reminder else {})}, indent=2))
         return
     print(f"assignments\tresearch-multi\taction\t{result['action']}")
     print(f"assignments\tresearch-multi\tassignment\t{result['assignmentId']}")
@@ -870,6 +873,11 @@ def research_multi_command(flags: list[str]) -> None:
         print(f"assignments\tresearch-multi\tpacket\t{result['researchPacketMessageId']}")
     if result.get("intakeError"):
         print(f"assignments\tresearch-multi\tintake-failed\t{result['intakeError']}")
+    if reminder:
+        from .newsroom_process import next_lines
+
+        for line in next_lines(reminder):
+            print(line)
 
 
 def fact_check_command(flags: list[str]) -> None:

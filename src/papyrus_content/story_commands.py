@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from .graphql_authoring import create_authoring_client
+from .newsroom_process import assess, next_lines, print_next_lines, print_reminder, reminder_assessment, step_lines, story_facts, warn_skipped
 from .options import normalize_string, parse_options, parse_repeated_option, resolve_mutation_apply
 from .story_reporting import (
     STAGE_MOVES_KEY,
@@ -18,6 +19,7 @@ from .story_reporting import (
     move_story_stage,
     current_story_version,
     link_reference_to_story,
+    mark_story_outline,
     published_story_version,
     repair_story_versions,
     save_story_version,
@@ -42,7 +44,7 @@ def _text_from_option_or_file(options: dict, text_name: str, file_name: str) -> 
 
 
 def stories_save_version(flags: list[str]) -> None:
-    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name> [--stage <stage> | --advance] [--no-check] [--images <dir> [--bucket <bucket>] [--identity-pool-id <id>]]
+    """papyrus stories save-version --story <lineage> --body-file <file> [--front-matter-file <file>] --reason <text> --author-label <name> [--stage <stage> | --advance] [--outline] [--no-check] [--images <dir> [--bucket <bucket>] [--identity-pool-id <id>]]
 
     --images <dir> uploads every local picture the body uses (::image{src=...} and ![](...) whose path resolves under
     <dir>), plus a matching <name>.dark.<ext> or srcDark file, as the newsroom editor's "Insert image" would: the same
@@ -116,6 +118,9 @@ def stories_save_version(flags: list[str]) -> None:
         media_rows=image_plan.media_rows if image_plan is not None else None,
     )
     print(f"stories\tsave-version\tsaved\t{record['id']}")
+    if options.get("outline"):
+        mark_story_outline(client, record, actor=author)
+        print(f"stories\tsave-version\toutline\t{record['id']}")
     if stage and stage != (latest.get("stage") or "idea"):
         from .story_triggers import deliver_from_environment
 
@@ -124,6 +129,7 @@ def stories_save_version(flags: list[str]) -> None:
         from .editorial_commands import check_after_save
 
         check_after_save(record["id"])
+    print_reminder(client, lineage_id)
 
 
 def stories_versions(flags: list[str]) -> None:
@@ -163,6 +169,7 @@ def stories_link_reference(flags: list[str]) -> None:
     client, _ = create_authoring_client()
     result = link_reference_to_story(client, lineage_id, reference_id, role=role, actor=author, note=normalize_string(options.get("note")), citation_key=normalize_string(options.get("citation-key")))
     print(f"stories\tlink-reference\t{result['outcome']}\t{result['relationId']}")
+    print_reminder(client, lineage_id)
 
 
 def stories_note(flags: list[str]) -> None:
@@ -201,6 +208,22 @@ def stories_show(flags: list[str]) -> None:
         print("\t".join(["stories", "show", "moved", str(move.get("at") or ""), f"{move.get('from')} -> {move.get('to')}", str(move.get("by") or ""), str(move.get("reason") or "")]))
     for reference in story_references(client, lineage_id):
         print(f"stories\tshow\treference\t{reference['referenceLineageId']}\t{reference['role']}\t{reference.get('citationKey') or ''}")
+
+
+def stories_next(flags: list[str]) -> None:
+    """papyrus stories next --story <lineage> [--json]
+
+    Read only. Prints each step of the Story procedure with its state, then what comes next and any skipped steps (docs/story-procedure.md)."""
+    options = parse_options(flags)
+    lineage_id = _required_option(options, "story")
+    client, _ = create_authoring_client()
+    assessment = assess(story_facts(client, lineage_id))
+    if options.get("json"):
+        print(json.dumps({"ok": True, "story": lineage_id, **assessment}, indent=2))
+        return
+    print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
+    for line in step_lines(assessment) + next_lines(assessment):
+        print(line)
 
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -313,6 +336,7 @@ def stories_create(flags: list[str]) -> None:
         from .assignments_workflow import create_reporting_assignment
 
         create_reporting_assignment(client, {**options, "content-item": lineage_id, "summary": summary})
+    print_reminder(client, lineage_id)
 
 
 PUBLISHED_STAGE_WARNING = (
@@ -349,6 +373,17 @@ def stories_move(flags: list[str]) -> None:
         from .story_triggers import deliver_from_environment
 
         deliver_from_environment(client, lineage_id)
+    assessment = reminder_assessment(client, lineage_id)
+    if assessment is not None and result["changed"] and _moved_forward(result):
+        warn_skipped(assessment)
+    print_next_lines(assessment)
+
+
+def _moved_forward(result: dict) -> bool:
+    from .content_item_lifecycle import CONTENT_ITEM_STAGES
+
+    ordered = [name for name in CONTENT_ITEM_STAGES if name not in ("held", "spiked")]
+    return result["from"] in ordered and result["stage"] in ordered and ordered.index(result["stage"]) > ordered.index(result["from"])
 
 
 def stories_assign_research(flags: list[str]) -> None:
@@ -388,6 +423,8 @@ def stories_assign_research(flags: list[str]) -> None:
     if apply and moves:
         moved = move_story_stage(client, lineage_id, "assignment", actor=actor, reason=f"Research assignment {result['assignmentId']} created")
         print(f"stories\tassign-research\tmoved\t{moved['from']}\t{moved['stage']}")
+    if apply:
+        print_reminder(client, lineage_id)
 
 
 def stories_fire_triggers(flags: list[str]) -> None:
