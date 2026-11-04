@@ -346,6 +346,28 @@ def references_backfill_feed_keys(flags: list[str]) -> None:
             print(f"references\tbackfill-feed-keys\t{key}\t{value}")
 
 
+def references_backfill_medium(flags: list[str]) -> None:
+    """``papyrus references backfill-medium (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--write]``.
+
+    Sets ``medium``, ``playlistUrl``, ``evidenceLevel`` (aggregation only, only where empty) and ``mediumFeedKey`` from each current Reference's
+    address (src/papyrus_content/reference_medium_backfill.py). Unlike the other backfills it is SAFE BY DEFAULT: without ``--write`` it prints one
+    line per Reference it would change and the counts, and writes nothing. ``--dry-run`` is accepted and means the same. Run it only after the
+    site's data API has the fields and the index (docs/reference-feed-indexes.md#the-medium-index).
+    """
+    from .reference_feed_backfill import corpus_ids_for
+    from .reference_medium_backfill import backfill_medium
+    options = parse_options(flags)
+    write = parse_boolean_option(options.get("write"), default=False, label="--write") and not parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    client, _ = create_authoring_client()
+    corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")),
+                                all_corpora=bool(options.get("all-corpora")))
+    print(f"references\tbackfill-medium\tmode\t{'write' if write else 'preview (nothing is written; add --write)'}")
+    for corpus_id in corpus_ids:
+        result = backfill_medium(client, corpus_id=corpus_id, dry_run=not write, progress=lambda line: print(f"references\tbackfill-medium\t{line}"))
+        for key, value in result.items():
+            print(f"references\tbackfill-medium\t{key}\t{value}")
+
+
 def references_retire_citation_stubs(flags: list[str]) -> None:
     """``papyrus references retire-citation-stubs --corpus-key KEY [--dry-run]``.
 

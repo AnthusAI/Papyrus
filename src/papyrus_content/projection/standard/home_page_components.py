@@ -42,6 +42,11 @@ PENCIL_ICON = (
     f'<svg class="home-page-icon" data-icon="pencil" {SVG_ATTRIBUTES}>'
     '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>'
 )
+VIDEO_ICON = (
+    f'<svg class="home-page-icon" data-icon="video" {SVG_ATTRIBUTES}><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/>'
+    '<rect x="2" y="6" width="14" height="12" rx="2"/></svg>'
+)
+MEDIUM_LABELS = {"video": ("Video", VIDEO_ICON)}
 MESSAGE_SQUARE_ICON = f'<svg class="home-page-icon" data-icon="message-square" {SVG_ATTRIBUTES}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
 
 
@@ -121,12 +126,18 @@ def _dates(reference: Mapping) -> str:
     return f'<p class="home-page-dates">{" ".join(parts)}</p>' if parts else ""
 
 
+def medium_chip(reference: Mapping) -> str:
+    """The medium in words with its Lucide icon (never colour alone); empty when the Reference has none."""
+    label = MEDIUM_LABELS.get(str(reference.get("medium") or ""))
+    return f'<span class="home-page-chip" data-kind="medium">{label[1]}<span>{html.escape(label[0])}</span></span>' if label else ""
+
+
 def tile(reference: Mapping) -> str:
     recommended = reference.get("status") == STATUS_RECOMMENDED
     image_source = safe_href(reference.get("image"))
     image = f'<img class="home-page-image" src="{esc(image_source)}" alt="" loading="lazy">' if image_source else ""
     host = f'<p class="home-page-eyebrow">{esc(reference["host"])}</p>' if reference.get("host") else ""
-    chips = []
+    chips = [chip for chip in (medium_chip(reference),) if chip]
     if recommended:
         chips.append(f'<span class="home-page-chip" data-kind="recommended">{SPARKLES_ICON}<span>{html.escape(RECOMMENDED_LABEL)}</span></span>')
     if reference.get("section"):
@@ -151,7 +162,7 @@ def row(reference: Mapping) -> str:
     )
     return (
         f'<div class="home-page-row" data-status="{esc(reference.get("status"))}">{host}'
-        f'<span class="home-page-title">{_link(reference)}</span>{recommended}{row_confidence_markup(reference)}{when}</div>'
+        f'<span class="home-page-title">{_link(reference)}</span>{medium_chip(reference)}{recommended}{row_confidence_markup(reference)}{when}</div>'
     )
 
 

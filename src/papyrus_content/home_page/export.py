@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 
 from ..ideas.digest import RELEVANCE_PREDICATE, relations_of, relevance_of
 from ..knowledge_snapshot.parallel import map_with_clients
+from ..reference_medium import medium_of
 from ..reference_feed_keys import UNDECIDED_PROBABILITY, accept_probability as decision_probability
 from .ordering import RANK_FIELD, rank_records, valid_stars
 
@@ -35,7 +36,7 @@ NOT_PUBLIC_STATUSES = ("rejected", "archived")
 PUBLIC_REFERENCE_FIELDS = (
     "key", "status", "title", "authors", "url", "host", "mediaType", "sourceDate", "sourceUpdatedAt", "retrievedAt", "importedAt",
     "arrivedAt", "acceptedAt", "decidedAt", "section", "reasonCode", "actor", "shareable", "confidence", "predictedAcceptProbability",
-    "predictionDecidedAt", "inboundCitationCount", "outboundCitationCount", "versionNumber", "image", "summary", "siteName",
+    "predictionDecidedAt", "inboundCitationCount", "outboundCitationCount", "versionNumber", "medium", "image", "summary", "siteName",
     RANK_FIELD,
 )
 #: ``rank`` is a position in the shared order (``ordering.py``), never a star count. The build orders by it, so every record has it whatever ``homePage.references.fields`` lists.
@@ -45,7 +46,7 @@ PUBLIC_SOURCE_FIELDS = (
     "versionNumber", "title", "authors", "sourceUri", "mediaType", "sourcePublishedAt", "sourceUpdatedAt", "retrievedAt",
     "inboundCitationCount", "outboundCitationCount", "importedAt", "createdAt", "curationStatus", "curationStatusUpdatedAt",
     "curationReasonCode", "curationActorKind", "curationSectionId", "curationShareable", "feedArrivalAt", "predictedAcceptProbability",
-    "predictionDecidedAt",
+    "predictionDecidedAt", "medium",
 )
 
 IDENTITY = "identity: can name a person or carry an address"
@@ -81,6 +82,9 @@ EXCLUDED_REFERENCE_FIELDS = {
     "predictionSortKey": PLUMBING,
     "starFeedKey": PLUMBING,
     "captureState": PLUMBING,
+    "mediumFeedKey": PLUMBING,
+    "evidenceLevel": "editorial classification: not shown to readers yet (the decision model will write it, PPY-f8ff49)",
+    "playlistUrl": "plumbing: the playlist a video address also names, kept for following it later (PPY-566e82)",
     "versionState": PLUMBING + " (only current versions are read)",
     "versionCreatedAt": PLUMBING,
     "curationStatusKey": PLUMBING,
@@ -237,6 +241,7 @@ def public_reference(
         "inboundCitationCount": row.get("inboundCitationCount"),
         "outboundCitationCount": row.get("outboundCitationCount"),
         "versionNumber": row.get("versionNumber"),
+        "medium": row.get("medium") or medium_of(row.get("sourceUri")),
         **preview_details(preview, settings.references.summary_characters),
     }
     record = {name: full[name] for name in PUBLIC_REFERENCE_FIELDS if name in settings.references.fields and name in full}

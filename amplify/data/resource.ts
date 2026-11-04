@@ -1899,6 +1899,16 @@ const schema = a.schema({
       // capture rule in lib/reference-capture.ts (docs/reference-curation-pipeline.md), read by the Captured filter and the home page's list
       // of accepted References that still need a person to capture them. No index.
       captureState: a.string(),
+      // What kind of thing the address is, by rule and only where certain (src/papyrus_content/reference_medium.py): "video" or empty. Separate from
+      // the evidence level and the voice (PPY-f8ff49). `evidenceLevel` is "primary", "secondary", "aggregation" or "unknown"; the medium rule writes only
+      // "aggregation" (a playlist address) and never replaces a value already there, and the decision model writes the same field later.
+      // `playlistUrl` is the playlist a video address also names (a watch address with a list parameter), kept for following it later.
+      medium: a.string(),
+      evidenceLevel: a.string(),
+      playlistUrl: a.string(),
+      // "<corpusId>#<medium>#<pending|accepted|rejected>" for a current, not archived Reference that has a medium (null otherwise): the partition a
+      // public videos page reads as "<corpusId>#video#accepted", newest first by `feedArrivalAt`. Sparse. Same corpus-per-site isolation as feedStateKey.
+      mediumFeedKey: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [
@@ -1915,6 +1925,7 @@ const schema = a.schema({
       index("feedStateKey").sortKeys(["predictionSortKey"]).queryField("listReferencesByFeedStateAndPrediction"),
       index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival"),
       index("starFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByStarFeedAndArrival"),
+      index("mediumFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByMediumFeedAndArrival"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),

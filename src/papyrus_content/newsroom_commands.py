@@ -979,7 +979,9 @@ def _reference_feed_patch(record: dict[str, Any], created_at: str) -> dict[str, 
     from .reference_feed_keys import feed_keys
     if not record.get("id"):
         return {}
-    return feed_keys({**record, "createdAt": created_at})
+    keys = feed_keys({**record, "createdAt": created_at})
+    keys.pop("mediumFeedKey", None)   # the medium key belongs to `papyrus references backfill-medium`, which writes it with the medium
+    return keys
 
 
 def _newsroom_feed_patch_for(model_name: str, record: dict[str, Any]) -> dict[str, Any]:

@@ -326,6 +326,7 @@ def prepare_versioned_knowledge_records(
                     "id": current["id"],
                     "versionState": "superseded",
                     "feedStateKey": None,   # a superseded version is in no feed
+                    **({"mediumFeedKey": None} if current.get("mediumFeedKey") else {}),   # nor in a medium list
                     "updatedAt": expected.get("updatedAt") or expected.get("importedAt"),
                 },
                 current,

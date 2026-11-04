@@ -22,7 +22,7 @@ The file lives under the site's URL policy, so `urls.basePath` is honoured (`<ba
 
 ## Public fields
 
-`key` (the first 12 hex characters of the SHA-256 of the lineage id, so no id appears), `status` (`accepted` or `recommended`), `title`, `authors`, `url`, `host`, `mediaType`, `sourceDate`, `sourceUpdatedAt`, `retrievedAt`, `importedAt`, `arrivedAt`, `acceptedAt` (accepted only), `decidedAt`, `section` (the section's title), `reasonCode`, `actor` (`human`, `cyclotron`, `rule`, `agent` or `catalog`; never who), `shareable`, `confidence` (live P(accept), two decimals), `predictedAcceptProbability` (the original prediction), `predictionDecidedAt`, `inboundCitationCount`, `outboundCitationCount`, `versionNumber`, from the preview attachment `image`, `summary` and `siteName`, and `rank` (a position in the shared order, below; always written, even when `homePage.references.fields` is a list that does not name it).
+`key` (the first 12 hex characters of the SHA-256 of the lineage id, so no id appears), `status` (`accepted` or `recommended`), `title`, `authors`, `url`, `host`, `mediaType`, `sourceDate`, `sourceUpdatedAt`, `retrievedAt`, `importedAt`, `arrivedAt`, `acceptedAt` (accepted only), `decidedAt`, `section` (the section's title), `reasonCode`, `actor` (`human`, `cyclotron`, `rule`, `agent` or `catalog`; never who), `shareable`, `confidence` (live P(accept), two decimals), `predictedAcceptProbability` (the original prediction), `predictionDecidedAt`, `inboundCitationCount`, `outboundCitationCount`, `versionNumber`, `medium` (`video` or null: the stored medium, else what the address certainly says), from the preview attachment `image`, `summary` and `siteName`, and `rank` (a position in the shared order, below; always written, even when `homePage.references.fields` is a list that does not name it).
 
 The allowlist is `PUBLIC_REFERENCE_FIELDS` in `src/papyrus_content/home_page/export.py`. `homePage.references.fields` is `"all"` (every field above, the default) or a list of those names that includes `key` and `status`; any other name is a build error.
 
@@ -64,8 +64,9 @@ A home page that interleaves Stories with the Reference grids uses the ordinary 
 
 ## The references include
 
-`::include{kind="references" select="recent|confident|recommended" count="6" [bucket="day|week"] [section="Tools"] [card="tile|row"] [heading="..."] [more="/path/"] [empty="..."]}` places Reference cards on an authored page, rendered at projection time from `_data/home-page/references.json`. A site needs the `homePage` setting; without it the include is a build error that names the page file.
+`::include{kind="references" select="recent|confident|recommended" count="6" [bucket="day|week"] [section="Tools"] [medium="video"] [card="tile|row"] [heading="..."] [more="/path/"] [empty="..."]}` places Reference cards on an authored page, rendered at projection time from `_data/home-page/references.json`. A site needs the `homePage` setting; without it the include is a build error that names the page file.
 
+- `medium="video"` keeps only the References whose `medium` is `video` (a videos block, [Videos on a public page](standard-site.md#videos-on-a-public-page)); any other value is a build error. A card with a medium shows it as a small label with a Lucide icon and the word ("Video").
 - `recent`: accepted, newest accepted first. `confident`: accepted, in the shared order of an editor's rating and then the Cyclotron's confidence (below). `recommended`: not yet accepted, in the same shared order. Without a `bucket`, `recent` ignores ratings.
 - `bucket="day"` or `bucket="week"` (any selection): the newest bucket first and the shared order inside each bucket. See [Time buckets](#time-buckets).
 - `count` defaults to `homePage.references.defaultCount` (6). `section` keeps References whose section label (or a configured section name's label) matches.

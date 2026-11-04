@@ -319,6 +319,7 @@ PORTED_COMMANDS = frozenset(
         "references:duplicates",
         "references:backfill-monitor-deliveries",
         "references:backfill-feed-keys",
+        "references:backfill-medium",
         "references:retire-citation-stubs",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
@@ -729,6 +730,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_duplicates(flags)
     elif route == "references:backfill-feed-keys":
         references_backfill_feed_keys(flags)
+    elif route == "references:backfill-medium":
+        from .references_commands import references_backfill_medium
+        references_backfill_medium(flags)
     elif route == "references:retire-citation-stubs":
         from .references_commands import references_retire_citation_stubs
         references_retire_citation_stubs(flags)

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownWideNarrowIcon, AwardIcon, CheckCheckIcon, CheckIcon, CircleDashedIcon, ClockIcon, FileCheckIcon, FileXIcon, FilesIcon, InfoIcon, ListChecksIcon, Loader2Icon, MessageSquareIcon, RefreshCwIcon, SearchIcon, SparklesIcon, StarIcon, StarOffIcon, XIcon } from "lucide-react";
+import { ArrowDownWideNarrowIcon, AwardIcon, CheckCheckIcon, CheckIcon, CircleDashedIcon, ClockIcon, FileCheckIcon, FileXIcon, FilesIcon, InfoIcon, ListChecksIcon, Loader2Icon, MessageSquareIcon, RefreshCwIcon, SearchIcon, SparklesIcon, StarIcon, StarOffIcon, VideoIcon, XIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import type { ReferenceRecord } from "../lib/category-repository";
 import { REFERENCE_REJECTION_REASON_CODES, isAutoAccepted, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
@@ -338,6 +338,11 @@ export function ReferenceCardHeader({ capture, lead = false, matched, messageCou
               </span>
             ) : null}
             {capture ? <CaptureBadge status={displayedCaptureStatus(capture)} /> : storedCaptureBadge(reference.captureState)}
+            {reference.medium === "video" ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--feed-control)] px-2 py-0.5 font-medium text-foreground" data-feed-medium="video">
+                <VideoIcon aria-hidden="true" className="size-3" />Video
+              </span>
+            ) : null}
             {messageCount > 0 ? (
               <span aria-label={messageCountLabel(messageCount)} className="inline-flex items-center gap-1 tabular-nums" data-feed-message-count={messageCount} role="img">
                 <MessageSquareIcon aria-hidden="true" className="size-3.5" />

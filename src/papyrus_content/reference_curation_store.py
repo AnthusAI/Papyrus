@@ -32,6 +32,7 @@ BODY_ROLE = "metadata"
 TEXT_SORT_KEY = "curation-text"
 GROBID_SORT_KEY = "curation-grobid"
 GROBID_TEI_SORT_KEY = "curation-grobid-tei"
+LINKS_SORT_KEY = "curation-links"
 METADATA_SORT_KEY = "metadata"
 EDITOR_PROVENANCE = "edited by editor"
 ASSESSMENTS = ("complete", "incomplete", "incorrect")

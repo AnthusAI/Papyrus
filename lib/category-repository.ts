@@ -305,6 +305,13 @@ export type ReferenceRecord = {
   starFeedKey?: string | null;
   /** How much content is held: `full`, `thin`, `none` or `running`; empty means `none` (`storedCaptureState` in lib/reference-capture.ts). */
   captureState?: string | null;
+  /** What kind of thing the address is, by rule and only where certain: `video`, or empty (src/papyrus_content/reference_medium.py). The card says it in words with an icon. */
+  medium?: string | null;
+  /** `evidenceLevel` is `primary`, `secondary`, `aggregation` or `unknown` (the medium rule writes only `aggregation`); `playlistUrl` is the playlist a video address also names. */
+  evidenceLevel?: string | null;
+  playlistUrl?: string | null;
+  /** `<corpusId>#<medium>#<status>` while the Reference has a medium: the medium index's partition. */
+  mediumFeedKey?: string | null;
   /** The monitor that delivered this Reference (set at intake; the Reference is the record, no Message). */
   discoveredByMonitorId?: string | null;
   /** What the monitor's source said about it (a Hub model's structured fields, say). */
