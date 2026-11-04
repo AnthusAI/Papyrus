@@ -88,7 +88,7 @@ A process that cannot fill a line says so in that line.
 - **Inputs.** The Reference's address; the page or PDF; for research papers the PDF bytes for GROBID.
 - **Decision.** Whether the text is captured, with completeness signals (facts, not a verdict); then a summary; then for research papers GROBID's title, authors, abstract and citations.
 - **May write.** The curation card (`ReferenceAttachment`), the extracted text and summary bodies, the Reference's `captureState`; GROBID may create pending Reference rows for cited works.
-- **Must never.** Change the curation status (the Reference stays pending and the editor decides); overwrite text an editor pasted or corrected; follow a non-public address.
+- **Must never.** Change the curation status (the Reference stays pending and the editor decides); overwrite text an editor pasted or corrected; follow a non-public address; ask YouTube for a video's transcript (YouTube refuses cloud addresses: a video keeps its page's description and waits for `papyrus references capture-transcripts`, run by a person on a non-cloud connection, [4d](reference-curation-pipeline.md#4d-video-transcripts-the-worker-2026-11-04)).
 - **Seen and reversed.** The card on the Reference with a status of `ready`, `degraded` or `capture_failed`. An editor corrects or pastes text; the machine capture stays as the original. `--force` redoes finished stages except over an edit.
 - **Records.** The card with typed failure reasons; `change reason` on versions; the summary prompt version.
 - **Fails.** Typed and mostly closed: `timeout`, `connection`, `http_5xx` and `dns` are transient and retried on the next run; the rest are final until `--force`. Without an OpenAI key the summary is a typed skip. A running card holds a 30 minute lease.

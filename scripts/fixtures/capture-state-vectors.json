@@ -1029,6 +1029,126 @@
     }
    ],
    "expected": "thin"
+  },
+  {
+   "name": "a video captured from its page alone is thin however long the description",
+   "attachments": [
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "degraded",
+      "capture": {
+       "status": "completed",
+       "wordCount": 900,
+       "textVia": "youtube_description",
+       "textReason": "awaiting_transcript",
+       "textSortKey": "curation-text"
+      },
+      "signals": {
+       "wordCount": 900
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "a video the worker found no transcript for stays thin",
+   "attachments": [
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "degraded",
+      "capture": {
+       "status": "completed",
+       "wordCount": 900,
+       "textVia": "youtube_description",
+       "textReason": "no_transcript",
+       "textSortKey": "curation-text"
+      },
+      "signals": {
+       "wordCount": 900
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "thin"
+  },
+  {
+   "name": "the transcript the worker saved makes the video full",
+   "attachments": [
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "degraded",
+      "capture": {
+       "status": "completed",
+       "wordCount": 9000,
+       "textVia": "youtube_description",
+       "textReason": "awaiting_transcript",
+       "textSortKey": "curation-text"
+      },
+      "signals": {
+       "wordCount": 9000
+      },
+      "labels": [
+       {
+        "kind": "capture_completeness",
+        "assessment": "incomplete"
+       }
+      ],
+      "current": {
+       "textSortKey": "curation-edit-0001-text"
+      }
+     }
+    }
+   ],
+   "expected": "full"
+  },
+  {
+   "name": "a long capture with a settled reason and no youtube words is thin too",
+   "attachments": [
+    {
+     "id": "card",
+     "role": "curation",
+     "sortKey": "003-curation",
+     "metadata": {
+      "kind": "reference-curation",
+      "status": "degraded",
+      "capture": {
+       "status": "completed",
+       "wordCount": 900,
+       "textReason": "unsupported_platform",
+       "textSortKey": "curation-text"
+      },
+      "signals": {
+       "wordCount": 900
+      },
+      "labels": [],
+      "current": {
+       "textSortKey": "curation-text"
+      }
+     }
+    }
+   ],
+   "expected": "thin"
   }
  ]
 }

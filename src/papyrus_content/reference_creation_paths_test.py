@@ -322,6 +322,8 @@ PATHS_WITH_AN_ADDRESS = sorted(path for path in PATHS if path != "GROBID cited r
 def test_every_way_of_creating_a_reference_records_a_video_address_as_a_video_in_the_pending_video_list(path, key):
     reference = PATHS[path](key, VIDEO)
     corpus_id = f"knowledge-corpus-{key}"
+    # A new video has no captured content yet, so it is in the content-needed list of its status (the transcript worker reads it).
+    assert reference["contentNeededKey"] == f"{corpus_id}#video#needs_content#pending", reference
     if path.startswith("accession"):
         assert reference["mediumFeedKey"] == f"{corpus_id}#video#pending"   # carried from the Reference it replaces, re-keyed for its status
         return
@@ -333,13 +335,13 @@ def test_every_way_of_creating_a_reference_records_a_video_address_as_a_video_in
 @pytest.mark.parametrize("path", PATHS_WITH_AN_ADDRESS)
 def test_an_ordinary_address_gets_no_medium_field_and_no_medium_key(path):
     reference = PATHS[path]("alpha-site")
-    assert not {"medium", "mediumFeedKey", "evidenceLevel", "playlistUrl"} & set(reference), {key: reference.get(key) for key in reference if "edium" in key}
+    assert not {"medium", "mediumFeedKey", "contentNeededKey", "captureReason", "evidenceLevel", "playlistUrl"} & set(reference), {key: reference.get(key) for key in reference if "edium" in key}
 
 
 def test_a_playlist_address_is_an_aggregation_and_in_no_video_list():
     reference = through_the_cli_import("alpha-site", "https://www.youtube.com/playlist?list=PLJkNSeYcYBlCaamscxip0l2LGYCZ2TIom")
     assert reference["evidenceLevel"] == "aggregation"
-    assert "medium" not in reference and "mediumFeedKey" not in reference
+    assert "medium" not in reference and "mediumFeedKey" not in reference and "contentNeededKey" not in reference
 
 
 def test_a_watch_address_with_a_list_is_the_video_and_records_the_playlist_separately():
@@ -360,7 +362,8 @@ class VoteClient(Memory):
 
 def a_video(corpus_id: str, **extra: Any) -> dict[str, Any]:
     return {"id": "reference-v-v1", "lineageId": "reference-v", "corpusId": corpus_id, "versionState": "current", "curationStatus": "pending",
-            "sourceUri": VIDEO, "medium": "video", "mediumFeedKey": f"{corpus_id}#video#pending", "feedStateKey": f"{corpus_id}#unrated", **extra}
+            "sourceUri": VIDEO, "medium": "video", "mediumFeedKey": f"{corpus_id}#video#pending", "feedStateKey": f"{corpus_id}#unrated",
+            "contentNeededKey": f"{corpus_id}#video#needs_content#pending", **extra}
 
 
 def test_the_cyclotron_accepting_a_video_moves_it_to_the_accepted_video_list():
@@ -369,7 +372,8 @@ def test_the_cyclotron_accepting_a_video_moves_it_to_the_accepted_video_list():
     corpus_id, _ = corpus_of("alpha-site")
     client = VoteClient(corpus_id, a_video(corpus_id))
     assert accept_reference_automatically(client, {"id": "reference-v-v1"}, reason="Confident.", evidence={}, now=NOW)
-    assert client.get_record("Reference", "reference-v-v1")["mediumFeedKey"] == f"{corpus_id}#video#accepted"
+    voted = client.get_record("Reference", "reference-v-v1")
+    assert voted["mediumFeedKey"] == f"{corpus_id}#video#accepted" and voted["contentNeededKey"] == f"{corpus_id}#video#needs_content#accepted"
 
 
 def test_auto_accepting_an_ordinary_page_names_no_medium_field():
@@ -377,11 +381,22 @@ def test_auto_accepting_an_ordinary_page_names_no_medium_field():
 
     corpus_id, _ = corpus_of("alpha-site")
     row = {**a_video(corpus_id), "sourceUri": "https://example.org/a"}
-    for key in ("medium", "mediumFeedKey"):
+    for key in ("medium", "mediumFeedKey", "contentNeededKey"):
         row.pop(key)
     client = VoteClient(corpus_id, row)
     assert accept_reference_automatically(client, {"id": "reference-v-v1"}, reason="Confident.", evidence={}, now=NOW)
-    assert "mediumFeedKey" not in client.get_record("Reference", "reference-v-v1")
+    assert not {"mediumFeedKey", "contentNeededKey"} & set(client.get_record("Reference", "reference-v-v1"))
+
+
+def test_a_captured_video_voted_on_gains_no_content_key():
+    from .auto_accept import accept_reference_automatically
+
+    corpus_id, _ = corpus_of("alpha-site")
+    row = a_video(corpus_id, captureState="full")
+    row.pop("contentNeededKey")
+    client = VoteClient(corpus_id, row)
+    assert accept_reference_automatically(client, {"id": "reference-v-v1"}, reason="Confident.", evidence={}, now=NOW)
+    assert "contentNeededKey" not in client.get_record("Reference", "reference-v-v1")
 
 
 @pytest.mark.parametrize("action,status,key", [("accept", "accepted", "{c}#video#accepted"), ("reject", "rejected", "{c}#video#rejected"),
@@ -396,12 +411,14 @@ def test_a_vote_through_chat_moves_a_video_between_the_medium_lists(action, stat
         calls.append((query, variables))
         if "getReference" in query:
             return {"getReference": {"id": "reference-1", "lineageId": "reference-1", "corpusId": corpus_id, "versionState": "current",
-                                     "curationStatus": "pending", "newsroomFeedKey": "references", "sourceUri": VIDEO}}
+                                     "curationStatus": "pending", "newsroomFeedKey": "references", "sourceUri": VIDEO,
+                                     "contentNeededKey": f"{corpus_id}#video#needs_content#pending"}}
         return {"updateReference": {"id": "reference-1"}}
 
     review_reference_curation(graphql, reference_id="reference-1", action=action, reason_code="out_of_scope" if action == "reject" else "")
     (update,) = [variables for query, variables in calls if "updateReference" in query]
     assert update["input"]["mediumFeedKey"] == (key.format(c=corpus_id) if key else None)
+    assert update["input"]["contentNeededKey"] == (key.format(c=corpus_id).replace("#video#", "#video#needs_content#") if key else None)
 
 
 def test_a_new_version_of_a_video_keeps_it_in_its_list_and_the_old_version_leaves_it():
@@ -421,8 +438,25 @@ def test_a_new_version_of_a_video_keeps_it_in_its_list_and_the_old_version_leave
     register("First", "2026-11-01T00:00:00Z")
     register("Retitled", "2026-11-02T00:00:00Z")
     versions = {row["versionNumber"]: row for row in client.references()}
-    assert versions[1]["versionState"] == "superseded" and versions[1]["mediumFeedKey"] is None
+    assert versions[1]["versionState"] == "superseded" and versions[1]["mediumFeedKey"] is None and versions[1]["contentNeededKey"] is None
     assert versions[2]["mediumFeedKey"] == f"{corpus_id}#video#accepted"
+    assert versions[2]["contentNeededKey"] == f"{corpus_id}#video#needs_content#accepted"
+
+
+def test_a_new_version_of_a_captured_video_stays_out_of_the_content_needed_list():
+    from .records import _feed_keys_for_new_version
+
+    corpus_id, _ = corpus_of("alpha-site")
+    current = a_video(corpus_id, curationStatus="accepted", captureState="full")
+    current.pop("contentNeededKey")
+    next_reference = {"id": "reference-v-v2", "lineageId": "reference-v", "corpusId": corpus_id, "versionState": "current", "curationStatus": "accepted",
+                      "sourceUri": VIDEO, "medium": "video", "createdAt": NOW}
+    keys = _feed_keys_for_new_version(next_reference, current)
+    assert keys["captureState"] == "full" and "contentNeededKey" not in keys
+    waiting = _feed_keys_for_new_version(next_reference, a_video(corpus_id, curationStatus="accepted"))
+    assert waiting["contentNeededKey"] == f"{corpus_id}#video#needs_content#accepted"
+    settled = _feed_keys_for_new_version(next_reference, a_video(corpus_id, curationStatus="accepted", captureState="thin", captureReason="no_transcript"))
+    assert settled["captureReason"] == "no_transcript" and not settled.get("contentNeededKey")
 
 
 def test_retiring_a_citation_stub_that_is_a_video_takes_it_out_of_the_video_list():
@@ -431,12 +465,12 @@ def test_retiring_a_citation_stub_that_is_a_video_takes_it_out_of_the_video_list
     corpus_id, _ = corpus_of("alpha-site")
     stub = a_video(corpus_id)
     retired = retired_fields(stub, now=NOW)
-    assert retired["mediumFeedKey"] is None
+    assert retired["mediumFeedKey"] is None and retired["contentNeededKey"] is None
     assert restored_fields({**stub, **retired, "curationStatus": "archived"}, now=NOW)["mediumFeedKey"] == f"{corpus_id}#video#pending"
     ordinary = {**stub, "sourceUri": "https://example.org/a"}
-    for key in ("medium", "mediumFeedKey"):
+    for key in ("medium", "mediumFeedKey", "contentNeededKey"):
         ordinary.pop(key)
-    assert "mediumFeedKey" not in retired_fields(ordinary, now=NOW)
+    assert not {"mediumFeedKey", "contentNeededKey"} & set(retired_fields(ordinary, now=NOW))
 
 
 def test_the_cyclotron_rejecting_a_video_moves_it_to_the_rejected_video_list():
@@ -445,4 +479,5 @@ def test_the_cyclotron_rejecting_a_video_moves_it_to_the_rejected_video_list():
     corpus_id, _ = corpus_of("alpha-site")
     client = VoteClient(corpus_id, a_video(corpus_id))
     assert reject_reference_automatically(client, {"id": "reference-v-v1"}, cyclotron_id="relevance", probability=0.99, proof_id="proof-1", decision_id="d1", now=NOW)
-    assert client.get_record("Reference", "reference-v-v1")["mediumFeedKey"] == f"{corpus_id}#video#rejected"
+    rejected = client.get_record("Reference", "reference-v-v1")
+    assert rejected["mediumFeedKey"] == f"{corpus_id}#video#rejected" and rejected["contentNeededKey"] == f"{corpus_id}#video#needs_content#rejected"

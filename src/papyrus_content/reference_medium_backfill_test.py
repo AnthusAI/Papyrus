@@ -58,10 +58,13 @@ def test_with_the_write_flag_it_writes_only_the_medium_fields():
     client = Client(corpus())
     result = backfill_medium(client, corpus_id=CORPUS, dry_run=False)
     assert result["written"] == 5
-    medium_fields = {"medium", "playlistUrl", "evidenceLevel", "mediumFeedKey"}
+    medium_fields = {"medium", "playlistUrl", "evidenceLevel", "mediumFeedKey", "contentNeededKey"}
     assert all(set(update) - {"id"} <= medium_fields for update in client.updates)
     rows = client.rows
     assert rows["v-accepted"]["mediumFeedKey"] == f"{CORPUS}#video#accepted" and rows["v-accepted"]["medium"] == "video"
+    assert rows["v-accepted"]["contentNeededKey"] == f"{CORPUS}#video#needs_content#accepted"   # no capture stored yet: the content is missing
+    assert rows["v-list"]["contentNeededKey"] == f"{CORPUS}#video#needs_content#rejected"
+    assert "contentNeededKey" not in rows["article"] and "contentNeededKey" not in rows["playlist"] and "contentNeededKey" not in rows["v-archived"]
     assert rows["v-pending"]["mediumFeedKey"] == f"{CORPUS}#video#pending"
     assert rows["v-list"]["mediumFeedKey"] == f"{CORPUS}#video#rejected"
     assert rows["v-list"]["playlistUrl"] == f"https://www.youtube.com/playlist?list={PLAYLIST}"
@@ -82,8 +85,30 @@ def test_a_second_run_writes_nothing():
 def test_an_archived_video_that_holds_a_key_loses_it_and_a_changed_status_moves_it():
     held = reference("v-archived", "https://youtu.be/dQw4w9WgXcQ", "archived", medium="video", mediumFeedKey=f"{CORPUS}#video#accepted")
     assert planned_fields(held) == {"mediumFeedKey": None}
-    moved = reference("v-moved", "https://youtu.be/dQw4w9WgXcQ", "rejected", medium="video", mediumFeedKey=f"{CORPUS}#video#accepted")
+    moved = reference("v-moved", "https://youtu.be/dQw4w9WgXcQ", "rejected", medium="video", mediumFeedKey=f"{CORPUS}#video#accepted",
+                      captureState="full")
     assert planned_fields(moved) == {"mediumFeedKey": f"{CORPUS}#video#rejected"}
+    held_content = reference("v-held", "https://youtu.be/dQw4w9WgXcQ", "accepted", medium="video", mediumFeedKey=f"{CORPUS}#video#accepted",
+                             captureState="full", contentNeededKey=f"{CORPUS}#video#needs_content#accepted")
+    assert planned_fields(held_content) == {"contentNeededKey": None}   # captured since: the key leaves
+
+
+def test_the_content_key_follows_the_stored_capture_state_and_a_settled_reason():
+    base = {"medium": "video", "mediumFeedKey": f"{CORPUS}#video#accepted"}
+    waiting = f"{CORPUS}#video#needs_content#accepted"
+    for extra, wanted in (({}, waiting), ({"captureState": "none"}, waiting), ({"captureState": "thin"}, waiting), ({"captureState": "full"}, None),
+                          ({"captureState": "running"}, None), ({"captureState": "thin", "captureReason": "no_transcript"}, None),
+                          ({"captureReason": "unavailable"}, None), ({"captureReason": "unsupported_platform"}, None)):
+        fields = planned_fields(reference("v", "https://youtu.be/dQw4w9WgXcQ", **base, **extra))
+        assert fields.get("contentNeededKey") == wanted, extra
+        assert ("contentNeededKey" in fields) is (wanted is not None), extra   # nothing to clear on a row that holds no key
+    done = reference("v", "https://youtu.be/dQw4w9WgXcQ", **base, captureState="thin", captureReason="no_transcript")
+    assert planned_fields(done) == {}   # a second run does not put a settled video back in the worker's list
+
+
+def test_the_counts_say_how_many_content_keys_were_set():
+    result = backfill_medium(Client(corpus()), corpus_id=CORPUS, dry_run=True)
+    assert result["contentKeysSet"] == 3 and result["contentKeysCleared"] == 0
 
 
 def test_an_evidence_level_a_person_or_model_wrote_is_never_replaced():
