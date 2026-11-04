@@ -248,7 +248,7 @@ def test_without_a_corpus_key_the_site_lists_its_corpora():
 
 
 def test_the_command_is_signed_in_only_and_imports_no_aws_library(monkeypatch):
-    monkeypatch.delenv("PAPYRUS_GRAPHQL_AUTH", raising=False)
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_AUTH", "")   # setenv, so teardown undoes what the command sets; delenv of an unset name would not
     worker.command(["--corpus-key", "demo"], client=Site({}), out=io.StringIO(), fetch=fetcher({}))
     import os
     assert os.environ["PAPYRUS_GRAPHQL_AUTH"] == "user"
