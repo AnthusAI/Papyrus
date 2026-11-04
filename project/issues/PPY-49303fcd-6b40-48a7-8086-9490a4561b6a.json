@@ -3,7 +3,7 @@
   "title": "Editorial check fails after save on Machines on Machines: Editorial context tenant mismatch",
   "description": "After stories save-version on newsroom.machines-on-machines.anth.us in the signed-in lane, on 2026-11-04, the automatic check printed: not checked, GraphQL request failed: Editorial context tenant mismatch. The copy_edit step depends on this check, so Stories on this site may be unable to complete that step. Not yet tested with editorial check-version directly.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 0,
   "assignee": null,
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Confirmed 2026-11-04: papyrus editorial check-version --item on the current version fails directly with the same error, Editorial context tenant mismatch. This blocks the copy_edit step for the first Story on Machines on Machines, now at copywriting.",
       "created_at": "2026-11-04T12:19:08.414965Z",
       "comment_type": "default"
+    },
+    {
+      "id": "aa792ae7-d8d1-44c5-9724-1b82ca008745",
+      "author": "home",
+      "text": "Fixed: the editorial-checks Lambda now receives the tenant (#1170). Tested live on Machines on Machines on 5.85.0: save-version printed 0 violations, 0 for review.",
+      "created_at": "2026-11-04T15:03:51.453944Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-04T11:48:25.428153Z",
-  "updated_at": "2026-11-04T12:19:08.496020Z",
-  "closed_at": null,
+  "updated_at": "2026-11-04T15:03:51.697019Z",
+  "closed_at": "2026-11-04T15:03:51.696682Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
