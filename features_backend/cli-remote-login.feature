@@ -41,6 +41,12 @@ Feature: Sign in to a Papyrus site from a machine with no browser
     Then the sign-in is refused saying someone other than the expected person approved
     And the machine has registered no site
 
+  Scenario: Tokens for a different request are refused and the person is told to start again
+    When the agent runs "papyrus login --remote shipped.anth.us"
+    And the sign-in provider answers tokens for a different request
+    Then the sign-in is refused saying nothing was saved and to run "papyrus login --remote shipped.anth.us" again
+    And the machine has registered no site
+
   Scenario: The pages function cannot reach the broker
     When the agent runs "papyrus login --remote shipped.anth.us"
     And the broker cannot be reached when the person opens the link
