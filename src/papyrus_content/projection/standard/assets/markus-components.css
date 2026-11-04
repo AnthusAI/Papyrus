@@ -102,4 +102,5 @@
 /* Equations (PPY-e1de14): MathML written while the page is built. Colour is inherited, so both themes work; no rules or borders. */
 .papyrus-math { margin: 1.25rem 0; overflow-x: auto; }
 .papyrus-math math { font-size: 1.15em; }
-math { color: inherit; }
+/* The generic `math` family can resolve to a text font with no OpenType MATH table: the large sum sign then comes out text-sized and its limits touch it, and \mid shrinks. Ask for real math fonts that ship with the system first (no web fonts). */
+math { color: inherit; font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Libertinus Math", "Noto Sans Math", "Asana Math", math; }

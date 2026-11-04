@@ -566,8 +566,15 @@ commands (`\notacommand`) instead of printing the backslash.
 - `<math xmlns=... display="block|inline" alttext="TeX source">`. `alttext` is the accessible fallback for assistive technology
   that does not read MathML.
 - Display equations sit in `<div class="papyrus-math">` (scrolls sideways instead of overflowing a narrow screen).
-- Colour is inherited (`currentColor`), so light and dark themes both work; there are no rules or borders. The two CSS rules live in
+- Colour is inherited (`currentColor`), so light and dark themes both work; there are no rules or borders. The CSS lives in
   `markus-components.css`.
+- **Math font.** `math { font-family: "STIX Two Math", "Cambria Math", "Latin Modern Math", "Libertinus Math", "Noto Sans Math", "Asana Math", math }`.
+  No font is shipped. The generic `math` family alone can resolve to a text font with no OpenType MATH table (seen in Chromium on macOS):
+  the display sum sign then stays text-sized with its limits touching it, and `\mid` shrinks. With a real math font the same page
+  gets a 24 px sum sign and 5 px / 4 px gaps to its limits. A reader whose system has none of the listed fonts falls back to `math`
+  and sees the tighter layout; the equation is still correct and readable.
+- **Named operators.** `Pr`, `max`, `lim` (an `<mo>` in the converter's output) get `lspace="0em" rspace="0.1667em"`, and
+  `log`/`sin` (an `<mi>`) get a thin `<mspace>` after them, so `\Pr[X]` and `\log_2 \max_x` read as words, not as infix signs.
 
 ### Other places an equation appears
 

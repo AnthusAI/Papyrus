@@ -63,6 +63,33 @@ class ConversionTests(unittest.TestCase):
                 tex_to_mathml(tex, display=True)
 
 
+class SpacingAndFontTests(unittest.TestCase):
+    def test_named_operators_get_no_left_space_and_a_thin_right_space(self) -> None:
+        math = tex_to_mathml(r"\Pr[X = x] \le m / 2^k", display=True)
+        self.assertIn('<mo movablelimits="true" lspace="0em" rspace="0.1667em">Pr</mo>', math)
+
+    def test_function_names_get_a_thin_space_after_them(self) -> None:
+        math = tex_to_mathml(r"-\log_2 \max_x \Pr[X = x]", display=True)
+        self.assertIn('<msub><mi>log</mi><mn>2</mn></msub><mspace width="0.1667em"></mspace>', math)
+        ET.fromstring(math)
+
+    def test_signs_and_brackets_keep_their_default_spacing(self) -> None:
+        math = tex_to_mathml(r"a \le b", display=False)
+        self.assertNotIn("lspace", math)
+
+    def test_stylesheet_asks_for_system_math_fonts_and_ships_none(self) -> None:
+        from papyrus_content.projection.standard.projector import ASSET_DIRECTORY
+
+        css = (ASSET_DIRECTORY / "markus-components.css").read_text(encoding="utf-8")
+        rule = next(line for line in css.splitlines() if line.startswith("math {"))
+        families = [name.strip().strip('"') for name in rule.split("font-family:")[1].split(";")[0].split(",")]
+        self.assertEqual(families[0], "STIX Two Math")
+        self.assertEqual(families[-1], "math")  # the generic family is the last resort, not the first choice
+        self.assertNotIn("@font-face", css)
+        self.assertNotIn(".woff", css)
+        self.assertNotIn("border", rule)
+
+
 class InjectionTests(unittest.TestCase):
     ATTACKS = [
         r"\text{</mtext><script>alert(1)</script><mtext>}",

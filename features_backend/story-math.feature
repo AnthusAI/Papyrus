@@ -67,6 +67,27 @@ Feature: Equations in Stories
     Then the agent page "bound/index.html" says "<mtable"
     And the agent page "bound/index.html" does not say "(1)"
 
+  Scenario: Named operators are spaced like words, not like equals signs
+    Given the article "bound" has the body
+      """
+      ```math
+      \Pr[X = x] \le m / 2^k
+      ```
+      """
+    When the agent-readable site is projected
+    Then the agent page "bound/index.html" says "<mo movablelimits="true" lspace="0em" rspace="0.1667em">Pr</mo>"
+
+  Scenario: Equations ask for a system math font, because the generic one can lack the math table
+    Given the article "bound" has the body
+      """
+      ```math
+      \sum_{i=1}^{n} x_i
+      ```
+      """
+    When the agent-readable site is projected
+    Then the agent page "css/markus-components.css" says "font-family: "STIX Two Math", "Cambria Math""
+    And the agent page "css/markus-components.css" does not say "@font-face"
+
   Scenario: The Markdown twin and llms-full.txt keep the TeX source
     Given the article "bound" has the body
       """

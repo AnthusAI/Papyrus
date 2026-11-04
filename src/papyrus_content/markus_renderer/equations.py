@@ -86,6 +86,33 @@ def _check(element: ET.Element) -> None:
         _check(child)
 
 
+def _tidy(element: ET.Element) -> None:
+    """Spacing for named operators (``Pr``, ``max``, ``lim``...).
+
+    latex2mathml writes them as ``<mo>``; an ``<mo>`` between other things gets the wide spacing of an infix sign such as
+    ``=``, so ``\\Pr[X]`` came out as ``Pr   [X]``. A named operator wants no space before it and a thin space after it.
+    """
+    for node in element.iter():
+        text = node.text or ""
+        if _local(node.tag) == "mo" and len(text) > 1 and text.isalpha() and "lspace" not in node.attrib:
+            node.set("lspace", "0em")
+            node.set("rspace", "0.1667em")
+    # Function names written as <mi> (``\\log``, ``\\sin``), alone or as the base of a subscript, need the same thin space
+    # after them, or ``\\log_2 \\max_x`` runs together.
+    for parent in list(element.iter()):
+        if _local(parent.tag) not in ("math", "mrow", "mtd", "mstyle"):
+            continue  # inside a script or a fraction the children are positional; a gap would change the structure
+        children = list(parent)
+        for position, child in reversed(list(enumerate(children))):  # last first, so earlier positions stay valid
+            name = child
+            if _local(child.tag) in ("msub", "msup", "msubsup") and len(child):
+                name = child[0]
+            text = name.text or ""
+            if _local(name.tag) == "mi" and len(text) > 1 and text.isalpha() and position + 1 < len(children):
+                gap = ET.Element("mspace", {"width": "0.1667em"})
+                parent.insert(position + 1, gap)
+
+
 def _serialize(element: ET.Element, alttext: str | None = None) -> str:
     tag = _local(element.tag)
     attributes = {_local(name): value for name, value in element.attrib.items()}
@@ -111,6 +138,7 @@ def tex_to_mathml(tex: str, *, display: bool) -> str:
     except ET.ParseError as exc:
         raise EquationError("the TeX produced markup that is not well formed (a stray < or &)") from exc
     _check(root)
+    _tidy(root)
     return _serialize(root, alttext=" ".join(source.split()))
 
 
