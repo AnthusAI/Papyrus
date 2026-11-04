@@ -1,0 +1,20 @@
+{
+  "id": "PPY-39a16be9-3184-40b0-a7f7-4945387a4773",
+  "title": "Point-in-time recovery on newsroom data tables",
+  "description": "Ryan 2026-11-03 approved: turn on DynamoDB point-in-time recovery for the newsroom data tables, in Papyrus, so it ships through each site's normal deploy. About 0.22 GB across 7 sites, about 5 cents a month at $0.20 per GB-month. Reason: a bad write to a corpus record could not be restored exactly on 11-03, and these tables hold votes and curation decisions.\n\nIn `amplify/site-backend.ts`, set point-in-time recovery on every Amplify Data table through `backend.data.resources.cfnResources.amplifyDynamoDbTables` (`pointInTimeRecovery`). On by default for every site with no site config; a site can't silently lose it. Check the change doesn't replace any table; enabling PITR is an in-place update, and prove that from a synth. Plugin tables stay as they are unless they hold editorial data; list them and say which you left. A synth test asserts every data table has it. Gherkin scenario. Note in `docs/automated-processes.md` and the relevant infra doc what can and can't be restored: 35 days, restore creates a new table, S3 attachments are not covered. Rollout follows the batch rule: Machines on Machines first in its next bump.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T00:06:01.912656Z",
+  "updated_at": "2026-11-04T00:06:01.912945Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
