@@ -6,7 +6,7 @@ import http.client
 import urllib.parse
 from typing import Any, Callable
 
-from .env import graphql_endpoint, graphql_timeout_seconds
+from .env import graphql_endpoint, graphql_timeout_seconds, site_tenant_id
 from .guest_auth import refuse_guest_auth
 from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, graphql_request_headers
 from .operator_errors import GraphQLRequestError, credential_recovery_guidance
@@ -688,9 +688,13 @@ class PapyrusGraphQLAuthoringClient:
         endpoint: str | None = None,
         header_factory: Callable[[bytes], dict[str, str]] | None = None,
         tenant_id: str | None = None,
+        site_tenant: bool = True,
     ) -> None:
-        self.tenant_id = validate_tenant_id(tenant_id) if tenant_id else tenant_id_from_environment()
         self.endpoint = endpoint or graphql_endpoint()
+        # An explicit tenant wins, then PAPYRUS_TENANT_ID, then (signed-in CLI) the tenant the site itself publishes.
+        # `site_tenant=False` is for a command that must read every row, such as `content adopt-tenant-data`.
+        self.tenant_id = validate_tenant_id(tenant_id) if tenant_id else (
+            tenant_id_from_environment() or (site_tenant_id(self.endpoint) if site_tenant else None))
         self.header_factory = header_factory
         self.timeout_seconds = graphql_timeout_seconds()
         self._parsed_endpoint = urllib.parse.urlparse(self.endpoint)
@@ -1104,9 +1108,9 @@ class PapyrusGraphQLAuthoringClient:
         return slot
 
 
-def create_authoring_client(tenant_id: str | None = None) -> tuple[PapyrusGraphQLAuthoringClient, dict[str, Any]]:
+def create_authoring_client(tenant_id: str | None = None, *, site_tenant: bool = True) -> tuple[PapyrusGraphQLAuthoringClient, dict[str, Any]]:
     refuse_guest_auth("this command")
-    return PapyrusGraphQLAuthoringClient(tenant_id=tenant_id), {}
+    return PapyrusGraphQLAuthoringClient(tenant_id=tenant_id, site_tenant=site_tenant), {}
 
 
 def model_attachment_upload_variables(attachment: dict[str, Any]) -> dict[str, Any]:

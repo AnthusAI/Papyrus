@@ -12,3 +12,4 @@ export function staticGenerationSettings(): {
 export function redirectChatticusZod(resource: { request: string; context?: string }): void;
 export function projectionTypesSlice(projection: Record<string, unknown>): Record<string, unknown>;
 export function projectionTypesEnvironment(root: string, projectionPath?: string): Record<string, string>;
+export function engineVersionEnvironment(packageJsonPath?: string): Record<string, string>;
