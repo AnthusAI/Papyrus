@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b748e041-fa22-4983-8c5b-059c746733d1",
+  "issue_id": "PPY-0e7d05bf-df9e-4620-a164-cae1ca830b23",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T12:40:34.200Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Slack connector and console setup",
+    "description": "Outbound Slack delivery, plus console UI for an admin to connect a site to Slack through the app. Relates to the existing inbound Slack agent app. Depends on open questions 3 and 4. Creating the Slack app itself is Ryan's step.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7d8a36a2-ce77-450a-bf0a-03c9798a1102",
+    "labels": []
+  }
+}

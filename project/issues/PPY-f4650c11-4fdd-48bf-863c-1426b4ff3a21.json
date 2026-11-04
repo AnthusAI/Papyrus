@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f4650c11-4fdd-48bf-863c-1426b4ff3a21",
+  "title": "Notifications core: events, routing, preferences and delivery log",
+  "description": "The central part every app and channel uses: one event format, routing from event to people and channels, stored per-person choices, dedupe, and a record of what was sent, to whom and whether it arrived. Depends on open question 1.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8a36a2-ce77-450a-bf0a-03c9798a1102",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T12:40:33.626145Z",
+  "updated_at": "2026-11-04T12:40:33.626177Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
