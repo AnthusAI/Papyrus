@@ -1157,8 +1157,7 @@ cleanly. `papyrus-monitoring-decisions-stopped` watches for that.
   catches a shared stoppage like the one above; one monitor stopping alone while the others decide is not caught.
 - **Not counted.** A decision collected by a Decision Ready doorbell invocation (`hn`, `huggingface`, `ttab`) is not in a
   router summary line; the 2-minute `hn` collect and the hourly web passes are what the alarm counts.
-- **No notification yet.** Like the other alarms in this stack, it has no action; nobody is told when it changes state. Someone
-  must pick a destination (an SNS topic and its subscribers) before it can wake anyone; that is Ryan's choice.
+- **Notification.** It emails through the topic `papyrus-monitoring-alarms`. It is the only alarm in this stack that notifies anyone; the others have no action.
 - **When it fires.** Do not retry or reconcile by hand. Check the Cyclotron run's status (the run bound in the monitor's router
   config, `cyclotron.accountId` and `cyclotron.runId`) and read the latest router receipts for `stoppedBy`, `labBackoffUntil` and
   `errors` (Administration, Monitoring, recent runs); the router log summaries show `counts.awaiting` growing. Then hand to the
