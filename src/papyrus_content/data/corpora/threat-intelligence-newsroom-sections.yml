@@ -1,3 +1,7 @@
+# This file is the Anthus Threat Intelligence publication's section definitions, kept as the repository's
+# default for `papyrus sections import*`, `references decide-relevance` (dry run). The doctrine file is also copied into the router Lambda zip (infra/monitoring/build.py).
+# It is NOT Papyrus's, and not the doctrine of any other site. A site's live doctrine is data in its own
+# backend: read it with `papyrus --site <site> editorial context` (docs/editorial-context.md).
 schemaVersion: 1
 sections:
   - id: mission

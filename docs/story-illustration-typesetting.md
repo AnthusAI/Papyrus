@@ -1,0 +1,51 @@
+# Illustration and typesetting
+
+The two stages between copywriting and publication. This page says what each stage is, who does it, what the command line can do today, and what is not built. The reporting stage has [story-reporting.md](story-reporting.md); the whole sequence is in [story-procedure.md](story-procedure.md).
+
+## What exists
+
+Both are values of `Item.stage` (`illustration`, then `typesetting`, then `published`) and both are columns on the stories board. In [the Story procedure](story-procedure.md) each is a step marked "not built, optional". `papyrus stories next` reports them as `unknown` and never lists them as skipped, and the context pack says "(not built)" next to them. Nothing checks that either stage was done before a Story is published; publishing is the only hard gate.
+
+Nothing moves a Story into either stage by itself, and no agent or procedure works in them. An editor places a Story there by hand.
+
+## Illustration
+
+**What it should produce.** (Intent only.) The pictures a Story needs: a hero or inline image, diagram or chart, each with alt text and a credit, stored as `MediaAsset` rows and referenced from the Markus body. Where a Story was made from a Reference, a post carries the Reference's preview image as a remote, credited address; the illustration stage is the place to replace it or host a licensed copy ([reference-curation-pipeline.md](reference-curation-pipeline.md)).
+
+**Who does it.** An editor, by hand. There is no illustration agent and no image generation in the repository.
+
+**What the CLI can do today.**
+
+- Move the Story: `papyrus stories move --story LINEAGE --stage illustration [--reason "why"]`, or `stories save-version ... --stage illustration`.
+- Save pictures with a draft: `papyrus stories save-version --story LINEAGE --body-file draft.md --images ./pictures` uploads each local picture the text uses, with an optional dark version, exactly as the editor's "Insert image" does ([saving a draft with its pictures](story-reporting.md#saving-a-draft-with-its-pictures)). This is the same command at any stage; it is not specific to illustration.
+- In the newsroom editor, "Insert image" does the same by hand.
+
+**What is not built.**
+
+- Any command or agent that decides what a Story needs, makes or finds the picture, or checks rights and credit.
+- Any use of the editor review's `illustrationPlan` (below).
+- A check that alt text and credit are present.
+
+## Typesetting
+
+**What it should produce.** (Intent only; the editor review's plan fields name tables on phones, figures and pull-outs.) The reader-facing form of the copy: tables that work on a phone, figures placed, pull-outs chosen, so the Markus body renders as the editor intends before publication.
+
+**Who does it.** An editor, by hand, in the newsroom editor. Publishing follows: `papyrus ops content publish --id ITEM_ID`, which is what makes a Story live; moving a Story to `published` does not.
+
+**What the CLI can do today.**
+
+- Move the Story: `papyrus stories move --story LINEAGE --stage typesetting`, or `--advance` on `save-version` for the next stage.
+- A story-state automation can end a chain at `typesetting` ("no bot waits there"), as in the example chain in [automations.md](automations.md#story-state-triggers). That is a place to stop, not typesetting work.
+
+**What is not built.**
+
+- Any command or agent that lays out, checks or previews a Story's typesetting.
+- Any use of the editor review's `typesettingPlan`.
+
+## The editor review's two plans
+
+The optional `editor_review.tac` procedure (off on every site) records an `illustrationPlan` and a `typesettingPlan` in `Item.metadata.editorReview` on the version it reviewed. They are advice written for a person. Nothing reads them: no later step acts on them, and `stories next` ignores them. See [editor agents](editor-agents.md#editor-review-stage-bot-beta), which lists "the illustration and typesetting stages acting on the plans" as not built.
+
+## What a reporting agent should do
+
+Guide the Story to copywriting and the draft. If an editor wants illustration or typesetting, say so in the Story's agent note and leave the move and the work to the editor; do not invent a procedure. Run `papyrus stories next --story LINEAGE` for the live state of every step.

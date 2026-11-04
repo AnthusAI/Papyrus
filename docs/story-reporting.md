@@ -1,5 +1,7 @@
 # Reporting on a story: drafts, references and messages
 
+After copywriting come the illustration and typesetting stages, which have no agent or command of their own: see [story-illustration-typesetting.md](story-illustration-typesetting.md). The whole sequence is in [story-procedure.md](story-procedure.md).
+
 A story is an `Item` lineage (see `content-item-lifecycle.md`). Everything an agent or editor records while reporting
 it hangs off the story's **lineage id**. Nothing here needs a new table.
 

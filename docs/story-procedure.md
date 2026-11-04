@@ -18,6 +18,8 @@ One definition of how a Story moves through the newsroom. The command line reads
 | typesetting | typesetting | Editor | none yet | not built, optional |
 | publish | published | A person | `papyrus ops content publish --id ITEM_ID` | live |
 
+The illustration and typesetting steps are described in [story-illustration-typesetting.md](story-illustration-typesetting.md).
+
 ## Two decisions
 
 - The outline comes after the research. The editor writes it once the reporter's packet exists, and saves it with `--outline` so the draft step can tell the outline from the draft.
