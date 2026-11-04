@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { IssueCollection, IssueDetailPanel, IssueIdFormatProvider, IssueTypeFilter, issueTypeFromFilter, useBoardColumnState } from "@kanbus/ui";
 import "./newsroom-theme";
-import { PlusIcon } from "lucide-react";
 import { newsroomHref } from "../lib/newsroom-base-path";
 import {
   ASSIGNMENT_BOARD_TYPE,
@@ -32,6 +31,7 @@ import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { NewsroomBoardSkeleton } from "./newsroom-board-skeleton";
+import { NewsroomBoardHeaderActions } from "./newsroom-board-header-actions";
 import { NewsroomArticleEditor } from "./newsroom-article-editor";
 import { resolveArticlesBackend } from "../lib/newsroom-articles";
 import { StoryCardStars, useStoryCardSlots } from "./story-board-stars";
@@ -151,16 +151,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const issue = issues.find(item => item.id === selected);
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
   return <NewsroomOpsShell activeTab={subject === "contentItem" ? "articles" : subject === "desk" ? "desks" : "assignments"} appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle={pageTitle}
-    headerActions={<>
-      {!loading ? <span role="status" className="organizer-board-note">{issues.length} records loaded.</span> : null}
-      <div role="group" aria-label="Record presentation" className="organizer-board-view-toggle"><button type="button" className="organizer-header-button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" className="organizer-header-button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
-      {showsContentItems && (
-        <Link className="organizer-header-button" data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
-          <PlusIcon size={14} aria-hidden="true" />
-          {`New ${getContentItemName().singular.toLowerCase()}`}
-        </Link>
-      )}
-    </>}>
+    headerActions={<NewsroomBoardHeaderActions view={view} onViewChange={setView} recordCount={loading ? null : issues.length} showsNewContentItemLink={showsContentItems} />}>
     <IssueIdFormatProvider formatIssueId={formatNativeIssueId}>
     <div className="organizer-native-board">
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}

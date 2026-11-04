@@ -55,3 +55,9 @@ Feature: The newsroom board and generated ideas read the way an editor expects
     When the editor loads the Stories board at 375, 599, 600 and 640 pixels
     Then the loading skeleton is one stacked column below 600 pixels and three columns from 600 pixels
     And the skeleton changes shape at the same width as the board changes layout
+
+  Scenario: The phone header shows every control without scrolling
+    Given an isolated newsroom with synthetic stories
+    When the editor opens the Stories, Assignments and section boards at 375 and 390 pixels wide, and at 667 by 375, 834 and 1440
+    Then below 600 pixels every header control is inside the screen, not clipped, at least 44 pixels tall, and search is at least 120 pixels wide
+    And from 600 pixels the header keeps its size

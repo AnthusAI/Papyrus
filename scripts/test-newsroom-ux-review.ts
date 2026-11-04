@@ -52,6 +52,8 @@ import { createRoot } from "react-dom/client";
 import { useMemo, useState } from "react";
 import { IssueCollection, IssueDetailPanel, IssueIdFormatProvider, useBoardColumnState } from "@kanbus/ui";
 import { NewsroomBoardSkeleton } from "./components/newsroom-board-skeleton";
+import { NewsroomOpsShell } from "./components/newsroom-ops-shell";
+import { NewsroomBoardHeaderActions } from "./components/newsroom-board-header-actions";
 import { NewsroomArticleEditor } from "./components/newsroom-article-editor";
 import { contentItemBoardConfig, contentItemBoardType, formatNativeIssueId, projectContentItemBoard } from "./lib/newsroom-board";
 import { createLocalPreviewContentItemVersions } from "./lib/local-preview-seed";
@@ -93,7 +95,13 @@ function Board() {
     </div></IssueIdFormatProvider></main></div>
   </div>;
 }
-createRoot(document.getElementById("root")).render(<Board />);
+function HeaderShell() {
+  const board = params.get("board") ?? "stories";
+  const [view, setView] = useState("board");
+  return <NewsroomOpsShell activeTab="articles" appTitle="Papyrus" backLabel="Home" pageTitle="Stories"
+    headerActions={<NewsroomBoardHeaderActions view={view} onViewChange={setView} recordCount={9} showsNewContentItemLink={board !== "assignments"} />}><div /></NewsroomOpsShell>;
+}
+createRoot(document.getElementById("root")).render(mode === "header" ? <HeaderShell /> : <Board />);
 ` },
   }).then((result) => result.outputFiles[0].text);
   return bundle;
@@ -183,6 +191,56 @@ const scenarios: Record<string, () => Promise<void>> = {
         } else assert.ok(state.columns > 1, `${width}x${height}: columns stay`);
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }
+    }
+  },
+
+  /** Below 600 px every header control is inside the viewport and not clipped by its container, search is usable, tap targets are 44 px; from 600 px the header is unchanged. */
+  async board_phone_header() {
+    for (const board of ["stories", "assignments", "sections"]) {
+      for (const [width, height] of [[375, 812], [390, 844], [667, 375], [834, 1112], [1440, 900]] as const) {
+        const { browser, page, errors } = await setup(`?mode=header&board=${board}`, width, height, ".organizer-topbar");
+        try {
+          await page.waitForTimeout(300);
+          const report = await page.evaluate(`(() => {
+            const controls = [...document.querySelectorAll(".organizer-topbar :is(button, a, input)")].filter((element) => element.getBoundingClientRect().width > 0 && getComputedStyle(element).visibility !== "hidden");
+            const clippedBy = (element) => {
+              const box = element.getBoundingClientRect();
+              for (let parent = element.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+                const style = getComputedStyle(parent);
+                if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) {
+                  const parentBox = parent.getBoundingClientRect();
+                  if (box.left < parentBox.left - 0.5 || box.right > parentBox.right + 0.5) return true;
+                }
+              }
+              return false;
+            };
+            return {
+              controls: controls.map((element) => { const box = element.getBoundingClientRect(); return { name: element.getAttribute("aria-label") || element.textContent.trim() || element.getAttribute("placeholder") || element.tagName, left: box.left, right: box.right, height: box.height, clipped: clippedBy(element) }; }),
+              searchWidth: document.querySelector(".organizer-search input")?.getBoundingClientRect().width ?? 0,
+              newName: document.querySelector("[data-newsroom-article-new]")?.getAttribute("aria-label") ?? null,
+              headerScrolls: [...document.querySelectorAll(".organizer-topbar *")].some((element) => /(auto|scroll)/.test(getComputedStyle(element).overflowX) && element.scrollWidth > element.clientWidth + 1),
+              viewport: innerWidth,
+            };
+          })()`) as { controls: { name: string; left: number; right: number; height: number; clipped: boolean }[]; searchWidth: number; newName: string | null; headerScrolls: boolean; viewport: number };
+          const where = `${board} ${width}x${height}`;
+          if (width < 600) {
+            for (const control of report.controls) {
+              assert.ok(control.left >= 0 && control.right <= report.viewport, `${where}: ${control.name} is inside the viewport (${Math.round(control.left)}..${Math.round(control.right)})`);
+              assert.equal(control.clipped, false, `${where}: ${control.name} is not clipped by its container`);
+              assert.ok(control.height >= 44, `${where}: ${control.name} is at least 44 px tall (${control.height})`);
+            }
+            assert.equal(report.headerScrolls, false, `${where}: nothing in the header scrolls`);
+            assert.ok(report.searchWidth >= 120, `${where}: the search input is ${Math.round(report.searchWidth)} px wide`);
+            if (board !== "assignments") {
+              assert.equal(report.newName, "New story", `${where}: the new story control keeps its name`);
+              assert.ok(report.controls.some((control) => control.name === "New story"), `${where}: New story is visible`);
+            }
+          } else {
+            assert.ok(report.controls.every((control) => control.height < 44), `${where}: the header keeps its size from 600 px`);
+          }
+          assert.deepEqual(errors, []);
+        } finally { await browser.close(); }
+      }
     }
   },
 

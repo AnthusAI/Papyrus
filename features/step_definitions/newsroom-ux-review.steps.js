@@ -29,6 +29,8 @@ const behaviors = [
     ["the detail view covers the board and the same story is focused again at the same scroll position", "the collapsed section is still collapsed after the reload"]],
   ["board_skeleton_agrees", "the editor loads the Stories board at 375, 599, 600 and 640 pixels",
     ["the loading skeleton is one stacked column below 600 pixels and three columns from 600 pixels", "the skeleton changes shape at the same width as the board changes layout"]],
+  ["board_phone_header", "the editor opens the Stories, Assignments and section boards at 375 and 390 pixels wide, and at 667 by 375, 834 and 1440",
+    ["below 600 pixels every header control is inside the screen, not clipped, at least 44 pixels tall, and search is at least 120 pixels wide", "from 600 pixels the header keeps its size"]],
 ];
 
 for (const [name, action, outcomes] of behaviors) {
