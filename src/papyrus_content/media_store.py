@@ -106,6 +106,45 @@ class S3MediaStore:
             )
         return "uploaded"
 
+    def exists(self, storage_path: str) -> bool:
+        """Whether an object is stored under ``storage_path`` (a head request; any other failure is raised)."""
+        from botocore.exceptions import ClientError
+
+        try:
+            self._client.head_object(Bucket=self.bucket, Key=storage_path)
+        except ClientError as error:
+            if error.response.get("Error", {}).get("Code") in NOT_FOUND_CODES:
+                return False
+            raise
+        return True
+
+    def keys(self, prefix: str = MEDIA_KEY_PREFIX) -> list[str]:
+        found: list[str] = []
+        for page in self._client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=prefix):
+            found.extend(entry["Key"] for entry in page.get("Contents", []))
+        return sorted(found)
+
+    def copy(self, from_path: str, to_path: str) -> None:
+        """Copies one media object to another key in the bucket, content type and metadata included; the original stays."""
+        self._require_media_key(from_path)
+        self._require_media_key(to_path)
+        self._client.copy_object(Bucket=self.bucket, Key=to_path, CopySource={"Bucket": self.bucket, "Key": from_path}, MetadataDirective="COPY")
+
+    def touch(self, storage_path: str) -> None:
+        """Writes an object over itself, unchanged, so the bucket announces it again (the renditions function listens for that)."""
+        self._require_media_key(storage_path)
+        head = self._client.head_object(Bucket=self.bucket, Key=storage_path)
+        extra = {"CacheControl": head["CacheControl"]} if head.get("CacheControl") else {}
+        self._client.copy_object(
+            Bucket=self.bucket,
+            Key=storage_path,
+            CopySource={"Bucket": self.bucket, "Key": storage_path},
+            MetadataDirective="REPLACE",
+            ContentType=head.get("ContentType") or "application/octet-stream",
+            Metadata=head.get("Metadata") or {},
+            **extra,
+        )
+
     def get(self, storage_path: str, dest: Path) -> None:
         dest.parent.mkdir(parents=True, exist_ok=True)
         self._client.download_file(self.bucket, storage_path, str(dest))

@@ -26,9 +26,12 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
 from botocore.exceptions import ClientError  # noqa: E402
 from PIL import Image  # noqa: E402
 
-from papyrus_content import story_commands, story_images  # noqa: E402
+from papyrus_content import renditions_commands, story_commands, story_images  # noqa: E402
+from papyrus_content.projection import runtime  # noqa: E402
+from papyrus_content.renditions import DirectoryRenditionStore, meta_key, settings_from_mapping  # noqa: E402
+from procedures.newsroom.tests.renditions_fixtures import LEGACY_IMAGE_SETTINGS, FakeMediaBucket, load_renditions_handler, projector_with_images  # noqa: E402
 from papyrus_content.markus_import import media_id_for  # noqa: E402
-from papyrus_content.publishing import ItemFields, publish_item, save_item  # noqa: E402
+from papyrus_content.publishing import ItemFields, PublishError, publish_item, save_item  # noqa: E402
 from fake_client import FakeAuthoringClient  # noqa: E402
 
 LINEAGE = "story-hello"
@@ -44,17 +47,34 @@ class FakeS3:
     def __init__(self, credentials: dict | None):
         self.credentials = credentials
         self.puts: list[str] = []
+        self.copies: list[tuple[str, str]] = []
 
     objects: dict = {}
+    events: list = []   # the keys the bucket announced (every put and copy), which is what wakes the renditions function
 
     def head_object(self, Bucket, Key):
         if Key not in self.objects:
             raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
-        return {"Metadata": {"sha256": self.objects[Key]["sha256"]}}
+        return {"Metadata": {"sha256": self.objects[Key]["sha256"]}, "ContentType": self.objects[Key]["type"]}
 
     def put_object(self, Bucket, Key, Body, ContentType, Metadata):
         self.puts.append(Key)
+        self.events.append(Key)
         self.objects[Key] = {"bytes": Body.read(), "type": ContentType, "sha256": Metadata["sha256"]}
+
+    def copy_object(self, Bucket, Key, CopySource, MetadataDirective, **fields):
+        self.copies.append((CopySource["Key"], Key))
+        self.events.append(Key)
+        self.objects[Key] = dict(self.objects[CopySource["Key"]])
+
+    def get_paginator(self, name):
+        objects = self.objects
+
+        class Paginator:
+            def paginate(self, Bucket, Prefix):
+                yield {"Contents": [{"Key": key} for key in sorted(objects) if key.startswith(Prefix)]}
+
+        return Paginator()
 
 
 class FakeIdentity:
@@ -94,6 +114,7 @@ def step_story(context, slug):
     )
     context.client.update_record("Item", {"id": f"{LINEAGE}-v1", "lineageId": LINEAGE, "versionNumber": 1, "versionState": "current"})
     context.s3_objects = {}
+    context.s3_events = []
     context.s3_clients = []
     context.identity_record = {}
     context.lane = "iam"
@@ -166,6 +187,7 @@ def fake_boto_client(context):
         credentials = kwargs.get("aws_access_key_id")
         client = FakeS3(None if credentials is None else {"key": credentials, "token": kwargs.get("aws_session_token")})
         client.objects = context.s3_objects
+        client.events = context.s3_events
         context.s3_clients.append(client)
         return client
 
@@ -414,3 +436,204 @@ def step_session_rows(context):
 @then("no AWS credentials of the operator were used")
 def step_no_operator(context):
     assert all(client.credentials is not None for client in context.s3_clients)
+
+
+# -- tenant sites (features_backend/tenant-story-images.feature) ---------------------------------------------------
+
+TENANT_KEY = "media/machines-on-machines/assets/hello/chart.png"
+ONE_KEY = "media/assets/hello/chart.png"
+SOURCE = "assets/hello/chart.png"
+PROJECTION = {"PAPYRUS_PUBLICATION_KIND": "s3-projection"}
+
+
+@given('the story belongs to the tenant "{tenant}"')
+def step_tenant(context, tenant):
+    context.tenant = tenant
+    context.client.tenant_id = tenant
+
+
+@given("an identity pool is configured")
+def step_pool(context):
+    context.no_pool = False
+
+
+def site_directory(context) -> Path:
+    if not hasattr(context, "site_root"):
+        context.site_root = Path(tempfile.mkdtemp(prefix="tenant-site-"))
+        context.tmp_dirs.append(str(context.site_root))
+        (context.site_root / "static").mkdir()
+        (context.site_root / "store").mkdir()
+    return context.site_root
+
+
+@given("the story's picture was saved under the old tenant key")
+def step_old_key(context):
+    run_save(context)
+    objects = context.s3_objects
+    objects[TENANT_KEY] = objects.pop(ONE_KEY)
+    context.s3_events.clear()
+    for row in media_rows(context, new_version(context)["id"]):
+        context.client.update_record("MediaAsset", {"id": row["id"], "storagePath": TENANT_KEY})
+
+
+@given("the old file is gone from the bucket")
+def step_old_gone(context):
+    context.s3_objects.pop(TENANT_KEY)
+
+
+@then('the only stored file is "{key}"')
+def step_only_file(context, key):
+    assert sorted(context.s3_objects) == [key], sorted(context.s3_objects)
+
+
+@then('the media row for "{src}" is stored at "{key}"')
+def step_row_key(context, src, key):
+    rows = [r for r in media_rows(context, new_version(context)["id"]) if json.loads(r["metadata"])["srcPath"] == src]
+    assert [r["storagePath"] for r in rows] == [key], rows
+
+
+@when("the bucket announces the stored pictures to the site's image function")
+def step_announce(context):
+    root = site_directory(context)
+    handler = load_renditions_handler()
+    settings = settings_from_mapping(LEGACY_IMAGE_SETTINGS)
+    handler._loaded["settings"] = settings
+    handler._loaded["store"] = DirectoryRenditionStore(root / "store")
+    handler._loaded["prefixed"] = handler._loaded["store"]
+    bucket = FakeMediaBucket({key: obj["bytes"] for key, obj in context.s3_objects.items()})
+    handler._loaded["s3"] = bucket
+    context.rendition_results = [
+        handler.render_media_object(settings, "media-bucket", key) for key in sorted(set(context.s3_events))
+    ]
+    context.s3_events.clear()
+
+
+@then('the renditions exist for "{source}"')
+def step_renditions_exist(context, source):
+    store = DirectoryRenditionStore(site_directory(context) / "store")
+    assert store.get(meta_key(settings_from_mapping(LEGACY_IMAGE_SETTINGS).pipeline, source)) is not None, context.rendition_results
+
+
+def preflight(context):
+    root = site_directory(context)
+    projector = projector_with_images(root / "static", LEGACY_IMAGE_SETTINGS, DirectoryRenditionStore(root / "store"))
+    row = new_version(context)
+    with mock.patch.object(runtime, "load_projector", lambda environ=None, **kw: projector):
+        runtime.render_preflight(context.client, row["id"], PROJECTION)
+
+
+@then("the publish check of the new version passes")
+def step_preflight_passes(context):
+    preflight(context)
+
+
+@then("the publish check of the new version is refused before anything is written")
+def step_preflight_refused(context):
+    context.refusal = None
+    try:
+        preflight(context)
+    except PublishError as error:
+        context.refusal = error
+    assert context.refusal is not None and context.refusal.code == "page-not-renderable"
+
+
+@then('the refusal names "{source}", "{key}" and "{command}"')
+def step_refusal_names(context, source, key, command):
+    message = context.refusal.message
+    assert source in message and key in message and command in message, message
+
+
+def run_command(context, command, flags, extra_environment=None):
+    environment = {
+        "PAPYRUS_GRAPHQL_AUTH": "user",
+        "PAPYRUS_MEDIA_BUCKET": "media-bucket",
+        "PAPYRUS_IDENTITY_POOL_ID": POOL,
+        "PAPYRUS_TENANT_ID": context.tenant,
+    }
+    environment.update(extra_environment or {})
+    output = io.StringIO()
+    context.exit_code = 0
+    context.puts_before = put_count(context)
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch.dict(os.environ, environment))
+        stack.enter_context(mock.patch.object(story_commands, "create_authoring_client", lambda: (context.client, {})))
+        stack.enter_context(mock.patch("boto3.client", fake_boto_client(context)))
+        stack.enter_context(mock.patch.object(story_images, "user_identity", lambda: (ID_TOKEN, ISSUER)))
+        stack.enter_context(mock.patch("papyrus_content.env.amplify_outputs_path", lambda: Path(context.tmp) / "none.json"))
+        stack.enter_context(contextlib.redirect_stdout(output))
+        try:
+            command(flags)
+        except SystemExit as exit_request:
+            context.exit_code = exit_request.code
+    context.command_output = output.getvalue()
+
+
+def put_count(context):
+    return sum(len(client.puts) for client in context.s3_clients)
+
+
+@when("the repair is planned")
+def step_repair_plan(context):
+    context.before = (dict(context.s3_objects), json.dumps(context.client.tables["MediaAsset"], sort_keys=True))
+    run_command(context, story_commands.stories_repair_image_paths, ["--story", "story-hello"])
+
+
+@when("the repair is written")
+def step_repair_write(context):
+    run_command(context, story_commands.stories_repair_image_paths, ["--story", "story-hello", "--write"])
+
+
+@then('the plan copies "{old}" to "{new}"')
+def step_plan_copies(context, old, new):
+    assert f"\tobject\t{old}\t->\t{new}" in context.command_output, context.command_output
+
+
+@then("nothing was changed by the repair")
+def step_nothing_changed(context):
+    objects, rows = context.before
+    assert objects == context.s3_objects and rows == json.dumps(context.client.tables["MediaAsset"], sort_keys=True)
+    assert "dry run" in context.command_output
+
+
+@then('the story\'s media rows point at "{key}"')
+@then('the story\'s media rows still point at "{key}"')
+def step_rows_point(context, key):
+    rows = context.client.tables["MediaAsset"].values()
+    assert rows and {row["storagePath"] for row in rows} == {key}, [row["storagePath"] for row in rows]
+
+
+@then("both the old and the new file are stored")
+def step_both(context):
+    assert {TENANT_KEY, ONE_KEY} <= set(context.s3_objects)
+
+
+@then("no file was uploaded again")
+def step_no_upload(context):
+    assert put_count(context) == context.puts_before, context.command_output
+
+
+@then('the repair fails naming "{key}"')
+def step_repair_fails(context, key):
+    assert context.exit_code == 1 and key in context.command_output, (context.exit_code, context.command_output)
+
+
+@then("the repair says there is nothing to repair")
+def step_nothing_to_repair(context):
+    assert "nothing to repair" in context.command_output, context.command_output
+
+
+@when('renditions are requested for "{source}" by the signed-in editor')
+def step_request(context, source):
+    context.s3_events.clear()
+    run_command(context, renditions_commands.content_renditions, ["--source", source], {"PAPYRUS_MEDIA_BUCKET": "media-bucket"})
+
+
+@then("the request succeeds and the file was announced again")
+def step_request_ok(context):
+    assert context.exit_code == 0, context.command_output
+    assert context.s3_events == [ONE_KEY], context.s3_events
+
+
+@then('the request fails naming "{key}" and "{command}"')
+def step_request_fails(context, key, command):
+    assert context.exit_code == 1 and key in context.command_output and command in context.command_output, context.command_output

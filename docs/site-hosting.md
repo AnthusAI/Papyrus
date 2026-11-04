@@ -1020,7 +1020,7 @@ Run these with the site's credentials (the authoring role or an SSO profile) and
 | Render to a local directory instead of S3 | `papyrus ops content project --all --out DIR --static-dir DIR` | Parity checks against another build, local diff before a deploy |
 | Make image renditions for existing media | `papyrus ops content renditions --backfill --dry-run`, then `--backfill` | After enabling `images` in `projection.json` |
 | Copy media originals to the site bucket | `papyrus ops content renditions --backfill --originals` | Sites with `"media": { "originals": true }` |
-| Redo one image | `papyrus ops content renditions --source <srcPath>` | After the pipeline settings change for it |
+| Redo one image | `papyrus ops content renditions --source <srcPath>` | After the pipeline settings change for it, or when a publish says its renditions are missing. Signed in it needs no AWS login (it rewrites the stored picture to wake the site's image function) |
 
 `project --all` also uploads the site's static files (CSS, scripts, robots, 404 page) and the redirect entries. After a backend deploy that changes the projector or the theme, run `project --all` once; until then pages keep the previous chrome. With `reprojectOnDeploy: true` the deploy does this itself, with no personal credentials (below). A full run of the Anth.us site (230 files and 520 redirects) took 77 seconds.
 

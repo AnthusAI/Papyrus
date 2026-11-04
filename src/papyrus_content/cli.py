@@ -358,6 +358,7 @@ PORTED_COMMANDS = frozenset(
         "stories:fire-triggers",
         "stories:assign-research",
         "stories:repair-versions",
+        "stories:repair-image-paths",
         "stories:set-slug",
         "assignments:backfill-content-items",
         "assignments:demote-undrafted-content-items",
@@ -821,6 +822,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_set_slug
 
         stories_set_slug(flags)
+    elif route == "stories:repair-image-paths":
+        from .story_commands import stories_repair_image_paths
+
+        stories_repair_image_paths(flags)
     elif route == "stories:repair-versions":
         from .story_commands import stories_repair_versions
 
@@ -1860,7 +1865,7 @@ def print_usage() -> None:
     print("  content export-published --out DIR [--tenant ID] [--drafts] [--clean] [--allow-empty] [--bucket B] [--auth guest] [--json],")
     print("  content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json],")
     print("  content project (--all | --listings | --item-pages | --reconcile [--dry-run] [--only SITE_RELATIVE_PREFIX] [--amplify-outputs PATH] | --item <item-id> [--unpublished] | --unpublished-items FILE (a JSON list of source item ids: take their pages off the site in one pass)) [--from-dir CONTENT_DIR (with --all and --out: read Markdown files, no CMS)] [--out DIR] [--static-dir DIR] [--knowledge-dir DIR (read the knowledge snapshot from DIR, not the site store)] [--allow-deletions (let --all or --reconcile delete a large share of the site's pages, or the pages of a published item)] [--bucket B] [--json],")
-    print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json],")
+    print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json]  (signed in with `papyrus login` and no --function-name it needs no AWS login: it asks the site's image function through the editor's own bucket access),")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
