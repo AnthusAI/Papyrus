@@ -252,7 +252,7 @@ def test_template_inventory(template):
         "AWS::SQS::Queue", "AWS::Scheduler::Schedule", "AWS::CloudWatch::Alarm", "AWS::Lambda::EventInvokeConfig",
         "AWS::SSM::Parameter", "AWS::IAM::ManagedPolicy", "AWS::Events::EventBus", "AWS::Events::EventBusPolicy",
         "AWS::Events::Rule", "AWS::Lambda::Permission", "AWS::SQS::QueuePolicy", "AWS::S3::Bucket",
-        "AWS::Logs::MetricFilter"}
+        "AWS::Logs::MetricFilter", "AWS::SNS::Topic", "AWS::SNS::Subscription"}
 
 
 def test_template_runs_the_ttab_monitor_daily_and_routes_it_hourly(template):

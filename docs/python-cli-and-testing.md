@@ -129,7 +129,7 @@ poetry run papyrus ops corpora status --config corpora/papyrus-steering.yml --co
 poetry run papyrus ops corpora sync-from-cloud --config corpora/papyrus-steering.yml --corpus-key <key> --dry-run
 poetry run papyrus ops corpora sync-to-cloud --config corpora/papyrus-steering.yml --corpus-key <key> --dry-run
 poetry run papyrus ops categories import-config --config corpora/papyrus-steering.yml
-poetry run papyrus sections import --config corpora/papyrus-newsroom-sections.yml
+poetry run papyrus sections import --config corpora/example-newsroom-sections.yml
 poetry run papyrus ops categories import-steering --config corpora/papyrus-steering.yml --corpus-key <key>
 poetry run papyrus assignments research-packets --assignment <assignment-id>
 poetry run papyrus knowledge signals trend-report --corpus-key <key> --topic "<topic>" --sections culture,methods --json

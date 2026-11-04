@@ -1,0 +1,27 @@
+{
+  "id": "PPY-17cf096a-4bb0-430b-bf1d-0a5d502b35d5",
+  "title": "Newsroom admin panel: notification settings for a site",
+  "description": "**Milestone:** M3, public email and new stories\n\n**Goal.** As a site admin, I see who subscribes, choose automatic sending or approval, approve held stories, send a test and read delivery history.\n\n**Build.**\n- Administration, panel label `Notifications`, `components/notifications-panel.tsx`, `lib/notifications-client.ts`, `?demo=1` fixture marked Sample, in the shape of `components/newsletter-panel.tsx`: reloads after actions, no realtime.\n- Custom operations through a thin function; AppSync admits editor and admin, the function checks again. Accept and Reject vocabulary. Connections section appears for Slack and Discord when live: labelled placeholder until then, dimmed with a word.\n- Addresses masked for editors. 'Account', never another word for the tenant.\n- Screenshot review with Ryan.\n\n**Acceptance.**\nRyan's screenshot approval; every action covered by a Gherkin scenario.\n\n**Depends on:** PPY-44721a\n**Related:** kanbus-c68e03, kanbus-b47fad\n\n**Specification.**\n```gherkin\nFeature: Site notification settings\n  Scenario: Choosing approval\n    Given a site admin\n    When they choose approval for new-story sends\n    Then the next publish waits for an Accept\n\n  Scenario: Send a test\n    When an editor presses Send a test\n    Then one message goes to their own address and shows in history\n\n  Scenario: An editor reads history\n    When an editor reads delivery history\n    Then addresses are masked\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m3"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-44721afe-c320-47fd-96cf-1e227300b170",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-04T13:14:30.700602Z",
+  "updated_at": "2026-11-04T13:14:33.058571Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

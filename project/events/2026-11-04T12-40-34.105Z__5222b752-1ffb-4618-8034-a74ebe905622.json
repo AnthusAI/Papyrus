@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "5222b752-1ffb-4618-8034-a74ebe905622",
+  "issue_id": "PPY-7b45314d-d78d-4389-b3fb-aadbc594764e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T12:40:34.105Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "App notifications: new-story and other Papyrus events",
+    "description": "Application events from Papyrus, starting with a new Story being published. Any person can subscribe on any supported channel. Covers the overlap with the newsletter plugin's alert lists; depends on open question 8.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7d8a36a2-ce77-450a-bf0a-03c9798a1102",
+    "labels": []
+  }
+}

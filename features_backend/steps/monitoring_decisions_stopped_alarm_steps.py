@@ -1,6 +1,7 @@
 """Steps for monitoring-decisions-stopped-alarm.feature: the CloudFormation template is read as data, and the alarm's rule is applied
 to hourly totals by the same periods and datapoints the template declares (the expression itself is checked as text)."""
 from pathlib import Path
+import re
 
 from behave import given, then, when
 import yaml
@@ -32,6 +33,28 @@ def step_template(context):
     context.resources = load_template()
 
 
+@then("every alarm in the stack notifies the one alarm topic")
+def step_notifies(context):
+    alarms = [r["Properties"] for r in context.resources.values() if r["Type"] == "AWS::CloudWatch::Alarm"]
+    assert len(alarms) == 5 and all(len(a["AlarmActions"]) == 1 for a in alarms)
+    assert TEMPLATE.read_text().count("- !Ref AlarmTopic") == len(alarms)
+    assert context.resources["AlarmTopic"]["Type"] == "AWS::SNS::Topic"
+
+
+@then("that topic has one subscription, by email, to an address read from an SSM parameter")
+def step_subscription(context):
+    subscriptions = [r for r in context.resources.values() if r["Type"] == "AWS::SNS::Subscription"]
+    assert len(subscriptions) == 1 and subscriptions[0]["Properties"]["Protocol"] == "email"
+    text = TEMPLATE.read_text()
+    assert "Endpoint: !Ref AlarmEmailParameter" in text
+    assert "AlarmEmailParameter:\n    Type: AWS::SSM::Parameter::Value<String>" in text
+
+
+@then("the template contains no email address")
+def step_no_address(context):
+    assert not re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", TEMPLATE.read_text())
+
+
 @then('a metric filter on the router log group makes "{metric}" from "{field}" in the "{namespace}" namespace')
 def step_filter(context, metric, field, namespace):
     props = filter_for(context, metric)
@@ -52,7 +75,6 @@ def step_alarm(context, name):
     assert by_id["decided"]["MetricStat"]["Period"] == by_id["awaiting"]["MetricStat"]["Period"] == 3600
     assert props["EvaluationPeriods"] == props["DatapointsToAlarm"] == 2
     assert props["Threshold"] == 1 and props["ComparisonOperator"] == "GreaterThanOrEqualToThreshold"
-    assert "AlarmActions" not in props   # no notification destination exists yet; the docs say so
 
 
 @then("missing data does not breach the alarm")

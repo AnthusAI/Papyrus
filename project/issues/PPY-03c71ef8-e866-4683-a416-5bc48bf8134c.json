@@ -1,0 +1,22 @@
+{
+  "id": "PPY-03c71ef8-e866-4683-a416-5bc48bf8134c",
+  "title": "email_render calls the shared renderer package",
+  "description": "**Milestone:** M3, public email and new stories\n\n**Goal.** Papyrus keeps Markus conversion and hands an HTML fragment to `caducus-email-render`, so there is one renderer.\n\n**Build.**\n`src/papyrus_content/email_render/` becomes a thin wrapper with the same public names; `poetry` dependency added; `amplify/plugins/newsletter/function/requirements.txt` checked. No output change.\n\n**Acceptance.**\n`email_render_test.py` passes unchanged, including the test pinning an unbranded theme's markup.\n\n**Related:** kanbus-67de8f",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m3"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T13:14:30.203674Z",
+  "updated_at": "2026-11-04T13:14:30.203698Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

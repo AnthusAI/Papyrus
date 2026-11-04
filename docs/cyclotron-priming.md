@@ -118,7 +118,7 @@ poetry run papyrus references decide-relevance --apply --doctrine <path>    # de
 ```
 
 > **Always name the doctrine with `--apply`.** `--doctrine` defaults to
-> `corpora/papyrus-publication-doctrine.yml`, which in this repository is the
+> `corpora/example-publication-doctrine.yml`, which in this repository is the
 > Threat Intelligence doctrine. A sweep for any other site that fell back to it
 > would seed that site's new cyclotron store with Threat Intelligence's mission
 > (this happened to p.apyr.us). So `--apply` refuses to run without an explicit
@@ -735,7 +735,7 @@ relevance sweep (see "Run the sweep"); the dry run prints the doctrine it would 
 
 `--sections-file` defaults to `corpora/<publication>-newsroom-sections.yml`, the
 publication named by the `--config` file (`papyrus-steering.yml` gives
-`papyrus-newsroom-sections.yml`).
+`example-newsroom-sections.yml`).
 
 ### Per tenant
 

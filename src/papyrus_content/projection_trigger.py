@@ -14,15 +14,38 @@ PROJECT_ALL_COMMAND = "papyrus ops content project --all"
 SKIP_LINE = f"projection skipped (--no-trigger); run `{PROJECT_ALL_COMMAND}` later to project the published pages"
 
 
-def site_publication() -> dict[str, Any]:
-    """The ``custom.publication`` output of the site's amplify_outputs.json (kind and content-actions function), or ``{}``."""
-    from .env import load_amplify_outputs
+def _selected_outputs() -> dict | None:
+    """The site's amplify_outputs.json when there is one and it belongs to the site chosen; None otherwise (never another site's file)."""
+    from .env import load_amplify_outputs, outputs_belong_to_selection
 
     try:
-        publication = (load_amplify_outputs().get("custom") or {}).get("publication")
+        outputs = load_amplify_outputs()
     except (ValueError, OSError):
-        return {}
+        return None
+    return outputs if outputs_belong_to_selection(outputs) else None
+
+
+def site_publication() -> dict[str, Any]:
+    """The ``custom.publication`` output of the site's amplify_outputs.json (kind and content-actions function), or ``{}``."""
+    outputs = _selected_outputs()
+    publication = (outputs.get("custom") or {}).get("publication") if outputs else None
     return publication if isinstance(publication, dict) else {}
+
+
+def projection_unknown() -> bool:
+    """True on the signed-in lane when nothing says whether the site projects its pages: no environment override and no
+    amplify_outputs.json of the chosen site (the signed-in CLI needs no such file). The newsroom's own publish mutation knows,
+    and does nothing for a site that does not project, so the signed-in lane asks it instead of silently skipping the page."""
+    from .user_auth_mode import user_auth_requested
+
+    if (os.environ.get(PUBLICATION_KIND_ENV) or "").strip():
+        return False
+    return user_auth_requested() and _selected_outputs() is None
+
+
+def projection_requested() -> bool:
+    """Whether a publish should ask for the page to be projected: the site is known to project, or this lane cannot tell."""
+    return projection_enabled() or projection_unknown()
 
 
 def projection_enabled() -> bool:

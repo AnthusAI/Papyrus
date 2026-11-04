@@ -490,9 +490,9 @@ as `pending`, so unscreened HN items never flood a queue.
 | DynamoDB table (auto-named) | On-demand, encrypted, point-in-time recovery, `Retain` on delete and replace |
 | Lambda `papyrus-monitoring-collector` | Python 3.13, arm64, 256 MB, 120 s, reserved concurrency 1 when the account quota allows (parameter `ReservedConcurrency`; 0 leaves it unreserved), logs kept 30 days |
 | Schedule `papyrus-monitoring-hn-collect` | EventBridge Scheduler `rate(15 minutes)`, no flexible window, 3 retries, SQS dead-letter queue |
-| Alarm `papyrus-monitoring-collector-errors` | Lambda `Errors` >= 1 in 15 minutes (no notification action yet) |
-| Alarm `papyrus-monitoring-search-provider-failing` | the collector logged `{"monitor": "search_provider_failing", "provider", "kind": "auth" or "plan_exhausted"}` (a web-search provider refusing its key or out of plan, such as Tavily 432 or Perplexity 401) at least once in a day; metric `Papyrus/Monitoring` `SearchProviderFailing` from a metric filter on the collector log group (no notification action yet) |
-| Alarm `papyrus-monitoring-decisions-stopped` | no Cyclotron decision for two hours in a row while items are waiting (no notification action yet). Metric filters on the router log group make `Papyrus/Monitoring` `RouterDecided` (the pass's `counts.decided`) and `RouterAwaiting` (its `counts.awaiting`); the alarm is the metric-math `IF(decided == 0 AND awaiting > 0, 1, 0)` over hourly Sum and Maximum, 2 of 2 hours, summed across all monitors. Missing data is not breaching. See [Decisions stopped](#decisions-stopped-alarm) |
+| Alarm `papyrus-monitoring-collector-errors` | Lambda `Errors` >= 1 in 15 minutes |
+| Alarm `papyrus-monitoring-search-provider-failing` | the collector logged `{"monitor": "search_provider_failing", "provider", "kind": "auth" or "plan_exhausted"}` (a web-search provider refusing its key or out of plan, such as Tavily 432 or Perplexity 401) at least once in a day; metric `Papyrus/Monitoring` `SearchProviderFailing` from a metric filter on the collector log group |
+| Alarm `papyrus-monitoring-decisions-stopped` | no Cyclotron decision for two hours in a row while items are waiting. Every alarm in this stack emails through the topic `papyrus-monitoring-alarms`, to the address in the SSM parameter the `AlarmEmailParameter` stack parameter names (the address is never in the repository; a new subscription must be confirmed from the email AWS sends). Metric filters on the router log group make `Papyrus/Monitoring` `RouterDecided` (the pass's `counts.decided`) and `RouterAwaiting` (its `counts.awaiting`); the alarm is the metric-math `IF(decided == 0 AND awaiting > 0, 1, 0)` over hourly Sum and Maximum, 2 of 2 hours, summed across all monitors. Missing data is not breaching. See [Decisions stopped](#decisions-stopped-alarm) |
 | Roles | Collector: this table and its own log group only. Schedule: invoke this function, send to its DLQ |
 
 Code: `src/papyrus_content/monitoring_cloud.py` (stdlib and boto3 plus the existing
@@ -661,6 +661,12 @@ request the current config would build) is discarded and the story is posted aga
 as a new idempotent request. A 404 on a stored job is handled the same way, once: the job is discarded and
 re-posted in the same run. If the re-post's poll also answers 404 that one story ends as `error` and the sweep
 carries on; a single story's 404 never stops the run. Every other refusal behaves as before.
+
+A job the lab ended as failed, or reconciled as failed, gives no reason, and the usual one is the lab's own storage.
+It is re-posted once in the same run. If the re-post fails too, the story is not ended: it stays `collected` and backs
+off like any other non-permanent refusal (15 minutes doubling up to a day, `nextAttemptAt`, `lastRefusal`), then is
+posted under a new request id. A job with a refusal code keeps that code's meaning, so `source_refused` still ends the
+story as `refused`.
 
 ### Post first, then collect
 
@@ -1151,8 +1157,7 @@ cleanly. `papyrus-monitoring-decisions-stopped` watches for that.
   catches a shared stoppage like the one above; one monitor stopping alone while the others decide is not caught.
 - **Not counted.** A decision collected by a Decision Ready doorbell invocation (`hn`, `huggingface`, `ttab`) is not in a
   router summary line; the 2-minute `hn` collect and the hourly web passes are what the alarm counts.
-- **No notification yet.** Like the other alarms in this stack, it has no action; nobody is told when it changes state. Someone
-  must pick a destination (an SNS topic and its subscribers) before it can wake anyone; that is Ryan's choice.
+- **Notification.** It emails through the topic `papyrus-monitoring-alarms`, like every alarm in this stack.
 - **When it fires.** Do not retry or reconcile by hand. Check the Cyclotron run's status (the run bound in the monitor's router
   config, `cyclotron.accountId` and `cyclotron.runId`) and read the latest router receipts for `stoppedBy`, `labBackoffUntil` and
   `errors` (Administration, Monitoring, recent runs); the router log summaries show `counts.awaiting` growing. Then hand to the

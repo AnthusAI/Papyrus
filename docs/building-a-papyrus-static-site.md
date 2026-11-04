@@ -664,6 +664,26 @@ Why client-side: the projection runs in a Python Lambda with no browser, so buil
 browser into it. Drawing in the reader's browser keeps the projection unchanged, keeps the source in the page, and costs
 nothing on pages without a diagram.
 
+## Equations
+
+Equations need no setting and no script. A fenced block whose info string is `math` is a display equation, and a code span with a
+dollar sign on each side, ``$`m / 2^k`$``, is an inline one:
+
+````markdown
+At most $`m / 2^k`$ of the guesses succeed:
+
+```math
+\Pr[\text{guess}] \le m / 2^k
+```
+````
+
+The projector converts the TeX to MathML while it builds the page (`latex2mathml`, a base dependency of `papyrus-newsroom`), so
+the page loads no library and no font, the text follows the page colour in light and dark, and the browser's own MathML support
+does the layout. A bare `$` is never math, so prices are safe. TeX that cannot be converted stays on the page as code, and saving
+the Story warns. The Markdown twin and `llms-full.txt` keep the TeX source; email shows it as code. Syntax, supported TeX and the
+safety rules are in [markus-content-markup.md](markus-content-markup.md#equations). Any deployment that builds pages from
+Markus (renditions, content-actions) must install `latex2mathml`; the Amplify `requirements.txt` files list it.
+
 ## Page actions
 
 Article pages (entries of a listed type that have a Markdown twin) get a small actions group, on by default, above the

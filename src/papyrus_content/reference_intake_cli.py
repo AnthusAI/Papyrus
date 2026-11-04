@@ -38,13 +38,30 @@ def register_pending_catalog(client, options: dict, *, apply: bool) -> None:
     if not apply:
         print("references\tcreate-from-catalog\tapply\tno (preview only; server authorization and deduplication not executed)")
         return
-    for offset in range(0, len(items), 20):
-        result = client.graphql(MUTATION, {"input": json.dumps({
-            "publicationEndpoint": client.endpoint, "corpusId": knowledge_corpus_id(corpus),
-            "items": items[offset:offset + 20],
-        })}).get("intakePendingReferences")
-        if isinstance(result, str):
-            result = json.loads(result)
-        if not isinstance(result, dict) or result.get("ok") is not True:
-            raise ValueError(f"Pending Reference intake rejected: {json.dumps(result)}")
-        print(json.dumps(result, sort_keys=True))
+    # One source per request: the server takes up to 20, but one source takes 6 to 12 seconds, so a batch can
+    # outlast the client's read timeout and leave the outcome unknown (PPY-856536). The server derives each
+    # Reference id from the canonical URL, so repeating any request returns the same record.
+    failed = []
+    total = len(items)
+    for number, item in enumerate(items, start=1):
+        label = f"{number}/{total}\t{item['source_uri']}"
+        try:
+            result = client.graphql(MUTATION, {"input": json.dumps({
+                "publicationEndpoint": client.endpoint, "corpusId": knowledge_corpus_id(corpus), "items": [item],
+            })}).get("intakePendingReferences")
+            if isinstance(result, str):
+                result = json.loads(result)
+            if not isinstance(result, dict) or result.get("ok") is not True:
+                raise ValueError(f"rejected: {json.dumps(result)}")
+        except Exception as error:  # noqa: BLE001 - every failure is reported per item, then the run continues
+            failed.append(item["source_uri"])
+            print(f"references\tcreate-from-catalog\tfailed\t{label}\t{' '.join(str(error).split())[:300]}", flush=True)
+            continue
+        for reference in result.get("references") or [{}]:
+            print(f"references\tcreate-from-catalog\trecorded\t{label}\t{reference.get('id') or '-'}\t{reference.get('curationStatus') or '-'}", flush=True)
+    print(f"references\tcreate-from-catalog\tsummary\tconfirmed={total - len(failed)}\tnot-confirmed={len(failed)}", flush=True)
+    if failed:
+        raise ValueError(
+            f"{len(failed)} of {total} sources were not confirmed (a timeout leaves the outcome unknown). Run the same command again: "
+            "a source already recorded is returned unchanged and is not recurated."
+        )

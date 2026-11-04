@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from papyrus_content.publication import normalize_corpus_key
+
 from ..config import OperatorConfig, parse_operator_flags, resolve_default_corpus_key
 from ..errors import OperatorError
 from ..output import format_meta_line, print_reference_detail, print_tabular
@@ -18,7 +20,7 @@ def run_references_list(config: OperatorConfig, flags: list[str]) -> int:
   limit = int(options.get("limit") or 25)
   status = str(options.get("status") or "")
   order = str(options.get("order") or "newest")
-  corpus_key = str(options.get("corpus-key") or resolve_default_corpus_key(active_config))
+  corpus_key = normalize_corpus_key(str(options.get("corpus-key") or resolve_default_corpus_key(active_config)))
 
   rows = backend.list_references(corpus_key=corpus_key, limit=limit, status=status, order=order)
   print(format_meta_line(backend=backend_name, corpusKey=corpus_key))
@@ -32,7 +34,8 @@ def run_references_show(config: OperatorConfig, flags: list[str]) -> int:
     raise OperatorError("papyrus references show requires <reference-id>")
   active_config = _with_overrides(config, options)
   backend = create_backend(active_config)
-  row = backend.show_reference(positionals[0])
+  corpus_key = normalize_corpus_key(str(options["corpus-key"])) if options.get("corpus-key") else None
+  row = backend.show_reference(positionals[0], corpus_key)
   print_reference_detail(row)
   return 0
 
@@ -91,6 +94,8 @@ def run_references_register(config: OperatorConfig, flags: list[str]) -> int:
 def accepted_flags_for(command: str) -> set[str]:
   if command == "papyrus references list":
     return {"--limit", "--status", "--order", "--corpus-key", "--backend"}
+  if command == "papyrus references show":
+    return {"--corpus-key", "--backend"}
   if command == "papyrus references register":
     return {"--url", "--title", "--status", "--why", "--story", "--corpus-key", "--backend", "--id"}
   if command == "papyrus assignments list":

@@ -10,9 +10,17 @@
   "parent": "PPY-fee541a7-e6df-4799-ba19-f85a697dd8d2",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "dd29b9ed-2d0d-4c0a-9f56-879546120aa5",
+      "author": "home",
+      "text": "Papyrus 5.84.0 is live on Pilobolus (AnthusAI/Pilobol.us#155, Amplify job 98 succeeded, 2026-11-04), so this check can run at newsroom.pilobol.us. The other sites stay on 5.73.0 until this works, per the site bump batching rule.",
+      "created_at": "2026-11-04T12:27:37.801908Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T08:40:46.929431Z",
-  "updated_at": "2026-11-04T08:40:46.929458Z",
+  "updated_at": "2026-11-04T12:27:37.802553Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -22,7 +22,7 @@ export type PublicPlaceholderTopic = {
   rank: number;
 };
 
-const NEWSROOM_SECTIONS_CONFIG_PATH = path.join(process.cwd(), "corpora", "papyrus-newsroom-sections.yml");
+const NEWSROOM_SECTIONS_CONFIG_PATH = path.join(process.cwd(), "corpora", "example-newsroom-sections.yml");
 const PUBLIC_TOPICS_CONFIG_PATH = path.join(process.cwd(), "corpora", "papyrus-public-topics.yml");
 
 export function loadPublicPlaceholderSections(): PublicPlaceholderSection[] {

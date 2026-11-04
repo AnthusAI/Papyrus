@@ -75,3 +75,27 @@ Feature: Publication-scoped pending Reference intake
     And the backend carries a tenant and declares that it serves a single publication
     When intake is requested with a reader role
     Then no intake data is written
+
+  Scenario: A catalog from the command line is sent one source at a time and reported as it goes
+    A source takes 6 to 12 seconds on the server, so a whole batch in one request can outlast the
+    client's read timeout and leave nobody knowing which sources were recorded.
+    Given a catalog file of 31 sources and a signed-in editor session
+    When the editor runs references create-from-catalog
+    Then the command sent 31 requests of one source each, in catalog order
+    And it printed one recorded line per source, numbered "1/31" to "31/31"
+    And it ended with a summary of 31 confirmed and 0 not confirmed
+
+  Scenario: One source that times out is reported and the rest are still sent
+    Given a catalog file of 3 sources and a signed-in editor session
+    And the second request times out
+    When the editor runs references create-from-catalog
+    Then the command sent 3 requests of one source each, in catalog order
+    And it printed a failed line for "2/3" naming the source
+    And it ended with a summary of 2 confirmed and 1 not confirmed
+    And the command failed telling the editor to run the same command again
+
+  Scenario: Running the same catalog again returns the same records
+    Given a catalog file of 3 sources and a signed-in editor session
+    When the editor runs references create-from-catalog twice
+    Then both runs recorded the same Reference ids
+

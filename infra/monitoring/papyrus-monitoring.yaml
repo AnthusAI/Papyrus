@@ -164,6 +164,11 @@ Parameters:
     Default: ""
     Description: Exact Cognito pools for configured publications where email sender membership is rechecked.
 
+  AlarmEmailParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /papyrus/shipped/knowledge-run/alarm-email
+    Description: SSM parameter holding the address alarm email goes to, the same mailbox as the knowledge runs. Never in the repository.
+
   EmailReferenceMonitorId:
     Type: String
     Default: ""
@@ -545,6 +550,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   SearchProviderFailingMetricFilter:
     Type: AWS::Logs::MetricFilter
@@ -574,6 +581,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   RouterLogGroup:
     Type: AWS::Logs::LogGroup
@@ -2289,6 +2298,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   RouterDeadLetterAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -2305,6 +2316,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   RouterDecidedMetricFilter:
     Type: AWS::Logs::MetricFilter
@@ -2357,6 +2370,20 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: papyrus-monitoring-alarms
+
+  AlarmEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: !Ref AlarmEmailParameter
 
   TableNameParameter:
     Type: AWS::SSM::Parameter

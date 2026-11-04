@@ -54,3 +54,15 @@ def extract_pages(data: bytes, first_page: int = 1, last_page: int = 0) -> tuple
     page_count = len(reader.pages)
     end = page_count if last_page <= 0 else min(last_page, page_count)
     return page_count, [{"page": number, "text": reader.pages[number - 1].extract_text() or ""} for number in range(max(first_page, 1), end + 1)]
+
+
+def metadata_title(data: bytes) -> str | None:
+    """The title in a PDF's metadata, or None. Never raises. Callers decide whether it is a usable title (a Word export often leaves a file name there)."""
+    try:
+        from pypdf import PdfReader
+
+        metadata = PdfReader(io.BytesIO(data)).metadata
+        title = metadata.title if metadata else None
+    except Exception:  # noqa: BLE001 - a file that will not parse has no metadata
+        return None
+    return " ".join(str(title).split()) if title else None

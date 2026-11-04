@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .citations import CitationCollector, CitationError, CitationRendering
+from .equations import equation_problems
 from .content_markup import ContentMarkupError, prepare_page, read_citation_entries
 from .images import ImagePipeline, ImagePipelineError, assert_safe_asset_src
 from .security import assert_supported_markus_version
@@ -38,6 +39,9 @@ class BodyDerivation:
     ok: bool
     body_ir: dict | None
     errors: tuple[BodyError, ...]
+    #: Problems that do not stop a save: the page still builds and shows the author's text. An equation that
+    #: will not convert is shown as its TeX source, and is reported here.
+    warnings: tuple[BodyError, ...] = ()
 
 
 def _failure(*errors: BodyError) -> BodyDerivation:
@@ -163,7 +167,15 @@ def derive_body(front_matter_yaml: str | None, body_markus: str) -> BodyDerivati
                 f"Article is too long to store; split it ({size} bytes of IR, limit {MAX_BODY_IR_BYTES}).",
             )
         )
-    return BodyDerivation(ok=True, body_ir=envelope, errors=())
+    warnings = tuple(
+        BodyError(
+            "equation-tex",
+            f"{'Display' if equation.display else 'Inline'} equation will be shown as TeX source: {reason}. {equation.tex.strip()[:80]!r}",
+            equation.line,
+        )
+        for equation, reason in equation_problems(document)
+    )
+    return BodyDerivation(ok=True, body_ir=envelope, errors=(), warnings=warnings)
 
 
 def envelope_byte_count(envelope: dict) -> int:

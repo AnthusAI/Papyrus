@@ -117,3 +117,117 @@ def untouched(context):
     assert context.intake_rejected
     assert context.intake_client.tables == context.intake_before
     assert not context.intake_client.uploads
+
+
+class _CatalogClient:
+    """Stands in for the signed-in AppSync client: one scripted answer per request, no network."""
+
+    endpoint = "https://api.example.test/graphql"
+
+    def __init__(self, timeout_on=None):
+        self.calls = []
+        self.timeout_on = timeout_on
+
+    def graphql(self, query, variables):
+        data = json.loads(variables["input"])
+        self.calls.append(data)
+        if len(self.calls) == self.timeout_on:
+            raise TimeoutError("The read operation timed out")
+        # The server derives the id from the source URL, so a repeat returns the same record.
+        references = [{"id": "ref-" + item["source_uri"].rsplit("/", 1)[1], "curationStatus": "pending"} for item in data["items"]]
+        return {"intakePendingReferences": json.dumps({"ok": True, "references": references})}
+
+
+@given('a catalog file of {count:d} sources and a signed-in editor session')
+def catalog_file(context, count):
+    import tempfile
+    from pathlib import Path
+
+    directory = Path(tempfile.mkdtemp(prefix="papyrus-catalog-"))
+    context.catalog_path = directory / "catalog.json"
+    context.catalog_path.write_text(json.dumps({"items": [
+        {"source_uri": f"https://example.test/paper-{number}", "title": f"Paper {number}", "ingestion_rationale": "Relevant."}
+        for number in range(1, count + 1)
+    ]}))
+    context.catalog_client = _CatalogClient()
+    context.catalog_runs = []
+
+
+@given('the second request times out')
+def second_times_out(context):
+    context.catalog_client.timeout_on = 2
+
+
+def _run_catalog(context):
+    import contextlib
+    import io
+    from unittest.mock import patch
+
+    from papyrus_content.cli import references_register_catalog
+
+    steering = {"corpora": [{"key": "one", "name": "One", "role": "source"}]}
+    out, failure = io.StringIO(), None
+    flags = ["--config", "ignored", "--corpus-key", "one", "--catalog", str(context.catalog_path), "--status", "pending"]
+    with patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "user"}), \
+            patch("papyrus_content.cli.create_authoring_client", return_value=(context.catalog_client, {})), \
+            patch("papyrus_content.reference_intake_cli.require_steering_config", return_value=steering), \
+            contextlib.redirect_stdout(out):
+        try:
+            references_register_catalog(flags)
+        except Exception as error:  # noqa: BLE001
+            failure = error
+    context.catalog_runs.append((out.getvalue().splitlines(), failure))
+
+
+@when('the editor runs references create-from-catalog')
+def run_catalog(context):
+    _run_catalog(context)
+
+
+@when('the editor runs references create-from-catalog twice')
+def run_catalog_twice(context):
+    _run_catalog(context)
+    _run_catalog(context)
+
+
+@then('the command sent {count:d} requests of one source each, in catalog order')
+def one_each(context, count):
+    calls = context.catalog_client.calls
+    assert len(calls) == count, len(calls)
+    assert [len(call["items"]) for call in calls] == [1] * count
+    assert [call["items"][0]["source_uri"] for call in calls] == [f"https://example.test/paper-{n}" for n in range(1, count + 1)]
+
+
+@then('it printed one recorded line per source, numbered "1/{total:d}" to "{last}"')
+def numbered(context, total, last):
+    lines = [line.split("\t") for line in context.catalog_runs[-1][0]]
+    recorded = [line for line in lines if line[2] == "recorded"]
+    assert [line[3] for line in recorded] == [f"{n}/{total}" for n in range(1, total + 1)], recorded
+    assert last == f"{total}/{total}"
+
+
+@then('it ended with a summary of {confirmed:d} confirmed and {missing:d} not confirmed')
+def summary(context, confirmed, missing):
+    lines = context.catalog_runs[-1][0]
+    assert lines[-1] == f"references\tcreate-from-catalog\tsummary\tconfirmed={confirmed}\tnot-confirmed={missing}", lines[-1]
+
+
+@then('it printed a failed line for "{position}" naming the source')
+def failed_line(context, position):
+    lines = [line.split("\t") for line in context.catalog_runs[-1][0]]
+    failed = [line for line in lines if line[2] == "failed"]
+    assert len(failed) == 1 and failed[0][3] == position and failed[0][4] == "https://example.test/paper-2", failed
+    assert "timed out" in failed[0][5]
+
+
+@then('the command failed telling the editor to run the same command again')
+def failed_run_again(context):
+    failure = context.catalog_runs[-1][1]
+    assert isinstance(failure, ValueError) and "Run the same command again" in str(failure), failure
+
+
+@then('both runs recorded the same Reference ids')
+def same_ids(context):
+    first, second = ([line.split("\t")[5] for line in lines if "\trecorded\t" in line] for lines, _ in context.catalog_runs)
+    assert first == second == ["ref-paper-1", "ref-paper-2", "ref-paper-3"], (first, second)
+

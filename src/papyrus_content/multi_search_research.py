@@ -49,9 +49,11 @@ from .assignments_workflow import (
 from .catalog import message_record
 from .fact_check import Judge, check_claims, direction_gaps, literal_check, llm_judge, verified_only
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
+from . import pdf_text
 from .ideas.source_text import SourceFetcher, fetch_source, load_source, pdf_text_up_to
 from .ids import hash_short
 from .reference_capture import arxiv_id
+from .research_titles import canonical_record_url, clean_search_title, page_title, usable_title
 from .link_exploration import canonical_url
 from .model_defaults import DEFAULT_LLM_MODEL
 from .newsroom_context_pack import DEFAULT_MAX_CHARACTERS, PROFILES, build_context_pack
@@ -60,6 +62,18 @@ from .options import normalize_string, parse_boolean_option, parse_options, reso
 from .records import apply_record_changes, build_record_changes
 from .research_assignments_worker import finished_note, without_credential_guidance
 from .steering import default_corpus_key
+
+
+def _own_corpus_key(client) -> str:
+    """The corpus an assignment names no corpus for: the signed-in site's own (its canonical publication corpus), not the tool's packaged default.
+    The IAM lane keeps the steering default."""
+    from .user_auth_mode import user_auth_requested
+
+    if user_auth_requested():
+        from .publication import publication_corpus_key
+
+        return publication_corpus_key(client)
+    return default_corpus_key()
 from .story_reporting import link_found_references_as_consulted
 from .web_search import (
     PROVIDERS,
@@ -245,7 +259,7 @@ def fan_out(queries: Sequence[Mapping[str, str]], providers: Mapping[str, Any], 
 def source_key(url: str) -> str | None:
     """The identity of a page across providers: tracking parameters, fragment, host case, ``www.`` and a trailing slash don't count."""
     try:
-        normalized = normalize_proposal_url(canonical_url(url))
+        normalized = normalize_proposal_url(canonical_url(canonical_record_url(url)))
     except ValueError:
         return None
     if not normalized:
@@ -263,7 +277,7 @@ def merge_hits(runs: Sequence[ProviderRun], queries: Sequence[Mapping[str, str]]
             key = source_key(hit.url)
             if not key:
                 continue
-            source = by_key.setdefault(key, {"url": normalize_proposal_url(canonical_url(hit.url)), "title": "", "providers": [],
+            source = by_key.setdefault(key, {"url": normalize_proposal_url(canonical_url(canonical_record_url(hit.url))), "title": "", "providers": [],
                                              "queries": [], "purposes": [], "bestRank": rank, "snippets": []})
             if run.name not in source["providers"]:
                 source["providers"].append(run.name)
@@ -280,7 +294,7 @@ def merge_hits(runs: Sequence[ProviderRun], queries: Sequence[Mapping[str, str]]
                 source["snippets"].append(snippet)
     merged = list(by_key.values())
     for source in merged:
-        source["title"] = source["title"] or source["url"]
+        source["title"] = clean_search_title(source["title"], source["url"]) or source["url"]
     merged.sort(key=lambda s: (-len(s["providers"]), s["bestRank"]))     # stable: ties keep the order they were found in
     for index, source in enumerate(merged, start=1):
         source["index"] = index
@@ -379,8 +393,16 @@ def read_sources(sources: Sequence[dict[str, Any]], brief: str, fetch: SourceFet
     the snippets is shared fairly over what was read. PDFs are parsed one at a time, best supported first, and only as far as their share. Never raises."""
     fetch = fetch or fetch_source
     start = clock()
+    page_titles: dict[str, str] = {}
+
+    def fetch_and_note_title(address: str):
+        content = fetch(address)
+        if isinstance(content, str) and (title := page_title(content)):
+            page_titles.setdefault(address, title)
+        return content
+
     pool = ThreadPoolExecutor(max_workers=max(len(sources), 1))
-    futures = [pool.submit(load_source, reading_address(source["url"]), fetch) for source in sources]
+    futures = [pool.submit(load_source, reading_address(source["url"]), fetch_and_note_title) for source in sources]
     wait(futures, timeout=deadline_seconds)
     pool.shutdown(wait=False, cancel_futures=True)
     loaded = [future.result() if future.done() and not future.cancelled() else (None, None) for future in futures]
@@ -399,6 +421,9 @@ def read_sources(sources: Sequence[dict[str, Any]], brief: str, fetch: SourceFet
                 out_of_room.add(position)     # it opened; there was no time or room left to read it
     shares = fair_shares([len(text) for text, _ in found], budget)
     for position, (source, (text, whole), share) in enumerate(zip(sources, found, shares)):
+        better = page_titles.get(reading_address(source["url"])) or (usable_title(pdf_text.metadata_title(loaded[position][1])) if loaded[position][1] else None)
+        if better:
+            source["title"] = clean_search_title(better, source["url"]) or source["title"]    # the source's own title, now that the run opened it
         source["text"] = text[:share]
         source["read"] = READ_NONE if not source["text"] else READ_WHOLE if whole and share >= len(text) else READ_PART
         if source["read"] == READ_NONE:
@@ -497,7 +522,8 @@ def packet_fact_check_inputs(packet: Mapping[str, Any]) -> tuple[list[dict[str, 
 
 def plain_summary(counts: Mapping[str, int]) -> str:
     """The summary when no model text may be used: only what the check counted."""
-    held = counts.get("needs_check", 0) + counts.get("rejected", 0) + counts.get("unchecked", 0)
+    held = (counts.get("needs_check", 0) + counts.get("contradicted", 0) + counts.get("not_shown", 0) + counts.get("rejected", 0)
+            + counts.get("unchecked", 0))
     return (f"{counts.get('verified', 0)} of {counts.get('total', 0)} claims were verified against their sources. "
             f"{held} could not be verified and are listed apart.")
 
@@ -825,7 +851,7 @@ def research_multi(
             f"Create one with: papyrus research create --type {MULTI_ASSIGNMENT_TYPE} --title ..."
         )
     research_mode = normalize_research_mode(options.get("research-mode") or meta.get("researchMode") or "source_discovery")
-    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(meta.get("corpusKey")) or default_corpus_key()
+    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(meta.get("corpusKey")) or _own_corpus_key(client)
     actor_label = normalize_string(options.get("actor-label")) or "Papyrus content CLI"
     model = normalize_string(options.get("model")) or DEFAULT_LLM_MODEL
     brief = brief_text(assignment, meta)
@@ -905,8 +931,8 @@ def research_multi(
     summary_note = (f"Multi-search completed: {len(outcome['queries'])} queries, {len(outcome['sources'])} sources from "
                     f"{', '.join(outcome['packet']['multiSearch']['answeredProviders'])}. "
                     f"Read {reading['read']} of {reading['sources']} sources, {reading['inPart']} of them in part. "
-                    f"Fact check: {counts.get('verified', 0)} verified, {counts.get('needs_check', 0)} need a check, {counts.get('rejected', 0)} rejected, "
-                    f"{counts.get('unchecked', 0)} unchecked.")
+                    f"Fact check: {counts.get('verified', 0)} verified, {counts.get('needs_check', 0)} need a check, {counts.get('contradicted', 0)} contradicted, "
+                    f"{counts.get('not_shown', 0)} not shown by the sources, {counts.get('unchecked', 0)} unchecked.")
     event = _assignment_event_record(
         assignment=assignment, event_type="research.multi.intake_failed" if intake_error else "research.multi.completed",
         actor_label=actor_label, now=now,
@@ -949,7 +975,7 @@ def research_multi_command(flags: list[str]) -> None:
     print(f"assignments\tresearch-multi\tsources\t{result['sourceCount']}")
     if result.get("factCheck"):
         counts = result["factCheck"]
-        print(f"assignments\tresearch-multi\tfact-check\tverified={counts['verified']}\tneeds_check={counts['needs_check']}\trejected={counts['rejected']}\tunchecked={counts['unchecked']}")
+        print(f"assignments\tresearch-multi\tfact-check\tverified={counts['verified']}\tneeds_check={counts['needs_check']}\tcontradicted={counts.get('contradicted', 0)}\tnot_shown={counts.get('not_shown', 0)}\tunchecked={counts['unchecked']}")
     for name, row in result["contribution"].items():
         failed = ",".join(sorted({f["kind"] for f in row["failures"]})) or "-"
         print(f"assignments\tresearch-multi\tprovider\t{name}\tqueries={row['queriesRun']}\thits={row['hits']}\t"

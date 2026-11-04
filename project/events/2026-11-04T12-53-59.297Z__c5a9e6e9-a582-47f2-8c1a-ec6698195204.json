@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c5a9e6e9-a582-47f2-8c1a-ec6698195204",
+  "issue_id": "PPY-7e0c02b0-6782-4808-990c-2c680578e86a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T12:53:59.297Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "stories save-version reminder can name the wrong next step right after a save",
+    "description": "On 2026-11-04, saving version 6 of a Story printed: next direction, Give the research direction. Read straight afterward, stories next correctly gave copy_edit, with direction done. The reminder printed by the write disagreed with the read command on the same Story. Possibly a read of Assignments that returned nothing during the reminder, which should report unknown and never send someone back to a finished step.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

@@ -14,6 +14,7 @@ from ..env import PAPYRUS_ROOT
 from .citations import CitationRendering
 from .content_markup import prepare_page, resolve_fragment
 from .convert import convert_fragment
+from .equations import render_equations
 from .images import ImageBuilder, ImagePipeline
 from .pages import (
     build_nav_items,
@@ -128,8 +129,12 @@ def render_fragment_text(
     image_builder: ImageBuilder | None = None,
     citations: CitationRendering | None = None,
     transform: FragmentTransform | None = None,
+    equations: str = "mathml",
 ) -> str:
     """Convert one Markdown text, resolving Papyrus content markup around it.
+
+    Equations (a ``math`` fence, ``$`tex`$``) become MathML after conversion; ``equations="source"`` keeps their
+    TeX as code instead (email).
 
     ``convert`` turns Markus source into a fragment: the pinned CLI for the
     full build, Markus in this process for the projector. With neither
@@ -142,11 +147,11 @@ def render_fragment_text(
     ``content_markup`` for the full rationale.
     """
     if image_builder is None and citations is None:
-        fragment = convert(text)
+        fragment = render_equations(convert(text), mode=equations)
         return fragment if transform is None else transform.apply(fragment)
 
     page = prepare_page(text, images=images, citations=citations)
-    fragment = convert(page.markdown)
+    fragment = render_equations(convert(page.markdown), mode=equations)
     if image_builder is not None:
         image_builder.start_page()
     resolved = resolve_fragment(

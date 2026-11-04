@@ -1,0 +1,28 @@
+{
+  "id": "PPY-5188e2c4-8dc2-495c-a46a-e6be3360fdcd",
+  "title": "stories link-reference prints write but does not change an existing link from consulted to cited",
+  "description": "On Machines on Machines on 5.83.0, 2026-11-04: eight References already linked as consulted were linked again with --role cited --citation-key KEY. Each printed a write line, exit looked clean, and stories show still lists them as consulted with no citation key, on a repeat read. Two References with no earlier link took cited and the key correctly. story_reporting.link_reference_to_story documents the consulted to cited change, so the update path for an existing relation does not take effect or the read shows the old row. stories draft uses the same call, so its cited marks are probably lost on References research already linked. Article citations still render, because they come from front matter.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "acbbc956-79cf-4995-acbf-725dd65b9bdc",
+      "author": "home",
+      "text": "Cause found 2026-11-04: the change fails with GraphQL request failed: Not Authorized to access updateSemanticRelation on type Mutation, exit 2, for a signed-in editor. My earlier description said the exit looked clean; that was wrong, my output filter hid the error. The command also prints its write line before the failure, as in PPY-49708a. This affects the draft step's cited marks on any Reference research already linked. Fix: allow the editor groups to update SemanticRelation, or route this through a mutation they may call.",
+      "created_at": "2026-11-04T12:53:59.020474Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-04T12:19:08.308142Z",
+  "updated_at": "2026-11-04T12:53:59.020731Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

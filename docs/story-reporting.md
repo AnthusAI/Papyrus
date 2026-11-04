@@ -1,5 +1,7 @@
 # Reporting on a story: drafts, references and messages
 
+After copywriting come the illustration and typesetting stages, which have no agent or command of their own: see [story-illustration-typesetting.md](story-illustration-typesetting.md). The whole sequence is in [story-procedure.md](story-procedure.md).
+
 A story is an `Item` lineage (see `content-item-lifecycle.md`). Everything an agent or editor records while reporting
 it hangs off the story's **lineage id**. Nothing here needs a new table.
 
@@ -89,6 +91,7 @@ page. Three things to know:
   an unpublish) that the console's Publish button calls. It is idempotent: it finds nothing left to change, projects the
   page, and reports whether the page is live. The IAM lane still invokes the function directly. (That second call does not
   announce the publish to the newsletter; the console's Publish does.)
+- **No outputs file is needed to publish.** When no `amplify_outputs.json` of the chosen site says whether it projects pages, the signed-in lane still calls `publishItem`, which does nothing on a site that does not project. A file that names a different backend than the chosen site is ignored.
 - **A failed projection is a failed command.** If the page could not be projected, the command exits 1 and says the data is
   published but the page is not, with the exact retry: `papyrus ops content publish --id <item-id>` (repeating it changes
   nothing already written). With `--json` the payload has `"ok": false`, `"dataPublished": true`, `"pagePublished": false`,
@@ -204,10 +207,15 @@ The other writers that still create Messages without a person (research and repo
 ## Reading it back
 
 ```bash
+papyrus stories list [--stage STAGE] [--section ID|SLUG|NAME] [--limit N]
 papyrus stories show --story <lineage>
+papyrus references show <reference lineage id or record id> [--corpus-key KEY]
+papyrus assignments show --assignment <id>
 ```
 
-prints the latest version, how many versions exist, each stage move, every attached reference with its role, each Message on the Story's threads (`message`, time, `<author> (<kind>)`, summary; oldest first, active ones only) and each agent note (labelled `AI agent <name>`).
+`stories list` prints the lineage ids that `stories show --story` takes. The lineage ids of the References that `stories show` lists are accepted by `references show` (so are the `...-v1` record ids that `references list` prints). `assignments show` prints an Assignment's status, type, queue, section, Story and holder, then its events.
+
+`stories show` prints the latest version, how many versions exist, each stage move, every attached reference with its role, each Message on the Story's threads (`message`, time, `<author> (<kind>)`, summary; oldest first, active ones only) and each agent note (labelled `AI agent <name>`).
 
 `stories create` prints the new version's record id on the `created` line (`created  content-item-...-v1`) and the Story's lineage id on its own labelled line (`lineage  content-item-...`). The lineage id is what every other command takes as `--story`.
 
@@ -237,7 +245,7 @@ The Work section shows each research assignment with the editor's direction, its
 | `completed` | Finished, with the packet |
 | `failed` | Failed, with the reason from its latest failed event |
 
-The packet is read from the Assignment: the Message on its `produces` relation, and that Message's `metadata` attachment (`research`). Each claim names its sources by the `rank` of a `source_snapshots` entry, and the card links each claim to the pages it cites. The summary, the recommended angle, the disagreements and the open questions follow. A "Could not verify" list (`unverifiedClaims`: `claim`, `sources`, `verdict`, `reasons`) labels each entry in words and with an icon: Needs a check, Rejected (`needs_check`, `rejected`) or Not checked (`unchecked`), and gives the machine reasons in plain words (`unmatched_terms: Rodney` reads "Not in the cited source: Rodney", `judge_partly_supported` reads "The source only partly supports this"). The fact-check line is made from `factCheck.counts`, for example "12 verified, 8 need a check, 8 rejected; 23 rest on one site". Both are left out when the packet has none. Nothing is added to a message thread: Messages come only from people.
+The packet is read from the Assignment: the Message on its `produces` relation, and that Message's `metadata` attachment (`research`). Each claim names its sources by the `rank` of a `source_snapshots` entry, and the card links each claim to the pages it cites. The summary, the recommended angle, the disagreements and the open questions follow. A "Could not verify" list (`unverifiedClaims`: `claim`, `sources`, `verdict`, `reasons`) labels each entry in words and with an icon, in four groups: Contradicted by its sources (`contradicted`), Not shown by the sources this run had (`not_shown`, and `rejected` in packets made before the split; it does not mean the claim is false), Needs a check (`needs_check`) and Not checked (`unchecked`), and gives the machine reasons in plain words (`unmatched_terms: Rodney` reads "Not in the cited source: Rodney", `judge_partly_supported` reads "The source only partly supports this"). The fact-check line is made from `factCheck.counts`, for example "12 verified, 8 need a check, 2 contradicted, 6 not shown by the sources; 23 rest on one site". Both are left out when the packet has none. Nothing is added to a message thread: Messages come only from people.
 
 `papyrus assignments context-pack` shows what a reporting agent is given. It only reads.
 
@@ -274,7 +282,7 @@ With a pack, the brief starts with the editor's direction, labelled as the edito
 
 A pack-driven run takes in only the sources a claim or a disagreement position cites (`--cited-only`, the default for a run with a pack and the option `papyrus assignments process-proposals --assignment A [--message M] [--cited-only]` for a packet already written). The citations are read through the packet's `multiSearch.sourceProviders` index-to-URL list; every source stays in the packet. A URL the corpus already holds as a Reference, in any status, is not registered again and its status is not touched; it is linked to the Story as `consulted` like the new ones. New sources are registered `pending`. Without `--cited-only` the intake behaves as before: every proposed source is registered, under an id made from its URL, so a source already registered under that id is rewritten.
 
-The corpus key is `--corpus-key`, else the assignment's `corpusKey`, else the backend's own. A key the steering file (`--config`, optional) lists keeps its configured settings and classifier. Otherwise the key must be the backend's canonical `KnowledgeCorpus`, and its configuration is built from that record with no classifier (the classifier id is an optional field on the records written, which nothing reads, and the router's Reference delivery writes none). A key that is neither fails with `Unknown --corpus-key`. If the intake fails after the packet is written, `research-multi` does not exit with an error: it records a `research.multi.intake_failed` event on the Assignment and returns `intakeError` in its result.
+The corpus key is `--corpus-key`, else the assignment's `corpusKey`, else the backend's own. A key the steering file (`--config`, optional) lists keeps its configured settings and classifier. Otherwise the key must be the backend's canonical `KnowledgeCorpus`, and its configuration is built from that record with no classifier (the classifier id is an optional field on the records written, which nothing reads, and the router's Reference delivery writes none). A key that is neither fails with `Unknown --corpus-key`. `references create-from-catalog` follows the same rule: a `--corpus-key` the steering file does not list is checked against the backend's canonical corpus (it passes when it names that corpus, and the error names the real one when it does not), and the record id form `knowledge-corpus-<key>` is accepted. The `next` command that `stories assign-research` and `assignments create-research` print is therefore one the catalog and run commands accept. If the intake fails after the packet is written, `research-multi` does not exit with an error: it records a `research.multi.intake_failed` event on the Assignment and returns `intakeError` in its result.
 
 A cited-only run then curates the References it took in: it reads each source with the existing capture stage and writes the Reference's summary with the Assignment's title and the editor's direction, and the titles, decks and sections of the Stories the Reference is linked to, as the reason the newsroom is reading it ([directed summaries](reference-curation-pipeline.md#directed-summaries-why-the-newsroom-is-reading-this-source)). That context is a hint about what to bring forward and where the source does not answer the question; it is never evidence, and the summary still says only what the source says. The summary is shared by every reader of the Reference, so a link made later does not rewrite it (`--force` does). A summary or capture failure is recorded on that Reference's curation card and in the run's `curation.failed`; the run still completes.
 

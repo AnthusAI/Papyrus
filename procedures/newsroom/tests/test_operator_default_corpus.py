@@ -113,16 +113,3 @@ def test_the_packaged_default_alone_is_not_a_site_choice(empty_site):
     (empty_site / "corpora").mkdir()
     (empty_site / "corpora" / "papyrus-steering.yml").write_text("x: 1\n")
     assert steering.steering_config_chosen_by_site() is True
-
-
-def test_show_looks_in_the_backends_canonical_corpus(empty_site):
-    from papyrus.operator.backends.cloud import CloudBackend
-
-    seen = []
-    with mock.patch("papyrus_content.user_auth_mode.user_auth_requested", return_value=True), \
-            mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(HostedClient(corpora("ai-ml-research")), {})), \
-            mock.patch.object(CloudBackend, "list_references", side_effect=lambda **kw: seen.append(kw["corpus_key"]) or [
-                OperatorRow(kind="cloud-reference", status="", identifier="reference-1", title="A", extra={})]):
-        config = operator_config.load_operator_config(backend_override="cloud")
-        row = CloudBackend(config).show_reference("reference-1")
-    assert row.identifier == "reference-1" and seen == ["ai-ml-research"]

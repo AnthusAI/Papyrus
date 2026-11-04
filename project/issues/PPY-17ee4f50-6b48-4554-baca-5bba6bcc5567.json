@@ -1,0 +1,28 @@
+{
+  "id": "PPY-17ee4f50-6b48-4554-baca-5bba6bcc5567",
+  "title": "Weekly digest newsletter built from new-story notifications",
+  "description": "Ryan, 2026-11-04: the vision for the newsletter is that it starts, by default, as a weekly digest of a site's new-story notifications. This is the last milestone in the initiative, after everything else has shipped. No digests are in the first version. Recorded here so the earlier milestones keep it possible: the new-story notification events, the shared brand definition and one subscriber record are what the digest will build on.",
+  "type": "epic",
+  "status": "closed",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8a36a2-ce77-450a-bf0a-03c9798a1102",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "9c980cb7-196d-4a54-a611-a63cbb591631",
+      "author": "home",
+      "text": "Moved to the Caducus board (AnthusAI/Caducus) as kanbus-efec60, Ryan 2026-11-04.",
+      "created_at": "2026-11-04T12:59:55.224985Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-04T12:57:58.288425Z",
+  "updated_at": "2026-11-04T13:00:08.126468Z",
+  "closed_at": "2026-11-04T13:00:08.126444Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

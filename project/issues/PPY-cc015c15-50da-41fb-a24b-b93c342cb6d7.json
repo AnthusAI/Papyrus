@@ -1,0 +1,27 @@
+{
+  "id": "PPY-cc015c15-50da-41fb-a24b-b93c342cb6d7",
+  "title": "Console: connect a site to Slack",
+  "description": "**Milestone:** Later, coarse\n\n**Goal.** Coarse until Caducus M3 ships. Replace the labelled placeholder with an Add to Slack button, channel choice, status in words, test and remove. Stories when started.\n\n**Acceptance.**\nSpec'd when started.\n\n**Depends on:** PPY-17cf09\n**Related:** kanbus-ae4094",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "later"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-17cf096a-4bb0-430b-bf1d-0a5d502b35d5",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-04T13:14:31.161056Z",
+  "updated_at": "2026-11-04T13:14:33.935100Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

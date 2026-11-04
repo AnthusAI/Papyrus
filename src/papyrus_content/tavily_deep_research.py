@@ -45,6 +45,18 @@ from .assignments_workflow import (
 from .note_forum import derive_note_forum_title, derive_note_packet_lede
 from .steering import default_corpus_key
 
+
+def _own_corpus_key(client) -> str:
+    """The corpus an assignment names no corpus for: the signed-in site's own (its canonical publication corpus), not the tool's packaged default.
+    The IAM lane keeps the steering default."""
+    from .user_auth_mode import user_auth_requested
+
+    if user_auth_requested():
+        from .publication import publication_corpus_key
+
+        return publication_corpus_key(client)
+    return default_corpus_key()
+
 TAVILY_DEEP_ASSIGNMENT_TYPE = "research.tavily-deep"
 TAVILY_TASK_MESSAGE_KIND = "tavily_research_task"
 TAVILY_ERROR_MESSAGE_KIND = "tavily_research_error"
@@ -461,7 +473,7 @@ def finalize_tavily_deep_research(
     research_mode = normalize_research_mode(
         options.get("research-mode") or assignment_meta.get("researchMode") or "source_discovery"
     )
-    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(assignment_meta.get("corpusKey")) or default_corpus_key()
+    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(assignment_meta.get("corpusKey")) or _own_corpus_key(client)
     actor_label = normalize_string(options.get("actor-label")) or "Papyrus content CLI"
     assignment_id = str(assignment["id"])
     now = _utc_now()

@@ -20,6 +20,7 @@ from .content_item_lifecycle import (
 )
 from .copywriting import COPYWRITING_ASSIGNMENT_TYPES, build_copywriting_run_plan
 from .env import PAPYRUS_ROOT
+from .fact_check import HELD_GROUPS, held_group
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 from .ids import hash_short, knowledge_corpus_id, safe_id
 from .model_defaults import DEFAULT_REFERENCE_SUMMARY_MODEL
@@ -109,6 +110,12 @@ def semantic_state_key(kind: str, lineage_id: str) -> str:
     return f"{kind}#{lineage_id}#current"
 
 
+def _find_newsroom_section(client, value: str):
+    from .editorial_context import find_section
+
+    return find_section(client, value)
+
+
 def assignment_section_key(assignment: dict[str, Any]) -> str | None:
     return normalize_string(assignment.get("sectionKey")) or normalize_string(assignment.get("sectionId"))
 
@@ -147,7 +154,6 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     multi_search = assignment_type_key == "research.multi"   # opt-in: an editor picks it per assignment, never automatic
     status = normalize_string(options.get("status")) or "open"
     priority = normalize_non_negative_integer(options.get("priority"), "--priority") or 50
-    queue_key = normalize_string(options.get("queue")) or f"research:{section_key or 'unsectioned'}:exploratory"
     summary = normalize_string(options.get("summary")) or normalize_string(options.get("brief")) or title
     brief = normalize_string(options.get("brief")) or summary
     instructions = normalize_string(options.get("instructions")) or normalize_string(options.get("research-questions")) or ""
@@ -155,12 +161,15 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     primary_focus = normalize_string(options.get("primary-focus-category-key")) or normalize_string(
         options.get("primary-focus")
     )
-    section = client.get_record("NewsroomSection", section_key) if section_key else None
+    section = _find_newsroom_section(client, section_key) if section_key else None
+    if section:
+        section_key = section["id"]   # a name or slug names the section; the record stores its id
     if section_key and not section:
         raise ValueError(
             f"Unknown NewsroomSection for --section {section_key}. "
-            "Run: poetry run papyrus sections import --config corpora/papyrus-newsroom-sections.yml"
+            "Run: poetry run papyrus sections import --config corpora/example-newsroom-sections.yml"
         )
+    queue_key = normalize_string(options.get("queue")) or f"research:{section_key or 'unsectioned'}:exploratory"
     assignment_id = normalize_string(options.get("id")) or (
         f"assignment-research-{safe_id(title)[:80]}-{timestamp_for_path(now)}"
     )
@@ -301,7 +310,6 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         raise ValueError("assignments create-reporting only supports --type reporting.candidate.")
     status = normalize_string(options.get("status")) or "open"
     priority = normalize_non_negative_integer(options.get("priority"), "--priority") or 50
-    queue_key = normalize_string(options.get("queue")) or f"reporting:{section_key or 'unsectioned'}:exploratory"
     summary = normalize_string(options.get("summary")) or normalize_string(options.get("brief")) or title
     brief = normalize_string(options.get("brief")) or summary
     instructions = normalize_string(options.get("instructions")) or "Build a private reporting_context_packet only."
@@ -309,12 +317,15 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
     primary_focus = normalize_string(options.get("primary-focus-category-key")) or normalize_string(
         options.get("primary-focus")
     )
-    section = client.get_record("NewsroomSection", section_key) if section_key else None
+    section = _find_newsroom_section(client, section_key) if section_key else None
+    if section:
+        section_key = section["id"]   # a name or slug names the section; the record stores its id
     if section_key and not section:
         raise ValueError(
             f"Unknown NewsroomSection for --section {section_key}. "
-            "Run: poetry run papyrus sections import --config corpora/papyrus-newsroom-sections.yml"
+            "Run: poetry run papyrus sections import --config corpora/example-newsroom-sections.yml"
         )
+    queue_key = normalize_string(options.get("queue")) or f"reporting:{section_key or 'unsectioned'}:exploratory"
     assignment_id = normalize_string(options.get("id")) or (
         f"assignment-reporting-{safe_id(title)[:80]}-{timestamp_for_path(now)}"
     )
@@ -1925,12 +1936,16 @@ def research_packet_body(packet: dict[str, Any]) -> str:
         for item in disagreements:
             lines.append(f"- {item.get('topic')}")
             lines.extend(f"  - {p.get('position')} [{', '.join(str(i) for i in _parse_array(p.get('sources')))}]"
-                         + (f" (rejected: {'; '.join(str(r) for r in _parse_array(p.get('reasons')))})" if p.get("unverified") else "")
+                         + (f" (not shown by the sources: {'; '.join(str(r) for r in _parse_array(p.get('reasons')))})" if p.get("unverified") else "")
                          for p in _parse_array(item.get("positions")) if isinstance(p, dict))
     if unverified:
         lines.extend(["", "Could not verify:"])
-        lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}] ({c.get('verdict') or 'unverified'}: {'; '.join(str(r) for r in _parse_array(c.get('reasons')))})"
-                     for c in unverified)
+        for group, heading in HELD_GROUPS:
+            members = [c for c in unverified if held_group(c.get("verdict")) == group]
+            if members:
+                lines.append(f"{heading}:")
+                lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}] ({'; '.join(str(r) for r in _parse_array(c.get('reasons')))})"
+                             for c in members)
     open_questions = [q for q in _parse_array(packet.get("openQuestions")) if q]
     gaps = [g for g in _parse_array((packet.get("factCheck") or {}).get("directionGaps") if isinstance(packet.get("factCheck"), dict) else None) if isinstance(g, dict)]
     if gaps:

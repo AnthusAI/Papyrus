@@ -61,7 +61,7 @@ def test_a_judge_answer_that_is_not_a_verdict_leaves_the_claim_unchecked():
 def test_supported_without_a_quote_is_demoted():
     judge = lambda claim, cited, info=None: {"verdict": "supported", "quotes": [], "explanation": "", "attribution_lost": False}
     report = fc.check_claims([{"claim": "A plain claim.", "sources": ["s"]}], {"s": "A plain claim."}, judge=judge)
-    assert report["claims"][0]["verdict"] == "rejected" and "quote_not_in_source" in report["claims"][0]["reasons"]
+    assert report["claims"][0]["verdict"] == "not_shown" and "quote_not_in_source" in report["claims"][0]["reasons"]
 
 
 def test_the_llm_judge_sends_only_the_claim_and_the_cited_texts_with_a_strict_schema():

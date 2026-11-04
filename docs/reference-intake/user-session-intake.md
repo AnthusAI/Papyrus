@@ -75,7 +75,7 @@ the backend carries a tenant and has not been declared single-publication.
 
 ## Sources, deduplication and provenance
 
-The request has `publicationEndpoint`, `corpusId` and 1–20 `items`. Each source
+The request has `publicationEndpoint`, `corpusId` and 1–20 `items`. The CLI sends one source per request: a source takes 6 to 12 seconds, so a whole batch could outlast the client's read timeout and leave the outcome unknown. Each source
 accepts `source_uri`, `title`, `media_type`, `ingestion_rationale` and the catalog's
 optional `item_id`. Identity is derived from a SHA-256 of deployment endpoint,
 corpus and canonical source URL; a supplied item id cannot control record ids.
@@ -109,8 +109,11 @@ repeat the same request: it repairs missing provenance from the immutable first
 version and returns the same Reference. A response lost in transit has the same
 recovery path. Full input validation occurs before writes; a later infrastructure
 or legacy-duplicate conflict may leave earlier batch sources persisted. Rerun
-canonical URL lookup after any uncertain result. The CLI prints each completed
-batch's actual record/lineage ids for `stories link-reference`.
+canonical URL lookup after any uncertain result. The CLI prints a flushed `recorded` line for each source as it
+finishes (`references create-from-catalog recorded <n>/<total> <url> <reference id> <status>`), with the actual record ids for
+`stories link-reference`. A source that fails or times out prints a `failed` line with the reason and the run carries on with the
+rest; a final `summary` line gives `confirmed=` and `not-confirmed=`, and the command exits non-zero if any source is not
+confirmed. Run the same command again: sources already recorded come back unchanged, and only the missing ones are created.
 
 ## Deployment and acceptance
 

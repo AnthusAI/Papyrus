@@ -1,0 +1,28 @@
+{
+  "id": "PPY-cfd5d721-03e4-401a-8480-f210dd97a012",
+  "title": "Editorial guidance says nothing about what a headline, deck and blurb are for",
+  "description": "Writing a Machines on Machines article on 2026-11-04, the live editorial context and editorial pack contained no guidance on headlines, decks or blurbs, and the copywriting skill does not mention them. story_writing.py says only that the blurb is two or three lines for listings. The result was a question headline on an article that makes a claim, and the editor corrected it. Ryan's rule from that correction: an article that has a point says it in the headline, the subtitle explains it in more detail, and the blurb is a different text that appears in listings. Add this to publication policy and the copywriting skill, decide whether it is per publication or standard, and add a check.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "7a280dcc-2fb7-4597-9222-f1976d81f68c",
+      "author": "home",
+      "text": "Done for Machines on Machines on 2026-11-04: Ryan's rules are now in that publication's policy data through sections doctrine set: educated lay reader in the style of Scientific American, inverted pyramid, pointed questions, skimmability, pull quotes, figure placeholders, and what a headline, subtitle and blurb are for. Other publications are untouched. Still open: the copywriting skill and DRAFT_INSTRUCTIONS should tell writers to read these from policy, and whether any of it becomes a standard default.",
+      "created_at": "2026-11-04T13:13:20.485528Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-04T12:25:11.074332Z",
+  "updated_at": "2026-11-04T13:13:20.486290Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -75,6 +75,13 @@ def publication_init_command(flags: list[str]) -> None:
     print(f"publication\tinit\t{'created' if result['created'] else 'exists'}\t{result['key']}\t{result['corpusId']}")
 
 
+def normalize_corpus_key(value: Any) -> Any:
+    """A corpus key as the commands use it. A record id (``knowledge-corpus-<key>``, as projection.json names it) means its key."""
+    if isinstance(value, str):
+        return value.strip().removeprefix("knowledge-corpus-") or value
+    return value
+
+
 def resolve_catalog_corpus(
     client,
     options: dict[str, Any],
@@ -86,14 +93,16 @@ def resolve_catalog_corpus(
     canonical corpus is the publication; a given ``--corpus-key`` is then only an assertion about it.
     """
     from .editorial_context import hosted_publication
-    from .steering import load_steering_config, require_corpus_config
+    from .steering import find_corpus_config, load_steering_config, require_corpus_config
 
     load_steering = load_steering or load_steering_config
 
-    corpus_key = options.get("corpus-key")
+    corpus_key = normalize_corpus_key(options.get("corpus-key"))
     steering = load_steering(options.get("config")) if corpus_key or options.get("config") else None
-    if steering is not None and corpus_key:
+    if steering is not None and corpus_key and find_corpus_config(steering, corpus_key):
         return require_corpus_config(steering, corpus_key, "--corpus-key"), steering
+    # A key the steering file does not list (the usual case on a hosted site, whose publication is data) is an assertion about the
+    # backend's own canonical corpus: it passes when it names that corpus and fails, naming the real one, when it does not.
     publication = hosted_publication(client, corpus_key if isinstance(corpus_key, str) else None)
     return {"key": publication["key"], "name": publication["name"], "role": CANONICAL_CORPUS_KIND}, steering
 
@@ -101,7 +110,7 @@ def resolve_catalog_corpus(
 def publication_corpus_key(client, explicit: str | None = None) -> str:
     """`--corpus-key` when given, else the key of the backend's canonical publication corpus."""
     if explicit:
-        return explicit
+        return normalize_corpus_key(explicit)
     from .editorial_context import hosted_publication
 
     return hosted_publication(client)["key"]

@@ -1,0 +1,30 @@
+{
+  "id": "PPY-819117a2-024d-44cf-84e4-8db03bad5612",
+  "title": "Move newsletter and cloud-email SES events and the pause alarm from SNS to EventBridge",
+  "description": "**Milestone:** M3, public email and new stories\n\n**Goal.** SES can publish to the account's default bus, and CloudWatch alarm state changes are already there, so neither topic is needed.\n\n**Build.**\n- `infra/newsletter/papyrus-newsletter-sending.yaml`: replace the SNS destination with EventBridge. `infra/amplify-app-shell/lib/cloud-email.ts` likewise.\n- `amplify/plugins/newsletter/papyrus.plugin.ts`: rules scoped by configuration set tag (SES event detail) and by alarm name, replacing the `papyrus-newsletter-alarms-<site>` topic and the event subscription. `src/papyrus_content/newsletter/events.py` reads the EventBridge shape; delivery is best effort and may be out of order, which the conditional updates already allow.\n- A default-bus rule needs a site filter: several sites share papyrus-production.\n- Ship to one site under test, then in one batch. Same PR per site: config with version bump.\n\n**Acceptance.**\n`simulate` from `docs/newsletter.md` on Shipped shows the `EVENTS` row, the `SUPP#` row and a working pause, with no SNS topic left.\n\n**Related:** kanbus-78f229\n\n**Specification.**\n```gherkin\nFeature: SES events without SNS\n  Scenario: A bounce on one site\n    Given two sites send from the same AWS account\n    When a message from the first site bounces\n    Then only the first site's function records it\n\n  Scenario: The pause still works\n    When a site's bounce-rate alarm fires\n    Then that site's sending is paused\n```",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m3"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "e0e185c3-366d-4f26-875f-129f1553c3f7",
+      "author": "home",
+      "text": "Caducus side: kanbus-92b1a1",
+      "created_at": "2026-11-04T13:15:37.072518Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-04T13:14:30.111526Z",
+  "updated_at": "2026-11-04T13:15:37.072717Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,22 @@
+{
+  "id": "PPY-0dbcc3a6-d1d5-4b42-8b59-13030d167bb0",
+  "title": "Emit admin alert events",
+  "description": "**Milestone:** M3, public email and new stories\n\n**Goal.** Events for the starting admin kinds in Caducus kanbus-c0596b: hard gate opened (`src/papyrus_content/review_requests.py`), issue blocked and sending paused (`src/papyrus_content/newsletter/pause.py`, `issues.py`), knowledge run held. Review requests stay as they are; the message only links to them.\n\n**Acceptance.**\nEach kind has a `features_backend` scenario; a failure to emit never fails the action.\n\n**Related:** kanbus-c0596b",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m3"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T13:14:30.605071Z",
+  "updated_at": "2026-11-04T13:14:30.605097Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,28 @@
+{
+  "id": "PPY-bf97ec20-fb5d-4b93-8520-44edf0d2a675",
+  "title": "Personal notification settings and subscriptions UI",
+  "description": "Where each person chooses what they receive and on which channels, shared across apps, plus the public subscribe flow for people with no account. Lucide icons, flat fills, no borders, buttons not dropdowns; screenshot review.",
+  "type": "epic",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8a36a2-ce77-450a-bf0a-03c9798a1102",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "1f555a6b-4f4f-45c8-9402-17499e64a868",
+      "author": "home",
+      "text": "Moved to the Caducus board (AnthusAI/Caducus) as kanbus-e5812c, Ryan 2026-11-04.",
+      "created_at": "2026-11-04T12:59:54.643437Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-04T12:40:33.913811Z",
+  "updated_at": "2026-11-04T13:00:07.606940Z",
+  "closed_at": "2026-11-04T13:00:07.606918Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

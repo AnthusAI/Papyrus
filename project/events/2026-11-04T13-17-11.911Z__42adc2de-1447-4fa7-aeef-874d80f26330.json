@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "42adc2de-1447-4fa7-aeef-874d80f26330",
+  "issue_id": "PPY-f361ee7e-c4a1-4c05-9d27-e474859769fc",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T13:17:11.911Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Subscribe and manage pages, projected on the site",
+    "description": "stub",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+    "labels": [
+      "m3"
+    ]
+  }
+}

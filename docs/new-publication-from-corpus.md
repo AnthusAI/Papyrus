@@ -150,7 +150,7 @@ duplicate extracted text into a second canonical location.
      --output .papyrus-runs/<run-id>/sandbox-steering.yml
 
    poetry run papyrus ops categories import-config --config <steering.yml>
-   poetry run papyrus sections import --config corpora/papyrus-newsroom-sections.yml
+   poetry run papyrus sections import --config corpora/example-newsroom-sections.yml
    poetry run papyrus knowledge concepts import-types --config corpora/papyrus-semantic-relation-types.yml
    ```
 

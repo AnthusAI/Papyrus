@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a4ae2151-c094-4bf2-b6a6-5a0e82e714cd",
+  "title": "Documented CLI install crashes on stories save-version: Markus is only an optional dependency",
+  "description": "docs/cli-login.md tells people to run pipx install papyrus-newsroom. That installs no anthus-markus, because pyproject lists it only under the markus extra. stories save-version checks the body through papyrus_content/markus_renderer/derive.py, which imports markusmd, so the command dies with ModuleNotFoundError: No module named 'markusmd'. Seen on 5.83.0 on 2026-11-04 saving a Story outline on Machines on Machines. Saving a draft is a core newsroom command, so anything the base CLI imports for it belongs in base dependencies. Proposed fix: move anthus-markus into dependencies, keep Pillow and boto3 in the extra unless they are also needed, and add a test that runs save-version from a clean install without extras. Workaround: pip install 'papyrus-newsroom[markus]'.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T11:48:25.213050Z",
+  "updated_at": "2026-11-04T11:48:25.213726Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

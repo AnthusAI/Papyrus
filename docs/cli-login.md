@@ -62,13 +62,18 @@ choose a store explicitly.
 
 ### Cloud machines and containers
 
-A cloud machine usually has no desktop keyring. Start the memory agent once, then sign
-in again:
+A cloud machine usually has no desktop keyring. When `papyrus login` finds no store it
+prints the exact command that starts the memory agent; run that command, then sign in
+again. The library is installed only inside the Papyrus tool's own environment, so the
+command must use that environment's Python by its full path. A bare `python` fails with
+`No module named cli_login`. This form works for every command below:
 
 ```sh
-python -m cli_login.stores.agent serve --namespace papyrus-newsroom-oauth --background
-python -m cli_login.stores.agent status --namespace papyrus-newsroom-oauth
-python -m cli_login.stores.agent stop   --namespace papyrus-newsroom-oauth
+# pipx install; for uv tool install use "$(uv tool dir)/papyrus-newsroom/bin/python"
+PY="$(pipx environment --value PIPX_LOCAL_VENVS)/papyrus-newsroom/bin/python"
+"$PY" -m cli_login.stores.agent serve --namespace papyrus-newsroom-oauth --background
+"$PY" -m cli_login.stores.agent status --namespace papyrus-newsroom-oauth
+"$PY" -m cli_login.stores.agent stop   --namespace papyrus-newsroom-oauth
 ```
 
 The agent keeps sessions in memory only, behind a private Unix socket, so they last
@@ -80,6 +85,8 @@ agent unless the machine has no keyring either: see
 [Remote sign-in from another device](#remote-sign-in-from-another-device).
 
 ## Remote sign-in from another device
+
+This is the usual way to connect a reporting agent: the agent runs on a cloud computer, and you approve from your phone or another device of your own. The console's **Connect the CLI or an agent** page gives the command for the site.
 
 An agent on a cloud machine has no browser and should hold no long-lived keys. It runs
 
@@ -268,9 +275,12 @@ An operator who sets `PAPYRUS_GRAPHQL_AUTH=iam` is never sent to a signed-in sit
 endpoint variable the command fails and names `papyrus login`. Naming a site (step 1) is the only way the registry
 supplies an endpoint to the IAM lane.
 
-An `amplify_outputs.json` also supplies the storage bucket and Cognito identity pool for `stories save-version --images` and
-`content publish`. Those two values are not published by the site, so those commands still need the file (or, where the command takes them, `--bucket`,
-`--identity-pool-id` and `PAPYRUS_IDENTITY_POOL_ID`). A file that names a different backend than the site you chose is ignored for
+`content publish` and `stories set-slug` on a published story need no outputs file: when no file of the chosen site says whether the
+site projects its pages, the signed-in lane asks the newsroom's own `publishItem` mutation, which projects the page on a site that does
+and does nothing on one that does not (an `amplify_outputs.json` of the chosen site still decides first).
+
+An `amplify_outputs.json` still supplies the storage bucket and Cognito identity pool for `stories save-version --images`. Those two values are not published by the site, so that command still needs the file (or `--bucket`,
+`--identity-pool-id` and `PAPYRUS_IDENTITY_POOL_ID`); publishing them needs a design decision (see PPY-83e413). A file that names a different backend than the site you chose is ignored for
 them rather than used, so a stray file in the working directory cannot send an upload to the wrong bucket.
 
 ### The site file: tenant and version

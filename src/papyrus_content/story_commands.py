@@ -315,6 +315,41 @@ def stories_show(flags: list[str]) -> None:
         print("\t".join(["stories", "show", "agent-note", str(note.get("createdAt") or ""), f"AI agent {note.get('agent') or 'unknown'}", summary]))
 
 
+def stories_list(flags: list[str]) -> None:
+    """papyrus stories list [--stage <stage>] [--section <id|slug|name>] [--limit N]
+
+    Read only. One line per Story (its lineage id, the id `stories show --story` takes), newest change first. Without --stage it lists
+    every board stage except spiked and held."""
+    from .content_item_lifecycle import CONTENT_ITEM_STAGES, SYSTEM_ITEM_TYPES, require_content_item_stage
+    from .editorial_context import find_section
+
+    options = parse_options(flags)
+    stage = normalize_string(options.get("stage"))
+    if stage:
+        require_content_item_stage(stage)
+    stages = [stage] if stage else [name for name in CONTENT_ITEM_STAGES if name not in ("held", "spiked")]
+    limit = int(normalize_string(options.get("limit")) or 50)
+    client, _ = create_authoring_client()
+    section_id = None
+    if normalize_string(options.get("section")):
+        section = find_section(client, str(options["section"]))
+        if not section:
+            raise ValueError(f"Unknown NewsroomSection {options['section']}.")
+        section_id = section["id"]
+    rows = []
+    for name in stages:
+        rows += client.list_by_index("itemsByStage", name)
+    rows = [row for row in rows if row.get("versionState", "current") == "current" and row.get("type") not in SYSTEM_ITEM_TYPES
+            and (section_id is None or row.get("section") == section_id)]
+    found = client.get_records_by_id("Item", [row["id"] for row in rows])
+    stories = [found[row["id"]] for row in rows if row["id"] in found]
+    stories.sort(key=lambda story: str(story.get("updatedAt") or ""), reverse=True)
+    for story in stories[:max(limit, 1)]:
+        print("\t".join(["stories", "list", str(story.get("lineageId") or story["id"]), str(story.get("stage") or ""),
+                         str(story.get("section") or ""), str(story.get("headline") or story.get("title") or "")]))
+    print(f"stories\tlist\t{min(len(stories), max(limit, 1))} of {len(stories)}")
+
+
 def stories_next(flags: list[str]) -> None:
     """papyrus stories next --story <lineage> [--json]
 
@@ -336,7 +371,7 @@ SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 def stories_set_slug(flags: list[str]) -> None:
     """papyrus stories set-slug --story <lineage|id> --slug <new> [--force] [--no-trigger] [--dry-run]"""
-    from .projection_trigger import SKIP_LINE, item_task, projection_enabled, trigger_projection
+    from .projection_trigger import SKIP_LINE, item_task, projection_enabled, projection_requested, trigger_projection
     from .publishing import ItemFields, publish_item, published_item_id_for, save_item
 
     options = parse_options(flags)
@@ -396,7 +431,7 @@ def stories_set_slug(flags: list[str]) -> None:
     if not published:
         return
     publish_item(client, item_id, actor=actor)
-    if not projection_enabled():
+    if not projection_requested():
         return
     if options.get("no-trigger"):
         print(SKIP_LINE)

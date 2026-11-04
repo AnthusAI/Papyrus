@@ -322,6 +322,7 @@ PORTED_COMMANDS = frozenset(
         "references:retire-citation-stubs",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
+        "assignments:show",
         "assignments:create-research",
         "assignments:create-reporting",
         "assignments:run-research",
@@ -346,6 +347,7 @@ PORTED_COMMANDS = frozenset(
         "stories:note",
         "stories:agent-note",
         "stories:show",
+        "stories:list",
         "stories:next",
         "stories:outline",
         "stories:draft",
@@ -734,6 +736,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_backfill_corpus_storage_paths(flags)
     elif route == "assignments:list":
         assignments_list(flags)
+    elif route == "assignments:show":
+        from .assignments_commands import assignments_show
+
+        assignments_show(flags)
     elif route == "assignments:create-research":
         assignments_create_research(flags)
     elif route == "assignments:create-reporting":
@@ -790,6 +796,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         stories_agent_note(flags)
     elif route == "stories:show":
         stories_show(flags)
+    elif route == "stories:list":
+        from .story_commands import stories_list
+
+        stories_list(flags)
     elif route == "stories:next":
         stories_next(flags)
     elif route == "stories:outline":
