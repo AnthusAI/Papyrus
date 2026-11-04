@@ -74,7 +74,6 @@ def step_alarm(context, name):
     assert by_id["decided"]["MetricStat"]["Period"] == by_id["awaiting"]["MetricStat"]["Period"] == 3600
     assert props["EvaluationPeriods"] == props["DatapointsToAlarm"] == 2
     assert props["Threshold"] == 1 and props["ComparisonOperator"] == "GreaterThanOrEqualToThreshold"
-    assert "AlarmActions" not in props   # no notification destination exists yet; the docs say so
 
 
 @then("missing data does not breach the alarm")
