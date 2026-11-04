@@ -1,6 +1,6 @@
 "use client";
 
-import { BookmarkIcon, ExternalLinkIcon, GlobeIcon, LinkIcon } from "lucide-react";
+import { BookmarkIcon, BotIcon, ExternalLinkIcon, GlobeIcon, LinkIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
@@ -88,7 +88,13 @@ export function StoryReportingTrailView({ assign, citedKeys = [], demo = false, 
     {storyReportingTrailIsEmpty(trail) && <p className="story-trail-empty">No messages have been recorded for this story yet. Notes and packets, the work done on it, its draft versions and the references behind it appear here as agents and editors work on it.</p>}
     <TrailSection count={messageFeed.length} title="Messages">
       <ol className="story-trail-list" data-story-trail-feed>
-        {messageFeed.map(entry => entry.entryKind === "reference"
+        {messageFeed.map(entry => entry.entryKind === "agent_note"
+          ? <li className="story-trail-agent-note" data-story-trail-agent-note={entry.note.id} key={entry.id}>
+            <div className="story-trail-row"><span className="story-trail-ai" data-story-trail-ai-label><BotIcon aria-hidden="true" size={13} />AI agent</span><strong>{entry.note.agent ?? "Unnamed agent"}</strong><span className="story-trail-meta">{formatTimestamp(entry.createdAt)}</span></div>
+            {entry.note.summary && <p><strong>{entry.note.summary}</strong></p>}
+            {entry.note.body && <details className="story-trail-message" open={messageFeed.length <= 3}><summary>Show the note</summary><pre>{entry.note.body}</pre></details>}
+          </li>
+          : entry.entryKind === "reference"
           ? <li data-story-trail-feed-reference={entry.reference.referenceId} key={entry.id}>
             <div className="story-trail-row"><span className="story-trail-chip">Reference found</span><span className="story-trail-meta">{formatTimestamp(entry.createdAt)}</span></div>
             <ReferenceSummary citedKeys={citedKeys} demo={demo} focused={false} reference={entry.reference} />

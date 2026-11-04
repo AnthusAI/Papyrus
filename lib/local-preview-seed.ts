@@ -4,7 +4,7 @@ import type { EditableArticle } from "./newsroom-articles";
 import type { MediaAssetRecord } from "./newsroom-media";
 import type { ResearchAssignmentPlan } from "./assign-research";
 import type { ResearchPacketView } from "./research-packet";
-import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailAssignment, type TrailReference, type TrailVersion } from "./story-reporting-trail";
+import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailAgentNote, type TrailAssignment, type TrailReference, type TrailThread, type TrailVersion } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
@@ -294,7 +294,22 @@ export function createLocalPreviewReportingTrail(lineageId: string): StoryReport
   const saved = previewSavedVersions.get(lineageId) ?? [];
   const references = lineageId === PREVIEW_BASED_ON.storyLineageId ? [previewBasedOnReference()] : [];
   const assignments = [...(previewAssignments.get(lineageId) ?? []), ...(lineageId === PREVIEW_BASED_ON.storyLineageId ? previewResearchAssignments() : [])];
-  return { ...EMPTY_STORY_REPORTING_TRAIL, versions: saved, references, assignments };
+  const basedOn = lineageId === PREVIEW_BASED_ON.storyLineageId;
+  return { ...EMPTY_STORY_REPORTING_TRAIL, versions: saved, references, assignments, threads: basedOn ? [previewStoryThread()] : [], agentNotes: basedOn ? previewAgentNotes() : [] };
+}
+
+function previewStoryThread(): TrailThread {
+  return { id: "preview-story-thread", title: PREVIEW_BASED_ON.storyTitle, threadKind: "story_reporting", summary: null, messages: [
+    { id: "preview-story-message-1", sequenceNumber: 1, messageKind: "note", authorLabel: "ryan", summary: "Check the second source before we lean on it", content: "The vendor post is the only source for the benchmark number. Ask for the paper.", createdAt: "2026-11-03T14:05:00Z" },
+  ] };
+}
+
+/** Two synthetic AI agent notes, one tied to a draft version, for reviewing how the trail labels them. */
+function previewAgentNotes(): TrailAgentNote[] {
+  return [
+    { id: "preview-agent-note-1", agent: "ChatGPT", summary: "The vendor's benchmark matches the paper's table 3", body: "Compared the vendor post with the paper. The headline figure matches table 3; the post leaves out the two failed runs reported in the appendix.\n\nOpen question: which hardware the vendor used.", referenceLineageId: null, versionNumber: 2, createdAt: "2026-11-03T14:20:00Z" },
+    { id: "preview-agent-note-2", agent: "Claude", summary: "No second independent replication found", body: "Searched the usual venues and two preprint servers. Nobody has replicated the result yet.", referenceLineageId: null, versionNumber: null, createdAt: "2026-11-03T13:10:00Z" },
+  ];
 }
 
 export function createLocalPreviewStoriesForReference(referenceLineageId: string): ReferenceStory[] {

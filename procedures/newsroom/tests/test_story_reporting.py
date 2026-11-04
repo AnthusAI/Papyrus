@@ -49,6 +49,8 @@ class FakeAuthoringClient:
             return [row for row in self.tables.get("Reference", {}).values() if row.get("lineageId") == key_value and row["id"] != key_value]
         if index_name == "semanticRelationsBySubjectState":
             return [row for row in self.tables.get("SemanticRelation", {}).values() if row["subjectStateKey"] == key_value]
+        if index_name == "messagesByThreadAndSequence":
+            return [row for row in self.tables.get("Message", {}).values() if row["threadId"] == key_value]
         raise AssertionError(index_name)
 
 
@@ -133,6 +135,60 @@ class StoryReportingTests(unittest.TestCase):
         self.assertEqual(thread["messageCount"], 2)
         self.assertEqual(thread["primaryAnchorLineageId"], LINEAGE)
         self.assertEqual(json.loads(second["metadata"])["referenceLineageId"], "reference-pwn-ai")
+
+    def test_a_message_written_on_the_iam_lane_does_not_claim_to_be_a_person(self):
+        message = append_story_message(client_with_one_story(), LINEAGE, body="Checked.", summary="Checked", author_label="ops", now=NOW)
+        self.assertEqual((message["role"], message["authorKind"], message["authorLabel"]), ("system", "operator", "ops"))
+
+    def test_the_iam_lane_needs_a_label_because_there_is_no_sign_in_to_name_the_author(self):
+        with self.assertRaises(ValueError):
+            append_story_message(client_with_one_story(), LINEAGE, body="x", summary="x", now=NOW)
+
+    def test_a_signed_in_note_goes_through_post_message_and_names_no_author(self):
+        client = client_with_one_story()
+        client.graphql = lambda query, variables=None: self.fail("unused")
+        calls = []
+
+        def graphql(query, variables=None):
+            calls.append((query, variables))
+            return {"postMessage": {"id": variables["id"], "authorSub": "sub-1", "authorLabel": "editor@example.test", "role": "human", "createdAt": NOW, "sequenceNumber": variables["sequenceNumber"]}}
+
+        client.graphql = graphql
+        message = append_story_message(client, LINEAGE, body="Found it.", summary="Found", author_label="ChatGPT", as_person=True, now=NOW)
+        query, variables = calls[0]
+        self.assertIn("postMessage(", query)
+        self.assertNotIn("authorLabel", variables)
+        self.assertNotIn("authorSub", variables)
+        self.assertNotIn("role", variables)
+        self.assertEqual((message["authorSub"], message["authorLabel"], message["role"]), ("sub-1", "editor@example.test", "human"))
+        self.assertNotIn("Message", client.tables)
+        self.assertEqual(client.tables["MessageThread"][story_thread_id(LINEAGE)]["messageCount"], 1)
+
+    def test_a_note_that_lost_the_race_for_its_number_tries_the_next_one(self):
+        client = client_with_one_story()
+        taken = []
+
+        def graphql(query, variables=None):
+            if not taken:
+                taken.append(variables["sequenceNumber"])
+                client.tables.setdefault("Message", {})["rival"] = {"id": "rival", "threadId": variables["threadId"], "sequenceNumber": variables["sequenceNumber"]}
+                raise RuntimeError("GraphQL request failed: The conditional request failed (already exists)")
+            return {"postMessage": {"id": variables["id"], "createdAt": NOW, "sequenceNumber": variables["sequenceNumber"]}}
+
+        client.graphql = graphql
+        message = append_story_message(client, LINEAGE, body="x", summary="x", as_person=True, now=NOW)
+        self.assertEqual((taken[0], message["sequenceNumber"]), (1, 2))
+
+    def test_a_refused_note_raises_and_leaves_the_thread_count_alone(self):
+        client = client_with_one_story()
+
+        def graphql(query, variables=None):
+            raise RuntimeError("GraphQL request failed: Not Authorized to access postMessage on type Mutation")
+
+        client.graphql = graphql
+        with self.assertRaises(RuntimeError):
+            append_story_message(client, LINEAGE, body="x", summary="x", as_person=True, now=NOW)
+        self.assertEqual(client.tables["MessageThread"][story_thread_id(LINEAGE)]["messageCount"], 0)
 
     def test_an_unknown_message_kind_is_refused(self):
         with self.assertRaises(ValueError):

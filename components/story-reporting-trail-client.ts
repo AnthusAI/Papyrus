@@ -4,7 +4,7 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { createLocalPreviewReportingTrail, createLocalPreviewStoriesForReference } from "../lib/local-preview-seed";
-import { EMPTY_STORY_REPORTING_TRAIL, referencesByRole, siteNameOf, stageMovesOf, type ReferenceStory, type StoryReportingTrail, type TrailAssignment, type TrailAttachment, type TrailReference, type TrailThread, type TrailVersion } from "../lib/story-reporting-trail";
+import { AGENT_NOTE_ROLE, EMPTY_STORY_REPORTING_TRAIL, agentNoteOf, referencesByRole, siteNameOf, stageMovesOf, type ReferenceStory, type StoryReportingTrail, type TrailAgentNote, type TrailAssignment, type TrailAttachment, type TrailReference, type TrailThread, type TrailVersion } from "../lib/story-reporting-trail";
 import { researchPacketOf, type ResearchPacketView } from "../lib/research-packet";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { loadModelPayloadsForOwner } from "./news-desk-taxonomy-client";
@@ -95,6 +95,19 @@ async function getPacket(client: GraphqlClient, assignmentId: string): Promise<R
   }
 }
 
+/** The AI agent notes of the story, oldest first: `agent_note` attachments owned by its first version record. A note that cannot be read is left out. */
+async function getAgentNotes(ownerId: string | null): Promise<TrailAgentNote[]> {
+  if (!ownerId) return [];
+  try {
+    const payloads = await loadModelPayloadsForOwner("item", ownerId, [AGENT_NOTE_ROLE]);
+    return payloads
+      .flatMap(payload => { const note = agentNoteOf(payload.attachment.id, payload.json, payload.attachment.createdAt); return note ? [note] : []; })
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  } catch {
+    return [];
+  }
+}
+
 /** The stories whose `uses_evidence` link names this Reference, each with its working title and stage. */
 export async function loadStoriesBasedOnReference(referenceLineageId: string, demo = false): Promise<ReferenceStory[]> {
   if (demo || isLocalPreviewEnabled()) return createLocalPreviewStoriesForReference(referenceLineageId);
@@ -156,7 +169,9 @@ export async function loadStoryReportingTrail(lineageId: string, itemId: string,
       role: relationRole(metadata.role), note: text(metadata.note), citationKey: text(metadata.citationKey), addedBy: text(metadata.addedBy), addedAt: text(metadata.addedAt),
     };
   })));
-  const attachments: TrailAttachment[] = attachmentRows.map(row => ({ id: String(row.id), role: text(row.role), filename: text(row.filename), mediaType: text(row.mediaType), byteSize: typeof row.byteSize === "number" ? row.byteSize : null }));
+  const firstVersion = [...versionRows].sort((left, right) => Number(left.versionNumber ?? 0) - Number(right.versionNumber ?? 0))[0];
+  const agentNotes = await getAgentNotes(firstVersion ? String(firstVersion.id) : null);
+  const attachments: TrailAttachment[] = attachmentRows.filter(row => row.role !== AGENT_NOTE_ROLE).map(row => ({ id: String(row.id), role: text(row.role), filename: text(row.filename), mediaType: text(row.mediaType), byteSize: typeof row.byteSize === "number" ? row.byteSize : null }));
   const latestRow = [...versionRows].sort((left, right) => Number(right.versionNumber ?? 0) - Number(left.versionNumber ?? 0))[0];
-  return { ...EMPTY_STORY_REPORTING_TRAIL, versions, assignments, threads, references, attachments, stageMoves: stageMovesOf(latestRow?.metadata) };
+  return { ...EMPTY_STORY_REPORTING_TRAIL, versions, assignments, threads, references, attachments, stageMoves: stageMovesOf(latestRow?.metadata), agentNotes };
 }

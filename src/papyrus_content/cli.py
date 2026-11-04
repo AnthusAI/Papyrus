@@ -344,6 +344,7 @@ PORTED_COMMANDS = frozenset(
         "stories:versions",
         "stories:link-reference",
         "stories:note",
+        "stories:agent-note",
         "stories:show",
         "stories:next",
         "stories:outline",
@@ -782,6 +783,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         stories_link_reference(flags)
     elif route == "stories:note":
         stories_note(flags)
+    elif route == "stories:agent-note":
+        from .story_commands import stories_agent_note
+
+        stories_agent_note(flags)
     elif route == "stories:show":
         stories_show(flags)
     elif route == "stories:next":
