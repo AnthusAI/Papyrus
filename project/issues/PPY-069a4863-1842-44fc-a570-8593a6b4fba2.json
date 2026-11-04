@@ -1,0 +1,20 @@
+{
+  "id": "PPY-069a4863-1842-44fc-a570-8593a6b4fba2",
+  "title": "Standard context pack: one layer table, section scope, copywriter and editor profiles",
+  "description": "Ryan 2026-11-03. Every agent working within a section gets the same section context, and a new signal changes one place. `newsroom_context_pack.py`: one table of layers (name, heading, whether it is core or a ring, builder, whether it needs a Story); profiles are role text, an ordered list of layers built from shared blocks. Scope is a section; the Story is optional, so an editor agent can get a pack before any Story exists. The reporter's pack text does not change (proved against the old code on the test fixture). Adds profiles `copywriter` (outline and Story, References, research with held claims labelled, the site's editorial policy guidance so the writer and the checker read the same rules, recent published Stories from the section in full as voice examples) and `editor` (the section's Stories in progress, with or without a Story). No fixed counts or day windows. `papyrus assignments context-pack --section S --profile P`. Gherkin in `features_backend/newsroom-context-pack.feature`.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-aab37edd-ee4e-4784-96a1-974ae040b452",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T01:21:24.697842Z",
+  "updated_at": "2026-11-04T01:21:24.698332Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
