@@ -386,6 +386,19 @@ def _moved_forward(result: dict) -> bool:
     return result["from"] in ordered and result["stage"] in ordered and ordered.index(result["stage"]) > ordered.index(result["from"])
 
 
+def research_assignment_options(story: dict, lineage_id: str, direction: str, section: dict | None, *, actor: str, title: Any = None, kind: Any = None) -> dict:
+    return {
+        "title": normalize_string(title) or story.get("headline") or story.get("title"),
+        "type": normalize_string(kind) or "research.multi",
+        "content-item": lineage_id,
+        "section": section["id"] if section else None,
+        "instructions": direction.strip(),
+        "direction": direction.strip(),
+        "context-profile": "reporter",
+        "actor-label": actor,
+    }
+
+
 def stories_assign_research(flags: list[str]) -> None:
     """papyrus stories assign-research --story <lineage> --direction TEXT|--direction-file FILE [--type research.multi] [--title TEXT] [--actor-label NAME] [--dry-run]
 
@@ -409,14 +422,7 @@ def stories_assign_research(flags: list[str]) -> None:
     actor = normalize_string(options.get("actor-label")) or "papyrus-cli"
     result = create_research_assignment(client, {
         **options,
-        "title": normalize_string(options.get("title")) or story.get("headline") or story.get("title"),
-        "type": normalize_string(options.get("type")) or "research.multi",
-        "content-item": lineage_id,
-        "section": section["id"] if section else None,
-        "instructions": direction.strip(),
-        "direction": direction.strip(),
-        "context-profile": "reporter",
-        "actor-label": actor,
+        **research_assignment_options(story, lineage_id, direction, section, actor=actor, title=options.get("title"), kind=options.get("type")),
     })
     moves = story.get("stage") == "idea"
     print(f"stories\tassign-research\t{lineage_id}\t{result['assignmentId']}\t{'moves the Story to assignment' if moves else 'Story stays at ' + str(story.get('stage'))}\t{'write' if apply else 'dry run'}")

@@ -31,6 +31,7 @@ import itertools
 import json
 import re
 from collections.abc import Callable, Iterable, Iterator, Mapping
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from typing import Any
 
@@ -46,9 +47,11 @@ from .tenancy import tenant_scoped_value
 CONTRACT = "newsroom-context-pack/v1"
 #: The default budget: half of the 200,000 characters the research run allows its model input; the other half is for the sources it finds.
 DEFAULT_MAX_CHARACTERS = 100_000
+#: For an agent that reads no new sources, the whole of that allowance.
+WHOLE_MAX_CHARACTERS = 200_000
 STORY_THREAD_KINDS = ("story_reporting", "story_conversation")
 RETIRED_STAGE = "retired"
-NOT_IN_PROGRESS = (RETIRED_STAGE, "spiked", "held", "published")
+NOT_IN_PROGRESS = (RETIRED_STAGE, "idea", "spiked", "held", "published")
 ACCEPTED = "accepted"
 HUMAN = "human"
 EDGE_PREDICATES = ("related_to", "cites", "supports", "contradicts")
@@ -95,9 +98,9 @@ SHARED_LAYERS = ("related_references",)
 #: Each agent: its role text, its layers in order, and whether it can only work on a Story.
 PROFILES: dict[str, dict[str, Any]] = {
     "reporter": {"role": REPORTER_ROLE, "needsStory": True, "layers": (*STORY_BLOCK, *SECTION_BLOCK, *PUBLICATION_BLOCK)},
-    "copywriter": {"role": COPYWRITER_ROLE, "needsStory": True,
+    "copywriter": {"role": COPYWRITER_ROLE, "needsStory": True, "sheds": ("story_references", "story_conversation", "prior_research"),
                    "layers": ("editorial_policies", *STORY_BLOCK, "voice_examples", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
-    "editor": {"role": EDITOR_ROLE, "needsStory": False, "layers": (*STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
+    "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("story_references", "story_conversation", "prior_research"), "layers": (*STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
 }
 
 
@@ -156,7 +159,8 @@ def _assignment_metadata(store: Any, assignment: Mapping[str, Any]) -> dict[str,
 class Situation:
     """What every layer needs: the store, the Story, the section it sits in and the room left to fill."""
 
-    def __init__(self, store: Any, *, lineage: str | None, assignment: Mapping[str, Any] | None, direction: str | None, section_id: str | None = None) -> None:
+    def __init__(self, store: Any, *, lineage: str | None, assignment: Mapping[str, Any] | None, direction: str | None, section_id: str | None = None,
+                 recent: Mapping[str, Mapping[str, int]] | None = None, now: datetime | None = None) -> None:
         self.store = store
         self.lineage = lineage
         self.assignment = dict(assignment) if assignment else None
@@ -165,6 +169,8 @@ class Situation:
         if self.story:
             _check_tenant(store, self.story)
         self.requested_section = section_id
+        self.recent = dict(recent or {})
+        self.now = now or datetime.now(timezone.utc)
         self.tenant = getattr(store, "tenant_id", None) or None
         self.warnings: list[str] = []
         self.section_problem: str | None = None
@@ -455,6 +461,17 @@ def published_rows(situation: Situation, slugs: Iterable[str]) -> Iterator[dict[
         yield row
 
 
+def within_recent(situation: Situation, name: str, rows: Iterable[dict[str, Any]]) -> Iterable[dict[str, Any]]:
+    """Published rows, newest first, held to what "recent" means for this layer: ``{"days": N}`` or ``{"stories": N}``. With no setting the budget is the only bound."""
+    rule = situation.recent.get(name) or {}
+    if rule.get("days") is not None:
+        cutoff = (situation.now - timedelta(days=rule["days"])).isoformat().replace("+00:00", "Z")
+        rows = itertools.takewhile(lambda row: str(row.get("publishedAt") or "") >= cutoff, rows)
+    if rule.get("stories") is not None:
+        rows = itertools.islice(rows, rule["stories"])
+    return rows
+
+
 def published_entry(row: Mapping[str, Any]) -> Entry:
     address = "/".join(part for part in (str(row.get("section") or "").strip(), str(row.get("slug") or "").strip()) if part)
     text = one_line(row.get("headline") or row.get("title"), _day(row.get("publishedAt")), address, first_sentence(row.get("deck")))
@@ -546,8 +563,43 @@ def fill(candidates: Iterable[Entry], room: int | None) -> tuple[list[Entry], in
     return taken, 0, False
 
 
+def shed_conversation(core: dict[str, list[Entry]], dropped: dict[str, tuple[int, str]], over: int) -> int:
+    conversation = core.get("story_conversation", [])
+    while over > 0 and conversation:
+        gone = conversation.pop(0)
+        over -= len(gone["text"]) + 2
+        dropped["story_conversation"] = (dropped.get("story_conversation", (0, ""))[0] + 1, "oldest messages dropped: the core layers fill the budget")
+    return over
+
+
+def shed_research(core: dict[str, list[Entry]], dropped: dict[str, tuple[int, str]], over: int) -> int:
+    research = core.get("prior_research", [])
+    while over > 0 and research:
+        gone = research.pop()
+        over -= len(gone["text"]) + 2
+        dropped["prior_research"] = (dropped.get("prior_research", (0, ""))[0] + 1, "oldest research dropped: the core layers fill the budget")
+    return over
+
+
+def shed_summaries(core: dict[str, list[Entry]], dropped: dict[str, tuple[int, str]], over: int) -> int:
+    for entry in reversed(core.get("story_references", [])):
+        if over <= 0:
+            break
+        if entry.get("bare") and entry["text"] != entry["bare"]:
+            over -= len(entry["text"]) - len(entry["bare"])
+            entry["text"] = entry["bare"]
+            dropped["story_references"] = (dropped.get("story_references", (0, ""))[0] + 1, "summaries dropped: the core layers fill the budget")
+    return over
+
+
+SHEDDING = {"story_conversation": shed_conversation, "prior_research": shed_research, "story_references": shed_summaries}
+#: What goes first when the core does not fit, unless a profile says otherwise. A reporter is about to read sources afresh, so old research can go early; an editor or a copywriter works from it.
+DEFAULT_SHEDDING = ("story_conversation", "prior_research", "story_references")
+
+
 def build_context_pack(store: Any, *, profile: str, assignment: Any = None, story_lineage_id: str | None = None, section_id: str | None = None,
-                       direction: str | None = None, max_characters: int | None = None) -> dict[str, Any]:
+                       direction: str | None = None, max_characters: int | None = None, recent: Mapping[str, Mapping[str, int]] | None = None,
+                       now: datetime | None = None) -> dict[str, Any]:
     if profile not in PROFILES:
         raise ValueError(f"Unknown context profile {profile!r}; known: {', '.join(sorted(PROFILES))}.")
     if max_characters is None:
@@ -566,7 +618,7 @@ def build_context_pack(store: Any, *, profile: str, assignment: Any = None, stor
         assignment = found
     if assignment and assignment.get("itemLineageId") and assignment["itemLineageId"] != story_lineage_id:
         raise ValueError("The assignment belongs to a different Story than the one requested.")
-    situation = Situation(store, lineage=story_lineage_id, assignment=assignment, direction=direction, section_id=section_id)
+    situation = Situation(store, lineage=story_lineage_id, assignment=assignment, direction=direction, section_id=section_id, recent=recent, now=now)
     names = [name for name in definition["layers"] if situation.story is not None or not LAYERS[name].needs_story]
     editorial = resolve_editorial_context(store, endpoint=graphql_endpoint(),
                                           section_id=situation.section["id"] if situation.section else None)
@@ -587,26 +639,8 @@ def build_context_pack(store: Any, *, profile: str, assignment: Any = None, stor
     dropped: dict[str, tuple[int, str]] = {}
     if room is not None:
         over = sum(size(entries) for entries in core.values()) + 2 * sum(len(entries) for entries in core.values()) - room
-        conversation = core.get("story_conversation", [])
-        while over > 0 and conversation:
-            gone = conversation.pop(0)
-            over -= len(gone["text"]) + 2
-            count, _ = dropped.get("story_conversation", (0, ""))
-            dropped["story_conversation"] = (count + 1, "oldest messages dropped: the assignment, the Story and its References alone fill the budget")
-        research = core.get("prior_research", [])
-        while over > 0 and research:
-            gone = research.pop()
-            over -= len(gone["text"]) + 2
-            count, _ = dropped.get("prior_research", (0, ""))
-            dropped["prior_research"] = (count + 1, "oldest research dropped: the assignment, the Story and its References and conversation fill the budget")
-        for entry in reversed(core.get("story_references", [])):
-            if over <= 0:
-                break
-            if entry.get("bare") and entry["text"] != entry["bare"]:
-                over -= len(entry["text"]) - len(entry["bare"])
-                entry["text"] = entry["bare"]
-                count, _ = dropped.get("story_references", (0, ""))
-                dropped["story_references"] = (count + 1, "summaries dropped: the assignment and the Story alone fill the budget")
+        for name in definition.get("sheds", DEFAULT_SHEDDING):
+            over = SHEDDING[name](core, dropped, over)
         if over > 0:
             warnings.append("The assignment, the Story and its References alone exceed the budget; nothing further was added.")
     for name in names:
@@ -646,6 +680,8 @@ def build_context_pack(store: Any, *, profile: str, assignment: Any = None, stor
             "layers": output_layers, "warnings": warnings, "editorialContextHash": editorial["contextHash"]}
     pack["contextHash"] = _digest({"contract": CONTRACT, "profile": profile, "system": system, "user": user,
                                    "layers": output_layers, "warnings": warnings, "editorialContextHash": editorial["contextHash"]})
+    if recent:
+        pack["recent"] = dict(recent)
     return pack
 
 
@@ -688,7 +724,7 @@ def in_progress_entry(row: Mapping[str, Any]) -> Entry:
 
 
 def desk_in_progress_layer(situation: Situation) -> tuple[Iterable[Entry], str | None]:
-    """Stories in the section not yet published, an editor's stars first, then the newest. A spiked or held Story is not in progress."""
+    """Stories someone is working on in the section, an editor's stars first, then the newest. An idea nobody has picked, and a spiked or held Story, is not in progress."""
     if situation.section is None:
         return [], situation.section_problem
     links = [row for row in section_stories(situation, "draft") if row.get("versionState", "current") == "current" and row.get("stage") not in NOT_IN_PROGRESS]
@@ -731,11 +767,11 @@ def editorial_policies_layer(situation: Situation) -> tuple[list[Entry], str | N
 def desk_published_layer(situation: Situation) -> tuple[Iterable[Entry], str | None]:
     if situation.section is None:
         return [], situation.section_problem
-    return (published_entry(row) for row in published_rows(situation, situation.section_slugs)), "nothing else is published in the section"
+    return (published_entry(row) for row in within_recent(situation, "desk_published", published_rows(situation, situation.section_slugs))), "nothing else is published in the section"
 
 
 def publication_published_layer(situation: Situation) -> tuple[Iterable[Entry], str | None]:
-    return (published_entry(row) for row in published_rows(situation, other_section_slugs(situation))), "nothing is published in other sections"
+    return (published_entry(row) for row in within_recent(situation, "publication_published", published_rows(situation, other_section_slugs(situation)))), "nothing is published in other sections"
 
 
 def desk_references_layer(situation: Situation) -> tuple[Iterable[Entry], str | None]:

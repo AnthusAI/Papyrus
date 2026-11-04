@@ -40,8 +40,8 @@ class Step:
 
 
 STEPS: tuple[Step, ...] = (
-    Step("choose", "idea", "Editor", "Choose the idea", "papyrus stories move --story {story} --stage assignment", LIVE, False,
-         "An editor picks the idea and moves it on."),
+    Step("choose", "idea", "Editor agent or a person", "Choose the idea", "papyrus ideas select --section <section>", LIVE, False,
+         "The editor agent picks few, under a rate limit. A person can pick by hand with stories assign-research, or undo a pick by moving the Story back."),
     Step("direction", "assignment", "Editor", "Give the research direction",
          "papyrus stories assign-research --story {story} --direction-file direction.md", LIVE, False,
          "The direction is the Assignment's instructions."),
@@ -66,6 +66,9 @@ STEPS: tuple[Step, ...] = (
     Step("publish", "published", "A person", "Publish the Story", "papyrus ops content publish --id <item id>", LIVE, False,
          "The only hard gate."),
 )
+
+
+STEP_BY_KEY = {step.key: step for step in STEPS}
 
 
 def _metadata_of(row: dict[str, Any]) -> dict[str, Any]:
@@ -144,6 +147,9 @@ def _state_of(step: Step, facts: dict[str, Any]) -> str:
             return DONE if facts["versionNumber"] > int(outline["versionNumber"]) else NOT_DONE
         return DONE if facts["body"].strip() and stage in STAGES_AT_OR_AFTER_COPYWRITING else NOT_DONE
     if step.key == "copy_edit":
+        # A check of an idea or an outline is not a copy edit of the draft.
+        if _state_of(STEP_BY_KEY["draft"], facts) != DONE:
+            return NOT_DONE
         if facts["checkRunError"]:
             return UNKNOWN
         run = facts["checkRun"]

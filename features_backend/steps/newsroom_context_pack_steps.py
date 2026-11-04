@@ -1,6 +1,7 @@
 import copy
 import json
 from collections import defaultdict
+from datetime import datetime, timezone
 from unittest import mock
 
 from behave import given, then, when
@@ -1251,7 +1252,8 @@ def step_in_progress(context):
         context.store.items.append(row)
         context.store.records["Item"][row["id"]] = row
     story("rated-old", 2, "reporting", starRating=5, starRatedAt=moment(2), starRatedBy="editor")
-    story("unrated-new", 9, "idea")
+    story("unrated-new", 9, "copywriting")
+    story("unpicked-idea", 9, "idea")
     story("spiked-one", 9, "spiked")
     story("held-one", 9, "held")
 
@@ -1331,3 +1333,66 @@ def step_process_named(context):
 @then("the pack holds no process layer")
 def step_no_process(context):
     assert "process" not in {row["name"] for row in context.pack["layers"]}
+
+
+@then("the Stories in progress do not show an idea nobody has picked")
+def step_no_idea(context):
+    assert "unpicked-idea" not in entry_ids(context, "desk_in_progress")
+
+
+NOW = datetime(2026, 10, 30, 12, tzinfo=timezone.utc)
+
+
+@given("Stories published in the section and in other sections over the last weeks")
+def step_published_weeks(context):
+    context.store.published.clear()
+    for lineage, section, day in (("in-1", "law-policy", 28), ("in-2", "law-policy", 15), ("in-3", "law-policy", 2), ("out-1", "culture", 29), ("out-2", "culture", 5)):
+        context.store.add_published(lineage, f"Title {lineage}", section, day)
+
+
+def recent_rule(words):
+    number, unit = words.split()
+    return {unit: int(number)}
+
+
+@when("the editor's context pack is built for the section with recent published Stories in the section meaning {section} and in the site meaning {site}")
+def step_editor_recent(context, section, site):
+    context.pack = profile_pack(context, "editor", section_id="law-policy", now=NOW,
+                                recent={"desk_published": recent_rule(section), "publication_published": recent_rule(site)})
+
+
+@then("the section's published layer holds {count:d} Stories")
+def step_section_count(context, count):
+    assert len(entry_ids(context, "desk_published")) == count, entry_ids(context, "desk_published")
+
+
+@then("the site's published layer holds {count:d} Stories")
+def step_site_count(context, count):
+    assert len(entry_ids(context, "publication_published")) == count, entry_ids(context, "publication_published")
+
+
+@then("the pack records what recent meant")
+def step_recent_recorded(context):
+    assert set(context.pack["recent"]) == {"desk_published", "publication_published"}
+
+
+@when("the copywriter's context pack is built with a budget that only just fits the research")
+def step_tight_copywriter(context):
+    full = profile_pack(context, "copywriter", story_lineage_id="story-1", assignment="assignment-1")
+    context.full_research = entry_ids_of(full, "prior_research")
+    context.pack = profile_pack(context, "copywriter", story_lineage_id="story-1", assignment="assignment-1",
+                                max_characters=len(full["system"]) + core_room(full) - 50)
+
+
+def entry_ids_of(pack, name):
+    return [entry["id"] for entry in next(row for row in pack["layers"] if row["name"] == name)["entries"]]
+
+
+@then("the research is all there")
+def step_research_there(context):
+    assert context.full_research and entry_ids(context, "prior_research") == context.full_research
+
+
+@then("the References lost their summaries")
+def step_lost_summaries(context):
+    assert layer(context, "story_references")["droppedCount"] > 0, layer(context, "story_references")
