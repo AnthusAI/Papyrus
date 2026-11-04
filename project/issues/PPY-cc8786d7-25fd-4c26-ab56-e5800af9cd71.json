@@ -1,0 +1,20 @@
+{
+  "id": "PPY-cc8786d7-25fd-4c26-ab56-e5800af9cd71",
+  "title": "Relations from Jev for the entity step",
+  "description": "The Jev entity step (papyrus knowledge extract-entities) proposes no relations: relations is []. On the machines-on-machines study data all 171 relations GLiNER proposed were skipped anyway (endpoints not accepted). Decide whether and how Jev should propose relations between accepted entities (choice per pair? per sentence?), with evidence from the text; do not invent a relation model before that. Also open: no fixed confidence cut-off on the proposed entities (Ryan has not decided); jev-1.13.0 has no price in model_prices.json so the stage cost shows tokens with usd null.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T22:17:16.125118Z",
+  "updated_at": "2026-11-04T22:17:16.125161Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
