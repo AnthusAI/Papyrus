@@ -528,24 +528,44 @@ def ai_review(run: Run) -> dict:
 
     patches: list[dict] = []
     decisions: list[review.Decision] = []
+    workers = dict(workers=c.DEFAULT_WORKERS, client_factory=getattr(run.services, "worker_client", None))
 
     nodes = c.current_nodes(client.list_records("SemanticNode"))
     generated = [node for node in nodes if node.get("status") == "generated"]
-    found, made = review.review_entities(generated, typed, mentions_of, model, actor, now=now, vocabulary=labels)
-    patches += found
-    decisions += made
-
     titles = {}
     for item in c.published_items(client.list_published_item_summaries(), c._no_url):
         titles[item.key] = titles[item.item_id] = item.title or ""
     if run.config.monitor_sources:  # a cluster of Hub models can be named from their ids
         for record in read_records(run.monitor_records):
             titles[record.lineage_id] = titles[record.reference_id] = record.title
-    found, made = review.review_clusters(
-        client.list_records("SteeringProposal"), lambda ids: [titles[i] for i in ids if titles.get(i)], model, actor, now=now
-    )
+    titles_of = lambda ids: [titles[i] for i in ids if titles.get(i)]  # noqa: E731
+    proposals = client.list_records("SteeringProposal")
+    accepted_before = [node for node in nodes if node.get("status") == "accepted"]
+    relations = {row["id"]: row for row in c.relations_of_nodes(client, accepted_before, **workers)}
+    before_by_lineage = {str(node.get("lineageId") or node["id"]): node for node in accepted_before}
+
+    # The call budget: every kind of work is owed what it needs up to a max-min fair share (``review.fair_shares``), and each stage may use
+    # every call that is left except what the stages after it are owed, so entities, which come first and are the most numerous, cannot use
+    # the whole budget and leave the clusters and relations unreviewed.
+    needs = {
+        "entities": review.calls_needed(len(review.entity_candidates(generated, typed)), review.BATCH_SIZE),
+        "clusters": review.calls_needed(len(review.cluster_candidates(proposals, titles_of)), review.CLUSTER_BATCH_SIZE),
+        "relations": review.calls_needed(len(review.relation_candidates(list(relations.values()), before_by_lineage, typed)), review.BATCH_SIZE),
+    }
+    shares = review.fair_shares(needs, model.max_calls)
+    used: dict[str, int] = {}
+
+    model.limit_stage(shares["clusters"] + shares["relations"])
+    found, made = review.review_entities(generated, typed, mentions_of, model, actor, now=now, vocabulary=labels)
     patches += found
     decisions += made
+    used["entities"] = model.calls
+
+    model.limit_stage(shares["relations"])
+    found, made = review.review_clusters(proposals, titles_of, model, actor, now=now)
+    patches += found
+    decisions += made
+    used["clusters"] = model.calls - used["entities"]
 
     # Entities accepted just now count as accepted for the relation review below.
     accepted_now = {patch["expected"]["id"] for patch in patches if patch["modelName"] == "SemanticNode" and patch["expected"].get("status") == "accepted"}
@@ -555,14 +575,19 @@ def ai_review(run: Run) -> dict:
         nodes = c.current_nodes(client.list_records("SemanticNode"))
     accepted = [node for node in nodes if node.get("status") == "accepted"]
     by_lineage = {str(node.get("lineageId") or node["id"]): node for node in accepted}
-    relations = c.relations_of_nodes(client, accepted, workers=c.DEFAULT_WORKERS, client_factory=getattr(run.services, "worker_client", None))
-    found, made = review.review_relations(relations, by_lineage, typed, model, actor, now=now)
+    before_ids = {node["id"] for node in accepted_before}
+    new_nodes = [node for node in accepted if node["id"] not in before_ids]
+    relations.update({row["id"]: row for row in c.relations_of_nodes(client, new_nodes, **workers)} if new_nodes else {})
+    model.limit_stage(0)
+    before_relations = model.calls
+    found, made = review.review_relations(list(relations.values()), by_lineage, typed, model, actor, now=now)
     patches += found
     decisions += made
+    used["relations"] = model.calls - before_relations
     if patches:
         apply_record_changes(client, review.record_changes(patches))
 
-    log = {"week": run.config.week, "model": model.model, "calls": model.calls, "summary": review.summary_of(decisions), "decisions": [d.to_dict() for d in decisions], "acceptedNow": len(accepted_now)}
+    log = {"week": run.config.week, "model": model.model, "calls": model.calls, "budget": {"calls": model.max_calls, "needed": needs, "owed": shares, "used": used}, "summary": review.summary_of(decisions), "decisions": [d.to_dict() for d in decisions], "acceptedNow": len(accepted_now)}
     if run.config.monitor_sources and run.config.monitor_suggestions:
         log["monitorSuggestions"] = suggest_promotions(run, client)
     run.run_dir.mkdir(parents=True, exist_ok=True)
