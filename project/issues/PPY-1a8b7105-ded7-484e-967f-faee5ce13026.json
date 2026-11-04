@@ -10,9 +10,17 @@
   "parent": "PPY-e6e82b61-7bde-4bc3-be9f-a1855419d3ab",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "76466328-6141-4678-adde-ecf54ff7c5a8",
+      "author": "home",
+      "text": "Decided by Ryan 2026-11-03: a Reference can belong to several sections. A machine's answer is stored separately and a person's always wins.",
+      "created_at": "2026-11-04T02:55:42.160728Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T02:52:46.078452Z",
-  "updated_at": "2026-11-04T02:52:46.078477Z",
+  "updated_at": "2026-11-04T02:55:42.160954Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
