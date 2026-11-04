@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "fd86db0b-cd85-44e3-a7d3-e5aef2973de5",
+      "author": "home",
+      "text": "Merged to develop in #1188, not yet released or on a site. Keep open until tested on Machines on Machines.",
+      "created_at": "2026-11-04T19:12:56.205084Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T17:46:13.683538Z",
-  "updated_at": "2026-11-04T17:46:13.683805Z",
+  "updated_at": "2026-11-04T19:12:56.205342Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
