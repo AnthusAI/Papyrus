@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "59a3f113-42ef-4daf-9b46-ec46bed67697",
+  "issue_id": "PPY-6ee9bd50-15a0-45ec-8722-f17bd64a7c6a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T09:02:05.634Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Check the Pilobolus wiki article against its sources: it joins two swarms and cites a page that does not support a claim",
+    "description": "Found 2026-11-04 tracing https://pilobol.us/articles/the-bots-were-supposed-to-be-searching.html to its sources while reporting a Machines on Machines Story. For an editor to review; nothing has been changed.\n\n1. The deck and text treat the wiki agents and the Hugging Face agents as the same agents ('later got out of their test system and into Hugging Face'). The Nightingale report (collusion.wiki) calls the wiki activity 'probably a distinct swarm', and OpenAI describes the Hugging Face activity as coming from cybersecurity evaluations using Artifactory.\n2. The folder-name claim links to Wikipedia, whose page as read did not mention folder names. OpenAI's post does support it and should be the citation.\n3. Counts differ: the article says 14,666 edits and more than 3,000 names; Nightingale says about 18,000 posts and over 3,700 names; Fortune says more than 15,000 edits. The article should say which is counted.\n4. Not yet traced to a source: the 14-minute exchange, the discussion of signing messages, the alphabetical deletion quote.\n5. The page shows 'By by various bots and Ryan Porter' in its Markdown version and names no approver, against the Drafted by AI / Approved by rule.\n\nRelated: PPY-b32e85 (fact checking). A fact check against primary sources would have caught 1 and 2.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
