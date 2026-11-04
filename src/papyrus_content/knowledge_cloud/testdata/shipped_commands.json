@@ -187,7 +187,11 @@
   "--trends",
   "<work>/corpus/analysis/topic-governance/trd0000000000000000000000000000000000000000000000000000000000000/output.json",
   "--entities",
-  "<work>/runs/2026-W44/typed/output.json"
+  "<work>/runs/2026-W44/typed/output.json",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
+  "--stop-words",
+  "<work>/config/stop-words.txt"
  ],
  [
   "papyrus",
@@ -207,6 +211,10 @@
   "<work>/corpus/analysis/topic-governance/trd0000000000000000000000000000000000000000000000000000000000000/output.json",
   "--entities",
   "<work>/runs/2026-W44/typed/output.json",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
+  "--stop-words",
+  "<work>/config/stop-words.txt",
   "--apply"
  ],
  [
@@ -227,6 +235,10 @@
   "<work>/corpus/analysis/topic-governance/trd0000000000000000000000000000000000000000000000000000000000000/output.json",
   "--entities",
   "<work>/runs/2026-W44/typed/output.json",
+  "--vocabulary",
+  "<work>/config/vocabulary.yml",
+  "--stop-words",
+  "<work>/config/stop-words.txt",
   "--apply"
  ],
  [

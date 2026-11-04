@@ -94,6 +94,7 @@ from .relation_review import (
     review_state,
 )
 from .corpus_export import DEFAULT_TYPES, biblicus_item_id, export_items, render_record, write_export
+from .candidate_filter import CandidateFilter, load_stop_words, vocabulary_kinds
 from .reference_documents import (
     S3TextStore,
     load_accepted_reference_documents,
@@ -251,6 +252,7 @@ def _print_plan(label: str, plan: PublishPlan, changes: list[dict], apply: bool,
                     "counts": plan.counts,
                     "changes": {f"{model}:{action}": count for (model, action), count in sorted(actions.items())},
                     "warnings": plan.warnings,
+                    "dropped": [dropped.to_dict() for dropped in plan.dropped],
                 },
                 indent=2,
                 sort_keys=True,
@@ -262,6 +264,8 @@ def _print_plan(label: str, plan: PublishPlan, changes: list[dict], apply: bool,
         print(f"knowledge\t{label}\tplan\t{name}\t{count}")
     for (model, action), count in sorted(actions.items()):
         print(f"knowledge\t{label}\tchanges\t{model}\t{action}\t{count}")
+    for dropped in plan.dropped:
+        print(f"knowledge\t{label}\tdropped\t{dropped.kind}\t{dropped.name}\t{dropped.reason}")
     for warning in plan.warnings[:20]:
         print(f"knowledge\t{label}\twarning\t{warning}")
     if len(plan.warnings) > 20:
@@ -273,6 +277,17 @@ def _print_plan(label: str, plan: PublishPlan, changes: list[dict], apply: bool,
 def _path_option(options: dict[str, Any], name: str) -> Path | None:
     value = normalize_string(options.get(name))
     return Path(value) if value else None
+
+
+def _candidate_filter(run: Any, options: dict[str, Any]) -> CandidateFilter | None:
+    """The filter of the extractor's candidates (``candidate_filter.py``): built from the site's stop words and vocabulary, and learned from the
+    run's own extraction. Without ``--stop-words`` and ``--vocabulary`` there is none and every candidate goes on as before."""
+    stop_words_file, vocabulary_file = _path_option(options, "stop-words"), _path_option(options, "vocabulary")
+    if run is None or not run.entities or (stop_words_file is None and vocabulary_file is None):
+        return None
+    stop_words = load_stop_words(stop_words_file if stop_words_file and stop_words_file.exists() else None)
+    kinds = vocabulary_kinds(vocabulary_file.read_text(encoding="utf-8")) if vocabulary_file else None
+    return CandidateFilter.learn(run.entities, stop_words=stop_words, kinds=kinds)
 
 
 def knowledge_publish_run(flags: list[str]) -> None:
@@ -322,6 +337,7 @@ def knowledge_publish_run(flags: list[str]) -> None:
         reference_documents=[document.as_item() for document in documents],
         record_rows_for=read_record_rows,
         ledger=ledger,
+        candidate_filter=_candidate_filter(run, options),
     )
     changes = plan_changes(client, plan, workers=workers, client_factory=worker_clients(client), known_rows=[*mention_rows, *record_rows_read])
     _print_plan("publish-run", plan, changes, apply, bool(options.get("json")))

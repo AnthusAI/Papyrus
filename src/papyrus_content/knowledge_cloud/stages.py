@@ -184,6 +184,11 @@ class Run:
         """``--reference-documents FILE`` for a command that links or counts the Reference documents, or nothing when the site has none."""
         return ["--reference-documents", str(self.reference_documents)] if self.config.reference_documents_on else []
 
+    def candidate_filter_options(self) -> list[str]:
+        """``--vocabulary`` and, when the site wrote one, ``--stop-words``: what ``publish-run`` filters the extractor's candidates with (``candidate_filter.py``)."""
+        stop_words = self.config_dir / "stop-words.txt"
+        return ["--vocabulary", str(self.config_dir / VOCABULARY_FILE), *(["--stop-words", str(stop_words)] if stop_words.exists() else [])]
+
     def import_options(self) -> list[str]:
         """The monitor options of the commands that import the records: the records, the ledger that lets a run skip what it wrote before, and
         ``--monitor-full`` (``KNOWLEDGE_MONITOR_FULL=true``) to import every record again."""
@@ -464,7 +469,7 @@ def import_arguments(run: Run) -> list[str]:
         "--corpus-key", run.config.corpus_key, "--actor-name", run.config.actor_name, *run.import_options(),
         "--identity", str(run.corpus / "analysis" / "topic-identity" / state["current"] / "output.json"),
         "--trends", str(run.corpus / "analysis" / "topic-governance" / state["trends"] / "output.json"),
-        "--entities", str(run.run_dir / "typed" / "output.json"),
+        "--entities", str(run.run_dir / "typed" / "output.json"), *run.candidate_filter_options(),
     ]
 
 
