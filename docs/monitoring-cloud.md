@@ -6,6 +6,7 @@ of any site backend: the monitor is shared by several publications, no one site
 owns it, and an Amplify backend deploy would tie HN collection to one site's
 pipeline. Like the edge stacks (`infra/edge/README.md`) it is a hand-run
 CloudFormation stack in account 712236451410, us-east-1, applied with a change set.
+The same stack also hosts the operator alert listener (every CloudWatch alarm to a triage-ready email, plus two last-resort SNS alerts): see [operator alerts](operator-alerts.md).
 
 ## Monitors and source types
 

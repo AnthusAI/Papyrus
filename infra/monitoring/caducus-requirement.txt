@@ -1,0 +1,5 @@
+# The one line that says where the operator zip gets the caducus package (build.py --operator reads the first non-comment line).
+# Until caducus is on PyPI under a working release job this is a commit of AnthusAI/Caducus (pure Python, built to a wheel on this machine).
+# Re-pin to the merge commit or a release tag after the Caducus pull request merges. When PyPI works, replace this line with, for example:
+#   caducus==0.2.0
+caducus @ git+https://github.com/AnthusAI/Caducus.git@e7ad21617c10d11840c52656db06f9279c274d3b

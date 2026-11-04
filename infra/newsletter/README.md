@@ -19,6 +19,7 @@
 | MailFromSubdomain | bounce | Label for the MAIL FROM domain. |
 | DmarcPolicy | quarantine | `none`, `quarantine` or `reject`. |
 | CreateDmarcRecord | true | Set `false` if the domain already publishes DMARC. |
+| EventTransport | sns | `sns` (the per-site topic), `eventbridge` (the account's default bus, no topic) or `both`. Sites keep `sns`; the operator stack uses `eventbridge`. |
 
 ## Deploy
 
@@ -32,6 +33,22 @@ aws cloudformation deploy \
   --tags papyrus:site=shipped papyrus:feature=newsletter \
   --no-fail-on-empty-changeset
 ```
+
+### Operator stack: notify.anth.us (PPY-bf63d5)
+
+Operator mail (CloudWatch alarm emails, `docs/operator-alerts.md`) sends from the `alerts` mailbox of notify.anth.us with configuration set `papyrus-operators`, from the same template. The anth.us zone is in the same account, so there is no delegation. Look the zone's id up rather than copying it:
+
+```bash
+ZONE=$(aws route53 list-hosted-zones --query 'HostedZones[?Name==`anth.us.`].Id' --output text | sed 's|/hostedzone/||')
+aws cloudformation deploy \
+  --template-file infra/newsletter/papyrus-newsletter-sending.yaml \
+  --stack-name papyrus-newsletter-sending-operators \
+  --parameter-overrides SiteId=operators SendingDomain=notify.anth.us HostedZoneId="$ZONE" EventTransport=eventbridge \
+  --tags papyrus:site=operators papyrus:feature=operator-alerts \
+  --no-fail-on-empty-changeset
+```
+
+On 2026-11-04 a read-only listing showed no record containing `notify` in the zone, so DKIM (`<token>._domainkey.notify.anth.us`), `bounce.notify.anth.us` (MX, SPF) and `_dmarc.notify.anth.us` collide with nothing. The apex `anth.us` publishes no `_dmarc` record (a separate gap; this stack only creates the subdomain's). With `EventTransport=eventbridge` there is no SNS topic, and delivery events arrive on the default bus as `Email Delivered`, `Email Bounced` and so on. Open and click events are never enabled, and a test fails if either appears.
 
 Before the first deploy, list the zone's records for the sending domain and make sure none collide with the DKIM, MAIL FROM and `_dmarc` names.
 
