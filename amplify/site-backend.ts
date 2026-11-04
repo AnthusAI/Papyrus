@@ -24,6 +24,7 @@ import {
   revalidateInvalidationStatement,
   validateRevalidateDistributionIds,
 } from "./revalidate-invalidation-settings";
+import { enablePointInTimeRecoveryOnDataTables } from "./data-table-recovery";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, trustClientOnIdentityPool } from "./auth/prospectus-google-client";
@@ -155,6 +156,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     slackDelivery,
     storage,
   });
+
+  enablePointInTimeRecoveryOnDataTables(backend.data.resources.cfnResources.amplifyDynamoDbTables);
 
   if (authConfig.disableGoogleOAuth !== true) {
     applyGoogleEmailVerifiedMapping(backend.auth.stack);
@@ -469,6 +472,11 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda]) {
       (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
     }
+  }
+  // A backend that carries a tenant but serves one publication says so (exactly "true"), which lets an editor add References
+  // (docs/multi-tenancy.md). Only content-actions runs Reference intake with the tenant set; the monitoring-view Lambda never gets the tenant.
+  if (backendTenantId !== "" && (process.env.PAPYRUS_SINGLE_PUBLICATION_BACKEND ?? "").trim() === "true") {
+    contentActionsLambda.addEnvironment("PAPYRUS_SINGLE_PUBLICATION_BACKEND", "true");
   }
   if ((activeBrand?.corpusKey ?? "").trim() !== "") {
     // A deploy creates the publication's canonical corpus from the brand when the backend has none.

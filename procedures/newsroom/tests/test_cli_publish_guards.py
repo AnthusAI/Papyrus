@@ -201,7 +201,7 @@ class StoriesMoveWarningTests(unittest.TestCase):
         self.assertIn("No page is published", err)
         self.assertIn("papyrus ops content publish", err)
         self.assertNotIn("warning", out)
-        self.assertTrue(all(line.startswith("stories\tmove\t") for line in out.splitlines()))
+        self.assertTrue(all(line.startswith(("stories\tmove\t", "next\t", "skipped\t")) for line in out.splitlines()))
         self.assertEqual(client.get_record("Item", ITEM)["stage"], "published")
 
     def test_dry_run_warns_and_writes_nothing(self) -> None:

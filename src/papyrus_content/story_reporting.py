@@ -318,6 +318,20 @@ def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason:
     return {"changed": True, "stage": stage, "from": previous, "itemId": latest["id"]}
 
 
+OUTLINE_KEY = "outline"
+
+
+def mark_story_outline(client, record: dict[str, Any], *, actor: str, now: str | None = None) -> dict[str, Any]:
+    """Marks a saved version as the Story's outline, in place on the version's metadata (``outline``); the draft step counts versions after it."""
+    now = now or utc_now_iso()
+    stored = client.get_record("Item", record["id"]) or record
+    metadata = json.loads(stored.get("metadata") or "{}") if isinstance(stored.get("metadata"), str) else dict(stored.get("metadata") or {})
+    marker = {"versionId": record["id"], "versionNumber": int(record.get("versionNumber") or 1), "at": now, "by": actor}
+    metadata[OUTLINE_KEY] = marker
+    client.update_record("Item", {"id": record["id"], "metadata": to_aws_json(metadata)})
+    return marker
+
+
 def story_reference_relation_id(lineage_id: str, reference_lineage_id: str) -> str:
     return "semantic-relation-" + hash_short(["story-reference", lineage_id, reference_lineage_id])
 
@@ -464,55 +478,88 @@ def ensure_story_thread(client, lineage_id: str, *, now: str) -> dict[str, Any]:
     return record
 
 
+MESSAGE_SEQUENCE_ATTEMPTS = 5
+
+
 def append_story_message(
     client,
     lineage_id: str,
     *,
     body: str,
     summary: str,
-    author_label: str,
+    author_label: str | None = None,
     message_kind: str = "note",
     reference_lineage_id: str | None = None,
     version_number: int | None = None,
+    as_person: bool = False,
     now: str | None = None,
 ) -> dict[str, Any]:
-    """Adds one message, written by a person, to the story's reporting thread: ordered, time stamped and attributed.
+    """Adds one message to the story's reporting thread: ordered, time stamped and attributed.
 
-    Messages come only from people, so the role is always ``human``. A bot or an agent never calls this."""
+    Messages come only from people, and the backend says who wrote one. With ``as_person`` (a signed-in editor or admin) the message goes
+    through the ``postMessage`` mutation, which stamps the author from the sign-in; ``author_label`` is then ignored, and the label is the
+    person's own. Without it (the IAM lane, an operator's AWS credentials) the message is written directly and does not claim a person
+    wrote it: its role is ``system`` and its author kind ``operator``, labelled with ``author_label``.
+
+    The message id comes from its sequence number, so a writer that lost a race for the number is refused and tries the next one.
+    Nothing is returned as saved unless the message itself was saved."""
+    from .post_message import is_sequence_conflict, post_message
+
     if message_kind not in STORY_MESSAGE_KINDS:
         raise ValueError(f"message kind must be one of {', '.join(STORY_MESSAGE_KINDS)}.")
+    if not as_person and not (author_label or "").strip():
+        raise ValueError("--author-label is required on the IAM lane, where there is no sign-in to name the author.")
     now = now or utc_now_iso()
     thread = ensure_story_thread(client, lineage_id, now=now)
-    sequence_number = int(thread.get("messageCount") or 0) + 1
-    message_id = f"message-story-{safe_id(lineage_id)}-{sequence_number:05d}-{hash_short([lineage_id, sequence_number, now, body])[:8]}"
     metadata = {"kind": "story.message", "storyLineageId": lineage_id}
     if reference_lineage_id:
         metadata["referenceLineageId"] = reference_lineage_id
     if version_number is not None:
         metadata["versionNumber"] = version_number
-    message = {
-        "id": message_id,
-        "messageKind": message_kind,
-        "messageDomain": "newsroom",
-        "status": "active",
-        "summary": summary,
-        "source": "newsroom",
-        "authorLabel": author_label,
-        "threadId": thread["id"],
-        "sequenceNumber": sequence_number,
-        "role": "human",
-        "messageType": "text",
-        "content": body,
-        "responseTarget": "none",
-        "responseStatus": "COMPLETED",
-        "metadata": json.dumps(metadata, sort_keys=True),
-        "createdAt": now,
-        "updatedAt": now,
-        "newsroomFeedKey": "messages",
-    }
-    client.create_record("Message", message)
-    client.update_record("MessageThread", {"id": thread["id"], "messageCount": sequence_number, "lastMessageId": message_id, "lastMessageAt": now, "updatedAt": now})
+    for attempt in range(1, MESSAGE_SEQUENCE_ATTEMPTS + 1):
+        sequence_number = _next_thread_sequence(client, thread)
+        message_id = f"message-story-{safe_id(lineage_id)}-{sequence_number:05d}"
+        message = {
+            "id": message_id,
+            "messageKind": message_kind,
+            "messageDomain": "newsroom",
+            "status": "active",
+            "summary": summary,
+            "source": "newsroom",
+            "threadId": thread["id"],
+            "sequenceNumber": sequence_number,
+            "messageType": "text",
+            "content": body,
+            "responseTarget": "none",
+            "responseStatus": "COMPLETED",
+            "metadata": json.dumps(metadata, sort_keys=True),
+            "newsroomFeedKey": "messages",
+        }
+        try:
+            if as_person:
+                saved = post_message(client, message)
+                created_at = saved.get("createdAt") or now
+                message.update({key: saved[key] for key in ("authorSub", "authorLabel", "role", "createdAt") if saved.get(key)})
+            else:
+                message.update({"authorLabel": author_label, "authorKind": "operator", "role": "system", "createdAt": now, "updatedAt": now})
+                client.create_record("Message", message)
+                created_at = now
+            break
+        except Exception as error:  # noqa: BLE001 - only a lost race for the number is retried
+            if not is_sequence_conflict(error) or attempt >= MESSAGE_SEQUENCE_ATTEMPTS:
+                raise
+            thread = client.get_record("MessageThread", thread["id"]) or thread
+    try:
+        client.update_record("MessageThread", {"id": thread["id"], "messageCount": sequence_number, "lastMessageId": message_id, "lastMessageAt": created_at, "updatedAt": now})
+    except Exception as error:  # noqa: BLE001 - the message is saved; only the thread's summary line is behind
+        message["threadWarning"] = str(error)
     return message
+
+
+def _next_thread_sequence(client, thread: dict[str, Any]) -> int:
+    """One more than the highest number in the thread, from its Messages as well as its count (a count can lag a saved Message)."""
+    numbers = [int(row.get("sequenceNumber") or 0) for row in client.list_by_index("messagesByThreadAndSequence", thread["id"])]
+    return max([int(thread.get("messageCount") or 0), *numbers]) + 1
 
 
 def link_found_references_as_consulted(client, lineage_id: str, reference_ids: list[str], *, actor: str, note: str | None = None,

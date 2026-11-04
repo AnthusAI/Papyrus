@@ -1,0 +1,23 @@
+{
+  "id": "PPY-d988cc29-55a6-4d47-bda8-b337d89ca5b6",
+  "title": "Console has no way to connect the Papyrus CLI or a reporting agent to a site",
+  "description": "A person working with a reporting agent has to know, from outside the product, that the agent needs a CLI sign-in and which command does it. Found 2026-11-03 starting a Machines on Machines Story with a reporting agent: the agent could not work until Ryan ran a sign-in command the agent had to tell him about. No console page mentions papyrus login, login --remote or the site's public login file.\n\nGoal: from the signed-in newsroom console, someone can connect the CLI or an agent to this site without reading the docs or asking anyone.\n\nDesign questions for the UX pass:\n- Where it lives (app/newsroom/settings is the obvious candidate) and whether a Story's reporting view also links to it, since that is where the need shows up.\n- The per-site command with a copy button, filled in from the site's own origin, so nobody types a host name.\n- Local versus remote: papyrus login <site> on a machine with a browser, papyrus login --remote for an agent with none, where the person approves on their phone. Only offer remote on sites with cliRemoteLogin on.\n- Prose for an editor who does not use a terminal: what connecting an agent lets it do, and that it acts as them.\n- Whether to show this person's active CLI sign-ins and let them end one. Follow-up unless the backend already exposes it.\n\nRules: Lucide icons, flat fills, no borders, Accept/Reject vocabulary. Screenshot review with Ryan before shipping. Gherkin specs with the change, and a p.apyr.us docs task at the end.\n\nRelated: PPY-83e413 (CLI requires amplify_outputs.json), PPY-5a3624 (remote approval), PPY-7c458d (renewable sessions), PPY-06d692 (sign-in docs), PPY-e2a0b8 (enrollment).",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "ux",
+    "cli"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T23:34:52.307569Z",
+  "updated_at": "2026-11-03T23:34:52.307646Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

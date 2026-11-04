@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { withPapyrus, isAmplifyBuild } from "../packages/papyrus/src/with-papyrus.mjs";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { withPapyrus, isAmplifyBuild, engineVersionEnvironment } from "../packages/papyrus/src/with-papyrus.mjs";
 
 const keys = ["AWS_APP_ID", "AWS_BRANCH", "PAPYRUS_NEXT_BUILD_CHECKS"];
 function withEnv(env, fn) {
@@ -37,5 +40,15 @@ assert.equal(siteWins.eslint.ignoreDuringBuilds, false);
 const overridden = withEnv({ ...amplify, PAPYRUS_NEXT_BUILD_CHECKS: "1" }, () => withPapyrus({}));
 assert.equal(overridden.typescript, undefined, "override restores the checks");
 assert.equal(overridden.eslint, undefined);
+
+// The installed package tells /.well-known/papyrus-site.json its version; a checkout of the engine tells nothing.
+const staged = fs.mkdtempSync(path.join(os.tmpdir(), "engine-version-"));
+fs.writeFileSync(path.join(staged, "package.json"), JSON.stringify({ name: "@anthusai/papyrus", version: "5.81.0" }));
+fs.writeFileSync(path.join(staged, "other.json"), JSON.stringify({ name: "papyrus", version: "1.0.0" }));
+assert.deepEqual(engineVersionEnvironment(path.join(staged, "package.json")), { PAPYRUS_ENGINE_VERSION: "5.81.0" });
+assert.deepEqual(engineVersionEnvironment(path.join(staged, "other.json")), {}, "not the published package");
+assert.deepEqual(engineVersionEnvironment(path.join(staged, "missing.json")), {});
+assert.deepEqual(engineVersionEnvironment(), {}, "the engine checkout has no published version");
+fs.rmSync(staged, { recursive: true, force: true });
 
 console.log("with-papyrus build checks tests passed");

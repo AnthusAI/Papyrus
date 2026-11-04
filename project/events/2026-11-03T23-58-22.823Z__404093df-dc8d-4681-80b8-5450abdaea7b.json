@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "404093df-dc8d-4681-80b8-5450abdaea7b",
+  "issue_id": "PPY-3da21af9-960a-4fe8-b041-1d8b71431da9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-03T23:58:22.823Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editors cannot add References on a tenant-configured site: intake refuses every request",
+    "description": "On Machines on Machines, papyrus references create-from-catalog --status pending, signed in as an editor, fails with: Shared-tenant Reference intake is not supported. The check in src/papyrus_content/reference_intake_validation.py refuses whenever the backend has PAPYRUS_TENANT_ID set. --dry-run passes and does not reveal this, because it skips server authorization. Found 2026-11-03 importing 23 sources for a Story. The refusal's only documented alternative is the IAM lane, which conflicts with signed-in CLI operation. Decide: this site has its own backend and one publication, so can the guard be narrowed to a backend that really is shared, or does knowledge data need the reviewed tenancy design the intake doc asks for? Related: PPY-98224e (references add).",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "cli"
+    ]
+  }
+}

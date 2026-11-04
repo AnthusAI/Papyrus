@@ -1,6 +1,7 @@
 import copy
 import json
 from collections import defaultdict
+from datetime import datetime, timezone
 from unittest import mock
 
 from behave import given, then, when
@@ -77,14 +78,23 @@ class FakeNewsroom:
             return copy.deepcopy([row for row in self.records["Reference"].values() if row.get("lineageId") == key])
         if index == "assignmentsByItemLineageAndCreatedAt":
             return copy.deepcopy([row for row in self.records["Assignment"].values() if row.get("itemLineageId") == key])
+        if index == "itemsByStage":
+            return copy.deepcopy([row for row in self.items if row.get("stage") == key])
         if index == "itemsBySectionStatus":
-            return copy.deepcopy([row for row in self.items
-                                  if f"{TENANT}#{row.get('section')}#{'published' if row.get('status') == 'published' else 'draft'}" == key])
+            # As in DynamoDB: the index is sorted on publishedAt, so a row without one is not in it.
+            return copy.deepcopy([row for row in self.items if row.get("publishedAt")
+                                  and f"{TENANT}#{row.get('section')}#{'published' if row.get('status') == 'published' else 'draft'}" == key])
         if index == "messageThreadsByAnchor":
             return copy.deepcopy([row for row in self.threads if row.get("primaryAnchorKey") == key])
         if index == "messagesByThreadAndSequence":
             return copy.deepcopy(self.messages[key])
         raise AssertionError(f"the fake store does not serve index {index}")
+
+    def read_check_run(self, item_id):
+        return None
+
+    def list_policies(self):
+        return copy.deepcopy(getattr(self, "policies", []))
 
     def get_records_by_id(self, model, ids):
         return {record_id: copy.deepcopy(self.records[model][record_id]) for record_id in ids if record_id in self.records[model]}
@@ -404,7 +414,7 @@ def step_text_order(context):
 @then("the system text carries the role, the publication policy and the section mission")
 def step_system(context):
     system = context.pack["system"]
-    assert "reporter" in system and "PUBLICATION-POLICY" in system and "Law and Policy MISSION" in system, system
+    assert context.pack["profile"] in system and "PUBLICATION-POLICY" in system and "Law and Policy MISSION" in system, system
 
 
 @then("the system text is the same as without a budget")
@@ -1084,3 +1094,313 @@ def step_failed_direction(context):
 @then("no search or model call was made")
 def step_no_calls(context):
     assert context.model_calls == []
+
+
+# --- every agent in a section ----------------------------------------------------------------------------------------------------------
+
+def profile_pack(context, profile, **kwargs):
+    with mock.patch.object(pack_module, "graphql_endpoint", return_value=ENDPOINT):
+        return build_context_pack(context.store, profile=profile, **kwargs)
+
+
+def layer_text(context, name):
+    heading = f"## {pack_module.HEADINGS[name]}\n\n"
+    user = context.pack["user"]
+    return user.split(heading, 1)[1].split("\n\n## ", 1)[0] if heading in user else ""
+
+
+@when("the context pack is built for each of the reporter, the copywriter and the editor on the Story")
+def step_three_packs(context):
+    context.packs = [profile_pack(context, profile, story_lineage_id="story-1") for profile in ("reporter", "copywriter", "editor")]
+
+
+def three_pack_blocks(context, names):
+    seen = []
+    for pack in context.packs:
+        rows = {row["name"]: row for row in pack["layers"]}
+        seen.append({name: [entry["id"] for entry in rows[name]["entries"]] for name in names})
+    assert all(rows[name] for name in names for rows in seen), seen
+    return seen
+
+
+@then("the section's published Stories and accepted References are the same in all three packs")
+def step_same_section(context):
+    first, *others = three_pack_blocks(context, pack_module.SECTION_BLOCK)
+    assert all(other == first for other in others), (first, others)
+
+
+@then("the publication's published Stories and accepted References are the same in all three packs")
+def step_same_publication(context):
+    first, *others = three_pack_blocks(context, pack_module.PUBLICATION_BLOCK)
+    assert all(other == first for other in others), (first, others)
+
+
+@when("the copywriter's context pack is built for the Story")
+def step_copywriter_pack(context):
+    context.pack = profile_pack(context, "copywriter", story_lineage_id="story-1", assignment="assignment-1")
+
+
+@then("the system text says it is a copywriter and it writes a draft, never publishing")
+def step_copywriter_system(context):
+    system = context.pack["system"]
+    assert "You are a copywriter" in system and "you never publish it" in system and "PUBLICATION-POLICY" in system
+
+
+@given("the site has a publication policy, a section policy of the same key that replaces it, and a disabled policy")
+def step_policies(context):
+    common = {"severity": "warning", "enabled": True, "version": 1}
+    context.store.policies = [
+        {**common, "policyKey": "plain", "scope": "publication", "title": "Plain words", "guidance": "PUBLICATION-WORDING"},
+        {**common, "policyKey": "plain", "scope": "law-policy", "title": "Plain words", "guidance": "SECTION-WORDING"},
+        {**common, "policyKey": "off", "scope": "publication", "title": "Switched off", "guidance": "DISABLED-WORDING", "enabled": False},
+    ]
+
+
+@then("the editorial policies layer shows the section's wording and not the publication's")
+def step_policy_wording(context):
+    text = layer_text(context, "editorial_policies")
+    assert "SECTION-WORDING" in text and "PUBLICATION-WORDING" not in text, text
+
+
+@then("the editorial policies layer does not show the disabled policy")
+def step_policy_disabled(context):
+    assert "DISABLED-WORDING" not in layer_text(context, "editorial_policies")
+
+
+@then("the research layer is the one the reporter reads, which marks the claims that did not pass")
+def step_research_marked(context):
+    text = layer_text(context, "prior_research")
+    reporter = profile_pack(context, "reporter", story_lineage_id="story-1", assignment="assignment-1")
+    assert text and f"## {pack_module.HEADINGS['prior_research']}\n\n{text}" in reporter["user"]
+
+
+def mark_outline(context, version_number):
+    story = context.store.records["Item"]["story-1-v2"]
+    story["metadata"] = json.dumps({"outline": {"versionId": "x", "versionNumber": version_number}})
+    for row in context.store.items:
+        if row["id"] == "story-1-v2":
+            row["metadata"] = story["metadata"]
+
+
+@given("the Story's current version is marked as the editor's outline")
+def step_outline_current(context):
+    mark_outline(context, 2)
+
+
+@given("the Story's outline was marked on an earlier version")
+def step_outline_earlier(context):
+    mark_outline(context, 1)
+
+
+@then("the Story layer shows the text as the editor's outline")
+def step_shows_outline(context):
+    assert "The editor's outline:\n" in layer_text(context, "story")
+
+
+@then("the Story layer shows the text as a draft")
+def step_shows_draft(context):
+    text = layer_text(context, "story")
+    assert "Draft:\n" in text and "The editor's outline" not in text
+
+
+@given("a published Story in the section and one in another section, both with their full text")
+def step_voice_stories(context):
+    context.store.published.clear()
+    context.store.add_published("voice-in", "In the section", "law-policy", 9)
+    context.store.add_published("voice-out", "In another section", "culture", 10)
+    context.store.records["PublishedItem"]["published-voice-in"] = {"id": "published-voice-in", "bodyMarkus": "SECTION-VOICE whole text " * 40}
+    context.store.records["PublishedItem"]["published-voice-out"] = {"id": "published-voice-out", "bodyMarkus": "OTHER-VOICE whole text " * 40}
+
+
+@then("the voice examples show the section's Story in full before the other section's")
+def step_voice_order(context):
+    text = layer_text(context, "voice_examples")
+    assert text.count("SECTION-VOICE") == 40 and text.count("OTHER-VOICE") == 40, text
+    assert text.index("SECTION-VOICE") < text.index("OTHER-VOICE")
+
+
+@when("the copywriter's context pack is built with a budget that has no room for a whole example")
+def step_voice_tight(context):
+    full = profile_pack(context, "copywriter", story_lineage_id="story-1", assignment="assignment-1")
+    context.pack = profile_pack(context, "copywriter", story_lineage_id="story-1", assignment="assignment-1",
+                                max_characters=len(full["system"]) + core_room(full) + 200)
+
+
+@then("no voice example is cut short")
+def step_voice_whole(context):
+    assert layer_text(context, "voice_examples") == ""
+
+
+@then("the voice examples layer reports what it dropped")
+def step_voice_dropped(context):
+    assert layer(context, "voice_examples")["droppedCount"] > 0
+
+
+@given("nothing is published")
+def step_nothing_published(context):
+    context.store.published.clear()
+
+
+@then("the voice examples layer is empty and says nothing is published yet")
+def step_voice_empty(context):
+    row = layer(context, "voice_examples")
+    assert not row["entries"] and "nothing is published yet" in row["emptyReason"], row
+
+
+@given("the section has Stories in progress, a rated one older than an unrated one, a spiked one and a held one")
+def step_in_progress(context):
+    def story(lineage, day, stage, **extra):
+        row = {"id": f"{lineage}-v1", "lineageId": lineage, "versionNumber": 1, "versionState": "current", "tenantId": TENANT, "type": "article",
+               "status": "draft", "section": "law-policy", "stage": stage, "headline": f"Headline {lineage}", "deck": f"Deck of {lineage}.", "updatedAt": moment(day), **extra}
+        context.store.items.append(row)
+        context.store.records["Item"][row["id"]] = row
+    story("rated-old", 2, "reporting", starRating=5, starRatedAt=moment(2), starRatedBy="editor")
+    story("unrated-new", 9, "copywriting")
+    story("unpicked-idea", 9, "idea")
+    story("spiked-one", 9, "spiked")
+    story("held-one", 9, "held")
+
+
+@when("the editor's context pack is built for the section alone")
+def step_editor_section(context):
+    context.pack = profile_pack(context, "editor", section_id="law-policy")
+
+
+@when("the editor's context pack is built for the Story")
+def step_editor_story(context):
+    context.pack = profile_pack(context, "editor", story_lineage_id="story-1")
+
+
+@then("the pack holds no Story layers")
+def step_no_story_layers(context):
+    names = {row["name"] for row in context.pack["layers"]}
+    assert not names & {"story", "story_references", "related_references", "story_conversation", "prior_research"}, names
+
+
+@then("the pack names the section and no Story")
+def step_names_section(context):
+    assert context.pack["storyLineageId"] is None and context.pack["sectionId"] == "law-policy", (context.pack["storyLineageId"], context.pack["sectionId"])
+
+
+@then("the Stories in progress show the rated one first, with its stars and stage")
+def step_rated_first(context):
+    assert entry_ids(context, "desk_in_progress")[:2] == ["rated-old", "unrated-new"], entry_ids(context, "desk_in_progress")
+    text = layer_text(context, "desk_in_progress")
+    assert "Headline rated-old | stage reporting | 5 stars" in text, text
+
+
+@then("the Stories in progress do not show the spiked one or the held one")
+def step_not_spiked(context):
+    ids = entry_ids(context, "desk_in_progress")
+    assert "spiked-one" not in ids and "held-one" not in ids, ids
+
+
+@then("the section's published Stories and accepted References are shown")
+def step_section_shown(context):
+    assert entry_ids(context, "desk_published") and entry_ids(context, "desk_references")
+
+
+@then("the Stories in progress do not show the Story itself")
+def step_not_itself(context):
+    assert "story-1" not in entry_ids(context, "desk_in_progress")
+
+
+@when("a context pack is asked for with {request}")
+def step_refused(context, request):
+    requests = {
+        "the reporter and a section": {"profile": "reporter", "section_id": "law-policy"},
+        "the copywriter and a section": {"profile": "copywriter", "section_id": "law-policy"},
+        "a Story and a section": {"profile": "editor", "story_lineage_id": "story-1", "section_id": "law-policy"},
+        "neither a Story nor a section": {"profile": "editor"},
+        "an unknown section": {"profile": "editor", "section_id": "no-such-section"},
+    }
+    context.error = None
+    try:
+        profile_pack(context, **requests[request])
+    except ValueError as error:
+        context.error = str(error)
+
+
+@then('the pack is refused saying "{reason}"')
+def step_refusal(context, reason):
+    assert context.error and reason in context.error, context.error
+
+
+@then("each pack says what stage the Story is in, what is done and what is next")
+def step_process_named(context):
+    for pack in context.packs:
+        text = pack["user"].split(f"## {pack_module.HEADINGS['process']}\n\n", 1)[1].split("\n\n## ", 1)[0]
+        assert "Stage:" in text and "Done:" in text and "Next:" in text, text
+
+
+@then("the pack holds no process layer")
+def step_no_process(context):
+    assert "process" not in {row["name"] for row in context.pack["layers"]}
+
+
+@then("the Stories in progress do not show an idea nobody has picked")
+def step_no_idea(context):
+    assert "unpicked-idea" not in entry_ids(context, "desk_in_progress")
+
+
+NOW = datetime(2026, 10, 30, 12, tzinfo=timezone.utc)
+
+
+@given("Stories published in the section and in other sections over the last weeks")
+def step_published_weeks(context):
+    context.store.published.clear()
+    for lineage, section, day in (("in-1", "law-policy", 28), ("in-2", "law-policy", 15), ("in-3", "law-policy", 2), ("out-1", "culture", 29), ("out-2", "culture", 5)):
+        context.store.add_published(lineage, f"Title {lineage}", section, day)
+
+
+def recent_rule(words):
+    number, unit = words.split()
+    return {unit: int(number)}
+
+
+@when("the editor's context pack is built for the section with recent published Stories in the section meaning {section} and in the site meaning {site}")
+def step_editor_recent(context, section, site):
+    context.pack = profile_pack(context, "editor", section_id="law-policy", now=NOW,
+                                recent={"desk_published": recent_rule(section), "publication_published": recent_rule(site)})
+
+
+@then("the section's published layer holds {count:d} Stories")
+def step_section_count(context, count):
+    assert len(entry_ids(context, "desk_published")) == count, entry_ids(context, "desk_published")
+
+
+@then("the site's published layer holds {count:d} Stories")
+def step_site_count(context, count):
+    assert len(entry_ids(context, "publication_published")) == count, entry_ids(context, "publication_published")
+
+
+@then("the pack records what recent meant")
+def step_recent_recorded(context):
+    assert set(context.pack["recent"]) == {"desk_published", "publication_published"}
+
+
+@when("the copywriter's context pack is built with a budget that only just fits the research")
+def step_tight_copywriter(context):
+    full = profile_pack(context, "copywriter", story_lineage_id="story-1", assignment="assignment-1")
+    context.full_research = entry_ids_of(full, "prior_research")
+    context.pack = profile_pack(context, "copywriter", story_lineage_id="story-1", assignment="assignment-1",
+                                max_characters=len(full["system"]) + core_room(full) - 50)
+
+
+def entry_ids_of(pack, name):
+    return [entry["id"] for entry in next(row for row in pack["layers"] if row["name"] == name)["entries"]]
+
+
+@then("the research is all there")
+def step_research_there(context):
+    assert context.full_research and entry_ids(context, "prior_research") == context.full_research
+
+
+@then("the References lost their summaries")
+def step_lost_summaries(context):
+    assert layer(context, "story_references")["droppedCount"] > 0, layer(context, "story_references")
+
+
+@given("none of them has a publication date")
+def step_no_dates(context):
+    assert all(not row.get("publishedAt") for row in context.store.items if row["lineageId"] in ("rated-old", "unrated-new"))

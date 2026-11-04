@@ -98,6 +98,34 @@ export type TrailAttachment = {
   byteSize: number | null;
 };
 
+/** An AI agent's note on the story (`stories agent-note`): a `ModelAttachment` owned by the story, never a Message. Always shown as AI. */
+export type TrailAgentNote = {
+  id: string;
+  /** The agent's name, a label only; who ran it is recorded by the backend. */
+  agent: string | null;
+  summary: string | null;
+  body: string | null;
+  referenceLineageId: string | null;
+  versionNumber: number | null;
+  createdAt: string;
+};
+
+/** The `agent_note` attachment role: the one place agent notes are kept. */
+export const AGENT_NOTE_ROLE = "agent_note";
+
+/** An agent note from its attachment body (JSON); anything that is not a note reads as none. */
+export function agentNoteOf(id: string, payload: unknown, fallbackCreatedAt?: string | null): TrailAgentNote | null {
+  if (typeof payload !== "object" || !payload) return null;
+  const note = payload as Record<string, unknown>;
+  if (note.kind !== "story.agent_note") return null;
+  const text = (value: unknown) => (typeof value === "string" && value.trim() ? value : null);
+  const createdAt = text(note.createdAt) ?? fallbackCreatedAt ?? "";
+  return {
+    id, agent: text(note.agent), summary: text(note.summary), body: text(note.body), referenceLineageId: text(note.referenceLineageId),
+    versionNumber: typeof note.versionNumber === "number" ? note.versionNumber : null, createdAt,
+  };
+}
+
 export type StoryReportingTrail = {
   versions: TrailVersion[];
   assignments: TrailAssignment[];
@@ -105,9 +133,10 @@ export type StoryReportingTrail = {
   references: TrailReference[];
   attachments: TrailAttachment[];
   stageMoves: TrailStageMove[];
+  agentNotes: TrailAgentNote[];
 };
 
-export const EMPTY_STORY_REPORTING_TRAIL: StoryReportingTrail = { versions: [], assignments: [], threads: [], references: [], attachments: [], stageMoves: [] };
+export const EMPTY_STORY_REPORTING_TRAIL: StoryReportingTrail = { versions: [], assignments: [], threads: [], references: [], attachments: [], stageMoves: [], agentNotes: [] };
 
 /** The stage moves recorded on an Item version's metadata, oldest first. Anything that is not a well-formed move is skipped. */
 export function stageMovesOf(metadata: unknown): TrailStageMove[] {
@@ -126,19 +155,21 @@ export function stageMovesOf(metadata: unknown): TrailStageMove[] {
 }
 
 export function storyReportingTrailIsEmpty(trail: StoryReportingTrail): boolean {
-  return trail.assignments.length === 0 && trail.threads.length === 0 && trail.stageMoves.length === 0 && trail.references.length === 0 && trail.attachments.length === 0 && trail.versions.length <= 1;
+  return trail.assignments.length === 0 && trail.threads.length === 0 && trail.stageMoves.length === 0 && trail.agentNotes.length === 0 && trail.references.length === 0 && trail.attachments.length === 0 && trail.versions.length <= 1;
 }
 
 export type StoryFeedEntry =
   | ({ entryKind: "message"; threadTitle: string | null } & TrailMessage)
-  | { entryKind: "reference"; id: string; createdAt: string; reference: TrailReference };
+  | { entryKind: "reference"; id: string; createdAt: string; reference: TrailReference }
+  | { entryKind: "agent_note"; id: string; createdAt: string; note: TrailAgentNote };
 
-/** Every message of the story's threads and every reference found for it in one chronological feed, newest first. */
+/** Every message of the story's threads, every AI agent note and every reference found for it in one chronological feed, newest first. */
 export function storyMessageFeed(trail: StoryReportingTrail): StoryFeedEntry[] {
   const messages: StoryFeedEntry[] = trail.threads.flatMap(thread => thread.messages.map(message => ({ ...message, entryKind: "message" as const, threadTitle: thread.title })));
   const references: StoryFeedEntry[] = trail.references.filter(reference => reference.addedAt).map(reference => ({ entryKind: "reference" as const, id: `reference-${reference.relationId}`, createdAt: reference.addedAt as string, reference }));
   const sequenceOf = (entry: StoryFeedEntry) => (entry.entryKind === "message" ? entry.sequenceNumber ?? 0 : 0);
-  return [...messages, ...references].sort((left, right) => right.createdAt.localeCompare(left.createdAt) || sequenceOf(right) - sequenceOf(left));
+  const agentNotes: StoryFeedEntry[] = trail.agentNotes.map(note => ({ entryKind: "agent_note" as const, id: `agent-note-${note.id}`, createdAt: note.createdAt, note }));
+  return [...messages, ...references, ...agentNotes].sort((left, right) => right.createdAt.localeCompare(left.createdAt) || sequenceOf(right) - sequenceOf(left));
 }
 
 const ROLE_ORDER = { based_on: 0, cited: 1, consulted: 2 } as const;

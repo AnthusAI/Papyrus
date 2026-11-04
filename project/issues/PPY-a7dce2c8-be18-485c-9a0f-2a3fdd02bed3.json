@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a7dce2c8-be18-485c-9a0f-2a3fdd02bed3",
+  "title": "Editor agent selects ideas: a picky natural-selection step with a rate limit",
+  "description": "Ryan 2026-11-03: many ideas arrive daily, and Stories an editor picks now run all the way through the stages, so the selecting editor agent must be very picky. It compares each idea in a section against the section's mission and policies, the publication's mission and policies, recent Stories published in the section and recent Stories published across the site, and picks only the best; picking none is a normal result. 'Recent' is an experiment, so it is a parameter (per site, overridable on the command) and is recorded on each decision so runs can be compared. Rate limit: by default no more than one new Story per section per site per day (the 'per day' is my reading, to confirm with Ryan), counted from selections already made, also a setting. The limit is a ceiling, not a target. A pick moves the idea to the assignment stage with a direction and a reason, as automation; it is reversible, and an editor can un-pick or pick by hand. Declined ideas stay at Idea with a recorded reason, never spiked. A person's stars and messages count as signals. Selection is a step of the Story procedure run by the overnight driver (PPY-cb69fe). Uses the editor's context pack with section scope. Gherkin.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-aab37edd-ee4e-4784-96a1-974ae040b452",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T01:39:56.645483Z",
+  "updated_at": "2026-11-04T01:39:56.645739Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -28,6 +28,34 @@ When("the CLI login file is requested", { timeout: 120_000 }, async function () 
   this.cliLoginResult = await behaviour(this.cliLoginBehaviour);
 });
 
+const SITE_DOCUMENT_SCRIPT = "scripts/test-cli-site-document.ts";
+for (const [text, name] of [
+  ["a site with a tenant that runs Papyrus 5.81.0", "tenant_and_version"],
+  ["a site with no tenant that runs Papyrus 5.81.0", "no_tenant"],
+  ["a site whose tenant and version settings are not valid values", "invalid_values_are_left_out"],
+]) given(text, name);
+
+When("the site file is requested", { timeout: 120_000 }, async function () {
+  this.siteDocumentResult = await behaviour(this.cliLoginBehaviour, SITE_DOCUMENT_SCRIPT);
+});
+
+Then("it names the tenant and the Papyrus version", function () {
+  assert.deepEqual(this.siteDocumentResult.body, { tenant_id: "machines-on-machines", papyrus_version: "5.81.0" });
+});
+
+Then("the sign-in file is a different file that gains no field", async function () {
+  const result = await behaviour("only_public_fields");
+  assert.ok(!("tenant_id" in result.body) && !("papyrus_version" in result.body));
+});
+
+Then("it names the Papyrus version and no tenant", function () {
+  assert.deepEqual(this.siteDocumentResult.body, { papyrus_version: "5.81.0" });
+});
+
+Then("it is empty", function () {
+  assert.deepEqual(this.siteDocumentResult.body, {});
+});
+
 When("the CLI login file is requested through a different host name", { timeout: 120_000 }, async function () {
   this.cliLoginResult = await behaviour("origin_is_configured_not_requested");
 });

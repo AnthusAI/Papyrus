@@ -125,6 +125,17 @@ page heights, section splits, or image variant scores.
   matters. For example, a blank-column repair should check that no continuation
   column is dead and that the intended image or furniture template won.
 
+## Picking the site without a file
+
+Signed in with `papyrus login`, an editor runs a newsroom command from any directory with no `amplify_outputs.json`,
+`PAPYRUS_GRAPHQL_ENDPOINT`, `PAPYRUS_TENANT_ID` or AWS login. Name the site before the command,
+`papyrus --site shipped.anth.us editorial context --backend cloud --format text`, or set `PAPYRUS_SITE`; otherwise the site the
+working directory declares in `infra/site.json` is used, then an `amplify_outputs.json`, then the only signed-in site. Several
+signed-in sites and no choice is an error that lists them. The flag is leading because several commands take their own `--site`
+after the command name, and those keep their meaning. An operator on `PAPYRUS_GRAPHQL_AUTH=iam` is never sent to a signed-in site
+by the directory or the only-site rules. Full order, the site file that carries the tenant, and the upgrade hint for an unknown
+command: [CLI login](cli-login.md#picking-the-site-for-a-command). Executable spec: `features_backend/cli-site-selection.feature`.
+
 ## Creating stories and discovering commands
 
 `papyrus items link-references --site KEY [--role consulted|cited|based_on] [--json] [--dry-run]` links the stories whose text already links to a Reference's address to that Reference (see [Stories based on a Reference](reference-curation-pipeline.md#6a-stories-based-on-a-reference-core-rules)); it writes unless `--dry-run`.

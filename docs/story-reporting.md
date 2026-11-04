@@ -7,7 +7,8 @@ it hangs off the story's **lineage id**. Nothing here needs a new table.
 | --- | --- | --- |
 | Draft version | `Item` row `<lineage>-v<n>`, highest `versionNumber` is the latest | save of a draft |
 | Reference link | `SemanticRelation`, predicate `uses_evidence`, story to reference | story and reference |
-| Message | `Message` in the story's `MessageThread` (`threadKind` `story_reporting`, anchor `item#<lineage>`) | note, packet or comment |
+| Message | `Message` in the story's `MessageThread` (`threadKind` `story_reporting`, anchor `item#<lineage>`) | a person's note, written by the person |
+| Agent note | `ModelAttachment` (role `agent_note`) owned by the story's first version record, `ownerLineageId` the lineage | an AI agent's note, never a Message |
 | Assignment | `Assignment.itemLineageId` | unit of research, reporting or copywriting work |
 
 ## Draft versions
@@ -104,7 +105,7 @@ papyrus stories move --story <lineage> --stage reporting [--reason "why"] [--aut
 warning on stderr saying so (in a `--dry-run` too; stdout keeps its tab-separated lines) and naming
 `papyrus ops content publish --id <item-id>`, which is what publishes.
 
-This is the same `Item.stage` update a card move makes. The stage must be one of the content item stages (`idea`, `assignment`, `reporting`, `copywriting`, `illustration`, `typesetting`, `published`, `held`, `spiked`), and each move posts a note in the story's Reporting trail. The `moveStoryStage` GraphQL mutation (input `{ lineageId, stage, reason }`, editor groups) does the same for browser and agent clients.
+This is the same `Item.stage` update a card move makes. The stage must be one of the content item stages (`idea`, `assignment`, `reporting`, `copywriting`, `illustration`, `typesetting`, `published`, `held`, `spiked`). The move is recorded on the latest version's `metadata.stageMoves` (who, when, from, to and why), which `stories show` lists and the Reporting trail shows under Stage moves; it posts no Message. The `moveStoryStage` GraphQL mutation (input `{ lineageId, stage, reason }`, editor groups) does the same for browser and agent clients.
 
 The new `Item` row gets `versionNumber` n+1, `previousVersionId`, `versionCreatedBy`, `versionCreatedAt` and
 `changeReason`; the previous latest version becomes `superseded`. The editor preview always shows the **latest**
@@ -149,21 +150,52 @@ Running `link-reference` again for the same pair changes its role and keeps who 
 shows each reference with its role, note and the person or agent who attached it, and marks a reference "in the text" when
 the latest draft's citations include its citation key.
 
-## Messages
+## Notes: people write Messages, agents write agent notes
 
-Use messages for everything said during reporting: what you found, what you decided, what is still open, packets, editor
-comments. They are kept in one ordered thread per story, each with author, time and kind, and shown newest first in the
-story's Reporting trail.
+Messages come only from people. A person's note is a `Message`, and the newsroom, not the caller, says who wrote it. An AI agent never
+writes a Message: it saves an **agent note**, kept on the story and shown labelled as AI. Pick the command by who is writing.
+
+**A person's note** (`stories note`). It goes in the story's ordered thread, with author, time and kind, and shows in the story's Reporting
+trail (Messages view). Signed in (`papyrus login`), the command posts through the `postMessage` mutation, which stamps the author from the
+sign-in. `--author-label` is ignored there (the command says so on stderr), so a note always names the person who signed in.
 
 ```bash
-papyrus stories note --story <lineage> --author-label "ChatGPT" \
-  --summary "Vercel corroborates the host-memory disclosure" \
+papyrus stories note --story <lineage> \
+  --summary "Check the second source before we lean on it" \
   --body-file note.md [--kind note|research_packet|reporting_context_packet|draft_note|editor_note] \
   [--reference <reference lineage>] [--version <n>]
 ```
 
-`--reference` ties the message to a reference you discuss; `--version` ties it to the draft version it is about.
-There is no separate "insight" record: a note about a reference or a story is a message.
+`--reference` ties the message to a reference you discuss (its lineage id); `--version` ties it to the draft version it is about. The `write`
+line prints only after the note was saved. A refusal or any other failure exits non-zero with one line, for example
+`The note was not saved: GraphQL request failed: Not Authorized to access postMessage on type Mutation`. A `--dry-run` prints its dry run line and writes nothing.
+With an operator's AWS credentials (`PAPYRUS_GRAPHQL_AUTH=iam`) there is no sign-in to name the author, so `--author-label` is required and the
+message is written as a system message from an operator (`role` `system`, `authorKind` `operator`), never as a person.
+
+**An AI agent's note** (`stories agent-note`).
+
+```bash
+papyrus stories agent-note --story <lineage> --agent "ChatGPT" \
+  --summary "Vercel corroborates the host-memory disclosure" --body-file note.md \
+  [--reference <reference lineage>] [--version <n>] [--dry-run]
+```
+
+The note is one small JSON attachment (`ModelAttachment`, role `agent_note`, media type `application/json`) owned by the story's first
+version record (`ownerKind` `item`, `ownerLineageId` the lineage), so every version of the story reads the same notes. The body holds the
+agent's name (a label, not an identity), who ran it, when, the summary, the text and the optional reference and version. On the signed-in
+lane the command calls the `addStoryAgentNote` mutation (editor and admin groups only, handled by the content-actions function), which records
+the signed-in editor's `sub` itself; nothing the caller sends can set it. There is no thread, no Message and no new model. `stories show` lists
+each agent note (`agent-note`, time, `AI agent <name>`, summary), and the story's Reporting trail merges them into the Messages list by time,
+marked **AI agent** in words and with an icon, never by colour alone.
+
+There is no separate "insight" record: a note about a reference or a story is a person's note or an agent note.
+
+**A limit that rests on instructions.** An agent that works under a person's own login cannot be told apart from that person by `postMessage`,
+so an agent that runs `stories note` after `papyrus login` writes a Message under the person's name. Agents are told to use `stories agent-note`
+(the reporting skill does). The newsroom enforces the rest: nothing it writes on its own is a Message. The same applies to the generic
+`createModelAttachmentUpload` mutation, which editors can also call: it accepts the `agent_note` role, so only `addStoryAgentNote` stamps who ran the agent.
+
+The other writers that still create Messages without a person (research and reporting packets, the console chat, forum posts and web-context turns) are the rest of stage 2 of the rule, epic PPY-59edce.
 
 ## Reading it back
 
@@ -171,7 +203,7 @@ There is no separate "insight" record: a note about a reference or a story is a 
 papyrus stories show --story <lineage>
 ```
 
-prints the latest version, how many versions exist, and every attached reference with its role.
+prints the latest version, how many versions exist, each stage move, every attached reference with its role, and each agent note (labelled `AI agent <name>`).
 
 ## Assigning research and the reporter context pack
 

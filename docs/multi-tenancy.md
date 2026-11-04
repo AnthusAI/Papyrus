@@ -1,6 +1,8 @@
 # Multi-tenancy
 
-One backend can serve several publications. A tenant is one publication's account; its id is lowercase letters, digits and hyphens. Set it with `--tenant <id>` on a command, or `PAPYRUS_TENANT_ID` for the whole shell. A command with no tenant behaves exactly as a single-tenant backend always has and writes nothing tenant-shaped.
+One backend can serve several publications. A tenant is one publication's account; its id is lowercase letters, digits and hyphens. Set it with `--tenant <id>` on a command, or `PAPYRUS_TENANT_ID` for the whole shell (a signed-in CLI otherwise uses the tenant its site publishes, below). A command with no tenant behaves exactly as a single-tenant backend always has and writes nothing tenant-shaped.
+
+A signed-in editor does not set the tenant by hand: the site publishes its own tenant id in `/.well-known/papyrus-site.json` (its `PAPYRUS_TENANT_ID` build variable; the sign-in file `papyrus-cli.json` is strict and never carries it), and the CLI uses it for the signed-in site that owns the endpoint. The order is `--tenant`, then `PAPYRUS_TENANT_ID`, then the site's. This is scoping, not authorization: the backend still decides what the session may do. It applies to the signed-in lane only (an operator on `PAPYRUS_GRAPHQL_AUTH=iam` sets the tenant as before), and `content adopt-tenant-data`, which must read every row, ignores it. Details: [CLI login](cli-login.md#the-site-file-tenant-and-version).
 
 The key helpers live in `papyrus_content.tenancy`; `PapyrusGraphQLAuthoringClient(tenant_id=...)` applies them at the client boundary so callers never build tenant keys themselves.
 
@@ -66,3 +68,7 @@ What it will not do:
 ## Machines on Machines and other backends copied with a tenant
 
 A backend copied from a tenant site keeps the tenant on its sections and stories, and the editorial check refuses a record whose tenant is not the client's. Two settings make the backend consistent with its data: the router publication's `tenantId` (see [monitoring in the cloud](monitoring-cloud.md)) and, for the backend's own Lambdas (create a story from a Reference, edit a story, the assignment and category actions), the build variable `PAPYRUS_TENANT_ID` on the site, which `amplify/site-backend.ts` passes to those Lambdas. Rows that carry no tenant (for example the doctrine Items) are invisible to a tenant client until `content adopt-tenant-data --tenant <id>` has adopted them (dry run first).
+
+### Single-publication backends and Reference intake
+
+Reference intake (`papyrus references create-from-catalog --status pending`, the email-candidate import) refuses a backend that carries a tenant, because knowledge data (References, corpora) has no tenant isolation. A backend copied from a tenant site that holds one publication only does not share that data, so it declares so: add `"PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"` to `cms.environment` in the site's `infra/site.json`. `amplify/site-backend.ts` passes it to the content-actions Lambda only when `PAPYRUS_TENANT_ID` is also set and the value is exactly `true`. A token that carries a tenant is refused regardless. **If a second publication is ever added to that backend, remove the declaration first** (in the same change), or the second publication's editors could write into the first one's corpus. Details: [user-session intake](reference-intake/user-session-intake.md#publication-and-actor-boundary).

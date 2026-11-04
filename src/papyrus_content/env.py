@@ -6,6 +6,7 @@ import os
 from contextlib import ExitStack
 from importlib import resources
 from pathlib import Path
+from typing import Any
 
 _STEERING_CONFIG_RELATIVE = Path("corpora") / "papyrus-steering.yml"
 
@@ -74,6 +75,32 @@ def load_dotenv() -> None:
             os.environ[key] = value
 
 
+# The CLI installs `papyrus_content.site_selection` here at start. A Lambda never does, so it never reaches the sign-in
+# registry (and this module imports nothing of it, which keeps the Lambda bundles free of the CLI sign-in library).
+_site_selection: Any = None
+
+
+def install_site_selection(selection: Any) -> None:
+    global _site_selection
+    _site_selection = selection
+
+
+def selected_site_endpoint() -> str | None:
+    """The GraphQL endpoint of the signed-in site the CLI selected (an explicit site, the working directory's site or the
+    only signed-in site), or None when the environment or an amplify_outputs.json decides. Raises when a choice is needed."""
+    return _site_selection.endpoint() if _site_selection is not None else None
+
+
+def site_tenant_id(endpoint: str | None = None) -> str | None:
+    """The tenant the signed-in site that owns this endpoint (default: the selected endpoint) publishes; None for a Lambda."""
+    return _site_selection.tenant_for(endpoint) if _site_selection is not None else None
+
+
+def outputs_belong_to_selection(parsed: dict) -> bool:
+    """False when an explicit site choice names a different backend than this file: its bucket and pool are not that site's."""
+    return _site_selection is None or _site_selection.accepts_outputs(parsed)
+
+
 def amplify_outputs_path() -> Path:
     """The site's amplify_outputs.json: PAPYRUS_SITE_ROOT, then the working directory, then the Papyrus root."""
     candidates = []
@@ -90,11 +117,18 @@ def amplify_outputs_path() -> Path:
 def load_amplify_outputs() -> dict:
     path = amplify_outputs_path()
     if not path.exists():
-        raise ValueError("Missing amplify_outputs.json. Run `npm run sandbox` or deploy the Amplify backend first.")
+        raise ValueError(
+            "No site is selected and there is no amplify_outputs.json. Sign in to a deployed site with `papyrus login <site>` "
+            "(then name it with `papyrus --site <site> ...` or PAPYRUS_SITE, or run from its checkout); "
+            "for a sandbox, run `npm run sandbox` first."
+        )
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def graphql_endpoint() -> str:
+    selected = selected_site_endpoint()
+    if selected:
+        return selected
     explicit = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").strip()
     if explicit:
         return explicit
@@ -126,6 +160,8 @@ def storage_bucket_from_amplify_outputs(filepath: str | Path | None = None) -> s
         parsed = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return None
+    if not filepath and not outputs_belong_to_selection(parsed):
+        return None
     storage = parsed.get("storage") or {}
     return storage.get("bucket_name") or storage.get("bucketName")
 
@@ -143,6 +179,8 @@ def identity_pool_id_from_amplify_outputs(filepath: str | Path | None = None) ->
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
+        return None
+    if not filepath and not outputs_belong_to_selection(parsed):
         return None
     auth = parsed.get("auth") or {}
     return auth.get("identity_pool_id") or auth.get("identityPoolId")

@@ -51,8 +51,8 @@ class IntakeClient:
         self.uploads[attachment["id"]] = body
 
 
-def submit(client, data=None, identity=None):
-    with patch.dict("os.environ", ENV), patch("papyrus_content.reference_intake.upload_attachment_body", client.upload):
+def submit(client, data=None, identity=None, env=None):
+    with patch.dict("os.environ", {**ENV, **(env or {})}), patch("papyrus_content.reference_intake.upload_attachment_body", client.upload):
         return intake_references(client, payload() if data is None else data, IDENTITY if identity is None else identity)
 
 
@@ -122,6 +122,57 @@ def test_rejects_before_writes(violation):
     with pytest.raises(IntakeError): submit(c, data, identity)
     assert c.tables == before
     assert not c.uploads
+
+
+def refused_message(env, identity=None):
+    c = IntakeClient()
+    with patch.dict("os.environ", {**ENV, **env}), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        with pytest.raises(IntakeError) as error:
+            intake_references(c, payload(), identity or IDENTITY)
+    assert not c.tables["Reference"] and not c.uploads
+    return str(error.value)
+
+
+def tenant_identity(claim):
+    identity = copy.deepcopy(IDENTITY)
+    identity["claims"][claim] = "tenant-a"
+    return identity
+
+
+def test_tenant_backend_with_the_single_publication_flag_accepts_its_editor():
+    c = IntakeClient()
+    with patch.dict("os.environ", {**ENV, "PAPYRUS_TENANT_ID": "tenant-a", "PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"}), \
+            patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        result = intake_references(c, payload(), IDENTITY)
+    assert c.tables["Reference"][result["references"][0]["id"]]["versionCreatedBy"] == "user:editor-sub"
+
+
+def test_tenant_backend_without_the_flag_is_refused_and_the_message_names_the_flag():
+    assert "PAPYRUS_SINGLE_PUBLICATION_BACKEND=true" in refused_message({"PAPYRUS_TENANT_ID": "tenant-a"})
+
+
+@pytest.mark.parametrize("value", ["", "True", "TRUE", "1", "yes", " true", "true ", "false"])
+def test_only_exactly_true_turns_the_flag_on(value):
+    refused_message({"PAPYRUS_TENANT_ID": "tenant-a", "PAPYRUS_SINGLE_PUBLICATION_BACKEND": value})
+
+
+@pytest.mark.parametrize("claim", ["tenantId", "custom:tenantId"])
+@pytest.mark.parametrize("tenant", ["", "tenant-a"])
+def test_a_tenant_bearing_token_is_refused_even_with_the_flag(claim, tenant):
+    refused_message({"PAPYRUS_TENANT_ID": tenant, "PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"}, tenant_identity(claim))
+
+
+def test_a_non_editor_is_refused_with_the_flag():
+    identity = copy.deepcopy(IDENTITY)
+    identity["claims"]["cognito:groups"] = ["reader"]
+    refused_message({"PAPYRUS_TENANT_ID": "tenant-a", "PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"}, identity)
+
+
+def test_the_flag_changes_nothing_on_a_backend_with_no_tenant():
+    c = IntakeClient()
+    with patch.dict("os.environ", {**ENV, "PAPYRUS_SINGLE_PUBLICATION_BACKEND": "true"}), \
+            patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        assert intake_references(c, payload(), IDENTITY)["references"]
 
 
 def test_repeat_and_parallel_intake_preserve_first_actor_and_payload():

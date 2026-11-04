@@ -408,7 +408,13 @@ def labels_command(flags: list[str]) -> None:
         print(f"  {key}\t{count}", file=sys.stderr)
 
 
-COMMANDS = {"digest": digest_command, "synthesize": synthesize_command, "trends": trends_command, "monitor-stories": monitor_stories_command, "migrate-proposals": migrate_proposals_command, "labels": labels_command}
+def select_command(flags: list[str]) -> None:
+    from ..story_selection import select_command as run
+
+    run(flags)
+
+
+COMMANDS = {"select": select_command, "digest": digest_command, "synthesize": synthesize_command, "trends": trends_command, "monitor-stories": monitor_stories_command, "migrate-proposals": migrate_proposals_command, "labels": labels_command}
 
 
 def ideas_command(command: str, flags: list[str]) -> None:

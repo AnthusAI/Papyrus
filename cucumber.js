@@ -110,6 +110,11 @@ module.exports = {
     require: ["features/step_definitions/reference-vote-saved.steps.js"],
     format: ["summary"],
   },
+  dataTableRecovery: {
+    paths: ["features/data-table-point-in-time-recovery.feature"],
+    require: ["features/step_definitions/data-table-point-in-time-recovery.steps.js"],
+    format: ["summary"],
+  },
   messageHashtags: {
     paths: ["features/message-hashtags.feature"],
     require: ["features/step_definitions/message-hashtags.steps.js"],
@@ -140,6 +145,13 @@ module.exports = {
   assignResearch: {
     paths: ["features/newsroom-assign-research.feature"],
     require: ["features/support/**/*.js", "features/step_definitions/story-references.steps.js", "features/step_definitions/assign-research.steps.js"],
+    tags: "",
+    format: ["summary"],
+  },
+  // AI agent notes in a story's Messages view (demo mode). Needs `next dev` on PAPYRUS_BASE_URL.
+  storyAgentNotes: {
+    paths: ["features/newsroom-story-agent-notes.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/story-references.steps.js", "features/step_definitions/assign-research.steps.js", "features/step_definitions/story-agent-notes.steps.js"],
     tags: "",
     format: ["summary"],
   },

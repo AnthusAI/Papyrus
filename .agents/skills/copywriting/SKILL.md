@@ -11,6 +11,8 @@ item version id is not a lineage). Read the story's current version, its linked
 References (`papyrus stories show --story LINEAGE`), and any reporting packets.
 Do not substitute assumptions for missing reporting.
 
+The order of the steps for a Story, and what comes next, is defined once in [docs/story-procedure.md](../../../docs/story-procedure.md); run `papyrus stories next --story LINEAGE` to see it.
+
 ## Fetch guidance first
 
 ```bash

@@ -2,7 +2,12 @@
 
 A deployment's Cognito pool and AppSync endpoint define the publication boundary.
 Knowledge models do not yet support tenant isolation: shared-tenant intake fails
-closed rather than treating a caller's tenant/corpus claim as authorization.
+closed rather than treating a caller's tenant/corpus claim as authorization. A
+token that carries a tenant is always refused. A backend whose Lambda has
+``PAPYRUS_TENANT_ID`` set is refused too, unless it declares that it serves one
+publication with ``PAPYRUS_SINGLE_PUBLICATION_BACKEND=true`` (exactly that text;
+see ``reference_intake_validation._actor`` and docs/multi-tenancy.md). Remove the
+declaration before a second publication is added to such a backend.
 """
 from __future__ import annotations
 

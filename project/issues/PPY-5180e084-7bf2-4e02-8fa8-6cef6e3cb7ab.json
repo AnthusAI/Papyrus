@@ -1,0 +1,22 @@
+{
+  "id": "PPY-5180e084-7bf2-4e02-8fa8-6cef6e3cb7ab",
+  "title": "Signed-in CLI needs PAPYRUS_TENANT_ID set by hand on a tenant site",
+  "description": "papyrus editorial context on Machines on Machines fails with: Editorial record tenant does not match the configured authoring scope. It works only with PAPYRUS_TENANT_ID=machines-on-machines, and nothing tells the user that value. papyrus login <site> should be enough. The site's public login file does not publish the tenant. Same theme as PPY-83e413, which needs PAPYRUS_GRAPHQL_ENDPOINT set by hand.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "cli"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-03T23:58:22.923293Z",
+  "updated_at": "2026-11-03T23:58:22.923315Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
