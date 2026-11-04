@@ -454,7 +454,7 @@ unless `SITE_ENV=production` **and** branch `main`; the build fails if any page
 contradicts the mode). `customHttp.yml` stays app-wide and never carries
 `X-Robots-Tag`.
 
-**Deploy on push.** Push to `main` deploys production and `staging` deploys
+**Deploy on release.** Merging into `develop` builds nothing; a release (`develop` merged into `main`) deploys production, and `staging` deploys
 staging, for every app. No manual zips. CI (GitHub Actions) validates: brand
 config, `markus validate` on content, `check-guards` for staging and production.
 

@@ -15,7 +15,7 @@ description: >
 Articles live in the site's **newsroom backend** (AppSync and DynamoDB in AWS),
 not in Git. A site repository holds settings only. If a site repository still
 has a content folder or submodule, it is stale: editing it changes nothing on
-the site. Read a site repository's AGENTS.md from `origin/main` after a fetch,
+the site. Read a site repository's AGENTS.md from `origin/develop` after a fetch,
 never from a local checkout that may be behind.
 
 Papyrus keeps the publication's editorial policies in the CMS (Administration →

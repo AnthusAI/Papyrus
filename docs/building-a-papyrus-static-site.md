@@ -597,7 +597,7 @@ tactus.anth.us) and the four GitHub Pages docs sites (Markus, Biblicus, Kanbus, 
 
 ## Deploy triggers
 
-Every site is meant to deploy when a change merges to `main`, with no manual step. What starts the deploy:
+Every site is meant to deploy when `develop` is released to `main` (once or twice a day), with no manual step; merging to `develop` builds nothing. What starts the deploy:
 
 - Amplify apps with a GitHub webhook and auto build on `main` (Distinctive Mark, Pilobol.us, Anth.us, p.apyr.us, Threat
   Intelligence, read.p.apyr.us, Tactus). Proven 2026-10-21 for the first three with empty-commit merges.
