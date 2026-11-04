@@ -124,11 +124,19 @@ Feature: The router asks Cyclotron once per story for every publication
     Then the story is posted again once
     And the story is decided and delivered
 
-  Scenario: A reconciled job that is reconciled again is not posted a third time
+  Scenario: A reconciled job that is reconciled again backs the story off
     Given the story holds a combined job and the lab reports every job as reconciled
     When the router sweeps the collected story
     Then the story is posted again once
-    And the first story is an error
+    And the story is still waiting for the router
+    And the story is not an error
+    And the story records when it will be asked again
+
+  Scenario: A story backed off by failed jobs is decided once the lab recovers
+    Given the story holds a combined job and the lab reports every job as reconciled
+    And the router has swept the collected story
+    When the lab recovers and the router sweeps after the back-off
+    Then the story is decided and delivered
 
   Scenario: Another conflict on polling a job backs the story off without a new post
     Given the story holds a combined job and the lab answers polling with a conflict the router does not recognise
