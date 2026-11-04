@@ -420,9 +420,14 @@ def user_identity() -> tuple[str, str]:
 
 
 def identity_pool_id(explicit: str | None = None) -> str:
-    from .env import identity_pool_id_from_amplify_outputs
+    from .env import identity_pool_id_from_amplify_outputs, site_host_in_use
 
     found = (explicit or "").strip() or identity_pool_id_from_amplify_outputs()
+    if not found and site_host_in_use():
+        raise ValueError(
+            f"No identity pool: {site_host_in_use()} does not publish one (a site that has not been upgraded to a Papyrus release that "
+            "does serves none in /.well-known/papyrus-site.json). Pass --identity-pool-id, or set PAPYRUS_IDENTITY_POOL_ID."
+        )
     if not found:
         raise ValueError(
             "No identity pool configured: the signed-in user lane needs the site's Cognito identity pool to upload "

@@ -390,3 +390,64 @@ def operator_backend_flag(context, name):
 @then('the backend is "{name}"')
 def backend_is(context, name):
     assert _world(context).backend == name
+
+
+PUBLISHED_BUCKET = 'example-site-media-bucket'
+PUBLISHED_POOL = 'us-east-1:00000000-0000-4000-8000-000000000000'
+
+
+@given('"{host}" publishes its media bucket and identity pool in its site file')
+def publishes_bucket_and_pool(context, host):
+    _world(context).documents[host] = {'media_bucket': PUBLISHED_BUCKET, 'identity_pool_id': PUBLISHED_POOL}
+
+
+@given('the CLI kept an older site file for "{host}" that names a tenant only')
+def kept_older_site_file(context, host):
+    _world(context)
+    site_document.store(f'https://{host}', {'tenant_id': 'machines-on-machines'})
+
+
+@when('the media bucket and identity pool are read')
+def read_published_bucket_and_pool(context):
+    world = _world(context)
+    os.environ.pop('PAPYRUS_MEDIA_BUCKET', None)
+    world.bucket, world.pool = env.storage_bucket_from_amplify_outputs(), env.identity_pool_id_from_amplify_outputs()
+
+
+@then('they are the ones "{host}" published')
+def bucket_and_pool_published(context, host):
+    assert (context.selection.bucket, context.selection.pool) == (PUBLISHED_BUCKET, PUBLISHED_POOL), (context.selection.bucket, context.selection.pool)
+
+
+@when('the person passes a bucket and an identity pool of their own')
+def pass_own_bucket_and_pool(context):
+    from papyrus_content import media_store, story_images
+    world = _world(context)
+    os.environ.pop('PAPYRUS_MEDIA_BUCKET', None)
+    world.bucket, world.pool = media_store.configured_media_bucket('bucket-of-the-flag'), story_images.identity_pool_id('pool-of-the-flag')
+
+
+@then('the bucket and identity pool used are the ones the person passed')
+def own_bucket_and_pool_used(context):
+    assert (context.selection.bucket, context.selection.pool) == ('bucket-of-the-flag', 'pool-of-the-flag')
+
+
+@when('the media bucket and identity pool are required')
+def require_bucket_and_pool(context):
+    from papyrus_content import media_store, story_images
+    world = _world(context)
+    os.environ.pop('PAPYRUS_MEDIA_BUCKET', None)
+    world.bucket_error = _try(world, lambda: media_store.S3MediaStore(None)) or world.error
+    world.pool_error = _try(world, lambda: story_images.identity_pool_id(None)) or world.error
+
+
+@then('the bucket error names "{host}" and says to pass "{flag}"')
+def bucket_error_names(context, host, flag):
+    message = context.selection.bucket_error
+    assert host in message and flag in message and 'PAPYRUS_MEDIA_BUCKET' in message, message
+
+
+@then('the identity pool error names "{host}" and says to pass "{flag}"')
+def pool_error_names(context, host, flag):
+    message = context.selection.pool_error
+    assert host in message and flag in message and 'PAPYRUS_IDENTITY_POOL_ID' in message, message

@@ -49,6 +49,22 @@ Feature: Sites publish their public CLI login values
     When the site file is requested
     Then it is empty
 
+  Scenario: A site publishes the media bucket and identity pool a signed-in editor uploads pictures with
+    Given a site whose outputs name a media bucket and an identity pool
+    When the site file is requested
+    Then it also names the media bucket and the identity pool
+    And the sign-in file is a different file that gains no field
+
+  Scenario: A site whose outputs name neither publishes neither
+    Given a site with no outputs file that runs Papyrus 5.81.0
+    When the site file is requested
+    Then it names the Papyrus version and no tenant
+
+  Scenario: A media bucket or identity pool that is not shaped like one is never published
+    Given a site whose outputs hold values that are not a bucket or an identity pool
+    When the site file is requested
+    Then it names the Papyrus version and no tenant
+
   Scenario: With the flag off, discovery names the main client and the broker uses it
     Given a site that has not moved the CLI onto its federation client
     When the CLI login file is requested

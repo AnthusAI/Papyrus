@@ -35,11 +35,11 @@ Details: [editorial-checks.md](editorial-checks.md). The mission, policy and sec
 Every time an agent changes an article it records a new version instead of overwriting the old one.
 
 ```bash
-papyrus stories save-version --story <lineage> --body-file draft.md --reason "added a corroborating source" --author-label "<name>"
+papyrus stories save-version --story <lineage> --body-file draft.md --reason "added a corroborating source" [--author-label "<name>"]
 papyrus stories versions --story <lineage>
 ```
 
-Older versions are listed in the story's Reporting trail and open read-only. In the newsroom article editor, an older version cannot be saved or published; publishing publishes the latest version. Each stage move and note is also recorded in the trail. See [story-reporting.md](story-reporting.md) and [content-item-lifecycle.md](content-item-lifecycle.md).
+Signed in, the version names you and `--author-label` is optional (an operator on AWS credentials must give it). Older versions are listed in the story's Reporting trail and open read-only. In the newsroom article editor, an older version cannot be saved or published; publishing publishes the latest version. Each stage move and note is also recorded in the trail. See [story-reporting.md](story-reporting.md) and [content-item-lifecycle.md](content-item-lifecycle.md).
 
 ## The operator CLI and the API (Live)
 
