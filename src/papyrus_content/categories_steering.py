@@ -978,6 +978,7 @@ def semantic_records_from_proposal(proposal: dict[str, Any], context: dict[str, 
                 reason="semantic-node-import",
                 content=proposal_payload,
             )
+        )
     )
     target_ref = (
         proposal_payload.get("target_ref")
@@ -1123,6 +1124,7 @@ def seeded_semantic_concept_node_records(context: dict[str, Any]) -> list[dict[s
                     reason=f"{concept['nodeKind']}-seed",
                     content=concept,
                 )
+            )
         )
     return records
 

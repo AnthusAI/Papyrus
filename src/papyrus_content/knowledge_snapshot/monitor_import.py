@@ -23,7 +23,7 @@ from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 from ..categories_steering import semantic_relation_record
-from ..semantic_node_writes import create_only_record
+from ..semantic_node_writes import acceptance_patch, create_only_record
 from .actors import ACTOR_AI, Actor, ReviewMarks
 from .keys import entity_key
 from .model import LINK_MONITOR
@@ -32,6 +32,7 @@ from .monitor_records import MonitorRecord, record_entities
 from .publish_run import (
     NODE_KIND,
     STATUS_ACCEPTED,
+    STATUS_GENERATED,
     STATUS_REJECTED,
     MENTIONS,
     NodeIndex,
@@ -163,6 +164,11 @@ def plan_monitor_records(
             elif node.get("status") == STATUS_REJECTED:
                 plan.count("recordLinksSkippedRejected")
                 continue
+            elif node.get("status") == STATUS_GENERATED:
+                plan.patches.append(acceptance_patch(node, reason=reason, now=now))
+                node["status"] = STATUS_ACCEPTED
+                node["changeReason"] = reason
+                plan.count("recordNodesAccepted")
             if kind == "model" and name == record.model_id:
                 model_nodes[record.model_id] = node
             row = mention_row(record, node, now=now)
