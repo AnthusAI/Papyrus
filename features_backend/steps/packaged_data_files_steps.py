@@ -115,6 +115,18 @@ def step_requires_cli_login(context):
     assert "sys_platform == 'linux'" in linux[0] and "sys_platform != 'linux'" in plain[0], requirements
 
 
+@then("the wheel requires anthus-markus for every install, not only for an extra")
+def step_requires_markus(context):
+    import zipfile
+
+    with zipfile.ZipFile(context.wheel) as archive:
+        name = next(member for member in archive.namelist() if member.endswith(".dist-info/METADATA"))
+        metadata = archive.read(name).decode()
+    requirements = [line for line in metadata.splitlines() if line.startswith("Requires-Dist: anthus-markus")]
+    assert len(requirements) == 1, requirements
+    assert "extra" not in requirements[0], requirements
+
+
 _WITHOUT_CLI_LOGIN = r'''
 import importlib.abc, importlib.util, json, sys
 class Block(importlib.abc.MetaPathFinder):
