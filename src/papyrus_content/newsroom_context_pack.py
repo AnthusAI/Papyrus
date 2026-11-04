@@ -86,7 +86,7 @@ How to read what follows:
 """
 
 #: What every agent on a Story reads about it, what every agent in a section reads about that section, and what it reads about the publication beyond.
-STORY_BLOCK = ("assignment", "story", "story_references", "related_references", "story_conversation", "prior_research")
+STORY_BLOCK = ("assignment", "story", "process", "story_references", "related_references", "story_conversation", "prior_research")
 SECTION_BLOCK = ("desk_published", "desk_references")
 PUBLICATION_BLOCK = ("publication_published", "publication_references")
 OUTER_LAYERS = (*SECTION_BLOCK, *PUBLICATION_BLOCK)
@@ -259,6 +259,16 @@ def story_layer(situation: Situation) -> tuple[list[Entry], str | None]:
         ("The editor's outline:\n" if is_outline else "Draft:\n") + body if body else "Draft: (no text yet)",
     ])
     return [_entry("story", str(story["id"]), text, lineageId=situation.lineage, versionNumber=story.get("versionNumber"))], None
+
+
+def process_layer(situation: Situation) -> tuple[list[Entry], str | None]:
+    """Where the Story is in the procedure (docs/story-procedure.md), so an agent started by anything knows what came before it and what comes after."""
+    from .newsroom_process import process_text, reminder_assessment
+
+    assessment = reminder_assessment(situation.store, situation.lineage, getattr(situation.store, "read_check_run", None))
+    if assessment is None:
+        return [], "the Story's place in the procedure could not be worked out"
+    return [_entry("process", str(situation.lineage), process_text(assessment))], None
 
 
 def edge_notes(store: Any, lineage: str) -> list[dict[str, str]]:
@@ -757,6 +767,7 @@ LAYERS: dict[str, Layer] = {
     "editorial_policies": Layer("The site's editorial policies", True, editorial_policies_layer),
     "assignment": Layer("The editor's assignment", True, assignment_layer),
     "story": Layer("The Story", True, story_layer, needs_story=True),
+    "process": Layer("Where the Story is in the newsroom's procedure", True, process_layer, needs_story=True),
     "story_references": Layer("References already attached to the Story", True, story_references_layer, needs_story=True),
     "related_references": Layer("References connected to the Story's References, best first", False, related_references_layer, needs_story=True),
     "story_conversation": Layer("The conversation on the Story, oldest first", True, conversation_layer, needs_story=True),

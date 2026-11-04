@@ -24,7 +24,7 @@ UNKNOWN = "unknown"
 OUTLINE_KEY = "outline"
 EDITOR_REVIEW_KEY = "editorReview"
 STAGES_AT_OR_AFTER_COPYWRITING = ("copywriting", "illustration", "typesetting", "published")
-STAGES_WITHOUT_NEXT_STEP = ("spiked", "held")
+STAGES_WITHOUT_NEXT_STEP = ("spiked", "held", "published")
 
 
 @dataclass(frozen=True)
@@ -49,11 +49,11 @@ STEPS: tuple[Step, ...] = (
          "papyrus assignments research-multi <assignment id>", LIVE, False,
          "The research packet is stored on the Assignment."),
     Step("outline", "reporting", "Editor agent", "Write the outline after the research",
-         'papyrus stories save-version --story {story} --body-file outline.md --reason "outline" --author-label "AI" --outline', LIVE, False,
-         "Saved with --outline so a later version counts as the draft."),
+         "papyrus stories outline --story {story}", LIVE, False,
+         "A person can save their own with stories save-version --outline. A later version counts as the draft."),
     Step("draft", "copywriting", "Copywriter", "Write the draft",
-         'papyrus stories save-version --story {story} --body-file draft.md --reason "draft" --author-label "AI"', LIVE, False,
-         "A version newer than the outline."),
+         "papyrus stories draft --story {story}", LIVE, False,
+         "A version newer than the outline; a person can save their own with stories save-version."),
     Step("fact_check", "copywriting", "Fact-check agent", "Fact-check the draft", "", NOT_BUILT, False,
          "Not built yet (PPY-719a02)."),
     Step("copy_edit", "copywriting", "Copywriter with Humanus", "Copy-edit the draft",
@@ -181,6 +181,24 @@ def assess(facts: dict[str, Any]) -> dict[str, Any]:
             and CONTENT_ITEM_STAGES.index(row["stage"]) < current_index
         ]
     return {"stage": stage, "steps": rows, "next": next_row, "skipped": skipped}
+
+
+def process_text(assessment: dict[str, Any]) -> str:
+    """The procedure as an agent reads it in its context pack: where the Story is, what is done, what is next and what comes after."""
+    def named(row: dict[str, Any]) -> str:
+        return row["key"] + ({OFF: " (off)", NOT_BUILT: " (not built)"}.get(row["status"], ""))
+
+    rows = assessment["steps"]
+    upcoming = [row for row in rows if row["state"] != DONE and row is not assessment["next"]]
+    next_row = assessment["next"]
+    lines = [f"Stage: {assessment['stage']}",
+             "Done: " + (", ".join(row["key"] for row in rows if row["state"] == DONE) or "nothing yet"),
+             f"Next: {next_row['title']} ({next_row['role']})" if next_row else "Next: nothing; the Story is not in progress"]
+    if next_row and upcoming:
+        lines.append("Not done: " + ", ".join(named(row) for row in upcoming))
+    if assessment["skipped"]:
+        lines.append("Skipped earlier: " + ", ".join(row["key"] for row in assessment["skipped"]))
+    return "\n".join(lines)
 
 
 def _command_text(row: dict[str, Any]) -> str:

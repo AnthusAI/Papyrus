@@ -47,3 +47,11 @@ How each step reads its record:
 ## Reminders on writes
 
 After a successful write (never on `--dry-run`), `stories create`, `stories move`, `stories save-version`, `stories link-reference`, `stories assign-research`, `assignments research-multi` and `assignments process-proposals` (when the Assignment is on a Story) print the `next` and `skipped` lines. With `--json`, the two assignment commands add `next` to their JSON. A failure computing the reminder prints one line to stderr and never changes the result of the write. `stories move` to a later stage also prints a warning on stderr naming each skipped step, and still moves.
+
+## The outline and the draft
+
+`papyrus stories outline --story <lineage>` and `papyrus stories draft --story <lineage>` each make one model call from the agent's [context pack](newsroom-context-packs.md) and save a new version, so nothing earlier is lost. `--dry-run` calls the model and saves nothing. Neither publishes.
+
+The draft moves a Story to copywriting if it was earlier, marks the References it cites and runs the check every save runs. A draft that cites a key it was not given, or cites nothing when the Story has References, is refused and saves nothing. Whether its claims are true of their sources is the fact check that follows, which is not built yet.
+
+Every pack also says where the Story is in this procedure, so an agent knows what came before it and what comes after, whatever started it.
