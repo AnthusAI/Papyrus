@@ -30,3 +30,28 @@ Feature: The newsroom board and generated ideas read the way an editor expects
     Then the detail view's background is opaque and not fading from its very first frame
     And the detail view stays in one place at one size while the story loads
     And the loading shape is the loaded editor's size, so nothing below it moves when the story arrives
+
+  Scenario: On a phone the Stories board stacks its stages as sections in one scroller
+    Given an isolated newsroom with synthetic stories
+    When the editor opens the Stories board at 375 and 390 pixels wide, and at 667 by 375, 834 and 1440
+    Then below 600 pixels the stages are sections of one vertical list with no horizontal scroll and exactly one vertical scroller
+    And at 600 pixels and wider, including a phone in landscape and a tablet, the stages stay side by side columns
+
+  Scenario: A long stage pages in as the reader scrolls a phone
+    Given an isolated newsroom with synthetic stories
+    When the editor scrolls a stage with far more stories than one page on a 375 pixel wide board
+    Then only a bounded number of cards is in the page at once
+    And the next page is requested through the board's near-the-end callback and the stage grows
+    And the first page of a short stage requests no more than once
+
+  Scenario: Opening a story on a phone and closing it returns to the same place, and collapsed sections stay collapsed
+    Given an isolated newsroom with synthetic stories
+    When the editor scrolls the stacked board, opens a story, closes it, and reloads after collapsing a section
+    Then the detail view covers the board and the same story is focused again at the same scroll position
+    And the collapsed section is still collapsed after the reload
+
+  Scenario: The loading skeleton and the board agree on where phones begin
+    Given an isolated newsroom with synthetic stories
+    When the editor loads the Stories board at 375, 599, 600 and 640 pixels
+    Then the loading skeleton is one stacked column below 600 pixels and three columns from 600 pixels
+    And the skeleton changes shape at the same width as the board changes layout

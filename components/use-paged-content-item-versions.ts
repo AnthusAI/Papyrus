@@ -10,6 +10,8 @@ import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { loadNewsroomContentItemStagePage } from "./news-desk-taxonomy-client";
 
 const REFRESH_INTERVAL_MILLISECONDS = 30_000;
+const FAILED_PAGE_RETRY_DELAY_MILLISECONDS = 5_000;
+const FAILED_PAGE_RETRY_LIMIT = 5;
 
 type StageBucket = {
   versions: ContentItemVersionRecord[];
@@ -119,7 +121,7 @@ export function usePagedContentItemVersions(options: {
   const stageKeysInCanonicalStage = useCallback((canonicalStage: string) => Object.keys(bucketsRef.current)
     .filter(stageKey => canonicalContentItemStage(stageKey, getContentItemStageDefinitions()) === canonicalStage), []);
 
-  const loadMoreForStage = useCallback((canonicalStage: string) => {
+  const requestNextPageForStage = useCallback((canonicalStage: string, failedAttempts: number) => {
     const request = generationRef.current;
     for (const stageKey of stageKeysInCanonicalStage(canonicalStage)) {
       const bucket = bucketsRef.current[stageKey];
@@ -139,9 +141,16 @@ export function usePagedContentItemVersions(options: {
             },
           };
         });
-      }).catch(() => undefined).finally(() => { stageKeysBeingExtendedRef.current.delete(stageKey); });
+      }).catch(() => {
+        if (failedAttempts + 1 >= FAILED_PAGE_RETRY_LIMIT) return;
+        window.setTimeout(() => {
+          if (generationRef.current === request) requestNextPageForStage(canonicalStage, failedAttempts + 1);
+        }, FAILED_PAGE_RETRY_DELAY_MILLISECONDS);
+      }).finally(() => { stageKeysBeingExtendedRef.current.delete(stageKey); });
     }
   }, [stageKeysInCanonicalStage, storeBuckets]);
+
+  const loadMoreForStage = useCallback((canonicalStage: string) => requestNextPageForStage(canonicalStage, 0), [requestNextPageForStage]);
 
   const stageHasMore = useCallback((canonicalStage: string) => stageKeysInCanonicalStage(canonicalStage)
     .some(stageKey => Boolean(bucketsRef.current[stageKey]?.nextToken)), [stageKeysInCanonicalStage]);

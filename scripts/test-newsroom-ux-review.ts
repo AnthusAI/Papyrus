@@ -50,7 +50,8 @@ function browserBundle(): Promise<string> {
     stdin: { resolveDir: root, loader: "tsx", sourcefile: "ux-review-fixture.tsx", contents: `
 import { createRoot } from "react-dom/client";
 import { useMemo, useState } from "react";
-import { IssueCollection, IssueDetailPanel, IssueIdFormatProvider } from "@kanbus/ui";
+import { IssueCollection, IssueDetailPanel, IssueIdFormatProvider, useBoardColumnState } from "@kanbus/ui";
+import { NewsroomBoardSkeleton } from "./components/newsroom-board-skeleton";
 import { NewsroomArticleEditor } from "./components/newsroom-article-editor";
 import { contentItemBoardConfig, contentItemBoardType, formatNativeIssueId, projectContentItemBoard } from "./lib/newsroom-board";
 import { createLocalPreviewContentItemVersions } from "./lib/local-preview-seed";
@@ -61,21 +62,30 @@ const mode = params.get("mode") ?? "seed";
 const versions = mode === "order"
   ? [["a-oldest", "2026-10-01T00:00:00Z"], ["b-middle", "2026-10-02T00:00:00Z"], ["c-newest", "2026-10-03T00:00:00Z"], ["d-undated", null]].map(([slug, updatedAt], index) => ({
       id: slug + "-v1", lineageId: slug, versionNumber: 1, stage: "copywriting", type: "article", status: "draft", title: String(slug), headline: String(slug), slug: String(slug), updatedAt }))
-  : createLocalPreviewContentItemVersions();
+  : mode === "long"
+    ? Array.from({ length: 160 }, (_, index) => ({ id: "long-" + index + "-v1", lineageId: "long-" + index, versionNumber: 1, stage: "copywriting", type: "article", status: "draft",
+      title: "Long " + index, headline: "Long " + index, slug: "long-" + index, updatedAt: new Date(Date.UTC(2026, 9, 1) + (160 - index) * 60000).toISOString() }))
+    : createLocalPreviewContentItemVersions();
+window.nearEndCalls = [];
+const LONG_PAGE_SIZE = 40;
 function Board() {
-  const issues = useMemo(() => projectContentItemBoard({ contentItemVersions: versions }), []);
+  const [loadedCount, setLoadedCount] = useState(mode === "long" ? LONG_PAGE_SIZE : versions.length);
+  const loadedVersions = useMemo(() => versions.slice(0, loadedCount), [loadedCount]);
+  const issues = useMemo(() => projectContentItemBoard({ contentItemVersions: loadedVersions }), [loadedVersions]);
   const config = useMemo(() => {
     const base = contentItemBoardConfig(issues);
     return params.has("legacy") ? { ...base, sort_order: undefined } : base;
   }, [issues]);
   const [selected, setSelected] = useState(null);
+  const columnState = useBoardColumnState({ config: contentItemBoardConfig([]), storageKey: "ux-review.columns" });
   const issue = issues.find((item) => item.id === selected);
   window.openStory = (id) => setSelected(id);
   return <div className="newsroom-organizer" data-kanbus-theme="newspaper-gothic" data-color-mode="light" data-sidebar-collapsed="true">
     <div className="organizer-workspace"><main className="organizer-main"><IssueIdFormatProvider formatIssueId={formatNativeIssueId}><div className="organizer-native-board">
       <div className="organizer-board-body" data-detail-open={Boolean(issue)}>
-        <IssueCollection issues={issues} config={config} query={{ type: contentItemBoardType() }} view="board" initialScroll="start"
-          selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={(item) => setSelected(item.id)} ariaLabel="Stories" />
+        {mode === "skeleton" ? <NewsroomBoardSkeleton /> : <IssueCollection collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn}
+          onColumnNearEnd={(columnKey) => { window.nearEndCalls.push({ columnKey, loadedCount }); if (mode === "long") setLoadedCount((count) => Math.min(versions.length, count + LONG_PAGE_SIZE)); }} issues={issues} config={config} query={{ type: contentItemBoardType() }} view="board" initialScroll="start"
+          selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={(item) => setSelected(item.id)} ariaLabel="Stories" />}
         {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[]}>
           <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo embedded />
         </IssueDetailPanel>}
@@ -89,11 +99,11 @@ createRoot(document.getElementById("root")).render(<Board />);
   return bundle;
 }
 
-async function setup(query: string, width: number) {
+async function setup(query: string, width: number, height = 900, readySelector = ".issue-card") {
   const script = await browserBundle();
   const styles = await stylesheet();
   const browser = await chromium.launch({ args: ["--no-proxy-server"], executablePath: process.env.PAPYRUS_CHROMIUM_PATH || undefined });
-  const page = await browser.newPage({ viewport: { width, height: 900 } });
+  const page = await browser.newPage({ viewport: { width, height } });
   page.setDefaultTimeout(15_000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -104,12 +114,20 @@ async function setup(query: string, width: number) {
     return route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width"><style>${styles}</style></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>` });
   });
   await page.goto(`${origin}/stories${query}`);
-  await page.locator(".issue-card").first().waitFor();
+  await page.locator(readySelector).first().waitFor();
   return { browser, page, errors };
 }
 
-/** Every column's cards, top to bottom, by title. */
-const columns = (page: Page) => page.locator("[data-column-key]").evaluateAll((nodes) => Object.fromEntries(nodes.map((node) => [node.getAttribute("data-column-key"), [...node.querySelectorAll(".issue-card h3")].map((heading) => heading.textContent)])));
+/** Every column's (or stacked section's) cards, top to bottom, by title. A column is one element; a stacked section is one element per card, so cards are gathered by column key. */
+const columns = (page: Page) => page.locator("[data-column-key]").evaluateAll((nodes) => {
+  const titlesByColumnKey: Record<string, (string | null)[]> = {};
+  for (const node of nodes) {
+    const key = node.getAttribute("data-column-key") ?? "";
+    titlesByColumnKey[key] ??= [];
+    for (const heading of node.querySelectorAll(".issue-card h3")) titlesByColumnKey[key].push(heading.textContent);
+  }
+  return titlesByColumnKey;
+});
 
 type Frame = { t: number; x: number; y: number; w: number; h: number; alpha: number; opacity: number; editor: number | null; skeleton: boolean };
 
@@ -143,7 +161,112 @@ async function sampleOpening(page: Page): Promise<Frame[]> {
   })()`) as Promise<Frame[]>;
 }
 
+const verticalScrollers = (page: Page) => page.evaluate(`[...document.querySelectorAll("*")].filter((element) => {
+  const style = getComputedStyle(element);
+  return /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+}).map((element) => element.className || element.tagName)`) as Promise<string[]>;
+
 const scenarios: Record<string, () => Promise<void>> = {
+  /** Below 600 px the stages are sections in one scroller; from 600 px they stay columns. */
+  async board_stacked_on_phones() {
+    for (const [width, height, layout] of [[375, 812, "stacked"], [390, 844, "stacked"], [667, 375, "columns"], [834, 1112, "columns"], [1440, 900, "columns"]] as const) {
+      const { browser, page, errors } = await setup("", width, height);
+      try {
+        const state = await page.evaluate(`({ layout: document.querySelector("[data-layout]")?.getAttribute("data-layout"), columns: document.querySelectorAll(".kb-column").length,
+          wide: document.documentElement.scrollWidth > innerWidth + 1 })`) as { layout: string; columns: number; wide: boolean };
+        assert.equal(state.layout, layout, `${width}x${height}: layout`);
+        assert.equal(state.wide, false, `${width}x${height}: no horizontal scroll`);
+        if (layout === "stacked") {
+          assert.equal(state.columns, 0, `${width}: no side by side columns`);
+          const scrollers = await verticalScrollers(page);
+          assert.deepEqual(scrollers, ["kb-stacked-scroll"], `${width}: exactly one vertical scroller (${scrollers.join(", ")})`);
+        } else assert.ok(state.columns > 1, `${width}x${height}: columns stay`);
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+  },
+
+  /** A long stage pages in through onColumnNearEnd on a phone and keeps the page small. */
+  async board_pages_on_phones() {
+    const boardView = fs.readFileSync(`${root}components/newsroom-board-view.tsx`, "utf8");
+    assert.ok(boardView.includes("onColumnNearEnd"), "the newsroom board pages through onColumnNearEnd");
+    assert.ok(!boardView.includes("kb-column-scroll") && !boardView.includes("onScrollCapture"), "the newsroom board no longer watches the column scroller");
+    const organizerCss = fs.readFileSync(`${root}components/newsroom-organizer.css`, "utf8");
+    assert.ok(!/\.kb-column\{min-width/.test(organizerCss), "no phone column width workaround remains");
+    const { browser, page, errors } = await setup("?mode=long", 375, 812);
+    try {
+      await page.waitForTimeout(300);
+      const cards = () => page.locator(".issue-card").count();
+      assert.ok(await cards() < 60, "a bounded number of cards is rendered");
+      const calls = () => page.evaluate("window.nearEndCalls.length") as Promise<number>;
+      const before = await calls();
+      for (let step = 0; step < 6; step++) {
+        await page.evaluate(`(() => { const scroller = document.querySelector(".kb-stacked-scroll"); scroller.scrollTop = scroller.scrollHeight; })()`);
+        await page.waitForTimeout(300);
+      }
+      assert.ok(await calls() > before, "the near-the-end callback requested more");
+      assert.ok(await cards() < 80, `still bounded after paging (${await cards()})`);
+      const heights = await page.evaluate(`document.querySelector(".kb-stacked-scroll").scrollHeight`) as number;
+      assert.ok(heights > 40 * 80, "the stage grew past its first page");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+    const short = await setup("", 375, 812);
+    try {
+      await short.page.waitForTimeout(300);
+      const keys = await short.page.evaluate("window.nearEndCalls.map((call) => call.columnKey)") as string[];
+      assert.equal(new Set(keys).size, keys.length, `each short stage requests at most once (${keys.join(", ")})`);
+    } finally { await short.browser.close(); }
+  },
+
+  /** Opening and closing a story keeps the place; a collapsed section stays collapsed after a reload. */
+  async board_phone_detail_and_collapse() {
+    const { browser, page, errors } = await setup("?mode=long", 375, 812);
+    try {
+      await page.evaluate(`document.querySelector(".kb-stacked-scroll").scrollTop = 1500`);
+      await page.waitForTimeout(300);
+      const scrollBefore = await page.evaluate(`document.querySelector(".kb-stacked-scroll").scrollTop`) as number;
+      const visibleIndex = await page.evaluate(`[...document.querySelectorAll(".issue-card")].findIndex((card) => { const box = card.getBoundingClientRect(); return box.top > 200 && box.bottom < innerHeight - 20; })`) as number;
+      assert.ok(visibleIndex >= 0, "a card is fully visible");
+      const title = await page.locator(".issue-card h3").nth(visibleIndex).textContent();
+      await page.locator(".issue-card").nth(visibleIndex).click();
+      await page.locator(".kb-issue-detail").waitFor();
+      const detail = await page.locator(".kb-issue-detail").boundingBox();
+      assert.ok(detail && detail.width >= 340, `the detail view covers the board (${JSON.stringify(detail)})`);
+      await page.evaluate(`window.openStory(null)`);
+      await page.locator(".kb-issue-detail").waitFor({ state: "detached" });
+      await page.waitForTimeout(300);
+      const scrollAfter = await page.evaluate(`document.querySelector(".kb-stacked-scroll").scrollTop`) as number;
+      assert.ok(Math.abs(scrollAfter - scrollBefore) <= 2, `same scroll position (${scrollBefore} -> ${scrollAfter})`);
+      const focused = await page.evaluate(`document.activeElement?.closest(".issue-card")?.querySelector("h3")?.textContent ?? null`);
+      assert.equal(focused, title, "the same story is focused again");
+      await page.evaluate(`document.querySelector(".kb-stacked-scroll").scrollTop = 0`);
+      await page.waitForTimeout(200);
+      const header = page.locator(".kb-column-header").first();
+      await header.click();
+      assert.equal(await header.getAttribute("aria-expanded"), "false", "the section collapsed");
+      await page.reload();
+      await page.locator(".kb-column-header").first().waitFor();
+      assert.equal(await page.locator(".kb-column-header").first().getAttribute("aria-expanded"), "false", "collapsed after reload");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** The skeleton and the board change shape at the same width: the package's 600 px line. */
+  async board_skeleton_agrees() {
+    for (const [width, stacked] of [[375, true], [599, true], [600, false], [640, false]] as const) {
+      const skeleton = await setup("?mode=skeleton", width, 812, "[data-board-skeleton]");
+      try {
+        const tracks = await skeleton.page.evaluate(`getComputedStyle(document.querySelector("[data-board-skeleton]")).gridTemplateColumns.split(" ").length`) as number;
+        assert.equal(tracks, stacked ? 1 : 3, `${width}: skeleton column tracks`);
+      } finally { await skeleton.browser.close(); }
+      const board = await setup("", width, 812);
+      try {
+        const layout = await board.page.evaluate(`document.querySelector("[data-layout]").getAttribute("data-layout")`);
+        assert.equal(layout, stacked ? "stacked" : "columns", `${width}: board layout`);
+      } finally { await board.browser.close(); }
+    }
+  },
+
   /** A generated story idea is an "idea" in the Idea column everywhere an editor reads it; there is no Proposed Stories page. */
   async ideas_wording() {
     const navigation = ORGANIZER_NAV_GROUPS.flatMap((group) => group.items).find((item) => item.path === "/newsroom/administration/proposals");

@@ -44,7 +44,6 @@ import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reade
 const SELECTED_ISSUE_PARAMETER = "open";
 const STATIC_MOTION = { mode: "static" } as const;
 const BOARD_REFRESH_INTERVAL_MILLISECONDS = 30_000;
-const COLUMN_LOAD_MORE_DISTANCE_PIXELS = 240;
 
 async function loadEveryNewsroomAssignment() {
   const assignments: AssignmentRecord[] = [];
@@ -137,23 +136,9 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const loading = supportingRecordsLoading || (showsContentItems && pagedContentItems.loading);
   const error = supportingRecordsError ?? (showsContentItems ? pagedContentItems.error : null);
   const config = useMemo(() => subject === "contentItem" ? contentItemBoardConfig(issues) : subject === "desk" ? deskBoardConfig(issues) : assignmentBoardConfig(issues), [issues, subject]);
-  const columnStageFromElement = (element: Element | null) => {
-    const columnKey = element?.closest("[data-column-key]")?.getAttribute("data-column-key");
-    return columnKey?.startsWith(contentItemColumnKeyPrefix) ? columnKey.slice(contentItemColumnKeyPrefix.length) : null;
+  const loadMoreWhenColumnIsNearItsEnd = (columnKey: string) => {
+    if (showsContentItems && columnKey.startsWith(contentItemColumnKeyPrefix)) pagedContentItems.loadMoreForStage(columnKey.slice(contentItemColumnKeyPrefix.length));
   };
-  const loadMoreWhenColumnIsNearItsEnd = (columnScroll: HTMLElement) => {
-    const distanceToEnd = columnScroll.scrollHeight - columnScroll.scrollTop - columnScroll.clientHeight;
-    const stage = columnStageFromElement(columnScroll);
-    if (stage && distanceToEnd < COLUMN_LOAD_MORE_DISTANCE_PIXELS) pagedContentItems.loadMoreForStage(stage);
-  };
-  const handleBoardScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    if (showsContentItems && target.classList?.contains("kb-column-scroll")) loadMoreWhenColumnIsNearItsEnd(target);
-  };
-  useEffect(() => {
-    if (!showsContentItems) return;
-    boardBodyRef.current?.querySelectorAll<HTMLElement>(".kb-column-scroll").forEach(loadMoreWhenColumnIsNearItsEnd);
-  });
   const deskTitle = session?.shell.dashboard?.newsroomSections?.find(section => section.id === deskId)?.title ?? (deskId ? displayNewsroomSectionShortTitle({ id: deskId } as NewsroomSectionRecord) : "Desk");
   const pageTitle = subject === "contentItem" ? getContentItemName().plural : subject === "desk" ? deskTitle : "Assignments";
   const deskOptions = useMemo(() => newsroomDeskOptions(session?.shell.dashboard?.newsroomSections ?? []), [session?.shell.dashboard?.newsroomSections]);
@@ -180,8 +165,8 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
     <div className="organizer-native-board">
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
       {subject === "desk" && <IssueTypeFilter config={config} value={typeFilter} onChange={setTypeFilter} name="Record type" className="organizer-board-type-filter" />}
-      <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef} onScrollCapture={handleBoardScroll}>
-        {loading && !issues.length ? <NewsroomBoardSkeleton /> : <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view}
+      <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef}>
+        {loading && !issues.length ? <NewsroomBoardSkeleton /> : <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view} onColumnNearEnd={loadMoreWhenColumnIsNearItsEnd}
           motion={lowMotion ? STATIC_MOTION : undefined}
           collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn} initialScroll="start"
           selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={item => setSelected(item.id)} ariaLabel={pageTitle}

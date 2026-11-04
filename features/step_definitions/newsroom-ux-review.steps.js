@@ -19,6 +19,16 @@ const behaviors = [
   ["detail_stable", "the editor opens a story at 1440, 834 and 375 pixels and every animation frame is recorded",
     ["the detail view's background is opaque and not fading from its very first frame", "the detail view stays in one place at one size while the story loads",
       "the loading shape is the loaded editor's size, so nothing below it moves when the story arrives"]],
+  ["board_stacked_on_phones", "the editor opens the Stories board at 375 and 390 pixels wide, and at 667 by 375, 834 and 1440",
+    ["below 600 pixels the stages are sections of one vertical list with no horizontal scroll and exactly one vertical scroller",
+      "at 600 pixels and wider, including a phone in landscape and a tablet, the stages stay side by side columns"]],
+  ["board_pages_on_phones", "the editor scrolls a stage with far more stories than one page on a 375 pixel wide board",
+    ["only a bounded number of cards is in the page at once", "the next page is requested through the board's near-the-end callback and the stage grows",
+      "the first page of a short stage requests no more than once"]],
+  ["board_phone_detail_and_collapse", "the editor scrolls the stacked board, opens a story, closes it, and reloads after collapsing a section",
+    ["the detail view covers the board and the same story is focused again at the same scroll position", "the collapsed section is still collapsed after the reload"]],
+  ["board_skeleton_agrees", "the editor loads the Stories board at 375, 599, 600 and 640 pixels",
+    ["the loading skeleton is one stacked column below 600 pixels and three columns from 600 pixels", "the skeleton changes shape at the same width as the board changes layout"]],
 ];
 
 for (const [name, action, outcomes] of behaviors) {

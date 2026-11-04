@@ -47,7 +47,7 @@ async function main() {
     browser = await chromium.launch({headless:true,executablePath});
     const page = await browser.newPage();
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
-    for (const theme of THEMES) for (const width of [1440,375]) for (const colorScheme of ['light','dark']) {
+    for (const theme of THEMES) for (const width of [1440,390,375]) for (const colorScheme of ['light','dark']) {
       await page.setViewportSize({width,height:900});await page.emulateMedia({colorScheme,reducedMotion:'reduce'});
       await page.goto(`http://127.0.0.1:${server.address().port}/?theme=${theme}`);await page.locator('.issue-card').first().waitFor();await page.evaluate(()=>document.fonts.ready);
       const styles=await page.evaluate(()=>{
@@ -56,6 +56,8 @@ async function main() {
         const root=document.querySelector('.newsroom-organizer');return {ink:getComputedStyle(root).getPropertyValue('--kb-theme-ink').trim(),orgInk:getComputedStyle(root).getPropertyValue('--org-ink').trim(),radius:c.borderRadius,shadow:c.boxShadow,font:t.fontFamily,size:t.fontSize,weight:t.fontWeight,clip:h.clipPath,paper:getComputedStyle(document.documentElement).getPropertyValue('--background').trim(),background:getComputedStyle(document.querySelector('.newsroom-organizer')).backgroundColor,overflow:document.documentElement.scrollWidth>innerWidth+1};
       });
       assert.equal(styles.radius,'0px');assert.equal(styles.shadow,'none');assert.equal(styles.clip,'none');assert.equal(styles.weight,'600');assert.equal(styles.overflow,false);
+      assert.equal(await page.locator('[data-layout]').first().getAttribute('data-layout'),width<600?'stacked':'columns',`${theme} ${width}: stacked sections below 600 px, columns from 600 px`);
+      assert.equal(await page.locator('.kb-column').count()>0,width>=600,`${theme} ${width}: side by side columns only from 600 px`);
       assert(styles.font.length>0);assert(styles.ink.startsWith('oklch'),`${theme} ink token`);assert.equal(styles.orgInk,styles.ink,'shell --org-ink is the theme ink');assert.notEqual(styles.background,'rgba(0, 0, 0, 0)');
       const overlays=await page.evaluate(()=>['organizer-menu','organizer-account-popup'].map(className=>{
         const probe=document.createElement('div');probe.className=className;probe.style.cssText='position:fixed;visibility:hidden;animation:motion-probe 1s linear infinite;transition:transform 1s';document.body.append(probe);
@@ -66,7 +68,7 @@ async function main() {
       await page.locator('.issue-card').first().click();await page.locator('.kb-issue-detail').waitFor();await page.keyboard.press('Escape');await page.locator('.kb-issue-detail').waitFor({state:'detached'});
       const toggle=page.locator('button.kb-column-header').first();await toggle.click();assert.equal(await toggle.getAttribute('aria-expanded'),'false');await toggle.click();assert.equal(await toggle.getAttribute('aria-expanded'),'true');
     }
-    assert.deepEqual(errors,[]);console.log('PASS actual shared Board: four Kanbus editorial themes, 4 viewports/modes, selection/Escape, collapse');
+    assert.deepEqual(errors,[]);console.log('PASS actual shared Board: four Kanbus editorial themes, stacked below 600 px and columns above, selection/Escape, collapse');
   } finally { if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));fs.rmSync(output,{recursive:true,force:true}); }
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
