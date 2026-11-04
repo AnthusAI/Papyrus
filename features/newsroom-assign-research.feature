@@ -15,6 +15,17 @@ Feature: An editor assigns research from the Story page and sees it through to a
     And the box should have one text area, one button with an icon, and no dropdown
     And the box should have no border or outline
 
+  Scenario: The box says what the run will and will not do
+    Given I open the demo story that is based on a Reference at 1280 by 900
+    When I open the story's Messages view
+    Then the box should explain "It cannot open pages behind a login or paywall; the packet lists them."
+
+  Scenario: A finished packet says what the run read, and which claims rest on a snippet
+    Given I open the demo story that is based on a Reference at 390 by 844
+    When I open the story's Messages view
+    Then the finished assignment should say it read 2 of 3 sources and link the one it could not open
+    And the claim from that source should be labelled "Search snippet only."
+
   Scenario: An empty direction is refused in words
     Given I open the demo story that is based on a Reference at 1280 by 900
     When I open the story's Messages view

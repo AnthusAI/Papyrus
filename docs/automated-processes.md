@@ -157,7 +157,7 @@ A process that cannot fill a line says so in that line.
 ### 10. Research assignments
 
 - **Trigger.** Every 5 minutes, per publication that turned `researchAssignments` on; an editor creates the assignment on a Story.
-- **Inputs.** Open `research.multi` assignments naming a Story, oldest first; the search and model keys.
+- **Inputs.** Open `research.multi` assignments naming a Story, oldest first; the search and model keys; the public pages and PDFs the run opens.
 - **Decision.** None beyond running: the assignment is claimed with a lease, `research_multi` runs, and it is completed or failed with the reason.
 - **May write.** The assignment's status and events, the research packet Message, and, through research intake, proposed References (pending). Since PPY-07ca8a a source the publication already holds is reported, not registered again, and its status is never reset.
 - **Must never.** Retry a failed assignment on its own (a run spends search and model calls); start a run with less than 420 seconds left.

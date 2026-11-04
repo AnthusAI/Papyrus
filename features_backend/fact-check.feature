@@ -306,3 +306,13 @@ Feature: Everything a model writes from sources is fact checked, in layers, befo
     When the research run is made
     Then the packet has no direction gaps
 
+
+  Scenario: A quote from a PDF's text is found although the file splits its words
+    The text out of a PDF breaks words at line ends and sprays stray spaces, and the judge copies the clean words. A real passage must not be rejected for that.
+    Given a source text "the channel capacity, which is the maximum value of I(H;L) over all dis- tributions on H, for a program (o r protocol)"
+    Then a quote "which is the maximum value of I(H;L) over all distributions on H" is found in it
+    And a quote "the (or protocol)" is not found in it
+
+  Scenario: Removing spaces never lets a short quote match across words
+    Given a source text "the car pet store"
+    Then a quote "carpet" is not found in it

@@ -201,7 +201,7 @@ def step_limits_prompt(context):
 @then("the synthesis rules for a Story with a pack say one fact per claim, caveats in their own claim or in open questions, and dates only if in the sources")
 def step_writer_rules(context):
     rules = ms.SYNTH_DIRECTION_RULES
-    assert "One fact per claim" in rules and "in its own claim or in the open questions" in rules and "only if a title or snippet gives it" in rules
+    assert "One fact per claim" in rules and "in its own claim or in the open questions" in rules and "only if the page text, a title or a snippet gives it" in rules
 
 
 @then('claim {number:d} has a domain count of {domains:d} and single source is "{flag}"')
@@ -448,3 +448,18 @@ def step_all_passes(context):
 @then("the judge was asked once")
 def step_once(context):
     assert context.judge_calls == 1, context.judge_calls
+
+
+@given('a source text "{text}"')
+def step_source_text(context, text):
+    context.source_text = fact_check.SourceText([text])
+
+
+@then('a quote "{quote}" is found in it')
+def step_quote_found(context, quote):
+    assert context.source_text.has_phrase(quote)
+
+
+@then('a quote "{quote}" is not found in it')
+def step_quote_not_found(context, quote):
+    assert not context.source_text.has_phrase(quote)

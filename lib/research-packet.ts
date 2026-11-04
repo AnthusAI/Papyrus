@@ -8,7 +8,7 @@
  * shows without them.
  */
 export type PacketSource = { rank: number; url: string; title: string; domain: string | null };
-export type PacketClaim = { claim: string; sources: PacketSource[] };
+export type PacketClaim = { claim: string; sources: PacketSource[]; snippetOnly?: boolean };
 export type PacketDisagreement = { topic: string; positions: { position: string; sources: PacketSource[] }[] };
 export type ClaimVerdict = "needs_check" | "rejected" | "unchecked";
 export type PacketUnverifiedClaim = { claim: string; sources: PacketSource[]; verdict: ClaimVerdict | null; reasons: string[] };
@@ -46,6 +46,16 @@ export function factCheckSentence(counts: Record<string, unknown>): string {
   return parts.join(", ") + (single ? `; ${single} rest on one site` : "");
 }
 
+/** "Read 12 of 15 sources, 3 of them in part. 2 could not be opened and 1 had no room left, so claims from them rest on search snippets." */
+export function readingSentence(reading: Record<string, unknown>): string {
+  const part = count(reading, "inPart");
+  const unopened = list(reading.notOpened).length;
+  const noRoom = list(reading.outOfRoom).length;
+  const missed = [unopened ? `${unopened} could not be opened` : "", noRoom ? `${noRoom} opened with no time or room left to read` : ""].filter(Boolean).join(" and ");
+  return `Read ${count(reading, "read")} of ${count(reading, "sources")} sources${part ? `, ${part} of them in part` : ""}.` +
+    (missed ? ` ${missed}, so claims from them rest on search snippets.` : "");
+}
+
 export type PacketDirectionGap = { name: string; note: string };
 
 export type ResearchPacketView = {
@@ -56,6 +66,9 @@ export type ResearchPacketView = {
   openQuestions: string[];
   unverifiedClaims: PacketUnverifiedClaim[];
   factCheckSummary: string | null;
+  /** What the run read, in words; null for a packet from before runs opened their sources, which rests on search snippets alone. */
+  readingSummary: string | null;
+  notOpened: string[];
   directionGaps: PacketDirectionGap[];
   sourceCount: number;
 };
@@ -84,8 +97,10 @@ export function researchPacketOf(raw: unknown): ResearchPacketView | null {
   }
   const claims = list(packet.claims).flatMap(entry => {
     const claim = text(record(entry).claim);
-    return claim ? [{ claim, sources: sourcesOf(record(entry).sources, byRank) }] : [];
+    return claim ? [{ claim, sources: sourcesOf(record(entry).sources, byRank), snippetOnly: record(entry).snippetOnly === true }] : [];
   });
+  const reading = record(record(packet.multiSearch).reading);
+  const notOpened = list(reading.notOpened).flatMap(url => text(url) ?? []);
   const disagreements = list(packet.disagreements).flatMap(entry => {
     const topic = text(record(entry).topic);
     const positions = list(record(entry).positions).flatMap(position => {
@@ -114,6 +129,8 @@ export function researchPacketOf(raw: unknown): ResearchPacketView | null {
     openQuestions: list(packet.open_questions ?? packet.openQuestions).flatMap(question => text(question) ?? []),
     unverifiedClaims,
     factCheckSummary: Object.keys(counts).length ? factCheckSentence(counts) : text(packet.factCheck) ?? text(factCheck.summary),
+    readingSummary: typeof reading.sources === "number" ? readingSentence(reading) : null,
+    notOpened,
     directionGaps,
     sourceCount: byRank.size,
   };
