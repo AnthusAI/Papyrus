@@ -3,17 +3,25 @@
   "title": "Reporting agents lack basic CLI reads and consistent corpus keys",
   "description": "Found starting one Story on Machines on Machines, papyrus 5.81:\n- no assignments show, so an agent cannot read an assignment's status from the CLI; no stories list either (checked on 5.72, recheck on 5.81)\n- assign-research prints a next command with --corpus-key ai-ml-research, but references create-from-catalog rejects that key with Unknown --corpus-key: ai-ml-research and works only when it is omitted\n- run from inside the Papyrus checkout, an installed CLI stops at papyrus-root-guard, so an agent must find a neutral folder\n- papyrus editorial context --section takes a section name while stories create takes a key; check these are consistent",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "1f6f412b-bfc7-4706-aa89-c8f2cf2ec746",
+      "author": "home",
+      "text": "Reads and corpus keys tested live on 5.85.0. Root guard left unchanged per Ryan, with a clearer message in 5.85.2.",
+      "created_at": "2026-11-04T18:29:19.051085Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T00:14:55.074198Z",
-  "updated_at": "2026-11-04T00:14:55.074224Z",
-  "closed_at": null,
+  "updated_at": "2026-11-04T18:29:19.123973Z",
+  "closed_at": "2026-11-04T18:29:19.123948Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
