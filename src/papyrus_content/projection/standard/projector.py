@@ -18,6 +18,7 @@ Dependency rule (what the engine re-renders when something changes):
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import hashlib
 import itertools
@@ -35,6 +36,7 @@ from ...renditions import PrefixedRenditionStore, RenditionCatalog
 
 from ..model import ItemSummary, ProjectedItem, SiteIndex
 from ..plugins import plugin_static_files
+from ..engine import content_error_types
 from ..projector import (
     HOME_PAGE_PATH,
     PROJECTION_SETTINGS_FILE,
@@ -224,6 +226,17 @@ class StandardMarkusProjector(MarkusSiteProjector):
             self._knowledge.reset()
             self._home_page.reset()
             self._knowledge_items = site.items
+
+    _unrenderable: list[dict] | None = None
+
+    @contextlib.contextmanager
+    def tolerating_unrenderable(self):
+        """While held, a listing whose introducing Story cannot be rendered is written without it and the Story is collected (the yielded list)."""
+        previous, self._unrenderable = self._unrenderable, []
+        try:
+            yield self._unrenderable
+        finally:
+            self._unrenderable = previous
 
     def _convert_with_wiki_directives(self, text: str) -> str:
         from ...markus_renderer.wiki_directives import papyrus_registry
@@ -1022,7 +1035,15 @@ class StandardMarkusProjector(MarkusSiteProjector):
             description = (collection.description if collection is not None else configured.description if configured is not None else "") or self.standard.identity.description
             fragment = ""
             if intro is not None:
-                fragment = self._fragment(site.load_item(intro.item_id).source_text, view.url_for_page(view.page).count("/") - 1, intro.output_path)
+                try:
+                    fragment = self._fragment(site.load_item(intro.item_id).source_text, view.url_for_page(view.page).count("/") - 1, intro.output_path)
+                except content_error_types() as error:
+                    if self._unrenderable is None:
+                        raise
+                    # The Story that introduces this listing cannot be rendered: the listing is written without its introduction, and the Story is reported.
+                    if all(found["itemId"] != intro.item_id for found in self._unrenderable):
+                        self._unrenderable.append({"itemId": intro.item_id, "slug": intro.slug, "error": f"{type(error).__name__}: {error}"[:500]})
+                    fragment = ""
                 title = entry_title(intro)
                 description = clipped(first_text(intro.front_matter, self.standard.summary_fields or SUMMARY_FIELDS), 300) or lede_of(fragment) or description
             head = PageHead(title=title, path=view.url_for_page(view.page), description=description)

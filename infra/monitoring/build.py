@@ -5,6 +5,7 @@
   python3 infra/monitoring/build.py --router                # router zip (package closure, YAML data, pure-Python PyYAML)
   python3 infra/monitoring/build.py --router --host         # router zip with this machine's own wheels (tests; not for the Lambda)
   python3 infra/monitoring/build.py --email                 # strict SES submission receiver
+  python3 infra/monitoring/build.py --operator              # operator alert listener (PPY-e92c8e): caducus.notify + alarm catalog
   python3 infra/monitoring/build.py --router --upload BUCKET  # also upload (needs AWS_PROFILE; asserts the account)
 
 Each zip holds only the modules its Lambda imports. The collector zip is unchanged by the
@@ -17,6 +18,7 @@ import ast
 import hashlib
 import importlib
 import importlib.metadata
+import json
 from pathlib import Path
 import re
 import subprocess
@@ -32,6 +34,7 @@ ACCOUNT = "712236451410"
 OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring.zip"
 ROUTER_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring-router.zip"
 EMAIL_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-email-submissions.zip"
+OPERATOR_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring-operator.zip"
 PACKAGE = ROOT / "src" / "papyrus_content"
 ROUTER_ROOTS = ("monitoring_router", "monitoring_intake", "editorial_context", "graphql_authoring", "graphql_http",
                 # papyrus_knowledge_query (below) imports these from papyrus_content, which the closure cannot see from outside the package
@@ -221,19 +224,86 @@ def build_email(out: Path = EMAIL_OUT) -> str:
     return build_package(out, ("email_submission_intake",))
 
 
+# --- the operator alert listener (PPY-e92c8e) ---------------------------------------------------------------------------------------
+# The zip holds `caducus/__init__.py` and `caducus/notify/` from one pinned wheel, and `config/alarm-catalog.json` made from
+# alarm-catalog.yaml here, so the Lambda needs no PyYAML (the notify extra is boto3 only, and the Lambda runtime has boto3). The radar
+# modules of the caducus wheel import PyYAML and virtuus, so they are left out. Python 3.13 on arm64 like the other workers; the package is
+# pure Python, so one wheel serves.
+REQUIREMENT_FILE = Path(__file__).resolve().parent / "caducus-requirement.txt"
+CATALOG_SOURCE = Path(__file__).resolve().parent / "alarm-catalog.yaml"
+OPERATOR_PACKAGE_PARTS = ("caducus/__init__.py", "caducus/notify/")
+LAMBDA_ZIPPED_LIMIT = 50 * 1024 * 1024        # direct upload ceiling; the template uploads through S3 (the unzipped limit is the binding one)
+LAMBDA_UNZIPPED_LIMIT = 250 * 1024 * 1024
+
+
+def caducus_requirement(path: Path = REQUIREMENT_FILE) -> str:
+    """The first non-comment line of caducus-requirement.txt: a pip requirement (`caducus==X`, or `caducus @ git+https://...@<commit>`)."""
+    lines = [line.strip() for line in path.read_text().splitlines() if line.strip() and not line.lstrip().startswith("#")]
+    assert len(lines) == 1 and lines[0].split()[0].startswith("caducus"), f"{path.name} must hold exactly one caducus requirement"
+    return lines[0]
+
+
+def fetch_caducus_wheel(requirement: str, scratch: Path) -> Path:
+    """Build or download the wheel for `requirement` with pip, without its dependencies (the Lambda runtime has boto3)."""
+    subprocess.run([sys.executable, "-m", "pip", "wheel", "--quiet", "--disable-pip-version-check", "--no-deps", "--wheel-dir", str(scratch), requirement], check=True)
+    wheels = list(scratch.glob("caducus-*.whl"))
+    assert len(wheels) == 1, wheels
+    return wheels[0]
+
+
+def catalog_json(source: Path = CATALOG_SOURCE) -> bytes:
+    import yaml
+
+    return (json.dumps(yaml.safe_load(source.read_text()), sort_keys=True, indent=1) + "\n").encode()
+
+
+def operator_entries(wheel: Path, catalog: Path = CATALOG_SOURCE) -> dict[str, bytes]:
+    entries: dict[str, bytes] = {}
+    with zipfile.ZipFile(wheel) as archive:
+        for member in archive.namelist():
+            if member.endswith("/") or "__pycache__" in member or member.endswith(".pyc"):
+                continue
+            if member == OPERATOR_PACKAGE_PARTS[0] or member.startswith(OPERATOR_PACKAGE_PARTS[1]):
+                entries[member] = archive.read(member)
+    assert "caducus/notify/handlers/router.py" in entries, "the wheel holds no caducus.notify handlers"
+    entries["config/alarm-catalog.json"] = catalog_json(catalog)
+    return entries
+
+
+def check_operator_entries(entries: dict[str, bytes]) -> None:
+    """The zip stays far inside Lambda's limits and carries no PyYAML (the catalog is JSON, the base kinds are JSON)."""
+    assert not any(name.startswith(("yaml/", "PyYAML", "virtuus")) for name in entries), "PyYAML or virtuus is in the operator zip"
+    assert sum(len(data) for data in entries.values()) < LAMBDA_UNZIPPED_LIMIT
+
+
+def build_operator(out: Path = OPERATOR_OUT, wheel: Path | None = None, catalog: Path = CATALOG_SOURCE) -> str:
+    """Deterministic: sorted entries, fixed timestamps, so the same pin and catalog give the same SHA256."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as scratch:
+        entries = operator_entries(wheel or fetch_caducus_wheel(caducus_requirement(), Path(scratch)), catalog)
+    check_operator_entries(entries)
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name in sorted(entries):
+            _add(archive, name, entries[name])
+    assert out.stat().st_size < LAMBDA_ZIPPED_LIMIT
+    return hashlib.sha256(out.read_bytes()).hexdigest()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--upload", metavar="BUCKET")
     worker = parser.add_mutually_exclusive_group()
     worker.add_argument("--router", action="store_true", help="build the router zip instead of the collector zip")
     worker.add_argument("--email", action="store_true", help="build the strict email submission receiver zip")
+    worker.add_argument("--operator", action="store_true", help="build the operator alert listener zip (pinned caducus.notify + alarm catalog)")
     parser.add_argument("--host", action="store_true", help="with --router: use this machine's installed packages instead of Lambda wheels (tests only)")
     args = parser.parse_args()
     if args.host and not args.router:
         parser.error("--host goes with --router")
-    digest, out = ((build_email(), EMAIL_OUT) if args.email else
+    digest, out = ((build_operator(), OPERATOR_OUT) if args.operator else
+                   (build_email(), EMAIL_OUT) if args.email else
                    (build_router(target="host" if args.host else "lambda"), ROUTER_OUT) if args.router else (build(), OUT))
-    prefix = "email-" if args.email else "router-" if args.router else ""
+    prefix = "operator-" if args.operator else "email-" if args.email else "router-" if args.router else ""
     key = f"papyrus-monitoring/{prefix}{digest}.zip"
     print(f"SHA256 {digest}\nCodeKey {key}\nSize {out.stat().st_size} bytes")
     if args.upload:

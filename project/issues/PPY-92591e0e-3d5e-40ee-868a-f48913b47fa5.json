@@ -3,17 +3,25 @@
   "title": "Signed-in CLI gaps: save-version author label, assignments show direction",
   "description": "Found testing 5.85.0 live, 2026-11-04. (1) stories save-version still requires --author-label when signed in, while link-reference and note use the session. (2) assignments show does not print the assignment's direction, so an agent cannot read what it was asked.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f0b8aa52-780d-45a7-8195-e238e4698698",
+      "author": "home",
+      "text": "Fixed in #1183, tested live on Machines on Machines with 5.85.2: save-version with no --author-label records the signed-in name; assignments show prints the whole direction.",
+      "created_at": "2026-11-04T18:29:18.701911Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T15:03:53.707992Z",
-  "updated_at": "2026-11-04T15:03:53.708041Z",
-  "closed_at": null,
+  "updated_at": "2026-11-04T18:29:18.970012Z",
+  "closed_at": "2026-11-04T18:29:18.969677Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

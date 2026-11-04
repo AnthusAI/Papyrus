@@ -1,0 +1,28 @@
+{
+  "id": "PPY-74a11365-8955-491b-8e16-34d9cc10ce52",
+  "title": "Knowledge run can read accepted References as its only documents",
+  "description": "reference_documents.py reads only corpora/<key>/extracted/.../extracted_text_raw.md, excludes monitor-delivered References and has no accepted-only mode, and zero documents is a silent success. Add a selection mode where accepted References are documents whatever their monitor, with text from the curation-text payload. Pending and rejected are never documents in this mode. Zero documents fails the run loudly. No run may delete recoverable text because a listing came back empty.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "a2d48d81-29c9-4dd5-9fd6-ac1399074f02",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1187 merged to develop. Tests: pytest knowledge_snapshot+knowledge_cloud 373 passed; behave features_backend/knowledge-*.feature 199 scenarios passed.",
+      "created_at": "2026-11-04T18:32:29.825375Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-04T18:22:36.488739Z",
+  "updated_at": "2026-11-04T18:32:29.826071Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

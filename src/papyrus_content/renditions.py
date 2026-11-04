@@ -88,12 +88,42 @@ def settings_from_mapping(raw: dict) -> RenditionSettings:
     )
 
 
-def settings_from_static_directory(static_directory: Path | None) -> RenditionSettings | None:
-    settings_path = static_directory / "projection.json" if static_directory is not None else None
-    if settings_path is None or not settings_path.is_file():
+#: What a site gets without declaring ``images``: the pipeline's own defaults (widths, WebP, a 1024 px fallback, lazy loading).
+#: ``::image`` is rendered from renditions; plain Markdown images are left as the author wrote them, so a page without
+#: ``::image`` renders byte for byte as it did before images were on by default. A site that declares ``images`` as an object
+#: also has its plain images upgraded (``upgrade_plain_images``), as it always did.
+DEFAULT_IMAGE_SETTINGS = RenditionSettings(pipeline=ImagePipeline(upgrade_plain_images=False))
+
+
+def images_from_projection(raw: dict) -> RenditionSettings | None:
+    """The image settings of a ``projection.json`` mapping: on with the defaults when ``images`` is absent, ``true`` or ``null``;
+    ``false`` turns them off (``None``); an object declares them."""
+    value = raw.get(IMAGES_SETTINGS_KEY)
+    if value is False:
         return None
-    raw = json.loads(settings_path.read_text(encoding="utf-8")).get(IMAGES_SETTINGS_KEY)
-    return None if raw is None else settings_from_mapping(raw)
+    if value is None or value is True:
+        return DEFAULT_IMAGE_SETTINGS
+    if not isinstance(value, dict):
+        raise ValueError('projection.json "images" must be true, false or an object of image settings')
+    return settings_from_mapping(value)
+
+
+def settings_from_static_directory(static_directory: Path | None) -> RenditionSettings | None:
+    """The site's image settings (see ``images_from_projection``); a site without a ``projection.json`` has the defaults."""
+    settings_path = static_directory / "projection.json" if static_directory is not None else None
+    raw = json.loads(settings_path.read_text(encoding="utf-8")) if settings_path is not None and settings_path.is_file() else {}
+    return images_from_projection(raw)
+
+
+def media_key_for_source(source: str) -> str:
+    """The one place a picture's S3 key is made from its ``srcPath`` (the inverse of ``source_from_media_key``).
+
+    A story picture's ``srcPath`` (``assets/<slug>/<file>``) is what its body says, what its ``MediaAsset`` row records, and the
+    source the renditions are made and looked up under. Its object is always ``media/<srcPath>``: the newsroom editor, ``stories
+    save-version --images`` and the renditions function all agree on that, with no tenant in the key. A tenant is told apart by its
+    rows (``tenantId``) and by its backend and site bucket, never by the key, because the renditions are read by ``srcPath`` alone.
+    """
+    return MEDIA_KEY_PREFIX + assert_safe_asset_src(source)
 
 
 def source_from_media_key(media_key: str) -> str | None:
@@ -408,8 +438,9 @@ class RenditionCatalog:
             raise MissingRenditionsError(
                 f"Renditions for image {source!r} are missing: "
                 f"{getattr(self._store, 'prefix', '')}{meta_key(self._pipeline, source)} is not in the site store. "
-                f"They are made when the image is uploaded to {MEDIA_KEY_PREFIX}{source}. "
-                f"Request them with: papyrus ops content renditions --source {source}"
+                f"They are made when the image is uploaded to {media_key_for_source(source)}, so that object has to exist. "
+                f"Request them with: papyrus ops content renditions --source {source} "
+                "(signed in, no AWS login is needed; if there is no object at that key it says so, and where the object is and which command moves it)"
             )
         return record
 

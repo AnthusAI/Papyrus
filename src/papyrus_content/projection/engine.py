@@ -26,6 +26,7 @@ import functools
 import logging
 import re
 from collections.abc import Collection
+import contextlib
 from contextlib import contextmanager
 from urllib.parse import quote
 from dataclasses import dataclass, field
@@ -123,6 +124,7 @@ class ProjectionContext:
     defer_follow_up: bool = False
     deletion_guard: DeletionGuard | None = None
     lease: ProjectionLease | None = None
+    tolerate_unrenderable: bool = False   # a full render goes on past an item whose content cannot be rendered, and reports it (the post-deploy render)
     disabled_plugins: frozenset[str] = frozenset()  # plugins known to be disabled for the site; only their pages may be reconciled away
 
     @contextmanager
@@ -614,6 +616,18 @@ def project_stale_listings(context: ProjectionContext, only: Collection[str] | N
     return _finish(context, report)
 
 
+def content_error_types() -> tuple[type[BaseException], ...]:
+    """What a page's own content raises when it cannot be rendered (markup the site does not know, a missing rendition, a bad
+    citation). Anything else (storage, network, a broken projector) is an infrastructure failure and is never tolerated."""
+    from markusmd.errors import MarkusError
+
+    from ..markus_renderer.citations import CitationError
+    from ..markus_renderer.content_markup import ContentMarkupError
+    from ..markus_renderer.images import ImagePipelineError
+
+    return (MarkusError, ContentMarkupError, CitationError, ImagePipelineError)
+
+
 @_leased
 def project_all(context: ProjectionContext) -> ProjectionReport:
     report = ProjectionReport()
@@ -626,7 +640,14 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     leftovers: set[str] = set()
     dropped: list[str] = []
     for item in items:
-        pages = projector.item_pages(item, site)
+        try:
+            pages = projector.item_pages(item, site)
+        except content_error_types() as error:
+            if not context.tolerate_unrenderable:
+                raise
+            # One Story that cannot be rendered must not stop the others: it is reported, and its page and state stay as they were.
+            report.unrenderable.append({"itemId": item.summary.item_id, "slug": item.summary.slug, "error": f"{type(error).__name__}: {error}"[:500]})
+            continue
         rendered.update(pages)
         remembered = read_item_state(context.writer, item.summary.item_id) if context.keep_state else None
         if context.keep_state:
@@ -639,7 +660,11 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
                 dropped.append(item.summary.item_id)
         states.append(_updated_state(remembered, item.summary, tuple(sorted(pages))))
     inputs = projector.listing_inputs(site)
-    listings = projector.listing_pages(site, None)
+    tolerate = getattr(projector, "tolerating_unrenderable", None) if context.tolerate_unrenderable else None
+    with (tolerate() if tolerate is not None else contextlib.nullcontext([])) as skipped_by_listings:
+        listings = projector.listing_pages(site, None)
+    known = {found["itemId"] for found in report.unrenderable}
+    report.unrenderable.extend(found for found in skipped_by_listings if found["itemId"] not in known)
     live_keys = _item_keys(context, site)
     redirects = dict(projector.redirects(site))
     for state in states:

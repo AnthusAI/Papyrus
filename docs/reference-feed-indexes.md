@@ -14,6 +14,7 @@ The page's search box does not use these indexes; it asks `searchReferences` ([r
 | `predictionDecidedAt` | When that decision was made. |
 | `predictionSortKey` | `<P to six places>#<feedArrivalAt>#<id>`. An unpredicted Reference sorts as 0.5: after every predicted Accept, before every predicted Reject. |
 | `captureState` | `full`, `thin`, `none` or `running`: how much of the Reference's content the newsroom holds; empty means `none`. Not a key and in no index. See [the capture state](reference-curation-pipeline.md#4a-referencecapturestate-whether-a-person-is-still-needed-2026-11-03). |
+| `mediumFeedKey` | `<corpusId>#<medium>#<pending\|accepted\|rejected>` while the Reference has a medium (`video`), is current and not archived. Null (so in no medium partition) otherwise. See [the medium index](#the-medium-index). |
 | `starFeedKey` | `<corpusId>#stars#<n>` while the Reference has a whole star rating of 1 to 5 and a corpus. Null (so in no star partition) when it has no stars. Not part of the feed keys above: see [the star index](#the-star-index). |
 
 The prediction is a value on the original record, written once. A later decision, a vote and a re-delivery do not rewrite it.
@@ -38,6 +39,29 @@ The page reads `<corpusId>#unrated` for Reviewed **No** and both partitions for 
 The star key does not look at the feed state, so a star partition also holds a Reference that was superseded by a new version or archived while it kept its rating. That is the **ghost-row rule**: the reader (`liveStarRows` in `lib/reference-feed-pages.ts`) drops every row with no `feedStateKey`, so a superseded or archived Reference never shows, and keeps the rest by the chosen Reviewed (the `#unrated` or `#rated` suffix of `feedStateKey`, and for Accepted the row's `curationStatus`). The filter is on the client on purpose: star partitions are small, and it keeps the key writer to one rule. A page can come back short, or empty with a next token; the reader keeps going (`MergedFeedReader` places only what no unread partition could still beat, and the feed's "Load more" row stays while it has more), so a page of ghosts does not stop the list.
 
 The key writers: `setReferenceStars` (`amplify/functions/category-action/handler.ts`) sets `starFeedKey` with the rating and clears it when the rating is cleared, and gives a Reference with no `feedArrivalAt` one (a row without it is not in the index). The Python twin is `reference_stars.star_fields(stars, corpus_id=...)`. The key function is `starFeedKeyFor` (`lib/reference-feed-keys.ts`) and `star_feed_key` (`src/papyrus_content/reference_feed_keys.py`), tested against the same vectors (`starFeedKey` in `scripts/fixtures/reference-feed-key-vectors.json`). It is deliberately **not** in `referenceFeedKeys` / `feed_keys`: callers spread those on partial patches whose input may lack `starRating`, which would wrongly clear the key. A new version of a Reference does not carry the star rating today (the new version's record has none and `moveReferenceCorpus` does not copy it), so it has no star key either; the old version's key stays until the backfill or the reader's ghost rule hides it. Stars are not relevance and never reach the Cyclotron.
+
+## The medium index
+
+`listReferencesByMediumFeedAndArrival` (partition `mediumFeedKey`, sort key `feedArrivalAt`), read descending, lists the References whose address is a video, newest first, without a scan. It is sparse: a Reference with no medium has no `mediumFeedKey` and is in no medium partition. The partition is `<corpusId>#<medium>#<status>`, for example `knowledge-corpus-site#video#accepted`; `<status>` is `pending`, `accepted` or `rejected`, so **a public page reads the `accepted` partition and nothing is filtered out of it in the browser**: pending, rejected, archived and superseded References are in other partitions or none. The corpus in the key keeps one site's (or one corpus's) videos out of another's, the same isolation `feedStateKey` has (a site has its own backend; a Reference has no `tenantId`).
+
+| Writer | What it does |
+| --- | --- |
+| `catalog.reference_record` (and through it every intake path), `reference_url_text` citation stubs | Set `medium` and `mediumFeedKey` with the feed keys when the address is a video; an ordinary address names no medium field at all (an explicit null on a new row's index key is not a missing attribute) |
+| `feed_keys` (`reference_feed_keys.py`) | Includes the key only when there is one to set or one currently stored to clear |
+| `reviewReferenceCuration`, `rateReferenceQuality` (`category-action`), `review_reference_curation` (chat), `auto_accept.py`, `auto_reject.py`, `reference_citation_stubs.py` | Move the key with the vote: `<corpus>#video#accepted`, `#rejected`, `#pending`, or null on archive (`medium_key_patch`, `referenceMediumKeyPatch`) |
+| `records.py` supersede, `moveReferenceCorpus` | A superseded version loses the key; the moved version is keyed for its new corpus |
+| `papyrus references backfill-medium` | Sets `medium` and the key on existing References (below) |
+
+The Python twin of the key is `medium_feed_key` (`reference_feed_keys.py`; it reads the medium off the address when none is stored yet, so a vote written before the backfill still lands in the right partition) and the TypeScript one `referenceMediumFeedKey` (`lib/reference-feed-keys.ts`, stored medium only; the backfill repairs a Reference voted in the browser before its medium was stored). Both are tested against `scripts/fixtures/reference-feed-key-vectors.json`. Read it from Python with `iterate_references_by_medium(client, corpus_id)` (`reference_medium.py`), which pages newest first and stops when you stop.
+
+The newsroom does not read this index yet. The public videos block reads the home-page snapshot, which the snapshot task builds from the accepted References it already reads (it does not use this index either); the index is for a reader that needs the videos alone, quickly, such as a future videos feed, an Alexa skill or a count. It is **one** new global secondary index on `Reference`: DynamoDB allows one index change per deploy per table, so deploy it on its own. Until the backfill runs, the index holds only the References created or voted on since the writers shipped.
+
+```bash
+papyrus references backfill-medium --site KEY                      # preview, writes nothing
+papyrus references backfill-medium --site KEY --write              # writes medium, playlistUrl, evidenceLevel (aggregation only, only where empty) and mediumFeedKey
+```
+
+Rollout order, with the other Reference fields: data API first (schema and index), then the engine, then the backfill, then a videos page. See [the curation pipeline](reference-curation-pipeline.md#4b-referencemedium-what-kind-of-thing-the-address-is-2026-11-04).
 
 ## The Captured filter and the capture list
 

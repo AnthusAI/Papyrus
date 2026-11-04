@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8891fe5d-1e93-4054-944b-7aa9d580490d",
+  "issue_id": "PPY-c69e7b35-4b01-4c44-9a19-044c0b03ea44",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T17:46:13.683Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Images and citations should be on by default for every Papyrus site",
+    "description": "Ryan, 2026-11-04: images should be enabled in Papyrus by default. Today a site's web/projection.json must declare images and citations, or the projector has no image pipeline. On Machines on Machines, saving a Story with ::image lines succeeded (the save path uses its own pipeline), and only publish failed: data published, page not live, with MarkusValidationError Unknown directive 'image'. Of the sites checked, only Anth.us sets them; Pilobolus, Shipped and Distinctive don't, so their first Story with a picture will fail the same way. Fix: default both on, with a site able to turn them off, and make save and publish agree so a problem can't first appear at publish. Also: revalidation in the same publish reported that PAPYRUS_PUBLIC_SITE_BASE_URL or publicSite.baseUrl is required on the signed-in lane.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

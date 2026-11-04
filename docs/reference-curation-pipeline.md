@@ -369,6 +369,83 @@ Some accepted References are only a title and an address: the page was behind an
 
 **After a person captures it.** `correctReferenceCapture` stores the text as a new `curation-edit-NNNN-text` body, appends the label, marks the summary `stale` and sets `captureState` to `full` in the same call. **Nothing re-runs automatically**: the summary and, for a paper, GROBID wait for the next curation run (`papyrus references curate`, or the `papyrus.reference.curate` procedure where a publication's router triggers it; no publication's router has procedure triggers today). That run does not recapture over the person's text; it summarizes it.
 
+## 4b. `Reference.medium`: what kind of thing the address is (2026-11-04)
+
+A third attribute of a Reference, separate from its evidence level and its voice (PPY-f8ff49): the **medium**. It is set by rule from the address alone, by no model, and **only where the address is certain**. Today the one value is `video`; any other address has no medium (empty means "not known", never "not a video"). The code is `src/papyrus_content/reference_medium.py`, a pure function from address to `(medium, evidence level, playlist address)`, tested by exact shape in `reference_medium_test.py` and `features_backend/reference-medium.feature`.
+
+**Exact shapes, never substrings.** The host and the whole path are matched; a channel page, a user page, a Vimeo category or `youtube.com/about` is not a video.
+
+| Platform | A video | An aggregation (no medium) |
+| --- | --- | --- |
+| YouTube (`youtube.com`, `www.`, `m.`, `youtube-nocookie.com`, `youtu.be`) | `watch?v=<11 chars>`, `shorts/`, `live/`, `embed/`, `v/`, `youtu.be/<id>` (shapes read by `youtube_transcript.video_id`, the reader capture uses) | `playlist?list=`, `embed/videoseries?list=` |
+| Vimeo | `vimeo.com/<digits>`, `vimeo.com/<digits>/<hash>`, `player.vimeo.com/video/<digits>`, `channels/<name>/<digits>`, `groups/<name>/videos/<digits>`, `showcase/<id>/video/<digits>` | `showcase/<id>`, `album/<id>`, `channels/<name>` |
+| Dailymotion | `video/<id>`, `embed/video/<id>`, `dai.ly/<id>` | `playlist/<id>` |
+| Loom | `share/<32 hex>`, `embed/<32 hex>` | |
+| Wistia | `<account>.wistia.com/medias/<id>`, `fast.wistia.net/embed/iframe/<id>` | |
+| TED | `ted.com/talks/<slug>` | `playlists/<id>/<slug>` |
+| Twitch | `twitch.tv/videos/<digits>`, clips (`clips.twitch.tv/<slug>`, `<channel>/clip/<slug>`) | `collections/<id>` |
+
+Not a video, on purpose: `music.youtube.com`, a Twitch channel page (live or not), `ted.com/talks` (the listing) and a talk's `/transcript` page, Vimeo `ondemand`, user and category pages.
+
+**The fields** (all on `Reference`, set by the writers below, none required):
+
+| Field | Meaning |
+| --- | --- |
+| `medium` | `video`, or empty. |
+| `evidenceLevel` | The field PPY-f8ff49 proposes (`primary`, `secondary`, `aggregation`, `unknown`). The medium rule writes **only `aggregation`**, for a playlist, showcase, album or collection address, and **only when the field is empty**: a value an editor or the decision model (PPY-3dcc04) wrote is never replaced, and the model will write this same field. |
+| `playlistUrl` | A YouTube watch or `youtu.be` address that carries a valid `list` parameter names both a video and a playlist. It is **the video** (`medium` video, no aggregation), and the playlist's own address (`https://www.youtube.com/playlist?list=...`) is recorded here for the follow story (PPY-566e82). |
+| `mediumFeedKey` | The sparse index key, below. |
+
+**What `canonical_url` does to these addresses** (read 2026-11-04, not changed here). `link_exploration.canonical_url` removes tracking parameters, session junk, the fragment and the default port, and keeps every other parameter in order, so `v` and `list` both survive (as do `ab_channel`, `t`, `si` and `index`). `monitoring.canonical_url` removes only `utm_*`, `fbclid` and `gclid` and keeps all the rest. `reference_identity.canonical_url_key` sorts the parameters and keeps both. So `watch?v=A` and `watch?v=A&list=L` are two addresses, and so are `youtu.be/A` and `youtube.com/watch?v=A`: the same video can be two References. The medium rule does not depend on this (it reads the video id out of the address); a video-id identity key is a follow-up.
+
+**Who sets it.** Every creating writer goes through `catalog.reference_record` or sets it itself, and a vote or an archive keeps the key right:
+
+| Source | How |
+| --- | --- |
+| `papyrus references import`, assignment registration, email submission, Slack and console chat `Reference.create`, named imports | `catalog.reference_record` sets `medium`, `playlistUrl`, `evidenceLevel` and the key |
+| Monitor delivery (`ReferenceIntake`) and the console and email hand-off Lambda (`find_or_create_source_reference`) | through `catalog.reference_record` |
+| GROBID citation stubs | `medium_fields` (a citation has a DOI, not an address, so it is empty in practice) |
+| Accession (next version, replacement lineage), a new version of a Reference | the stored fields are carried and the key is recomputed (`feed_keys`) |
+| A vote from the newsroom (`reviewReferenceCuration`, `rateReferenceQuality`), the agent chat vote (`review_reference_curation`), auto-accept, auto-reject, retiring and restoring citation stubs, a superseded version, a corpus move | `mediumFeedKey` moves with the status (`medium_key_patch`, `referenceMediumKeyPatch`); a Reference with no medium never gets the field named |
+| Existing References | `papyrus references backfill-medium` (below) |
+
+`src/papyrus_content/reference_creation_paths_test.py` runs every creating path offline with a video address, an ordinary address and a playlist address.
+
+**The index.** `mediumFeedKey` is `<corpusId>#<medium>#<pending|accepted|rejected>` for a current, not archived Reference that has a medium, and absent otherwise. `listReferencesByMediumFeedAndArrival` reads it by `feedArrivalAt`, newest first. See [the medium index](reference-feed-indexes.md#the-medium-index).
+
+**The reader.** A public videos page or block reads only the accepted partition: see [the standard site](standard-site.md#videos-on-a-public-page).
+
+**Backfill** (one-off, idempotent, **safe by default**, unlike the other backfills):
+
+```bash
+papyrus references backfill-medium --site KEY                        # preview: one line per Reference it would change, then counts; writes nothing
+papyrus references backfill-medium --corpus-key KEY1,KEY2 --write    # writes
+papyrus references backfill-medium --all-corpora                     # preview of every corpus the backend lists
+```
+
+It reads each current Reference by curation status (no scan), writes only `medium`, `playlistUrl`, `evidenceLevel` and `mediumFeedKey`, never a vote or a curation field, and a second run writes nothing. `--dry-run` is accepted and means the same as leaving `--write` off; `--write --dry-run` writes nothing.
+
+**Relation to `Reference.type` (PPY-0cd359, not built here).** `type` (paper, article, repository, model ...) would name what the source *is* and be set at intake from the monitor and the source site; `medium` says how the address *delivers* it, and only where an address proves it. They overlap only where a `type` value is itself a medium: if `type` ever gains `video`, it should be derived from `medium` (and `medium` kept as the certain, address-only fact), rather than set twice. They are independent of source kind (PPY-f8ff49): a YouTube lecture can be primary, a Vimeo reel an advocacy piece. A playlist is an *evidence level* (aggregation), not a medium, which is why `medium` has one value and the playlist rule writes the evidence-level field.
+
+## 4c. Outbound links, recorded at capture (PPY-31821c, 2026-11-04)
+
+When a page is captured (the curation run, `papyrus references curate`, and monitor enrichment before a decision), the capture also keeps **every outbound link of the page**, nothing followed. `reference_outbound_links.extract_links(html, base_url)` reads the same HTML and returns one record per address, in page order:
+
+```json
+{"url": "https://...", "label": "link text", "kind": "content | navigation | footer | credit | profile", "listed": true, "position": 3}
+```
+
+* **content**: in the page's main content (`<article>`, `<main>` or `role="main"`), and not one of the kinds below. **These are the only links a follower may use.**
+* **navigation**: in `<nav>`, `<aside>`, `<header>` (including an article's byline header, where a category link sits), `role` navigation, banner, complementary or search, a block whose class or id says menu, sidebar, share, social, breadcrumb, comments, related, pager, newsletter and so on, marked `rel="tag"`, `category`, `author`, `next`, `prev`, or anywhere outside `<article>`/`<main>` on a page that has one.
+* **footer**: in `<footer>` or `role="contentinfo"`.
+* **credit**: in a thanks passage: a block that starts "Acknowledgements", "Thanks:" or "Special thanks", says "I would like to thank" or "we are grateful", or sits under an "Acknowledgements", "Thanks", "Credits" or "About the author" heading. A sentence that only begins "Thanks to this method ..." is content.
+* **profile**: a link to a person's profile on LinkedIn, X/Twitter, Facebook, Instagram, Threads or TikTok, wherever it is. A post link is content.
+* `listed` is true for a link inside a list item (a series, a reading list). The same address twice keeps its first position and the best kind (content over the rest). Fragments, `mailto:`, `tel:`, `javascript:` and the page's own address are not recorded. Addresses are kept as found (including tracking parameters).
+
+**Where it is stored.** The body is a `ModelAttachment` (role `metadata`, sort key `curation-links`, `curation-links.json`: `{version, pageUrl, links}`), so the Reference row and the card stay small; the card gets `links: {total, content}` and `current.linksSortKey`. A page with no links writes no attachment. A capture that failed for lack of text (`no_text`) still stores the links of the page it read; a failed fetch and a PDF store none. Monitor enrichment stores the body beside the captured text (`linksKey` on the enrichment row) and `copy_curation` writes the attachment on delivery.
+
+**Honest limits.** It is a rule on what the page declares, not a judgment. A page with no landmarks or theme classes is read as all content; a "related posts" list inside the article body is content; a thanks passage that does not use those words is content; a theme that marks article metadata with its own class names can slip through. On the acceptance page (a saved copy of a public blog hub page, `procedures/newsroom/tests/fixtures/kjam-memorization-hub.html`) it gets exactly the intended answer: the series' articles and the YouTube playlist are content links, and the category page, the sidebar and footer links and the three thanks links are not. The page has **18** series articles in its ordered list (23 links in all: 18 articles, the category page, the playlist, three thanks links), not 17 as the story counted, so 19 content links.
+
 ## 5. Running it
 
 **After a delivery (asynchronous, config only per site).** The router already starts a registered procedure
@@ -421,6 +498,10 @@ Nothing here changes a model or a stored shape. To turn it on for a site:
    ECS cluster runs the weekly knowledge-run jobs). The runner Lambda cannot host the container. Until one
    exists, papers get text, signals and a summary, and the typed skip `grobid_not_configured`; run the backfill from a
    machine with `--start-grobid` (Docker) to fill in papers.
+
+### What the medium and the outbound links need per site
+
+Nothing to turn on for the fields: they are written when the site's backend has them. **Order** (the same as the feed keys): 1. deploy the site's data API (the schema change below: four optional fields and one index); 2. deploy the engine that carries the writers (router, tools, chat); 3. `papyrus references backfill-medium --site KEY` (preview), then with `--write`; 4. (optional) turn on a videos page ([the standard site](standard-site.md#videos-on-a-public-page)). A router or chat that reaches a site before its schema is safe: a write for an ordinary address names no new field, a write that names the medium fields to a site without them is sent again without them (`MEDIUM_REFERENCE_FIELDS` in `graphql_authoring.py`; the backfill fills them in later), and reads drop the new fields on such a site (`NEWER_REFERENCE_FIELDS`). The chat's own GraphQL path (`review_reference_curation`) and the TypeScript Lambdas have no such retry, so deploy the data API first for a site where editors or agents vote on videos. The data API change adds **one** global secondary index to the `Reference` table (`mediumFeedKey`/`feedArrivalAt`); DynamoDB allows one index change per deploy per table, so it must not share a deploy with another index change on `Reference`. No IAM change: every worker that writes these fields already holds `createReference`, `updateReference`, `createReferenceAttachment` and the attachment upload pair (`procedures/newsroom/tests/test_reference_medium_iam.py` fails if one is lost), and no worker role reads the medium index.
 
 ## 6a. Stories based on a Reference (core rules)
 

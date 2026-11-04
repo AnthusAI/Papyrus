@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "afb1ba72-f2e4-4f3a-b277-e29082398b3d",
+  "issue_id": "PPY-dd8c18b8-f0bf-46b4-8e9a-d03914e1a61e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T17:10:44.829Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The two last-resort alerts, in the same account",
+    "description": "stub",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+    "labels": [
+      "m1"
+    ]
+  }
+}

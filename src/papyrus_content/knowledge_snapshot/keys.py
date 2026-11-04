@@ -50,6 +50,13 @@ def normalize_name(name: str) -> str:
     return " ".join(unicodedata.normalize("NFKC", str(name or "")).split()).casefold()
 
 
+def name_identity(name: str) -> str:
+    """The one identity of a name: the slug its entity key is made of (``GPT-4`` and ``GPT 4`` are the same name), else the case and white
+    space folded name for a name with no ASCII letters or digits. Two names with one identity make one node (``entity_key``), so two names with
+    one identity must be one name wherever a name is looked up."""
+    return bounded_slug(name) or normalize_name(name)
+
+
 def contains_email(text: str | None) -> bool:
     return bool(text and EMAIL.search(text))
 

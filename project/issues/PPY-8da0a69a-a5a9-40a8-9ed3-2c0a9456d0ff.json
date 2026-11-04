@@ -1,0 +1,28 @@
+{
+  "id": "PPY-8da0a69a-a5a9-40a8-9ed3-2c0a9456d0ff",
+  "title": "Rejections teach extraction; rejected names never collect links",
+  "description": "Rejected stays rejected and machines never change an existing concept, but normalize_name and slug differ, so 'GPT 4' can miss rejected 'GPT-4' and links still get written to a rejected lineage (publish_run.py:341-364). Use one identity for both. Rejected names feed the candidate filter, so a person's or AI review's rejection is learned from. First step of the self-learning loop.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "de4bfbea-b154-41fc-b690-0f8048d452d4",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1190 merged to develop. Tests: pytest knowledge_snapshot+knowledge_cloud 391 passed; behave knowledge-*.feature 208 scenarios passed.",
+      "created_at": "2026-11-04T18:44:15.738081Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-04T18:22:36.689274Z",
+  "updated_at": "2026-11-04T18:44:15.738744Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -63,7 +63,7 @@ REFERENCE_FIELDS = (
     "sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount "
     "importRunId importedAt createdAt curationStatus "
     "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey "
-    "discoveredByMonitorId discoveryDetails discoveryRule feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey starFeedKey captureState updatedAt"
+    "discoveredByMonitorId discoveryDetails discoveryRule feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey starFeedKey captureState medium evidenceLevel playlistUrl mediumFeedKey updatedAt"
 )
 REFERENCE_ATTACHMENT_FIELDS = (
     "id referenceId referenceLineageId referenceVersionNumber referenceVersionKey role sortKey storagePath "
@@ -503,6 +503,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "feedStateKey",
         "fields": REFERENCE_FIELDS,
     },
+    "referencesByMediumFeedAndArrival": {
+        "field": "listReferencesByMediumFeedAndArrival",
+        "partitionKey": "mediumFeedKey",
+        "fields": REFERENCE_FIELDS,
+    },
     "referencesByCurationStatusKey": {
         "field": "listReferencesByCurationStatusKeyAndUpdatedAt",
         "partitionKey": "curationStatusKey",
@@ -678,9 +683,19 @@ MUTATIONS = {model: _model_mutations(model) for model in LIST_DEFINITIONS}
 
 # Reference, Item and NewsroomSection fields newer than some deployed sites (Stories got the same three star fields a Reference has; a section got coreConcepts). One router serves sites on different versions, so a site whose
 # schema does not have these yet is read without them instead of failing every Reference read.
-NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starFeedKey", "captureState", "coreConcepts")
+NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starFeedKey", "captureState", "coreConcepts", "medium", "evidenceLevel", "playlistUrl", "mediumFeedKey")
 _UNDEFINED_NEWER_FIELD = re.compile(r"FieldUndefined: Field '(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")' in type")
 _NEWER_FIELD_SELECTION = re.compile(r"(?<![$\w])(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")\b\s*")
+# The medium fields are derived from the address and rebuilt by `papyrus references backfill-medium`, so a write that names them to a site whose data API does
+# not have them yet is sent again without them (one router serves sites on different versions) instead of failing the Reference write.
+MEDIUM_REFERENCE_FIELDS = ("medium", "evidenceLevel", "playlistUrl", "mediumFeedKey")
+_UNDEFINED_MEDIUM_INPUT = re.compile(r"field name '(?:" + "|".join(MEDIUM_REFERENCE_FIELDS) + r")'")
+
+
+def _without_medium_fields(variables: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not variables or not isinstance(variables.get("input"), dict):
+        return variables
+    return {**variables, "input": {key: value for key, value in variables["input"].items() if key not in MEDIUM_REFERENCE_FIELDS}}
 
 
 class PapyrusGraphQLAuthoringClient:
@@ -706,6 +721,7 @@ class PapyrusGraphQLAuthoringClient:
             self._endpoint_path = f"{self._endpoint_path}?{self._parsed_endpoint.query}"
         self._connection: http.client.HTTPSConnection | None = None
         self._schema_lacks_newer_reference_fields = False
+        self._schema_lacks_medium_fields = False
 
     def _request_headers(self, payload: bytes) -> dict[str, str]:
         if self.header_factory is not None:
@@ -715,9 +731,14 @@ class PapyrusGraphQLAuthoringClient:
     def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         if self._schema_lacks_newer_reference_fields:
             query = _NEWER_FIELD_SELECTION.sub("", query)
+        if getattr(self, "_schema_lacks_medium_fields", False):
+            variables = _without_medium_fields(variables)
         try:
             return self._send_graphql(query, variables)
         except GraphQLRequestError as error:
+            if not getattr(self, "_schema_lacks_medium_fields", False) and _UNDEFINED_MEDIUM_INPUT.search(str(error)):
+                self._schema_lacks_medium_fields = True   # the request never ran (a validation error), so sending it again cannot repeat a write
+                return self.graphql(query, variables)
             # A validation error means the request never ran, so sending it again cannot repeat a write.
             if self._schema_lacks_newer_reference_fields or not _UNDEFINED_NEWER_FIELD.search(str(error)):
                 raise

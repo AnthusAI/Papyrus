@@ -55,6 +55,8 @@ class ProjectionReport:
     follow_up_item_pages: bool = False
     rounds: int = 1
     skipped: list[str] = field(default_factory=list)
+    #: Items whose content could not be rendered (a deploy-time render only): ``{itemId, slug, error}``. Their pages are left as they are.
+    unrenderable: list[dict] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -72,4 +74,5 @@ class ProjectionReport:
             "errors": list(self.errors),
             "followUpItemPages": self.follow_up_item_pages,
             "rounds": self.rounds,
+            "unrenderable": list(self.unrenderable),
         }

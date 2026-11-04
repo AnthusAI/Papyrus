@@ -22,9 +22,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
-from .markus_import import IMAGE_CONTENT_TYPES, media_id_for, tenant_stored_media_path
+from .markus_import import IMAGE_CONTENT_TYPES, media_id_for
 from .markus_renderer.content_markup import _ATTR_RE, _IMAGE_DIRECTIVE_RE
 from .record_helpers import to_aws_json
+from .renditions import media_key_for_source
 
 #: The editor's limit (``MAX_IMAGE_BYTES``).
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -238,7 +239,6 @@ def plan_story_images(
     images_dir: Path,
     *,
     slug: str,
-    tenant_id: str | None = None,
     existing: dict[str, str] | None = None,
 ) -> StoryImagePlan:
     """Plan the uploads for ``body`` and rewrite its image references. Raises ValueError naming every bad file.
@@ -293,7 +293,7 @@ def plan_story_images(
             local_path=local,
             role=role,
             src_path=src_path,
-            storage_path=tenant_stored_media_path(tenant_id, f"media/{src_path}"),
+            storage_path=media_key_for_source(src_path),
             content_type=content_type,
             size=len(data),
             sha256=digest,

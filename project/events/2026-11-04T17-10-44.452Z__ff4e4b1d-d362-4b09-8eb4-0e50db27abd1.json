@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ff4e4b1d-d362-4b09-8eb4-0e50db27abd1",
+  "issue_id": "PPY-bf63d5c5-d008-4e2b-b6bc-ee2f17d7e96b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T17:10:44.452Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Operator sending domain: notify.anth.us through the newsletter's sending stack",
+    "description": "stub",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+    "labels": [
+      "m1"
+    ]
+  }
+}

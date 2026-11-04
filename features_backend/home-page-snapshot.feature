@@ -37,11 +37,21 @@ Feature: The home-page snapshot publishes the accepted and recommended Reference
     No decision at all is 0.5.
     Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
     When the home-page-snapshot task runs
-    Then the record titled "Accepted two" has confidence 0.93
+    Then the record titled "Pending high" has confidence 0.92
     And the record titled "Accepted three, contact" has confidence 0.1
-    And the record titled "Accepted four" has confidence 0.8
-    And the record titled "Accepted five" has confidence 0.6
-    And the record titled "Accepted one" has confidence 0.5
+    And the record titled "Accepted six" has confidence 0.5
+
+  Scenario: Once an editor has accepted a Reference its confidence is not published
+    The Cyclotron's confidence stops mattering when a person accepts. The snapshot leaves it out of the record of a Reference an editor accepted
+    (its actor is human); a Reference accepted by a Cyclotron or a rule, and a pending one, keep it. The page order does not change, because the rank
+    is computed from the row.
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    Then the record titled "Accepted two" has no confidence
+    And the record titled "Accepted four" has no confidence
+    And the record titled "Accepted one" has no confidence
+    And the record titled "Accepted six" has actor "rule" and confidence 0.5
+    And the record titled "Accepted three, contact" has actor "cyclotron" and confidence 0.1
 
   Scenario: A preview attachment supplies image and summary; a Reference without one has neither field
     Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References

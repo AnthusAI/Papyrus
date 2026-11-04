@@ -42,6 +42,11 @@ PENCIL_ICON = (
     f'<svg class="home-page-icon" data-icon="pencil" {SVG_ATTRIBUTES}>'
     '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>'
 )
+VIDEO_ICON = (
+    f'<svg class="home-page-icon" data-icon="video" {SVG_ATTRIBUTES}><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/>'
+    '<rect x="2" y="6" width="14" height="12" rx="2"/></svg>'
+)
+MEDIUM_LABELS = {"video": ("Video", VIDEO_ICON)}
 MESSAGE_SQUARE_ICON = f'<svg class="home-page-icon" data-icon="message-square" {SVG_ATTRIBUTES}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
 
 
@@ -79,7 +84,15 @@ def meter(percent: int) -> str:
     return f'<svg class="home-page-meter" xmlns="http://www.w3.org/2000/svg" width="{METER_SEGMENTS * 7 + 1}" height="12" viewBox="0 0 {METER_SEGMENTS * 7 + 1} 12" aria-hidden="true" focusable="false">{segments}</svg>'
 
 
+def editor_accepted(reference: Mapping) -> bool:
+    """True for a Reference an editor accepted (``actor`` is ``human``). Once a person has accepted it the Cyclotron's confidence no longer matters, so no
+    card shows it; one accepted by a Cyclotron or a rule keeps it, and so does a recommended one (nobody has accepted it yet)."""
+    return reference.get("status") != STATUS_RECOMMENDED and reference.get("actor") == "human"
+
+
 def confidence_markup(reference: Mapping) -> str:
+    if editor_accepted(reference):
+        return ""
     percent = confidence_percent(reference.get("confidence"))
     if percent is None:
         return ""
@@ -88,6 +101,8 @@ def confidence_markup(reference: Mapping) -> str:
 
 def row_confidence_markup(reference: Mapping) -> str:
     """The compact confidence of a row: gauge icon, the number, a visually hidden "confidence" label, and the meter."""
+    if editor_accepted(reference):
+        return ""
     percent = confidence_percent(reference.get("confidence"))
     if percent is None:
         return ""
@@ -121,12 +136,18 @@ def _dates(reference: Mapping) -> str:
     return f'<p class="home-page-dates">{" ".join(parts)}</p>' if parts else ""
 
 
-def tile(reference: Mapping) -> str:
+def medium_chip(reference: Mapping) -> str:
+    """The medium in words with its Lucide icon (never colour alone); empty when the Reference has none."""
+    label = MEDIUM_LABELS.get(str(reference.get("medium") or ""))
+    return f'<span class="home-page-chip" data-kind="medium">{label[1]}<span>{html.escape(label[0])}</span></span>' if label else ""
+
+
+def tile(reference: Mapping, *, show_medium: bool = True) -> str:
     recommended = reference.get("status") == STATUS_RECOMMENDED
     image_source = safe_href(reference.get("image"))
     image = f'<img class="home-page-image" src="{esc(image_source)}" alt="" loading="lazy">' if image_source else ""
     host = f'<p class="home-page-eyebrow">{esc(reference["host"])}</p>' if reference.get("host") else ""
-    chips = []
+    chips = [chip for chip in (medium_chip(reference) if show_medium else "",) if chip]
     if recommended:
         chips.append(f'<span class="home-page-chip" data-kind="recommended">{SPARKLES_ICON}<span>{html.escape(RECOMMENDED_LABEL)}</span></span>')
     if reference.get("section"):
@@ -141,7 +162,7 @@ def tile(reference: Mapping) -> str:
     )
 
 
-def row(reference: Mapping) -> str:
+def row(reference: Mapping, *, show_medium: bool = True) -> str:
     host = f'<span class="home-page-eyebrow">{esc(reference["host"])}</span>' if reference.get("host") else ""
     when = time_markup(reference.get("acceptedAt") if reference.get("status") != STATUS_RECOMMENDED else None) or time_markup(reference.get("sourceDate"))
     recommended = (
@@ -151,7 +172,7 @@ def row(reference: Mapping) -> str:
     )
     return (
         f'<div class="home-page-row" data-status="{esc(reference.get("status"))}">{host}'
-        f'<span class="home-page-title">{_link(reference)}</span>{recommended}{row_confidence_markup(reference)}{when}</div>'
+        f'<span class="home-page-title">{_link(reference)}</span>{medium_chip(reference) if show_medium else ""}{recommended}{row_confidence_markup(reference)}{when}</div>'
     )
 
 

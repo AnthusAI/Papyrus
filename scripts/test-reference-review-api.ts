@@ -201,6 +201,18 @@ async function main() {
   assert.deepEqual([fresh.starFeedKey, fresh.feedArrivalAt], ["corpus-fixture#stars#5", "2026-10-01T00:00:00.000Z"], "a Reference with no feedArrivalAt gets one, or it would not be in the index");
   assert.equal(current().curationStatus, "accepted", "stars never change the vote");
 
+  // A video moves between the medium lists with its vote; an ordinary page names no medium field at all.
+  const videoId = "reference-video-v1";
+  table("Reference").set(videoId, { id: videoId, lineageId: "reference-video", versionNumber: 1, versionState: "current", corpusId: "corpus-fixture", curationStatus: "pending",
+    medium: "video", mediumFeedKey: "corpus-fixture#video#pending", feedStateKey: "corpus-fixture#unrated", createdAt: "2026-10-01T00:00:00Z" });
+  const voteOnVideo = async (action: string) => { await handler({ info: { fieldName: "reviewReferenceCuration" }, identity: editor, arguments: { referenceId: videoId, action, reasonCode: "duplicate" } }); return table("Reference").get(videoId)!.mediumFeedKey; };
+  assert.equal(await voteOnVideo("accept"), "corpus-fixture#video#accepted", "an accepted video is in the accepted video list");
+  assert.equal(await voteOnVideo("reject"), "corpus-fixture#video#rejected", "a rejected video is in its own list, away from the accepted ones");
+  assert.equal(await voteOnVideo("reopen"), "corpus-fixture#video#pending");
+  assert.equal(await voteOnVideo("archive"), null, "an archived video is in no medium list");
+  const ordinaryWrites = writes.filter((write) => write.model === "Reference" && write.input.id === referenceId);
+  assert.ok(ordinaryWrites.every((write) => !Object.hasOwn(write.input, "mediumFeedKey")), "a vote on an ordinary page names no medium key");
+
   // The typed schema keeps the same declared authorization as the deployed schema.
   const typedSource = readFileSync(resolve(root, "amplify/data/resource.ts"), "utf8");
   const typedMutation = typedSource.slice(typedSource.indexOf("  reviewReferenceCuration:"), typedSource.indexOf("  createCurationDelegation:"));

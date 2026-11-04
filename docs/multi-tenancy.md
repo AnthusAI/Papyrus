@@ -8,7 +8,7 @@ The key helpers live in `papyrus_content.tenancy`; `PapyrusGraphQLAuthoringClien
 
 ## What the tenant models carry
 
-Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection rows get a `tenantId`. The index values that would be global (`typeStatus`, `sectionStatus`, slug lookups) are prefixed with `<tenant>#`, media `storagePath` moves under `media/<tenant>/`, and a tenant client lists, reads, updates and deletes only its own rows.
+Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection rows get a `tenantId`. The index values that would be global (`typeStatus`, `sectionStatus`, slug lookups) are prefixed with `<tenant>#`, media rows are listed, read, updated and deleted by their own tenant only (see [story pictures](#story-pictures-and-the-one-key-rule) for the key), and a tenant client lists, reads, updates and deletes only its own rows.
 
 ## NewsroomSection ids
 
@@ -29,7 +29,7 @@ Copying a single-tenant backend with `--stamp-tenant` scopes the copied Section 
 
 - Item ids become `<tenant>.item-<section>-<slug>` (`.` cannot appear in a tenant id, so the form is unambiguous and URL safe), and media row ids follow from them, so two tenants importing the same slug never share a row.
 - Slugs are stamped into `tenantSlug`, and the slug and media lookups the importer uses are the tenant's.
-- Uploaded image objects go under `media/<tenant>/...` in the bucket.
+- Uploaded image objects go under `media/<tenant>/...` in the bucket. (This is the one writer that still does; see [story pictures](#story-pictures-and-the-one-key-rule). A site that makes renditions from these objects needs the repair below.)
 - "Not in source" and edited-in-the-CMS checks only see the tenant's rows.
 
 `newsroom import-sections --tenant <id>` seeds a tenant's Sections from the Section yml.
@@ -37,6 +37,16 @@ Copying a single-tenant backend with `--stamp-tenant` scopes the copied Section 
 ## Site cyclotron
 
 `references decide-site-sections` and `references prove-site-sections` take `--tenant <id>`. With a tenant the Section list is that tenant's NewsroomSection rows (the yml seed stays the source without a tenant), and the cyclotron is the tenant's own: id `<cyclotronId>-<tenant>`, local store `<localPath>-<tenant>`, S3 prefix `<s3Prefix>-<tenant>`, and so the `cyclotron.site` Assignment, the `site_decision_is` classifier keys and the usage and agreement records are all tenant-scoped. The steering config (decision model, optimizer, review program, `approvedProofPath`) stays shared. See [cyclotron-priming.md](cyclotron-priming.md).
+
+## Story pictures and the one-key rule
+
+A story picture has one address, its `srcPath` (`assets/<slug>/<file>`). The saved text says it, the `MediaAsset` row records it, and the site's renditions are made and looked up under it. Its object is therefore always `media/<srcPath>`, for every tenant: the newsroom editor writes it, `stories save-version --images` writes it, the renditions function (which takes the source from the key by dropping `media/`) reads it, and the projector asks for the renditions of that source. `papyrus_content.renditions.media_key_for_source` is the single function that makes the key.
+
+Why there is no tenant folder in the key: the folder was added so that two tenants importing files of the same relative name (`import-markus`, `copy-backend --stamp-tenant`) could not overwrite each other in a shared bucket, and it was never an access boundary. The storage rules (`amplify/storage/resource.ts`) give the `editor` and `admin` groups read and write on all of `media/*` and guests read, and nothing in them mentions a tenant; the identity pool cannot tell one tenant's folder from another's. What keeps tenants apart is the row (`tenantId` and the tenant-scoped indexes, enforced by the tenant client) and, in the standard site, the backend itself: one backend, one site bucket and one renditions function per site, so there is one `srcPath` namespace per bucket. The renditions are read by `srcPath` alone, so a folder in the key cannot be reflected in the renditions without a second mapping. The `srcPath` of a saved story picture already carries the story's slug, which is unique within a tenant, so two tenants in one bucket collide only if they have the same slug and file name. That residual risk exists only for a backend that serves several publications from one bucket, which the standard site does not; this rule removes no access protection (there was none by key) and no row isolation.
+
+Before this rule `stories save-version --images` stored tenant pictures at `media/<tenant>/assets/...` (PPY-a96347). Their renditions were made under the tenant folder, the projector looked for none, and a publish failed with missing renditions; the command the error suggested pointed at an object that did not exist. Existing objects are not moved by a deploy. `papyrus stories repair-image-paths --story <lineage> [--write]` copies a story's pictures to `media/<srcPath>` inside the bucket (no new upload) and points its rows at them; see [story-reporting.md](story-reporting.md#saving-a-draft-with-its-pictures). `papyrus ops content renditions --source <srcPath>` signed in asks the site's image function to make renditions again, and names the old tenant key if that is where the object is.
+
+`content import-markus --tenant` and `content copy-backend --stamp-tenant` still place objects under `media/<tenant>/...` and keep their `storagePath` rows to match; a site that makes renditions from those objects needs the same repair per story (the command works from the rows, not from how they were saved).
 
 ## Adopting data written before tenant scoping
 

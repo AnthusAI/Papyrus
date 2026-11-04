@@ -86,7 +86,11 @@ def assert_in_the_unrated_feed(reference: dict[str, Any], corpus_id: str, *, id_
 
 # --- the paths -------------------------------------------------------------------------------------------------------------------------
 
-def through_the_catalog(key: str, actor: str | None, *, note: str | None = None) -> dict[str, Any]:
+PAPER = "https://example.org/paper"
+VIDEO = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+
+def through_the_catalog(key: str, actor: str | None, *, note: str | None = None, address: str = PAPER) -> dict[str, Any]:
     """`papyrus references import` / assignments registration / email submission / priming: the catalog registration plan, applied."""
     from .catalog import build_reference_catalog_registration_records
     from .records import apply_record_changes, build_record_changes
@@ -94,7 +98,7 @@ def through_the_catalog(key: str, actor: str | None, *, note: str | None = None)
     corpus_id, corpus = corpus_of(key)
     client = Memory(corpus_id)
     catalog = {"schema_version": 1, "generated_at": NOW, "items": [
-        {"item_id": "item-1", "title": "A paper", "source_uri": "https://example.org/paper", "media_type": "text/html",
+        {"item_id": "item-1", "title": "A paper", "source_uri": address, "media_type": "text/html",
         "ingestion_rationale": "Because."}]}
     options = {"corpusConfig": corpus, "corpusId": corpus_id, "status": "pending", "importedAt": NOW, "note": note,
                **({"actor": actor} if actor else {})}
@@ -105,19 +109,19 @@ def through_the_catalog(key: str, actor: str | None, *, note: str | None = None)
     return reference
 
 
-def through_the_cli_import(key: str) -> dict[str, Any]:
-    return through_the_catalog(key, None)
+def through_the_cli_import(key: str, address: str = PAPER) -> dict[str, Any]:
+    return through_the_catalog(key, None, address=address)
 
 
-def through_an_email_submission(key: str) -> dict[str, Any]:
-    return through_the_catalog(key, "sender@example.org", note="Registered from inbound email submission message-1")
+def through_an_email_submission(key: str, address: str = PAPER) -> dict[str, Any]:
+    return through_the_catalog(key, "sender@example.org", note="Registered from inbound email submission message-1", address=address)
 
 
-def through_a_named_import(key: str) -> dict[str, Any]:
-    return through_the_catalog(key, "cursor:example-import")
+def through_a_named_import(key: str, address: str = PAPER) -> dict[str, Any]:
+    return through_the_catalog(key, "cursor:example-import", address=address)
 
 
-def through_chat_reference_create(key: str) -> dict[str, Any]:
+def through_chat_reference_create(key: str, address: str = "https://example.org/from-chat") -> dict[str, Any]:
     """Slack / console chat Tactus `Reference.create{ url = ..., apply = true }` (papyrus_newsroom.newsroom.papyrus_reference_create)."""
     import papyrus_newsroom.newsroom as newsroom
 
@@ -130,13 +134,13 @@ def through_chat_reference_create(key: str) -> dict[str, Any]:
             mock.patch("papyrus_content.records.upload_attachment_body"), \
             mock.patch("papyrus_content.newsroom_summary.update_newsroom_summary_after_reference_registration"):
         result = newsroom.papyrus_reference_create(
-            {"url": "https://example.org/from-chat", "title": "From chat", "corpusKey": key, "apply": True, "enrich": False})
+            {"url": address, "title": "From chat", "corpusKey": key, "apply": True, "enrich": False})
     assert result["applied"] is True, result
     (reference,) = client.references()
     return reference
 
 
-def through_the_console_intake_mutation(key: str) -> dict[str, Any]:
+def through_the_console_intake_mutation(key: str, address: str = "https://example.org/pasted") -> dict[str, Any]:
     """The Lambda behind the console and the email hand-off: `intakePendingReferences` -> reference_intake.find_or_create_source_reference."""
     from .reference_intake import find_or_create_source_reference
 
@@ -144,19 +148,19 @@ def through_the_console_intake_mutation(key: str) -> dict[str, Any]:
     client = Memory(corpus_id)
     with mock.patch("papyrus_content.reference_intake._provenance"), mock.patch("papyrus_content.reference_images.attach_preview"):
         find_or_create_source_reference(client, [], publication=key, corpus_id=corpus_id, actor="user:editor",
-                                        item={"source_uri": "https://example.org/pasted", "title": "Pasted", "media_type": "text/html"})
+                                        item={"source_uri": address, "title": "Pasted", "media_type": "text/html"})
     (reference,) = client.references()
     return reference
 
 
-def through_a_monitor_delivery(key: str) -> dict[str, Any]:
+def through_a_monitor_delivery(key: str, address: str = "https://example.org/monitored") -> dict[str, Any]:
     """The monitoring router's ReferenceIntake (versionCreatedBy `papyrus-monitoring-worker`)."""
     from .monitoring_intake import ReferenceIntake
 
     corpus_id, _ = corpus_of(key)
     client = Memory(corpus_id)
     monitor = Monitor("example-monitor", key, corpus_id, client.endpoint, Path(tempfile.gettempdir()) / "unused-monitor-state")
-    item = SourceItem("123", "A source", "https://example.org/monitored", "https://news.example.org/item?id=123", None)
+    item = SourceItem("123", "A source", address, "https://news.example.org/item?id=123", None)
     provenance = {**monitor.binding, "sourceId": "123", "sourceItemUrl": item.source_item_url, "fingerprint": item.fingerprint,
                   "observedAt": NOW, "revision": 1}
     with mock.patch("papyrus_content.monitoring_intake.apply_record_changes"):
@@ -177,29 +181,29 @@ def through_a_grobid_cited_reference(key: str) -> dict[str, Any]:
     return built["record"]
 
 
-def through_accession_replacement(key: str) -> dict[str, Any]:
+def through_accession_replacement(key: str, address: str = PAPER) -> dict[str, Any]:
     """Accession that replaces a Reference with a new lineage (`create-uuid-replacement`), and the plain next-version accession."""
     from .accession import new_reference_for_accession_replacement
 
     corpus_id, _ = corpus_of(key)
     old = {"id": "reference-old-v1", "lineageId": "reference-old", "corpusId": corpus_id, "curationStatus": "pending",
-           "versionState": "current", "createdAt": NOW, "metadata": "{}"}
+           "versionState": "current", "createdAt": NOW, "metadata": "{}", "sourceUri": address}
     accession = {"biblicusItemId": "item-new", "storagePath": "corpus/item-new.pdf", "mediaType": "application/pdf",
                  "byteSize": 3, "sha256": "abc"}
     return new_reference_for_accession_replacement(old, corpus_id, "import-run-1", accession, "accession", NOW)
 
 
-def through_accession_next_version(key: str) -> dict[str, Any]:
+def through_accession_next_version(key: str, address: str = PAPER) -> dict[str, Any]:
     from .accession import next_reference_version_for_accession
 
     corpus_id, _ = corpus_of(key)
     old = {"id": "reference-old-v1", "lineageId": "reference-old", "corpusId": corpus_id, "curationStatus": "pending",
-           "versionState": "current", "createdAt": NOW, "metadata": "{}"}   # a Reference created before the keys existed
+           "versionState": "current", "createdAt": NOW, "metadata": "{}", "sourceUri": address}   # a Reference created before the keys existed
     accession = {"storagePath": "corpus/item.pdf", "mediaType": "application/pdf", "byteSize": 3, "sha256": "abc"}
     return next_reference_version_for_accession(old, "import-run-1", accession, "accession", NOW)
 
 
-PATHS: dict[str, Callable[[str], dict[str, Any]]] = {
+PATHS: dict[str, Callable[..., dict[str, Any]]] = {
     "papyrus references import (CLI)": through_the_cli_import,
     "email submission": through_an_email_submission,
     "monitor delivery": through_a_monitor_delivery,
@@ -306,3 +310,139 @@ def test_a_vote_through_chat_moves_the_reference_between_the_feeds(action, statu
     (update,) = [variables for query, variables in calls if "updateReference" in query]
     assert update["input"]["curationStatus"] == status
     assert update["input"]["feedStateKey"] == (f"{corpus_id}#{feed}" if feed else None)
+
+
+# --- the medium: every path that has an address records what the address certainly says (src/papyrus_content/reference_medium.py) -----------------
+
+PATHS_WITH_AN_ADDRESS = sorted(path for path in PATHS if path != "GROBID cited reference")   # a citation has a DOI and a title, never an address
+
+
+@pytest.mark.parametrize("key", CORPUS_KEYS)
+@pytest.mark.parametrize("path", PATHS_WITH_AN_ADDRESS)
+def test_every_way_of_creating_a_reference_records_a_video_address_as_a_video_in_the_pending_video_list(path, key):
+    reference = PATHS[path](key, VIDEO)
+    corpus_id = f"knowledge-corpus-{key}"
+    if path.startswith("accession"):
+        assert reference["mediumFeedKey"] == f"{corpus_id}#video#pending"   # carried from the Reference it replaces, re-keyed for its status
+        return
+    assert reference["medium"] == "video", reference
+    assert reference["mediumFeedKey"] == f"{corpus_id}#video#pending", reference
+    assert "evidenceLevel" not in reference and "playlistUrl" not in reference
+
+
+@pytest.mark.parametrize("path", PATHS_WITH_AN_ADDRESS)
+def test_an_ordinary_address_gets_no_medium_field_and_no_medium_key(path):
+    reference = PATHS[path]("alpha-site")
+    assert not {"medium", "mediumFeedKey", "evidenceLevel", "playlistUrl"} & set(reference), {key: reference.get(key) for key in reference if "edium" in key}
+
+
+def test_a_playlist_address_is_an_aggregation_and_in_no_video_list():
+    reference = through_the_cli_import("alpha-site", "https://www.youtube.com/playlist?list=PLJkNSeYcYBlCaamscxip0l2LGYCZ2TIom")
+    assert reference["evidenceLevel"] == "aggregation"
+    assert "medium" not in reference and "mediumFeedKey" not in reference
+
+
+def test_a_watch_address_with_a_list_is_the_video_and_records_the_playlist_separately():
+    reference = through_the_cli_import("alpha-site", "https://www.youtube.com/watch?v=JDAPDpbXRXw&list=PLJkNSeYcYBlCaamscxip0l2LGYCZ2TIom")
+    assert reference["medium"] == "video" and "evidenceLevel" not in reference
+    assert reference["playlistUrl"] == "https://www.youtube.com/playlist?list=PLJkNSeYcYBlCaamscxip0l2LGYCZ2TIom"
+    assert reference["sourceUri"].startswith("https://www.youtube.com/watch?v=JDAPDpbXRXw")
+
+
+# --- a vote moves a video between the medium lists, and a superseded or archived one leaves them -------------------------------------------------
+
+
+class VoteClient(Memory):
+    def __init__(self, corpus_id: str, row: dict[str, Any]):
+        super().__init__(corpus_id)
+        self.rows[("Reference", row["id"])] = copy.deepcopy(row)
+
+
+def a_video(corpus_id: str, **extra: Any) -> dict[str, Any]:
+    return {"id": "reference-v-v1", "lineageId": "reference-v", "corpusId": corpus_id, "versionState": "current", "curationStatus": "pending",
+            "sourceUri": VIDEO, "medium": "video", "mediumFeedKey": f"{corpus_id}#video#pending", "feedStateKey": f"{corpus_id}#unrated", **extra}
+
+
+def test_the_cyclotron_accepting_a_video_moves_it_to_the_accepted_video_list():
+    from .auto_accept import accept_reference_automatically
+
+    corpus_id, _ = corpus_of("alpha-site")
+    client = VoteClient(corpus_id, a_video(corpus_id))
+    assert accept_reference_automatically(client, {"id": "reference-v-v1"}, reason="Confident.", evidence={}, now=NOW)
+    assert client.get_record("Reference", "reference-v-v1")["mediumFeedKey"] == f"{corpus_id}#video#accepted"
+
+
+def test_auto_accepting_an_ordinary_page_names_no_medium_field():
+    from .auto_accept import accept_reference_automatically
+
+    corpus_id, _ = corpus_of("alpha-site")
+    row = {**a_video(corpus_id), "sourceUri": "https://example.org/a"}
+    for key in ("medium", "mediumFeedKey"):
+        row.pop(key)
+    client = VoteClient(corpus_id, row)
+    assert accept_reference_automatically(client, {"id": "reference-v-v1"}, reason="Confident.", evidence={}, now=NOW)
+    assert "mediumFeedKey" not in client.get_record("Reference", "reference-v-v1")
+
+
+@pytest.mark.parametrize("action,status,key", [("accept", "accepted", "{c}#video#accepted"), ("reject", "rejected", "{c}#video#rejected"),
+                                               ("reopen", "pending", "{c}#video#pending"), ("archive", "archived", None)])
+def test_a_vote_through_chat_moves_a_video_between_the_medium_lists(action, status, key):
+    from papyrus_newsroom.reference_actions import review_reference_curation
+
+    corpus_id, _ = corpus_of("alpha-site")
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
+        calls.append((query, variables))
+        if "getReference" in query:
+            return {"getReference": {"id": "reference-1", "lineageId": "reference-1", "corpusId": corpus_id, "versionState": "current",
+                                     "curationStatus": "pending", "newsroomFeedKey": "references", "sourceUri": VIDEO}}
+        return {"updateReference": {"id": "reference-1"}}
+
+    review_reference_curation(graphql, reference_id="reference-1", action=action, reason_code="out_of_scope" if action == "reject" else "")
+    (update,) = [variables for query, variables in calls if "updateReference" in query]
+    assert update["input"]["mediumFeedKey"] == (key.format(c=corpus_id) if key else None)
+
+
+def test_a_new_version_of_a_video_keeps_it_in_its_list_and_the_old_version_leaves_it():
+    from .catalog import build_reference_catalog_registration_records
+    from .records import apply_record_changes, build_record_changes
+
+    corpus_id, corpus = corpus_of("alpha-site")
+    client = Memory(corpus_id)
+    catalog = {"items": [{"item_id": "item-1", "title": "First", "source_uri": VIDEO, "ingestion_rationale": "Because."}]}
+
+    def register(title: str, at: str) -> None:
+        catalog["items"][0]["title"] = title
+        plan = build_reference_catalog_registration_records(catalog, {"corpusConfig": corpus, "corpusId": corpus_id, "status": "accepted", "importedAt": at})
+        with mock.patch("papyrus_content.records.upload_attachment_body"):
+            apply_record_changes(client, build_record_changes(client, plan["records"]))
+
+    register("First", "2026-11-01T00:00:00Z")
+    register("Retitled", "2026-11-02T00:00:00Z")
+    versions = {row["versionNumber"]: row for row in client.references()}
+    assert versions[1]["versionState"] == "superseded" and versions[1]["mediumFeedKey"] is None
+    assert versions[2]["mediumFeedKey"] == f"{corpus_id}#video#accepted"
+
+
+def test_retiring_a_citation_stub_that_is_a_video_takes_it_out_of_the_video_list():
+    from .reference_citation_stubs import restored_fields, retired_fields
+
+    corpus_id, _ = corpus_of("alpha-site")
+    stub = a_video(corpus_id)
+    retired = retired_fields(stub, now=NOW)
+    assert retired["mediumFeedKey"] is None
+    assert restored_fields({**stub, **retired, "curationStatus": "archived"}, now=NOW)["mediumFeedKey"] == f"{corpus_id}#video#pending"
+    ordinary = {**stub, "sourceUri": "https://example.org/a"}
+    for key in ("medium", "mediumFeedKey"):
+        ordinary.pop(key)
+    assert "mediumFeedKey" not in retired_fields(ordinary, now=NOW)
+
+
+def test_the_cyclotron_rejecting_a_video_moves_it_to_the_rejected_video_list():
+    from .auto_reject import reject_reference_automatically
+
+    corpus_id, _ = corpus_of("alpha-site")
+    client = VoteClient(corpus_id, a_video(corpus_id))
+    assert reject_reference_automatically(client, {"id": "reference-v-v1"}, cyclotron_id="relevance", probability=0.99, proof_id="proof-1", decision_id="d1", now=NOW)
+    assert client.get_record("Reference", "reference-v-v1")["mediumFeedKey"] == f"{corpus_id}#video#rejected"

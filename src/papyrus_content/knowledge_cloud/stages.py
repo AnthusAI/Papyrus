@@ -182,7 +182,12 @@ class Run:
 
     def reference_options(self) -> list[str]:
         """``--reference-documents FILE`` for a command that links or counts the Reference documents, or nothing when the site has none."""
-        return ["--reference-documents", str(self.reference_documents)] if self.config.reference_documents_bucket else []
+        return ["--reference-documents", str(self.reference_documents)] if self.config.reference_documents_on else []
+
+    def candidate_filter_options(self) -> list[str]:
+        """``--vocabulary`` and, when the site wrote one, ``--stop-words``: what ``publish-run`` filters the extractor's candidates with (``candidate_filter.py``)."""
+        stop_words = self.config_dir / "stop-words.txt"
+        return ["--vocabulary", str(self.config_dir / VOCABULARY_FILE), *(["--stop-words", str(stop_words)] if stop_words.exists() else [])]
 
     def import_options(self) -> list[str]:
         """The monitor options of the commands that import the records: the records, the ledger that lets a run skip what it wrote before, and
@@ -193,7 +198,7 @@ class Run:
 
     def prepare_site(self) -> None:
         """The site checkout plus the plugin check, for every stage that writes to the site."""
-        self.pull(site=True, run=bool(self.config.monitor_sources or self.config.reference_documents_bucket))
+        self.pull(site=True, run=bool(self.config.monitor_sources or self.config.reference_documents_on))
         self.verify_plugins()
 
     def nothing_to_do(self, *, needs_documents: bool = False) -> dict | None:
@@ -358,7 +363,12 @@ def corpus_sync(run: Run) -> dict:
             *(["--monitor-weeks", str(run.config.monitor_weeks)] if run.config.monitor_weeks is not None else []),  # optional; absent means all history
             "--corpus-key", run.config.corpus_key, "--as-of", run.config.monday.isoformat(), "--monitor-records-out", str(run.monitor_records),
         ]
-    if run.config.reference_documents_bucket:  # the corpus's References with extracted text are documents too (records stay data)
+    if run.config.reference_documents_accepted:  # the accepted References are the documents, whatever monitor delivered them; zero of them fails the stage
+        export += [
+            *([] if run.config.monitor_sources else ["--corpus-key", run.config.corpus_key]),
+            "--reference-documents-accepted", "--reference-documents-out", str(run.reference_documents),
+        ]
+    elif run.config.reference_documents_bucket:  # the corpus's References with extracted text are documents too (records stay data)
         export += [
             *([] if run.config.monitor_sources else ["--corpus-key", run.config.corpus_key]),  # one key for both
             "--reference-documents-bucket", run.config.reference_documents_bucket,
@@ -459,7 +469,7 @@ def import_arguments(run: Run) -> list[str]:
         "--corpus-key", run.config.corpus_key, "--actor-name", run.config.actor_name, *run.import_options(),
         "--identity", str(run.corpus / "analysis" / "topic-identity" / state["current"] / "output.json"),
         "--trends", str(run.corpus / "analysis" / "topic-governance" / state["trends"] / "output.json"),
-        "--entities", str(run.run_dir / "typed" / "output.json"),
+        "--entities", str(run.run_dir / "typed" / "output.json"), *run.candidate_filter_options(),
     ]
 
 
@@ -518,24 +528,44 @@ def ai_review(run: Run) -> dict:
 
     patches: list[dict] = []
     decisions: list[review.Decision] = []
+    workers = dict(workers=c.DEFAULT_WORKERS, client_factory=getattr(run.services, "worker_client", None))
 
     nodes = c.current_nodes(client.list_records("SemanticNode"))
     generated = [node for node in nodes if node.get("status") == "generated"]
-    found, made = review.review_entities(generated, typed, mentions_of, model, actor, now=now, vocabulary=labels)
-    patches += found
-    decisions += made
-
     titles = {}
     for item in c.published_items(client.list_published_item_summaries(), c._no_url):
         titles[item.key] = titles[item.item_id] = item.title or ""
     if run.config.monitor_sources:  # a cluster of Hub models can be named from their ids
         for record in read_records(run.monitor_records):
             titles[record.lineage_id] = titles[record.reference_id] = record.title
-    found, made = review.review_clusters(
-        client.list_records("SteeringProposal"), lambda ids: [titles[i] for i in ids if titles.get(i)], model, actor, now=now
-    )
+    titles_of = lambda ids: [titles[i] for i in ids if titles.get(i)]  # noqa: E731
+    proposals = client.list_records("SteeringProposal")
+    accepted_before = [node for node in nodes if node.get("status") == "accepted"]
+    relations = {row["id"]: row for row in c.relations_of_nodes(client, accepted_before, **workers)}
+    before_by_lineage = {str(node.get("lineageId") or node["id"]): node for node in accepted_before}
+
+    # The call budget: every kind of work is owed what it needs up to a max-min fair share (``review.fair_shares``), and each stage may use
+    # every call that is left except what the stages after it are owed, so entities, which come first and are the most numerous, cannot use
+    # the whole budget and leave the clusters and relations unreviewed.
+    needs = {
+        "entities": review.calls_needed(len(review.entity_candidates(generated, typed)), review.BATCH_SIZE),
+        "clusters": review.calls_needed(len(review.cluster_candidates(proposals, titles_of)), review.CLUSTER_BATCH_SIZE),
+        "relations": review.calls_needed(len(review.relation_candidates(list(relations.values()), before_by_lineage, typed)), review.BATCH_SIZE),
+    }
+    shares = review.fair_shares(needs, model.max_calls)
+    used: dict[str, int] = {}
+
+    model.limit_stage(shares["clusters"] + shares["relations"])
+    found, made = review.review_entities(generated, typed, mentions_of, model, actor, now=now, vocabulary=labels)
     patches += found
     decisions += made
+    used["entities"] = model.calls
+
+    model.limit_stage(shares["relations"])
+    found, made = review.review_clusters(proposals, titles_of, model, actor, now=now)
+    patches += found
+    decisions += made
+    used["clusters"] = model.calls - used["entities"]
 
     # Entities accepted just now count as accepted for the relation review below.
     accepted_now = {patch["expected"]["id"] for patch in patches if patch["modelName"] == "SemanticNode" and patch["expected"].get("status") == "accepted"}
@@ -545,14 +575,19 @@ def ai_review(run: Run) -> dict:
         nodes = c.current_nodes(client.list_records("SemanticNode"))
     accepted = [node for node in nodes if node.get("status") == "accepted"]
     by_lineage = {str(node.get("lineageId") or node["id"]): node for node in accepted}
-    relations = c.relations_of_nodes(client, accepted, workers=c.DEFAULT_WORKERS, client_factory=getattr(run.services, "worker_client", None))
-    found, made = review.review_relations(relations, by_lineage, typed, model, actor, now=now)
+    before_ids = {node["id"] for node in accepted_before}
+    new_nodes = [node for node in accepted if node["id"] not in before_ids]
+    relations.update({row["id"]: row for row in c.relations_of_nodes(client, new_nodes, **workers)} if new_nodes else {})
+    model.limit_stage(0)
+    before_relations = model.calls
+    found, made = review.review_relations(list(relations.values()), by_lineage, typed, model, actor, now=now)
     patches += found
     decisions += made
+    used["relations"] = model.calls - before_relations
     if patches:
         apply_record_changes(client, review.record_changes(patches))
 
-    log = {"week": run.config.week, "model": model.model, "calls": model.calls, "summary": review.summary_of(decisions), "decisions": [d.to_dict() for d in decisions], "acceptedNow": len(accepted_now)}
+    log = {"week": run.config.week, "model": model.model, "calls": model.calls, "budget": {"calls": model.max_calls, "needed": needs, "owed": shares, "used": used}, "summary": review.summary_of(decisions), "decisions": [d.to_dict() for d in decisions], "acceptedNow": len(accepted_now)}
     if run.config.monitor_sources and run.config.monitor_suggestions:
         log["monitorSuggestions"] = suggest_promotions(run, client)
     run.run_dir.mkdir(parents=True, exist_ok=True)
@@ -643,7 +678,7 @@ def wiki_sync(run: Run) -> dict:
     written, and ``projection`` skips this execution. The next run plans again and goes through once a person accepted a plan like it."""
     if (idle := run.nothing_to_do()) is not None:
         return idle
-    run.pull(site=True, run=bool(run.config.monitor_sources or run.config.reference_documents_bucket))
+    run.pull(site=True, run=bool(run.config.monitor_sources or run.config.reference_documents_on))
     sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options(), *run.reference_options()]
     sync += beats_options(run)
     sync += ["--vocabulary", str(run.config_dir / VOCABULARY_FILE), "--retire", "--run-id", run.config.run_id]  # pages of kinds the vocabulary does not declare come down; each page records the run
