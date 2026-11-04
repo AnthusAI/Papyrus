@@ -229,3 +229,73 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     When its research run starts
     Then the run fails saying it needs the editor's direction
     And no search or model call was made
+
+  # Every agent in a section works from the same context. An agent is a role and a list of layers, so a change to a shared layer reaches all of them.
+
+  Scenario: Every agent working in a section reads the same section context
+    When the context pack is built for each of the reporter, the copywriter and the editor on the Story
+    Then the section's published Stories and accepted References are the same in all three packs
+    And the publication's published Stories and accepted References are the same in all three packs
+
+  Scenario: The copywriter's layers put the rules first and the publication's voice before the wider record
+    When the copywriter's context pack is built for the Story
+    Then the layers are, in order, "editorial_policies, assignment, story, story_references, related_references, story_conversation, prior_research, voice_examples, desk_published, desk_references, publication_published, publication_references"
+    And the system text says it is a copywriter and it writes a draft, never publishing
+
+  Scenario: The copywriter reads the rules the draft will be checked against
+    Given the site has a publication policy, a section policy of the same key that replaces it, and a disabled policy
+    When the copywriter's context pack is built for the Story
+    Then the editorial policies layer shows the section's wording and not the publication's
+    And the editorial policies layer does not show the disabled policy
+
+  Scenario: Research claims that did not pass stay marked for the copywriter
+    When the copywriter's context pack is built for the Story
+    Then the research layer is the one the reporter reads, which marks the claims that did not pass
+
+  Scenario: An outline is named as the editor's outline
+    Given the Story's current version is marked as the editor's outline
+    When the copywriter's context pack is built for the Story
+    Then the Story layer shows the text as the editor's outline
+    Given the Story's outline was marked on an earlier version
+    When the copywriter's context pack is built for the Story
+    Then the Story layer shows the text as a draft
+
+  Scenario: Voice examples are whole published Stories, the section's first
+    Given a published Story in the section and one in another section, both with their full text
+    When the copywriter's context pack is built for the Story
+    Then the voice examples show the section's Story in full before the other section's
+    When the copywriter's context pack is built with a budget that has no room for a whole example
+    Then no voice example is cut short
+    And the voice examples layer reports what it dropped
+
+  Scenario: With nothing published the pack says there is no example of the voice
+    Given nothing is published
+    When the copywriter's context pack is built for the Story
+    Then the voice examples layer is empty and says nothing is published yet
+
+  Scenario: An editor can work from a section before any Story exists
+    Given the section has Stories in progress, a rated one older than an unrated one, a spiked one and a held one
+    When the editor's context pack is built for the section alone
+    Then the pack holds no Story layers
+    And the pack names the section and no Story
+    And the system text carries the role, the publication policy and the section mission
+    And the Stories in progress show the rated one first, with its stars and stage
+    And the Stories in progress do not show the spiked one or the held one
+    And the section's published Stories and accepted References are shown
+
+  Scenario: The section's in-progress list leaves out the Story the editor is working on
+    Given the section has Stories in progress, a rated one older than an unrated one, a spiked one and a held one
+    When the editor's context pack is built for the Story
+    Then the Stories in progress do not show the Story itself
+
+  Scenario Outline: A pack that does not make sense is refused, not guessed at
+    When a context pack is asked for with <request>
+    Then the pack is refused saying "<reason>"
+
+    Examples:
+      | request                       | reason                  |
+      | the reporter and a section    | works on a Story        |
+      | the copywriter and a section  | works on a Story        |
+      | a Story and a section         | give one of them        |
+      | neither a Story nor a section | give one of them        |
+      | an unknown section            | Section not found       |
