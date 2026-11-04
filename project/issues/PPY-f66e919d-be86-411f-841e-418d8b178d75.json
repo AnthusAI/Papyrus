@@ -19,10 +19,17 @@
       "text": "Caducus side: kanbus-92b1a1",
       "created_at": "2026-11-04T13:15:36.847114Z",
       "comment_type": "default"
+    },
+    {
+      "id": "704febd8-631c-4aef-9c1c-0a3a750bba4b",
+      "author": "home",
+      "text": "Dependency found 2026-11-04: the newsletter bounce and complaint alarms pause sending through their SNS action to the newsletter function (src/papyrus_content/newsletter/events.py). Removing those SNS actions would silently stop the automatic pause. Before removing them, move that trigger to the alarm's EventBridge state change, or keep it. Machine-only topics move to EventBridge per decision 3.",
+      "created_at": "2026-11-04T16:32:59.338467Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-04T13:14:30.019945Z",
-  "updated_at": "2026-11-04T13:15:36.847313Z",
+  "updated_at": "2026-11-04T16:32:59.339586Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
