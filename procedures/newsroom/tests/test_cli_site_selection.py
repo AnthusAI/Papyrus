@@ -26,6 +26,8 @@ def isolated(tmp_path, monkeypatch):
     work = tmp_path/'work'
     work.mkdir()
     monkeypatch.chdir(work)
+    monkeypatch.setenv('PAPYRUS_SITE', '')   # recorded, so a site set by the flag is undone with the test (delenv of an absent name is not)
+    monkeypatch.delenv('PAPYRUS_SITE')
     monkeypatch.setattr(env, 'PAPYRUS_ROOT', tmp_path/'engine')   # no amplify_outputs.json beside the engine either
     monkeypatch.setattr(site_document, '_not_served', set())
     site_selection.install()
