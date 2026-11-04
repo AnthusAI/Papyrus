@@ -327,3 +327,17 @@ def test_a_transcript_too_large_for_the_request_is_reported_and_left():
     site = Site({ACCEPTED: [video("aaaaaaaaaaa", "2026-11-01T00:00:00.000Z")]})
     _, output, _, _ = run(site, answers={"a" * 11: ("x" * (worker.MAXIMUM_TEXT_BYTES + 1), None)})
     assert outcomes(output) == [("too_large", "reference-aaaaaaaaaaa-v1")] and site.actions == []
+
+
+def test_the_content_needed_index_is_registered_for_the_client_and_its_fields_are_read_without_failing_an_older_site():
+    from papyrus_content import graphql_authoring as g
+
+    definition = g.INDEX_DEFINITIONS[worker.INDEX]
+    assert definition["field"] == "listReferencesByContentNeededAndArrival" and definition["partitionKey"] == "contentNeededKey"
+    for field in ("captureReason", "contentNeededKey"):
+        assert field in g.REFERENCE_FIELDS.split() and field in g.NEWER_REFERENCE_FIELDS and field in g.MEDIUM_REFERENCE_FIELDS
+
+
+def test_the_partitions_are_corpus_medium_needs_content_and_status():
+    assert worker.partitions(["knowledge-corpus-a", "knowledge-corpus-b"], ["accepted"]) == [
+        "knowledge-corpus-a#video#needs_content#accepted", "knowledge-corpus-b#video#needs_content#accepted"]

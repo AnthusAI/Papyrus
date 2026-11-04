@@ -58,6 +58,9 @@ assert.match(starPartition, /@index\(sortKeyFields: \["feedArrivalAt"\], queryFi
 // And the sparse medium index: one partition per corpus, medium and status, read by arrival.
 const mediumPartition = referenceType.split("\n").find((line) => /^\s+mediumFeedKey: String/.test(line)) ?? "";
 assert.match(mediumPartition, /@index\(sortKeyFields: \["feedArrivalAt"\], queryField: "listReferencesByMediumFeedAndArrival"\)/, "medium index");
+// And the sparse content-needed index (the transcript worker's list): one partition per corpus, medium and status, read by arrival.
+const contentPartition = referenceType.split("\n").find((line) => /^\s+contentNeededKey: String/.test(line)) ?? "";
+assert.match(contentPartition, /@index\(sortKeyFields: \["feedArrivalAt"\], queryField: "listReferencesByContentNeededAndArrival"\)/, "content-needed index");
 assert.match(referenceType, /predictedAcceptProbability: Float/);
 assert.match(referenceType, /predictionDecidedAt: AWSDateTime/);
 assert.match(referenceType, /feedArrivalAt: AWSDateTime/);

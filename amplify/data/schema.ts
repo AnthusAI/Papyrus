@@ -1886,6 +1886,7 @@ const definitions = {
       index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival"),
       index("starFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByStarFeedAndArrival"),
       index("mediumFeedKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByMediumFeedAndArrival"),
+      index("contentNeededKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByContentNeededAndArrival"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
