@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "c6519cbc-662a-4936-8cf9-7c1bb96431ee",
+  "issue_id": "PPY-f66e919d-be86-411f-841e-418d8b178d75",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-04T13:14:32.758Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "**Milestone:** M2, operators finished\n\n**Goal.** Alarms stay; they reach Caducus through the forwarder already, whatever their actions. This removes the email path once Caducus has been seen to work.\n\n**Build.**\nRemove the email subscription and alarm actions in `infra/monitoring/papyrus-monitoring.yaml` (a hand-run stack), `infra/scheduled-jobs/lib/scheduled-container-job.ts` and its `alarmEmailParameter` (update `docs/knowledge-cloud-run.md`, `docs/knowledge-runs-rollout.md`), the remote-login alarms and `alarmTopicArn` (`docs/cli-login.md`, and close PPY-45efff), `amplify/publication/invalidation-alarm.ts`, `reproject-on-deploy.ts`, `infra/email/papyrus-email-submissions.yaml`. One PR. Do it after Ryan says the parallel run was good. Machine-only topics are P_SESEB. Gherkin: `infra/scheduled-jobs/features/scheduled-container-job.feature` changes with it.\n\n**Acceptance.**\nA forced alarm reaches Ryan once, through Caducus, and no SNS email comes. Site bumps batched; a release with no site effect marked so.\n\n**Related:** kanbus-6275db, kanbus-78f229",
+        "to": "**Milestone:** M2, operators finished\n\n**Goal.** Alarms stay; they reach Caducus through the forwarder already, whatever their actions. This removes the email path once Caducus has been seen to work.\n\n**Build.**\nRemove the email subscription and alarm actions in `infra/monitoring/papyrus-monitoring.yaml` (a hand-run stack), `infra/scheduled-jobs/lib/scheduled-container-job.ts` and its `alarmEmailParameter` (update `docs/knowledge-cloud-run.md`, `docs/knowledge-runs-rollout.md`), the remote-login alarms and `alarmTopicArn` (`docs/cli-login.md`, and close PPY-45efff), `amplify/publication/invalidation-alarm.ts`, `reproject-on-deploy.ts`, `infra/email/papyrus-email-submissions.yaml`. One PR. Do it after Ryan says the parallel run was good. Machine-only topics are PPY-819117. Gherkin: `infra/scheduled-jobs/features/scheduled-container-job.feature` changes with it.\n\n**Acceptance.**\nA forced alarm reaches Ryan once, through Caducus, and no SNS email comes. Site bumps batched; a release with no site effect marked so.\n\n**Related:** kanbus-6275db, kanbus-78f229"
+      }
+    }
+  }
+}

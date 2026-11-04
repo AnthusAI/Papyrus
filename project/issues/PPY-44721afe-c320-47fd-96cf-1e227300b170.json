@@ -1,0 +1,22 @@
+{
+  "id": "PPY-44721afe-c320-47fd-96cf-1e227300b170",
+  "title": "notifications plugin: settings, brand at deploy, /api/notifications routes",
+  "description": "**Milestone:** M3, public email and new stories\n\n**Goal.** A site turns notifications on in `papyrus.config.ts`. One switch, following `docs/plugins.md`.\n\n**Build.**\n- `amplify/plugins/notifications/`: `papyrus.plugin.ts`, `config.ts` (site id, origin, base path, sending domain, from name, theme shared with the newsletter's, lists with rules, `approval`). Add to `amplify/plugins/registry.ts`. Invalid settings stop the synth with a readable message, as the newsletter does.\n- Deploy: a custom resource puts the site's brand and list definitions on the central bus (kanbus-602759). IAM: compute role may call Caducus's API and `events:PutEvents` to that bus only.\n- `app/api/notifications/{subscribe,confirm,preferences,unsubscribe,state}/route.ts`, modelled on `app/api/newsletter/*`: same-origin rule, 400 and 303 rather than 403 and 404, because the edge rewrites those to the site's 404 page. SigV4 to Caducus from the compute role.\n- No new GraphQL models with subscriptions; custom operations only, as the newsletter's, so no AppSync realtime.\n\n**Acceptance.**\nSynth tests; a site without the plugin answers 404 on the routes.\n\n**Related:** kanbus-ff4727, kanbus-602759\n\n**Specification.**\n```gherkin\nFeature: Notifications plugin\n  Scenario: Enabling it\n    Given a site with the notifications plugin in its config\n    When the site deploys\n    Then its brand is registered and its routes answer\n\n  Scenario: A cross-site post\n    When a subscribe post arrives from another origin\n    Then it is refused with a 400 and nothing is sent\n```",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m3"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T13:14:30.295467Z",
+  "updated_at": "2026-11-04T13:14:30.295489Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

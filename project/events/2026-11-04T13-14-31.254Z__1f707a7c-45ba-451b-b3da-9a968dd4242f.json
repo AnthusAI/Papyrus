@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "1f707a7c-45ba-451b-b3da-9a968dd4242f",
+  "issue_id": "PPY-62c937c4-dc04-467b-a5ae-0adb468acf21",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T13:14:31.254Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Console: connect a site to Discord",
+    "description": "**Milestone:** Later, coarse\n\n**Goal.** Coarse until Caducus M3 ships. Same pattern; shows a broken connection when a webhook is gone. Stories when started.\n\n**Acceptance.**\nSpec'd when started.\n\n**Depends on:** PPY-17cf09\n**Related:** kanbus-f4ad82",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+    "labels": [
+      "later"
+    ]
+  }
+}

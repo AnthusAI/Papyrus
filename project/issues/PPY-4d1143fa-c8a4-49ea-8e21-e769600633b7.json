@@ -1,0 +1,20 @@
+{
+  "id": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "title": "Notifications in Papyrus: console, CLI, plugin and site rollout for the Caducus service",
+  "description": "Service and plan live on the Caducus board (AnthusAI/Caducus, initiative kanbus-90737c, docs/notifications-plan.md). Word this feature 'notifications', never 'Notification Center', which here means review requests.\n\nThe Papyrus side of Anthus notifications. Earlier epics here were moved to Caducus and closed under PPY-7d8a36. Existing work reused: newsletter plugin, email_render, publish_alerts, review requests stay as they are. Stories for M2 and M3 are detailed; Slack and Discord UI are coarse.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T13:14:29.924187Z",
+  "updated_at": "2026-11-04T13:14:29.924477Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

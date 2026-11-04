@@ -1,0 +1,30 @@
+{
+  "id": "PPY-f66e919d-be86-411f-841e-418d8b178d75",
+  "title": "Stop SNS email on Papyrus alarms",
+  "description": "**Milestone:** M2, operators finished\n\n**Goal.** Alarms stay; they reach Caducus through the forwarder already, whatever their actions. This removes the email path once Caducus has been seen to work.\n\n**Build.**\nRemove the email subscription and alarm actions in `infra/monitoring/papyrus-monitoring.yaml` (a hand-run stack), `infra/scheduled-jobs/lib/scheduled-container-job.ts` and its `alarmEmailParameter` (update `docs/knowledge-cloud-run.md`, `docs/knowledge-runs-rollout.md`), the remote-login alarms and `alarmTopicArn` (`docs/cli-login.md`, and close PPY-45efff), `amplify/publication/invalidation-alarm.ts`, `reproject-on-deploy.ts`, `infra/email/papyrus-email-submissions.yaml`. One PR. Do it after Ryan says the parallel run was good. Machine-only topics are PPY-819117. Gherkin: `infra/scheduled-jobs/features/scheduled-container-job.feature` changes with it.\n\n**Acceptance.**\nA forced alarm reaches Ryan once, through Caducus, and no SNS email comes. Site bumps batched; a release with no site effect marked so.\n\n**Related:** kanbus-6275db, kanbus-78f229",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "m2"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c7afb477-bb42-4542-9960-be807837bcde",
+      "author": "home",
+      "text": "Caducus side: kanbus-92b1a1",
+      "created_at": "2026-11-04T13:15:36.847114Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-04T13:14:30.019945Z",
+  "updated_at": "2026-11-04T13:15:36.847313Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

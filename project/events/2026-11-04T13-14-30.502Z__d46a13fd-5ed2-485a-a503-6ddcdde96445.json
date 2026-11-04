@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "d46a13fd-5ed2-485a-a503-6ddcdde96445",
+  "issue_id": "PPY-38be082c-b736-46a0-89a5-9ca1c3233fd2",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T13:14:30.502Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Emit story.published to Caducus",
+    "description": "**Milestone:** M3, public email and new stories\n\n**Goal.** `src/papyrus_content/publish_alerts.py` is the only place a publish announces. Add `PutEvents` beside the newsletter invoke.\n\n**Build.**\nSame rules and the same swallow-errors stance: only a real publish, after the page is live, never fails or slows a publish, no-op when the plugin is off. `eventId` from lineage, so dedupe holds. Known gaps in `docs/newsletter.md` still apply on purpose: a bulk import must not alert.\n\n**Acceptance.**\n`features_backend` scenario for each of: real publish, republish, projection failure then retry, plugin off.\n\n**Related:** kanbus-b47fad",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+    "labels": [
+      "m3"
+    ]
+  }
+}

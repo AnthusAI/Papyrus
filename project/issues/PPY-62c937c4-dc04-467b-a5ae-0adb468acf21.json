@@ -1,0 +1,27 @@
+{
+  "id": "PPY-62c937c4-dc04-467b-a5ae-0adb468acf21",
+  "title": "Console: connect a site to Discord",
+  "description": "**Milestone:** Later, coarse\n\n**Goal.** Coarse until Caducus M3 ships. Same pattern; shows a broken connection when a webhook is gone. Stories when started.\n\n**Acceptance.**\nSpec'd when started.\n\n**Depends on:** PPY-17cf09\n**Related:** kanbus-f4ad82",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4d1143fa-c8a4-49ea-8e21-e769600633b7",
+  "labels": [
+    "later"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-17cf096a-4bb0-430b-bf1d-0a5d502b35d5",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-04T13:14:31.254027Z",
+  "updated_at": "2026-11-04T13:14:34.051092Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
