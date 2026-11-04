@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..config import OperatorConfig, parse_operator_flags
+from ..config import OperatorConfig, parse_operator_flags, resolve_default_corpus_key
 from ..errors import OperatorError
 from ..output import format_meta_line, print_reference_detail, print_tabular
 from ..backends.base import create_backend
@@ -18,7 +18,7 @@ def run_references_list(config: OperatorConfig, flags: list[str]) -> int:
   limit = int(options.get("limit") or 25)
   status = str(options.get("status") or "")
   order = str(options.get("order") or "newest")
-  corpus_key = str(options.get("corpus-key") or active_config.default_corpus_key)
+  corpus_key = str(options.get("corpus-key") or resolve_default_corpus_key(active_config))
 
   rows = backend.list_references(corpus_key=corpus_key, limit=limit, status=status, order=order)
   print(format_meta_line(backend=backend_name, corpusKey=corpus_key))
@@ -67,7 +67,7 @@ def run_references_register(config: OperatorConfig, flags: list[str]) -> int:
   status = str(options.get("status") or "pending").strip().lower()
   why = str(options.get("why") or "")
   story_id = str(options.get("story") or "").strip() or None
-  corpus_key = str(options.get("corpus-key") or active_config.default_corpus_key)
+  corpus_key = str(options.get("corpus-key") or resolve_default_corpus_key(active_config))
   reference_id = str(options.get("id") or "").strip() or None
 
   if not url:

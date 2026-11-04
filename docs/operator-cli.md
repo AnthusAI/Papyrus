@@ -20,10 +20,15 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
   **not** revive a local Markdown content store (`content/articles/`) or emulate
   hosted corpus sync, editions, or the layout solver.
 - **Cloud backend** uses the existing GraphQL/AppSync newsroom (`Reference`,
-  `Assignment`, editions, knowledge-query). Corpus key, publication, endpoint,
-  and credentials come from steering/config defaults (`threat-intelligence` today);
-  operators should not need `--corpus-key` or `PYTHONPATH=src` for the common
-  path.
+  `Assignment`, editions, knowledge-query). `references list` and `references show`
+  without `--corpus-key` use, in order: the operator config's `defaultCorpusKey`, the
+  canonical corpus of a steering file the site chose (`PAPYRUS_STEERING_CONFIG` or a
+  `corpora/` file in the checkout), and, on a signed-in session, the backend's one
+  canonical publication corpus (the same one `reporting create` uses). If the backend
+  has none or several, the command fails and says to pass `--corpus-key`. Only the
+  IAM lane and the local backend still fall back to the steering default shipped in
+  the wheel (`threat-intelligence` today). Operators should not need `--corpus-key`
+  or `PYTHONPATH=src` for the common path.
 - **Object kinds are explicit.** Cloud `assignments list` rows are GraphQL
   `Assignment` work records (`kind: newsroom-assignment`). Local `assignments
   list` rows are Kanbus **pod stories** (`kind: pod-story`), not GraphQL
@@ -124,6 +129,17 @@ page heights, section splits, or image variant scores.
 - Scenarios should assert both rendered geometry and solver choices when a rule
   matters. For example, a blank-column repair should check that no continuation
   column is dead and that the intended image or furniture template won.
+
+## Picking the site without a file
+
+Signed in with `papyrus login`, an editor runs a newsroom command from any directory with no `amplify_outputs.json`,
+`PAPYRUS_GRAPHQL_ENDPOINT`, `PAPYRUS_TENANT_ID` or AWS login. Name the site before the command,
+`papyrus --site shipped.anth.us editorial context --backend cloud --format text`, or set `PAPYRUS_SITE`; otherwise the site the
+working directory declares in `infra/site.json` is used, then an `amplify_outputs.json`, then the only signed-in site. Several
+signed-in sites and no choice is an error that lists them. The flag is leading because several commands take their own `--site`
+after the command name, and those keep their meaning. An operator on `PAPYRUS_GRAPHQL_AUTH=iam` is never sent to a signed-in site
+by the directory or the only-site rules. Full order, the site file that carries the tenant, and the upgrade hint for an unknown
+command: [CLI login](cli-login.md#picking-the-site-for-a-command). Executable spec: `features_backend/cli-site-selection.feature`.
 
 ## Creating stories and discovering commands
 

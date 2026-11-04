@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ee757023-8014-4c31-8397-e55566c7ab80",
+  "title": "Concept graph in the knowledge run: ranks, trends, section aggregates",
+  "description": "One pure module builds an in-memory graph during the run and publishes named results. No model calls. Each result records its parameters, so definitions can be experimented with, and states the counts behind it. Requires the raw material epic for results to mean much.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-17d05702-569a-41fd-bfc8-4e11eca9792e",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:46.832616Z",
+  "updated_at": "2026-11-04T02:52:46.832642Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

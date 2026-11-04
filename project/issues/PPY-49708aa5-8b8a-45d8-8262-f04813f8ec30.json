@@ -1,0 +1,20 @@
+{
+  "id": "PPY-49708aa5-8b8a-45d8-8262-f04813f8ec30",
+  "title": "stories save-version prints write before saving, so a crash looks like a saved version",
+  "description": "story_commands.py prints the line ending in 'version N write' before save_story_version runs. When the save then fails, as it did with the missing markusmd, the output contains 'version 2 write' and nothing was saved. docs/story-reporting.md says the write line prints only after the save. stories versions showed only version 1. Fix: print it after the save, or make the first line a plan line.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T11:48:25.337592Z",
+  "updated_at": "2026-11-04T11:48:25.337625Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

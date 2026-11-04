@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fb4603e7-e695-469e-85dd-56d7af70a0c5",
+  "issue_id": "PPY-85653616-6e5d-4e77-866f-3814bf4cf9df",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T11:48:25.516Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "references create-from-catalog times out on a batch of 31 and leaves the outcome unknown",
+    "description": "On 2026-11-04 a 31-item catalog on Machines on Machines failed with: GraphQL request failed: The read operation timed out, exit 2. Nothing says which items were created. The same items one at a time took 6 to 12 seconds each and all succeeded, so roughly 300 seconds in total exceeds the client's read timeout. The command should batch on the client, report per item, and be safe to repeat.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

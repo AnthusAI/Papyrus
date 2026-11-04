@@ -159,7 +159,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
     if section_key and not section:
         raise ValueError(
             f"Unknown NewsroomSection for --section {section_key}. "
-            "Run: poetry run papyrus sections import --config corpora/papyrus-newsroom-sections.yml"
+            "Run: poetry run papyrus sections import --config corpora/threat-intelligence-newsroom-sections.yml"
         )
     assignment_id = normalize_string(options.get("id")) or (
         f"assignment-research-{safe_id(title)[:80]}-{timestamp_for_path(now)}"
@@ -313,7 +313,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
     if section_key and not section:
         raise ValueError(
             f"Unknown NewsroomSection for --section {section_key}. "
-            "Run: poetry run papyrus sections import --config corpora/papyrus-newsroom-sections.yml"
+            "Run: poetry run papyrus sections import --config corpora/threat-intelligence-newsroom-sections.yml"
         )
     assignment_id = normalize_string(options.get("id")) or (
         f"assignment-reporting-{safe_id(title)[:80]}-{timestamp_for_path(now)}"
@@ -1905,11 +1905,20 @@ def research_packet_body(packet: dict[str, Any]) -> str:
         if value:
             lines.append(f"{label}: {value}")
     lines = [line for line in lines if line]
+    reading = (packet.get("multiSearch") or {}).get("reading") if isinstance(packet.get("multiSearch"), dict) else None
+    if isinstance(reading, dict):
+        lines.append(f"Read {reading.get('read')} of {reading.get('sources')} sources, {reading.get('inPart')} of them in part.")
+        not_opened = _parse_array(reading.get("notOpened"))
+        if not_opened:
+            lines.append("Could not open, so only search snippets: " + ", ".join(str(url) for url in not_opened))
+        out_of_room = _parse_array(reading.get("outOfRoom"))
+        if out_of_room:
+            lines.append("Opened, but no time or room left to read, so only search snippets: " + ", ".join(str(url) for url in out_of_room))
     claims = [c for c in _parse_array(packet.get("claims")) if isinstance(c, dict)]
     unverified = [c for c in _parse_array(packet.get("unverifiedClaims")) if isinstance(c, dict)]
     if claims:
         lines.extend(["", "Claims:"])
-        lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}]" for c in claims)
+        lines.extend(f"- {c.get('claim')} [{', '.join(str(i) for i in _parse_array(c.get('sources')))}]" + (" (search snippet only)" if c.get("snippetOnly") else "") for c in claims)
     disagreements = [d for d in _parse_array(packet.get("disagreements")) if isinstance(d, dict)]
     if disagreements:
         lines.extend(["", "Where sources disagree:"])

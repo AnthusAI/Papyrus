@@ -10,9 +10,24 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c2716429-8046-47cb-81e3-d9871066452f",
+      "author": "home",
+      "text": "Update 2026-11-03: the Story I created through the CLI came out as Type: article, while this site's default is post and only post has an address. A Story created this way can't be published at an address until that's resolved. Either creation should use the site's default type, or article needs an address.",
+      "created_at": "2026-11-04T03:31:39.962933Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "fb1f3b7e-c3a0-4907-80ce-952667f53d62",
+      "author": "home",
+      "text": "Update 2026-11-03: Ryan confirmed the non-interference Story is an article, so this now blocks a real Story from publishing: the Machines on Machines projection has an address only for post. Article needs a urls.types entry before that Story reaches publishing.",
+      "created_at": "2026-11-04T03:33:50.741610Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T00:14:55.246390Z",
-  "updated_at": "2026-11-04T00:14:55.246415Z",
+  "updated_at": "2026-11-04T03:33:50.741809Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

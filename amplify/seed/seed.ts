@@ -9,8 +9,8 @@ import type { Schema } from "../data/resource";
 
 const EDITOR_GROUP = "editor";
 const ADMIN_GROUP = "admin";
-const NEWSROOM_SECTIONS_CONFIG_PATH = path.join(process.cwd(), "corpora", "papyrus-newsroom-sections.yml");
-const PUBLICATION_DOCTRINE_CONFIG_PATH = path.join(process.cwd(), "corpora", "papyrus-publication-doctrine.yml");
+const NEWSROOM_SECTIONS_CONFIG_PATH = path.join(process.cwd(), "corpora", "threat-intelligence-newsroom-sections.yml");
+const PUBLICATION_DOCTRINE_CONFIG_PATH = path.join(process.cwd(), "corpora", "threat-intelligence-publication-doctrine.yml");
 const REQUIRED_PROCEDURES_CONFIG_PATH = path.join(process.cwd(), "corpora", "papyrus-required-procedures.json");
 const NEWSROOM_SECTION_TYPES = new Set(["canonical", "floating", "rotating"]);
 

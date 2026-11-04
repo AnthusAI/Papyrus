@@ -1,0 +1,20 @@
+{
+  "id": "PPY-10a248b5-5b76-4053-94ab-cdcc112bb6af",
+  "title": "Measure whether graph context helps",
+  "description": "Compare editor outlines, selections and copywriter drafts with and without the layers on the same Stories, reviewed blind by an editor, with cost in tokens. Decides which layers stay. Pack hash and method already allow this.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-95b47bd9-5d6f-477e-ad3b-9ea8040b00df",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:48.147881Z",
+  "updated_at": "2026-11-04T02:52:48.147903Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

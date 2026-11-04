@@ -57,7 +57,7 @@ class Product:
     """One site's broker, pages function and sign-in provider, in memory."""
     def __init__(self, config):
         self.config, self.now, self.broker_calls = config, 1_000_000.0, 0
-        self.approver_email, self.issued, self.fired = 'person@example.com', {}, False
+        self.approver_email, self.issued, self.fired, self.wrong_nonce = 'person@example.com', {}, False, False
         self.broker = Broker(MemoryTransactions(), BrokerConfig(config.client_id, (config.graphql_endpoint,),
                                                                 f'{config.publication}/cli/approve', f'{config.publication}/cli/callback'),
                              clock=lambda: self.now)
@@ -126,7 +126,7 @@ class Product:
             if challenge is None or proof != challenge:
                 return 400, {'error': 'invalid_grant'}, {}
             claims = {'iss': self.config.issuer, 'aud': self.config.client_id, 'sub': 'person-1', 'token_use': 'id',
-                      'exp': self.now + 3600, 'email': self.approver_email, 'nonce': nonce}
+                      'exp': self.now + 3600, 'email': self.approver_email, 'nonce': 'another-request' if self.wrong_nonce else nonce}
             encode = lambda value: base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip('=')
             return 200, {'id_token': encode({'alg': 'RS256'}) + '.' + encode(claims) + '.fixture-signature',
                          'access_token': 'access-token-1', 'refresh_token': 'refresh-token-1', 'expires_in': 3600}, {}
@@ -262,6 +262,14 @@ def someone_approves(context, email):
     context.actions.append(approve)
 
 
+@when('the sign-in provider answers tokens for a different request')
+def provider_wrong_nonce(context):
+    def approve(product, url):
+        product.wrong_nonce = True
+        context.page = product.approve(url)
+    context.actions.append(approve)
+
+
 @when('the broker cannot be reached when the person opens the link')
 def broker_down(context):
     def open_link(product, url):
@@ -339,6 +347,14 @@ def expired(context):
 def stranger(context):
     _run(context)
     assert 'Someone other than the expected person approved' in context.error, context.error
+
+
+@then('the sign-in is refused saying nothing was saved and to run "papyrus login --remote shipped.anth.us" again')
+def nonce_mismatch(context):
+    _run(context)
+    assert 'different request' in context.error and 'nothing was saved' in context.error, context.error
+    assert 'Start again with `papyrus login --remote shipped.anth.us`' in context.error, context.error
+    assert 'another-request' not in context.error and 'access-token' not in context.error, context.error
 
 
 @then('the sign-in is refused saying the site does not publish a remote sign-in broker')

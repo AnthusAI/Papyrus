@@ -105,6 +105,11 @@ module.exports = {
     require: ["features/step_definitions/conversations.steps.js"],
     format: ["summary"],
   },
+  sectionCoreConcepts: {
+    paths: ["features/section-core-concepts.feature"],
+    require: ["features/step_definitions/section-core-concepts.steps.js"],
+    format: ["summary"],
+  },
   referenceRelatedUi: {
     paths: ["features/reference-related-ui.feature"],
     require: ["features/step_definitions/reference-related-ui.steps.js"],
@@ -150,6 +155,13 @@ module.exports = {
   assignResearch: {
     paths: ["features/newsroom-assign-research.feature"],
     require: ["features/support/**/*.js", "features/step_definitions/story-references.steps.js", "features/step_definitions/assign-research.steps.js"],
+    tags: "",
+    format: ["summary"],
+  },
+  // AI agent notes in a story's Messages view (demo mode). Needs `next dev` on PAPYRUS_BASE_URL.
+  storyAgentNotes: {
+    paths: ["features/newsroom-story-agent-notes.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/story-references.steps.js", "features/step_definitions/assign-research.steps.js", "features/step_definitions/story-agent-notes.steps.js"],
     tags: "",
     format: ["summary"],
   },

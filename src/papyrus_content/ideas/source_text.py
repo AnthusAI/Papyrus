@@ -95,19 +95,44 @@ def excerpt_from_pdf(data: bytes, limit: int) -> str | None:
     return text if len(text) <= limit else text[: limit - 1].rsplit(" ", 1)[0] + "…"
 
 
-def read_source_text(url: str, fetch: SourceFetcher, limit: int) -> str | None:
-    """Excerpt of the source at the address (HTML, PDF, or the PDF a thin page wraps), or None. Never raises."""
+def pdf_text_up_to(data: bytes, limit: int) -> tuple[str | None, bool]:
+    """(the text of the first pages, up to ``limit`` characters; whether that is the whole file). Stops parsing once it has enough. Never raises."""
+    parts: list[str] = []
+    size = 0
+    try:
+        for page in pdf_text.iter_page_texts(data):
+            if size >= limit:
+                return re.sub(r"\s+", " ", " ".join(parts)).strip()[:limit] or None, False
+            parts.append(page)
+            size += len(page)
+    except Exception:  # noqa: BLE001 - a file that will not parse has no more text
+        return re.sub(r"\s+", " ", " ".join(parts)).strip()[:limit] or None, False
+    text = re.sub(r"\s+", " ", " ".join(parts)).strip()
+    return text[:limit] or None, len(text) <= limit
+
+
+def load_source(url: str, fetch: SourceFetcher) -> tuple[str | None, bytes | None]:
+    """(a page's plain text, a PDF's bytes) at the address, following a thin page to the PDF it wraps; both None when nothing could be read. Never raises."""
     try:
         content = fetch(url)
         if isinstance(content, bytes):
-            return excerpt_from_pdf(content, limit)
+            return None, content
         if not content:
-            return None
-        text = excerpt_from_html(content, limit)
+            return None, None
+        text = excerpt_from_html(content, MAXIMUM_BYTES)
         if text and len(text) >= WRAPPER_TEXT_CHARACTERS:
-            return text
+            return text, None
         link = main_pdf_link(content, url)
         linked = fetch(link) if link else None
-        return (excerpt_from_pdf(linked, limit) if isinstance(linked, bytes) else None) or text
+        return text, linked if isinstance(linked, bytes) else None
     except Exception:  # noqa: BLE001 - an unreadable source only means no text
-        return None
+        return None, None
+
+
+def read_source_text(url: str, fetch: SourceFetcher, limit: int) -> str | None:
+    """Excerpt of the source at the address (HTML, PDF, or the PDF a thin page wraps), or None. Never raises."""
+    text, pdf = load_source(url, fetch)
+    excerpt = excerpt_from_pdf(pdf, limit) if pdf else None
+    if excerpt or not text:
+        return excerpt
+    return text if len(text) <= limit else text[: limit - 1].rsplit(" ", 1)[0] + "…"

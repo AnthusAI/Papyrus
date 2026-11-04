@@ -48,6 +48,12 @@ def tenant_id_from_environment() -> str | None:
     return validate_tenant_id(value) if value else None
 
 
+def configured_tenant_id(endpoint: str | None = None) -> str | None:
+    """``PAPYRUS_TENANT_ID``, else the tenant the signed-in site that owns the endpoint publishes (the CLI only; None elsewhere)."""
+    from .env import site_tenant_id
+    return tenant_id_from_environment() or site_tenant_id(endpoint)
+
+
 def tenant_scoped_value(tenant_id: str | None, value: str) -> str:
     if not tenant_id:
         return value
@@ -85,7 +91,7 @@ def tenant_scoped_item_id(tenant_id: str | None, item_id: str) -> str:
 def tenant_id_from_options(options: dict[str, Any]) -> str | None:
     raw_value = options.get("tenant")
     explicit = raw_value.strip() if isinstance(raw_value, str) else ""
-    return validate_tenant_id(explicit) if explicit else tenant_id_from_environment()
+    return validate_tenant_id(explicit) if explicit else configured_tenant_id()
 
 
 def tenant_media_prefix(tenant_id: str) -> str:

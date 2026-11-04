@@ -3,7 +3,7 @@
   "title": "Editors cannot add References on a tenant-configured site: intake refuses every request",
   "description": "On Machines on Machines, papyrus references create-from-catalog --status pending, signed in as an editor, fails with: Shared-tenant Reference intake is not supported. The check in src/papyrus_content/reference_intake_validation.py refuses whenever the backend has PAPYRUS_TENANT_ID set. --dry-run passes and does not reveal this, because it skips server authorization. Found 2026-11-03 importing 23 sources for a Story. The refusal's only documented alternative is the IAM lane, which conflicts with signed-in CLI operation. Decide: this site has its own backend and one publication, so can the guard be narrowed to a backend that really is shared, or does knowledge data need the reviewed tenancy design the intake doc asks for? Related: PPY-98224e (references add).",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -12,10 +12,32 @@
     "cli"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3fac26eb-02af-4c00-8185-49860417faf1",
+      "author": "home",
+      "text": "Tested 2026-11-03 with CLI 5.83.0 against Machines on Machines after its 5.83.0 deploy finished at 03:20Z. Still refused, now with the new message naming PAPYRUS_SINGLE_PUBLICATION_BACKEND. infra/site.json has the flag, but cms.environment reaches the Amplify branch only through the app-shell stack, and this site's amplify.yml does not run papyrus-infra deploy; infra/README.md says a person does that deploy. So the likely missing step is an app-shell deploy, then a backend build. 'set it and redeploy' in the message and docs should say which deploy, because a merge looks like enough.",
+      "created_at": "2026-11-04T03:31:39.700761Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "073e9ed4-09b4-4150-ae00-e67429ebd537",
+      "author": "home",
+      "text": "Checked 2026-11-04 on Machines on Machines on 5.83.0: references create-from-catalog now succeeds in the signed-in lane; 32 References imported as pending.",
+      "created_at": "2026-11-04T11:48:08.776221Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "30665040-5c19-4856-8705-490bde508a47",
+      "author": "home",
+      "text": "Checked 2026-11-04 on Machines on Machines on 5.83.0: references create-from-catalog now succeeds in the signed-in lane; 32 References imported as pending.",
+      "created_at": "2026-11-04T11:48:25.584861Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-03T23:58:22.822923Z",
-  "updated_at": "2026-11-03T23:58:22.823191Z",
-  "closed_at": null,
+  "updated_at": "2026-11-04T11:48:25.585101Z",
+  "closed_at": "2026-11-04T11:48:09.012997Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

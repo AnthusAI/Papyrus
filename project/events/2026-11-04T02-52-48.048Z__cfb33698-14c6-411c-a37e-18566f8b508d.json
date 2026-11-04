@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cfb33698-14c6-411c-a37e-18566f8b508d",
+  "issue_id": "PPY-a4f1edc8-ab14-4168-8666-78943de8beaf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:48.048Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Suggest concepts a section should track",
+    "description": "From section aggregates, an editor sees suggested concepts in the section's settings with Accept and Reject and a reason; decisions train what is suggested. Ties in PPY-b69b15. Never added without a person.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-95b47bd9-5d6f-477e-ad3b-9ea8040b00df",
+    "labels": []
+  }
+}

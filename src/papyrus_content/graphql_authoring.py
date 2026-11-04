@@ -6,7 +6,7 @@ import http.client
 import urllib.parse
 from typing import Any, Callable
 
-from .env import graphql_endpoint, graphql_timeout_seconds
+from .env import graphql_endpoint, graphql_timeout_seconds, site_tenant_id
 from .guest_auth import refuse_guest_auth
 from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, graphql_request_headers
 from .operator_errors import GraphQLRequestError, credential_recovery_guidance
@@ -132,7 +132,7 @@ MODEL_ATTACHMENT_FIELDS = (
 )
 NEWSROOM_SECTION_FIELDS = (
     "id title shortTitle type editorialMission editorialPolicy enabled enabledStatus sortOrder "
-    "defaultArticleTypes defaultPageBudget assignmentGuidance killCriteria visualGuidance createdAt updatedAt tenantId"
+    "defaultArticleTypes defaultPageBudget assignmentGuidance killCriteria visualGuidance createdAt updatedAt tenantId coreConcepts"
 )
 EDITION_FIELDS = (
     f"{VERSION_FIELDS} id slug title status editionDate publishedAt description layoutPlan metadata"
@@ -430,6 +430,7 @@ PUBLISHED_STORY_LIST_FIELDS = (
 STORY_SECTION_LINK_FIELDS = "id tenantId lineageId versionState stage status type section sectionStatus"
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
+    "itemsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": STORY_SECTION_LINK_FIELDS},
     "itemsBySectionStatus": {"field": "listItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": STORY_SECTION_LINK_FIELDS},
     "messageThreadsByAnchor": {"field": "listMessageThreadsByAnchorAndUpdatedAt", "partitionKey": "primaryAnchorKey", "fields": MESSAGE_THREAD_FIELDS},
     "publishedItemsBySectionStatus": {"field": "listPublishedItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": PUBLISHED_STORY_LIST_FIELDS},
@@ -675,9 +676,9 @@ mutation Delete{model_name}($input: Delete{model_name}Input!) {{
 MUTATIONS = {model: _model_mutations(model) for model in LIST_DEFINITIONS}
 
 
-# Reference and Item fields newer than some deployed sites (Stories got the same three star fields a Reference has). One router serves sites on different versions, so a site whose
+# Reference, Item and NewsroomSection fields newer than some deployed sites (Stories got the same three star fields a Reference has; a section got coreConcepts). One router serves sites on different versions, so a site whose
 # schema does not have these yet is read without them instead of failing every Reference read.
-NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starFeedKey", "captureState")
+NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starFeedKey", "captureState", "coreConcepts")
 _UNDEFINED_NEWER_FIELD = re.compile(r"FieldUndefined: Field '(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")' in type")
 _NEWER_FIELD_SELECTION = re.compile(r"(?<![$\w])(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")\b\s*")
 
@@ -688,9 +689,13 @@ class PapyrusGraphQLAuthoringClient:
         endpoint: str | None = None,
         header_factory: Callable[[bytes], dict[str, str]] | None = None,
         tenant_id: str | None = None,
+        site_tenant: bool = True,
     ) -> None:
-        self.tenant_id = validate_tenant_id(tenant_id) if tenant_id else tenant_id_from_environment()
         self.endpoint = endpoint or graphql_endpoint()
+        # An explicit tenant wins, then PAPYRUS_TENANT_ID, then (signed-in CLI) the tenant the site itself publishes.
+        # `site_tenant=False` is for a command that must read every row, such as `content adopt-tenant-data`.
+        self.tenant_id = validate_tenant_id(tenant_id) if tenant_id else (
+            tenant_id_from_environment() or (site_tenant_id(self.endpoint) if site_tenant else None))
         self.header_factory = header_factory
         self.timeout_seconds = graphql_timeout_seconds()
         self._parsed_endpoint = urllib.parse.urlparse(self.endpoint)
@@ -1104,9 +1109,9 @@ class PapyrusGraphQLAuthoringClient:
         return slot
 
 
-def create_authoring_client(tenant_id: str | None = None) -> tuple[PapyrusGraphQLAuthoringClient, dict[str, Any]]:
+def create_authoring_client(tenant_id: str | None = None, *, site_tenant: bool = True) -> tuple[PapyrusGraphQLAuthoringClient, dict[str, Any]]:
     refuse_guest_auth("this command")
-    return PapyrusGraphQLAuthoringClient(tenant_id=tenant_id), {}
+    return PapyrusGraphQLAuthoringClient(tenant_id=tenant_id, site_tenant=site_tenant), {}
 
 
 def model_attachment_upload_variables(attachment: dict[str, Any]) -> dict[str, Any]:

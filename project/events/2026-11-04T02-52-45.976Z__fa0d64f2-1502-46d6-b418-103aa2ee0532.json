@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "fa0d64f2-1502-46d6-b418-103aa2ee0532",
+  "issue_id": "PPY-94eef851-e9d4-4c77-a9a4-c82d94595ee5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:45.976Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Decide which links count as evidence, and handle hub concepts",
+    "description": "Proposed weights, for review: a person's tag or accepted link highest; `mentions` next; unreviewed `related_to` suggestions never count toward a rank. Hubs: two concepts hold most links, one seemingly the publisher's own product. Exclude kinds personAuthor and identifier from concept ranks, and down-weight hubs through PMI rather than a stop list (no arbitrary lists). One function, used by every rank.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e6e82b61-7bde-4bc3-be9f-a1855419d3ab",
+    "labels": []
+  }
+}

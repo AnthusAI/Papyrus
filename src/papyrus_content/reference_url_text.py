@@ -17,6 +17,7 @@ from .ids import hash_short, reference_lineage_id_for, semantic_node_lineage_id_
 from .model_defaults import DEFAULT_REFERENCE_FILTER_MODEL
 from .reference_feed_keys import feed_keys
 from .relation_types import semantic_relation_type_fields_for_predicate
+from .semantic_node_writes import create_only_record
 from .source_site_plugins import (
     resolve_accessible_pdf_url_for_reference,
     resolve_source_site_enrichment,
@@ -2243,7 +2244,7 @@ def _plan_grobid_citation_graph_records(
     authors_linked = 0
     for index, author in enumerate(authors):
         author_node = _author_semantic_node_record(author=author, now=now)
-        records.append({"modelName": "SemanticNode", "expected": author_node})
+        records.append(create_only_record(author_node))
         records.append(
             {
                 "modelName": "SemanticRelation",

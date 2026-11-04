@@ -238,7 +238,8 @@ class JobGone(Exception):
 
 class JobFailed(Exception):
     """Polling a stored job answered a terminal failed state: nothing more will come from it. The router discards it
-    and re-posts once under a new id; it is never a run-stopping event."""
+    and re-posts once under a new id; it is never a run-stopping event. The lab gives no reason, and the usual one is its
+    own storage, which says nothing about the story, so a repeat backs the story off instead of ending it."""
 
 
 class AllBindingsNotReady(Exception):
@@ -1832,7 +1833,7 @@ class Router:
                 route["attempt"] = int(route.get("attempt", 0)) + 1
                 self.save(route)
                 if reposted:
-                    raise ItemInvalid("the job posted for this story failed again after a re-post")
+                    raise ItemRetryLater("the job posted for this story failed again after a re-post")
                 return self.decide_combined(todo, disc, route, item_id, True)
             except StopSweep as stop:
                 if stop.code in NON_CONSUMING_REFUSALS:
@@ -1942,7 +1943,7 @@ class Router:
             route["attempt"] = int(route.get("attempt", 0)) + 1
             self.save(route)
             if reposted:
-                raise ItemInvalid("the job posted for this publication failed again after a re-post")
+                raise ItemRetryLater("the job posted for this publication failed again after a re-post")
             return self.decide_binding(publication, disc, route, item_id, True)
         except StopSweep as stop:
             if stop.code in NON_CONSUMING_REFUSALS:

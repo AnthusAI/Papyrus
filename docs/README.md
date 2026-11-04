@@ -33,6 +33,8 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [knowledge-cloud-run.md](knowledge-cloud-run.md): the same run as an unattended weekly job in AWS (EventBridge, Step Functions, Fargate), its AI review, state, alarms and cost.
 - [newsletter.md](newsletter.md): signup capture, the double opt-in `newsletter` plugin with clean `/newsletter/*` pages, branded email theme, roundups, alerts and SES sending (Live on Shipped).
 - [reader-steering.md](reader-steering.md): the `reader-steering` plugin: votes on any subject, ratings, flags, comments, submissions, moderation, snapshots and Proposals (built; reader writes closed in production until Prospectus returns a site subject).
+- [story-procedure.md](story-procedure.md): the one ordered list of steps a Story moves through, who does each, `papyrus stories next`, and the reminders printed after writes.
+- [story-illustration-typesetting.md](story-illustration-typesetting.md): the illustration and typesetting stages: what each should produce, who does it, what the CLI does today, and what is not built.
 - [automations.md](automations.md): automation records binding a monitor to a procedure, with `enabled`, limits, cost, history and Run now (PPY-9ff95b slices 1 and 2).
 - [feature-names.md](feature-names.md): the recommended names for the showcase features, what each is and is not, where it lives, and the alternatives considered.
 - [idea-pipeline.md](idea-pipeline.md): `papyrus ideas digest` and `synthesize`, v0 (PPY-8ffc18; scheduling in progress).
@@ -116,6 +118,8 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [newsroom-curation-integration.md](newsroom-curation-integration.md): the opt-in References curation seam.
 - [editorial-checks.md](editorial-checks.md): Humanus editorial checks, policies and editor feedback.
 - [editorial-context.md](editorial-context.md): the mission, policy and section guidance that agents and checks read.
+- [Context packs for newsroom agents](newsroom-context-packs.md): the one pack every agent in a section works from, and how to change it.
+- [Choosing which ideas become Stories](idea-selection.md): the editor agent's picky selection, what recent means and the rate limit.
 - [story-reporting.md](story-reporting.md): story versions, reference links and the reporting trail.
 - [fact-checking.md](fact-checking.md): the shared fact check (literal check, independent judge, source strength), what is built and what is not.
 - [biblicus-1-14-upgrade.md](biblicus-1-14-upgrade.md): Biblicus catalog changes and upgrade steps.

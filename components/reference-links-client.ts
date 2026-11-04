@@ -19,6 +19,8 @@ const CREATE_REFERENCE_LINK_MUTATION =
   "mutation CreateReferenceLink($subjectLineageId: ID!, $objectKind: String!, $objectLineageId: ID!, $predicate: String!, $note: String) { createReferenceLink(subjectLineageId: $subjectLineageId, objectKind: $objectKind, objectLineageId: $objectLineageId, predicate: $predicate, note: $note) { ok relationId relationState outcome } }";
 const CREATE_CONCEPT_AND_LINK_MUTATION =
   "mutation CreateConceptAndLink($subjectLineageId: ID!, $objectKind: String!, $objectLineageId: ID!, $predicate: String!, $newConceptName: String) { createReferenceLink(subjectLineageId: $subjectLineageId, objectKind: $objectKind, objectLineageId: $objectLineageId, predicate: $predicate, newConceptName: $newConceptName) { ok relationId relationState outcome } }";
+const CREATE_EDITOR_CONCEPT_MUTATION =
+  "mutation CreateEditorConcept($name: String!) { createEditorConcept(name: $name) { ok lineageId nodeKey displayName nodeKind } }";
 const DESCRIBE_CONCEPT_MUTATION =
   "mutation DescribeConcept($lineageId: ID!, $description: String) { describeConcept(lineageId: $lineageId, description: $description) { ok lineageId description } }";
 const DECIDE_REFERENCE_LINK_MUTATION =

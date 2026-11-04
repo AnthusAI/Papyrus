@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { SemanticNodeRecord } from "../lib/category-repository";
+import { PlusIcon, XIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { NewsroomSectionRecord, SemanticNodeRecord } from "../lib/category-repository";
+import { addCoreConcept, parseCoreConcepts, removeCoreConcept, sectionsWithCoreConcept, type CoreConcept } from "../lib/section-concepts";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import type { createSemanticGraphSnapshot } from "../lib/semantic-graph";
@@ -71,7 +74,31 @@ function WikiIndexPageView({ demo, nodes, onOpen }: { demo: boolean; nodes: Sema
   </article>;
 }
 
-function ConceptPageView({ demo, graph, node, nodes, onOpen }: { demo: boolean; graph: SemanticGraph; node: SemanticNodeRecord; nodes: SemanticNodeRecord[]; onOpen: (lineageId: string) => void }) {
+const CORE_BUTTON = "inline-flex items-center gap-1.5 rounded-2xl !border-0 bg-muted px-3 py-1.5 text-sm font-medium normal-case tracking-normal text-foreground shadow-none outline-none hover:bg-muted/70 focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-60";
+
+/** "Core concept of": only the sections that have this concept as a core concept, each with a Remove control. One "Add to a section" button reveals a button for each other section. */
+export function CoreConceptOf({ disabled, lineage, onChange, sections }: { disabled: boolean; lineage: string; onChange: (section: NewsroomSectionRecord, next: CoreConcept[]) => void; sections: NewsroomSectionRecord[] }) {
+  const [adding, setAdding] = useState(false);
+  const having = sectionsWithCoreConcept(sections, lineage);
+  const others = sections.filter(section => !having.includes(section));
+  return <section data-wiki-section="core-concept-of">
+    <h2>Core concept of</h2>
+    {having.length ? <ul className="wiki-concept-list">
+      {having.map(section => <li className="flex flex-wrap items-center gap-2" data-core-concept-of-section={section.id} key={section.id}>
+        <span>{section.title}</span>
+        <button className={CORE_BUTTON} data-core-concept-remove={section.id} disabled={disabled} onClick={() => onChange(section, removeCoreConcept(parseCoreConcepts(section.coreConcepts), lineage))} type="button"><XIcon aria-hidden="true" className="size-4" />Remove from {section.title}</button>
+      </li>)}
+    </ul> : <p className="wiki-empty">This is not a core concept of any section yet.</p>}
+    {others.length ? (adding
+      ? <div className="mt-2 flex flex-wrap gap-2" data-core-concept-add>
+        {others.map(section => <button className={CORE_BUTTON} data-core-concept-add-section={section.id} disabled={disabled} key={section.id} onClick={() => { onChange(section, addCoreConcept(parseCoreConcepts(section.coreConcepts), lineage, "editor", new Date().toISOString())); setAdding(false); }} type="button"><PlusIcon aria-hidden="true" className="size-4" />Add to {section.title}</button>)}
+        <button className={CORE_BUTTON} data-core-concept-add-cancel onClick={() => setAdding(false)} type="button"><XIcon aria-hidden="true" className="size-4" />Cancel</button>
+      </div>
+      : <button className={cn(CORE_BUTTON, "mt-2")} data-core-concept-add-open disabled={disabled} onClick={() => setAdding(true)} type="button"><PlusIcon aria-hidden="true" className="size-4" />Add to a section</button>) : null}
+  </section>;
+}
+
+function ConceptPageView({ demo, disabled, graph, node, nodes, onOpen, onSectionCoreConcepts, sections }: { demo: boolean; disabled: boolean; graph: SemanticGraph; node: SemanticNodeRecord; nodes: SemanticNodeRecord[]; onOpen: (lineageId: string) => void; onSectionCoreConcepts?: (section: NewsroomSectionRecord, next: CoreConcept[]) => void; sections: NewsroomSectionRecord[] }) {
   const lineage = conceptId(node);
   const groups = graph.neighbors("semanticNode", lineage);
   const references = graph.referencesForSemanticNode(lineage);
@@ -82,6 +109,7 @@ function ConceptPageView({ demo, graph, node, nodes, onOpen }: { demo: boolean; 
     <p className="wiki-meta"><span className="wiki-chip">{kindLabel(node.nodeKind)}</span> {node.status !== "current" && <span className="wiki-chip">{node.status}</span>} {conceptEditedAt(node) && <>Last edited {formatEdited(conceptEditedAt(node))}</>}{node.versionCreatedBy ? ` by ${node.versionCreatedBy}` : ""}</p>
     {aliases.length > 0 && <p className="wiki-meta">Also known as {aliases.join(", ")}</p>}
     <ConceptDescription description={node.description} lineageId={lineage} nodeKind={node.nodeKind} />
+    {onSectionCoreConcepts && sections.length > 0 && <CoreConceptOf disabled={disabled} lineage={lineage} onChange={onSectionCoreConcepts} sections={sections} />}
     <section data-wiki-section="connections">
       <h2>Connections</h2>
       {groups.length ? groups.map(group => <div className="wiki-connection-group" key={`${group.direction}-${group.predicate}`}>
@@ -109,7 +137,7 @@ function ConceptPageView({ demo, graph, node, nodes, onOpen }: { demo: boolean; 
  * (recently edited concepts, concept lists), and every concept in the knowledge graph is a page
  * linked to the concepts and references it connects to.
  */
-export function WikiConceptsView({ demo = false, graph, initialNodeLineageId, nodes }: { demo?: boolean; graph: SemanticGraph; initialNodeLineageId?: string | null; nodes: SemanticNodeRecord[] }) {
+export function WikiConceptsView({ demo = false, disabled = false, graph, initialNodeLineageId, nodes, onSectionCoreConcepts, sections = [] }: { demo?: boolean; disabled?: boolean; graph: SemanticGraph; initialNodeLineageId?: string | null; nodes: SemanticNodeRecord[]; onSectionCoreConcepts?: (section: NewsroomSectionRecord, next: CoreConcept[]) => void; sections?: NewsroomSectionRecord[] }) {
   const [selected, setSelected] = useState<string | null>(initialNodeLineageId ?? null);
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState("");
@@ -147,7 +175,7 @@ export function WikiConceptsView({ demo = false, graph, initialNodeLineageId, no
     </nav>
     <div className="wiki-main">
       {node
-        ? <ConceptPageView demo={demo} graph={graph} node={node} nodes={nodes} onOpen={open} />
+        ? <ConceptPageView demo={demo} disabled={disabled} graph={graph} node={node} nodes={nodes} onOpen={open} onSectionCoreConcepts={onSectionCoreConcepts} sections={sections} />
         : selected ? <p className="wiki-empty" role="alert">That concept page was not found.</p>
         : <WikiIndexPageView demo={demo} nodes={nodes} onOpen={open} />}
     </div>

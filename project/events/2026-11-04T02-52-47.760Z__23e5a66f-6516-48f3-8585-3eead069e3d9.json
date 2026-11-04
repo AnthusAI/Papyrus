@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "23e5a66f-6516-48f3-8585-3eead069e3d9",
+  "issue_id": "PPY-7cc4983d-f4b2-4d05-a151-978d08eed19d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:47.760Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Agents can look up a concept on demand",
+    "description": "`papyrus concepts show NAME` and `neighbours`, and a read tool for agents: card, links, top References, adjacent concepts, optionally `knowledgeQuery`. Pre-baked cards stay the default; this is for going deeper. Research runs can use it in planning queries. Read only.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-95b47bd9-5d6f-477e-ad3b-9ea8040b00df",
+    "labels": []
+  }
+}

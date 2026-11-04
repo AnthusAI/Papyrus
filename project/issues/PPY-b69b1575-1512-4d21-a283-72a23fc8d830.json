@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b69b1575-1512-4d21-a283-72a23fc8d830",
+  "title": "Concepts in the section block, as an experiment",
+  "description": "Ryan 2026-11-03. Add the most relevant concepts for a section to the shared section block. An experiment: the Concepts wiki and the knowledge base are still growing and there are many ways to choose. Start with one method, the concepts most mentioned by the section's starred and accepted References through `mentions` edges, and record the method in the pack's provenance so results can be compared. First check how many such edges exist on Machines on Machines.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-aab37edd-ee4e-4784-96a1-974ae040b452",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T01:21:25.002827Z",
+  "updated_at": "2026-11-04T01:21:25.002850Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

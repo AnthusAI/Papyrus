@@ -164,6 +164,11 @@ Parameters:
     Default: ""
     Description: Exact Cognito pools for configured publications where email sender membership is rechecked.
 
+  AlarmEmailParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /papyrus/shipped/knowledge-run/alarm-email
+    Description: SSM parameter holding the address alarm email goes to, the same mailbox as the knowledge runs. Never in the repository.
+
   EmailReferenceMonitorId:
     Type: String
     Default: ""
@@ -545,6 +550,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   SearchProviderFailingMetricFilter:
     Type: AWS::Logs::MetricFilter
@@ -574,6 +581,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   RouterLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1197,7 +1206,7 @@ Resources:
       Runtime: python3.13
       Architectures: [arm64]
       Handler: papyrus_content.monitoring_router.handler
-      MemorySize: 512
+      MemorySize: 1024   # a run holds every source it opens at once, PDFs included: 405 MB measured with 133 sources
       Timeout: 900   # the task's lock lease (960 s, TASK_LEASE_SECONDS) is longer than this, so one publication's runs never overlap
       Role: !GetAtt ResearchWorkerRole.Arn
       DeadLetterConfig:
@@ -2289,6 +2298,8 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
 
   RouterDeadLetterAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -2305,6 +2316,74 @@ Resources:
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  RouterDecidedMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref RouterLogGroup
+      FilterPattern: '{ $.counts.decided >= 0 }'
+      MetricTransformations:
+        - MetricNamespace: Papyrus/Monitoring
+          MetricName: RouterDecided
+          MetricValue: "$.counts.decided"
+
+  RouterAwaitingMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref RouterLogGroup
+      FilterPattern: '{ $.counts.awaiting >= 0 }'
+      MetricTransformations:
+        - MetricNamespace: Papyrus/Monitoring
+          MetricName: RouterAwaiting
+          MetricValue: "$.counts.awaiting"
+
+  DecisionsStoppedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-monitoring-decisions-stopped
+      AlarmDescription: >-
+        Cyclotron decisions stopped while items are waiting for them: for two hours in a row the router's passes, across every
+        monitor, recorded no decision (counts.decided summed to 0) while at least one pass still had jobs awaiting (counts.awaiting
+        above 0). A quiet system with nothing waiting does not alarm, and neither does a router that logs nothing at all (missing
+        data is not breaching). Check the Cyclotron run status and hand to the Cyclotron session; see docs/monitoring-cloud.md.
+      Metrics:
+        - Id: stopped
+          Label: Decisions stopped while items wait
+          Expression: IF(decided == 0 AND awaiting > 0, 1, 0)
+          ReturnData: true
+        - Id: decided
+          ReturnData: false
+          MetricStat:
+            Metric: { Namespace: Papyrus/Monitoring, MetricName: RouterDecided }
+            Period: 3600
+            Stat: Sum
+        - Id: awaiting
+          ReturnData: false
+          MetricStat:
+            Metric: { Namespace: Papyrus/Monitoring, MetricName: RouterAwaiting }
+            Period: 3600
+            Stat: Maximum
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: papyrus-monitoring-alarms
+
+  AlarmEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlarmTopic
+      Protocol: email
+      Endpoint: !Ref AlarmEmailParameter
 
   TableNameParameter:
     Type: AWS::SSM::Parameter

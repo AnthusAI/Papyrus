@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 _ALLOW_CROSS_ROOT_FLAG = "--allow-cross-root"
+SITE_ENVIRONMENT_VARIABLE = "PAPYRUS_SITE"
 _TRUTHY = {"1", "true", "yes", "on"}
 
 
@@ -50,6 +51,23 @@ def _delegate_newsroom(argv: list[str]) -> int:
 
 def _operator_groups_with_help() -> set[str]:
     return {"references", "assignments", "knowledge"}
+
+
+def _consume_site_flag(args: list[str]) -> list[str]:
+    """A leading `--site <host>` (or `--site=<host>`) chooses the signed-in site for the whole command by setting PAPYRUS_SITE.
+
+    Only the leading position is read, so it can never collide with the `--site` that several commands take after their own
+    name (a host, a publication key, a bucket's site), and those keep their meaning."""
+    if not args or not (args[0] == "--site" or args[0].startswith("--site=")):
+        return args
+    if args[0] == "--site":
+        value, rest = (args[1] if len(args) > 1 else ""), args[2:]
+    else:
+        value, rest = args[0].partition("=")[2], args[1:]
+    if not value.strip() or value.startswith("-"):
+        raise OperatorError("--site requires a signed-in site such as shipped.anth.us, before the command: papyrus --site <site> <group> <command>.")
+    os.environ[SITE_ENVIRONMENT_VARIABLE] = value.strip()
+    return rest
 
 
 def _consume_global_flags(args: list[str]) -> tuple[list[str], list[str]]:
@@ -268,12 +286,19 @@ def _enforce_root_guard(args: list[str], *, cwd: Path | None = None, module_root
 
 
 def main(argv: list[str] | None = None) -> int:
-    return run_with_operator_error_handling(lambda: _run_with_arguments(argv))
+    from papyrus_content import site_selection
+
+    site_selection.install()
+    try:
+        return run_with_operator_error_handling(lambda: _run_with_arguments(argv))
+    finally:
+        site_selection.uninstall()
 
 
 def _run_with_arguments(argv: list[str] | None) -> int:
     args = list(argv if argv is not None else sys.argv[1:])
     allow_cross_root, args = _consume_cross_root_override(args)
+    args = _consume_site_flag(args)
     args, global_flags = _consume_global_flags(args)
 
     if not args or args == ["--help"] or (len(args) == 1 and args[0] in {"--help", "-h"}):
@@ -419,7 +444,9 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             return 0
         _delegate_content("editorial", command, flags)
         return 0
-    raise ValueError(f"Unsupported papyrus group: {group}")
+    from papyrus_content.site_selection import unsupported_command
+
+    raise unsupported_command(f"group: {group}")
 
 
 if __name__ == "__main__":

@@ -411,6 +411,26 @@ def request_staging_build_action() -> dict:
     return {"ok": True, "build": build}
 
 
+def add_story_agent_note_action(arguments: dict, person: str | None) -> dict:
+    """An AI agent's note on a Story, saved as a ModelAttachment owned by the Story (``story_agent_notes``), never as a Message.
+    The backend stamps who ran the agent from the signed-in identity; the agent's name is only a label. Callers are editors and admins (the schema's groups)."""
+    from papyrus_content.story_agent_notes import save_agent_note
+
+    if not person:
+        return {"ok": False, "errors": [{"code": "not-signed-in", "message": "Sign in as an editor to add an agent note.", "line": None}]}
+    client, _claims = create_authoring_client()
+    try:
+        version = arguments.get("versionNumber")
+        result = save_agent_note(
+            client, arguments["lineageId"], agent=arguments.get("agent"), body=arguments.get("body"), summary=arguments.get("summary") or None,
+            reference_lineage_id=arguments.get("referenceLineageId") or None, version_number=int(version) if version not in (None, "") else None,
+            by_sub=person, by_kind="user",
+        )
+    except (KeyError, ValueError) as error:
+        return {"ok": False, "errors": [{"code": "agent-note-rejected", "message": str(error), "line": None}]}
+    return {"ok": True, **result}
+
+
 def create_story_from_reference_action(arguments: dict, actor: str) -> dict:
     """One tap in the newsroom: a draft story started from a Reference (``story_from_reference.create_story_from_reference``). Never changes the Reference's status."""
     from papyrus_content.ideas.signal_queue import ReferenceSummaries
@@ -467,6 +487,8 @@ def handler(event, context):
             return create_story_from_reference_action(arguments, actor)
         if field == "moveStoryStage":
             return move_story_stage_action(arguments, actor)
+        if field == "addStoryAgentNote":
+            return add_story_agent_note_action(arguments, person_from_event(event))
         if field == "unpublishItem":
             return unpublish_item_action(arguments, actor)
         if field == "suggestReferenceLinks":

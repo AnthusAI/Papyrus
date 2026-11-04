@@ -231,7 +231,8 @@ Every claim is fact checked after synthesis: only verified claims stay in `claim
    with no key is listed as unavailable, not as a failure.
 3. *Merge.* URLs are canonicalised (tracking parameters, fragment, `www.`, trailing slash) and de-duplicated. Each source keeps the
    providers that found it, the queries, its best rank, its title and its snippets. A source only one provider found is kept.
-4. *Synthesise.* One model call over the merged sources, cited by index, writes the claims with their supporting sources, where the
+4. *Read.* Every source is opened and its text read, as much as fits. See "What a run reads" below.
+5. *Synthesise.* One model call over the merged sources, cited by index, writes the claims with their supporting sources, where the
    sources disagree, and the open questions. Claims or positions citing a source that does not exist are dropped and counted.
 
 **The packet.** It is written through the same path as `research.tavily-deep` (`apply_research_packet`, then
@@ -249,7 +250,10 @@ adds `claims`, `disagreements` and `multiSearch`: the queries, `sourceProviders`
 
 **Failure.** If no provider answers (or none is configured, or the planning or synthesis call fails) no packet is written. A
 `multi_search_error` Message and a `research.multi.failed` AssignmentEvent record the reason, as `research.tavily-deep` does.
-Fetching pages is not part of this mode; snippets are the evidence, so every claim is a lead to verify, not a verified fact.
+
+**What a run reads, and what it cannot.** Page text comes from `read_sources`, between merging and synthesis. It opens every source at once (an arXiv abstract page is read as its paper; a thin page as the PDF it wraps), and only public http(s) addresses. The model's input is the limit (`SYNTHESIS_INPUT_CHARACTERS`, measured: `gpt-6-luna` took 600,000 tokens and refused 1,000,000): the room left after the brief and the snippets is shared fairly, so a short page keeps all its text and what it leaves goes to the longer ones. A long source is cut at its share, keeping the start, and PDFs are parsed one at a time, best supported first, only as far as their share. Reading stops at 90 seconds (`READ_DEADLINE_SECONDS`). Measured on 133 real sources on 2026-11-04: 124 gave text, in 6 seconds. It cannot read a page behind a login or paywall, a page that refuses the request, or one that builds its text in the browser. A consent wall that returns text counts as read, and the fact check then finds it silent.
+
+Each source records `read` (`whole`, `part` or `none`). `multiSearch.reading` holds `sources`, `read`, `inPart`, `notOpened` and `outOfRoom` (it opened, but no time or room was left to read it, which is not the same as being refused); `multiSearch.sourceProviders` holds the text each source was given, so a replay checks what the run saw. A claim whose cited sources were not read has `snippetOnly: true`: it can still be verified, but only against a search engine's excerpt, and the body, the newsroom and the reporter's context pack say so. The Assign research box and `papyrus stories assign-research` state what a run does before the editor relies on it.
 
 ## Context Order
 

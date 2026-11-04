@@ -203,6 +203,10 @@ browser and says `Sign-in needs local port 3001 ... already in use`; stop that p
 and run the login again. Signing in to several sites at once is sequential, so one
 login never competes with another for the port.
 
+After the login the CLI also reads a second public file, `https://<site>/.well-known/papyrus-site.json`
+(see [The site file](#the-site-file-tenant-and-version)), keeps what it says, and warns on standard error when this CLI is
+older than the site. A site that serves no such file changes nothing.
+
 ## Many sites at once
 
 Signed-in sites are kept in a registry of **public** metadata (the same
@@ -235,6 +239,68 @@ AWS credentials. A site whose file names an endpoint already registered for a di
 site is refused, so one site cannot capture another's requests. `--config` and
 `PAPYRUS_CLI_AUTH_CONFIG` still select exactly one hand-written config.
 
+### Picking the site for a command
+
+An editor who has signed in needs no `amplify_outputs.json`, no `PAPYRUS_GRAPHQL_ENDPOINT`, no `PAPYRUS_TENANT_ID` and no AWS
+login to run a newsroom command from any directory. The CLI chooses the site in this order and stops at the first that applies:
+
+1. **A site you name.** A leading flag, `papyrus --site shipped.anth.us <group> <command> ...`, or `PAPYRUS_SITE=shipped.anth.us`.
+   The site must be signed in; otherwise the error says `Not signed in to <site>; run papyrus login <site>`. If
+   `PAPYRUS_GRAPHQL_ENDPOINT` also names a different backend, that is an error, not a pick. A present `amplify_outputs.json`
+   never overrides this choice.
+2. **`PAPYRUS_GRAPHQL_ENDPOINT`**, used as it always was.
+3. **The site the working directory declares**: `cms.consoleOrigin` (else `cms.siteOrigin`) in `infra/site.json`, found in the
+   working directory or a parent (or under `PAPYRUS_SITE_ROOT`), when you are signed in to it. If you are not signed in to the
+   declared site and no outputs file exists, the command stops and names `papyrus login <that site>` instead of using another site.
+4. **An `amplify_outputs.json`** that names an endpoint (`PAPYRUS_SITE_ROOT`, the working directory, the Papyrus root), as it always did.
+5. **The only signed-in site.** With several signed in and none chosen, the error lists them and shows the flag; the CLI never guesses.
+
+The flag is a leading global because a trailing `--site` already means something else for several commands (`items link-references`
+and `references auto-accept` take a publication key, `references search` takes a host, `home-page snapshot` takes a key). Only
+the leading position is read as the global choice; those commands keep their own option. A token still goes only to the
+registered site that owns the endpoint, as in [How a request picks its session](#how-a-request-picks-its-session).
+
+The operator reference commands (`papyrus references list`, `references show`, `assignments list`) choose `local` or `cloud` when no
+`--backend`, `PAPYRUS_BACKEND` or config value says. The signed-in site chosen by this order counts as the endpoint: a signed-in editor
+gets `cloud` with no flag and no outputs file, even when a local pod is configured. On the IAM lane, or with an explicit backend,
+nothing changes.
+
+Steps 3 and 5 look at the registry only on the signed-in lane (a session exists and `PAPYRUS_GRAPHQL_AUTH` is unset or `user`).
+An operator who sets `PAPYRUS_GRAPHQL_AUTH=iam` is never sent to a signed-in site by them; with no outputs file and no
+endpoint variable the command fails and names `papyrus login`. Naming a site (step 1) is the only way the registry
+supplies an endpoint to the IAM lane.
+
+An `amplify_outputs.json` also supplies the storage bucket and Cognito identity pool for `stories save-version --images` and
+`content publish`. Those two values are not published by the site, so those commands still need the file (or, where the command takes them, `--bucket`,
+`--identity-pool-id` and `PAPYRUS_IDENTITY_POOL_ID`). A file that names a different backend than the site you chose is ignored for
+them rather than used, so a stray file in the working directory cannot send an upload to the wrong bucket.
+
+### The site file: tenant and version
+
+`/.well-known/papyrus-cli.json` is read strictly by every installed CLI (an unknown field fails the login with "invalid CLI
+login metadata"), so nothing may be added to it. A site therefore also serves
+`/.well-known/papyrus-site.json`, which a CLI that has never heard of it simply never requests:
+
+```json
+{ "tenant_id": "machines-on-machines", "papyrus_version": "5.81.0" }
+```
+
+`tenant_id` is the site's `PAPYRUS_TENANT_ID` build variable and is present only when the site has one;
+`papyrus_version` is the `@anthusai/papyrus` version the site was built with. Both are public and neither is a credential:
+the tenant scopes requests, it authorizes nothing. The CLI reads the file over HTTPS only, refuses redirects, caps it at 4 KiB,
+ignores fields it does not know, and treats a missing or unusable file as "unknown", never as a failure. It reads it at login
+and, for a sign-in already in the registry, the first time a command needs the tenant, so nobody has to sign in again. The
+copy is kept beside the registry (`site-documents.json`, public values, mode 0600). The tenant a client uses is, in order:
+an explicit `--tenant`, `PAPYRUS_TENANT_ID`, the tenant of the signed-in site that owns the endpoint ([multi-tenancy](multi-tenancy.md)).
+
+### Old CLI, newer site
+
+When a command is unknown to the installed CLI and a signed-in site runs a newer Papyrus, the error keeps its
+`Unsupported papyrus command` text and adds which site runs which version and the upgrade command
+(`pipx upgrade papyrus-newsroom`, or `uv tool upgrade papyrus-newsroom`). `papyrus login` prints the same warning on standard error
+when the site is newer. A version difference never fails a command by itself. `papyrus login --remote` prints the approval
+URL as soon as it has it, even when standard output is a pipe or a file.
+
 ## How a site publishes the file
 
 No infrastructure or backend change is needed. The app shell serves
@@ -249,6 +315,12 @@ exact URI is in the outputs' `auth.oauth.redirect_sign_in_uri`; otherwise it ans
 404. The `publication` value comes from `PAPYRUS_SITE_ORIGIN`, never the request's Host
 header. Every field is public. The publication API still decides what a signed-in
 person may do under the normal user/group permissions.
+
+The site file is served by the route `app/.well-known/papyrus-site.json/route.ts` (`lib/cli-site-document.ts`). Its tenant comes
+from the `PAPYRUS_TENANT_ID` build variable (copied into `.env.production` by the build spec) and its version from the package
+the site installed (`withPapyrus` sets `PAPYRUS_ENGINE_VERSION`). A site serves it once it is rebuilt on a release that has it. A
+public host that is fronted by an edge stack needs the path routed to the app like `papyrus-cli.json`
+(`infra/edge/s3-projection-cms.yaml`, `infra/edge/threat-intelligence.yaml`); a console host, which is the app itself, needs nothing.
 
 ## Required configuration and approval
 

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-326a6093-1793-4f9f-8fff-130362fa2488",
+  "title": "Clean up duplicate and junk concepts before ranking",
+  "description": "Report same-name and same-alias nodes of different kinds, and generated nodes with no links. Offer them through the merge tool (wiki epic) and a review list; nothing is deleted. A report first, as with `papyrus references duplicates`.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e6e82b61-7bde-4bc3-be9f-a1855419d3ab",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:46.180086Z",
+  "updated_at": "2026-11-04T02:52:46.180117Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

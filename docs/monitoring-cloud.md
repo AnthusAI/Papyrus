@@ -490,8 +490,9 @@ as `pending`, so unscreened HN items never flood a queue.
 | DynamoDB table (auto-named) | On-demand, encrypted, point-in-time recovery, `Retain` on delete and replace |
 | Lambda `papyrus-monitoring-collector` | Python 3.13, arm64, 256 MB, 120 s, reserved concurrency 1 when the account quota allows (parameter `ReservedConcurrency`; 0 leaves it unreserved), logs kept 30 days |
 | Schedule `papyrus-monitoring-hn-collect` | EventBridge Scheduler `rate(15 minutes)`, no flexible window, 3 retries, SQS dead-letter queue |
-| Alarm `papyrus-monitoring-collector-errors` | Lambda `Errors` >= 1 in 15 minutes (no notification action yet) |
-| Alarm `papyrus-monitoring-search-provider-failing` | the collector logged `{"monitor": "search_provider_failing", "provider", "kind": "auth" or "plan_exhausted"}` (a web-search provider refusing its key or out of plan, such as Tavily 432 or Perplexity 401) at least once in a day; metric `Papyrus/Monitoring` `SearchProviderFailing` from a metric filter on the collector log group (no notification action yet) |
+| Alarm `papyrus-monitoring-collector-errors` | Lambda `Errors` >= 1 in 15 minutes |
+| Alarm `papyrus-monitoring-search-provider-failing` | the collector logged `{"monitor": "search_provider_failing", "provider", "kind": "auth" or "plan_exhausted"}` (a web-search provider refusing its key or out of plan, such as Tavily 432 or Perplexity 401) at least once in a day; metric `Papyrus/Monitoring` `SearchProviderFailing` from a metric filter on the collector log group |
+| Alarm `papyrus-monitoring-decisions-stopped` | no Cyclotron decision for two hours in a row while items are waiting. Every alarm in this stack emails through the topic `papyrus-monitoring-alarms`, to the address in the SSM parameter the `AlarmEmailParameter` stack parameter names (the address is never in the repository; a new subscription must be confirmed from the email AWS sends). Metric filters on the router log group make `Papyrus/Monitoring` `RouterDecided` (the pass's `counts.decided`) and `RouterAwaiting` (its `counts.awaiting`); the alarm is the metric-math `IF(decided == 0 AND awaiting > 0, 1, 0)` over hourly Sum and Maximum, 2 of 2 hours, summed across all monitors. Missing data is not breaching. See [Decisions stopped](#decisions-stopped-alarm) |
 | Roles | Collector: this table and its own log group only. Schedule: invoke this function, send to its DLQ |
 
 Code: `src/papyrus_content/monitoring_cloud.py` (stdlib and boto3 plus the existing
@@ -660,6 +661,12 @@ request the current config would build) is discarded and the story is posted aga
 as a new idempotent request. A 404 on a stored job is handled the same way, once: the job is discarded and
 re-posted in the same run. If the re-post's poll also answers 404 that one story ends as `error` and the sweep
 carries on; a single story's 404 never stops the run. Every other refusal behaves as before.
+
+A job the lab ended as failed, or reconciled as failed, gives no reason, and the usual one is the lab's own storage.
+It is re-posted once in the same run. If the re-post fails too, the story is not ended: it stays `collected` and backs
+off like any other non-permanent refusal (15 minutes doubling up to a day, `nextAttemptAt`, `lastRefusal`), then is
+posted under a new request id. A job with a refusal code keeps that code's meaning, so `source_refused` still ends the
+story as `refused`.
 
 ### Post first, then collect
 
@@ -1128,6 +1135,34 @@ its signed GET.
   by the 2-minute collector or the next route run. A collect that finds nothing new changes nothing, so a
   duplicate event is harmless.
 - Scheduled events (`{"monitorId", "task"}`) are unchanged.
+
+## Decisions stopped (alarm)
+
+On 2026-11-03 one stuck job blocked the shared Cyclotron run from 14:34 UTC. Decisions kept arriving until 16:28, then none came
+back for about twelve hours while about 4,900 jobs queued, and Lambda error counts stayed at zero because every pass finished
+cleanly. `papyrus-monitoring-decisions-stopped` watches for that.
+
+- **Signal.** Every router pass logs one JSON summary with `counts.decided` (decisions recorded this pass) and `counts.awaiting`
+  (jobs still running at the lab). Two metric filters turn them into `Papyrus/Monitoring` `RouterDecided` and `RouterAwaiting`.
+  The alarm breaches in an hour when `RouterDecided` (Sum) is 0 and `RouterAwaiting` (Maximum) is above 0, and fires when that is
+  true for 2 of 2 hours.
+- **Quiet is not stuck.** An hour with nothing awaiting (nothing to decide) does not breach. A `hold` monitor or a `dry-run` one
+  posts nothing, so it logs no awaiting. If the router stops logging altogether, both metrics are missing and missing data is
+  not breaching: this alarm does not cover a router that never runs; `papyrus-monitoring-router-errors` and the schedule dead
+  letters cover a crashing one.
+- **The window.** The last four days of router logs (2026-10-31 to 2026-11-04) show decisions in almost every hour, and the
+  hours with none were either quiet (nothing awaiting) or one isolated hour (2026-11-02 11:00 UTC, 10 jobs waiting, decisions
+  back the next hour). Two hourly datapoints cannot be tripped by one hourly pass, a 15-minute slow patch or that one-hour gap,
+  and in the replay of those four days the only firings were the real stoppage. The alarm covers all monitors together, so it
+  catches a shared stoppage like the one above; one monitor stopping alone while the others decide is not caught.
+- **Not counted.** A decision collected by a Decision Ready doorbell invocation (`hn`, `huggingface`, `ttab`) is not in a
+  router summary line; the 2-minute `hn` collect and the hourly web passes are what the alarm counts.
+- **Notification.** It emails through the topic `papyrus-monitoring-alarms`, like every alarm in this stack.
+- **When it fires.** Do not retry or reconcile by hand. Check the Cyclotron run's status (the run bound in the monitor's router
+  config, `cyclotron.accountId` and `cyclotron.runId`) and read the latest router receipts for `stoppedBy`, `labBackoffUntil` and
+  `errors` (Administration, Monitoring, recent runs); the router log summaries show `counts.awaiting` growing. Then hand to the
+  Cyclotron session with the hour decisions stopped and the awaiting count. The documented operator reconcile
+  ([Operating the router](#operating-the-router)) changes shared state and needs Ryan's approval.
 
 ## Operating the router
 

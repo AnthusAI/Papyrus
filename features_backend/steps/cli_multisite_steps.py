@@ -232,7 +232,8 @@ def hijack(context, host, victim):
 
 @then('the CLI fetched "{url}" over HTTPS')
 def fetched(context, url):
-    assert context.fetched == [url], context.fetched
+    # A login also reads the site's second public file (its tenant and version); the sign-in file is fetched exactly once.
+    assert [fetched_url for fetched_url in context.fetched if fetched_url.endswith('/papyrus-cli.json')] == [url], context.fetched
 
 
 @then('the user is signed in to "{host}" only')

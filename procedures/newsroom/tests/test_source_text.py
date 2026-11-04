@@ -108,6 +108,22 @@ class FetchTests(unittest.TestCase):
         with mock.patch.object(source_text, "public_http_url", return_value=False), self.assertRaises(Exception):
             handler.redirect_request(request, None, 302, "Found", {}, "http://10.0.0.1/secret")
 
+    def test_a_paragraph_never_closed_still_counts(self):
+        words = "An older page ends each paragraph where the next one starts, and never closes it. " * 2
+        text = source_text.read_source_text("https://example.org/old", lambda url: f"<html><body><p>{words}<p>{words}<p>{words}<p>{words}</body></html>", 4000)
+        self.assertIn(words.strip(), text)
+        self.assertEqual(text.count("An older page"), 8)
+
+    def test_pdf_text_up_to_stops_at_its_limit_and_says_whether_it_has_it_all(self):
+        pdf = make_pdf([["First page words."], ["Second page words."], ["Third page words."]])
+        whole, is_whole = source_text.pdf_text_up_to(pdf, 4000)
+        self.assertIn("Third page", whole)
+        self.assertTrue(is_whole)
+        part, is_whole = source_text.pdf_text_up_to(pdf, 10)
+        self.assertLessEqual(len(part), 10)
+        self.assertFalse(is_whole)
+        self.assertEqual(source_text.pdf_text_up_to(b"%PDF-1.4 not really", 4000), (None, False))
+
 
 if __name__ == "__main__":
     unittest.main()

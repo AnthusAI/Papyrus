@@ -12,9 +12,17 @@
     "cli"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e3eae693-ecfa-4099-ae8f-8ff8c75c3d90",
+      "author": "home",
+      "text": "Tested 2026-11-03 with CLI 5.83.0: no PAPYRUS_TENANT_ID needed for stories show or assignments context-pack on Machines on Machines. Looks fixed for those commands; issue is still open on the board.",
+      "created_at": "2026-11-04T03:31:39.827712Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-03T23:58:22.923293Z",
-  "updated_at": "2026-11-03T23:58:22.923315Z",
+  "updated_at": "2026-11-04T03:31:39.827916Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

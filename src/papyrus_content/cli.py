@@ -34,7 +34,7 @@ from .analysis_commands import (
 from .batch_commands import register_catalog_batches, run_post_ingestion_enrichment_batches
 from .analysis_profiles import analysis_profiles, validate_analysis_profiles
 from .assignments import apply_assignment_action
-from .story_commands import stories_link_reference, stories_note, stories_save_version, stories_show, stories_versions
+from .story_commands import stories_link_reference, stories_next, stories_note, stories_save_version, stories_show, stories_versions
 from .assignments_commands import (
     assignments_apply_reporting_packet,
     assignments_apply_research_packet,
@@ -179,6 +179,7 @@ from .corpora import (
     run_or_print_corpus_sync_plan,
 )
 from .env import PAPYRUS_ROOT, graphql_endpoint, load_dotenv, storage_bucket_from_amplify_outputs
+from .site_selection import install as install_site_selection, uninstall as uninstall_site_selection, unsupported_command
 from .graphql_authoring import create_authoring_client
 from .ids import knowledge_corpus_id
 from .newsroom_commands import (
@@ -343,7 +344,11 @@ PORTED_COMMANDS = frozenset(
         "stories:versions",
         "stories:link-reference",
         "stories:note",
+        "stories:agent-note",
         "stories:show",
+        "stories:next",
+        "stories:outline",
+        "stories:draft",
         "stories:create",
         "stories:move",
         "stories:fire-triggers",
@@ -392,6 +397,7 @@ PORTED_COMMANDS = frozenset(
         "newsroom:import-doctrine",
         "newsroom:set-doctrine",
         "newsroom:update-section",
+        "newsroom:section-concepts",
         "newsroom:seed-required-procedures",
         "newsroom:register-procedure",
         "automations:list",
@@ -432,6 +438,7 @@ PORTED_COMMANDS = frozenset(
         "ideas:monitor-stories",
         "ideas:migrate-proposals",
         "ideas:labels",
+        "ideas:select",
         "proposals:create",
         "proposals:list",
         "proposals:show",
@@ -512,13 +519,17 @@ def main(argv: list[str] | None = None) -> int:
         dispatch(group, command, rest)
         return 0
 
-    return run_with_operator_error_handling(run_dispatch)
+    install_site_selection()
+    try:
+        return run_with_operator_error_handling(run_dispatch)
+    finally:
+        uninstall_site_selection()
 
 
 def dispatch(group: str, command: str, flags: list[str]) -> None:
     route = f"{group}:{command}"
     if not is_ported_command(group, command):
-        raise ValueError(f"Unsupported papyrus command: {group} {command}")
+        raise unsupported_command(f"command: {group} {command}")
     if route == "content:inspect":
         content_inspect(flags)
     elif route == "content:schema-check":
@@ -773,8 +784,22 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         stories_link_reference(flags)
     elif route == "stories:note":
         stories_note(flags)
+    elif route == "stories:agent-note":
+        from .story_commands import stories_agent_note
+
+        stories_agent_note(flags)
     elif route == "stories:show":
         stories_show(flags)
+    elif route == "stories:next":
+        stories_next(flags)
+    elif route == "stories:outline":
+        from .story_writing import stories_outline
+
+        stories_outline(flags)
+    elif route == "stories:draft":
+        from .story_writing import stories_draft
+
+        stories_draft(flags)
     elif route == "stories:set-slug":
         from .story_commands import stories_set_slug
 
@@ -883,6 +908,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "newsroom:update-section":
         from .section_editing import sections_update
         sections_update(flags)
+    elif route == "newsroom:section-concepts":
+        from .section_concepts import sections_concepts
+        sections_concepts(flags)
     elif route == "newsroom:seed-required-procedures":
         newsroom_seed_required_procedures(flags)
     elif route == "newsroom:register-procedure":
@@ -1050,7 +1078,7 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "renderers:markus-build":
         markus_build(flags)
     else:
-        raise ValueError(f"Unsupported papyrus command: {group} {command}")
+        raise unsupported_command(f"command: {group} {command}")
 
 
 def corpora_status(flags: list[str]) -> None:

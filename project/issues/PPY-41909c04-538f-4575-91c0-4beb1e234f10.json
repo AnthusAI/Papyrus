@@ -1,0 +1,20 @@
+{
+  "id": "PPY-41909c04-538f-4575-91c0-4beb1e234f10",
+  "title": "Editor outline and copywriter draft commands from the standard packs",
+  "description": "Ryan 2026-11-03. Decisions: the editor's outline comes after research. Add the `process` layer to every pack, `papyrus stories outline --story L` (editor profile, saves an outline version with the marker) and `papyrus stories draft --story L` (copywriter profile, saves the next version, runs the check that follows a save). GPT-6 Luna. Neither publishes. Try both on the Machines on Machines facial-recognition Story (item-idea-6cfd7da9e098a17e) and report critically. Requires the procedure ticket and the pack ticket.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-aab37edd-ee4e-4784-96a1-974ae040b452",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T01:21:24.902434Z",
+  "updated_at": "2026-11-04T01:21:24.902460Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c53175bd-de07-46cd-ac04-a75ebc3eb976",
+      "author": "home",
+      "text": "Merged to develop in PR 1161 (53c59308); not released or deployed. A run now opens its sources, reads what fits and records what it read. Dry run on the non-interference assignment: 149 sources, 115 read (44 in part), 34 not opened, 355 seconds, 13 of 35 claims verified with none resting on a snippet alone. That was before the PDF quote fix; 12 of the 17 quote rejections pass the new lookup on stored quotes, judge not rerun. Left: release, the router change set, a run in the Lambda, and screenshot review.",
+      "created_at": "2026-11-04T09:43:39.571886Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T00:14:54.811804Z",
-  "updated_at": "2026-11-04T00:14:54.811830Z",
+  "updated_at": "2026-11-04T09:43:39.572428Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
