@@ -33,7 +33,19 @@ at `articles/call-criteria.html`; an already-lowercase name is unchanged.
 Names starting with `_` or `.` are not pages. The build fails if two files
 derive the same slug (both are named) or a name leaves no slug at all.
 
-## Both capabilities are opt-in
+## On by default for a site, opt-in for the library
+
+A Papyrus **site** (a `projection.json`, or none) has both capabilities without declaring them. Set `"images": false` or
+`"citations": false` to turn one off; declare `"images"` as an object (`widths`, `formats`, `layouts`, ...) to configure the
+pipeline. Without a declaration the pipeline's own defaults apply, `::image` is rendered from the renditions made when the
+picture is uploaded, and plain Markdown images are left as written (declaring `images` as an object also upgrades them). A
+site with no media bucket cannot show a picture: `::image` is refused at save, with that reason.
+
+Save and publish read the same site settings: a body the page cannot be made from (`::image` on a site that turned images off,
+a citation key that does not exist, a picture whose renditions were never made) is refused when it is saved or published,
+before any published data is written. See `docs/standard-site.md`, "Images and citations".
+
+The rest of this section is the library call, `build_markus_site`, where both are opt-in.
 
 ```python
 from papyrus_content.markus_renderer import (

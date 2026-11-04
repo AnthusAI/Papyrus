@@ -6,6 +6,7 @@ from typing import Any
 
 from papyrus_content.edge_invalidation import distribution_ids_from_environment, invalidate_revalidated_paths
 from papyrus_content.graphql_authoring import create_authoring_client
+from papyrus_content.markus_renderer.body_features import install_body_features
 from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
 from papyrus_content.projection.lease import ProjectionLeaseHeld
@@ -17,6 +18,8 @@ from papyrus_content.projection.runtime import (
     context_from_environment,
     projection_configured,
     public_item_url,
+    render_preflight,
+    site_body_features,
 )
 from papyrus_content.rebuild_trigger import (
     DEFAULT_STAGING_BRANCH,
@@ -38,6 +41,10 @@ from papyrus_content.publishing import (
     save_item,
     unpublish_item,
 )
+
+
+# Save and publish validate a body with the features of the projector that renders the page.
+install_body_features(site_body_features)
 
 
 def parse_input(raw: Any) -> dict:
@@ -70,9 +77,10 @@ def failure_response(error: PublishError) -> dict:
 def derive_markus_action(arguments: dict) -> dict:
     derivation = derive_body(arguments.get("frontMatterYaml"), arguments.get("bodyMarkus") or "")
     if not derivation.ok:
-        return {"ok": False, "errors": [body_error.to_dict() for body_error in derivation.errors]}
+        return {"ok": False, "features": site_body_features().to_dict(), "errors": [body_error.to_dict() for body_error in derivation.errors]}
     response = {
         "ok": True,
+        "features": site_body_features().to_dict(),
         "bodyIrBytes": len(json.dumps(derivation.body_ir, separators=(",", ":")).encode("utf-8")),
         "errors": [],
     }
@@ -342,6 +350,7 @@ def publish_item_action(arguments: dict, actor: str, approved_by: str | None = N
     client, _claims = create_authoring_client()
     candidate = client.get_record("Item", arguments["id"]) or {}
     live = client.get_record("PublishedItem", published_item_id_for(candidate.get("lineageId") or arguments["id"]))
+    render_preflight(client, arguments["id"])   # a page the site cannot render is refused before any published data is written
     result = publish_item(client, arguments["id"], actor=actor, approved_by=approved_by)
     response = {
         "ok": True,

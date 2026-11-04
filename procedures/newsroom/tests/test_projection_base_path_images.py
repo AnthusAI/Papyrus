@@ -159,17 +159,28 @@ def test_a_second_local_run_is_identical(based):
     assert tree(based.out) == first
 
 
-def test_a_local_run_without_images_settings_writes_no_renditions(tmp_path):
+def local_run_without_pictures_on_the_page(images):
+    """A local run of a site whose content directory holds pictures but whose page uses none; ``images`` is the projection.json value (absent: ``...``)."""
     site = BasedImageSite("/articles")
     try:
         raw = settings("/articles")
         del raw["images"], raw["media"]
+        if images is not ...:
+            raw["images"] = images
         site.write_settings(raw)
         (site.content / "hello.md").write_text("---\ntitle: Hello\n---\n\nNo pictures.\n", encoding="utf-8")
         site.project_locally()
-        assert not [key for key in tree(site.out) if "assets" in key.split("/")[:2]]
+        return [key for key in tree(site.out) if "assets" in key.split("/")[:2]]
     finally:
         site.cleanup()
+
+
+def test_a_local_run_with_images_turned_off_writes_no_renditions():
+    assert local_run_without_pictures_on_the_page(False) == []
+
+
+def test_a_local_run_without_images_settings_makes_the_renditions_images_have_by_default():
+    assert any("assets/responsive" in key for key in local_run_without_pictures_on_the_page(...))
 
 
 # ------------------------------------------------------------------ the cloud path

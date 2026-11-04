@@ -472,6 +472,27 @@ Place it on any authored page (a `videos` page, a home page band, a section fron
 
 Tests: `features_backend/reference-medium.feature` (the page lists only accepted videos, newest first; the stars never appear in any file; no embeds or scripts; unknown medium is a build error) and `src/papyrus_content/projection/standard` card markup in `procedures/newsroom/tests/test_home_page_references.py`.
 
+### Images and citations
+
+Every site has `::image{...}` (responsive pictures from renditions), `[@key]` and `::citations` without declaring anything in
+`web/projection.json`. A site opts out with `"images": false` or `"citations": false`, and configures pictures by declaring
+`"images": { ... }` (`widths`, `formats`, `quality`, `layouts`, `gatsby_parity`, `listing_max_width`; Anth.us declares
+`gatsby_parity`, `placeholder` and `listing_max_width` only to match its earlier Gatsby site). With nothing declared the
+renditions are the pipeline defaults: widths 480, 768, 1024, 1366 and 1920, WebP, a 1024 px fallback, lazy loading, no
+`listing_max_width`; renditions are made at upload by the renditions function and stored under `assets/responsive/` (under
+`urls.basePath` when the site has one).
+
+What a body may contain is one value, `BodyFeatures` (`markus_renderer/body_features.py`), taken from the site projector
+(`body_features()`): images on or off, citations on or off, and whether the site has a media store. `derive_body` validates a
+body with it at save, the content-actions function installs it for every save and publish, the CLI asks the site for it
+(`deriveMarkus` answers with `features`), and the projector renders with the same settings and the same directive registry.
+A site with no media bucket (`PAPYRUS_SITE_BUCKET`) refuses `::image` at save ("no media store"). A publish also renders the
+page's body first (`render_preflight`), so a body that only the site's store can reject (renditions never made) is refused
+before published data is written.
+
+A page that uses neither feature is rendered exactly as before. Plain Markdown images are only upgraded when `images` is
+declared as an object.
+
 ### 1.11 Capabilities Papyrus provides to every site
 
 Beyond the above, the package ships **VideoML video pipeline** as a standard

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -66,6 +67,50 @@ def load_projector(environ: Mapping[str, str] | None = None, *, renditions: Any 
     if renditions is None:
         _projector_by_configuration[cache_key] = projector
     return projector
+
+
+def site_body_features(environ: Mapping[str, str] | None = None):
+    """What a body may contain on the site this environment projects (see ``markus_renderer.body_features``).
+
+    Save validates with this, so it reads the same projector, settings and media store the page is rendered with. An
+    environment that does not project, or a custom projector that does not say, gets the defaults."""
+    from ..markus_renderer.body_features import DEFAULT_FEATURES
+
+    if not projection_configured(environ):
+        return DEFAULT_FEATURES
+    features = getattr(load_projector(environ), "body_features", None)
+    return features() if callable(features) else DEFAULT_FEATURES
+
+
+def render_preflight(client, item_id: str, environ: Mapping[str, str] | None = None) -> None:
+    """Refuse a publish whose page the site could not render, before anything is written (``PublishError``, code ``page-not-renderable``).
+
+    Save checks what a body may contain (``site_body_features``); this renders the body as the projector will, which also finds
+    what only the site's store knows (a picture whose renditions were never made). Only a problem of the content stops a
+    publish; a failure of the platform here is left for the projection itself to report."""
+    if not projection_configured(environ):
+        return
+    row = client.get_record("Item", item_id)
+    fragment = getattr(load_projector(environ), "_fragment", None)
+    if row is None or not callable(fragment):
+        return
+    from ..markus_renderer.derive import compose_source
+    from ..publishing import PublishError
+    from .engine import content_error_types
+
+    front_matter = row.get("metadata")
+    if isinstance(front_matter, str):
+        try:
+            front_matter = json.loads(front_matter)
+        except ValueError:
+            front_matter = {}
+    text = compose_source((front_matter or {}).get("frontMatterYaml"), row.get("bodyMarkus") or "")
+    try:
+        fragment(text, 1)
+    except content_error_types() as error:
+        raise PublishError(
+            "page-not-renderable", f"The page cannot be rendered, so nothing was published: {type(error).__name__}: {error}"
+        ) from error
 
 
 def invalidation_enabled(environment: Mapping[str, str]) -> bool:

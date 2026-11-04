@@ -179,6 +179,7 @@ from .corpora import (
     run_or_print_corpus_sync_plan,
 )
 from .env import PAPYRUS_ROOT, graphql_endpoint, load_dotenv, storage_bucket_from_amplify_outputs
+from .cli_body_features import install as install_cli_body_features, uninstall as uninstall_cli_body_features
 from .site_selection import install as install_site_selection, uninstall as uninstall_site_selection, unsupported_command
 from .graphql_authoring import create_authoring_client
 from .ids import knowledge_corpus_id
@@ -523,9 +524,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     install_site_selection()
+    install_cli_body_features()
     try:
         return run_with_operator_error_handling(run_dispatch)
     finally:
+        uninstall_cli_body_features()
         uninstall_site_selection()
 
 
