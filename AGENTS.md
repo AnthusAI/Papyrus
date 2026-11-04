@@ -109,6 +109,15 @@ npm run dev:127            # real backend via amplify_outputs.json: http://127.0
 
 If the user is already running the dev server on 3001, use it and do not restart it.
 
+**Review over the network.** The dev server runs on the M1 Mac, and Ryan usually reviews from an iPad or another computer, so it must be reachable from the local network. Bind all interfaces and give the Mac's LAN address, never `localhost`:
+
+```bash
+PAPYRUS_PREVIEW_HOSTNAME=0.0.0.0 npm run dev:preview   # then http://<LAN address>:3002/newsroom/work
+ipconfig getifaddr en0                                  # the LAN address
+```
+
+Do not write the actual address in the repository. Next 15.5 only warns about `allowedDevOrigins` for such requests; a future major version will require it, so add it then (no config change today).
+
 ### Bump the Papyrus pin in a site
 
 After a release is published (`npm view @anthusai/papyrus dist-tags`), edit the same exact version in four files of the site repository, in one pull request to the site's `develop`:
