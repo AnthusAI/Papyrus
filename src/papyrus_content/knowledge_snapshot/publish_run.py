@@ -25,6 +25,7 @@ from ..categories_commands import with_version_fields
 from ..categories_steering import semantic_relation_record
 from ..ids import safe_id
 from ..relation_types import normalize_relation_type_key
+from ..semantic_node_writes import acceptance_mark_patch, acceptance_patch, create_only_record
 from .actors import ACTOR_AI, Actor, ReviewMarks, decode_review
 from .cluster_records import CLUSTER_KIND, cluster_proposal_id, proposal_record
 from .keys import contains_email, entity_key, kind_key, normalize_name
@@ -236,7 +237,7 @@ def plan_front_matter(
                 node = new_node_row(
                     entity.kind, entity.name, STATUS_ACCEPTED, import_run_id=FRONT_MATTER_IMPORT_RUN, corpus_id=corpus_id, now=now, reason=reason
                 )
-                plan.records.append({"modelName": "SemanticNode", "expected": node})
+                plan.records.append(create_only_record(node))
                 plan.count("nodesCreated")
                 index.add(node)
             elif node.get("status") == STATUS_REJECTED:
@@ -244,15 +245,13 @@ def plan_front_matter(
                 plan.count("linksSkippedRejected")
                 continue
             elif node.get("status") == STATUS_GENERATED:
+                plan.patches.append(acceptance_patch(node, reason=reason, now=now))
                 node["status"] = STATUS_ACCEPTED
                 node["changeReason"] = reason
-                plan.patches.append(
-                    {"modelName": "SemanticNode", "expected": {"id": node["id"], "status": STATUS_ACCEPTED, "changeReason": reason, "updatedAt": now}}
-                )
                 plan.count("nodesAccepted")
             elif node.get("importRunId") == FRONT_MATTER_IMPORT_RUN and decode_review(node.get("changeReason")).accepted_by is None:
                 node["changeReason"] = reason
-                plan.patches.append({"modelName": "SemanticNode", "expected": {"id": node["id"], "changeReason": reason, "updatedAt": now}})
+                plan.patches.append(acceptance_mark_patch(node, reason=reason, now=now))
                 plan.count("nodesAcceptanceRecorded")
             pair = (item.key, node["lineageId"])
             if pair in desired:
@@ -343,7 +342,7 @@ def plan_extractor(
                 node = new_node_row(
                     entity.kind, entity.text, STATUS_GENERATED, import_run_id=import_run_id, corpus_id=corpus_id, now=now, reason=f"typed-entities:{run_id}"
                 )
-                plan.records.append({"modelName": "SemanticNode", "expected": node, "createOnly": True})
+                plan.records.append(create_only_record(node))
                 plan.count("nodesGenerated")
                 index.add(node)
             elif node.get("status") == STATUS_REJECTED:

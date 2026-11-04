@@ -182,6 +182,20 @@ A process that cannot fill a line says so in that line.
 - **Measured.** The run's own counts against the site's history. A quality measure of the topics themselves: **no spec**.
 - **Gherkin.** `knowledge-cloud-run`, `knowledge-run-any-site`, `knowledge-run-cost`, `knowledge-run-preview`, `knowledge-run-undo`, `knowledge-archive`, `knowledge-polish`, `knowledge-run-monitor-stories`. Details: [knowledge-cloud-run.md](knowledge-cloud-run.md), [knowledge-workstation-run.md](knowledge-workstation-run.md).
 
+### 12. Concept writes (get or create)
+
+- **Trigger.** Any automated writer of a concept (`SemanticNode`): a knowledge run, a graph import, ontology authority recomputation, the monitor import, an author concept made from a Reference's text.
+- **Inputs.** The concept the writer wants and the concepts that exist.
+- **Decision.** Match by kind and a case and white-space insensitive name or alias. Missing: create it. Present: leave it alone and write only the associations. Rejected: do not revive or link it.
+- **May write.** New concepts (create-only); a partial update of the derived numbers (`authorityScore`, `authorityRank`, `acceptedReferenceMentionCount`, `distinctSourceKindCount`, `relationCount`, `updatedAt`); the three named exceptions: `generated` to `accepted` on a published Story's front matter or a monitor record, and the acceptance mark on a concept the front-matter path created.
+- **Must never.** Change a name, description, alias, kind, key or status of an existing concept; supersede a concept; revive a rejected one.
+- **Seen and reversed.** In the wiki and the entity review; a person's edit is never undone by a run.
+- **Records.** The import run id and change reason on a created concept.
+- **Fails.** Closed: a create that conflicts with an existing concept is a no-op, never an update.
+- **Cost and bound.** One read of the concepts per run.
+- **Measured.** A guard test fails when a module outside the allowed list writes a concept that is not create-only.
+- **Gherkin.** `knowledge-run-concepts`. Code: `src/papyrus_content/semantic_node_writes.py`.
+
 ## Restoring newsroom data
 
 Every Amplify Data table (references, messages, votes, curation decisions and the rest) has DynamoDB point-in-time recovery on, for every site, with no site setting (PPY-39a16b). It is set in `amplify/site-backend.ts` and reaches a site with that site's next deploy.

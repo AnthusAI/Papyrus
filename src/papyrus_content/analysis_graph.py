@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import gzip
 import json
+from collections.abc import Iterable
 from typing import Any
 
-from .categories_commands import is_current_accepted_reference, with_version_fields
+from .categories_commands import is_current_accepted_reference
 from .categories_steering import semantic_state_key
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 from .ids import hash_short, safe_id
 from .model_attachments import download_attachment_buffer, model_attachment_id
 from .records import build_record_change_from_current, build_record_changes_tolerating_optional_models
+from .knowledge_snapshot.keys import entity_key
+from .knowledge_snapshot.publish_run import STATUS_GENERATED, STATUS_REJECTED, NodeIndex, new_node_row
 from .relation_types import load_semantic_relation_type_seeds, normalize_relation_type_key, semantic_relation_type_fields_for_predicate
+from .semantic_node_writes import create_only_record
 
 
 def graph_export_summary_payload_id(import_run_id: str) -> str:
@@ -215,13 +219,16 @@ def build_graph_export_import_records(
     classifier_id: str | None,
     imported_at: str,
     reference_by_external_item_id: dict[str, dict[str, Any]],
+    existing_nodes: Iterable[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     identity = _graph_export_identity(payload, corpus_id)
+    node_index = NodeIndex(existing_nodes)
     nodes = payload.get("nodes") if isinstance(payload.get("nodes"), list) else []
     edges = payload.get("edges") if isinstance(payload.get("edges"), list) else []
     records: list[dict[str, Any]] = []
     materialized_node_by_graph_node_id: dict[str, dict[str, Any]] = {}
     skipped_reference_anchors = 0
+    skipped_rejected_nodes = 0
 
     for node in nodes:
         node_id = _clean_string(node.get("node_id"))
@@ -232,35 +239,34 @@ def build_graph_export_import_records(
             continue
         if node_id in materialized_node_by_graph_node_id:
             continue
-        lineage_id = (
-            f"semantic-node-graph-{safe_id(corpus_id)}-{safe_id(identity['extractorId'])}-"
-            f"{safe_id(identity['snapshotId'])}-{hash_short(node_id)}"
-        )
-        semantic_node = with_version_fields(
-            {
-                "id": f"{lineage_id}-v1",
-                "lineageId": lineage_id,
-                "nodeKey": f"{identity['extractorId']}:{identity['snapshotId']}:{node_id}",
-                "nodeKind": _normalize_graph_node_kind(node.get("node_type")),
-                "corpusId": corpus_id,
-                "categorySetId": None,
-                "categoryLineageId": None,
-                "categoryKey": None,
-                "displayName": _clean_string(node.get("label")) or node_id,
-                "description": _graph_node_description(node),
-                "aliases": _graph_node_aliases(node),
-                "status": "generated",
-                "importRunId": identity["importRunId"],
-                "createdAt": imported_at,
-                "newsroomFeedKey": "semanticNodes",
-                "updatedAt": imported_at,
-            },
+        kind = _normalize_graph_node_kind(node.get("node_type"))
+        name = _clean_string(node.get("label")) or node_id
+        aliases = _graph_node_aliases(node)
+        matched = next((row for row in (node_index.resolve(kind, candidate) for candidate in [name, *aliases]) if row is not None), None)
+        if matched is not None:
+            if matched.get("status") == STATUS_REJECTED:
+                skipped_rejected_nodes += 1
+                continue
+            materialized_node_by_graph_node_id[node_id] = matched
+            continue
+        if not entity_key(kind, name):
+            name = node_id
+        if not entity_key(kind, name):
+            continue
+        semantic_node = new_node_row(
+            kind,
+            name,
+            STATUS_GENERATED,
+            import_run_id=identity["importRunId"],
+            corpus_id=corpus_id,
             now=imported_at,
-            actor="biblicus-graph-export",
             reason=f"graph-import:{identity['snapshotRef']}",
         )
+        semantic_node["description"] = _graph_node_description(node)
+        semantic_node["aliases"] = aliases
+        node_index.add(semantic_node)
         materialized_node_by_graph_node_id[node_id] = semantic_node
-        records.append({"modelName": "SemanticNode", "expected": semantic_node})
+        records.append(create_only_record(semantic_node))
 
     relation_records = _build_graph_export_relation_records(
         edges=edges,
@@ -346,6 +352,7 @@ def build_graph_export_import_records(
         "unresolvedReferenceItemIds": relation_records["unresolvedReferenceItemIds"],
         "mentionEdgeCount": relation_records["mentionEdgeCount"],
         "mentionRelationCount": relation_records["mentionRelationCount"],
+        "skippedRejectedNodes": skipped_rejected_nodes,
     }
 
 
@@ -367,30 +374,12 @@ def build_generated_graph_supersession_changes(
         for run in client.list_knowledge_import_runs_by_corpus_kind_and_imported_at(f"{corpus_id}#graph-export")
         if run.get("id") != import_run_id and str(run.get("id") or "").startswith(prefix)
     ]
-    nodes = [
-        node
-        for run in graph_runs
-        for node in client.list_semantic_nodes_by_import_run_and_node_key(run["id"])
-    ]
     relations = [
         relation
         for run in graph_runs
         for relation in client.list_semantic_relations_by_import_run_and_imported_at(run["id"])
     ]
     changes: list[dict[str, Any]] = []
-    for node in nodes:
-        if node.get("importRunId") == import_run_id or not str(node.get("importRunId") or "").startswith(prefix):
-            continue
-        if node.get("versionState") != "current":
-            continue
-        expected = {
-            **node,
-            "versionState": "superseded",
-            "status": "superseded",
-            "changeReason": f"superseded-by-graph-import:{import_run_id}",
-            "updatedAt": now,
-        }
-        changes.append(build_record_change_from_current("SemanticNode", expected, node))
     for relation in relations:
         if relation.get("importRunId") == import_run_id or not str(relation.get("importRunId") or "").startswith(prefix):
             continue
@@ -429,6 +418,7 @@ def plan_graph_artifact_import(
         classifier_id=import_run.get("classifierId"),
         imported_at=imported_at,
         reference_by_external_item_id=reference_by_external_item_id,
+        existing_nodes=client.list_records("SemanticNode"),
     )
     if plan["importRunId"] != import_run["id"]:
         raise ValueError(
@@ -466,6 +456,12 @@ def plan_graph_artifact_import(
             }
             for record in plan["records"]
         ]
+    for change in import_changes:
+        if change["modelName"] != "SemanticNode":
+            continue
+        change["createOnly"] = True
+        if change["action"] == "update":
+            change.update(action="noop", expected=change["current"])
     return {
         "importRun": import_run,
         "attachment": attachment,
