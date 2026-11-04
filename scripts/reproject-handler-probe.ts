@@ -12,10 +12,10 @@ class LambdaClient {
   }
 }
 class InvokeCommand {}
-const module = { exports: {} as Record<string, any> };
+const cjsModule = { exports: {} as Record<string, any> };
 const sandbox = {
-  module,
-  exports: module.exports,
+  module: cjsModule,
+  exports: cjsModule.exports,
   console: { log() {} },
   Buffer,
   require: (name: string) => {
@@ -26,7 +26,7 @@ const sandbox = {
 vm.runInNewContext(DEPLOY_RENDER_HANDLER_SOURCE, sandbox);
 (async () => {
   try {
-    const result = await module.exports.handler(input.event);
+    const result = await cjsModule.exports.handler(input.event);
     console.log(JSON.stringify({ ok: true, result, invoked }));
   } catch (error) {
     console.log(JSON.stringify({ ok: false, error: String((error as Error).message), invoked }));
