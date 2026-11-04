@@ -24,6 +24,7 @@ import {
   revalidateInvalidationStatement,
   validateRevalidateDistributionIds,
 } from "./revalidate-invalidation-settings";
+import { enablePointInTimeRecoveryOnDataTables } from "./data-table-recovery";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, trustClientOnIdentityPool } from "./auth/prospectus-google-client";
@@ -155,6 +156,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     slackDelivery,
     storage,
   });
+
+  enablePointInTimeRecoveryOnDataTables(backend.data.resources.cfnResources.amplifyDynamoDbTables);
 
   if (authConfig.disableGoogleOAuth !== true) {
     applyGoogleEmailVerifiedMapping(backend.auth.stack);
