@@ -175,7 +175,7 @@ def _add(client: Any, section: dict[str, Any], options: dict[str, Any], apply: b
     made = False
     if node is None:
         invented = build_editor_concept_node(text, COMMAND_ACTOR, now) if concept_slug(text) else None
-        existing = nodes_by_lineage(nodes).get(invented["lineageId"]) if invented else None
+        existing = resolve_concept(nodes, text, allow_rejected=True) or (nodes_by_lineage(nodes).get(invented["lineageId"]) if invented else None)
         if existing is not None:
             raise ValueError(f"The concept {concept_label(existing)!r} was rejected, so a section cannot track it.")
         if not create or invented is None:
