@@ -81,6 +81,8 @@ agent unless the machine has no keyring either: see
 
 ## Remote sign-in from another device
 
+This is the usual way to connect a reporting agent: the agent runs on a cloud computer, and you approve from your phone or another device of your own. The console's **Connect the CLI or an agent** page gives the command for the site.
+
 An agent on a cloud machine has no browser and should hold no long-lived keys. It runs
 
 ```sh

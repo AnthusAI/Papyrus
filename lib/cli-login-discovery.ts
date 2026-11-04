@@ -101,16 +101,26 @@ function loginOrigin(siteOrigin: string, environment: Record<string, string | un
   return consoleOrigin === "" ? siteOrigin : consoleOrigin;
 }
 
+/**
+ * The values the file publishes, or null when this site does not register the CLI callback. Throws
+ * SiteOriginNotConfiguredError when the site cannot tell its own origin. The file's route and the console's
+ * "connect the CLI" page both call this, so the page can only ever show what the file says.
+ */
+export function readCliLoginDocument(request: Pick<NextRequest, "nextUrl">, options: CliLoginDiscoveryOptions = {}): CliLoginDocument | null {
+  const environment = options.environment ?? process.env;
+  const origin = publicSiteOrigin(request, environment);
+  const outputs = (options.readOutputs ?? (() => readAmplifyOutputsFile() as AmplifyOutputsForCliLogin | null))();
+  return cliLoginDocumentFromOutputs(outputs, loginOrigin(origin, environment));
+}
+
 export function handleCliLoginDiscovery(request: Pick<NextRequest, "nextUrl">, options: CliLoginDiscoveryOptions = {}): NextResponse {
-  let origin: string;
+  let document: CliLoginDocument | null;
   try {
-    origin = publicSiteOrigin(request, options.environment ?? process.env);
+    document = readCliLoginDocument(request, options);
   } catch (error) {
     if (error instanceof SiteOriginNotConfiguredError) return siteOriginNotConfiguredResponse(error);
     throw error;
   }
-  const outputs = (options.readOutputs ?? (() => readAmplifyOutputsFile() as AmplifyOutputsForCliLogin | null))();
-  const document = cliLoginDocumentFromOutputs(outputs, loginOrigin(origin, options.environment ?? process.env));
   if (!document) {
     return NextResponse.json(
       { error: "cli_login_not_configured", message: "This site does not register the CLI sign-in callback." },
