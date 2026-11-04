@@ -159,6 +159,8 @@ export async function uploadArticleImage(
   const bytes = await input.file.arrayBuffer();
   const sha256 = await sha256Hex(bytes);
   const dimensions = await readDimensions(input.file, input.file.name);
+  // The key is always media/<srcPath>, on every site: the renditions are made from it and read back by srcPath
+  // (renditions.media_key_for_source in the CLI makes the same key; docs/multi-tenancy.md).
   const storagePath = `media/${srcPath}`;
   await backend.uploadImage({ storagePath, data: input.file, contentType });
   await backend.createMediaAsset({

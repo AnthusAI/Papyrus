@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -14,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from papyrus_content import story_images
 from papyrus_content.markus_import import media_id_for
+from papyrus_content.renditions import media_key_for_source
 from papyrus_content.story_images import MAX_IMAGE_BYTES, plan_story_images, src_path_for
 
 
@@ -159,10 +161,13 @@ def test_images_must_be_a_directory(tmp_path):
         plan_story_images("x", tmp_path / "missing", slug="s")
 
 
-def test_tenant_stored_media_path(tmp_path):
+def test_the_key_never_carries_a_tenant(tmp_path):
+    """The key is media/<srcPath> on every site: the renditions are made and looked up by srcPath alone (PPY-a96347)."""
     png(tmp_path / "c.png")
-    plan = plan_story_images('::image{src="c.png"}', tmp_path, slug="s", tenant_id="tenant-a")
-    assert plan.images[0].storage_path.endswith("assets/s/c.png") and plan.images[0].storage_path != "media/assets/s/c.png"
+    plan = plan_story_images('::image{src="c.png"}', tmp_path, slug="s")
+    assert plan.images[0].storage_path == "media/assets/s/c.png"
+    assert plan.images[0].storage_path == media_key_for_source(plan.images[0].src_path)
+    assert "tenant_id" not in inspect.signature(plan_story_images).parameters
 
 
 # -- lanes ---------------------------------------------------------------------------------------------------------

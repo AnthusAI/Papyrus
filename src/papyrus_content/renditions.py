@@ -115,6 +115,17 @@ def settings_from_static_directory(static_directory: Path | None) -> RenditionSe
     return images_from_projection(raw)
 
 
+def media_key_for_source(source: str) -> str:
+    """The one place a picture's S3 key is made from its ``srcPath`` (the inverse of ``source_from_media_key``).
+
+    A story picture's ``srcPath`` (``assets/<slug>/<file>``) is what its body says, what its ``MediaAsset`` row records, and the
+    source the renditions are made and looked up under. Its object is always ``media/<srcPath>``: the newsroom editor, ``stories
+    save-version --images`` and the renditions function all agree on that, with no tenant in the key. A tenant is told apart by its
+    rows (``tenantId``) and by its backend and site bucket, never by the key, because the renditions are read by ``srcPath`` alone.
+    """
+    return MEDIA_KEY_PREFIX + assert_safe_asset_src(source)
+
+
 def source_from_media_key(media_key: str) -> str | None:
     if not media_key.startswith(MEDIA_KEY_PREFIX) or media_key.endswith("/"):
         return None
@@ -427,8 +438,9 @@ class RenditionCatalog:
             raise MissingRenditionsError(
                 f"Renditions for image {source!r} are missing: "
                 f"{getattr(self._store, 'prefix', '')}{meta_key(self._pipeline, source)} is not in the site store. "
-                f"They are made when the image is uploaded to {MEDIA_KEY_PREFIX}{source}. "
-                f"Request them with: papyrus ops content renditions --source {source}"
+                f"They are made when the image is uploaded to {media_key_for_source(source)}, so that object has to exist. "
+                f"Request them with: papyrus ops content renditions --source {source} "
+                "(signed in, no AWS login is needed; if there is no object at that key it says so, and where the object is and which command moves it)"
             )
         return record
 
