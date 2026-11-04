@@ -94,7 +94,7 @@ from .relation_review import (
     review_state,
 )
 from .corpus_export import DEFAULT_TYPES, biblicus_item_id, export_items, render_record, write_export
-from .candidate_filter import CandidateFilter, load_stop_words, vocabulary_kinds
+from .candidate_filter import CandidateFilter, load_stop_words, rejected_keys, vocabulary_kinds
 from .reference_documents import (
     S3TextStore,
     load_accepted_reference_documents,
@@ -279,15 +279,20 @@ def _path_option(options: dict[str, Any], name: str) -> Path | None:
     return Path(value) if value else None
 
 
-def _candidate_filter(run: Any, options: dict[str, Any]) -> CandidateFilter | None:
-    """The filter of the extractor's candidates (``candidate_filter.py``): built from the site's stop words and vocabulary, and learned from the
-    run's own extraction. Without ``--stop-words`` and ``--vocabulary`` there is none and every candidate goes on as before."""
-    stop_words_file, vocabulary_file = _path_option(options, "stop-words"), _path_option(options, "vocabulary")
-    if run is None or not run.entities or (stop_words_file is None and vocabulary_file is None):
+def _candidate_filter(run: Any, options: dict[str, Any], node_rows: list[dict]) -> CandidateFilter | None:
+    """The filter of the extractor's candidates (``candidate_filter.py``). With ``--stop-words`` or ``--vocabulary`` it is built from the site's
+    files and learned from the run's own extraction; without them only the rejected names are filtered, as before."""
+    if run is None or not run.entities:
         return None
-    stop_words = load_stop_words(stop_words_file if stop_words_file and stop_words_file.exists() else None)
-    kinds = vocabulary_kinds(vocabulary_file.read_text(encoding="utf-8")) if vocabulary_file else None
-    return CandidateFilter.learn(run.entities, stop_words=stop_words, kinds=kinds)
+    stop_words_file, vocabulary_file = _path_option(options, "stop-words"), _path_option(options, "vocabulary")
+    if stop_words_file is None and vocabulary_file is None:
+        candidate_filter = CandidateFilter()
+    else:
+        stop_words = load_stop_words(stop_words_file if stop_words_file and stop_words_file.exists() else None)
+        kinds = vocabulary_kinds(vocabulary_file.read_text(encoding="utf-8")) if vocabulary_file else None
+        candidate_filter = CandidateFilter.learn(run.entities, stop_words=stop_words, kinds=kinds)
+    candidate_filter.rejected = rejected_keys(node_rows)
+    return candidate_filter
 
 
 def knowledge_publish_run(flags: list[str]) -> None:
@@ -337,7 +342,7 @@ def knowledge_publish_run(flags: list[str]) -> None:
         reference_documents=[document.as_item() for document in documents],
         record_rows_for=read_record_rows,
         ledger=ledger,
-        candidate_filter=_candidate_filter(run, options),
+        candidate_filter=_candidate_filter(run, options, node_rows),
     )
     changes = plan_changes(client, plan, workers=workers, client_factory=worker_clients(client), known_rows=[*mention_rows, *record_rows_read])
     _print_plan("publish-run", plan, changes, apply, bool(options.get("json")))
