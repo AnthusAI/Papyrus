@@ -459,6 +459,12 @@ def step_reference_documents(context, bucket, extractor):
     start(context, context.execution, context.extra)
 
 
+@given("the site asks for its accepted References as the Reference documents")
+def step_accepted_reference_documents(context):
+    context.extra = {"KNOWLEDGE_REFERENCE_DOCUMENTS_ACCEPTED": "true"}
+    start(context, context.execution, context.extra)
+
+
 @given('the site sets the monitor sources "{sources}" for {weeks:d} weeks and the Reference documents bucket "{bucket}"')
 def step_both_sources(context, sources, weeks, bucket):
     context.extra = {"KNOWLEDGE_MONITOR_SOURCES": sources, "KNOWLEDGE_MONITOR_WEEKS": str(weeks), "KNOWLEDGE_REFERENCE_DOCUMENTS_BUCKET": bucket}

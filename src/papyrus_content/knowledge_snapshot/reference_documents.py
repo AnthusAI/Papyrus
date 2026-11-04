@@ -9,6 +9,10 @@ and is never a document; a **Reference document** is a Reference that has extrac
   that has a non-empty text. A Reference with no text (a citation-graph stub: a title and nothing else) is not a document.
 * **Incremental.** The file records the S3 ETag of the text it was made from (``source_etag``). The corpus (with ``raw/papyrus``) is kept in
   the state bucket between runs, so a text whose ETag is unchanged is not downloaded again.
+* ``--reference-documents-accepted`` is the other selection (``docs/knowledge-cloud-run.md``, "Accepted References as documents"): every **accepted**
+  current Reference of the corpus is a document whatever monitor delivered it, and its text is the ``curation-text`` payload (the editor's
+  corrected text when there is one), not a file under ``corpora/``. Pending and rejected References are never documents in this mode, a
+  Reference with no text is reported by id and reason, and zero documents is an error that writes and removes nothing.
 * ``--reference-documents-out FILE`` keeps the documents (id, lineage id, title, address, source date) for the later stages, which read it with
   ``--reference-documents``: ``publish-run`` turns the Biblicus ids back into Reference ids and links extracted entities from the Reference
   (``subjectKind`` ``reference``); the snapshot, the archive and the wiki count the Reference as a dated item that cites its address.
@@ -25,7 +29,9 @@ from typing import Any, Protocol
 import yaml
 
 from ..ids import deterministic_uuid
-from ..reference_policy import normalize_policy_token
+from ..model_attachments import download_attachment_buffer, model_attachment_id
+from ..reference_curation_store import BODY_ROLE, TEXT_SORT_KEY, read_card
+from ..reference_policy import normalize_policy_token, normalize_reference_curation_status
 from .corpus_export import REFERENCE_MARKER, ExportedItem
 from .model import KIND_REFERENCE_DOCUMENT, PublishedItem
 from .monitor_records import EXCLUDED_STATES, discovery_monitor_id
@@ -163,6 +169,7 @@ def render_reference_document(document: ReferenceDocument, body: str) -> Exporte
 
 def export_reference_documents(
     documents: Iterable[ReferenceDocument], store: TextStore, out: Path, *, on_progress: Callable[[int, int], None] | None = None,
+    skipped: list[str] | None = None,
 ) -> tuple[list[ExportedItem], dict[str, int]]:
     """One corpus file per document. A text whose ETag the file in ``out`` already records is read from that file, not downloaded again;
     a text that is empty is not a document."""
@@ -182,6 +189,8 @@ def export_reference_documents(
             counts["downloaded"] += 1
         if not body.strip():
             counts["empty"] += 1
+            if skipped is not None:
+                skipped.append(document.reference_id)
             continue
         files.append(render_reference_document(document, _strip_heading(body, document.title)))
         if on_progress is not None and number % 250 == 0:
@@ -195,9 +204,12 @@ def _strip_heading(body: str, title: str) -> str:
     return body[len(heading):] if title and body.startswith(heading) else body
 
 
-def write_documents_file(path: Path, documents: list[ReferenceDocument]) -> None:
+def write_documents_file(path: Path, documents: list[ReferenceDocument], without_text: list[dict[str, str]] | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"schemaVersion": SCHEMA_VERSION, "referenceDocuments": [d.to_dict() for d in documents]}, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    payload: dict[str, Any] = {"schemaVersion": SCHEMA_VERSION, "referenceDocuments": [d.to_dict() for d in documents]}
+    if without_text is not None:
+        payload["withoutText"] = without_text
+    path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def read_documents_file(path: Path | str) -> list[ReferenceDocument]:
@@ -215,3 +227,78 @@ def read_documents_file(path: Path | str) -> list[ReferenceDocument]:
         raise ValueError(f"Cannot read --reference-documents {path}: {error.strerror or error}") from error
     except (ValueError, KeyError, TypeError) as error:
         raise ValueError(f"{path} is not a reference documents file: {error}") from error
+
+
+CURATION_TEXT_MISSING = "no curation text attachment (the capture never stored a text)"
+CURATION_TEXT_EMPTY = "the curation text is empty"
+CURATION_TEXT_UNREADABLE = "the curation text could not be read"
+
+
+def is_accepted_current(row: Mapping[str, Any]) -> bool:
+    return row.get("versionState") in (None, "current") and normalize_reference_curation_status(row.get("curationStatus")) == "accepted"
+
+
+class CurationTextStore:
+    """The curation text of accepted References: the ``ModelAttachment`` (role ``metadata``, sort key ``curation-text``, or the editor's
+    corrected text the curation card names) owned by the Reference version. It is a ``TextStore``: the attachment's SHA-256 is the version of
+    the text, so a text that did not change is not downloaded again."""
+
+    def __init__(self, client: Any, references: Iterable[Mapping[str, Any]], download: Callable[[Any, dict], bytes | None] | None = None) -> None:
+        self.client = client
+        self.references = list(references)
+        self._download = download
+        self._attachments: dict[str, dict] = {}
+        self.unreadable: dict[str, str] = {}
+        self.texts: dict[str, ReferenceText] = {}
+
+    def _sort_keys(self, reference: Mapping[str, Any]) -> list[str]:
+        card = read_card(self.client, dict(reference)) or {}
+        edited = (card.get("current") or {}).get("textSortKey")
+        return [edited, TEXT_SORT_KEY] if edited and edited != TEXT_SORT_KEY else [TEXT_SORT_KEY]
+
+    def list_texts(self) -> dict[str, ReferenceText]:
+        found: dict[str, ReferenceText] = {}
+        for reference in self.references:
+            for sort_key in self._sort_keys(reference):
+                attachment = self.client.get_record("ModelAttachment", model_attachment_id("reference", str(reference["id"]), BODY_ROLE, sort_key))
+                if attachment and attachment.get("storagePath"):
+                    self._attachments[attachment["id"]] = attachment
+                    found[str(reference["id"])] = ReferenceText(attachment["id"], str(attachment.get("sha256") or ""))
+                    break
+        self.texts = found
+        return found
+
+    def read(self, text: ReferenceText) -> str:
+        try:
+            body = (self._download or download_attachment_buffer)(self.client, self._attachments[text.key])
+        except Exception as error:  # noqa: BLE001 - one unreadable text is reported and kept as it was, it does not fail the export
+            self.unreadable[text.key] = f"{CURATION_TEXT_UNREADABLE} ({type(error).__name__})"
+            return ""
+        return (body or b"").decode("utf-8", errors="replace")
+
+    def reason_not_a_document(self, reference_id: str) -> str:
+        """Why a Reference that has a text attachment still produced no document."""
+        text = self.texts.get(reference_id)
+        return (self.unreadable.get(text.key) if text else None) or CURATION_TEXT_EMPTY
+
+
+def load_accepted_reference_documents(client: Any, *, corpus_id: str, store: CurationTextStore | None = None, download: Callable | None = None) -> tuple[list[ReferenceDocument], list[dict[str, str]], CurationTextStore]:
+    """Every accepted, current Reference of the corpus that has a curation text, whatever monitor delivered it, ordered by id; the ones with no
+    text as ``{"referenceId", "reason"}``; the store to read the texts from and its listing."""
+    accepted = [row for row in client.list_records("Reference") if row.get("corpusId") == corpus_id and is_accepted_current(row)]
+    store = store or CurationTextStore(client, accepted, **({"download": download} if download else {}))
+    texts = store.list_texts()
+    documents: list[ReferenceDocument] = []
+    without_text: list[dict[str, str]] = []
+    for row in sorted(accepted, key=lambda row: str(row["id"])):
+        text = texts.get(str(row["id"]))
+        if text is None:
+            without_text.append({"referenceId": str(row["id"]), "reason": CURATION_TEXT_MISSING})
+            continue
+        url = str(row.get("sourceUri") or "")
+        try:
+            published = iso_timestamp(str(row["sourcePublishedAt"])) if row.get("sourcePublishedAt") else None
+        except (TypeError, ValueError):
+            published = None
+        documents.append(ReferenceDocument(str(row["id"]), str(row.get("lineageId") or row["id"]), str(row.get("title") or url or row["id"]).strip(), url, published, text))
+    return documents, without_text, store

@@ -182,7 +182,7 @@ class Run:
 
     def reference_options(self) -> list[str]:
         """``--reference-documents FILE`` for a command that links or counts the Reference documents, or nothing when the site has none."""
-        return ["--reference-documents", str(self.reference_documents)] if self.config.reference_documents_bucket else []
+        return ["--reference-documents", str(self.reference_documents)] if self.config.reference_documents_on else []
 
     def import_options(self) -> list[str]:
         """The monitor options of the commands that import the records: the records, the ledger that lets a run skip what it wrote before, and
@@ -193,7 +193,7 @@ class Run:
 
     def prepare_site(self) -> None:
         """The site checkout plus the plugin check, for every stage that writes to the site."""
-        self.pull(site=True, run=bool(self.config.monitor_sources or self.config.reference_documents_bucket))
+        self.pull(site=True, run=bool(self.config.monitor_sources or self.config.reference_documents_on))
         self.verify_plugins()
 
     def nothing_to_do(self, *, needs_documents: bool = False) -> dict | None:
@@ -358,7 +358,12 @@ def corpus_sync(run: Run) -> dict:
             *(["--monitor-weeks", str(run.config.monitor_weeks)] if run.config.monitor_weeks is not None else []),  # optional; absent means all history
             "--corpus-key", run.config.corpus_key, "--as-of", run.config.monday.isoformat(), "--monitor-records-out", str(run.monitor_records),
         ]
-    if run.config.reference_documents_bucket:  # the corpus's References with extracted text are documents too (records stay data)
+    if run.config.reference_documents_accepted:  # the accepted References are the documents, whatever monitor delivered them; zero of them fails the stage
+        export += [
+            *([] if run.config.monitor_sources else ["--corpus-key", run.config.corpus_key]),
+            "--reference-documents-accepted", "--reference-documents-out", str(run.reference_documents),
+        ]
+    elif run.config.reference_documents_bucket:  # the corpus's References with extracted text are documents too (records stay data)
         export += [
             *([] if run.config.monitor_sources else ["--corpus-key", run.config.corpus_key]),  # one key for both
             "--reference-documents-bucket", run.config.reference_documents_bucket,
@@ -643,7 +648,7 @@ def wiki_sync(run: Run) -> dict:
     written, and ``projection`` skips this execution. The next run plans again and goes through once a person accepted a plan like it."""
     if (idle := run.nothing_to_do()) is not None:
         return idle
-    run.pull(site=True, run=bool(run.config.monitor_sources or run.config.reference_documents_bucket))
+    run.pull(site=True, run=bool(run.config.monitor_sources or run.config.reference_documents_on))
     sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options(), *run.reference_options()]
     sync += beats_options(run)
     sync += ["--vocabulary", str(run.config_dir / VOCABULARY_FILE), "--retire", "--run-id", run.config.run_id]  # pages of kinds the vocabulary does not declare come down; each page records the run
