@@ -735,7 +735,7 @@ def test_delivery_carries_the_models_structured_fields_into_the_provenance(monke
     captured, real_intake = {}, monitoring_intake.ReferenceIntake
 
     class RecordingIntake:
-        def __init__(self, client, monitor, *, auth_mode):
+        def __init__(self, client, monitor, *, auth_mode, **options):
             captured["monitor"] = monitor
 
         def __call__(self, item, provenance):
