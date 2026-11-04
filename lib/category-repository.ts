@@ -140,6 +140,8 @@ export type NewsroomSectionRecord = {
   assignmentGuidance?: string | null;
   killCriteria?: string | null;
   visualGuidance?: string | null;
+  /** The section's core concepts, as stored (a JSON string; see lib/section-concepts.ts). */
+  coreConcepts?: unknown;
   createdAt?: string | null;
   updatedAt?: string | null;
 };

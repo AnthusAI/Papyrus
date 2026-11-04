@@ -143,19 +143,21 @@ class OntologyEnrichmentTests(unittest.TestCase):
         self.assertEqual(excluded_b["relationCount"], 1)
         self.assertEqual(included_b["relationCount"], 2)
 
-    def test_build_concept_authority_records_materializes_counts_and_rank(self):
+    def test_build_concept_authority_changes_updates_only_the_derived_numbers(self):
         state = self.build_state()
         ranked = ontology.rank_concepts(state, include_profile_status=False)
         scoped = ontology.scoped_ranked_concepts(state, ranked, options={})
-        records = ontology.build_concept_authority_records(state, scoped)
-        self.assertEqual(len(records), 2)
-        first = records[0]["expected"]
+        changes = ontology.build_concept_authority_changes(state, scoped, now="2026-11-04T00:00:00Z")
+        self.assertEqual(len(changes), 2)
+        first = changes[0]["expected"]
         self.assertEqual(first["id"], "node-a")
         self.assertEqual(first["authorityRank"], 1)
         self.assertEqual(first["acceptedReferenceMentionCount"], 2)
         self.assertIn("authorityScore", first)
         self.assertIn("distinctSourceKindCount", first)
         self.assertIn("relationCount", first)
+        self.assertNotIn("displayName", first)
+        self.assertNotIn("description", first)
 
     def test_relation_status_freshness_uses_fingerprint(self):
         state = self.build_state()
