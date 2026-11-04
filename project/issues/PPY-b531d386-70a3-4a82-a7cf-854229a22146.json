@@ -3,17 +3,25 @@
   "title": "Discord connector and console setup",
   "description": "Outbound Discord delivery, plus console UI for an admin to connect a site to a Discord server. Depends on open questions 3 and 4. Creating the Discord app itself is Ryan's step.",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-7d8a36a2-ce77-450a-bf0a-03c9798a1102",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6b8d87b5-768a-4e12-baf7-59ebca8e2878",
+      "author": "home",
+      "text": "Moved to the Caducus board (AnthusAI/Caducus) as kanbus-34bdf0, Ryan 2026-11-04.",
+      "created_at": "2026-11-04T12:59:54.933329Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T12:40:34.295998Z",
-  "updated_at": "2026-11-04T12:40:34.296032Z",
-  "closed_at": null,
+  "updated_at": "2026-11-04T13:00:07.867080Z",
+  "closed_at": "2026-11-04T13:00:07.867056Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
