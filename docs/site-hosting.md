@@ -430,7 +430,7 @@ Anth.us is the live site: do its steps in the order above, with variables set an
 
 ## Deploy on merge to main
 
-A merge to `main` always deploys, with no manual step. How depends on whether the site's
+(Anchor kept for old links; the deploy is the **release**.) Merging a pull request into a site's `develop` builds nothing in Amplify; develop and verify on the local dev server. A release, which is `develop` merged into `main`, always deploys, with no manual step. Release once or twice a day; an extra release needs Ryan's say-so. How depends on whether the site's
 repository is public, because GitHub Actions minutes are free for public repositories and not
 for private ones.
 
@@ -473,7 +473,7 @@ Public sites get everything from the app shell, so a new site needs no extra inf
 Rolling out to an existing site: bump `@anthusai/papyrus` and `papyrusVersion` to the release
 that has this feature **in the same change** as the workflow. The production build runs
 `papyrus-infra deploy`, so a build on an older pin would redeploy the old template and remove
-the role. After the stack has the role, the first merge to `main` is the proof: the workflow
+the role. After the stack has the role, the first release to `main` is the proof: the workflow
 run shows the job id, and `aws amplify list-jobs` shows the merged commit id.
 
 Private sites set `"autoDeploy": false` (no role, Amplify auto-build stays on), or use
@@ -512,7 +512,7 @@ commit without a receipt.
 
 ## Which releases need a site bump
 
-Every site bump is a push to `main` and therefore a build of about ten minutes, so seven sites cost about 84 minutes per Papyrus release. Two rules keep that bounded without a numeric cap.
+Every site bump is merged to `develop` and ships in that site's release, which is a push to `main` and therefore a build of about ten minutes, so seven sites cost about 84 minutes per Papyrus release. Two rules keep that bounded without a numeric cap.
 
 1. **Classify.** The release workflow appends one line to every release's notes, `Affects sites: yes` or `Affects sites: no`, from `procedures/release/classify_release.py classify`. A release affects sites when it changes a path that ships in the npm package or the standard projector: `app/`, `components/`, `lib/`, `renderers/`, `amplify/` (not tests, fixtures or seeds), `packages/`, `infra/amplify-app-shell/`, `scripts/videoml/`, `src/papyrus_content/` and `middleware.ts`. A release that changes only the Python CLI, newsroom libraries, docs or board does not. A release with no marker is treated as affecting sites.
 2. **Batch.** A site bumps at most once per planned bump, straight to the newest release, and only when at least one release since its pin affects sites. Save `gh release list -R AnthusAI/Papyrus --json tagName,body,isPrerelease` as JSON (rename `isPrerelease` to `prerelease`), then run `python3 procedures/release/classify_release.py plan-bump --current <pinned version> --releases-json <file>`. It prints `bump_needed`, the `target` version and the site-affecting releases.
@@ -805,7 +805,7 @@ A new site therefore deploys its backend twice:
 aws amplify update-branch --app-id <appId> --branch-name main \
   --environment-variables "$(aws amplify get-branch --app-id <appId> --branch-name main \
       --query 'branch.environmentVariables' --output json | jq -c '. + {PAPYRUS_BOOTSTRAP_STAGE:"1"}')"
-# Run the build (push to main, or aws amplify start-job). When the backend deploy succeeds, remove the variable:
+# Run the build (a release to main, or aws amplify start-job). When the backend deploy succeeds, remove the variable:
 aws amplify update-branch --app-id <appId> --branch-name main \
   --environment-variables "$(aws amplify get-branch --app-id <appId> --branch-name main \
       --query 'branch.environmentVariables' --output json | jq -c 'del(.PAPYRUS_BOOTSTRAP_STAGE)')"
@@ -1036,7 +1036,7 @@ Routine habit: run the dry run after any deploy that touched `content-actions`. 
 
 #### Merge is deploy: the post-deploy render
 
-With `publication.reprojectOnDeploy: true` (the default for the publication a Markus site gets when it sets none; a site that spells `publication` out must set it), the backend deploy renders the whole site itself, so merging to `main` is the only step once the CMS Amplify app builds `main` automatically (branch `enableAutoBuild`, which the app-shell template sets and which the CMS app's `main` branch must keep). Nothing in the path needs a person's AWS access.
+With `publication.reprojectOnDeploy: true` (the default for the publication a Markus site gets when it sets none; a site that spells `publication` out must set it), the backend deploy renders the whole site itself, so the release to `main` is the only step once the CMS Amplify app builds `main` automatically (branch `enableAutoBuild`, which the app-shell template sets and which the CMS app's `main` branch must keep). Nothing in the path needs a person's AWS access.
 
 1. The deploy runs a custom resource in the site backend. It invokes the content-actions Lambda **synchronously** with the `deploy-render` projection task and waits (the function timeout is 15 minutes; a full Anth.us render took 77 seconds).
 2. `deploy-render` runs the same render as `project --all`, then runs `reconcile` as a **dry run**. Orphan pages, stale pages and missing redirects are reported and nothing is deleted: `--all` and the dry run never delete. Repair stays a deliberate `papyrus ops content project --reconcile`.

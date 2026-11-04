@@ -1,6 +1,6 @@
 # Copy to <site repo>/.github/workflows/deploy.yml (PUBLIC repositories only).
-# CI runs on every push and pull request; a green push to main starts the Amplify job for
-# that exact commit through GitHub OIDC. Replace the CI steps with the repo's own checks and <siteId> with the
+# CI runs on every push and pull request; a green push to main (a release: develop merged into main) starts the
+# Amplify job for that exact commit through GitHub OIDC. Pushes to develop run CI only and build nothing in Amplify. Replace the CI steps with the repo's own checks and <siteId> with the
 # site's id (the role is the stack output GithubDeployRoleArn).
 #
 # No AWS ids live in this file or anywhere else in the repository. Set two GitHub repository variables

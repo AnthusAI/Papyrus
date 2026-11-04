@@ -84,16 +84,18 @@ More: [verification](docs/verification.md), [Python CLI and testing](docs/python
 
 ## How a change reaches production
 
+Develop and verify on a local dev server (`npm run dev:preview`, seeded, no AWS; `npm run dev:127` for the real backend). Do not deploy to see whether something works. **Merge** means merging a pull request into `develop`, where things are reviewed. **Release** means merging `develop` into `main`, which deploys; aim for once or twice a day, and an extra release needs Ryan's say-so.
+
 1. **Branch from `origin/develop`** (`feature/PPY-xxxxxx-slug`, `fix/...`, `chore/...`, `docs/...`) and open a pull request to `develop`. Behaviour changes ship with Gherkin specs.
 2. **CI** (`tests.yml`, plus `package-smoke.yml` when packages, app or Python code changes) runs the type check, lint, the TypeScript tests, the app-shell CDK build, the Python tests and the pilot-identifier guard. Merge to `develop` with a merge commit once it is green.
 3. **A push to `develop` publishes a prerelease** `X.Y.Z-next.N` (npm dist-tag `next`, PyPI `X.Y.Z.devN`).
-4. **Promote `develop` to `main` with a pull request and a merge commit** (never a squash). A push to `main` runs `release.yml`: semantic-release (conventional commits) cuts the stable version and publishes `@anthusai/papyrus` to npm and `papyrus-newsroom` to PyPI at the same number, through trusted publishing (OIDC), with no stored tokens. `feat:` releases a minor, `fix:` a patch, `feat!:` or `BREAKING CHANGE` a major. `chore:`, `docs:`, `test:`, `refactor:` and `ci:` do not release. Versions are stamped into the staged packages and never committed back. Agents promote only when told to; see [AGENTS.md](AGENTS.md#git-workflow).
-5. **A site picks up a release by bumping its pin** by hand in four places: `package.json`, `infra/package.json`, `infra/site.json` (`papyrusVersion`) and `requirements-publication.txt` (`papyrus-newsroom[markus]==X`). Merging that to the site's `main` deploys it:
-   - **Public site repositories** run Actions CI, and a green push to `main` starts the Amplify job through GitHub OIDC (the reusable workflow `.github/workflows/amplify-deploy.yml`). Amplify auto-build is off on `main`.
-   - **Private site repositories** run all CI and CD in AWS (Amplify auto-build or CodePipeline).
-   - The deploy renders the whole site again (`reprojectOnDeploy`), so merging is the only step. Backend changes ride the same deploy.
+4. **Release: merge `develop` into `main` with a pull request and a merge commit** (never a squash). A push to `main` runs `release.yml`: semantic-release (conventional commits) cuts the stable version and publishes `@anthusai/papyrus` to npm and `papyrus-newsroom` to PyPI at the same number, through trusted publishing (OIDC), with no stored tokens. `feat:` releases a minor, `fix:` a patch, `feat!:` or `BREAKING CHANGE` a major. `chore:`, `docs:`, `test:`, `refactor:` and `ci:` do not release. Versions are stamped into the staged packages and never committed back. Agents release only when told to; see [AGENTS.md](AGENTS.md#git-workflow).
+5. **A site picks up a release by bumping its pin** by hand in four places: `package.json`, `infra/package.json`, `infra/site.json` (`papyrusVersion`) and `requirements-publication.txt` (`papyrus-newsroom[markus]==X`). The bump pull request goes to the site's `develop` and deploys nothing. It ships in that site's release, when `develop` is merged into `main`. A Papyrus release can add a GSI and a deploy can add only one per table, so a site cannot skip a release that adds one.
+   - **Public site repositories** run Actions CI on pull requests, and a green push to `main` starts the Amplify job through GitHub OIDC (the reusable workflow `.github/workflows/amplify-deploy.yml`). Amplify auto-build is off on `main`, and nothing builds on `develop`.
+   - **Private site repositories** run all CI and CD in AWS (Amplify auto-build or CodePipeline) on `main` only.
+   - The deploy renders the whole site again (`reprojectOnDeploy`), so the release is the only step. Backend changes ride the same deploy.
 
-Details: [Releasing](docs/releasing.md), [Deploy on merge to main](docs/site-hosting.md#deploy-on-merge-to-main). This repository's own `main` does not deploy a site; the engine ships as packages. Production deploys through `ampx pipeline-deploy` are never run from a laptop.
+Details: [Releasing](docs/releasing.md), [Deploy on release to main](docs/site-hosting.md#deploy-on-merge-to-main). This repository's own `main` does not deploy a site; the engine ships as packages. Production deploys through `ampx pipeline-deploy` are never run from a laptop.
 
 ## Start a new Papyrus site
 
