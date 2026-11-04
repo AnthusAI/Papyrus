@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ee02b8b0-7b96-4301-81bf-5017588661a6",
+  "title": "Home-page snapshot re-reads the whole corpus on every Reference change (about 55,000 AppSync requests an hour)",
+  "description": "Measured on Machines on Machines, CloudWatch, 2026-11-04. The home-page snapshot (src/papyrus_content/home_page/export.py collect_references, trigger amplify/plugins/home-page) is stream-triggered with a 5-minute debounce, so up to 12 runs an hour. Each run lists every accepted and unrated-pending Reference (100 rows a page) and makes one relations call and one attachments call per row: about 8,000 AppSync requests a run, about 55,000 an hour, in bursts that line up with 50 to 80 second contentActions invocations. Web monitor routes deliver 25 to 40 References every run and each insert re-arms the trigger. AppSync at 4 dollars a million is the largest cost in the account: 10.88 dollars on 11-03. Also ReferenceIntake (src/papyrus_content/monitoring_intake.py lines 33 and 99) calls list_records('Reference') on every delivery, a whole-table scan per item. Rule (Ryan, 11-04): derived work runs once when something changes. Required end state: one Reference changing costs a number of AppSync calls proportional to that change, not to the corpus; a change that cannot alter a page fires no run; proven by a call-count test at 200 and 5,000 References.",
+  "type": "bug",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T21:49:59.112519Z",
+  "updated_at": "2026-11-04T21:49:59.112574Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
