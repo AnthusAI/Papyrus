@@ -1,0 +1,20 @@
+{
+  "id": "PPY-74ef89b9-b85e-4bfa-b174-34d812df9bfe",
+  "title": "A general figure skill in Papyrus, with each site's design system served as backend data",
+  "description": "Ryan, 2026-11-04: avoid site-specific skills. Papyrus should have one general skill for diagrams and illustrations, which uses the design system of the site it is working on if one exists. An agent with access to a site's backend (for example through a future MCP server, PPY-2bc3e8) but no access to the site's code must still be able to use it.\n\nToday the figure system is in the Machines on Machines repository (design/figures): rules.md, primitives.svg, mapping.json, tools/render_figures.py and a gallery. Its rules and mapping are already separate, which makes this move practical.\n\nProposed split:\n- In Papyrus: the skill (.agents/skills), the rules, the primitives and the checker and renderer, as a CLI command such as papyrus figures render, so no site checkout is needed.\n- In each site's backend data, like mission and policy: the tokens, the mapping and the worked examples, readable through the signed-in CLI and the context pack. A site's repository may stay the place they are edited, with publication into the backend as part of its deploy.\n- If a site has no design system, the skill says so and falls back to a stated default, or stops and asks. It never invents a brand.\n\nLight and dark: make both mandatory. The rules must say so outright, not only under Output. The renderer always produces both from one source. Today stories save-version treats the dark file as optional, so a figure can be saved with only a light picture; add a warning or a site setting that refuses it.\n\nAlso needed: how an agent with no browser renders (a server-side render, or a hosted tool), since the renderer needs Chromium. Needs Gherkin specs and a p.apyr.us docs task.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T16:37:58.094540Z",
+  "updated_at": "2026-11-04T16:37:58.094647Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
