@@ -1,0 +1,20 @@
+{
+  "id": "PPY-17ee4f50-6b48-4554-baca-5bba6bcc5567",
+  "title": "Weekly digest newsletter built from new-story notifications",
+  "description": "Ryan, 2026-11-04: the vision for the newsletter is that it starts, by default, as a weekly digest of a site's new-story notifications. This is the last milestone in the initiative, after everything else has shipped. No digests are in the first version. Recorded here so the earlier milestones keep it possible: the new-story notification events, the shared brand definition and one subscriber record are what the digest will build on.",
+  "type": "epic",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7d8a36a2-ce77-450a-bf0a-03c9798a1102",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T12:57:58.288425Z",
+  "updated_at": "2026-11-04T12:57:58.288639Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
