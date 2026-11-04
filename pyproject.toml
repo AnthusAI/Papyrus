@@ -12,6 +12,8 @@ dependencies = [
     # integrating it more deeply, so it is a base dependency (Ryan, 2026-10-05).
     "humanus >=0.34,<0.35",
     "biblicus >=1.15.0,<2",
+    # TeX to MathML for equations in Stories, run while a page is built (pure Python, MIT; PPY-e1de14).
+    "latex2mathml >=3.78,<4",
     # The shared CLI login library: `papyrus login` stores sessions in the platform's secure store
     # (macOS Keychain, Linux Secret Service/kernel keyring/memory agent, Windows Credential Manager).
     "cli-login ==0.4.0 ; sys_platform != 'linux'",

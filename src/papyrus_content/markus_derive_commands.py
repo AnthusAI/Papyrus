@@ -25,6 +25,7 @@ def content_markus_derive(flags: list[str]) -> None:
     payload = {
         "ok": derivation.ok,
         "errors": [error.to_dict() for error in derivation.errors],
+        "warnings": [warning.to_dict() for warning in derivation.warnings],
         "bodyIrBytes": envelope_byte_count(derivation.body_ir) if derivation.body_ir else 0,
     }
     if options.get("emit-ir") and derivation.body_ir is not None:

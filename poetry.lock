@@ -3088,6 +3088,18 @@ ruff = "0.15.5"
 sphinx = "*"
 
 [[package]]
+name = "latex2mathml"
+version = "3.81.1"
+description = "Pure Python library for LaTeX to MathML conversion"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "latex2mathml-3.81.1-py3-none-any.whl", hash = "sha256:c337668441b71c819b6733905a8058ba9a9d767bae11a0c5fdacb3aff31361bd"},
+    {file = "latex2mathml-3.81.1.tar.gz", hash = "sha256:c95add0c0fcdecad2d70567e0643050d5ea1149fb2e98a5d5792fb1c8eea2ed5"},
+]
+
+[[package]]
 name = "linkify-it-py"
 version = "2.2.0"
 description = "Links recognition library with FULL unicode support."
@@ -9029,4 +9041,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "86acba1322ea5d097f62317595ca7e01b12453f037ed5fc68f51d8ddf4b4ae84"
+content-hash = "ed9148ab39b65ed9ae1ceb59e7320fb1ff6a0149237d0a3893f1db771e62c446"

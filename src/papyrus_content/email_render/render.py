@@ -42,7 +42,7 @@ def _one_line(value: str) -> str:
 
 
 def _body(markus: str, theme: EmailTheme, site_url: str) -> tuple[str, str]:
-    fragment = render_fragment_text(markus, convert=convert_text_in_process)
+    fragment = render_fragment_text(markus, convert=convert_text_in_process, equations="source")
     tree = parse_fragment(fragment)
     html = serialize(tree, theme, site_url, style_map(theme))
     plain = "\n\n".join(b for b in text_mod.blocks(tree, site_url) if b.strip())

@@ -510,6 +510,73 @@ Unknown format names are a build error that lists the known ones.
 | `formatters` | `{}` (merged over the built-ins) |
 | `strict` | `True` |
 
+## Equations
+
+Equations are written as TeX, inside Markdown that Markus already understands, and drawn as MathML when the page is built.
+Nothing runs in the reader's browser: no script, no web font, no KaTeX or MathJax. Implementation:
+`src/papyrus_content/markus_renderer/equations.py` (converter: [`latex2mathml`](https://pypi.org/project/latex2mathml/), MIT, pure Python).
+Tests: `procedures/newsroom/tests/test_markus_equations.py`, `features_backend/story-math.feature`.
+
+| Form | Write | Becomes |
+| --- | --- | --- |
+| Display | a fenced block whose info string is `math` | `<div class="papyrus-math"><math display="block">`... |
+| Inline | a code span with a dollar sign on each side: ``$`m / 2^k`$`` | `<math display="inline">` inside the sentence |
+
+````markdown
+The attacker's chance of guessing a $`k`$-bit key in one try is at most $`m / 2^k`$.
+
+```math
+H_\infty(X) = -\log_2 \max_x \Pr[X = x]
+```
+````
+
+Why this spelling:
+
+- **A bare `$` is never math.** Stored articles contain prices ("$5 or $6"), so the dollar sign alone cannot open an equation.
+  Only a code span with a `$` directly on each side counts, and `` `$HOME` `` or `` $5 `flat` $6 `` are left alone.
+- **The code span protects the TeX.** Markdown reads `_`, `*`, `\` and `{}` in running text, so `a_i * b_j` outside a code span
+  loses characters to emphasis and escaping. Inside a code span nothing needs escaping except a literal backtick.
+- **It is already portable.** `` ```math `` and ``$`...`$`` are the spellings GitHub and GitLab render, so the Markdown twin, `llms.txt`
+  readers and a repository view all show the same equation.
+- **Markus is unchanged.** It sees an ordinary fenced block and an ordinary code span (the stored `bodyIr` keeps them, with
+  `lang: "math"` on the block). Papyrus swaps them for MathML after Markus has converted the page, the way Mermaid fences are handled.
+
+What is supported is what `latex2mathml` supports: fractions, roots, sub- and superscripts, sums and limits, Greek letters,
+`\text{...}`, `\left`/`\right`, matrices, `cases`, and `align`/`aligned` (`aligned` is mapped to the unnumbered `align*`). Known gaps: a
+`\mathrm{d}` is a plain letter (the browser may set it in italic), and a `<` or `&` inside `\text{...}` is not supported: that
+equation falls back to its source (put the symbol outside `\text`).
+
+### When the TeX is wrong
+
+A page never breaks and never loses text. An equation that cannot be converted keeps the author's source, shown as code
+(`<pre><code class="language-math">` or `$<code>...</code>$`). Saving the Story still succeeds, but `derive_body` returns a
+non-blocking **warning** with code `equation-tex`, the line number and the reason; `papyrus content markus-derive` prints it under
+`warnings`, and the publish path logs it.
+
+### Safety
+
+`latex2mathml` does not escape what an author types: `\text{</mtext><script>...}` would become a real `<script>` element and
+`\href{javascript:...}` or `\style{...}` would become attributes. Its output is therefore never trusted. It is parsed, every
+element and attribute is checked against a MathML whitelist (no `href`, `style`, `on*`, no `mathcolor`), and the markup is written out
+again with every text and value escaped. An equation that fails is shown as source, as above. The renderer also rejects unknown
+commands (`\notacommand`) instead of printing the backslash.
+
+### Output contract
+
+- `<math xmlns=... display="block|inline" alttext="TeX source">`. `alttext` is the accessible fallback for assistive technology
+  that does not read MathML.
+- Display equations sit in `<div class="papyrus-math">` (scrolls sideways instead of overflowing a narrow screen).
+- Colour is inherited (`currentColor`), so light and dark themes both work; there are no rules or borders. The two CSS rules live in
+  `markus-components.css`.
+
+### Other places an equation appears
+
+| Place | Shows |
+| --- | --- |
+| Markdown twin (`index.md`), `llms-full.txt` | the TeX source, verbatim (they are built from the source, not the HTML) |
+| Newsletter email | the TeX source in code styling (`render_fragment_text(..., equations="source")`); Gmail ignores MathML |
+| Editor preview (`components/markus-ir-preview.tsx`) | a block labelled "Equation (TeX source; drawn on the published page)"; inline equations show as `$` + code + `$`. The preview does not draw MathML because that would need a JavaScript TeX converter. |
+
 ## Why not build on Papyrus's existing reference machinery
 
 `reference_citation_resolution.py`, `reference_discovery.py` and
