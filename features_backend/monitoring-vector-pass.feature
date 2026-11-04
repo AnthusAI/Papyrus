@@ -1,227 +1,96 @@
 @backend @monitoring-vector-pass
-Feature: The router keeps each site's vector index current and writes suggestions before it drafts ideas
+Feature: The router keeps each site's vector index current by reading only what changed, and never walks the site to find work
   Related-Reference and concept suggestions come from comparing a Reference's stored summary vector with the vectors of the other accepted References and of the
-  concepts. For that, every site's vector index has to hold a vector for each accepted Reference and a card for each accepted concept, and until now someone had to
-  run the indexing by hand. Once a day the monitoring router's monitor-stories task does it for each publication, before it builds packs or drafts single items.
-  A suggestion needs only the Reference's own summary vector, so it must not wait for the index to be complete: the pass first suggests links for each Reference that
-  already has a vector, cut where the site's own accepted and rejected suggestions say. Then it syncs the index (the vectors of the References that had none, the
-  References accepted since its last pass, and the concept cards, which cost nothing again when unchanged), suggests at once for the References the sync gave a
-  vector, and only then does what it did before. A Reference with no vector is remembered as owed to the index and passed over, so it never holds back the ones
-  behind it. A Reference the sync finds nothing to index for (no extracted text and no summary text) is remembered with the reason and is not tried again until what
-  indexing reads from it changes, so a site with thousands of them does not walk them at every run. The hourly suggest-backlog task does the suggestions alone
-  (features_backend/monitoring-suggest-backlog.feature).
-  The suggestions go in the order an editor looks at the site: first the References a person voted on or started a conversation about, newest first; then the
-  pending ones (what editors triage), newest first; last the accepted ones nobody has touched, which are mostly bulk imports (drafting wants them, but an editor
-  opening a Reference should find suggestions on it before a rarely opened import has them). The router keeps its place in its own table: for the pending and the
-  accepted group an interval of the Reference positions (time and id) it has been through. A Reference newer than the interval is a new arrival and is done first at
-  the next pass, so it never waits behind the backlog; the backlog is what is older than the interval and goes on newest first. A pass the time or cost stops
-  saves exactly how far it got, the log line says how many suggestions are left, and a Reference that gains a vote after it was suggested as bulk is suggested
-  again as a signal. A watermark that is a plain time, written by an older pass, means everything up to it is done. The pass is held to the first quarter of a
-  publication's time so that it cannot starve the drafting, and it continues after the drafting if time is left. The saved place moves as soon as the suggestions
-  are made, not when the sync is done, and the sync is not started with no time or money left because it begins by listing the whole index. There is no fixed number
-  of References or suggestions: the pass is bounded only by the run's time and its cost meter, to which the embeddings add their price. A site with no index
-  recorded in its router entry runs without vectors, and the log line says why suggestions are off. The index addresses and storage buckets are copied from each
-  site's amplify_outputs.json when the router configuration is seeded, never typed. The index, the embeddings and the backends are fakes in these scenarios.
+  concepts, so every site's vector index has to hold a vector for each accepted or pending Reference and a card for each accepted concept. Once a day the monitoring
+  router's monitor-stories task brings the index up to date before it builds packs or drafts single items. The pass is proportional to what changed since it last
+  ran, not to the size of the site: it asks the updatedAt indexes of the Reference table and of the concept table for the rows changed since its saved place (one
+  read of up to a thousand rows each, oldest first) and hands only those rows to the indexer. For each changed Reference the indexer looks up its summary vector by
+  key; it never lists the Reference table, the vectors of the index, the concepts or the links. A vote, a star or a retitle changes a row's updatedAt too, and finds
+  its vector as it is, so it writes nothing. A Reference accepted or sent back to pending has its stored status rewritten without a new embedding, and one rejected or
+  archived loses its vectors, found by a query filtered to that Reference. A Reference whose summary vector is stored, new or rewritten because its text changed, makes
+  one related-items check (features_backend/suggest-once.feature); the pass has no suggestion step of its own. The router keeps its place in its own table: the
+  newest updatedAt it has indexed and the ids of the rows within ten minutes of it, so a row written late with an earlier clock is still read once and a row already
+  done is not read twice. A page moves the place as soon as it is done, so a run the time or the cost stops resumes exactly there. A site with no saved place is
+  indexed once by the full sync, and the place is set to the newest change read before it began. Link explanations have no changed-since index and are left to the
+  command-line sync. The only bounds are the run's time and its cost meter. The index, the embeddings and the backends are fakes in these scenarios.
 
-  Scenario: References newer than an older pass's watermark are the new arrivals, done oldest of them first, and the saved place moves
-    Given a publication with an index whose watermark is "2026-10-29T12:00:00Z"
-    And References accepted at "2026-10-29T10:00:00Z", "2026-10-30T10:00:00Z" and "2026-10-31T10:00:00Z"
+  Scenario: A site with nothing new makes one read per change feed and nothing else
+    Given a site of 2000 References that are all indexed, with the pass up to date
     When the vector pass runs
-    Then suggestions are made for "ref-2" and "ref-3" only
-    And the index is synced for the 2 References accepted after the watermark after the suggestions
-    And the saved place for accepted References runs from nothing older to "ref-3"
+    Then the pass made 2 requests to the API, none to the vector index and none for text
+    And the pass reports 0 changed References
+    And no saved place is written
 
-  Scenario: A pass with nothing new still syncs the concept cards and writes no suggestions
-    Given a publication with an index whose watermark is "2026-10-31T10:00:00Z"
-    And References accepted at "2026-10-30T10:00:00Z"
+  Scenario: The requests grow with what changed and not with the size of the site
+    Given a site of 200 References that are all indexed, with the pass up to date
+    And a site of 5000 References that are all indexed, with the pass up to date
+    And 3 References on each were voted on or starred
+    When the vector pass runs on both
+    Then each pass made 5 requests to the API: 2 reads of the change feeds and 3 reads of attachments
+    And each pass made the same number of requests to the vector index and embedded nothing
+
+  Scenario: A new Reference is embedded once and its summary vector is announced once
+    Given a site of 100 References that are all indexed, with the pass up to date
+    And 2 new References have arrived
     When the vector pass runs
-    Then the index is synced for the concept cards only
-    And no suggestion is made
+    Then the 2 new References have a summary vector and each was announced once
+    When the vector pass runs
+    Then nothing is announced again
+
+  Scenario: A vote or a star neither embeds nor announces
+    Given a site of 2 References that are all indexed, with the pass up to date
+    And an editor starred a Reference
+    When the vector pass runs
+    Then nothing was embedded and nothing was announced
+
+  Scenario: Accepting a pending Reference rewrites its stored status without a new embedding or a new check
+    Given a pending Reference that is indexed
+    And an editor accepted it
+    When the vector pass runs
+    Then its summary vector is marked accepted with the same vector data, its passages are written and nothing was announced
+
+  Scenario: Rejecting a Reference deletes its vectors without listing the index
+    Given an accepted Reference that is indexed and another that is not rejected
+    And an editor rejected the first
+    When the vector pass runs
+    Then the first has no vector, the other keeps its vectors and the index was not listed
+
+  Scenario: Changed text stores the summary vector again and announces it with the new hash
+    Given a pending Reference whose summary vector was made from its summary alone
+    When the vector pass runs
+    And the summary is rewritten and the vector pass runs
+    Then the Reference was announced twice with two different hashes
+
+  Scenario: A site with no saved place is indexed once by the full sync
+    Given a site with 3 References and no saved place
+    When the vector pass runs
+    Then the full sync ran once with link explanations and notes left out
+    And the saved place is the newest change read before the sync began
+
+  Scenario: A pass the time stops resumes where its last finished page ended
+    Given a site with 7 References changed since the saved place, read 2 to a page
+    And the time runs out while the second page is being indexed
+    When the vector pass runs
+    Then the saved place is the end of the first page
+    When the vector pass runs with time to spare
+    Then the saved place is the newest change and every Reference was announced
 
   Scenario: A site with no index in its router entry runs without vectors and says why
-    Given a publication with no index recorded
-    And References accepted at "2026-10-30T10:00:00Z"
+    Given a site with 1 Reference and a saved place
+    And the publication has no vector index recorded
     When the vector pass runs
-    Then nothing is indexed and no suggestion is made
-    And the reason says there is no vectorIndexArn in the publication's monitorStories
-    And no watermark is written
+    Then the reason says there is no vectorIndexArn in the publication's monitorStories
+    And the pass made 0 requests to the API
 
   Scenario: Suggestions can be turned off for a publication while its index is still kept current
-    Given a publication with an index whose watermark is "2026-10-29T12:00:00Z"
+    Given a site with 1 Reference and a saved place
     And suggestions are off for the publication
-    And References accepted at "2026-10-30T10:00:00Z"
     When the vector pass runs
-    Then the index is synced for the 1 References accepted after the watermark after the suggestions
-    And no suggestion is made
-    And the reason says suggestions are off
+    Then the Reference is indexed, nothing is announced and the reason says suggestions are off
 
-  Scenario: The price of the embeddings is on the run's cost meter and can stop the sync, after the suggestions that cost nothing
-    Given a publication with an index whose watermark is "2026-10-29T12:00:00Z"
-    And the sync embeds 400 million characters
-    And References accepted at "2026-10-30T10:00:00Z"
-    When the vector pass runs
-    Then suggestions are made for "ref-1" only
-    And the pass was stopped by cost
-    And the saved place for accepted References runs from nothing older to "ref-1"
-
-  Scenario: A pass that runs out of time keeps its watermark, so the next pass takes up the same References, and does not start the index walk
-    Given a publication with an index whose watermark is "2026-10-29T12:00:00Z"
-    And References accepted at "2026-10-30T10:00:00Z"
-    And the run is out of time
-    When the vector pass runs
-    Then the pass was stopped by time
-    And no watermark is written
-    And the index sync was not started
-
-  Scenario: With no saved place the newest References come first, and a pass the time stopped saves how far it got
-    Given a publication with an index and no saved place
-    And References accepted at "2026-10-30T10:00:00Z", "2026-10-30T11:00:00Z" and "2026-10-30T12:00:00Z"
-    And the time lasts for 1 suggestion
-    When the vector pass runs
-    Then the pass was stopped by time
-    And suggestions are made for "ref-3" only
-    And 2 suggestions are left
-    And the saved place for accepted References runs from "ref-3" to "ref-3"
-
-  Scenario: The next pass goes on below the saved place and finishes
-    Given a publication whose saved place for accepted References runs from "ref-3" to "ref-3"
-    And References accepted at "2026-10-30T10:00:00Z", "2026-10-30T11:00:00Z" and "2026-10-30T12:00:00Z"
-    When the vector pass runs
-    Then suggestions are made for "ref-2" and "ref-1" only
-    And no suggestions are left
-    And the saved place for accepted References runs from "ref-1" to "ref-3"
-
-  Scenario: A Reference that arrives while the backlog is unfinished is handled first at the next pass
-    Given a publication whose saved place for accepted References runs from "ref-3" to "ref-3"
-    And References accepted at "2026-10-30T10:00:00Z", "2026-10-30T11:00:00Z" and "2026-10-30T12:00:00Z"
-    And a Reference "ref-4" accepted at "2026-10-31T10:00:00Z" has arrived
-    When the vector pass runs
-    Then suggestions are made for "ref-4", "ref-2" and "ref-1" only
-    And the saved place for accepted References runs from "ref-1" to "ref-4"
-
-  Scenario: References that share one acceptance time, as in a bulk import, are told apart by their id
-    Given a publication with an index and no saved place
-    And References accepted at "2026-10-30T10:00:00Z", "2026-10-30T10:00:00Z" and "2026-10-30T10:00:00Z"
-    And the time lasts for 2 suggestions
-    When the vector pass runs
-    Then 1 suggestion is left
-    And the saved place for accepted References runs from "ref-2" to "ref-3"
-
-  Scenario: What an editor looks at comes first
-    Given a publication with an index and no saved place
-    And References accepted at "2026-10-30T10:00:00Z", "2026-10-30T11:00:00Z", "2026-10-30T12:00:00Z" and "2026-10-31T10:00:00Z"
-    And an editor voted on "ref-1"
-    And a conversation is anchored on "ref-2"
-    And a pending Reference with id "ref-9" changed at "2026-10-30T09:00:00Z"
-    When the vector pass runs
-    Then suggestions are made in the order "ref-2", "ref-1", "ref-9", "ref-4", "ref-3"
-
-  Scenario: A Reference that gains a vote after it was suggested as bulk is suggested again
-    Given a publication with an index and no saved place
-    And References accepted at "2026-10-30T10:00:00Z" and "2026-10-30T11:00:00Z"
-    When the vector pass runs
-    And an editor voted on "ref-1"
-    And the vector pass runs
-    Then suggestions are made for "ref-1" only
-
-  Scenario: A Reference with no vector yet is owed to the index and does not hold back the ones behind it
-    Given a publication with an index and no saved place
-    And References accepted at "2026-10-30T10:00:00Z", "2026-10-30T11:00:00Z" and "2026-10-30T12:00:00Z"
-    And "ref-2" has no summary vector yet
-    When the vector pass runs
-    Then the saved place for accepted References runs from "ref-1" to "ref-3"
-    And the index sync was asked for "ref-2" first
-    And "ref-2" was suggested for again once it had a vector
-    And no suggestions are left
-
-  Scenario: A Reference the sync can find nothing to index for is parked with its reason and tried again only when it changes
-    Given a publication with an index and no saved place
-    And References accepted at "2026-10-30T10:00:00Z", "2026-10-30T11:00:00Z" and "2026-10-30T12:00:00Z"
-    And "ref-2" has no summary vector and the sync finds nothing to index for it
-    When the vector pass runs
-    Then "ref-2" is parked with the reason "no_text"
-    And no suggestions are left
-    When a Reference "ref-4" is accepted at "2026-10-31T10:00:00Z" and the vector pass runs again
-    Then the index sync was asked for "ref-4" only
-    And 1 Reference is parked
-    When "ref-2" is retitled by an editor and the vector pass runs again
-    Then the index sync was asked for "ref-2" only
-
-  Scenario: The suggestions are made and the saved place moves even when the index sync fails
-    Given a publication with an index and no saved place
-    And References accepted at "2026-10-30T10:00:00Z" and "2026-10-30T11:00:00Z"
-    And the index sync fails
-    When the vector pass runs
-    Then suggestions are made for "ref-2" and "ref-1" only
-    And the reason says the index sync failed
-    And the saved place has moved
-
-  Scenario: Without an embedding key the suggestions still use the vectors that exist
-    Given a publication with an index and no saved place
-    And References accepted at "2026-10-30T10:00:00Z"
-    And there is no embedding key
-    When the vector pass runs
-    Then suggestions are made for "ref-1" only
-    And the reason says there is no embedding key
-    And the saved place has moved
-
-  Scenario: Several References are suggested for at once and the saved place still moves over a finished prefix
-    Given a publication with an index and no saved place
-    And References accepted on 20 different days
-    And 4 workers suggest at once
-    And the time lasts for 2 windows of suggestions
-    When the vector pass runs
-    Then each Reference was suggested for once
-    And the saved place for accepted References runs from day 5 to day 20
-    And 4 suggestions are left
-
-  Scenario: The result says how long each step of the pass took
-    Given a publication with an index and no saved place
-    And References accepted at "2026-10-30T10:00:00Z"
-    When the vector pass runs
-    Then the result says how many seconds the plan, the suggestions and the sync took
-
-  Scenario: A large backlog of vectors does not stop the drafting
-    Given a router publication whose entry names an index and a storage bucket
-    And 2 accepted References that the "hn" monitor delivered, one accepted since the last pass
-    And the vector pass's share of the time is already spent
-    When the router runs its daily monitor stories with the vector pass
-    Then the steps ran in the order drafting, suggestions, index sync
-    And 2 ideas are drafted
-    And the log line shows no raised curation flag
-
-  Scenario: When the drafting is done with time to spare, the vector pass continues from where it stopped
-    Given a router publication whose entry names an index and a storage bucket
-    And 2 accepted References that the "hn" monitor delivered, one accepted since the last pass
-    And the vector pass's share of the time is already spent
-    When the router runs its daily monitor stories with the vector pass
-    Then the log line says 2 suggestions written and no suggestions left
-
-  Scenario: The router holds the vector pass to the first quarter of a publication's time
-    Given the router has 400 seconds left when a publication starts
-    When the router runs its daily monitor stories with a fake drafter
-    Then drafting is out of time at 120 seconds left and the vector pass at 330 seconds left
-
-  Scenario: Concept cards and concept suggestions leave out authors and the graph's own bookkeeping
-    Given a site whose graph has the concepts "voice cloning" (task) and "pitch" (concept), an author, a coverage question, a comment concept, a quality rating and a relevance decision
-    When the concept cards are prepared
-    Then only "voice cloning" and "pitch" have a card
-    And a card for an author that was written earlier is not offered as a suggested concept
-
-  Scenario: The router's run suggests, indexes and then drafts, and its log line says what was done
-    Given a router publication whose entry names an index and a storage bucket
-    And 2 accepted References that the "hn" monitor delivered, one accepted since the last pass
-    When the router runs its daily monitor stories with the vector pass
-    Then the steps ran in the order suggestions, index sync, drafting
-    And the log line says 3 vectors indexed, 1 concept cards written, 2 suggestions written and no suggestions reason
-    And the router's table holds the watermark of the publication
-
-  Scenario: A router run without an index still drafts and the log line says suggestions are off
-    Given a router publication whose entry names no index
-    And 2 accepted References that the "hn" monitor delivered, one accepted since the last pass
-    When the router runs its daily monitor stories without an index
-    Then 2 ideas are drafted
-    And the log line says 0 vectors indexed, 0 concept cards written, 0 suggestions written and the reason that there is no vectorIndexArn
+  Scenario: The pass has no suggestion step, no plan and no backlog
+    Then the vector pass module has no plan, no owed memory, no suggestion step and no backlog task
+    And the monitoring template has no suggest-backlog schedule
 
   Scenario: Seeding copies each site's index address and storage bucket from its amplify_outputs.json
     Given the example router configuration and the amplify_outputs.json of "anth-us"
@@ -241,3 +110,9 @@ Feature: The router keeps each site's vector index current and writes suggestion
     Then the empty and whitespace-only texts are dropped and counted
     And the long text is cut to a safe length and counted
     And a request the endpoint refuses with 400 fails with the endpoint's own message and never the key
+
+  Scenario: Concept cards and concept suggestions leave out authors and the graph's own bookkeeping
+    Given a site whose graph has the concepts "voice cloning" (task) and "pitch" (concept), an author, a coverage question, a comment concept, a quality rating and a relevance decision
+    When the concept cards are prepared
+    Then only "voice cloning" and "pitch" have a card
+    And a card for an author that was written earlier is not offered as a suggested concept

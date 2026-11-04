@@ -21,11 +21,6 @@ Feature: A concept an editor invents by typing its hashtag is a real concept eve
     When the idea signals read the site
     Then only the tagged Reference has its concept links read
 
-  Scenario: Tagged References are suggested before untouched bulk ones
-    Given 3 accepted References of which an editor tagged one with the editor concept and the machine suggested it for another
-    When the vector pass plans its suggestions
-    Then the tagged Reference comes first
-
   Scenario: Typing a new hashtag makes the concept and a confirmed human link in one step
     When an editor types the hashtag "#Fake Website Networks" on a Reference
     Then a concept "fake website networks" of the kind editor concept exists with the key "editor_concept--fake-website-networks", accepted, with who made it and when and no description

@@ -77,7 +77,8 @@ from .monitoring_enrichment import Enricher, copy_curation, decision_inputs, enr
 from .reference_capture import SHORT_BODY_CHARACTERS
 from .monitoring_feed import FEED_HOSTS
 from .monitoring_huggingface import hf_accepts, validate_rule
-from .monitoring_vectors import OwedMemory, owed_prefix, owed_sort_key, run_suggest_backlog, watermark_sort_key
+from .monitoring_vectors import watermark_sort_key
+from .reference_suggest_once import queue_sender, queue_unchecked
 from .monitoring_stories import lambda_openai_key, lambda_story_transport, run_publication as draft_publication_stories, validate_monitor_stories
 
 CONTRACT_VERSION = "cyclotron-decision/v1"   # Cyclotron's neutral contract: bindings, callers and reviewers
@@ -112,10 +113,8 @@ REPORT_SCHEMA = "cyclotron-classifier-report/v1"
 #: DynamoDB refuses an item over 400 KB. A stored report is cut down (the model's features and weights first, then the oldest days) to fit under this.
 REPORT_ROW_LIMIT_BYTES = 300_000
 AUTO_ACCEPT_LOCK_PREFIX = "LOCK#auto-accept#"            # the same for an auto-accept run that names one
-SUGGEST_BACKLOG_LOCK_PREFIX = "LOCK#suggest-backlog#"    # the same for the hourly suggestion backlog task
 RESEARCH_ASSIGNMENTS_LOCK_PREFIX = "LOCK#research-assignments#"   # the same for the editors' research assignments task
-FAN_OUT_TASKS = {"monitor-stories": MONITOR_STORIES_LOCK_PREFIX, "auto-accept": AUTO_ACCEPT_LOCK_PREFIX,
-                 "suggest-backlog": SUGGEST_BACKLOG_LOCK_PREFIX, "research-assignments": RESEARCH_ASSIGNMENTS_LOCK_PREFIX}   # tasks that run once per publication, each in its own invocation
+FAN_OUT_TASKS = {"monitor-stories": MONITOR_STORIES_LOCK_PREFIX, "auto-accept": AUTO_ACCEPT_LOCK_PREFIX, "research-assignments": RESEARCH_ASSIGNMENTS_LOCK_PREFIX}   # tasks that run once per publication, each in its own invocation
 LEASE_SECONDS = 660                    # longer than the 600 s Lambda timeout
 TASK_LEASE_SECONDS = {"research-assignments": 960}   # a task with its own, longer Lambda timeout (900 s) holds its lock longer
 RECEIPT_TTL_SECONDS = 30 * 86400
@@ -1237,7 +1236,9 @@ class Router:
                  start_procedure: Callable[[dict], None] | None = None, cognito=None, rung_job_ids=(),
                  enricher: Enricher | None = None, max_decisions: int | None = None, hold_override: bool = False,
                  previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
-                 story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None):
+                 story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None,
+                 suggest_queue: tuple[Any, str] | None = None):
+        self.suggest_queue = suggest_queue   # (SQS client, queue URL) of the one-check-per-Reference suggestion queue (reference_suggest_once.py); None: no checks are queued
         self.embedding_key = embedding_key   # the OpenAI key the vector pass embeds with (monitoring_vectors.py); held in memory only
         self.story_transport, self.story_drafter = story_transport, story_drafter   # the model transport and the per-publication drafting of the daily monitor-stories task
         self.store, self.config, self.monitor_id, self.now, self.run_id = store, config, monitor_id, now, run_id
@@ -2508,7 +2509,7 @@ class Router:
         if self.config["mode"] != "live":
             return results   # dry-run mode never writes to a publication
         empty = {"drafted": 0, "candidates": 0, "notAccepted": 0, "skipped": 0, "stoppedBy": None, "packs": 0, "ideasFromPacks": 0, "packsSkippedNoNewEvidence": 0, "packDetails": [],
-                 "indexed": 0, "conceptCardsWritten": 0, "suggestionsWritten": 0, "suggestionsSkippedReason": None}
+                 "indexed": 0, "conceptCardsWritten": 0, "suggestionsQueued": 0, "suggestionsSkippedReason": None}
         queue = []
         for publication in self.publications.values():
             pid = publication["publicationId"]
@@ -2546,7 +2547,7 @@ class Router:
                                                 vector_out_of_time=lambda vector_stop_at=vector_stop_at: self.time_left() < vector_stop_at,
                                                 signal_out_of_time=lambda signal_stop_at=signal_stop_at: self.time_left() < signal_stop_at,
                                                 handled_references=self.automation_handled_references(publication), embedding_key=self.embedding_key,
-                                                retry_memory=self.retry_memory(pid), owed=self.owed_memory(pid),
+                                                retry_memory=self.retry_memory(pid), on_summary_written=self.suggestion_sender(pid),
                                                 read_watermark=lambda pid=pid: (self.store.get_any(self.monitor_id, watermark_sort_key(pid)) or {}).get("watermark"),
                                                 write_watermark=lambda value, pid=pid: self.store.put_any(
                                                     self.monitor_id, {"pk": pk(self.monitor_id), "sk": watermark_sort_key(pid), "watermark": value, "updatedAt": _iso(self.now)}))
@@ -2554,7 +2555,7 @@ class Router:
                     result = {"publicationId": pid, "status": "failed", "reason": short(error), **empty}
                 earlier = results.get(pid)
                 if earlier:   # a later pass: the totals add up, the candidates are those the run started with, the rest is the latest pass's
-                    for key in ("drafted", "attempted", "failedTheCheck", "duplicates", "skipped", "ideasFromPacks", "indexed", "conceptCardsWritten", "suggestionsWritten"):
+                    for key in ("drafted", "attempted", "failedTheCheck", "duplicates", "skipped", "ideasFromPacks", "indexed", "conceptCardsWritten", "suggestionsQueued"):
                         result[key] = result.get(key, 0) + earlier.get(key, 0)
                     result["packDetails"] = [*earlier.get("packDetails", []), *result.get("packDetails", [])]
                     result["costUsd"] = round((result.get("costUsd") or 0) + (earlier.get("costUsd") or 0), 6)
@@ -2570,20 +2571,16 @@ class Router:
             print(json.dumps({"monitorStories": result["status"], "monitorId": self.monitor_id, **result}))
         return results
 
-    def owed_memory(self, publication_id: str) -> OwedMemory:
-        """The vector pass's memory of References that have no summary vector (owed to the index) or that the index found nothing to index, in the router's own
-        table: sharded rows under the monitor, ``STATE#vectorOwed#<publicationId>#<shard>`` (monitoring_vectors.OwedMemory)."""
-        return OwedMemory(
-            read=lambda: self.store.query_prefix(self.monitor_id, owed_prefix(publication_id)),
-            write=lambda shard, entries: self.store.put_any(self.monitor_id, {"pk": pk(self.monitor_id), "sk": owed_sort_key(publication_id, shard), "entries": entries,
-                                                                           "updatedAt": _iso(self.now)}))
+    def suggestion_sender(self, publication_id: str) -> Callable[[list[dict]], None] | None:
+        """The vector pass's hook for one publication: one message on the suggestion queue for each Reference summary vector it stores (None when the router has no queue)."""
+        if self.suggest_queue is None:
+            return None
+        sqs, queue_url = self.suggest_queue
+        return queue_sender(self.monitor_id, publication_id, sqs, queue_url)
 
-    def suggest_backlog(self, publication_id: str | None = None) -> dict:
-        """Hourly, per publication: the vector pass's suggestions for the References that have a summary vector, in the order an editor looks at the site, from the
-        saved place the daily monitor-stories pass uses (src/papyrus_content/monitoring_vectors.py, ``run_suggest_backlog``). No index sync, no embedding, no
-        model call: it reads and queries S3 Vectors and reads and writes the publication's own API. It has the whole Lambda budget, less the time to finish.
-        Live mode only. One JSON log line per publication: ``suggestionsWritten``, ``suggestionsRemaining``, ``awaitingIndex``, ``parkedUnindexable`` and the seconds of
-        each step."""
+    def suggest_unchecked(self, publication_id: str | None, write: bool) -> dict:
+        """By hand, once per publication: the References with no recorded suggestion check (a scan of the publication's accepted and pending References, nothing
+        schedules it), and, only with ``write`` true, one audit message each on the suggestion queue. Live mode only; one JSON log line per publication."""
         results: dict = {}
         if self.config["mode"] != "live":
             return results
@@ -2591,29 +2588,13 @@ class Router:
             pid = publication["publicationId"]
             if publication_id is not None and pid != publication_id:
                 continue
-            policy = validate_monitor_stories(pid, publication.get("monitorStories"))
-            if not policy["enabled"] or not policy["suggestions"]["enabled"] or not policy["vectorIndexArn"]:
-                results[pid] = {"publicationId": pid, "status": "skipped", "reason": "suggestions are off or the publication has no vector index"}
-                continue
-            if self.time_left() < MIN_REMAINING_SECONDS:
-                results[pid] = {"publicationId": pid, "status": "skipped", "reason": "time budget", "stoppedBy": "time"}
-                continue
-            started = time.monotonic()
             try:
-                outcome = run_suggest_backlog(
-                    self.client(publication), publication, policy, now=datetime.fromtimestamp(self.now, timezone.utc),
-                    out_of_time=lambda: self.time_left() < MIN_REMAINING_SECONDS, owed=self.owed_memory(pid),
-                    read_watermark=lambda pid=pid: (self.store.get_any(self.monitor_id, watermark_sort_key(pid)) or {}).get("watermark"),
-                    write_watermark=lambda value, pid=pid: self.store.put_any(
-                        self.monitor_id, {"pk": pk(self.monitor_id), "sk": watermark_sort_key(pid), "watermark": value, "updatedAt": _iso(self.now)}))
-                seconds = round(time.monotonic() - started, 1)
-                written = int(outcome.get("suggestionsWritten") or 0)
-                results[pid] = {"publicationId": pid, "status": "stopped" if outcome.get("stoppedBy") else "complete", **outcome, "seconds": seconds,
-                                "suggestionsPerSecond": round(written / seconds, 2) if seconds else 0.0}
+                sqs, url = self.suggest_queue or (None, None)
+                results[pid] = {"status": "complete", **queue_unchecked(self.client(publication), self.store, self.monitor_id, publication, write=write, sqs=sqs, queue_url=url)}
             except Exception as error:  # noqa: BLE001 - never fails the run
                 results[pid] = {"publicationId": pid, "status": "failed", "reason": short(error)}
         for result in results.values():
-            print(json.dumps({"suggestBacklog": result["status"], "monitorId": self.monitor_id, **result}))
+            print(json.dumps({"suggestUnchecked": result["status"], "monitorId": self.monitor_id, **result}))
         return results
 
     def research_assignments(self, publication_id: str | None = None) -> dict:
@@ -2913,7 +2894,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                rung_job_ids=(), enricher: Enricher | None = None, max_decisions: int | None = None,
                hold_override: bool = False, previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
                story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None,
-               publication_id: str | None = None, fan_out: Callable[[str], None] | None = None) -> dict:
+               publication_id: str | None = None, fan_out: Callable[[str], None] | None = None,
+               suggest_queue: tuple[Any, str] | None = None, write: bool = False) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -2927,16 +2909,13 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         # (the whole time budget and its own lock). It takes no lock and does nothing itself.
         if task == "monitor-stories":
             started = [p["publicationId"] for p in config["publications"] if (p.get("monitorStories") or {}).get("enabled", True)]
-        elif task == "suggest-backlog":
-            started = [p["publicationId"] for p in config["publications"] if (p.get("monitorStories") or {}).get("vectorIndexArn")
-                       and (p.get("monitorStories") or {}).get("enabled", True) and ((p.get("monitorStories") or {}).get("suggestions") or {}).get("enabled", True)]
         elif task == "research-assignments":
             started = [p["publicationId"] for p in config["publications"] if (p.get("researchAssignments") or {}).get("enabled")]
         else:
             started = [p["publicationId"] for p in config["publications"] if (p.get("autoAccept") or {}).get("enabled", True)]
         for pid in started:
             fan_out(pid)
-        print(json.dumps({{"monitor-stories": "monitorStories", "suggest-backlog": "suggestBacklog", "research-assignments": "researchAssignments"}.get(task, "autoAccept"): "fanned-out", "monitorId": monitor_id, "publications": started}))
+        print(json.dumps({{"monitor-stories": "monitorStories", "research-assignments": "researchAssignments"}.get(task, "autoAccept"): "fanned-out", "monitorId": monitor_id, "publications": started}))
         return {"monitorId": monitor_id, "runId": run_id, "status": "fanned-out", "publications": started}
     lock_sk = CYCLOTRON_STATUS_LOCK_SK if task == "cyclotron-status" else ROUTER_LOCK_SK
     if publication_id is not None:
@@ -2944,7 +2923,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         # locked per publication so the runs of one monitor's publications (each up to the Lambda's 10 minutes) neither wait for each other nor hold up
         # the monitor's route pass.
         if task not in FAN_OUT_TASKS:
-            return {"monitorId": monitor_id, "runId": run_id, "status": "error", "reason": "publicationId is only for the monitor-stories, auto-accept, suggest-backlog and research-assignments tasks"}
+            return {"monitorId": monitor_id, "runId": run_id, "status": "error", "reason": "publicationId is only for the monitor-stories, auto-accept and research-assignments tasks"}
         if publication_id not in {p["publicationId"] for p in config["publications"]}:
             return {"monitorId": monitor_id, "runId": run_id, "status": "error", "reason": f"unknown publicationId {publication_id!r} for monitor {monitor_id}"}
         lock_sk = f"{FAN_OUT_TASKS[task]}{publication_id}"
@@ -2964,18 +2943,18 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
                         start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher,
                         max_decisions=max_decisions, hold_override=hold_override, previewer=previewer,
-                        story_transport=story_transport, story_drafter=story_drafter, embedding_key=embedding_key)
+                        story_transport=story_transport, story_drafter=story_drafter, embedding_key=embedding_key, suggest_queue=suggest_queue)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
-                   {"status": "skipped"} if task in ("feedback", "auto-accept", "monitor-stories", "suggest-backlog", "research-assignments") else router.collect() if task == "collect" else router.sweep())
-        feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept", "monitor-stories", "suggest-backlog", "research-assignments") else router.feedback()
+                   {"status": "skipped"} if task in ("feedback", "auto-accept", "monitor-stories", "research-assignments", "suggest-unchecked") else router.collect() if task == "collect" else router.sweep())
+        feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept", "monitor-stories", "research-assignments", "suggest-unchecked") else router.feedback()
         auto_accepted = router.auto_accept(publication_id) if task == "auto-accept" else {}   # its own task: the hourly schedule fans it out, one invocation per publication
         monitor_stories = router.monitor_stories(publication_id) if task == "monitor-stories" else {}
-        suggest_backlog = router.suggest_backlog(publication_id) if task == "suggest-backlog" else {}
+        suggest_unchecked = router.suggest_unchecked(publication_id, write) if task == "suggest-unchecked" else {}
         research_assignments = router.research_assignments(publication_id) if task == "research-assignments" else {}
         paused_until = router.settle_lab_backoff()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
-                  "feedback": feedback, "autoAccept": auto_accepted, "monitorStories": monitor_stories, "suggestBacklog": suggest_backlog, "researchAssignments": research_assignments, "errors": outcome.get("errors", []),
+                  "feedback": feedback, "autoAccept": auto_accepted, "monitorStories": monitor_stories, "suggestUnchecked": suggest_unchecked, "researchAssignments": research_assignments, "errors": outcome.get("errors", []),
                   "waitingForClassifier": outcome.get("waitingForClassifier", []), "posted": router.posted}
         if task == "research-assignments" and not any(row.get(key) for row in research_assignments.values() for key in ("ran", "failed", "expired", "leftOpen")) \
                 and not any(row.get("status") == "failed" for row in research_assignments.values()):
@@ -2984,7 +2963,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
             "pk": pk(monitor_id), "sk": f"ROUTERUN#{result['startedAt']}#{run_id}", "runId": run_id,
             "startedAt": result["startedAt"], "mode": config["mode"], "status": result["status"],
             "stoppedBy": result["stoppedBy"], "counts": router.counts, "feedback": feedback, "autoAccept": decimalize(auto_accepted),
-            "monitorStories": decimalize(monitor_stories), "suggestBacklog": decimalize(suggest_backlog), "researchAssignments": decimalize(research_assignments),
+            "monitorStories": decimalize(monitor_stories), "researchAssignments": decimalize(research_assignments),
             "errors": result["errors"], "waitingForClassifier": result["waitingForClassifier"], "posted": router.posted,
             **({"labBackoffUntil": _iso(paused_until)} if paused_until else {}), "ttl": int(now + RECEIPT_TTL_SECONDS)})
         return result
@@ -3042,6 +3021,44 @@ def handle_decision_ready(store, event, collect: Callable[..., dict]) -> dict:
     return {"status": status, "collected": collected, "ignoredMonitors": ignored}
 
 
+def is_suggestion_queue_event(event) -> bool:
+    records = event.get("Records") if isinstance(event, dict) else None
+    return bool(records) and all(isinstance(record, dict) and record.get("eventSource") == "aws:sqs" for record in records)
+
+
+CALIBRATIONS = None   # a warm container's calibration per site (reference_suggest_once.Calibrations)
+
+
+def handle_suggestion_queue(store, event, *, appsync=make_appsync_client, suggester=None, provider_for=None, now=None) -> dict:
+    """SQS entry point: one related-items check per queued Reference (reference_suggest_once.py). Returns the partial-batch response, so only the messages that failed
+    are delivered again (up to the queue's receive limit, then its dead-letter queue)."""
+    global CALIBRATIONS
+    from . import reference_suggest_once, reference_suggestions, suggestion_calibration
+
+    if CALIBRATIONS is None:
+        CALIBRATIONS = reference_suggest_once.Calibrations(suggestion_calibration.load_calibration)
+
+    def config_for(monitor_id: str):
+        raw = store.get_router_config(monitor_id)
+        return validate_router_config(raw) if raw else None
+
+    from .monitoring_vectors import vector_provider_for
+
+    return reference_suggest_once.handle_queue(
+        store, event, config_for=config_for, appsync=appsync, calibrations=CALIBRATIONS, suggester=suggester or reference_suggestions.suggest_for, now=now,
+        provider_for=provider_for or (lambda publication: vector_provider_for(validate_monitor_stories(publication["publicationId"], publication.get("monitorStories")))))
+
+
+def suggest_queue_from_environment() -> tuple[Any, str] | None:
+    """(SQS client, queue URL) when the stack gave the router a suggestion queue (``SUGGEST_QUEUE_URL``), else None."""
+    url = os.environ.get("SUGGEST_QUEUE_URL")
+    if not url:
+        return None
+    import boto3  # provided by the Lambda runtime
+
+    return boto3.client("sqs"), url
+
+
 def invoke_self(context, payload: dict) -> None:
     """Starts this function again, asynchronously, with `payload`. The function's own ARN comes from the Lambda context. The function's event
     invoke config sets zero async retries, so a publication run that fails is not repeated (the next day's fan-out, or a hand run, covers it);
@@ -3052,13 +3069,15 @@ def invoke_self(context, payload: dict) -> None:
 
 
 def handler(event, context):
-    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"|"monitor-stories"|"auto-accept"|"suggest-backlog"|"research-assignments"|"cyclotron-status"}` limits the pass (operator debugging).
-    `{"task": "monitor-stories"|"auto-accept"|"suggest-backlog"|"research-assignments", "monitorId": "hn", "publicationId": "anth-us"}` runs only that publication, with the whole time budget and its own lock;
+    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"|"monitor-stories"|"auto-accept"|"research-assignments"|"cyclotron-status"|"suggest-unchecked"}` limits the pass (operator debugging).
+    `{"task": "monitor-stories"|"auto-accept"|"research-assignments", "monitorId": "hn", "publicationId": "anth-us"}` runs only that publication, with the whole time budget and its own lock;
     without a publicationId the task only fans out one such invocation per publication."""
     import boto3  # provided by the Lambda runtime
 
     event = event if isinstance(event, dict) else {}
     store = RouterStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
+    if is_suggestion_queue_event(event):
+        return handle_suggestion_queue(store, event)
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
     cognito, starter = boto3.client("cognito-idp"), lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION"))
     from .monitoring_enrichment import lambda_enricher
@@ -3079,6 +3098,7 @@ def handler(event, context):
                         story_transport=story_transport, embedding_key=embedding_key,
                         hold_override=event.get("holdOverride") is False,
                         publication_id=event.get("publicationId"),
+                        suggest_queue=suggest_queue_from_environment(), write=event.get("write") is True,
                         fan_out=lambda pid: invoke_self(context, {**event, "publicationId": pid}))   # only false lifts the hold, and only for this invocation
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
-    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "suggestBacklog", "researchAssignments", "waitingForClassifier", "posted", "reason", "publications")}
+    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "suggestUnchecked", "researchAssignments", "waitingForClassifier", "posted", "reason", "publications")}
