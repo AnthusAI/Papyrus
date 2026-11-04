@@ -18,6 +18,7 @@ from papyrus_content.projection.runtime import (
     context_from_environment,
     projection_configured,
     public_item_url,
+    render_body_preflight,
     render_preflight,
     site_body_features,
 )
@@ -299,6 +300,11 @@ def save_item_draft_action(arguments: dict, actor: str, approved_by: str | None 
                 "type-locked",
                 f"This story is live as the type {live.get('type')}. Save it as a new version to change its type: the live address moves only when that version is published.",
             )
+    if arguments.get("id"):
+        live = client.get_record("Item", arguments["id"])
+        if live is not None and live.get("status") == "published":
+            # Saving a published item in place republishes it as it is saved, so its page is checked before anything is written.
+            render_body_preflight(arguments.get("frontMatterYaml"), arguments.get("bodyMarkus") or "")
     fields = ItemFields(
         type=arguments["type"],
         slug=arguments["slug"],

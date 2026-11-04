@@ -406,3 +406,79 @@ def publish_fails(context, code: str) -> None:
 @then("nothing is published")
 def nothing_published(context) -> None:
     assert not context.client.list_records("PublishedItem")
+
+
+# ------------------------------------------------------------------ listings, feeds and the in-place save
+
+
+@given("a section with an introduction and two good Stories, whose introduction and one more Story are then broken")
+def broken_beside_good(context) -> None:
+    from procedures.newsroom.tests.test_images_citations_default import broken_beside_good_fixture
+
+    import tempfile
+
+    work = Path(tempfile.mkdtemp(prefix="broken-beside-good-"))
+    context.add_cleanup(shutil.rmtree, work, True)
+    context.render_context, context.render_out, context.before = broken_beside_good_fixture(work)
+
+
+@when("the post-deploy render runs on that site")
+def run_on_that_site(context) -> None:
+    context.report = deploy_render(context.render_context())
+    context.written = {p.relative_to(context.render_out).as_posix(): p.read_bytes() for p in context.render_out.rglob("*") if p.is_file()}
+
+
+@then("the render succeeds")
+def succeeds(context) -> None:
+    assert context.report.ok, context.report.render.errors
+
+
+@then("the report names both broken Stories")
+def both_named(context) -> None:
+    assert sorted(f["slug"] for f in context.report.render.unrenderable) == ["broken", "index"]
+
+
+@then("the broken Story's own page is as it was")
+def broken_page_kept(context) -> None:
+    kept = [k for k in context.before if k.startswith("notes/broken/")]
+    assert kept and all(context.written[k] == context.before[k] for k in kept)
+
+
+@then("the section listing, the feeds, the sitemap and the llms files are written with the good Stories")
+def listings_written(context) -> None:
+    for key in ("notes/index.html", "feed.xml", "atom.xml", "sitemap.xml", "llms.txt", "llms-full.txt"):
+        assert key in context.written, key
+    assert b"First good Story" in context.written["llms-full.txt"] and b"notes/one" in context.written["feed.xml"]
+
+
+@then("the section listing has lost only its introduction")
+def only_intro_lost(context) -> None:
+    listing = context.written["notes/index.html"].decode()
+    assert "One" in listing and "Two" in listing and "Welcome to the notes" not in listing
+
+
+@given("a Story that is published with only words")
+def published_story(context) -> None:
+    from papyrus_content.publishing import publish_item
+
+    context.response = call_action(context, "saveItemDraft", draft_payload(frontMatterYaml=FRONT_MATTER, bodyMarkus="Only words.\n"))
+    context.item = context.response["item"]
+    publish_item(context.client, context.item["id"], actor="behave")
+    context.published_before = context.client.get_record("Item", context.item["id"])["bodyMarkus"]
+
+
+@when("the editor saves that published Story in place with a picture")
+def save_in_place(context) -> None:
+    context.response = call_action(
+        context, "saveItemDraft", draft_payload(id=context.item["id"], frontMatterYaml=FRONT_MATTER, bodyMarkus=PICTURE)
+    )
+
+
+@then('the save response fails with "{code}"')
+def save_fails_with(context, code: str) -> None:
+    assert context.response["ok"] is False and context.response["errors"][0]["code"] == code, context.response
+
+
+@then("the published Story is unchanged")
+def story_unchanged(context) -> None:
+    assert context.client.get_record("Item", context.item["id"])["bodyMarkus"] == context.published_before

@@ -26,6 +26,7 @@ import functools
 import logging
 import re
 from collections.abc import Collection
+import contextlib
 from contextlib import contextmanager
 from urllib.parse import quote
 from dataclasses import dataclass, field
@@ -659,7 +660,11 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
                 dropped.append(item.summary.item_id)
         states.append(_updated_state(remembered, item.summary, tuple(sorted(pages))))
     inputs = projector.listing_inputs(site)
-    listings = projector.listing_pages(site, None)
+    tolerate = getattr(projector, "tolerating_unrenderable", None) if context.tolerate_unrenderable else None
+    with (tolerate() if tolerate is not None else contextlib.nullcontext([])) as skipped_by_listings:
+        listings = projector.listing_pages(site, None)
+    known = {found["itemId"] for found in report.unrenderable}
+    report.unrenderable.extend(found for found in skipped_by_listings if found["itemId"] not in known)
     live_keys = _item_keys(context, site)
     redirects = dict(projector.redirects(site))
     for state in states:

@@ -206,3 +206,66 @@ def test_a_projecting_site_is_not_revalidated_as_a_pretext_reader(monkeypatch):
     monkeypatch.setattr(publish_commands, "trigger_projection_as_user", lambda client, task: {"ok": True})
     publish_commands.run_site_triggers(Client(), {}, result)
     assert calls == [(["hello"], None)]   # a site that does not project is still revalidated
+
+
+def broken_beside_good_fixture(tmp_path):
+    """A site with a section, its introduction, two good Stories and a broken one; a first render holds the good versions of all four."""
+    from papyrus_content.projection.directory_source import DirectoryContentSource
+    from papyrus_content.projection.engine import ProjectionContext, project_all
+    from papyrus_content.projection.standard.projector import StandardMarkusProjector
+    from papyrus_content.projection.writers import LocalDirectoryWriter
+    from procedures.newsroom.tests.standard_frontend_support import static_directory
+
+    content = tmp_path / "content" / "notes"
+    content.mkdir(parents=True)
+    stories = {"index": "Welcome to the notes.", "one": "First good Story.", "two": "Second good Story.", "broken": "Fine for now."}
+    for slug, body in stories.items():
+        (content / f"{slug}.md").write_text(f"---\ntitle: {slug.title()}\ndate: '2026-10-01'\n---\n\n{body}\n", encoding="utf-8")
+    settings = {
+        "site": {"name": "Notes", "productionUrl": "https://example.com"},
+        "urls": {"style": "directory", "sections": {"notes": {"base": "notes"}}},
+        "images": False,
+    }
+    static = static_directory(tmp_path, settings)
+    out = tmp_path / "out"
+
+    def context() -> ProjectionContext:
+        return ProjectionContext(
+            source=DirectoryContentSource(tmp_path / "content"),
+            projector=StandardMarkusProjector.from_static_directory(static, environ={"PAPYRUS_SITE_PUBLIC_URL": ""}),
+            writer=LocalDirectoryWriter(out), keep_state=False,
+        )
+
+    assert project_all(context()).ok
+    before = {path.relative_to(out).as_posix(): path.read_bytes() for path in out.rglob("*") if path.is_file()}
+    for slug in ("index", "broken"):
+        (content / f"{slug}.md").write_text(f"---\ntitle: {slug.title()}\ndate: '2026-10-01'\n---\n\n{IMAGE}", encoding="utf-8")
+    return context, out, before
+
+
+def test_a_broken_story_beside_good_ones_fails_no_step_of_the_deploy_render(tmp_path):
+    from papyrus_content.projection.deploy_render import deploy_render
+
+    context, out, before = broken_beside_good_fixture(tmp_path)
+    report = deploy_render(context())
+    assert report.ok, report.render.errors
+    assert sorted(failed["slug"] for failed in report.render.unrenderable) == ["broken", "index"]   # the item page, and the introduction of the listing
+    written = {path.relative_to(out).as_posix(): path.read_bytes() for path in out.rglob("*") if path.is_file()}
+    # The pages of the broken Story stay as they were.
+    kept = [key for key in before if key.startswith("notes/broken/")]
+    assert kept and all(written[key] == before[key] for key in kept)
+    # The listing, the feeds, the sitemap and llms.txt are written, name the good Stories, and the listing has lost only the introduction.
+    listing = written["notes/index.html"].decode()
+    assert "One" in listing and "Two" in listing and "Welcome to the notes" not in listing
+    for key in ("feed.xml", "atom.xml", "sitemap.xml", "llms.txt", "llms-full.txt"):
+        assert key in written, key
+    assert b"First good Story" in written["llms-full.txt"] and b"notes/one" in written["feed.xml"]
+    assert written["notes/one/index.html"] and written["notes/two/index.html"]
+
+
+def test_a_command_that_renders_everything_still_stops_on_the_same_broken_listing_introduction(tmp_path):
+    from papyrus_content.projection.engine import project_all
+
+    context, _out, _before = broken_beside_good_fixture(tmp_path)
+    with pytest.raises(Exception, match="Unknown directive 'image'"):
+        project_all(context())

@@ -91,25 +91,34 @@ def render_preflight(client, item_id: str, environ: Mapping[str, str] | None = N
     if not projection_configured(environ):
         return
     row = client.get_record("Item", item_id)
-    fragment = getattr(load_projector(environ), "_fragment", None)
-    if row is None or not callable(fragment):
+    if row is None:
         return
-    from ..markus_renderer.derive import compose_source
-    from ..publishing import PublishError
-    from .engine import content_error_types
-
     front_matter = row.get("metadata")
     if isinstance(front_matter, str):
         try:
             front_matter = json.loads(front_matter)
         except ValueError:
             front_matter = {}
-    text = compose_source((front_matter or {}).get("frontMatterYaml"), row.get("bodyMarkus") or "")
+    render_body_preflight((front_matter or {}).get("frontMatterYaml"), row.get("bodyMarkus") or "", environ)
+
+
+def render_body_preflight(front_matter_yaml: str | None, body_markus: str, environ: Mapping[str, str] | None = None) -> None:
+    """``render_preflight`` for a body that is not stored yet (an edit that would go live as it is saved)."""
+    if not projection_configured(environ):
+        return
+    fragment = getattr(load_projector(environ), "_fragment", None)
+    if not callable(fragment):
+        return
+    from ..markus_renderer.derive import compose_source
+    from ..publishing import PublishError
+    from .engine import content_error_types
+
     try:
-        fragment(text, 1)
+        fragment(compose_source(front_matter_yaml, body_markus), 1)
     except content_error_types() as error:
         raise PublishError(
-            "page-not-renderable", f"The page cannot be rendered, so nothing was published: {type(error).__name__}: {error}"
+            "page-not-renderable",
+            f"This Story cannot be published because its page cannot be rendered: {error}. Nothing was published; fix the Story and publish it again.",
         ) from error
 
 

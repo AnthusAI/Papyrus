@@ -103,3 +103,19 @@ Feature: Images and citations are on for every Papyrus site
     When the editor publishes the saved Story
     Then the publish response fails with "page-not-renderable"
     And nothing is published
+
+  Scenario: A broken Story beside good ones reaches no listing, feed or index of the deploy render
+    Given a section with an introduction and two good Stories, whose introduction and one more Story are then broken
+    When the post-deploy render runs on that site
+    Then the render succeeds
+    And the report names both broken Stories
+    And the broken Story's own page is as it was
+    And the section listing, the feeds, the sitemap and the llms files are written with the good Stories
+    And the section listing has lost only its introduction
+
+  Scenario: Saving a published Story in place checks its page before writing
+    Given the content actions of a Papyrus site that declares no images, whose media store holds no renditions
+    And a Story that is published with only words
+    When the editor saves that published Story in place with a picture
+    Then the save response fails with "page-not-renderable"
+    And the published Story is unchanged
