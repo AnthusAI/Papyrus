@@ -10,9 +10,17 @@
   "parent": "PPY-734c8bf1-814e-424e-9161-80c95683bc5a",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "de4bfbea-b154-41fc-b690-0f8048d452d4",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1190 merged to develop. Tests: pytest knowledge_snapshot+knowledge_cloud 391 passed; behave knowledge-*.feature 208 scenarios passed.",
+      "created_at": "2026-11-04T18:44:15.738081Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-04T18:22:36.689274Z",
-  "updated_at": "2026-11-04T18:22:36.689302Z",
+  "updated_at": "2026-11-04T18:44:15.738744Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
