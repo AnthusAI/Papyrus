@@ -23,12 +23,26 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
   `Assignment`, editions, knowledge-query). `references list` and `references show`
   without `--corpus-key` use, in order: the operator config's `defaultCorpusKey`, the
   canonical corpus of a steering file the site chose (`PAPYRUS_STEERING_CONFIG` or a
-  `corpora/` file in the checkout), and, on a signed-in session, the backend's one
+  `corpora/` file in a site's own checkout; the steering file inside the Papyrus source
+  tree is the product's development default, not a site's choice), and, on a signed-in session, the backend's one
   canonical publication corpus (the same one `reporting create` uses). If the backend
   has none or several, the command fails and says to pass `--corpus-key`. Only the
   IAM lane and the local backend still fall back to the steering default shipped in
   the wheel (`threat-intelligence` today). Operators should not need `--corpus-key`
-  or `PYTHONPATH=src` for the common path.
+  or `PYTHONPATH=src` for the common path. A corpus key is the publication's key; the
+  record id `knowledge-corpus-<key>` is accepted and means the same corpus. A list for a
+  corpus that does not exist is an error that names the corpus the site serves, never an
+  empty table (an existing corpus with no References still lists as empty).
+  `references show <id> [--corpus-key KEY]` takes any id the other commands print: the
+  record id (`...-v1`) from `references list`, or the lineage id that `stories show`
+  prints. With `--corpus-key` a Reference from another corpus is an error that says which
+  corpus it is in.
+- **Reading one thing.** `papyrus stories list [--stage STAGE] [--section ID|SLUG|NAME] [--limit N]`
+  prints one line per Story (lineage id, stage, section, title; newest change first; spiked and
+  held Stories only with `--stage`). `papyrus assignments show --assignment ID` prints one
+  Assignment's status, type, queue, section, Story and holder, then its events. Both are read only.
+  `stories create --section` and `assignments create-research|create-reporting --section` take a
+  section's id, slug or name, the same as `editorial context --section`, and store the id.
 - **Object kinds are explicit.** Cloud `assignments list` rows are GraphQL
   `Assignment` work records (`kind: newsroom-assignment`). Local `assignments
   list` rows are Kanbus **pod stories** (`kind: pod-story`), not GraphQL

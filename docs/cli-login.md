@@ -275,9 +275,12 @@ An operator who sets `PAPYRUS_GRAPHQL_AUTH=iam` is never sent to a signed-in sit
 endpoint variable the command fails and names `papyrus login`. Naming a site (step 1) is the only way the registry
 supplies an endpoint to the IAM lane.
 
-An `amplify_outputs.json` also supplies the storage bucket and Cognito identity pool for `stories save-version --images` and
-`content publish`. Those two values are not published by the site, so those commands still need the file (or, where the command takes them, `--bucket`,
-`--identity-pool-id` and `PAPYRUS_IDENTITY_POOL_ID`). A file that names a different backend than the site you chose is ignored for
+`content publish` and `stories set-slug` on a published story need no outputs file: when no file of the chosen site says whether the
+site projects its pages, the signed-in lane asks the newsroom's own `publishItem` mutation, which projects the page on a site that does
+and does nothing on one that does not (an `amplify_outputs.json` of the chosen site still decides first).
+
+An `amplify_outputs.json` still supplies the storage bucket and Cognito identity pool for `stories save-version --images`. Those two values are not published by the site, so that command still needs the file (or `--bucket`,
+`--identity-pool-id` and `PAPYRUS_IDENTITY_POOL_ID`); publishing them needs a design decision (see PPY-83e413). A file that names a different backend than the site you chose is ignored for
 them rather than used, so a stray file in the working directory cannot send an upload to the wrong bucket.
 
 ### The site file: tenant and version

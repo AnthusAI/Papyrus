@@ -60,6 +60,18 @@ from .options import normalize_string, parse_boolean_option, parse_options, reso
 from .records import apply_record_changes, build_record_changes
 from .research_assignments_worker import finished_note, without_credential_guidance
 from .steering import default_corpus_key
+
+
+def _own_corpus_key(client) -> str:
+    """The corpus an assignment names no corpus for: the signed-in site's own (its canonical publication corpus), not the tool's packaged default.
+    The IAM lane keeps the steering default."""
+    from .user_auth_mode import user_auth_requested
+
+    if user_auth_requested():
+        from .publication import publication_corpus_key
+
+        return publication_corpus_key(client)
+    return default_corpus_key()
 from .story_reporting import link_found_references_as_consulted
 from .web_search import (
     PROVIDERS,
@@ -825,7 +837,7 @@ def research_multi(
             f"Create one with: papyrus research create --type {MULTI_ASSIGNMENT_TYPE} --title ..."
         )
     research_mode = normalize_research_mode(options.get("research-mode") or meta.get("researchMode") or "source_discovery")
-    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(meta.get("corpusKey")) or default_corpus_key()
+    corpus_key = normalize_string(options.get("corpus-key")) or normalize_string(meta.get("corpusKey")) or _own_corpus_key(client)
     actor_label = normalize_string(options.get("actor-label")) or "Papyrus content CLI"
     model = normalize_string(options.get("model")) or DEFAULT_LLM_MODEL
     brief = brief_text(assignment, meta)

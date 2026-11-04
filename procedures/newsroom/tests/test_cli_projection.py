@@ -96,7 +96,7 @@ class PublishProjectionTests(unittest.TestCase):
     def test_other_publication_kinds_keep_revalidation(self) -> None:
         client = self.saved()
         with mock.patch("papyrus_content.publish_commands.trigger_pretext_revalidation", return_value={"ok": True}) as revalidate:
-            _out, invoke = run(content_publish, client, ["--id", "item-articles-hello", "--json"], {"PAPYRUS_PUBLICATION_KIND": ""})
+            _out, invoke = run(content_publish, client, ["--id", "item-articles-hello", "--json"], {"PAPYRUS_PUBLICATION_KIND": "", "PAPYRUS_GRAPHQL_AUTH": "iam"})
         revalidate.assert_called_once()
         invoke.assert_not_called()
 

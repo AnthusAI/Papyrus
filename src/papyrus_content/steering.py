@@ -33,7 +33,15 @@ def steering_config_chosen_by_site(config_path: str | None = None) -> bool:
     if config_path or os.environ.get("PAPYRUS_STEERING_CONFIG"):
         return True
     configured = Path(resolve_topics_steering_config_path())
-    return configured.is_absolute() or (PAPYRUS_ROOT / configured).exists()
+    if configured.is_absolute():
+        return True
+    # The Papyrus source tree carries its own development steering file; that is the product's default, not a site's choice.
+    return (PAPYRUS_ROOT / configured).exists() and not is_papyrus_source_tree(PAPYRUS_ROOT)
+
+
+def is_papyrus_source_tree(root: Path) -> bool:
+    """True for a checkout of the Papyrus product repository itself, as opposed to a site's own checkout."""
+    return (root / "pyproject.toml").is_file() and (root / "src" / "papyrus_content").is_dir() and (root / "src" / "papyrus").is_dir()
 
 
 def load_steering_config(config_path: str | None = None) -> dict[str, Any] | None:

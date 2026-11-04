@@ -23,7 +23,7 @@ class OperatorBackend(ABC):
     raise NotImplementedError
 
   @abstractmethod
-  def show_reference(self, reference_id: str) -> OperatorRow:
+  def show_reference(self, reference_id: str, corpus_key: str | None = None) -> OperatorRow:
     raise NotImplementedError
 
   @abstractmethod

@@ -18,10 +18,8 @@ for entry in (REPO_ROOT / "src", REPO_ROOT, REPO_ROOT / "procedures" / "newsroom
         sys.path.insert(0, str(entry))
 
 from papyrus.operator import config as operator_config  # noqa: E402
-from papyrus.operator.backends.cloud import CloudBackend  # noqa: E402
 from papyrus.operator.commands import references as reference_commands  # noqa: E402
 from papyrus.operator.errors import OperatorError  # noqa: E402
-from papyrus.operator.output import OperatorRow  # noqa: E402
 from papyrus_content import steering  # noqa: E402
 from test_operator_default_corpus import PACKAGED_DEFAULT, HostedClient, RecordingBackend, corpora  # noqa: E402
 
@@ -106,17 +104,6 @@ def _list_iam(context):
     _list(context, [], False)
 
 
-@when("a signed-in person shows a reference with no corpus key")
-def _show(context):
-    seen = []
-    row = OperatorRow(kind="cloud-reference", status="", identifier="reference-1", title="A", extra={})
-    with mock.patch("papyrus_content.user_auth_mode.user_auth_requested", return_value=True), \
-            mock.patch("papyrus_content.graphql_authoring.create_authoring_client", return_value=(HostedClient(context.hosted), {})), \
-            mock.patch.object(CloudBackend, "list_references", side_effect=lambda **kw: seen.append(kw["corpus_key"]) or [row]):
-        CloudBackend(operator_config.load_operator_config(backend_override="cloud")).show_reference("reference-1")
-    context.corpus_keys = seen
-
-
 @then('the references are listed from the corpus "{key}"')
 def _listed_from(context, key):
     assert context.failure is None, context.failure
@@ -137,8 +124,3 @@ def _header(context, key):
 def _fails(context):
     assert isinstance(context.failure, OperatorError) and "--corpus-key" in str(context.failure), context.failure
     assert context.corpus_keys == []
-
-
-@then('the reference is looked up in the corpus "{key}"')
-def _looked_up(context, key):
-    assert context.corpus_keys == [key], context.corpus_keys
