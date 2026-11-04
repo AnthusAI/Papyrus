@@ -1,0 +1,20 @@
+{
+  "id": "PPY-4151cd38-7e5e-449d-9cb5-26b34a6776b3",
+  "title": "Mined entities link to the Reference they came from",
+  "description": "Finding: only 13 mentions go from a Reference to a concept, against 408 from Items, though Ryan expects mining from References. `publish_run.py` has `is_reference_mention`, and `monitor_import.py` writes some. First find out why accepted References get so few: is extraction only over published Items and corpus records, or are the links lost? Then make every accepted Reference get `mentions` links, with a backfill. Done when: share of accepted References with at least one mention is reported per run, and on Machines on Machines most have one. Ordinary get-or-create (PPY-891a3f).",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e6e82b61-7bde-4bc3-be9f-a1855419d3ab",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:45.882507Z",
+  "updated_at": "2026-11-04T02:52:45.882540Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

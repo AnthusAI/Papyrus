@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ec275621-b1e0-4fed-9ab8-143dcbc8880a",
+  "issue_id": "PPY-17d05702-569a-41fd-bfc8-4e11eca9792e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:45.625Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Concept knowledge base: a wiki we can manage, rank and feed to agents",
+    "description": "Ryan 2026-11-03. Curation is speeding up, so mined concepts and the wiki will grow fast. Concept pages start thin but link to References. Goals: people can create and edit concepts; machines never step on them; concepts are ranked in several ways during knowledge runs; sections track key concepts; agents get graph-based context about their section; the public wiki gets fun, honest views; a site chooses who may edit its wiki.\n\nMeasured on Machines on Machines 2026-11-03 (read only):\n- 2,755 current concept nodes, 7,662 superseded. 18,292 relations, read in about a minute.\n- 1,428 accepted References. None has curationSectionId.\n- Reference to concept: 3,366 unreviewed suggested related_to links (vector suggestions, scores as low as 0.19), 13 mentions. 408 mentions go from Items to concepts.\n- Links touching accepted References reach only 81 distinct concepts, and two concepts hold 518 of them (335 and 183). So the graph is thin and hub-heavy today; ranking it now would mostly rank noise. Epic 'Raw material' comes first.\n- No authority scores are set, though `papyrus knowledge ontology recompute-authority` exists.\n\nTechnology decision: no graph database. The knowledge run is a 4 vCPU, 16 GB Fargate task, and this graph fits in memory by a wide margin. Compute in Python during the run, publish JSON and derived fields. S3 Vectors concept cards already exist for sparse concepts.\n\nAlready filed under PPY-aab37e and part of this: PPY-891a3f (machines only create concepts), PPY-bbec59 (section lists and basic cards), PPY-b69b15 (automatic concepts experiment, now the lower tier). Decided rules: machines get or create; only derived numbers update; same thing is one node with aliases, found the same means merge, related or unsure means two nodes with a noted link; a typed link plus a note is what a fact is for now; a person's list outranks automatic suggestions.",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

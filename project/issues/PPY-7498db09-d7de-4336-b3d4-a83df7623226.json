@@ -1,0 +1,20 @@
+{
+  "id": "PPY-7498db09-d7de-4336-b3d4-a83df7623226",
+  "title": "Rank concepts several ways",
+  "description": "Named ranks, not one score: most mentioned; most sources (distinct sites, so one blog cannot win); most valued by editors (stars, votes, tags); most connected (PageRank over the PMI-weighted co-occurrence graph, replacing or feeding `recompute-authority`); bridges (betweenness: concepts joining otherwise separate areas). Derived numbers go on the node through the derived-fields patch; the full lists go to the snapshot. Publish a file `concept-ranks.json` with the parameters.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-ee757023-8014-4c31-8397-e55566c7ab80",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:47.024422Z",
+  "updated_at": "2026-11-04T02:52:47.024446Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e25f78cf-6082-418a-8e67-bb1c9b6e3c06",
+  "issue_id": "PPY-7498db09-d7de-4336-b3d4-a83df7623226",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:47.024Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Rank concepts several ways",
+    "description": "Named ranks, not one score: most mentioned; most sources (distinct sites, so one blog cannot win); most valued by editors (stars, votes, tags); most connected (PageRank over the PMI-weighted co-occurrence graph, replacing or feeding `recompute-authority`); bridges (betweenness: concepts joining otherwise separate areas). Derived numbers go on the node through the derived-fields patch; the full lists go to the snapshot. Publish a file `concept-ranks.json` with the parameters.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-ee757023-8014-4c31-8397-e55566c7ab80",
+    "labels": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-7dd88f4c-94ed-4bf3-bcc8-c0573d8d1876",
+  "title": "A site chooses who may edit its wiki",
+  "description": "Setting `wiki.editing` in `projection.json`: `editors` (Web 1.0, the default: pages of a publication), `members` (signed-in and granted membership), `readers` (anyone signed in). Decision proposed: build `editors` now on the wiki epic, and store the setting so the rest plug in; pages stay static either way, and edits reach them through a projection.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0b8806d-2b63-42a4-9d6c-b812a1abe34e",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:48.959417Z",
+  "updated_at": "2026-11-04T02:52:48.959444Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

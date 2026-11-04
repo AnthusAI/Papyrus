@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "742e31b7-47ab-4c13-991c-5d8c70757d2a",
+  "issue_id": "PPY-1a8b7105-ded7-484e-967f-faee5ce13026",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:46.078Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Every accepted Reference gets its sections",
+    "description": "Finding: all 1,428 accepted References have no curationSectionId; it is only set by a person's vote with a section. The site Cyclotron already has section-fit classifiers and a `decide-site-sections` sweep (`site_sweep.py`, `site_classifier_set.py`); check what it writes on this site. Decision proposed: a Reference can fit several sections; a machine's answer is stored separately from a person's and a person's wins. Fallback where the classifier has no output: nearest section by vector against section mission, labelled as such. Also count a Reference in a section when a Story there uses it as evidence (`section_evidence` does this). Done when: per-section Reference counts are published per run and a person can correct one.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e6e82b61-7bde-4bc3-be9f-a1855419d3ab",
+    "labels": []
+  }
+}

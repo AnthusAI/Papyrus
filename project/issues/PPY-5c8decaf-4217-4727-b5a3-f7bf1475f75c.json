@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5c8decaf-4217-4727-b5a3-f7bf1475f75c",
+  "title": "Member and reader edits go through the Proposals queue",
+  "description": "Web 2.0 variant. Member and reader edits are Proposals (`fileProposal`, rename and merge kinds already exist), moderated with the optional AI moderation, accepted by an editor or auto-accepted for trusted members. Credit on the page, history, reversal. Blocked: reader sign-in stays closed in production until Prospectus returns a site subject, and the rule forbids adding a flag around that. A site with `members` needs a membership source; decide with Prospectus.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0b8806d-2b63-42a4-9d6c-b812a1abe34e",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T02:52:49.058343Z",
+  "updated_at": "2026-11-04T02:52:49.058375Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

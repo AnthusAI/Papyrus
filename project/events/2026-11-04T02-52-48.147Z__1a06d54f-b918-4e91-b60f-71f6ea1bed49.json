@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1a06d54f-b918-4e91-b60f-71f6ea1bed49",
+  "issue_id": "PPY-10a248b5-5b76-4053-94ab-cdcc112bb6af",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:48.147Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Measure whether graph context helps",
+    "description": "Compare editor outlines, selections and copywriter drafts with and without the layers on the same Stories, reviewed blind by an editor, with cost in tokens. Decides which layers stay. Pack hash and method already allow this.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-95b47bd9-5d6f-477e-ad3b-9ea8040b00df",
+    "labels": []
+  }
+}

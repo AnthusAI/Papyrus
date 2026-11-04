@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d381f4e5-4aa5-4ec6-817f-d87c73b735ba",
+  "issue_id": "PPY-1376361f-6e8c-4df3-883a-8a94c2cdd7f3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T02:52:47.474Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Keep graph results fresh between weekly runs",
+    "description": "A run is weekly, curation is continuous. Packs state the `asOf` of what they read. Direct links of tracked concepts are read live at pack time (PPY-bbec59 does); aggregates come from the last run. Decide after measuring whether a nightly graph-only pass is worth it; it makes no model calls, so cost is small.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-ee757023-8014-4c31-8397-e55566c7ab80",
+    "labels": []
+  }
+}
