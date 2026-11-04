@@ -63,7 +63,7 @@ export function ConnectCliBody({ plan }: { plan: CliConnectPlan | null }) {
 
       {plan.remoteCommand ? (
         <Step icon={<SmartphoneIcon aria-hidden="true" size={18} />} title="Connect an agent on a cloud computer, from your phone">
-          <p className={prose}>An agent on a cloud computer has no browser, so you approve its sign-in from your phone or any other device of your own. No keys or passwords go to the agent.</p>
+          <p className={prose}>An agent on a cloud computer has no browser, so you approve its sign-in from your phone or any other device of your own. Your password never reaches the agent; it gets only a sign-in session for this site.</p>
           <p className={prose}>Give the agent this command. It prints a link and a short code, then waits up to 10 minutes. Open the link, sign in with Google, check that the page shows the same code, and approve.</p>
           <CommandLine command={plan.remoteCommand} label="Sign-in command for an agent on a cloud computer" />
           <p className={prose} data-connect-remote-warning>Open the link yourself. Whoever approves first becomes the signed-in person.</p>
