@@ -72,6 +72,8 @@ export function knowledgePipeline(config: KnowledgeRunConfig, trendDrafts?: Tren
 export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string, string> {
   return {
     ...config.environment,
+    // The task signs its GraphQL calls with its task role, by name: the engine refuses an unnamed lane (PPY-5f119a). The image sets it too.
+    PAPYRUS_GRAPHQL_AUTH: "iam",
     PAPYRUS_PROJECTION_LOCK_TABLE: PROJECTION_LOCK_TABLE_NAME,
     PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS: String(config.lockWaitSeconds),
     KNOWLEDGE_PUBLICATION: config.publication,

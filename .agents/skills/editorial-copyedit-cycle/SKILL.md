@@ -28,7 +28,8 @@ article editor.
 ## Before you start
 
 - **Connect to the site.** Use the publication's configured editorial session
-  (`papyrus login <site>`). The explicit IAM operator lane is
+  (`papyrus login <site>`); with no session the CLI refuses and says to log in.
+  The explicit IAM lane is break-glass, never a fallback:
   `PAPYRUS_GRAPHQL_AUTH=iam` with `AWS_PROFILE=papyrus-production`, plus
   `PAPYRUS_SITE_ROOT` pointing at a folder holding the deployed backend's
   `amplify_outputs.json`. `scripts/connect.sh <workdir> <amplify-app-id>` builds

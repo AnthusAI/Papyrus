@@ -199,7 +199,7 @@ const staticEnvironment = Object.fromEntries(taskDefinition.Properties.Container
 assert.deepEqual(Object.keys(staticEnvironment).sort(), [
   "AWS_REGION", "HF_HOME", "HF_HUB_OFFLINE", "KNOWLEDGE_ALLOW_TEST_FAILURE", "KNOWLEDGE_BEATS_CONFIG", "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION", "KNOWLEDGE_AMPLIFY_APP_ID", "PAPYRUS_PLUGINS",
   "KNOWLEDGE_APPSYNC_API_ID", "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_MONITOR_SOURCES", "KNOWLEDGE_MONITOR_SUGGESTIONS", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
-  "KNOWLEDGE_SITE_REPO", "KNOWLEDGE_STATE_BUCKET", "KNOWLEDGE_STATIC_SUBDIR", "PAPYRUS_EDGE_DISTRIBUTION_ID", "PAPYRUS_PROJECTION_LOCK_TABLE",
+  "KNOWLEDGE_SITE_REPO", "KNOWLEDGE_STATE_BUCKET", "KNOWLEDGE_STATIC_SUBDIR", "PAPYRUS_EDGE_DISTRIBUTION_ID", "PAPYRUS_GRAPHQL_AUTH", "PAPYRUS_PROJECTION_LOCK_TABLE",
   "PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS", "PAPYRUS_PUBLICATION_KIND", "PAPYRUS_REDIRECTS_KVS_ARN", "PAPYRUS_SITE_BUCKET", "TREND_DRAFTS_MAX_AGE_DAYS",
 ].sort());
 assert.equal(staticEnvironment.TREND_DRAFTS_MAX_AGE_DAYS, "1", "the trend-drafts step accepts a snapshot one day older than the execution by default");
@@ -210,6 +210,7 @@ const trendEnvironment = Object.fromEntries(
 assert.ok(!("TREND_DRAFTS_WINDOW_DAYS" in trendEnvironment), "trendWindowDays is retired: accepted, no variable");
 assert.equal(trendEnvironment.TREND_DRAFTS_MAX_AGE_DAYS, "3");
 assert.ok(!("TREND_DRAFTS_COOLDOWN_DAYS" in trendEnvironment), "trendCooldownDays is retired: accepted, no variable");
+assert.equal(staticEnvironment.PAPYRUS_GRAPHQL_AUTH, "iam", "the task names the IAM lane; the engine refuses an unnamed one (PPY-5f119a)");
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_TABLE, PROJECTION_LOCK_TABLE_NAME);
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS, "1800");
 assert.equal(staticEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface,routed");

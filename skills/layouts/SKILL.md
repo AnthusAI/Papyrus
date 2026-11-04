@@ -54,7 +54,7 @@ PAPYRUS_GRAPHQL_ENDPOINT=https://...
 PAPYRUS_EDITION_SLUG=current
 ```
 
-Authenticate with `AWS_PROFILE` set to a profile for the site's authoring role.
+Authenticate with `papyrus login`. Break-glass only: `PAPYRUS_GRAPHQL_AUTH=iam` with `AWS_PROFILE` set to a profile for the site's authoring role.
 
 The endpoint can come from `amplify_outputs.json` when that file exists, or
 from the AppSync API in AWS. Requests are signed with SigV4 from your AWS

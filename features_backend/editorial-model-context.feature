@@ -1,11 +1,13 @@
 Feature: Database editorial guidance reaches model requests
   Current private doctrine complements learned criteria and copy-edit controls.
 
+  @requires-cyclotron
   Scenario: A classification request inherits only its selected desk guidance
     Given current synthetic publication doctrine and two independent desks
     When a classification request is prepared for the science desk
     Then its request contains publication and science policy without business policy
 
+  @requires-cyclotron
   Scenario: A changed database policy replaces stale request context
     Given current synthetic publication doctrine and two independent desks
     When a classification request is prepared for the science desk

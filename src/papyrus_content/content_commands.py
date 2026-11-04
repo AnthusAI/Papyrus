@@ -4,6 +4,7 @@ import os
 
 from .env import graphql_endpoint
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
+from .user_auth_mode import iam_requested
 from .options import normalize_string, parse_comma_list, parse_options
 
 
@@ -19,9 +20,12 @@ def content_inspect(_flags: list[str]) -> None:
     client.inspect_reachability()
 
     print(f"GraphQL endpoint: {endpoint}")
-    print("Auth source: AWS credential chain (IAM, SigV4)")
-    print(f"AWS profile: {os.environ.get('AWS_PROFILE') or 'default chain'}")
-    print(f"AWS caller: {_caller_identity_arn()}")
+    if iam_requested():   # break-glass: named on purpose with PAPYRUS_GRAPHQL_AUTH=iam
+        print("Auth source: AWS credential chain (IAM, SigV4), chosen with PAPYRUS_GRAPHQL_AUTH=iam")
+        print(f"AWS profile: {os.environ.get('AWS_PROFILE') or 'default chain'}")
+        print(f"AWS caller: {_caller_identity_arn()}")
+    else:
+        print("Auth source: signed-in user session (`papyrus login`); no AWS credentials are used")
     print("GraphQL reachability: ok")
 
 

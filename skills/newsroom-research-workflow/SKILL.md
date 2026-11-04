@@ -203,7 +203,7 @@ paths in `papyrus`; do not hand-edit
    handoff.
 
    ```bash
-   AWS_PROFILE=Ryan AWS_REGION=us-east-1 \
+   PAPYRUS_GRAPHQL_AUTH=iam AWS_PROFILE=Ryan AWS_REGION=us-east-1 \
      PYTHONPATH=../Tactus:src \
      poetry run papyrus knowledge query \
        --query "<specific assignment research question>" \
@@ -457,10 +457,10 @@ conversation-backed screening loop with the user.
    or synced explicitly:
 
    ```bash
-   AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
+   PAPYRUS_GRAPHQL_AUTH=iam AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
      poetry run papyrus knowledge vector-index --action audit
 
-   AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
+   PAPYRUS_GRAPHQL_AUTH=iam AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
      poetry run papyrus knowledge vector-index --action sync \
      --corpus-id <corpus-id> \
      --max-references 25 \

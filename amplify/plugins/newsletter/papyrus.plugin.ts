@@ -78,6 +78,7 @@ export function newsletterEnvironment(config: NewsletterConfig, tableName: strin
   return {
     TABLE_NAME: tableName,
     KEY_PARAMETER: keyParameter,
+    PAPYRUS_GRAPHQL_AUTH: "iam", // the function signs its own GraphQL calls with its role; there is no signed-in person (PPY-5f119a)
     SITE_ID: config.siteId,
     SITE_ORIGIN: config.siteOrigin,
     SITE_BASE_PATH: config.basePath,

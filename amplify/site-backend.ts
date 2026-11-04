@@ -73,6 +73,7 @@ import {
   resolveSiteBackendFeatureFlags,
   type SiteBackendIdentity,
 } from "./site-backend-names";
+import { WORKER_GRAPHQL_AUTH, WORKER_GRAPHQL_AUTH_ENV } from "./functions/shared/worker-graphql-auth";
 import { addStorageBackups } from "./storage-backups/construct";
 import { storage } from "./storage/resource";
 import type { PapyrusSite } from "../lib/define-site";
@@ -301,6 +302,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         backend.slackDelivery.addEnvironment("AMPLIFY_SSM_ENV_CONFIG", amplifySsmEnvConfig);
       }
       backend.slackDelivery.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
+      backend.slackDelivery.addEnvironment(WORKER_GRAPHQL_AUTH_ENV, WORKER_GRAPHQL_AUTH);
       backend.slackDelivery.addEnvironment(
         "PAPYRUS_CONSOLE_RESPONSE_TARGET",
         (process.env.PAPYRUS_CONSOLE_RESPONSE_TARGET ?? "cloud").trim() || "cloud",
@@ -493,6 +495,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     "PAPYRUS_GRAPHQL_ENDPOINT",
     backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
   );
+  contentActionsLambda.addEnvironment(WORKER_GRAPHQL_AUTH_ENV, WORKER_GRAPHQL_AUTH);
   wireEmailReferenceIntake(contentActionsLambda, emailMonitorId);
   contentActionsLambda.addToRolePolicy(
     new PolicyStatement({
@@ -616,6 +619,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     );
     inboundProcessor.addEnvironment("PAPYRUS_PUBLIC_SITE_BASE_URL", "https://p.apyr.us");
     inboundProcessor.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", graphqlEndpoint);
+    inboundProcessor.addEnvironment(WORKER_GRAPHQL_AUTH_ENV, WORKER_GRAPHQL_AUTH);
 
     receiveLambda.addToRolePolicy(
       new PolicyStatement({

@@ -1,5 +1,6 @@
 import { secret } from "@aws-amplify/backend";
 import { Stack } from "aws-cdk-lib";
+import { WORKER_GRAPHQL_AUTH, WORKER_GRAPHQL_AUTH_ENV } from "../shared/worker-graphql-auth";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
 
@@ -46,6 +47,7 @@ export function wireEditorialChecks(backend: any): void {
   const lambda = backend.editorialChecks.resources.lambda as LambdaFunction;
   const stack = Stack.of(lambda);
   lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
+  lambda.addEnvironment(WORKER_GRAPHQL_AUTH_ENV, WORKER_GRAPHQL_AUTH);
   for (const name of EDITORIAL_CHECKS_SECRETS) backend.editorialChecks.addEnvironment(name, secret(name));
   lambda.addToRolePolicy(
     new PolicyStatement({

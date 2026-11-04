@@ -554,10 +554,11 @@ source_profile = legacy
 region = us-east-1
 ```
 
-Then sign in and run any authoring command with that profile:
+The day-to-day way in is `papyrus login <site>`; commands refuse and say so when there is no session. This profile route is the explicit break-glass lane, and it needs `PAPYRUS_GRAPHQL_AUTH=iam`: the CLI never picks AWS credentials by itself. Sign in and run any authoring command with that profile:
 
 ```bash
 aws sso login --profile legacy
+export PAPYRUS_GRAPHQL_AUTH=iam
 export PAPYRUS_GRAPHQL_ENDPOINT=https://<api-id>.appsync-api.us-east-1.amazonaws.com/graphql
 AWS_PROFILE=legacy-authoring papyrus ops content inspect
 AWS_PROFILE=legacy-authoring papyrus ops content import-markus --content-dir content ...

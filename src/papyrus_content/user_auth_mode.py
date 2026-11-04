@@ -19,3 +19,14 @@ def user_auth_requested() -> bool:
     # Do not create directories just to inspect whether a default session exists.
     root = Path(os.environ.get('PAPYRUS_CLI_STATE_DIR') or Path.home()/'.config'/'papyrus')
     return (root/'user-session.json').exists()
+
+
+def iam_requested() -> bool:
+    """True only when `PAPYRUS_GRAPHQL_AUTH=iam` (or `--auth iam`, which sets it) asked for the AWS credential lane.
+
+    IAM is never a default: a worker or a break-glass command names it. With no session and no opt-in, a request refuses.
+    """
+    return os.environ.get('PAPYRUS_GRAPHQL_AUTH', '').strip().lower() == 'iam'
+
+
+LOGIN_REQUIRED_MESSAGE = 'Not signed in: run `papyrus login` (AWS credentials are used only when PAPYRUS_GRAPHQL_AUTH=iam is set on purpose).'

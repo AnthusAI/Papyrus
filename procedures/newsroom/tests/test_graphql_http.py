@@ -24,6 +24,7 @@ STATIC_CREDENTIALS = {
     "AWS_SECRET_ACCESS_KEY": "secret-example",
     "AWS_SESSION_TOKEN": "session-example",
 }
+IAM_LANE = {**STATIC_CREDENTIALS, "PAPYRUS_GRAPHQL_AUTH": "iam"}   # the AWS lane is only ever named on purpose (PPY-5f119a)
 NO_CREDENTIALS = {
     "AWS_EC2_METADATA_DISABLED": "true",
     "AWS_CONFIG_FILE": os.devnull,
@@ -38,7 +39,7 @@ class SigV4AuthoringTests(unittest.TestCase):
 
     def test_requests_are_signed_with_sigv4_from_the_credential_chain(self) -> None:
         body = json.dumps({"query": "query { __typename }", "variables": {}}).encode("utf-8")
-        with patch.dict(os.environ, STATIC_CREDENTIALS, clear=True):
+        with patch.dict(os.environ, IAM_LANE, clear=True):
             headers = graphql_http.graphql_request_headers(endpoint=ENDPOINT, body=body)
         authorization = headers["Authorization"]
         self.assertTrue(authorization.startswith("AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/"))
@@ -54,18 +55,18 @@ class SigV4AuthoringTests(unittest.TestCase):
     def test_missing_credentials_explain_how_to_authenticate(self) -> None:
         with patch.dict(os.environ, NO_CREDENTIALS, clear=True):
             self.assertFalse(graphql_http.aws_credentials_available())
-            with self.assertRaisesRegex(ValueError, "AWS_PROFILE"):
+            with self.assertRaisesRegex(ValueError, "papyrus login"):
                 graphql_http.iam_signed_graphql_headers(ENDPOINT, b"{}")
 
     def test_authoring_client_signs_without_any_token(self) -> None:
-        with patch.dict(os.environ, {**STATIC_CREDENTIALS, "PAPYRUS_GRAPHQL_ENDPOINT": ENDPOINT}, clear=True):
+        with patch.dict(os.environ, {**IAM_LANE, "PAPYRUS_GRAPHQL_ENDPOINT": ENDPOINT}, clear=True):
             client, claims = create_authoring_client()
             headers = client._request_headers(b"{}")
         self.assertEqual(claims, {})
         self.assertTrue(headers["Authorization"].startswith("AWS4-HMAC-SHA256 "))
 
     def test_authoring_client_inside_lambda_uses_the_same_signing(self) -> None:
-        with patch.dict(os.environ, {**STATIC_CREDENTIALS, "AWS_LAMBDA_FUNCTION_NAME": "fn"}, clear=True):
+        with patch.dict(os.environ, {**IAM_LANE, "AWS_LAMBDA_FUNCTION_NAME": "fn"}, clear=True):
             headers = PapyrusGraphQLAuthoringClient(endpoint=ENDPOINT)._request_headers(b"{}")
         self.assertTrue(headers["Authorization"].startswith("AWS4-HMAC-SHA256 "))
 
@@ -75,7 +76,7 @@ class SigV4AuthoringTests(unittest.TestCase):
         sts = boto3.client("sts", region_name="us-east-1", aws_access_key_id="x", aws_secret_access_key="y")
         arn = "arn:aws:sts::335163751677:assumed-role/example-papyrus-authoring/session"
         with Stubber(sts) as stubber, patch.dict(
-            os.environ, {**STATIC_CREDENTIALS, "PAPYRUS_GRAPHQL_ENDPOINT": ENDPOINT}, clear=True
+            os.environ, {**IAM_LANE, "PAPYRUS_GRAPHQL_ENDPOINT": ENDPOINT}, clear=True
         ), patch("boto3.client", return_value=sts), patch.object(
             PapyrusGraphQLAuthoringClient, "inspect_reachability", return_value={}
         ):
@@ -84,7 +85,7 @@ class SigV4AuthoringTests(unittest.TestCase):
             with contextlib.redirect_stdout(output):
                 content_commands.content_inspect([])
         text = output.getvalue()
-        self.assertIn("Auth source: AWS credential chain (IAM, SigV4)", text)
+        self.assertIn("Auth source: AWS credential chain (IAM, SigV4), chosen with PAPYRUS_GRAPHQL_AUTH=iam", text)
         self.assertIn(arn, text)
         self.assertIn("GraphQL reachability: ok", text)
 
@@ -99,7 +100,7 @@ class SigV4AuthoringTests(unittest.TestCase):
         with patch("papyrus_content.graphql_http.graphql_request_headers", return_value={}), patch(
             "papyrus_content.graphql_http.graphql_endpoint", return_value="https://example.test/graphql"
         ), patch("urllib.request.urlopen", side_effect=rejection), patch.dict(
-            "os.environ", {"AWS_PROFILE": "papyrus-production"}
+            "os.environ", {"AWS_PROFILE": "papyrus-production", "PAPYRUS_GRAPHQL_AUTH": "iam"}
         ):
             with self.assertRaises(GraphQLRequestError) as raised:
                 graphql_http.execute_graphql("query {}")

@@ -3,6 +3,7 @@
 # Requires AWS credentials for the papyrus-authoring role (set AWS_PROFILE)
 set -euo pipefail
 cd "$(dirname "$0")/.."
+export PAPYRUS_GRAPHQL_AUTH=iam   # break-glass: AWS credentials on purpose (PPY-5f119a)
 
 COMMON=(
   assignments run-story-cycle

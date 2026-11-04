@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+export PAPYRUS_GRAPHQL_AUTH="${PAPYRUS_GRAPHQL_AUTH:-iam}"   # break-glass: AWS credentials on purpose (PPY-5f119a)
 
 TITLE="${1:-Tavily dogfood research}"
 QUERY="${2:-$TITLE}"

@@ -1,4 +1,5 @@
 import { Stack } from "aws-cdk-lib";
+import { WORKER_GRAPHQL_AUTH, WORKER_GRAPHQL_AUTH_ENV } from "../shared/worker-graphql-auth";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
 import {
@@ -34,6 +35,7 @@ export function wireAutomationView(backend: any): void {
   const lambda = backend.automationView.resources.lambda as LambdaFunction;
   const stack = Stack.of(lambda);
   lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
+  lambda.addEnvironment(WORKER_GRAPHQL_AUTH_ENV, WORKER_GRAPHQL_AUTH);
   lambda.addEnvironment("PAPYRUS_MONITORING_TABLE_PARAMETER", MONITORING_TABLE_PARAMETER);
   lambda.addEnvironment("PROCEDURE_RUNNER_FUNCTION", PROCEDURE_RUNNER_FUNCTION_NAME);
   const apiId = backend.data.resources.graphqlApi.apiId as string;

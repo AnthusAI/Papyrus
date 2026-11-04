@@ -51,6 +51,7 @@ stored token, or local auth-session cache.
 Production authoring environment:
 
 ```bash
+export PAPYRUS_GRAPHQL_AUTH=iam   # break-glass: AWS credentials on purpose; otherwise run `papyrus login`
 export AWS_PROFILE=Ryan
 export AWS_REGION=us-east-1
 export PAPYRUS_GRAPHQL_ENDPOINT="https://64hviw44q5cq5nwjcigmasowlq.appsync-api.us-east-1.amazonaws.com/graphql"

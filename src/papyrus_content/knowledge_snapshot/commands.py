@@ -136,13 +136,13 @@ def select_backend(options: dict[str, Any]) -> None:
 
 def announce_backend() -> None:
     """One line on stderr: the lane and the AppSync host a command is about to use."""
-    from ..user_auth_mode import user_auth_requested
+    from ..user_auth_mode import iam_requested, user_auth_requested
 
     try:
         host = urlparse(graphql_endpoint()).netloc
     except ValueError:
         host = "unknown"
-    print(f"knowledge\tauth\t{'user' if user_auth_requested() else 'iam'}\t{host}", file=sys.stderr)
+    print(f"knowledge\tauth\t{'user' if user_auth_requested() else 'iam' if iam_requested() else 'none (run papyrus login)'}\t{host}", file=sys.stderr)
 
 
 def authoring_client(options: dict[str, Any]) -> Any:

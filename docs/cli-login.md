@@ -433,8 +433,10 @@ silently fall back to a broader IAM identity. Each site needs its own
 `papyrus login <site>`; no credential is reused across bindings.
 
 For deliberate operator work, `PAPYRUS_GRAPHQL_AUTH=iam` keeps the existing AWS
-credential chain. Managed Lambdas continue using IAM. A failed user session
-never automatically chooses that lane. The guest reader-export lane remains
+credential chain. Managed Lambdas, tasks and scheduled jobs name it in their
+environment. With no session and no `iam` opt-in a request refuses with one line
+that says to run `papyrus login` (exit 2); a missing session never chooses IAM,
+and neither does a failed one. The guest reader-export lane remains
 read-only and cannot author private content.
 
 ## Session duration and evidence

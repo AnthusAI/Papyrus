@@ -23,7 +23,7 @@ set -a
 # shellcheck disable=SC1090
 source "$PROD_ENV"
 set +a
-export PAPYRUS_GRAPHQL_USE_IAM=1
+export PAPYRUS_GRAPHQL_AUTH=iam   # break-glass: AWS credentials on purpose (PPY-5f119a)
 unset VIRTUAL_ENV
 
 echo "[watch] recounting newsroom summary for /newsroom tab counts..."

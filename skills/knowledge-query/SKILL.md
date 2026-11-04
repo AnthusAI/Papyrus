@@ -346,10 +346,10 @@ Check `structured.request.semanticQuerySource`:
 Remote execution (the default) needs no AWS credentials. Sign in once with
 `papyrus login <site>` and the query runs on your session; with several signed-in sites, add
 `--site <host>` (or set `PAPYRUS_GRAPHQL_ENDPOINT`). The site allows the query for editors and admins;
-anyone else gets a one-line refusal. Without a session, remote execution still works from a machine with
-AWS credentials (`AWS_PROFILE`; SigV4) and `PAPYRUS_GRAPHQL_ENDPOINT`, and
-`PAPYRUS_GRAPHQL_AUTH=iam` forces that lane. Use `--execution local` when changing engine code under
-`src/papyrus_knowledge_query/`; the local engine reads S3 and S3 Vectors directly, so it needs AWS credentials.
+anyone else gets a one-line refusal. Without a session the command refuses and says to run `papyrus login`; it never falls back to AWS
+credentials or the local engine. Workers and break-glass use name the IAM lane on purpose
+(`PAPYRUS_GRAPHQL_AUTH=iam`, with `PAPYRUS_GRAPHQL_ENDPOINT`). Use `--execution local` when changing engine code under
+`src/papyrus_knowledge_query/`, and only then; the local engine reads S3 and S3 Vectors directly, so it needs AWS credentials.
 
 Semantic-only smoke:
 
@@ -413,8 +413,8 @@ poetry run papyrus knowledge query \
 The CLI uses local environment configuration:
 
 - `PAPYRUS_GRAPHQL_ENDPOINT` (or a `papyrus login` session, which supplies the endpoint)
-- the `papyrus login` session for remote execution, or AWS credentials from the standard chain (`AWS_PROFILE`) for
-  the IAM lane and for `--execution local`
+- the `papyrus login` session for remote execution; AWS credentials from the standard chain (`AWS_PROFILE`) only for
+  the explicit IAM lane (`PAPYRUS_GRAPHQL_AUTH=iam`) and for `--execution local`
 - optional `PAPYRUS_S3_VECTOR_INDEX_ARN`
 - optional `OPENAI_API_KEY`
 
@@ -450,14 +450,14 @@ synced after a vector bucket/index replacement.
 Audit coverage before writing vectors:
 
 ```bash
-AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
+PAPYRUS_GRAPHQL_AUTH=iam AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
   poetry run papyrus knowledge vector-index --action audit
 ```
 
 Sync missing vectors with a dry run first:
 
 ```bash
-AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
+PAPYRUS_GRAPHQL_AUTH=iam AWS_PROFILE=<profile> AWS_REGION=<region> PYTHONPATH=src \
   poetry run papyrus knowledge vector-index --action sync \
   --corpus-id <corpus-id> \
   --max-references 25 \
