@@ -1,0 +1,20 @@
+{
+  "id": "PPY-31821c36-cdd7-4db4-94fa-fad2d9c09a46",
+  "title": "Record every Reference's outbound links at capture",
+  "description": "Ryan, 2026-11-04. When a Reference is captured, store its outbound links, every kind of Reference. Stored only: nothing is followed by this story. Reference capture already parses anchors to find a better copy of the same document (reference_capture.py); keep what it finds. Separate main content links from navigation, footers and thanks, and keep that distinction, because followers use only content links. Capture fails or is thin: record what it has. Acceptance test page: https://blog.kjamistan.com/a-deep-dive-into-memorization-in-deep-learning.html, a 348-word hub with 23 links measured 2026-11-04: 17 series articles in an ordered list, 1 category page, 1 YouTube playlist, 3 people's thanks links (two personal sites, one LinkedIn). Expected on it: the 17 articles and the playlist are content links; the category page and thanks links are not.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f8ff4916-268e-45a3-97a6-d6f2d5d780f6",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T16:20:08.469767Z",
+  "updated_at": "2026-11-04T16:20:08.469829Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

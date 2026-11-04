@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "952824a8-f583-40a2-b484-cbfa4126ce6e",
+      "author": "home",
+      "text": "Ryan, 2026-11-04: engine is a plain decision model, not a Cyclotron, because there is no feedback to improve one here. This replaces the Cyclotron option above. Editor corrections need not train anything for now. Build order: record links, classify, follow from aggregations, filter from search.",
+      "created_at": "2026-11-04T16:20:08.826868Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-03T17:03:30.188742Z",
-  "updated_at": "2026-11-03T17:03:30.189140Z",
+  "updated_at": "2026-11-04T16:20:08.827092Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
