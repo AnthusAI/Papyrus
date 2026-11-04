@@ -417,6 +417,31 @@ def test_cli_routes_user_catalog_to_scoped_action_without_generic_writes(tmp_pat
             references_register_catalog(flags[:-1] + ["accepted"])
 
 
+def test_user_catalog_goes_one_source_per_request_reports_each_and_continues_after_a_timeout(tmp_path, capsys):
+    from papyrus_content.cli import references_register_catalog
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(json.dumps({"items": [
+        {"source_uri": f"https://example.test/p{n}", "title": f"P{n}", "ingestion_rationale": "Because."} for n in range(3)]}))
+    steering = {"corpora": [{"key": "one", "name": "One", "role": "source"}]}
+
+    class ActionClient:
+        endpoint = ENDPOINT
+        calls = []
+        def graphql(self, query, variables):
+            self.calls.append(json.loads(variables["input"])["items"])
+            if len(self.calls) == 2:
+                raise TimeoutError("The read operation timed out")
+            return {"intakePendingReferences": json.dumps({"ok": True, "references": [{"id": f"r{len(self.calls)}", "curationStatus": "pending"}]})}
+    c = ActionClient()
+    with patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "user"}), patch("papyrus_content.cli.create_authoring_client", return_value=(c, {})), patch("papyrus_content.reference_intake_cli.require_steering_config", return_value=steering):
+        with pytest.raises(ValueError, match="Run the same command again"):
+            references_register_catalog(["--config", "ignored", "--corpus-key", "one", "--catalog", str(catalog), "--status", "pending"])
+    assert [len(items) for items in c.calls] == [1, 1, 1]
+    lines = capsys.readouterr().out.splitlines()
+    assert [line.split("\t")[2] for line in lines[1:]] == ["recorded", "failed", "recorded", "summary"]
+    assert lines[-1].endswith("confirmed=2\tnot-confirmed=1")
+
+
 def test_schema_preserves_read_only_models_and_scoped_group_action():
     from pathlib import Path
     root = Path(__file__).resolve().parents[3]

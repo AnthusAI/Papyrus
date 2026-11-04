@@ -25,6 +25,11 @@ Feature: The story commands print what happened, in order, and name the right pe
     Then the story edge command prints no write line
     And the story edge command fails
 
+  Scenario: A new version that could not be saved prints no write line
+    When the story edge checks save a new version and the save fails
+    Then the story edge command prints no write line
+    And the story edge command fails
+
   Scenario: A move that was saved prints its write line first
     When the story edge checks move the Story to "reporting"
     Then the first output line is the move's write line

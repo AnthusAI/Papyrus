@@ -235,10 +235,9 @@ files = [
 name = "anthus-markus"
 version = "0.7.0"
 description = "Markus: GitHub-flavored Markdown with semantic layout directives."
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"markus\""
 files = [
     {file = "anthus_markus-0.7.0-py3-none-any.whl", hash = "sha256:95d0cacb363415bdc5b963d4a0ffe99fde1c5bb2dfbb173301666e3396ed5172"},
     {file = "anthus_markus-0.7.0.tar.gz", hash = "sha256:568e061415997886af57d130ea30101274cb4743c04b7f7100f9a79ac242ab2a"},
@@ -3103,10 +3102,9 @@ files = [
 name = "linkify-it-py"
 version = "2.2.0"
 description = "Links recognition library with FULL unicode support."
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"markus\""
 files = [
     {file = "linkify_it_py-2.2.0-py3-none-any.whl", hash = "sha256:3adc40eb5af300b2605fcfdb968c24e1d780a90f1f2221af7c15e5111e94d443"},
     {file = "linkify_it_py-2.2.0.tar.gz", hash = "sha256:907acd2d17ac1fbb9ddb62c8957ccbd6158cac602231a15c3b0cd1e215f03cee"},
@@ -3703,10 +3701,9 @@ files = [
 name = "mdit-py-plugins"
 version = "0.6.1"
 description = "Collection of plugins for markdown-it-py"
-optional = true
+optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "extra == \"markus\""
 files = [
     {file = "mdit_py_plugins-0.6.1-py3-none-any.whl", hash = "sha256:214c82fb2ac524472ab6a5bcab1de80f73b50443e187f401bfd77efbc7c6481d"},
     {file = "mdit_py_plugins-0.6.1.tar.gz", hash = "sha256:a2bca0f039f39dbd35fb74ae1b5f998608c437463371f0ff7f49a19a17a114d0"},
@@ -9034,11 +9031,11 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy"]
 
 [extras]
-markus = ["Pillow", "anthus-markus", "boto3"]
+markus = ["Pillow", "boto3"]
 newsroom = ["biblicus", "boto3", "markitdown", "tactus", "tiktoken", "youtube-transcript-api"]
 priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "0053382f6d8afdcfed419534620a0015d0595184b05fbf7d0ab752c2e14ae1c9"
+content-hash = "f4f83ac97858e4cefb19923928fa9e051be09e8920694316eb9d35cd7edd4fe2"

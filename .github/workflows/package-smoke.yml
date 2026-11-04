@@ -57,6 +57,26 @@ jobs:
       - run: node packages/stage.mjs --version 0.0.0-smoke.1
       - run: node scripts/check-consumer-site-typecheck.mjs dist-packages/anthusai-papyrus-0.0.0-smoke.1.tgz --build
 
+  # The documented install is `pipx install papyrus-newsroom`, with no extras. Saving a story version derives
+  # bodyIr with Markus, so a plain install must be able to do that (PPY-a4ae21).
+  cli-clean-install:
+    name: cli-clean-install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m venv "$RUNNER_TEMP/plain" && "$RUNNER_TEMP/plain/bin/pip" install .
+      - name: A plain install derives a story body
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$RUNNER_TEMP/plain/bin/python" -c "
+          from papyrus_content.markus_renderer.derive import derive_body
+          result = derive_body(None, '# A heading\n\nA paragraph.\n')
+          assert result.ok, result.errors
+          "
+
   github-tarball-pins:
     name: github-tarball-pins
     runs-on: ubuntu-latest

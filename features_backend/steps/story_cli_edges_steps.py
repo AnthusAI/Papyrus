@@ -44,6 +44,12 @@ def _create_fails(context):
         _go(context, story_commands.stories_create, "--title", "x")
 
 
+@when("the story edge checks save a new version and the save fails")
+def _save_version_fails(context):
+    with mock.patch.object(story_commands, "save_story_version", side_effect=ModuleNotFoundError("No module named 'markusmd'")):
+        _go(context, story_commands.stories_save_version, "--story", LINEAGE, "--body", "Body", "--reason", "r", "--author-label", "a", "--no-check")
+
+
 @when('the story edge checks move the Story to "{stage}"')
 def _move(context, stage):
     _go(context, story_commands.stories_move, "--story", LINEAGE, "--stage", stage)

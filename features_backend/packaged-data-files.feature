@@ -28,7 +28,16 @@ Feature: The PyPI wheel carries the data files the commands read at run time
 
   Scenario: The wheel depends on the exact shared login library release
     Given the wheel built from this checkout
-    Then the wheel requires cli-login at exactly version 0.4.0, with the Linux extra on Linux
+    Then the wheel requires cli-login at exactly version 0.4.1, with the Linux extra on Linux
+
+  Scenario: A plain install can save a story version
+    The documented install is pipx install papyrus-newsroom, with no extras. Saving
+    a story version derives bodyIr with Markus, so Markus must be a base
+    requirement of the wheel, not only part of the markus extra. Release 5.83.0
+    failed with No module named markusmd on a plain install. The package smoke
+    workflow also installs the checkout with no extras and derives a body.
+    Given the wheel built from this checkout
+    Then the wheel requires anthus-markus for every install, not only for an extra
 
   Scenario: Code that Lambda functions run works without the login library
     The Lambda bundles ship papyrus_content but not cli-login, which only the CLI
