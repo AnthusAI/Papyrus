@@ -116,7 +116,7 @@ export function SectionConceptsEditor({ actor = "editor", disabled = false, entr
           <button
             className={cn(TILE, "flex w-full min-w-0 items-center gap-1.5 px-3 py-2 text-left text-sm font-semibold text-foreground outline-none hover:bg-muted/70 focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-60")}
             data-section-concepts-result={item.lineageId}
-            disabled={disabled || busy || entries.some(entry => entry.conceptLineageId === item.lineageId)}
+            disabled={disabled || busy}
             key={item.lineageId}
             onClick={() => addConcept(item)}
             type="button"
