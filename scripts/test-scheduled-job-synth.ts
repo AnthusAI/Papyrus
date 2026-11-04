@@ -198,7 +198,7 @@ const taskDefinition = Object.values(template.findResources("AWS::ECS::TaskDefin
 const staticEnvironment = Object.fromEntries(taskDefinition.Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]));
 assert.deepEqual(Object.keys(staticEnvironment).sort(), [
   "AWS_REGION", "HF_HOME", "HF_HUB_OFFLINE", "KNOWLEDGE_ALLOW_TEST_FAILURE", "KNOWLEDGE_BEATS_CONFIG", "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION", "KNOWLEDGE_AMPLIFY_APP_ID", "PAPYRUS_PLUGINS",
-  "KNOWLEDGE_APPSYNC_API_ID", "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_MONITOR_SOURCES", "KNOWLEDGE_MONITOR_SUGGESTIONS", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
+  "KNOWLEDGE_APPSYNC_API_ID", "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_DECISION_KEY_PARAMETER", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_MONITOR_SOURCES", "KNOWLEDGE_MONITOR_SUGGESTIONS", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
   "KNOWLEDGE_SITE_REPO", "KNOWLEDGE_STATE_BUCKET", "KNOWLEDGE_STATIC_SUBDIR", "PAPYRUS_EDGE_DISTRIBUTION_ID", "PAPYRUS_PROJECTION_LOCK_TABLE",
   "PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS", "PAPYRUS_PUBLICATION_KIND", "PAPYRUS_REDIRECTS_KVS_ARN", "PAPYRUS_SITE_BUCKET", "TREND_DRAFTS_MAX_AGE_DAYS",
 ].sort());
@@ -364,7 +364,10 @@ assert.deepEqual(statementBySid("ProjectionLockTable").Resource, "arn:aws:dynamo
 assert.deepEqual(statementBySid("ReadParameters").Resource, [
   `arn:aws:ssm:us-east-1:712236451410:parameter${PROJECTION_LOCK_PARAMETER_NAME}`,
   "arn:aws:ssm:us-east-1:712236451410:parameter/papyrus/shipped/openai-api-key",
+  statementBySid("ReadParameters").Resource[2],
 ]);
+assert.match(statementBySid("ReadParameters").Resource[2], /^arn:aws:ssm:us-east-1:\d{12}:parameter\/papyrus\/shared\/typesafe-api-key$/, "the entity step reads the Jev key, and only that parameter");
+assert.equal(staticEnvironment.KNOWLEDGE_DECISION_KEY_PARAMETER, "/papyrus/shared/typesafe-api-key", "the entity step asks Jev with the shared TypeSafe key unless the site names its own");
 assert.deepEqual(statementBySid("SignAppSyncRequests").Resource, [
   "arn:aws:appsync:us-east-1:712236451410:apis/6sw6454pozbgvdgm233gqkxsxu/types/Query/fields/*",
   "arn:aws:appsync:us-east-1:712236451410:apis/6sw6454pozbgvdgm233gqkxsxu/types/Mutation/fields/*",

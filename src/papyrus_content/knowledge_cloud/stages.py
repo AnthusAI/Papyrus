@@ -60,6 +60,17 @@ def run_shell(args: list[str], *, cwd: Path, env: Mapping[str, str], stdout: Pat
         raise StageFailed(f"`{args[0]} {args[1] if len(args) > 1 else ''}` exited with {result.returncode}")
 
 
+class Usage:
+    """The model calls a command made in another process, read from the file it wrote: ``usage`` as cost accounting reads it."""
+
+    def __init__(self) -> None:
+        self.usage: list[dict] = []
+
+    def read(self, path: Path) -> None:
+        if path.exists():
+            self.usage = json.loads(path.read_text())
+
+
 @dataclass
 class Run:
     config: CloudRunConfig
@@ -113,8 +124,9 @@ class Run:
             env["PAPYRUS_GRAPHQL_ENDPOINT"] = endpoint_of_outputs(str(self.outputs))
         return env
 
-    def sh(self, *args: str, stdout: Path | None = None) -> None:
-        self.shell(list(args), cwd=self.work, env=self.command_env(), stdout=stdout)
+    def sh(self, *args: str, stdout: Path | None = None, env: Mapping[str, str] | None = None) -> None:
+        """Run one command; ``env`` adds variables for this command only (a key that must not be written to the task's environment or log)."""
+        self.shell(list(args), cwd=self.work, env={**self.command_env(), **(env or {})}, stdout=stdout)
 
     def read_state(self) -> dict:
         path = self.run_dir / "state.json"
@@ -451,11 +463,20 @@ def typed_extraction(run: Run) -> dict:
         "papyrus", "knowledge", "entities", "registry", *backend_options(run),
         "--out", str(run_dir / "registry.json"), "--vocabulary", str(run.config_dir / "vocabulary.yml"),
     )
-    run.sh(
-        "biblicus", "extract", "typed-entities", "--corpus", str(run.corpus), "--vocabulary", str(run.config_dir / "vocabulary.yml"),
-        "--registry", str(run_dir / "registry.json"), "--extraction-snapshot", f"pipeline:{state['extraction']}",
-        "--out", str(run_dir / "typed"), stdout=run_dir / "typed-stdout.json",
-    )
+    usage = run_dir / "typed-usage.json"
+    calls = Usage()
+    run.llm_sources.append(calls)  # read for the stage's cost even if the extraction fails half way
+    try:
+        run.sh(
+            "papyrus", "knowledge", "extract-entities", "--corpus", str(run.corpus), "--vocabulary", str(run.config_dir / "vocabulary.yml"),
+            "--registry", str(run_dir / "registry.json"), "--extraction-snapshot", f"pipeline:{state['extraction']}",
+            "--out", str(run_dir / "typed"), "--usage-out", str(usage), env={"TYPESAFE_API_KEY": run.services.api_key(run.config.decision_parameter)},
+        )
+    except BaseException:
+        run.push(corpus=True)  # Jev's answers so far are in the corpus's cache; the retry must not pay for them again
+        raise
+    finally:
+        calls.read(usage)
     run.push(corpus=True, run=True)
     return {"typed": str(run_dir / "typed" / "output.json")}
 

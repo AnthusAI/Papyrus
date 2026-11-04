@@ -206,3 +206,13 @@ def test_a_stage_from_before_cost_accounting_makes_the_total_partial():
     rows = [{"stage": "corpus-sync", "status": "succeeded", "startedAt": "2026-10-26T05:00:00Z", "finishedAt": "2026-10-26T05:03:00Z", "details": {}}]
     total = cost.run_total(rows, STAGES)
     assert total["partial"] is True and total["totalUsd"] == 0.0 and total["durationSeconds"] == 180 and total["status"] == "running"
+
+
+def test_typed_extraction_records_the_jev_calls_its_command_reported_unpriced_until_the_price_table_has_jev(tmp_path):
+    run, shell = make_run(tmp_path)
+    shell.entity_usage = [{"model": "jev-1.13.0", "promptTokens": 600, "completionTokens": 100}] * 2
+    for stage in ("corpus-sync", "topic-model", "typed-extraction"):
+        assert run_stage(stage, run) == 0
+    llm = stored_cost(run, "typed-extraction")["llm"]
+    assert (llm["calls"], llm["inputTokens"], llm["outputTokens"]) == (2, 1200, 200)
+    assert list(llm["byModel"]) == ["jev-1.13.0"] and llm["usd"] is None and "no price for model jev-1.13.0" in llm["reason"]

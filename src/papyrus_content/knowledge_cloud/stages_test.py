@@ -101,7 +101,33 @@ def test_typed_extraction_imports_front_matter_then_uses_the_registry_and_vocabu
     assert ["publish-run", "--auth"] in names
     registry = commands(shell, ["papyrus", "knowledge", "entities", "registry"])[0]
     assert "--vocabulary" in registry
-    assert commands(shell, ["biblicus", "extract", "typed-entities"])
+    extraction = commands(shell, ["papyrus", "knowledge", "extract-entities"])[0]
+    assert extraction[extraction.index("--registry") + 1] == str(run.run_dir / "registry.json")
+    assert extraction[extraction.index("--vocabulary") + 1] == str(run.config_dir / "vocabulary.yml")
+    assert not commands(shell, ["biblicus", "extract", "typed-entities"])
+
+
+def test_a_failed_typed_extraction_still_keeps_the_answers_it_paid_for(tmp_path):
+    run, shell = make_run(tmp_path)
+    for stage in ("corpus-sync", "topic-model"):
+        run_stage(stage, run)
+    cache = run.corpus / "analysis" / "entity-decisions" / "cache.jsonl"
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text('{"key": "k"}\n')  # what the command had cached when it stopped
+    shell.fail_on = "extract-entities"
+    assert run_stage("typed-extraction", run) != 0
+    assert run.state.read_text("corpus/analysis/entity-decisions/cache.jsonl") == '{"key": "k"}\n'
+
+
+def test_typed_extraction_gives_jev_its_key_in_the_environment_and_never_in_the_command(tmp_path):
+    run, shell = make_run(tmp_path)
+    for stage in ("corpus-sync", "topic-model"):
+        run_stage(stage, run)
+    assert run_stage("typed-extraction", run) == 0
+    index = next(number for number, call in enumerate(shell.calls) if call[:3] == ["papyrus", "knowledge", "extract-entities"])
+    assert run.services.key_parameter == "/papyrus/shared/typesafe-api-key"
+    assert shell.envs[index]["TYPESAFE_API_KEY"] == "jev-test-key" and "jev-test-key" not in " ".join(shell.calls[index])
+    assert "TYPESAFE_API_KEY" not in run.command_env() and all("TYPESAFE_API_KEY" not in env for number, env in enumerate(shell.envs) if number != index)
 
 
 def test_archive_uses_the_snapshot_options_and_never_replaces(tmp_path):
