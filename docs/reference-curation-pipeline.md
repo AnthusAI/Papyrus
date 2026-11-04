@@ -102,12 +102,13 @@ URL-free failures). Capture adds:
 * **PDF**: every page, with line wraps and hyphenation undone. The bytes are kept in memory for GROBID.
 * **Following a PDF**: arXiv `abs` pages are read from `arxiv.org/pdf/<id>`; a page with
   `citation_pdf_url` is read from that PDF; a thin page that links one main PDF uses it when it is longer.
-* **YouTube**: a video link (`watch`, `youtu.be`, `shorts`, `live` or an embed, on `youtube.com`, `m.youtube.com` or
-  `youtube-nocookie.com`) is captured from its transcript (`youtube-transcript-api`, English when offered). `capture.textVia`
-  is `youtube_transcript`. YouTube often refuses cloud addresses; then the page's own text (its description, or its title when
-  there is nothing else) is kept, `capture.textVia` is `youtube_description` and `capture.textReason` says why: `blocked`,
-  `no_transcript`, `unavailable`, `unreadable` or `library_missing`. Every attempt prints one JSON line
-  (`{"youtubeTranscript": "captured" | "fallback", "videoId", "reason", "characters"}`) so CloudWatch can count the blocks.
+* **YouTube**: no transcript is fetched here. YouTube refuses cloud addresses (measured over 30 days: the router's transcript request was
+  blocked 39 times and worked once; the same request from a home connection returned the transcript), so a video link (`watch`,
+  `youtu.be`, `shorts`, `live` or an embed, on `youtube.com`, `m.youtube.com` or `youtube-nocookie.com`) is captured like any page and
+  keeps the page's own text (its description, or its title when there is nothing else). `capture.textVia` is `youtube_description` and
+  `capture.textReason` is `awaiting_transcript`, which makes the capture `thin` however long the description is, so the video is never
+  taken for captured in full. The transcript is read later by a person's command on a non-cloud connection, and saved as the text the way
+  a pasted text is: [video transcripts, below](#4d-video-transcripts-the-worker-2026-11-04). No Lambda carries the transcript library.
 * **Bounds** are the real ones: the reader's response guards (400 KB of HTML, 8 MB of PDF; larger fails
   as `too_large`), per-request timeouts and the one overall deadline.
 
@@ -318,12 +319,14 @@ capture.
  "text": "<full corrected or pasted text>",        // optional
  "grobid": {"title": "...", "authors": [{"name": "..."}]},  // optional; any of title, authors, abstract, doi, keywords, sections, references
  "assessment": "complete | incomplete | incorrect",       // required with text; alone it is just a label
+ "pdfAttachmentId": "<id of a PDF uploaded to this Reference>",   // optional, instead of text
+ "captureReason": "no_transcript | unavailable | unsupported_platform",   // optional, a video only, never with text: nothing can be captured automatically
  "note": "optional, at most 4000 characters"}
 ```
 
 The editor is the signed-in caller; the request cannot name one. Result: `{ok: true, referenceId, status,
 edits: [...], label, summaryStale}`, or `{ok: false, errors: [{code: "correction-rejected", message}]}`.
-At least one of `text`, `grobid`, `assessment` is required. Replacing text marks the summary `stale`; the next
+At least one of `text`, `grobid`, `assessment`, `captureReason` is required (`captureReason` is the transcript worker's record of a video it cannot capture: [below](#4d-video-transcripts-the-worker-2026-11-04)). Replacing text marks the summary `stale`; the next
 `papyrus references curate` (or router-started run) writes a new summary from the corrected text. Editing
 does not change `curationStatus`. Concurrent corrections to one Reference are last-write-wins on the card
 (editors do not edit the same Reference at once; the version bodies are never lost).
@@ -353,6 +356,8 @@ Some accepted References are only a title and an address: the page was behind an
 2. Otherwise an editor's latest `capture_completeness` label wins: `complete` is `full`; `incomplete` and `incorrect` are `thin`, so it asks for a person again.
 3. Otherwise text is `thin` when it has fewer words than the teaser line or when the card's completeness signals doubt it (a subscribe or sign-in phrase in the tail, an ellipsis or cut-off ending, text no longer than the page's own description, a page that says it is not free, far fewer words than the page declares, a truncated response, scanned PDF pages); a long text that only lacks a final full stop is `full`. Otherwise it is `full`.
 4. No text is `none`. A card that is `running` with no text yet is `running`. An assessment cannot create text, so a label on a Reference with no text leaves it `none`.
+
+**Videos.** A capture whose `capture.textReason` is `awaiting_transcript` (a video captured from its page alone), or a verdict the transcript worker recorded (`no_transcript`, `unavailable`, `unsupported_platform`), is `thin` until a person or the worker supplies text, whatever its length (`DESCRIPTION_ONLY_REASONS`; both twins, with vectors). The card's reason in To capture is then in words: `awaiting_transcript`, `no_transcript` ("YouTube has no transcript for this video"), and so on.
 
 **The teaser line.** The browser's cards learn the line from the site's own corpus (a quarter of the median captured length, from ten captures). The stored state cannot see the corpus, so it always uses `DEFAULT_TEASER_WORDS` (250). A card can therefore differ from the stored state by a few words near the line; the filter and the home list use the stored state. The code is `storedCaptureState` / `captureStateOfAttachments` (`lib/reference-capture.ts`) and `capture_state` (`src/papyrus_content/reference_capture_state.py`), both tested against `scripts/fixtures/capture-state-vectors.json`.
 
@@ -445,6 +450,17 @@ When a page is captured (the curation run, `papyrus references curate`, and moni
 **Where it is stored.** The body is a `ModelAttachment` (role `metadata`, sort key `curation-links`, `curation-links.json`: `{version, pageUrl, links}`), so the Reference row and the card stay small; the card gets `links: {total, content}` and `current.linksSortKey`. A page with no links writes no attachment. A capture that failed for lack of text (`no_text`) still stores the links of the page it read; a failed fetch and a PDF store none. Monitor enrichment stores the body beside the captured text (`linksKey` on the enrichment row) and `copy_curation` writes the attachment on delivery.
 
 **Honest limits.** It is a rule on what the page declares, not a judgment. A page with no landmarks or theme classes is read as all content; a "related posts" list inside the article body is content; a thanks passage that does not use those words is content; a theme that marks article metadata with its own class names can slip through. On the acceptance page (a saved copy of a public blog hub page, `procedures/newsroom/tests/fixtures/kjam-memorization-hub.html`) it gets exactly the intended answer: the series' articles and the YouTube playlist are content links, and the category page, the sidebar and footer links and the three thanks links are not. The page has **18** series articles in its ordered list (23 links in all: 18 articles, the category page, the playlist, three thanks links), not 17 as the story counted, so 19 content links.
+
+## 4d. Video transcripts: the worker (2026-11-04)
+
+YouTube blocks the addresses cloud functions run on, so transcripts are captured by `papyrus references capture-transcripts` (`src/papyrus_content/references_transcripts.py`), run by anyone signed in on a connection YouTube answers. Nothing depends on a particular machine, and there is no paid service or proxy.
+
+* **What it removed from the cloud**: the transcript attempt in `reference_capture._youtube_capture` (the router's monitor enrichment, `papyrus.reference.curate` and `papyrus references curate` all go through `capture_source`), the fetch in `youtube_transcript.py` (it keeps only `video_id`), the `youtube-transcript-api` package from the router and worker zips (`infra/monitoring/build.py` `VENDORED`, with `requests` and the packages only it needed), the procedure-runner image, and the content-actions Lambda. The dependency is the optional extra `transcripts` of the Python package.
+* **Which videos**: the content-needed index ([reference feed indexes](reference-feed-indexes.md#the-content-needed-index)): `<corpus>#video#needs_content#<status>`, accepted and pending by default, merged newest first. Never a scan; a captured video and a settled one are not in it.
+* **How it saves**: the `correctReferenceCapture` action, as the signed-in caller (the editor on the edit is you), the same path as the capture panel. The transcript goes in as `text` with the assessment `incomplete` (the cloud capture it replaces was) and a note naming the command, so it is stored as `curation-edit-NNNN-text`, the state becomes `full` and the video leaves the list. A video with no captions (or private, removed or restricted) is recorded with the new `captureReason` argument (`no_transcript`, `unavailable`; `unsupported_platform` for a video site with no reader): it goes on the card as `capture.textReason`, the Reference's `captureReason` is set, the key leaves the index so the next run does not ask again, and the video stays `thin` in the To capture queue for a person, with the reason in words. The action takes exactly these arguments and no more; the editor is never a field of the request.
+* **Politeness and stopping**: `--pace` seconds between YouTube requests (default 3), each video asked once per run. If YouTube refuses the connection it waits 60 seconds, then 300, and stops with exit status 3 saying the command needs a non-cloud connection (and, when a cloud environment variable is set, that this looks like a cloud machine). A video it could not read for another reason is reported and left for the next run. A transcript above 900,000 bytes is reported and left (the data API's request limit).
+* **After a transcript is saved**: the same as after a pasted text. The summary is marked `stale`; the next `papyrus references curate` run (or the `papyrus.reference.curate` procedure where a router triggers it) rewrites it from the transcript, and the knowledge snapshot and suggestion vectors read the summary and the text from there. The worker needs no model, so it only prints a reminder; **nothing schedules that curation run today**.
+* **The text is a third party's.** It is stored as the Reference's text and read as data by every step that follows (summary, vectors, search, reporter packs). Nothing the worker does executes or interprets it.
 
 ## 5. Running it
 

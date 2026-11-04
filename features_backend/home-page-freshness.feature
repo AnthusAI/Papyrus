@@ -3,8 +3,10 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
   public page shows or ranks by (its curation status, its place in the feed, its prediction, its version state, its title, its
   section or an editor's star rating, which orders the pages and is never printed on them) arrives on the Reference table's DynamoDB stream. A small trigger function turns a burst of such changes into
   one home-page-snapshot run at the end of a quiet window: the first change opens the window and schedules the run, the
-  changes that follow inside the window find it open and schedule nothing, because the run reads them all. The run writes the
-  snapshot only when it changed and re-renders only the pages that read the changed selection.
+  changes that follow inside the window find it open and schedule nothing, but each adds the id of its Reference to a list the run reads, so
+  the run reads again those rows and no others (home-page-incremental.feature). A Reference that no page can show, for example a new pending one
+  nobody has predicted, changes nothing and runs nothing. The run writes the snapshot only when it changed and re-renders only the pages that read the
+  changed selection.
 
   When the site shows Message threads (homePage.threads.enabled), the Message table's stream feeds the same trigger. A new
   comment, or a change to a comment's status, text, edit time or deletion time, opens the same window, so one run refreshes the
@@ -60,6 +62,39 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
     When a Reference changes only a private field
     Then no home-page snapshot run is scheduled
     And no debounce slot is claimed
+
+  Scenario: A monitor delivering a Reference nobody has predicted schedules nothing
+    A new pending Reference can be recommended only after the Cyclotron has decided it, and the decision is written onto the Reference as a change
+    of its own. Until then no page can show it, so the delivery that created it must not run the snapshot.
+    Given a trigger function with a 300 second debounce window
+    When a pending Reference is delivered that nobody has predicted
+    Then no home-page snapshot run is scheduled
+    And no debounce slot is claimed
+
+  Scenario: The first prediction of a pending Reference schedules a snapshot because the Reference may now be recommended
+    Given a trigger function with a 300 second debounce window
+    When the Cyclotron's first prediction is written onto a pending Reference
+    Then one home-page snapshot run is scheduled for 300 seconds later
+
+  Scenario: Editing a Reference no page can show schedules nothing, whatever the field
+    Given a trigger function with a 300 second debounce window
+    When an unpredicted pending Reference is retitled and rated
+    Then no home-page snapshot run is scheduled
+    And no debounce slot is claimed
+
+  Scenario: The run is told which Reference rows changed
+    Each change adds the id of its Reference to a list that the run reads, so the run reads again those rows and no others.
+    Ten changes to three References in one window list those three.
+    Given a trigger function with a 300 second debounce window
+    When ten changes arrive for three different References
+    Then one home-page snapshot run is scheduled for 300 seconds later
+    And the run's list holds exactly those 3 Reference ids
+
+  Scenario: A window with more changes than a list can hold asks for one full read
+    A mass import can change more rows than one DynamoDB item can list. The trigger then raises a flag, and that one run reads the corpus.
+    Given a trigger function with a 300 second debounce window
+    When 2001 References are accepted in one batch
+    Then the full-read flag is raised once
 
   Scenario: A failed schedule creation releases the slot so the next change can try again
     Given a trigger function with a 300 second debounce window

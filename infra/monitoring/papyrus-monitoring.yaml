@@ -632,6 +632,140 @@ Resources:
       MessageRetentionPeriod: 1209600
       SqsManagedSseEnabled: true
 
+  # One related-items check per Reference (reference_suggest_once.py). The vector pass sends a message when it stores a Reference's summary vector; the router
+  # function takes it off and checks that one Reference. A message that fails is delivered again by SQS until MaxReceiveCount, then it waits in the dead-letter queue,
+  # whose alarm tells a person. The visibility timeout is longer than the function's timeout, as an event source mapping requires.
+  SuggestDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  SuggestQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 1800   # six times the worker's timeout, as the event source mapping advises
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt SuggestDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  SuggestWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/papyrus-monitoring-suggest-worker
+      RetentionInDays: 30
+
+  # The checks themselves: the same code zip and entry point as the router (a batch of SQS records goes to reference_suggest_once.handle_queue), in a function and role
+  # of their own so they never wait behind the router's single execution. Exactly what a check asks for: the router's config row and the check records in its table,
+  # the Reference and relation fields of suggest_for and link_references, the calibration read, and Get/Query on the sites' vector indexes. No writes to the vector index.
+  SuggestWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: suggest-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: MonitoringTable
+                Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem]
+                Resource: !GetAtt MonitoringTable.Arn
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${SuggestWorkerLogGroup.Arn}:*"
+              - Sid: SuggestQueueConsume
+                Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+                Resource: !GetAtt SuggestQueue.Arn
+              - Sid: SuggestionFields
+                Effect: Allow
+                Action: appsync:GraphQL
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticNode"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsBySubjectState"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByObjectState"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByNewsroomFeedAndCreatedAt"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateSemanticRelation"
+              - Sid: SiteVectorIndexes
+                Effect: Allow
+                Action:
+                  - s3vectors:GetVectors
+                  - s3vectors:QueryVectors
+                Resource:
+                  - !Ref AnthUsVectorIndexArn
+                  - !Ref PapyrusVectorIndexArn
+                  - !Ref ThreatIntelVectorIndexArn
+                  - !Ref DataParadeVectorIndexArn
+                  - !Ref PilobolusVectorIndexArn
+                  - !Ref ShippedVectorIndexArn
+                  - !Ref DistinctiveVectorIndexArn
+                  - !Ref MachinesOnMachinesVectorIndexArn
+
+  SuggestWorkerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: SuggestWorkerLogGroup
+    Properties:
+      FunctionName: papyrus-monitoring-suggest-worker
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: papyrus_content.monitoring_router.handler
+      MemorySize: 512
+      Timeout: 300
+      Role: !GetAtt SuggestWorkerRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref RouterCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MonitoringTable
+          PAPYRUS_ROOT: /var/task
+          PAPYRUS_GRAPHQL_AUTH: iam
+
+  SuggestEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      FunctionName: !Ref SuggestWorkerFunction
+      EventSourceArn: !GetAtt SuggestQueue.Arn
+      BatchSize: 10
+      MaximumBatchingWindowInSeconds: 5
+      FunctionResponseTypes: [ReportBatchItemFailures]
+      ScalingConfig:
+        MaximumConcurrency: 2
+
+  SuggestDeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-monitoring-suggest-dead-letters
+      AlarmDescription: >-
+        A Reference's related-items check failed three times and its message is waiting in the suggestion dead-letter queue. Read the router's
+        {"suggestOnce": "failed"} log lines for the reason; after the cause is fixed, move the messages back to the suggestion queue (SQS redrive) or run the
+        suggest-unchecked task.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - { Name: QueueName, Value: !GetAtt SuggestDeadLetterQueue.QueueName }
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
   RouterRole:
     Type: AWS::IAM::Role
     Properties:
@@ -671,6 +805,13 @@ Resources:
                 Effect: Allow
                 Action: sqs:SendMessage
                 Resource: !GetAtt RouterDeadLetterQueue.Arn
+              # The one-check-per-Reference suggestion queue (reference_suggest_once.py): the vector pass sends a message for each stored summary vector. The checks
+              # run in their own function (SuggestWorkerFunction), because this one has a reserved concurrency of 1 and a queue consumer would be throttled for the
+              # whole daily run, burning its receive count.
+              - Sid: SuggestQueueSend
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt SuggestQueue.Arn
               - Sid: CyclotronMachineInvoker
                 Effect: Allow
                 Action: sts:AssumeRole
@@ -756,6 +897,7 @@ Resources:
           TABLE_NAME: !Ref MonitoringTable
           PAPYRUS_ROOT: /var/task
           PAPYRUS_GRAPHQL_AUTH: iam
+          SUGGEST_QUEUE_URL: !Ref SuggestQueue
           PROCEDURE_RUNNER_FUNCTION: !If [HasProcedureRunner, !Ref ProcedureRunnerFunctionName, !Ref AWS::NoValue]
           ENRICHMENT_BUCKET: !Ref EnrichmentBucket
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
@@ -1852,12 +1994,16 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listModelAttachmentsByOwnerRoleAndSortKey"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listMessagesByKindAndCreatedAt"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferences"
+              # The daily vector pass reads only what changed, from the updatedAt indexes (monitoring_vectors.py); listReferences and listSemanticNodes are read only by its
+              # one-time first run on a site with no saved place.
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByVersionStateAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticNodesByVersionStateAndUpdatedAt"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listSemanticRelationsByNewsroomFeedAndCreatedAt"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateSemanticRelation"
               # The curation flag of a run that files nothing (ideas/review.py settle_curation_flag): find this publication's open flag, and acknowledge it when ideas flow again.
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReviewRequests"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateReviewRequest"
-          # The vector pass of the daily monitor-stories task: sync (list, write) the eight sites' indexes and query them for suggestions. A parameter left at its default names no index.
+          # The vector pass of the daily monitor-stories task (get, put, and its one-time first run lists) and the suggestion checks (get, query) on the eight sites' indexes. A parameter left at its default names no index.
           - Sid: FanOutMonitorStories
             Effect: Allow
             Action: lambda:InvokeFunction
@@ -1976,47 +2122,6 @@ Resources:
         Arn: !GetAtt RouterFunction.Arn
         RoleArn: !GetAtt RouterScheduleRole.Arn
         Input: '{"task":"auto-accept","monitorId":"web-distinctive"}'
-        RetryPolicy:
-          MaximumEventAgeInSeconds: 3600
-          MaximumRetryAttempts: 0
-        DeadLetterConfig:
-          Arn: !GetAtt RouterDeadLetterQueue.Arn
-
-  SuggestBacklogSchedule:
-    Type: AWS::Scheduler::Schedule
-    Properties:
-      Name: papyrus-monitoring-hn-suggest-backlog
-      Description: >-
-        Every hour at minute 44, start the suggest-backlog task for the hn monitor (docs/monitoring-cloud.md#suggestion-backlog).
-        It invokes the router once per publication with a vector index and suggestions on, and writes the suggestions of References
-        that have a summary vector. No indexing and no model call. No retry: the next hour repeats it.
-      ScheduleExpression: cron(44 * * * ? *)
-      FlexibleTimeWindow: { Mode: "OFF" }
-      State: !Ref ScheduleState
-      Target:
-        Arn: !GetAtt RouterFunction.Arn
-        RoleArn: !GetAtt RouterScheduleRole.Arn
-        Input: '{"task":"suggest-backlog","monitorId":"hn"}'
-        RetryPolicy:
-          MaximumEventAgeInSeconds: 3600
-          MaximumRetryAttempts: 0
-        DeadLetterConfig:
-          Arn: !GetAtt RouterDeadLetterQueue.Arn
-
-  DistinctiveSuggestBacklogSchedule:
-    Type: AWS::Scheduler::Schedule
-    Properties:
-      Name: papyrus-monitoring-web-distinctive-suggest-backlog
-      Description: >-
-        Every hour at minute 14, the same suggest-backlog task for Distinctive Mark, which the hn router does not list
-        (docs/monitoring-cloud.md#suggestion-backlog). No retry.
-      ScheduleExpression: cron(14 * * * ? *)
-      FlexibleTimeWindow: { Mode: "OFF" }
-      State: !Ref ScheduleState
-      Target:
-        Arn: !GetAtt RouterFunction.Arn
-        RoleArn: !GetAtt RouterScheduleRole.Arn
-        Input: '{"task":"suggest-backlog","monitorId":"web-distinctive"}'
         RetryPolicy:
           MaximumEventAgeInSeconds: 3600
           MaximumRetryAttempts: 0

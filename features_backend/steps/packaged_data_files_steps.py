@@ -127,6 +127,27 @@ def step_requires_markus(context):
     assert "extra" not in requirements[0], requirements
 
 
+def _wheel_requirements(context, distribution: str) -> list[str]:
+    import zipfile
+
+    with zipfile.ZipFile(context.wheel) as archive:
+        name = next(member for member in archive.namelist() if member.endswith(".dist-info/METADATA"))
+        metadata = archive.read(name).decode()
+    return [line for line in metadata.splitlines() if line.lower().startswith(f"requires-dist: {distribution.lower()}")]
+
+
+@then("the wheel requires boto3 for every install, not only for an extra")
+def step_requires_boto3(context):
+    requirements = _wheel_requirements(context, "boto3")
+    assert [line for line in requirements if "extra ==" not in line], requirements
+
+
+@then("the wheel requires Pillow for every install, not only for an extra")
+def step_requires_pillow(context):
+    requirements = _wheel_requirements(context, "pillow")
+    assert [line for line in requirements if "extra ==" not in line], requirements
+
+
 _WITHOUT_CLI_LOGIN = r'''
 import importlib.abc, importlib.util, json, sys
 class Block(importlib.abc.MetaPathFinder):

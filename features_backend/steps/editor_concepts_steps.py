@@ -10,7 +10,6 @@ sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 import test_idea_signal_inputs as ts  # noqa: E402
 import test_monitoring_vectors as tv  # noqa: E402
 from papyrus_content.ideas.signal_inputs import load_signal_inputs  # noqa: E402
-from papyrus_content import monitoring_vectors as vectors  # noqa: E402
 from papyrus_knowledge_query import vector_index  # noqa: E402
 from ideas_fixtures import NOW  # noqa: E402
 
@@ -74,21 +73,3 @@ def step_read(context):
 def step_only_tagged(context):
     assert context.editor.client.relation_queries == [f"reference#{context.editor.rows[0]['lineageId']}#current"], context.editor.client.relation_queries
 
-
-@when("the vector pass plans its suggestions")
-def step_plan(context):
-    class Client(ts.TaggedClient):
-        def list_by_index(self, index, key):
-            if key == "reference-links":
-                return self.tags
-            return [row for row in self.references if key.endswith("#accepted")] if key.endswith("#accepted") else []
-
-    client = Client(references=context.editor.rows, tags=context.editor.client.tags, threads=[])
-    rows = [{**row, "curationStatusUpdatedAt": f"2026-10-0{index + 1}T00:00:00Z"} for index, row in enumerate(context.editor.rows)]
-    client.references = rows
-    context.editor.order, _ = vectors.plan_since(client, {"corpusId": rows[0]["corpusId"]}, None, vectors.signal_lineages(client))
-
-
-@then("the tagged Reference comes first")
-def step_first(context):
-    assert context.editor.order[0]["id"] == context.editor.rows[0]["id"], [row["id"] for row in context.editor.order]

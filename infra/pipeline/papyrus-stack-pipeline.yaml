@@ -1,0 +1,249 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Roles for the release pipeline that deploys the shared stacks (PPY-b8cc79). This is the one stack a person deploys by hand,
+  once; after that every shared stack deploys from a release to main with GitHub OIDC (no stored keys).
+  The account's GitHub OIDC provider already exists (one per account); this stack references it by ARN and never creates it.
+  Deploy with: aws cloudformation deploy --template-file infra/pipeline/papyrus-stack-pipeline.yaml
+  --stack-name papyrus-stack-pipeline --capabilities CAPABILITY_NAMED_IAM
+
+Parameters:
+  GitHubRepository:
+    Type: String
+    Default: AnthusAI/Papyrus
+    Description: owner/repo whose workflow may assume the roles.
+
+Resources:
+  # Pull requests: read-only. The dry run reads stacks and templates and changes nothing.
+  PlanRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: papyrus-stack-plan-github
+      Description: Read-only dry run of the shared-stack deploy, for pull requests in the repository (GitHub OIDC, no keys).
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub repo:${GitHubRepository}:pull_request
+      Policies:
+        - PolicyName: read-only-dry-run
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadTheSharedStacks
+                Effect: Allow
+                Action: [cloudformation:DescribeStacks, cloudformation:GetTemplate, cloudformation:ListChangeSets]
+                Resource:
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-monitoring/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-newsletter-sending-operators/*
+              - Sid: LookUpTheZone
+                Effect: Allow
+                Action: route53:ListHostedZonesByName
+                Resource: "*"
+
+  # Pushes to main: may drive CloudFormation on the two stacks, upload zips and templates under one prefix, and hand the
+  # service role to CloudFormation. It holds none of the permissions to create the resources itself.
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: papyrus-stack-deploy-github
+      Description: Release deploy of the shared stacks for the repository's main branch (GitHub OIDC, no keys).
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub repo:${GitHubRepository}:ref:refs/heads/main
+      Policies:
+        - PolicyName: change-sets-on-the-shared-stacks
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadAndRunChangeSets
+                Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:ListChangeSets
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                Resource:
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-monitoring/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-newsletter-sending-operators/*
+              - Sid: CreateChangeSetsOnlyThroughTheServiceRole
+                Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource:
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-monitoring/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-newsletter-sending-operators/*
+                Condition:
+                  StringEquals:
+                    "cloudformation:RoleArn": !GetAtt CloudFormationRole.Arn
+              - Sid: HandOverTheServiceRoleToCloudFormationOnly
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt CloudFormationRole.Arn
+                Condition:
+                  StringEquals:
+                    "iam:PassedToService": cloudformation.amazonaws.com
+              - Sid: ZipsAndTemplatesUnderOnePrefix
+                Effect: Allow
+                Action: [s3:PutObject, s3:GetObject]
+                Resource: !Sub arn:${AWS::Partition}:s3:::cdk-*-assets-${AWS::AccountId}-${AWS::Region}/papyrus-monitoring/*
+              - Sid: ResolveSsmParameterTypedParameters
+                Effect: Allow
+                Action: ssm:GetParameters
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/*
+              - Sid: LookUpTheZone
+                Effect: Allow
+                Action: route53:ListHostedZonesByName
+                Resource: "*"
+
+  # What CloudFormation itself uses to create and change the resources, named by prefix. Only the deploy role can hand it over.
+  CloudFormationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: papyrus-stack-deploy-cloudformation
+      Description: Service role CloudFormation uses for the shared stacks; passable only from the pipeline's deploy role.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      ManagedPolicyArns:
+        - !Ref ComputeAndIdentityPolicy
+        - !Ref DataAndMailPolicy
+
+  ComputeAndIdentityPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Lambda, schedules, events, logs and the stack's own roles, by name prefix.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: Functions
+            Effect: Allow
+            Action: [lambda:CreateFunction, lambda:DeleteFunction, lambda:GetFunction, lambda:GetFunctionConfiguration, lambda:UpdateFunctionCode, lambda:UpdateFunctionConfiguration, lambda:PutFunctionConcurrency, lambda:DeleteFunctionConcurrency, lambda:PutFunctionEventInvokeConfig, lambda:UpdateFunctionEventInvokeConfig, lambda:DeleteFunctionEventInvokeConfig, lambda:AddPermission, lambda:RemovePermission, lambda:TagResource, lambda:UntagResource, lambda:ListTags, lambda:GetPolicy]
+            Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-*
+          - Sid: EventSourceMappings
+            Effect: Allow
+            Action: [lambda:CreateEventSourceMapping, lambda:UpdateEventSourceMapping, lambda:DeleteEventSourceMapping, lambda:GetEventSourceMapping, lambda:TagResource, lambda:UntagResource]
+            Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:event-source-mapping:*
+          - Sid: ReadTheZipsTheFunctionsRunFrom
+            Effect: Allow
+            Action: s3:GetObject
+            Resource: !Sub arn:${AWS::Partition}:s3:::cdk-*-assets-${AWS::AccountId}-${AWS::Region}/papyrus-monitoring/*
+          - Sid: Schedules
+            Effect: Allow
+            Action: [scheduler:CreateSchedule, scheduler:UpdateSchedule, scheduler:DeleteSchedule, scheduler:GetSchedule]
+            Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/papyrus-*
+          - Sid: RulesAndBuses
+            Effect: Allow
+            Action: [events:PutRule, events:DeleteRule, events:DescribeRule, events:EnableRule, events:DisableRule, events:PutTargets, events:RemoveTargets, events:TagResource, events:UntagResource, events:ListTagsForResource, events:CreateEventBus, events:DeleteEventBus, events:DescribeEventBus, events:PutPermission, events:RemovePermission]
+            Resource:
+              - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/papyrus-*
+              - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*/papyrus-*
+              - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/papyrus-*
+              - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+          - Sid: LogGroups
+            Effect: Allow
+            Action: [logs:CreateLogGroup, logs:DeleteLogGroup, logs:PutRetentionPolicy, logs:DeleteRetentionPolicy, logs:TagResource, logs:UntagResource, logs:ListTagsForResource, logs:PutMetricFilter, logs:DeleteMetricFilter]
+            Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/papyrus-*
+          - Sid: DescribeLogs
+            Effect: Allow
+            Action: [logs:DescribeLogGroups, logs:DescribeMetricFilters]
+            Resource: "*"
+          - Sid: TheStacksOwnRoles
+            Effect: Allow
+            Action: [iam:CreateRole, iam:DeleteRole, iam:GetRole, iam:UpdateRole, iam:UpdateAssumeRolePolicy, iam:PutRolePolicy, iam:DeleteRolePolicy, iam:GetRolePolicy, iam:AttachRolePolicy, iam:DetachRolePolicy, iam:TagRole, iam:UntagRole, iam:ListRolePolicies, iam:ListAttachedRolePolicies, iam:PassRole]
+            Resource:
+              - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-monitoring-*
+              - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-newsletter-sending-*
+          - Sid: TheStacksOwnManagedPolicies
+            Effect: Allow
+            Action: [iam:CreatePolicy, iam:DeletePolicy, iam:GetPolicy, iam:CreatePolicyVersion, iam:DeletePolicyVersion, iam:GetPolicyVersion, iam:ListPolicyVersions, iam:TagPolicy, iam:UntagPolicy]
+            Resource:
+              - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/papyrus-monitoring-*
+              - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/papyrus-newsletter-sending-*
+
+  DataAndMailPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Tables, queues, topics, parameters, alarms, mail identity and DNS records for the shared stacks, by name prefix.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: Tables
+            Effect: Allow
+            Action: [dynamodb:CreateTable, dynamodb:DeleteTable, dynamodb:DescribeTable, dynamodb:UpdateTable, dynamodb:DescribeContinuousBackups, dynamodb:UpdateContinuousBackups, dynamodb:DescribeTimeToLive, dynamodb:UpdateTimeToLive, dynamodb:TagResource, dynamodb:UntagResource, dynamodb:ListTagsOfResource]
+            Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/papyrus-*
+          - Sid: Queues
+            Effect: Allow
+            Action: [sqs:CreateQueue, sqs:DeleteQueue, sqs:GetQueueAttributes, sqs:SetQueueAttributes, sqs:GetQueueUrl, sqs:TagQueue, sqs:UntagQueue, sqs:ListQueueTags]
+            Resource: !Sub arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:papyrus-*
+          - Sid: Topics
+            Effect: Allow
+            Action: [sns:CreateTopic, sns:DeleteTopic, sns:GetTopicAttributes, sns:SetTopicAttributes, sns:Subscribe, sns:Unsubscribe, sns:GetSubscriptionAttributes, sns:SetSubscriptionAttributes, sns:TagResource, sns:UntagResource, sns:ListTagsForResource]
+            Resource: !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:papyrus-*
+          - Sid: Parameters
+            Effect: Allow
+            Action: [ssm:PutParameter, ssm:DeleteParameter, ssm:GetParameter, ssm:GetParameters, ssm:AddTagsToResource, ssm:RemoveTagsFromResource, ssm:ListTagsForResource]
+            Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/*
+          - Sid: DescribeParameters
+            Effect: Allow
+            Action: ssm:DescribeParameters
+            Resource: "*"
+          - Sid: Alarms
+            Effect: Allow
+            Action: [cloudwatch:PutMetricAlarm, cloudwatch:PutCompositeAlarm, cloudwatch:DeleteAlarms, cloudwatch:TagResource, cloudwatch:UntagResource, cloudwatch:ListTagsForResource]
+            Resource: !Sub arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:papyrus-*
+          - Sid: DescribeAlarms
+            Effect: Allow
+            Action: cloudwatch:DescribeAlarms
+            Resource: "*"
+          - Sid: MailIdentityAndConfigurationSetWithoutSending
+            Effect: Allow
+            Action: ["ses:*EmailIdentity*", "ses:*ConfigurationSet*", ses:TagResource, ses:UntagResource, ses:ListTagsForResource]
+            Resource:
+              - !Sub arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:identity/*
+              - !Sub arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:configuration-set/papyrus-*
+          - Sid: StackBuckets
+            Effect: Allow
+            Action: [s3:CreateBucket, "s3:PutBucket*", "s3:GetBucket*", s3:PutEncryptionConfiguration, s3:GetEncryptionConfiguration, s3:PutLifecycleConfiguration, s3:GetLifecycleConfiguration]
+            Resource: !Sub arn:${AWS::Partition}:s3:::papyrus-*
+          - Sid: DnsRecordsOfTheSendingDomain
+            Effect: Allow
+            Action: [route53:ChangeResourceRecordSets, route53:ListResourceRecordSets, route53:GetHostedZone]
+            Resource: !Sub arn:${AWS::Partition}:route53:::hostedzone/*
+          - Sid: DnsChangeStatus
+            Effect: Allow
+            Action: route53:GetChange
+            Resource: !Sub arn:${AWS::Partition}:route53:::change/*
+
+Outputs:
+  PlanRoleArn:
+    Value: !GetAtt PlanRole.Arn
+  DeployRoleArn:
+    Value: !GetAtt DeployRole.Arn
+  CloudFormationRoleArn:
+    Value: !GetAtt CloudFormationRole.Arn

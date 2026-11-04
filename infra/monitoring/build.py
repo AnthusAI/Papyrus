@@ -45,9 +45,10 @@ KNOWLEDGE_QUERY_PACKAGE = ROOT / "src" / "papyrus_knowledge_query"
 KNOWLEDGE_QUERY_EXCLUDED = frozenset({"cli.py", "lambda_handler.py"})
 # Imported only inside functions on paths the router never runs; they need packages the Lambda does not have.
 ROUTER_EXCLUDED = frozenset({"biblicus_runner"})
-# Pure-Python packages copied into the worker zips (the Lambda runtime has boto3/botocore only): PyYAML, then youtube-transcript-api and
-# everything it imports. Compiled extensions are left out; each package runs in its pure-Python mode.
-VENDORED = ("yaml", "youtube_transcript_api", "defusedxml", "requests", "urllib3", "idna", "certifi", "charset_normalizer")
+# Pure-Python packages copied into the worker zips (the Lambda runtime has boto3/botocore only): PyYAML and idna. (youtube-transcript-api and the
+# packages only it needed, requests and its imports, left in PPY-d294d8: YouTube refuses cloud addresses, so no Lambda reads transcripts.)
+# Compiled extensions are left out; each package runs in its pure-Python mode.
+VENDORED = ("yaml", "idna")
 VENDORED_DATA = frozenset({".py", ".pem"})
 # The editorial gate (ideas/gate.py -> editorial_checks) imports Humanus, and its judgment lane imports typesafe_sdk (the `jev` extra). Their
 # dependency closure comes from poetry.lock at the locked versions, as binary wheels for the Lambda (arm64, CPython 3.13), unpacked into the zip.

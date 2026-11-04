@@ -178,3 +178,70 @@ def test_a_rejected_or_human_archived_match_is_not_restored(tmp_path, status, by
     row = client.references[0]
     assert "referenceRestored" not in receipt
     assert {key: row[key] for key in before} == before   # curation fields exactly as they were
+
+
+class CountingClient(Client):
+    """The table behind AppSync's 100-row pages: every listing of the Reference table costs a request per page."""
+
+    def __init__(self, existing: int):
+        super().__init__()
+        self.requests = 0
+        self.references = [{"id": f"reference-held-{n}-v1", "lineageId": f"reference-held-{n}", "versionNumber": 1, "versionState": "current",
+                            "corpusId": "knowledge-corpus-publication", "sourceUri": f"https://example.org/held/{n}", "curationStatus": "pending"}
+                           for n in range(existing)]
+
+    def list_records(self, model):
+        if model == "Reference":
+            self.requests += max(1, -(-len(self.references) // 100))
+        return super().list_records(model)
+
+
+def deliveries(client, listing, count, tmp_path):
+    from papyrus_content.monitoring_intake import ReferenceListing  # noqa: F401 - the listing under test
+
+    monitor = Monitor("hn", "publication", "knowledge-corpus-publication", client.endpoint, tmp_path / "state")
+    receipts = []
+    for number in range(count):
+        item = SourceItem(f"new-{number}", f"A new source {number}", f"https://example.org/new/{number}", f"https://news.ycombinator.com/item?id={number}", None)
+        provenance = {**monitor.binding, "sourceId": item.source_id, "sourceItemUrl": item.source_item_url, "fingerprint": item.fingerprint,
+                      "observedAt": "2026-11-04T00:00:00Z", "revision": 1}
+        receipts.append(ReferenceIntake(client, monitor, auth_mode="iam", persist=lambda rows: None, listing=listing)(item, provenance))
+    return receipts
+
+
+@pytest.mark.parametrize("existing", [200, 5000])
+def test_a_run_of_deliveries_reads_the_reference_table_once_not_once_per_delivery(tmp_path, existing):
+    from papyrus_content.monitoring_intake import ReferenceListing
+
+    each, shared = CountingClient(existing), CountingClient(existing)
+    deliveries(each, None, 30, tmp_path)
+    receipts = deliveries(shared, ReferenceListing(shared), 30, tmp_path)
+    pages = -(-existing // 100)
+    assert each.requests == sum(-(-(existing + n) // 100) for n in range(30)), "without a shared listing every delivery reads the whole table"
+    assert shared.requests == pages, "a shared listing reads it once"
+    print(f"\nINTAKE REQUESTS references={existing} deliveries=30 per_delivery_scan={each.requests} shared_listing={shared.requests}")  # noqa: T201
+    assert len({r["referenceId"] for r in receipts}) == 30 and len(shared.writes) == 30
+
+
+def test_a_delivery_sees_the_reference_an_earlier_delivery_of_the_run_created(tmp_path):
+    from papyrus_content.monitoring_intake import ReferenceListing
+
+    client = CountingClient(5)
+    listing = ReferenceListing(client)
+    monitor = Monitor("hn", "publication", "knowledge-corpus-publication", client.endpoint, tmp_path / "state")
+    item = SourceItem("1", "Same source", "https://example.org/same", "https://news.ycombinator.com/item?id=1", None)
+    other = SourceItem("2", "Same source", "https://example.org/same", "https://news.ycombinator.com/item?id=2", None)
+    receipts = []
+    for delivered in (item, other):
+        provenance = {**monitor.binding, "sourceId": delivered.source_id, "sourceItemUrl": delivered.source_item_url, "fingerprint": delivered.fingerprint,
+                      "observedAt": "2026-11-04T00:00:00Z", "revision": 1}
+        receipts.append(ReferenceIntake(client, monitor, auth_mode="iam", persist=lambda rows: None, listing=listing)(delivered, provenance))
+    assert receipts[0]["referenceId"] == receipts[1]["referenceId"] and receipts[1]["referenceReused"] is True
+    assert len(client.writes) == 1 and client.requests == 1
+
+
+def test_listing_for_gives_one_listing_per_client():
+    from papyrus_content.monitoring_intake import listing_for
+
+    client = Client()
+    assert listing_for(client) is listing_for(client) and listing_for(Client()) is not listing_for(client)

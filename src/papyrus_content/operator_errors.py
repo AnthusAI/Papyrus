@@ -33,6 +33,24 @@ def credential_recovery_guidance() -> str:
     return f"Your AWS session may have expired or lack access. Run `aws sso login --profile {profile}` and retry."
 
 
+def require_operator_lane(command_label: str, writes: str, *, writing: bool) -> None:
+    """Say up front that a command is an operator command, before it reads or writes anything.
+
+    The signed-in editor lane cannot change `writes` (the backend gives editors read access to those models), so a write there
+    fails late with `Not Authorized`, after a preview that looked fine (PPY-a89c4d). On the signed-in lane a write is refused here,
+    and a preview prints one notice line first, so nobody reads the preview as a promise that the write will work."""
+    from .user_auth_mode import user_auth_requested
+    if not user_auth_requested():
+        return
+    notice = (
+        f"{command_label} is an operator command: it writes {writes}, which the signed-in editor lane cannot change. "
+        "Run it on the operator lane (AWS credentials, PAPYRUS_GRAPHQL_AUTH=iam)."
+    )
+    if writing:
+        raise OperatorError(f"{notice} Nothing was changed.")
+    print(f"{command_label}\toperator-lane\tnotice\t{notice} This preview only reads.")
+
+
 def is_operator_facing_error(error: BaseException) -> bool:
     return isinstance(error, (OperatorError, GraphQLRequestError, ValueError))
 

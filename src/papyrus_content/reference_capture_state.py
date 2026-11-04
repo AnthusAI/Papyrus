@@ -7,7 +7,9 @@ the older extracted-text attachments), tested against the same vectors (scripts/
 
 * Text a person pasted, corrected or uploaded is ``full`` whatever its length.
 * Otherwise an editor's assessment of the capture wins: ``complete`` is ``full``; ``incomplete`` and ``incorrect`` are ``thin`` (it asks for a person again).
-* Otherwise the text is ``thin`` when shorter than the teaser line or showing signs of being cut off or paywalled, else ``full``.
+* Otherwise the text is ``thin`` when shorter than the teaser line or showing signs of being cut off or paywalled, else ``full``. The page's own
+  title and description standing in for a video's transcript (``capture.textReason`` is ``awaiting_transcript``, or a verdict the transcript worker
+  recorded) is always ``thin``, however long.
 * No text is ``none``; a capture still being made with no text yet is ``running``. An assessment cannot create text.
 
 The stored copy always uses ``DEFAULT_TEASER_WORDS``; the browser's cards use the line learned from the site's own corpus and may differ by a few words near it.
@@ -28,6 +30,9 @@ CARD_ATTACHMENT_TYPE = "curation"
 CURATION_SORT_KEY = "003-curation"
 EXTRACTED_TEXT_ROLES = ("extracted_text", "extracted_text_raw")
 CARD_STATUSES = ("ready", "degraded", "capture_failed", "running")
+AWAITING_TRANSCRIPT = "awaiting_transcript"   # capture.textReason of a video captured from its page alone: the transcript waits for the worker
+SETTLED_CAPTURE_REASONS = ("no_transcript", "unavailable", "unsupported_platform")   # recorded by the worker: no automatic attempt can help
+DESCRIPTION_ONLY_REASONS = (AWAITING_TRANSCRIPT, *SETTLED_CAPTURE_REASONS)
 _DOUBT = re.compile(r"ends with|stops with|no longer|not free|cut|declares")
 
 
@@ -145,7 +150,8 @@ def capture_state(attachments: Iterable[Mapping[str, Any]], teaser_line: int = D
         words = card_words
         flags = completeness_flags(card.get("editedSignals") if isinstance(card.get("editedSignals"), dict) and card.get("editedSignals") else _object(card.get("signals")))
         edited = str(_object(card.get("current")).get("textSortKey") or "").startswith("curation-edit")
-        thin = not edited and words is not None and words < teaser_line
+        description_only = not edited and _object(card.get("capture")).get("textReason") in DESCRIPTION_ONLY_REASONS
+        thin = description_only or (not edited and words is not None and words < teaser_line)
         doubtful = (not edited and assessment != "complete" and bool(flags) and not thin and any(_DOUBT.search(flag) for flag in flags))
         state = "thin" if thin or doubtful else "full"
     elif _primary_text(rows):
@@ -167,22 +173,45 @@ def capture_state(attachments: Iterable[Mapping[str, Any]], teaser_line: int = D
     return state
 
 
+def capture_reason(attachments: Iterable[Mapping[str, Any]]) -> str | None:
+    """The settled verdict the curation card holds (``capture.textReason``: ``no_transcript`` or ``unavailable``), None otherwise. Text a person
+    supplied afterwards (an edit) makes it moot, so it is not reported then."""
+    card = _card_of(list(attachments))
+    if not card or str(_object(card.get("current")).get("textSortKey") or "").startswith("curation-edit"):
+        return None
+    reason = _object(card.get("capture")).get("textReason")
+    return reason if reason in SETTLED_CAPTURE_REASONS else None
+
+
 def sync_capture_state(client: Any, reference: dict[str, Any], card: dict[str, Any] | None = None, *,
                        extra_attachments: list[dict[str, Any]] | None = None) -> str | None:
-    """Make ``Reference.captureState`` right after captured text or the curation card changed. Returns the field written, or None when it was right.
+    """Make ``Reference.captureState`` (and the fields derived from it: ``captureReason`` and the sparse ``contentNeededKey``) right after captured text
+    or the curation card changed. Returns the state written, or None when it was right.
 
     ``card`` is the card just built or changed (it may not be stored yet). When the card holds text the extracted-text attachments are not read at
     all; otherwise the Reference lineage's attachments are, because an older extracted text can stand in for it. A Reference with no capture and an
     empty field is already right, so nothing is written; a stale value on a Reference that now has none is cleared with null, never set to ``none``.
+    A Reference that is not a video neither holds nor gets the other two fields.
     """
-    state = capture_state(attachments_for_state(client, reference, card, extra_attachments))
+    from .reference_feed_keys import CAPTURE_REASON_FIELD, CONTENT_NEEDED_KEY_FIELD, content_needed_key
+
+    rows = attachments_for_state(client, reference, card, extra_attachments)
+    state = capture_state(rows)
     current = normalize_capture_state(reference.get("captureState"))
-    if state == current:
+    patch: dict[str, Any] = {}
+    if state != current:
+        patch["captureState"] = None if state == "none" else state
+    reason = capture_reason(rows)
+    if (reference.get(CAPTURE_REASON_FIELD) or None) != reason and (reason or reference.get(CAPTURE_REASON_FIELD)):
+        patch[CAPTURE_REASON_FIELD] = reason
+    wanted = content_needed_key({**reference, "captureState": state, CAPTURE_REASON_FIELD: reason})
+    if wanted != (reference.get(CONTENT_NEEDED_KEY_FIELD) or None):
+        patch[CONTENT_NEEDED_KEY_FIELD] = wanted
+    if not patch:
         return None
-    value = None if state == "none" else state
-    client.update_record("Reference", {"id": reference["id"], "captureState": value})
-    reference["captureState"] = value
-    return state
+    client.update_record("Reference", {"id": reference["id"], **patch})
+    reference.update(patch)
+    return state if "captureState" in patch else None
 
 
 def _card_row(card: dict[str, Any]) -> dict[str, Any]:

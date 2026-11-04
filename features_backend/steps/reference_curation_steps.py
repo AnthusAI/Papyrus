@@ -17,7 +17,7 @@ for path in (REPO_ROOT / "src", REPO_ROOT / "procedures" / "newsroom" / "tests")
 from curation_support import (  # noqa: E402
     NOW, MemoryClient, Grobid, Summarizer, article_html, directed_world, page, stored_attachment_bodies, paper_pdf, reference, services as build_services,
 )
-from papyrus_content import reference_curation as curation, youtube_transcript  # noqa: E402
+from papyrus_content import reference_curation as curation  # noqa: E402
 from papyrus_content.reference_curation_store import CurationError, apply_editor_correction, correct_reference_capture  # noqa: E402
 from pdf_fixtures import make_pdf  # noqa: E402
 
@@ -514,41 +514,21 @@ def _(context):
 
 VIDEO_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 VIDEO_DESCRIPTION = "The speaker explains steerable feeds."
-VIDEO_TRANSCRIPT = "Today we talk about feeds. Editors steer the algorithm and the feed learns what they want."
-
-
-def _transcript(context, outcome):
-    patcher = mock.patch.object(youtube_transcript, "fetch_transcript", return_value=outcome)
-    patcher.start()
-    context.add_cleanup(patcher.stop)
 
 
 @given("the Reference is a YouTube video whose page only has a short description")
 def _(context):
-    context.ref = reference(sourceUri=VIDEO_URL)
+    context.ref = reference(sourceUri=VIDEO_URL, curationStatus="accepted", medium="video", mediumFeedKey="knowledge-corpus-site#video#accepted")
     context.client = MemoryClient([context.ref])
     context.pages = {VIDEO_URL: page(f"<html><head><title>Talk</title><meta property='og:description' content='{VIDEO_DESCRIPTION}'></head><body></body></html>")}
     context.services = None
 
 
-@given("YouTube gives the transcript of the video")
+@given("the transcript library is not installed")
 def _(context):
-    _transcript(context, (VIDEO_TRANSCRIPT, None))
-
-
-@given("YouTube blocks the request for the transcript")
-def _(context):
-    _transcript(context, (None, "blocked"))
-
-
-@given("the video has no transcript")
-def _(context):
-    _transcript(context, (None, "no_transcript"))
-
-
-@then("the card's text is the video's transcript and not the short description")
-def _(context):
-    assert svc(context).store.text(context.ref, "curation-text") == VIDEO_TRANSCRIPT
+    patcher = mock.patch.dict(sys.modules, {"youtube_transcript_api": None})   # an import of it now raises ImportError
+    patcher.start()
+    context.add_cleanup(patcher.stop)
 
 
 @then("the card's text is the video's short description")
@@ -556,13 +536,14 @@ def _(context):
     assert svc(context).store.text(context.ref, "curation-text") == VIDEO_DESCRIPTION
 
 
-@then("the capture records that the text came from the YouTube transcript")
-def _(context):
-    capture = card(context)["capture"]
-    assert capture["textVia"] == "youtube_transcript" and "textReason" not in capture
-
-
-@then('the capture records that the text came from the video description because the transcript was "{reason}"')
+@then('the capture records that the text came from the video description because the transcript is "{reason}"')
 def _(context, reason):
     capture = card(context)["capture"]
     assert capture["textVia"] == "youtube_description" and capture["textReason"] == reason
+
+
+@then("the Reference is stored as not captured in full and waits in the list of videos that need content")
+def _(context):
+    row = context.client.get_record("Reference", context.ref["id"])
+    assert row["captureState"] == "thin", row.get("captureState")
+    assert row["contentNeededKey"] == "knowledge-corpus-site#video#needs_content#accepted", row.get("contentNeededKey")

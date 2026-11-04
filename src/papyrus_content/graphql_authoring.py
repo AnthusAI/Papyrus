@@ -63,7 +63,7 @@ REFERENCE_FIELDS = (
     "sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount "
     "importRunId importedAt createdAt curationStatus "
     "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId starRating starRatedAt starRatedBy newsroomFeedKey reviewedFeedKey "
-    "discoveredByMonitorId discoveryDetails discoveryRule feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey starFeedKey captureState medium evidenceLevel playlistUrl mediumFeedKey updatedAt"
+    "discoveredByMonitorId discoveryDetails discoveryRule feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey starFeedKey captureState captureReason contentNeededKey medium evidenceLevel playlistUrl mediumFeedKey updatedAt"
 )
 REFERENCE_ATTACHMENT_FIELDS = (
     "id referenceId referenceLineageId referenceVersionNumber referenceVersionKey role sortKey storagePath "
@@ -508,6 +508,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "mediumFeedKey",
         "fields": REFERENCE_FIELDS,
     },
+    "referencesByContentNeededAndArrival": {
+        "field": "listReferencesByContentNeededAndArrival",
+        "partitionKey": "contentNeededKey",
+        "fields": REFERENCE_FIELDS,
+    },
     "referencesByCurationStatusKey": {
         "field": "listReferencesByCurationStatusKeyAndUpdatedAt",
         "partitionKey": "curationStatusKey",
@@ -683,12 +688,12 @@ MUTATIONS = {model: _model_mutations(model) for model in LIST_DEFINITIONS}
 
 # Reference, Item and NewsroomSection fields newer than some deployed sites (Stories got the same three star fields a Reference has; a section got coreConcepts). One router serves sites on different versions, so a site whose
 # schema does not have these yet is read without them instead of failing every Reference read.
-NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starFeedKey", "captureState", "coreConcepts", "medium", "evidenceLevel", "playlistUrl", "mediumFeedKey")
+NEWER_REFERENCE_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starFeedKey", "captureState", "coreConcepts", "medium", "evidenceLevel", "playlistUrl", "mediumFeedKey", "captureReason", "contentNeededKey")
 _UNDEFINED_NEWER_FIELD = re.compile(r"FieldUndefined: Field '(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")' in type")
 _NEWER_FIELD_SELECTION = re.compile(r"(?<![$\w])(?:" + "|".join(NEWER_REFERENCE_FIELDS) + r")\b\s*")
 # The medium fields are derived from the address and rebuilt by `papyrus references backfill-medium`, so a write that names them to a site whose data API does
 # not have them yet is sent again without them (one router serves sites on different versions) instead of failing the Reference write.
-MEDIUM_REFERENCE_FIELDS = ("medium", "evidenceLevel", "playlistUrl", "mediumFeedKey")
+MEDIUM_REFERENCE_FIELDS = ("medium", "evidenceLevel", "playlistUrl", "mediumFeedKey", "captureReason", "contentNeededKey")
 _UNDEFINED_MEDIUM_INPUT = re.compile(r"field name '(?:" + "|".join(MEDIUM_REFERENCE_FIELDS) + r")'")
 
 

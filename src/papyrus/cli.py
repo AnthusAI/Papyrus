@@ -142,6 +142,9 @@ def _map_references(command: str, flags: list[str]) -> int:
     if command == "search":
         from papyrus_content.references_search_cli import command as search_command
         return search_command(flags)
+    if command == "capture-transcripts":
+        from papyrus_content.references_transcripts import command as transcripts_command
+        return transcripts_command(flags)
     if command in {"list", "show", "register"}:
         return dispatch_operator_command("references", command, flags)
     newsroom_reference_commands = {
@@ -181,7 +184,7 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
             raise ValueError("papyrus knowledge concepts requires <command>.")
         _delegate_content("relations", flags[0], flags[1:])
         return 0
-    if command in {"publish-run", "snapshot", "archive", "topic-config", "cloud-run", "runs"}:
+    if command in {"publish-run", "snapshot", "archive", "topic-config", "extract-entities", "cloud-run", "runs"}:
         _delegate_content("knowledge", command, flags)
         return 0
     if command == "corpus":

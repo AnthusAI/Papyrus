@@ -190,6 +190,7 @@ class SetSlugRedirects(unittest.TestCase):
         with mock.patch("papyrus_content.story_commands.create_authoring_client", return_value=(self.client, {})), \
                 mock.patch("papyrus_content.projection_trigger.projection_enabled", return_value=True), \
                 mock.patch("papyrus_content.projection_trigger.trigger_projection", side_effect=run_projection), \
+                mock.patch("papyrus_content.user_auth_mode.user_auth_requested", return_value=False), \
                 contextlib.redirect_stdout(io.StringIO()):
             stories_set_slug(flags)
 

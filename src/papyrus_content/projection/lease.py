@@ -208,6 +208,19 @@ def _lock_table_name(environment: Mapping[str, str], ssm_client: Any) -> str | N
     return name
 
 
+def lock_table_from_environment(environ: Mapping[str, str] | None = None, *, ssm_client: Any = None, dynamodb: Any = None) -> Any:
+    """The shared lock table itself (a boto3 Table), or None when no lock table is configured. For features that keep small items in it besides leases."""
+    environment = os.environ if environ is None else environ
+    name = _lock_table_name(environment, ssm_client)
+    if not name:
+        return None
+    if dynamodb is None:
+        import boto3
+
+        dynamodb = boto3.resource("dynamodb")
+    return dynamodb.Table(name)
+
+
 def lease_from_environment(
     environ: Mapping[str, str] | None,
     bucket: str,

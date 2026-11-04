@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f64d9565-787f-43e6-aa56-c89f50cfb69a",
+  "title": "Decide how a figure is stored: existing MediaAsset and attachments, or a new record",
+  "description": "Design first, with Ryan's review. A figure has rendered images in both themes, an editable source (SVG and figure.json), who approved it and when, and belongs to a Story across versions. Compare extending MediaAsset plus ModelAttachment with a new Figure model. Name its readers: the newsroom, the context pack, the render tool, the fact check, carry-forward to new versions. Prefer what exists unless it cannot hold approval history.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-cd458570-88d5-4372-bd22-86f89a397e5c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-04T21:46:00.553647Z",
+  "updated_at": "2026-11-04T21:46:00.553677Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

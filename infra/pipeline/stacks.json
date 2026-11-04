@@ -1,0 +1,40 @@
+{
+  "region": "us-east-1",
+  "serviceRoleName": "papyrus-stack-deploy-cloudformation",
+  "templateBucketFrom": { "stack": "papyrus-monitoring", "parameter": "CodeBucket" },
+  "stacks": [
+    {
+      "name": "papyrus-newsletter-sending-operators",
+      "template": "infra/newsletter/papyrus-newsletter-sending.yaml",
+      "paths": ["infra/newsletter/", "infra/pipeline/stacks.json", "infra/pipeline/allowed-changes.json"],
+      "capabilities": [],
+      "tags": { "papyrus:site": "operators", "papyrus:feature": "operator-alerts" },
+      "parameters": { "SiteId": "operators", "SendingDomain": "notify.anth.us", "EventTransport": "eventbridge" },
+      "lookups": { "HostedZoneId": { "hostedZone": "anth.us" } },
+      "keepPrevious": false
+    },
+    {
+      "name": "papyrus-monitoring",
+      "template": "infra/monitoring/papyrus-monitoring.yaml",
+      "paths": [
+        "infra/monitoring/",
+        "infra/pipeline/stacks.json",
+        "infra/pipeline/allowed-changes.json",
+        "src/papyrus_content/",
+        "src/papyrus_knowledge_query/",
+        "poetry.lock",
+        "corpora/papyrus-semantic-relation-types.yml",
+        "corpora/example-publication-doctrine.yml"
+      ],
+      "capabilities": ["CAPABILITY_NAMED_IAM"],
+      "tags": {},
+      "parameters": {},
+      "builds": [
+        { "parameter": "CodeKey", "script": "infra/monitoring/build.py", "args": [] },
+        { "parameter": "RouterCodeKey", "script": "infra/monitoring/build.py", "args": ["--router"] },
+        { "parameter": "OperatorCodeKey", "script": "infra/monitoring/build.py", "args": ["--operator"] }
+      ],
+      "keepPrevious": true
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# The scheduled knowledge run (docs/knowledge-cloud-run.md): Papyrus + Biblicus + BERTopic + GLiNER2 on CPU, models baked in.
+# The scheduled knowledge run (docs/knowledge-cloud-run.md): Papyrus + Biblicus + BERTopic on CPU, the embedder baked in.
 # Papyrus and Biblicus are pinned (build args PAPYRUS_VERSION, BIBLICUS_VERSION). Build for arm64 (Fargate Graviton): infra/knowledge-run/build_image.sh
 FROM public.ecr.aws/docker/library/python:3.12-slim-bookworm
 
@@ -16,7 +16,7 @@ COPY infra/knowledge-run/constraints.txt /tmp/constraints.txt
 RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.14.1"
 ARG BIBLICUS_VERSION=1.16.1
 RUN pip install -c /tmp/constraints.txt \
-        "biblicus[typed-extraction,topic-modeling]==${BIBLICUS_VERSION}" boto3 awscrt \
+        "biblicus[topic-modeling]==${BIBLICUS_VERSION}" boto3 awscrt \
     && rm -rf /root/.cache
 
 # The models come before the Papyrus source, so a code change rebuilds only the last small layer.

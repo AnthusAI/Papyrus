@@ -172,9 +172,9 @@
   "<work>/config/vocabulary.yml"
  ],
  [
-  "biblicus",
-  "extract",
-  "typed-entities",
+  "papyrus",
+  "knowledge",
+  "extract-entities",
   "--corpus",
   "<work>/corpus",
   "--vocabulary",
@@ -184,7 +184,9 @@
   "--extraction-snapshot",
   "pipeline:ext1",
   "--out",
-  "<work>/runs/2026-W44/typed"
+  "<work>/runs/2026-W44/typed",
+  "--usage-out",
+  "<work>/runs/2026-W44/typed-usage.json"
  ],
  [
   "papyrus",

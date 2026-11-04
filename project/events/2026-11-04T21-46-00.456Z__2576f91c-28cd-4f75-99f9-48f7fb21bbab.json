@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2576f91c-28cd-4f75-99f9-48f7fb21bbab",
+  "issue_id": "PPY-cd458570-88d5-4372-bd22-86f89a397e5c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T21:46:00.456Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Article figures are data, not code: cloud storage for figures, their sources and approvals",
+    "description": "Ryan, 2026-11-04: 'We need to move article figures out of Git. And we should definitely not be deploying for figure-only changes. The figures really need to be in the data, not in the code base. The figures are part of the article data. They need to be treated as part of the data. We need to establish the infrastructure for dealing with that in the cloud. I don't know if we need to create a new kind of record for those or what, but that all needs to be in the cloud.' Today: AnthusAI/Machines-on-Machines design/figures/gallery holds each article's SVG source, light and dark PNGs and figure.json with its approval (#33, #34), and every merge there runs a full site deploy of 10 to 16 minutes. Published pictures already live in the backend as MediaAsset rows and S3 objects through stories save-version --images. The drawing rules, brand mapping, shared shapes, fonts and render tool remain repo design assets, since they are tooling and not article content.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

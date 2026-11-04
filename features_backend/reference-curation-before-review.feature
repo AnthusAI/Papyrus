@@ -114,27 +114,21 @@ Feature: References are curated before an editor reviews them
     Then the model summarized "The complete article, pasted by an editor."
     And the source was not fetched again
 
-  Scenario: A YouTube video is captured from its transcript
+  Scenario: A YouTube video captured in the cloud keeps its description and says its transcript waits for the worker
+    YouTube refuses cloud addresses, so no cloud function asks it for a transcript. The capture keeps the page's own title and description, says
+    why that is all it holds, and never counts the video as captured in full, however long the description.
     Given the Reference is a YouTube video whose page only has a short description
-    And YouTube gives the transcript of the video
-    When the curation procedure runs for the Reference
-    Then the Reference's curation card is "ready"
-    And the card's text is the video's transcript and not the short description
-    And the capture records that the text came from the YouTube transcript
-
-  Scenario: A YouTube video whose transcript is blocked falls back to its description and says why
-    Given the Reference is a YouTube video whose page only has a short description
-    And YouTube blocks the request for the transcript
     When the curation procedure runs for the Reference
     Then the card's text is the video's short description
-    And the capture records that the text came from the video description because the transcript was "blocked"
+    And the capture records that the text came from the video description because the transcript is "awaiting_transcript"
+    And the Reference is stored as not captured in full and waits in the list of videos that need content
 
-  Scenario: A YouTube video without a transcript falls back to its description and says why
+  Scenario: A cloud function that does not even have the transcript library captures a video the same way
     Given the Reference is a YouTube video whose page only has a short description
-    And the video has no transcript
+    And the transcript library is not installed
     When the curation procedure runs for the Reference
     Then the card's text is the video's short description
-    And the capture records that the text came from the video description because the transcript was "no_transcript"
+    And the capture records that the text came from the video description because the transcript is "awaiting_transcript"
 
   Scenario: A Reference with no Assignment and no Story is summarized exactly as before
     When the curation procedure runs for the Reference
