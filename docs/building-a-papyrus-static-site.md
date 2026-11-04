@@ -56,7 +56,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `values` | `{ "name": "text or number" }`: the `{{name}}` tokens of page blocks (see "Page blocks") |
 | `islands` | `{script, stylesheet, prerender}`: the site bundle that mounts islands, an optional stylesheet linked on every page, and an optional file of server-rendered island HTML (see "Islands") |
 | `hooks` | path of the hooks module, relative to `web/` |
-| `theme`, `citations`, `chrome`, `images`, `publicData`, `media` | unchanged from the bare projector: Markus theme, citations, shell options (GA4, consent mode, `title_template`, extra scripts), responsive images, search and latest JSON, originals |
+| `theme`, `citations`, `chrome`, `images`, `publicData`, `media` | unchanged from the bare projector: Markus theme, citations, shell options (GA4, consent mode, `title_template`, extra scripts), responsive images, search and latest JSON, originals. `citations` and `images` are on when absent: `"citations": false` and `"images": false` turn them off, and `images` as an object configures the pipeline (see `docs/standard-site.md`, "Images and citations") |
 
 ### Sections
 
@@ -310,7 +310,7 @@ error (prefix helpers with `_`):
 | `item_filter(summary)` | the item summary | `False` leaves the item out of the site: no page, listing, tag, feed, sitemap entry or redirect |
 | `source(summary, text, site)` | the summary, the item's own text (front matter included), a `HookSite` | the Markus source that is converted (lift legacy markup, add a heading block); the Markdown twin keeps the item's own text |
 | `item_transform(summary)` | the item summary | a `FragmentTransform` applied to the converted fragment (class vocabulary, block passthrough), or `None` |
-| `image_pipeline(pipeline)` | the `ImagePipeline` built from `images` | the pipeline to render with (`dataclasses.replace(pipeline, wrap=...)` sets the callbacks that are not data); only called when the site has `images` |
+| `image_pipeline(pipeline)` | the `ImagePipeline` built from `images` | the pipeline to render with (`dataclasses.replace(pipeline, wrap=...)` sets the callbacks that are not data); only called when the site has images on (the default) |
 | `page_head(head, page)` | the `PageHead` (title, description, image, dates, JSON-LD) and the page | the head to build, usually `dataclasses.replace(head, ...)`; it reaches the description, Open Graph, Twitter and JSON-LD tags |
 | `page_finish(html, page)` | the finished page as text, the page | the text that is written; the last step, after `head_extra`, `body_class` and `page_body` |
 | `page_inputs(site)` | a `HookSite` | JSON-able data every page also renders from (a table of URLs it rewrites links with); every page is rendered again when it changes |
@@ -318,7 +318,7 @@ error (prefix helpers with `_`):
 | `block(name, attributes, page)` | the name of an `::include{kind="block"}`, its other attributes (without `kind`, `name`, `depends`), the page | the markup of the block (see "Authored page files") |
 
 `card` may also take `variant` (the `card` attribute of an `::include` listing, otherwise `None`) and `index` (the card's place in its list, from 0) as parameters of those names; a hook without `variant` rejects an include that names one.
-`HookSite` (also `page.site`) is the site-wide view the item-level hooks get: `knowledge` (the lookup over the knowledge snapshot: `entity_for(kind, name)` returns `{key, name, kind, href, state}` or `None`, `chip_html(entity)` the standard chip), `items` (every published `ItemSummary`), `static_directory`, `rendition_records()` (the `meta.json` records of the site's image store; empty without `images`) and `memo(name, build)`, which calls `build()` once per name for one version of the site, so a table built from every item is built once per projection.
+`HookSite` (also `page.site`) is the site-wide view the item-level hooks get: `knowledge` (the lookup over the knowledge snapshot: `entity_for(kind, name)` returns `{key, name, kind, href, state}` or `None`, `chip_html(entity)` the standard chip), `items` (every published `ItemSummary`), `static_directory`, `rendition_records()` (the `meta.json` records of the site's image store; empty with `images` off) and `memo(name, build)`, which calls `build()` once per name for one version of the site, so a table built from every item is built once per projection.
 `masthead`, `footer`, `card`, `head_extra`, `body_class`, `page_body`, `page_head`, `page_finish` and `block` are handed `page`, so they make every page depend on all entries (narrow it with `DEPENDS_ON`, below); `item_filter`, `source`, `item_transform`, `image_pipeline`, `page_inputs` and `redirects` do not.
 
 `page` is a `StandardPage` (on a section's first listing page `fragment` is the introduction, converted and not decorated; `fragments.with_listing` places a listing in it): `kind` (`item`, `home`, `listing`, `archive`, `tags`, `tag`, `custom`, `showcase`, `not_found`), `path`, `title`,

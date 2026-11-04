@@ -82,7 +82,9 @@ def run_site_triggers(client, options: dict[str, Any], result, *, unpublished: b
     if not result.changed:
         return triggers
     item = client.get_record("Item", result.item_id) or {}
-    if item.get("slug") and not projection_enabled():
+    # A site whose pages are projected has no Pretext reader to revalidate; the signed-in lane learns that from the projection answer.
+    projects_pages = projection_enabled() or bool((triggers.get("projection") or {}).get("projectsPages"))
+    if item.get("slug") and not projects_pages:
         try:
             revalidated = trigger_pretext_revalidation([item["slug"]], None)
         except Exception as error:  # noqa: BLE001 - a trigger failure never fails the publish
@@ -107,6 +109,10 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
     try:
         if not unpublished:
             refuse_placeholder_slug(client, item_id)
+            if apply:
+                from .projection.runtime import render_preflight
+
+                render_preflight(client, item_id)   # only where this process projects (the operator's lane); the signed-in lane's function does it
         result = action(target, item_id, actor=actor)
     except PublishError as error:
         payload = {

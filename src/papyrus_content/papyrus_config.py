@@ -188,10 +188,20 @@ def resolve_openai_tts_defaults() -> dict[str, str | None]:
 
 
 def resolve_reader_revalidation_base_url() -> str:
+    """The site to ask to revalidate: ``PAPYRUS_BASE_URL``, then the public site URL (environment or Papyrus config), then, for a
+    signed-in CLI, the site it is signed in to (the site's own host), so nothing has to be set up for it."""
     env_value = str(os.environ.get("PAPYRUS_BASE_URL") or "").strip().rstrip("/")
     if env_value:
         return env_value
-    return resolve_public_site_base_url().rstrip("/")
+    try:
+        return resolve_public_site_base_url().rstrip("/")
+    except ValueError:
+        from .env import site_host_in_use
+
+        host = site_host_in_use()
+        if host:
+            return f"https://{host}"
+        raise
 
 
 def build_newsroom_reference_public_url(

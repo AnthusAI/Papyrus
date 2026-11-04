@@ -13,7 +13,7 @@ from typing import Protocol
 from ..markus_renderer.build import DEFAULT_THEME, render_fragment_text
 from ..markus_renderer.citations import CitationRendering
 from ..markus_renderer.content_markup import prepare_page
-from ..markus_renderer.images import dark_sibling_candidates
+from ..markus_renderer.images import ImagePipelineError, dark_sibling_candidates
 from ..markus_renderer.convert import convert_text_in_process
 from ..markus_renderer.pages import (
     ARTICLES_INDEX_SLUG,
@@ -29,14 +29,17 @@ from ..markus_renderer.pages import (
 from ..markus_renderer.consent import consent_mode_from_mapping
 from ..markus_renderer.shell import DEFAULT_CHROME, SiteChrome
 from ..markus_renderer.vendor_css import vendor_markus_css_text
+from ..markus_renderer.wiki_directives import papyrus_registry
+from ..markus_renderer.body_features import NO_MEDIA_STORE, BodyFeatures
 from .standard.config import STANDARD_KEYS
 from ..renditions import (
+    DEFAULT_IMAGE_SETTINGS,
     IMAGES_SETTINGS_KEY,
     RenditionCatalog,
     RenditionSettings,
     RenditionStore,
     StoredRenditionImageBuilder,
-    settings_from_mapping as image_settings_from_mapping,
+    images_from_projection,
 )
 from .model import ItemSummary, ProjectedItem, SiteIndex
 from .plugins import plugin_static_files
@@ -101,9 +104,9 @@ def digest_of(value) -> str:
 class MarkusProjectorSettings:
     theme: str | None = DEFAULT_THEME
     sections: tuple[str, ...] = ()
-    citations: bool = False
+    citations: bool = True            # ``citations: false`` turns [@key] and ::citations off
     chrome: SiteChrome = DEFAULT_CHROME
-    images: RenditionSettings | None = None
+    images: RenditionSettings | None = DEFAULT_IMAGE_SETTINGS   # ``images: false`` turns ::image off; an object declares the pipeline
     public_data: PublicDataSettings | None = None
     plugins: tuple[str, ...] = ()
 
@@ -115,6 +118,8 @@ def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
     unknown = set(raw) - allowed
     if unknown:
         raise ValueError(f"Unknown projection settings: {', '.join(sorted(unknown))}")
+    if raw.get("citations") is not None and not isinstance(raw["citations"], bool):
+        raise ValueError('projection.json "citations" must be true or false')
     chrome_raw = dict(raw.get("chrome") or {})
     unknown_chrome = set(chrome_raw) - CHROME_FIELD_NAMES
     if unknown_chrome:
@@ -127,9 +132,9 @@ def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
     return MarkusProjectorSettings(
         theme=raw["theme"] if "theme" in raw else DEFAULT_THEME,
         sections=tuple(raw.get("sections") or ()),
-        citations=bool(raw.get("citations", False)),
+        citations=raw.get("citations") is not False,
         chrome=SiteChrome(**chrome_raw),
-        images=image_settings_from_mapping(raw[IMAGES_SETTINGS_KEY]) if IMAGES_SETTINGS_KEY in raw else None,
+        images=images_from_projection(raw),
         public_data=public_data_settings_from_mapping(raw[PUBLIC_DATA_SETTINGS_KEY]) if PUBLIC_DATA_SETTINGS_KEY in raw else None,
     )
 
@@ -185,7 +190,8 @@ class MarkusSiteProjector:
         self._settings = settings
         self._static_files = dict(static_files)
         self.version = static_version(self._static_files)
-        self._convert_text = convert_text or (lambda text: convert_text_in_process(text, theme=settings.theme))
+        # The registry save validates with (``derive_body``), so a directive one accepts the other renders.
+        self._convert_text = convert_text or (lambda text: convert_text_in_process(text, theme=settings.theme, registry=papyrus_registry()))
         self._citations = CitationRendering() if settings.citations else None
         self._renditions = renditions
 
@@ -237,14 +243,26 @@ class MarkusSiteProjector:
         """The root image URLs are written from; ``None`` writes them relative to the page (a site at the bucket root)."""
         return None
 
+    def body_features(self) -> BodyFeatures:
+        """What a body may contain on this site: the one answer ``derive_body`` (save) and the render (publish) both use."""
+        images = self._pipeline() is not None
+        return BodyFeatures(
+            images=images,
+            citations=self._citations is not None,
+            images_unavailable=NO_MEDIA_STORE if images and self._renditions is None else None,
+            plain_images_upgraded=images and self._pipeline().upgrade_plain_images,
+        )
+
     def _image_builder(self, text: str) -> StoredRenditionImageBuilder | None:
         pipeline = self._pipeline()
         if pipeline is None:
             return None
-        if self._renditions is None:
-            raise ValueError("This site configures images but the projector has no rendition store.")
-        catalog = RenditionCatalog(self._renditions, pipeline)
         requests = list(prepare_page(text, images=pipeline, citations=None).images.values())
+        if not requests and not pipeline.upgrade_plain_images:
+            return None   # nothing on the page needs a rendition: it renders as it does without images
+        if self._renditions is None:
+            raise ImagePipelineError(self.body_features().images_unavailable)
+        catalog = RenditionCatalog(self._renditions, pipeline)
         sources = [request.src for request in requests]
         for request in requests:
             if request.src_dark is not None:

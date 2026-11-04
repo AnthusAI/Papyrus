@@ -214,8 +214,8 @@ def test_the_image_pipeline_hook_replaces_the_pipeline_pages_are_rendered_with(m
     assert captured["images"].figure_class == "site-figure"
     assert build(Hooks())._pipeline().figure_class == "papyrus-image"                     # no hook: the configured pipeline
 
-    bare = StandardMarkusProjector(MarkusProjectorSettings(theme=None), read_static_files(None, None), standard_settings_from_mapping(settings()), hooks=Hooks(image_pipeline=image_pipeline))
-    assert bare._pipeline() is None and len(calls) == 1                                  # no images settings: the hook is not called
+    bare = StandardMarkusProjector(MarkusProjectorSettings(theme=None, images=None), read_static_files(None, None), standard_settings_from_mapping(settings()), hooks=Hooks(image_pipeline=image_pipeline))
+    assert bare._pipeline() is None and len(calls) == 1                                  # images turned off: the hook is not called
 
 
 # ------------------------------------------------------------------ page_head and page_finish

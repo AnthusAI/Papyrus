@@ -139,6 +139,8 @@ def trigger_projection_as_user(client, task: dict[str, Any]) -> dict[str, Any]:
         )
         response = data.get(mutation)
         response = json.loads(response) if isinstance(response, str) else (response or {})
+        # The function answers ``projected`` only for a site that projects its pages, so this is how the signed-in lane learns which kind it is.
+        projects = "projected" in response
         if response.get("ok") is False:
             errors = "; ".join(str(entry.get("message") or entry) for entry in response.get("errors") or [])
             return {"ok": False, "error": errors or f"{mutation} refused the request", "retry": retry_command(task["itemId"], unpublished=bool(task.get("unpublished")))}
@@ -146,9 +148,12 @@ def trigger_projection_as_user(client, task: dict[str, Any]) -> dict[str, Any]:
             return {
                 "ok": False,
                 "error": response.get("error") or "the newsroom could not project the page",
+                "projectsPages": True,
                 "retry": retry_command(task["itemId"], unpublished=bool(task.get("unpublished"))),
             }
         outcome: dict[str, Any] = {"ok": True, "ran": task["task"], "via": f"{mutation} mutation"}
+        if projects:
+            outcome["projectsPages"] = True
         if response.get("url"):
             outcome["url"] = response["url"]
         return outcome
