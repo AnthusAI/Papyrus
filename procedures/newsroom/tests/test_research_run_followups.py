@@ -242,3 +242,19 @@ def test_the_packet_body_lists_the_gaps():
     bundle = aw.normalize_research_packet_bundle(packet, assignment={"corpusId": "c"}, assignment_meta={}, research_mode="source_discovery")
     body = aw.research_packet_body(bundle)
     assert "Named in the direction, not covered:" in body and "- Dana Woodruff: The run has sources that mention Dana Woodruff" in body
+
+
+REAL_DIRECTION = (Path(__file__).resolve().parents[3] / "features_backend" / "fixtures" / "research" / "non-interference-direction.txt").read_text(encoding="utf-8")
+
+
+def test_a_real_direction_does_not_ask_about_a_venue_citation_or_a_described_document_label():
+    names = [gap["name"] for gap in fc.direction_gaps(REAL_DIRECTION, ["nothing"], ["NeurIPS Gemini Bob Alice GibberLink"])]
+    assert "NeurIPS" not in names and "Gemini" not in names and "Bob" not in names and "GibberLink" not in names
+    assert "Zdancewic" in names and "Goldwasser" in names
+
+
+def test_the_venue_year_and_described_label_rules_stay_narrow():
+    assert "NeurIPS" not in fc.subjects_text("Unilateral steganography (NeurIPS 2026).")
+    assert "Smith" in fc.subjects_text("The bound (Smith 2019).")
+    assert "Gemini" not in fc.subjects_text("The Gemini deep-research documents are leads.")
+    assert "Gemini" in fc.subjects_text("Gemini has a deep-research mode, and the documents are leads.")
