@@ -34,7 +34,8 @@ PASSAGES = 3  # passages from different documents that show how a name is used
 PASSAGE_MARGIN = 200  # characters on each side of the first mention in a document
 SCHEMA_VERSION = 1
 
-NAMED = re.compile(r"\b[A-Z][\w+.\-]*[\w+](?:(?:\s+(?:of|for|and|the|in|on))?\s+[A-Z0-9][\w+.\-]*[\w+]){0,5}")
+# A name is on one line: its words are joined by spaces or tabs, never by a line break.
+NAMED = re.compile(r"\b[A-Z][\w+.\-]*[\w+](?:(?:[ \t]+(?:of|for|and|the|in|on))?[ \t]+[A-Z0-9][\w+.\-]*[\w+]){0,5}")
 MIXED = re.compile(r"\b[a-z]+[A-Z][\w\-]*\b|\b[A-Za-z]+-\d[\w.\-]*\b")
 # A lower-case word starts and ends at a word edge: never inside a capitalised word (``ganization`` of ``Organization``).
 WORD = re.compile(r"(?<![A-Za-z0-9_\-])[a-z][a-z\-]*[a-z](?![A-Za-z0-9_])")
@@ -46,9 +47,9 @@ class ExtractionError(ValueError):
 
 
 # -- 1. candidates ----------------------------------------------------------------------------------------------------
-def find_candidates(documents: Mapping[str, str], stop_words: Iterable[str]) -> dict[str, dict]:
-    """``{key: {name, contexts, mentions}}`` for every distinct name (key: the case-folded name). A mention is
-    ``(item_id, start, end, text)``; ``contexts`` are up to ``PASSAGES`` passages from different documents."""
+def scan_mentions(documents: Mapping[str, str], stop_words: Iterable[str]) -> tuple[dict[str, list[tuple[str, int, int, str]]], Counter]:
+    """The finder: every place in the texts a name could be, by its shape, with no model. ``({case-folded name: [(item_id, start,
+    end, text)]}, count of each lower-case word)``. Deciding which of them are worth asking about is ``find_candidates``'s job."""
     stop = frozenset(stop_words)
     seen: dict[str, list[tuple[str, int, int, str]]] = defaultdict(list)
     lower_words: Counter = Counter()
@@ -68,6 +69,14 @@ def find_candidates(documents: Mapping[str, str], stop_words: Iterable[str]) -> 
                 if group[0][0] in stop or group[-1][0] in stop or (size == 1 and len(phrase) < 6):
                     continue
                 seen[phrase.casefold()].append((item_id, start, end, phrase))
+    return seen, lower_words
+
+
+def find_candidates(documents: Mapping[str, str], stop_words: Iterable[str]) -> dict[str, dict]:
+    """``{key: {name, contexts, mentions}}`` for every distinct name (key: the case-folded name). A mention is
+    ``(item_id, start, end, text)``; ``contexts`` are up to ``PASSAGES`` passages from different documents."""
+    stop = frozenset(stop_words)
+    seen, lower_words = scan_mentions(documents, stop)
     found: dict[str, dict] = {}
     for key, mentions in seen.items():
         if key.isdigit() or len(key) < 2:

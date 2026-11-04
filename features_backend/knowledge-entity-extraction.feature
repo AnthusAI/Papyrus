@@ -50,6 +50,11 @@ Feature: Jev decides what kind of concept each name in the texts is
     When the entities are extracted
     Then no entity of the file starts or ends in the middle of a word
 
+  Scenario: A name never runs across a line break
+    Given a corpus of two documents that both read "ChatGPT" and "Medical" in separate paragraphs
+    When the entities are extracted
+    Then no entity of the file spans a line break
+
   Scenario: A name Jev does not answer fails the run without losing what was paid for
     Given Jev does not answer for "Maple Lab"
     When the entities are extracted

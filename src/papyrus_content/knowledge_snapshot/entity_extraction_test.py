@@ -20,6 +20,14 @@ def test_a_lower_case_match_never_starts_inside_a_capitalised_word():
     assert all(text[start:end] == written for key in found for _item, start, end, written in found[key]["mentions"] for text in ["Organization of Experts met. Organization of Experts met again. Organization of Experts spoke."])
 
 
+def test_a_name_never_crosses_a_line_break():
+    text = "ChatGPT\n\nChatGPT answered. Abstract\n\nMedical notes. Open\tAI Lab."
+    found = passages_of({"a": text, "b": text})
+    assert not [key for key in found if "\n" in key]
+    assert {"chatgpt", "abstract", "open\tai lab"} <= set(found)
+    assert all("\n" not in written for mentions in (found[key]["mentions"] for key in found) for _item, _start, _end, written in mentions)
+
+
 def test_a_lower_case_word_is_not_taken_from_inside_a_longer_word_or_a_hyphenated_name():
     text = "Gemini-pro and Gemini-pro again. Bigconcept and bigconcepts. Subconfinement was seen."
     found = passages_of({"a": text, "b": text})

@@ -53,6 +53,12 @@ def step_corpus(context, text):
     one_item_text(context, text)
 
 
+@given('a corpus of two documents that both read "{first}" and "{second}" in separate paragraphs')
+def step_paragraphs(context, first, second):
+    context.answers = getattr(context, "answers", {})
+    one_item_text(context, f"{first}\n\n{second}")
+
+
 @given('the publication\'s vocabulary has the kinds "{first}" and "{second}"')
 def step_vocabulary(context, first, second):
     context.vocabulary = f"publication: demo\nversion: 1\nentity_kinds:\n  - {{key: {first}, label: {first}}}\n  - {{key: {second}, label: {second}}}\n"
@@ -188,3 +194,9 @@ def step_kept(context, kept, rest):
     context.answers[rest] = ("organization", 0.9)
     extract(context)
     assert context.asked == [rest], context.asked
+
+
+@then("no entity of the file spans a line break")
+def step_no_line_break(context):
+    assert context.output_file["summary"]["entities"] > 0
+    assert not [e for item in context.output_file["items"] for e in item["entities"] if "\n" in e["text"]]
