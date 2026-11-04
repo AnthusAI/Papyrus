@@ -101,6 +101,9 @@ def _plain_words(folded: str) -> str:
     return " " + re.sub(r"[^a-z0-9]+", " ", folded).strip() + " "
 
 
+SQUASHED_PHRASE_CHARACTERS = 30
+
+
 class SourceText:
     """The union of the cited sources' texts, prepared once for the three comparisons."""
 
@@ -139,7 +142,13 @@ class SourceText:
         return _plain_words(_without_possessives(fold(phrase))) in self.possessive_free
 
     def has_phrase(self, phrase: str) -> bool:
-        return re.sub(r"[^a-z0-9]+", " ", fold(phrase)).strip() in re.sub(r"[^a-z0-9]+", " ", self.folded)
+        plain = re.sub(r"[^a-z0-9]+", " ", fold(phrase)).strip()
+        if plain in re.sub(r"[^a-z0-9]+", " ", self.folded):
+            return True
+        # Text out of a PDF has words split at line ends and stray spaces ("dis- tributions", "(o r protocol)"), and a reader copies the clean words. Only a
+        # long passage is matched without its spaces, because a short one could match across words by chance.
+        squashed = plain.replace(" ", "")
+        return len(squashed) >= SQUASHED_PHRASE_CHARACTERS and squashed in re.sub(r"[^a-z0-9]+", "", self.folded)
 
 
 # --- the literal check -----------------------------------------------------------------------------------------------------------

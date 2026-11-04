@@ -79,6 +79,12 @@ Feature: Multi-search asks several search providers about one assignment and mer
     And the three long pages are read in part, with equal shares
     And the writer's input fits the model's input
 
+  Scenario: A source that opened but found no room is not reported as refused
+    An early real run had a brief and snippets that filled the model's input, and it said it could not open any of its 104 sources.
+    Given a source with a readable page and a brief that fills the model's input
+    When the run reads them
+    Then the source is reported as opened with no room left, not as refused
+
   Scenario: An arXiv abstract page is read as its paper
     Given a source at an arXiv abstract address
     When the run reads it

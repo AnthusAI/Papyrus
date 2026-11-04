@@ -448,3 +448,18 @@ def step_all_passes(context):
 @then("the judge was asked once")
 def step_once(context):
     assert context.judge_calls == 1, context.judge_calls
+
+
+@given('a source text "{text}"')
+def step_source_text(context, text):
+    context.source_text = fact_check.SourceText([text])
+
+
+@then('a quote "{quote}" is found in it')
+def step_quote_found(context, quote):
+    assert context.source_text.has_phrase(quote)
+
+
+@then('a quote "{quote}" is not found in it')
+def step_quote_not_found(context, quote):
+    assert not context.source_text.has_phrase(quote)

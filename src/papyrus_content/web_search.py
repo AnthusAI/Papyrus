@@ -164,11 +164,11 @@ Http = Callable[[str, dict, dict], dict]      # (url, headers, json payload) -> 
 KeyReader = Callable[[str], str]
 
 
-def http_post_json(url: str, headers: dict, payload: dict) -> dict:
+def http_post_json(url: str, headers: dict, payload: dict, *, timeout: float = TIMEOUT_SECONDS) -> dict:
     request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), method="POST",
                                      headers={"Content-Type": "application/json", **headers})
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:  # noqa: S310 - fixed https endpoints
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed https endpoints
             body = response.read(MAX_RESPONSE_BYTES + 1)
     except urllib.error.HTTPError as error:
         raise HttpStatusError(error.code, error.read(4000).decode("utf-8", errors="replace"), dict(error.headers or {})) from None

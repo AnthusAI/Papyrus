@@ -242,6 +242,9 @@ def step_body(context):
     assert "(search snippet only)" in body and f"Could not open, so only search snippets: {READ_URL}" in body and "Read 0 of 1 sources" in body
 
 
+SMALL_INPUT = 300_000
+
+
 def _page(words):
     return "<html><body><p>" + "word " * words + "</p></body></html>"
 
@@ -262,10 +265,12 @@ def step_short(context):
 @when("the run reads it")
 @when("the run reads them")
 def step_read(context):
+    brief = getattr(context, "read_brief", "brief")
     if context.pages is None:
-        ms.read_sources(context.read_sources, "brief", lambda url: context.asked.append(url))
+        ms.read_sources(context.read_sources, brief, lambda url: context.asked.append(url))
     else:
-        ms.read_sources(context.read_sources, "brief", lambda url: context.pages[url])
+        with mock.patch.object(ms, "SYNTHESIS_INPUT_CHARACTERS", SMALL_INPUT):
+            ms.read_sources(context.read_sources, brief, lambda url: context.pages[url])
 
 
 @then("the short page is read whole")
@@ -281,7 +286,20 @@ def step_equal(context):
 
 @then("the writer's input fits the model's input")
 def step_fits(context):
-    assert len(ms.synthesis_input("brief", context.read_sources)) <= ms.SYNTHESIS_INPUT_CHARACTERS
+    assert len(ms.synthesis_input("brief", context.read_sources)) <= SMALL_INPUT
+
+
+@given("a source with a readable page and a brief that fills the model's input")
+def step_full_brief(context):
+    context.read_sources = [{"index": 1, "url": "https://example.org/full", "title": "t", "providers": ["p"], "purposes": [], "queries": ["q"], "snippets": []}]
+    context.pages = {"https://example.org/full": _page(100)}
+    context.read_brief = "x" * SMALL_INPUT
+
+
+@then("the source is reported as opened with no room left, not as refused")
+def step_no_room(context):
+    reading = ms.reading_of(context.read_sources)
+    assert (reading["read"], reading["notOpened"], reading["outOfRoom"]) == (0, [], ["https://example.org/full"]), reading
 
 
 @given("a source at an arXiv abstract address")

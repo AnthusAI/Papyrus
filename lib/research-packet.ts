@@ -46,12 +46,14 @@ export function factCheckSentence(counts: Record<string, unknown>): string {
   return parts.join(", ") + (single ? `; ${single} rest on one site` : "");
 }
 
-/** "Read 12 of 15 sources, 3 of them in part. 3 could not be opened, so claims from them rest on search snippets." */
+/** "Read 12 of 15 sources, 3 of them in part. 2 could not be opened and 1 had no room left, so claims from them rest on search snippets." */
 export function readingSentence(reading: Record<string, unknown>): string {
   const part = count(reading, "inPart");
-  const unread = list(reading.notOpened).length;
+  const unopened = list(reading.notOpened).length;
+  const noRoom = list(reading.outOfRoom).length;
+  const missed = [unopened ? `${unopened} could not be opened` : "", noRoom ? `${noRoom} opened with no time or room left to read` : ""].filter(Boolean).join(" and ");
   return `Read ${count(reading, "read")} of ${count(reading, "sources")} sources${part ? `, ${part} of them in part` : ""}.` +
-    (unread ? ` ${unread} could not be opened, so claims from them rest on search snippets.` : "");
+    (missed ? ` ${missed}, so claims from them rest on search snippets.` : "");
 }
 
 export type PacketDirectionGap = { name: string; note: string };

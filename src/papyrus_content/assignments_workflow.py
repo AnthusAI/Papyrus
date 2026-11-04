@@ -1911,6 +1911,9 @@ def research_packet_body(packet: dict[str, Any]) -> str:
         not_opened = _parse_array(reading.get("notOpened"))
         if not_opened:
             lines.append("Could not open, so only search snippets: " + ", ".join(str(url) for url in not_opened))
+        out_of_room = _parse_array(reading.get("outOfRoom"))
+        if out_of_room:
+            lines.append("Opened, but no time or room left to read, so only search snippets: " + ", ".join(str(url) for url in out_of_room))
     claims = [c for c in _parse_array(packet.get("claims")) if isinstance(c, dict)]
     unverified = [c for c in _parse_array(packet.get("unverifiedClaims")) if isinstance(c, dict)]
     if claims:

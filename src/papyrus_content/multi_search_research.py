@@ -30,6 +30,7 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any
 from urllib.parse import urlparse
 
@@ -78,12 +79,15 @@ MULTI_BACKEND = "multi_search"
 RESPONSES_URL = "https://api.openai.com/v1/responses"
 #: A provider that refuses its key or has spent its plan will refuse every further query too, so its remaining queries are skipped.
 STOP_FAILURE_KINDS = frozenset({"auth", "plan_exhausted"})
-#: The model's context window is the real bound on the synthesis input; sources past it are listed by title only.
-SYNTHESIS_INPUT_CHARACTERS = 200_000
+#: The model's context window is the real bound on the synthesis input; sources past it are listed by title only. Measured 2026-11-04: gpt-6-luna took
+#: 600,000 tokens and refused 1,000,000. At about 4 characters a token this is about 500,000 tokens.
+SYNTHESIS_INPUT_CHARACTERS = 2_000_000
+#: A writer reading whole sources is slower than a search: 42 seconds for 400,000 characters and 54 for 800,000 (measured 2026-11-04), and 2,000,000 passed 60.
+MODEL_TIMEOUT_SECONDS = 240
 #: Search and synthesis take about 5 of the 7 minutes a worker run is sure to have (``START_RESERVE_SECONDS``); reading gets what is left, less a margin.
 READ_DEADLINE_SECONDS = 90
 READ_WHOLE, READ_PART, READ_NONE = "whole", "part", "none"
-READ_LABELS = {READ_WHOLE: "Page text", READ_PART: "Page text, the first part", READ_NONE: "Could not be opened; only the search snippets"}
+READ_LABELS = {READ_WHOLE: "Page text", READ_PART: "Page text, the first part", READ_NONE: "Not read; only the search snippets"}
 
 #: ``(system prompt, user text, json schema) -> parsed json``
 Llm = Callable[[str, str, dict], dict]
@@ -380,27 +384,35 @@ def read_sources(sources: Sequence[dict[str, Any]], brief: str, fetch: SourceFet
     wait(futures, timeout=deadline_seconds)
     pool.shutdown(wait=False, cancel_futures=True)
     loaded = [future.result() if future.done() and not future.cancelled() else (None, None) for future in futures]
-    labels = sum(len(label) + 8 for label in READ_LABELS.values())
+    labels = max(len(label) for label in READ_LABELS.values()) + 8
     budget = SYNTHESIS_INPUT_CHARACTERS - len(synthesis_input(brief, sources)) - labels * len(sources)
     pdf_share = fair_shares([float("inf") if pdf else len(text or "") for text, pdf in loaded], budget)
     found: list[tuple[str, bool]] = []
-    for (text, pdf), share in zip(loaded, pdf_share):
+    out_of_room = set()
+    for position, ((text, pdf), share) in enumerate(zip(loaded, pdf_share)):
         if pdf and share and clock() - start < deadline_seconds:
             parsed, whole = pdf_text_up_to(pdf, share)
             found.append((parsed, whole) if parsed else (text or "", True))
         else:
             found.append((text or "", True))
+            if pdf and not text:
+                out_of_room.add(position)     # it opened; there was no time or room left to read it
     shares = fair_shares([len(text) for text, _ in found], budget)
-    for source, (text, whole), share in zip(sources, found, shares):
+    for position, (source, (text, whole), share) in enumerate(zip(sources, found, shares)):
         source["text"] = text[:share]
         source["read"] = READ_NONE if not source["text"] else READ_WHOLE if whole and share >= len(text) else READ_PART
+        if source["read"] == READ_NONE:
+            source["readFailure"] = "out_of_room" if text or position in out_of_room else "not_opened"
 
 
 def reading_of(sources: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """What the run read: the sources opened (some of them only in part, because of the room in the model's input) and the ones it could not open."""
+    """What the run read: the sources read (some only in part, because of the room in the model's input), the ones it could not open, and the ones that opened
+    with no time or room left to read them."""
     part = sum(1 for source in sources if source.get("read") == READ_PART)
-    unread = [source["url"] for source in sources if source.get("read") == READ_NONE]
-    return {"sources": len(sources), "read": len(sources) - len(unread), "inPart": part, "notOpened": unread}
+    unread = [source for source in sources if source.get("read") == READ_NONE]
+    return {"sources": len(sources), "read": len(sources) - len(unread), "inPart": part,
+            "notOpened": [source["url"] for source in unread if source.get("readFailure") != "out_of_room"],
+            "outOfRoom": [source["url"] for source in unread if source.get("readFailure") == "out_of_room"]}
 
 
 def _valid_indices(values: Any, count: int) -> list[int]:
@@ -520,10 +532,10 @@ def fact_check_synthesis(synthesis: dict[str, Any], sources: Sequence[Mapping[st
     claims = synthesis["claims"]
     titles = {str(s["index"]): str(s.get("title") or "") for s in sources}
     report = check_claims([{"claim": c["claim"], "sources": c["sources"]} for c in claims], {k: v for k, v in texts.items()}, judge=judge, urls=urls, titles=titles)
-    not_opened = {s["index"] for s in sources if s.get("read") == READ_NONE}
+    not_read = {s["index"] for s in sources if s.get("read") == READ_NONE}
     verified, held = [], []
     for claim, result in zip(claims, report["claims"]):
-        labelled = {**claim, "snippetOnly": True} if set(claim["sources"]) <= not_opened else claim
+        labelled = {**claim, "snippetOnly": True} if set(claim["sources"]) <= not_read else claim
         if result["verdict"] == "verified":
             verified.append(labelled)
         else:
@@ -674,9 +686,10 @@ def build_packet(queries, sources, contribution, synthesis, *, model: str = DEFA
 
 # --- the real model call -------------------------------------------------------------------------------------------------------------
 
-def openai_llm(*, model: str = DEFAULT_LLM_MODEL, environ: Mapping[str, str] | None = None, http=http_post_json) -> Llm:
+def openai_llm(*, model: str = DEFAULT_LLM_MODEL, environ: Mapping[str, str] | None = None, http=None) -> Llm:
     """The repo's OpenAI path: the Responses API with a JSON schema, keyed the same way as the OpenAI search provider."""
     provider = OpenAIProvider(environ=environ)
+    http = http or partial(http_post_json, timeout=MODEL_TIMEOUT_SECONDS)
 
     def call(system: str, user: str, schema: dict) -> dict:
         body = http(RESPONSES_URL, {"Authorization": f"Bearer {provider.api_key()}"},

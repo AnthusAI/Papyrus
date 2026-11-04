@@ -143,4 +143,6 @@ test("a packet says what its run read; one from before runs opened their sources
   assert.deepEqual(view?.notOpened, ["https://paywall.example/a"]);
   assert.deepEqual(view?.claims.map(claim => claim.snippetOnly), [true, false]);
   assert.equal(readingSentence({ sources: 2, read: 2, inPart: 0, notOpened: [] }), "Read 2 of 2 sources.");
+  assert.equal(readingSentence({ sources: 3, read: 0, inPart: 0, notOpened: ["a"], outOfRoom: ["b", "c"] }),
+    "Read 0 of 3 sources. 1 could not be opened and 2 opened with no time or room left to read, so claims from them rest on search snippets.");
 });

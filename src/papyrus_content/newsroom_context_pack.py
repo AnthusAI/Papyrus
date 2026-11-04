@@ -447,7 +447,7 @@ def prior_research_layer(situation: Situation) -> tuple[list[Entry], str | None]
         for item in load_assignment_research_packet_entries(situation.store, assignment["id"]):
             packet = item["packet"]
             created = str(item["message"].get("createdAt") or "")
-            claims = [str(claim["claim"]) + (" (search snippet only; the source could not be opened)" if claim.get("snippetOnly") else "")
+            claims = [str(claim["claim"]) + (" (search snippet only; the source was not read)" if claim.get("snippetOnly") else "")
                       for claim in packet.get("claims") or [] if isinstance(claim, dict) and claim.get("claim")]
             held = [claim for claim in packet.get("unverifiedClaims") or [] if isinstance(claim, dict) and claim.get("claim")]
             needs_check = [str(claim["claim"]) for claim in held if claim.get("verdict") == "needs_check"]

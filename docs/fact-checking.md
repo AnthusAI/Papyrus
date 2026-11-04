@@ -46,6 +46,9 @@ What it cannot do: it does not know that a name is wrong, only that the cited so
 
 ### The judge
 
+A long quote (30 letters and digits or more) is also looked for with all spacing and punctuation removed, because text out of a PDF splits words at line ends (`dis- tributions`) and a judge copies the clean words. A short one is not, since it could match across words by chance.
+
+
 `llm_judge(llm)` makes one call per claim, in a thread pool with one worker per claim, so the provider's own rate limit is the only limit. The model is `DEFAULT_LLM_MODEL`. The prompt gives it the claim and the cited source texts and nothing about how the claim was written. Each source is given with its id, title, host and text; the judge may name a source's publisher from the title and host. It answers `verdict` (`supported`, `partly_supported`, `not_supported`, `source_silent`), `quotes` (one per supported part of the claim), `claim_is_only_about_source_limits`, `explanation` and `attribution_lost` under a strict JSON schema. Code normalizes each quote and the source text and checks that the quote is in the text; a quote with an ellipsis is split there and each piece is checked. If any quote is missing, or a `supported` answer has no quote and the claim is not only about what the source lacks, the verdict becomes `not_supported` with reason `quote_not_in_source`. A part of a claim that says what a source does not say ("the account does not specify...") is supported when the source is silent on it and needs no quote; the judge is told so.
 
 ## Multi-search research
