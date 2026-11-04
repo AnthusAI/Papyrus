@@ -20,10 +20,15 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
   **not** revive a local Markdown content store (`content/articles/`) or emulate
   hosted corpus sync, editions, or the layout solver.
 - **Cloud backend** uses the existing GraphQL/AppSync newsroom (`Reference`,
-  `Assignment`, editions, knowledge-query). Corpus key, publication, endpoint,
-  and credentials come from steering/config defaults (`threat-intelligence` today);
-  operators should not need `--corpus-key` or `PYTHONPATH=src` for the common
-  path.
+  `Assignment`, editions, knowledge-query). `references list` and `references show`
+  without `--corpus-key` use, in order: the operator config's `defaultCorpusKey`, the
+  canonical corpus of a steering file the site chose (`PAPYRUS_STEERING_CONFIG` or a
+  `corpora/` file in the checkout), and, on a signed-in session, the backend's one
+  canonical publication corpus (the same one `reporting create` uses). If the backend
+  has none or several, the command fails and says to pass `--corpus-key`. Only the
+  IAM lane and the local backend still fall back to the steering default shipped in
+  the wheel (`threat-intelligence` today). Operators should not need `--corpus-key`
+  or `PYTHONPATH=src` for the common path.
 - **Object kinds are explicit.** Cloud `assignments list` rows are GraphQL
   `Assignment` work records (`kind: newsroom-assignment`). Local `assignments
   list` rows are Kanbus **pod stories** (`kind: pod-story`), not GraphQL

@@ -14,6 +14,7 @@ INDEX_MODELS = {
     "publishedMediaAssetsByItemAndSortKey": "PublishedMediaAsset",
     "modelAttachmentsByOwnerRoleAndSortKey": "ModelAttachment",
     "messagesByThreadAndSequence": "Message",
+    "messageThreadsByAnchor": "MessageThread",
     "referenceAttachmentsByReferenceLineageAndSortKey": "ReferenceAttachment",
     "semanticRelationsBySubjectState": "SemanticRelation",
     "semanticRelationsByObjectState": "SemanticRelation",
