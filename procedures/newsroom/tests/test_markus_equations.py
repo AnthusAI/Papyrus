@@ -73,6 +73,18 @@ class SpacingAndFontTests(unittest.TestCase):
         self.assertIn('<msub><mi>log</mi><mn>2</mn></msub><mspace width="0.1667em"></mspace>', math)
         ET.fromstring(math)
 
+    def test_an_operator_that_is_the_base_of_a_script_or_inside_one_has_no_spacing_of_its_own(self) -> None:
+        # WebKit applies an operator's lspace/rspace between a script's base and the script ("max x", "H ∞").
+        math = tex_to_mathml(r"H_\infty(X) = \max_x \Pr[X = x]", display=True)
+        self.assertIn('<msub><mi>H</mi><mo lspace="0em" rspace="0em">∞</mo></msub>', math)
+        self.assertIn('<msub><mo lspace="0em" rspace="0em">max</mo><mi>x</mi></msub><mspace width="0.1667em"></mspace>', math)
+        self.assertIn('<mo movablelimits="true" lspace="0em" rspace="0.1667em">Pr</mo>', math)  # a free-standing operator keeps its thin space
+        ET.fromstring(math)
+
+    def test_signs_inside_a_subscript_are_not_spaced(self) -> None:
+        math = tex_to_mathml(r"\sum_{i=1}^{n} x_i", display=False)
+        self.assertIn('<mo lspace="0em" rspace="0em">=</mo>', math)
+
     def test_signs_and_brackets_keep_their_default_spacing(self) -> None:
         math = tex_to_mathml(r"a \le b", display=False)
         self.assertNotIn("lspace", math)

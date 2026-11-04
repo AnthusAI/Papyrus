@@ -77,6 +77,17 @@ Feature: Equations in Stories
     When the agent-readable site is projected
     Then the agent page "bound/index.html" says "<mo movablelimits="true" lspace="0em" rspace="0.1667em">Pr</mo>"
 
+  Scenario: An operator under a script carries no spacing of its own, so WebKit does not loosen the subscript
+    Given the article "bound" has the body
+      """
+      ```math
+      H_\infty(X) = \max_x \Pr[X = x]
+      ```
+      """
+    When the agent-readable site is projected
+    Then the agent page "bound/index.html" says "<msub><mi>H</mi><mo lspace="0em" rspace="0em">∞</mo></msub>"
+    And the agent page "bound/index.html" says "<msub><mo lspace="0em" rspace="0em">max</mo><mi>x</mi></msub><mspace width="0.1667em"></mspace>"
+
   Scenario: Equations ask for a system math font, because the generic one can lack the math table
     Given the article "bound" has the body
       """
