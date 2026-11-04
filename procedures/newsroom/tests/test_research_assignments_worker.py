@@ -379,6 +379,11 @@ def test_every_field_a_full_run_asks_for_is_granted_to_the_research_workers_role
     print(sorted(asked)); assert asked <= granted, sorted(asked - granted)
 
 
+def test_the_worker_may_read_what_a_context_pack_reads_for_a_story_past_the_idea_stage():
+    """The full-run test above uses a fake Story, so it does not reach these. A live run on a Story in copywriting failed with a 401 without them."""
+    assert {("Query", "getItem"), ("Query", "listItemsByStageAndUpdatedAt")} <= worker_grants()
+
+
 def test_the_worker_has_its_own_function_and_schedule_and_the_key_policies_name_its_role():
     resources = tr._template()["Resources"]
     assert resources["ResearchAssignmentsSchedule"]["Properties"]["Target"]["Arn"] == ("GetAtt", "ResearchWorkerFunction.Arn") or "ResearchWorkerFunction" in str(resources["ResearchAssignmentsSchedule"]["Properties"]["Target"]["Arn"])
