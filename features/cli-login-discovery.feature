@@ -33,6 +33,22 @@ Feature: Sites publish their public CLI login values
     When the CLI login file is requested
     Then the answer is "service unavailable"
 
+  Scenario: A site publishes its tenant and Papyrus version in a second public file
+    Given a site with a tenant that runs Papyrus 5.81.0
+    When the site file is requested
+    Then it names the tenant and the Papyrus version
+    And the sign-in file is a different file that gains no field
+
+  Scenario: A site with no tenant publishes only its version
+    Given a site with no tenant that runs Papyrus 5.81.0
+    When the site file is requested
+    Then it names the Papyrus version and no tenant
+
+  Scenario: A value that is not a tenant id or a version is never published
+    Given a site whose tenant and version settings are not valid values
+    When the site file is requested
+    Then it is empty
+
   Scenario: With the flag off, discovery names the main client and the broker uses it
     Given a site that has not moved the CLI onto its federation client
     When the CLI login file is requested

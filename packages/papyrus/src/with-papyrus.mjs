@@ -122,6 +122,19 @@ export function projectionTypesEnvironment(root, projectionPath = "web/projectio
   return { NEXT_PUBLIC_PAPYRUS_PROJECTION_TYPES: JSON.stringify(projectionTypesSlice(JSON.parse(fs.readFileSync(file, "utf8")))) };
 }
 
+/**
+ * PAPYRUS_ENGINE_VERSION: the version of this installed package, which `/.well-known/papyrus-site.json` tells the CLI so it can
+ * say "upgrade" for a command it does not know. Nothing from a checkout of the engine, whose package.json is the template.
+ */
+export function engineVersionEnvironment(packageJsonPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../package.json")) {
+  try {
+    const { name, version } = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+    return name === "@anthusai/papyrus" && typeof version === "string" ? { PAPYRUS_ENGINE_VERSION: version } : {};
+  } catch {
+    return {};
+  }
+}
+
 const EMPTY_THEME = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../lib/empty-theme.css");
 
 export function withPapyrus(nextConfig = {}, options = {}) {
@@ -141,7 +154,7 @@ export function withPapyrus(nextConfig = {}, options = {}) {
     expireTime: READER_EXPIRE_TIME_SECONDS,
     ...nextConfig,
     ...amplifyBuildChecks(nextConfig),
-    env: { ...projectionTypesEnvironment(root, options.projectionPath), ...nextConfig.env },
+    env: { ...projectionTypesEnvironment(root, options.projectionPath), ...engineVersionEnvironment(), ...nextConfig.env },
     transpilePackages: mergeTranspilePackages(nextConfig.transpilePackages),
     serverExternalPackages: [...new Set([...(nextConfig.serverExternalPackages ?? []), ...SERVER_EXTERNAL])],
     outputFileTracingIncludes: mergeOutputFileTracingIncludes(nextConfig.outputFileTracingIncludes),

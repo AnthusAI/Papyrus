@@ -606,7 +606,7 @@ class GraphQLEditorialStore:
 
             execute = execute_graphql
         self._execute = execute
-        self._tenant_id = tenant_id   # the calling client's tenant; without one, the process environment's
+        self._tenant_id = tenant_id   # the calling client's tenant; without one, the environment's or the signed-in site's
 
     def _list(self, query: str, field_name: str) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
@@ -636,14 +636,14 @@ class GraphQLEditorialStore:
 
     def get_editorial_context(self, section: str | None) -> dict[str, Any]:
         from .editorial_model_context import checked_context
-        from .tenancy import tenant_id_from_environment
+        from .tenancy import configured_tenant_id
         publication = self.publication_key()
         # Optional doctrine: a publication without a mission still gets its rule checks (PPY-2c4b56).
         result = self._execute('''query EffectiveEditorialContext($publicationKey: String!, $sectionId: ID) {
           getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId, optionalPublicationDoctrine: true)
         }''', {'publicationKey': publication, 'sectionId': section})['getEditorialContext']
         pack = checked_context(_awsjson_document(result), publication=publication, section=section)
-        if (pack['publication'].get('tenantId') or None) != (self._tenant_id or tenant_id_from_environment() or None):
+        if (pack['publication'].get('tenantId') or None) != (self._tenant_id or configured_tenant_id() or None):
             raise ValueError('Editorial context tenant mismatch')
         return pack
 

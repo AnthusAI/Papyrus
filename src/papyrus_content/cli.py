@@ -179,6 +179,7 @@ from .corpora import (
     run_or_print_corpus_sync_plan,
 )
 from .env import PAPYRUS_ROOT, graphql_endpoint, load_dotenv, storage_bucket_from_amplify_outputs
+from .site_selection import install as install_site_selection, uninstall as uninstall_site_selection, unsupported_command
 from .graphql_authoring import create_authoring_client
 from .ids import knowledge_corpus_id
 from .newsroom_commands import (
@@ -512,13 +513,17 @@ def main(argv: list[str] | None = None) -> int:
         dispatch(group, command, rest)
         return 0
 
-    return run_with_operator_error_handling(run_dispatch)
+    install_site_selection()
+    try:
+        return run_with_operator_error_handling(run_dispatch)
+    finally:
+        uninstall_site_selection()
 
 
 def dispatch(group: str, command: str, flags: list[str]) -> None:
     route = f"{group}:{command}"
     if not is_ported_command(group, command):
-        raise ValueError(f"Unsupported papyrus command: {group} {command}")
+        raise unsupported_command(f"command: {group} {command}")
     if route == "content:inspect":
         content_inspect(flags)
     elif route == "content:schema-check":
@@ -1050,7 +1055,7 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "renderers:markus-build":
         markus_build(flags)
     else:
-        raise ValueError(f"Unsupported papyrus command: {group} {command}")
+        raise unsupported_command(f"command: {group} {command}")
 
 
 def corpora_status(flags: list[str]) -> None:

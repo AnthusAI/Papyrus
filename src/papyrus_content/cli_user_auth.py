@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -454,6 +455,8 @@ class SiteSession:
             self.person_id = enroll_with_site(self.config, tokens, transaction, enrollment, opener=self.enroll_opener)
 
         self.person_id = None
+        # The approval URL is what the person is waiting for: show it at once even when stdout is a pipe or a file.
+        line_buffered(sys.stdout)
         result = remote_login(self._session.target, self._session.store_token_set, enroll=enroll, **options)
         return {'subject': result['subject'], 'label': result['label'], 'publication': self.config.publication}
 
@@ -540,8 +543,23 @@ def _run_each(targets, action) -> int:
                 raise
             failed = True
             result = {'publication': config.publication, 'error': str(error)}
-        print(json.dumps(result, sort_keys=True))
+        print(json.dumps(result, sort_keys=True), flush=True)
     return 1 if failed else 0
+
+
+def line_buffered(stream) -> None:
+    """Make a redirected stream show each line as it is printed (a terminal already does); a stream that cannot is left alone."""
+    reconfigure = getattr(stream, 'reconfigure', None)
+    if reconfigure:
+        reconfigure(line_buffering=True)
+
+
+def _note_site(config: AuthConfig) -> None:
+    """After a login: keep the site's own document (its tenant and Papyrus version) and warn when this CLI is older than the site."""
+    from .site_selection import older_cli_warning
+    warning = older_cli_warning(config)
+    if warning:
+        print(warning, file=sys.stderr, flush=True)
 
 
 def command(arguments: list[str]) -> int:
@@ -575,6 +593,7 @@ def command(arguments: list[str]) -> int:
                 result = session_for(config).login_remote(expected_email=args.expect_email)
                 save_selection(config)
                 record_person(config.publication, session_for(config).person_id)
+                _note_site(config)
                 return result
             return _run_each(_remote_targets(args), log_in_remotely)
         if args.expect_email:
@@ -583,6 +602,7 @@ def command(arguments: list[str]) -> int:
             result = session_for(config).login()
             save_selection(config)
             record_person(config.publication, session_for(config).person_id)
+            _note_site(config)
             return result
         return _run_each(_login_targets(args), log_in)
     targets = _existing_targets(args, all_by_default=args.action != 'logout')

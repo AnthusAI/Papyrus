@@ -1,6 +1,8 @@
 # Multi-tenancy
 
-One backend can serve several publications. A tenant is one publication's account; its id is lowercase letters, digits and hyphens. Set it with `--tenant <id>` on a command, or `PAPYRUS_TENANT_ID` for the whole shell. A command with no tenant behaves exactly as a single-tenant backend always has and writes nothing tenant-shaped.
+One backend can serve several publications. A tenant is one publication's account; its id is lowercase letters, digits and hyphens. Set it with `--tenant <id>` on a command, or `PAPYRUS_TENANT_ID` for the whole shell (a signed-in CLI otherwise uses the tenant its site publishes, below). A command with no tenant behaves exactly as a single-tenant backend always has and writes nothing tenant-shaped.
+
+A signed-in editor does not set the tenant by hand: the site publishes its own tenant id in `/.well-known/papyrus-site.json` (its `PAPYRUS_TENANT_ID` build variable; the sign-in file `papyrus-cli.json` is strict and never carries it), and the CLI uses it for the signed-in site that owns the endpoint. The order is `--tenant`, then `PAPYRUS_TENANT_ID`, then the site's. This is scoping, not authorization: the backend still decides what the session may do. It applies to the signed-in lane only (an operator on `PAPYRUS_GRAPHQL_AUTH=iam` sets the tenant as before), and `content adopt-tenant-data`, which must read every row, ignores it. Details: [CLI login](cli-login.md#the-site-file-tenant-and-version).
 
 The key helpers live in `papyrus_content.tenancy`; `PapyrusGraphQLAuthoringClient(tenant_id=...)` applies them at the client boundary so callers never build tenant keys themselves.
 

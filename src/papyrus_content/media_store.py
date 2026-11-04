@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .env import PAPYRUS_ROOT, amplify_outputs_path, storage_bucket_from_amplify_outputs
+from .env import PAPYRUS_ROOT, amplify_outputs_path, outputs_belong_to_selection, storage_bucket_from_amplify_outputs
 
 MEDIA_KEY_PREFIX = "media/"
 NOT_FOUND_CODES = ("404", "NoSuchKey", "NotFound")
@@ -29,6 +29,8 @@ def storage_region_from_amplify_outputs(filepath: str | Path | None = None) -> s
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
+        return None
+    if not filepath and not outputs_belong_to_selection(parsed):
         return None
     storage = parsed.get("storage") or {}
     return storage.get("aws_region") or storage.get("region")
