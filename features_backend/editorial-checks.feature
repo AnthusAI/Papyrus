@@ -318,3 +318,24 @@ Feature: Editorial checks
     That happened when reusing an earlier check run was added without its grant.
     When the editorial-checks store's GraphQL operations are compared with the function's role
     Then every field the store calls is granted to the role
+
+  Scenario: A tenant site's checks function is told the site's tenant
+    A backend that carries a tenant publishes an editorial context whose publication has that
+    tenant. The checks function compares it with its own tenant and refuses a mismatch with
+    "Editorial context tenant mismatch". The function gets its tenant from the site's build
+    variable, as the other tenant Lambdas do; without it every check after a save-version on
+    that site printed "not checked", so the copy edit step could not finish.
+    When the site backend's tenant build variable is compared with the Lambdas that receive it
+    Then the editorial-checks function receives the tenant
+
+  Scenario Outline: The checks function compares the context's tenant with its own
+    Given the site's editorial context belongs to the tenant "<context tenant>"
+    When the checks function reads the editorial context with the tenant "<function tenant>"
+    Then the editorial context is <outcome>
+
+    Examples:
+      | context tenant       | function tenant      | outcome                                            |
+      | machines-on-machines | machines-on-machines | accepted                                           |
+      | machines-on-machines | none                 | refused as an "Editorial context tenant mismatch"  |
+      | none                 | none                 | accepted                                           |
+      | none                 | machines-on-machines | refused as an "Editorial context tenant mismatch"  |

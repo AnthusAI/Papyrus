@@ -12,9 +12,9 @@ Feature: An alarm says when Cyclotron decisions stop while items are waiting
     And "papyrus-monitoring-decisions-stopped" alarms when decided is 0 and awaiting is above 0, for 2 of 2 hourly periods
     And missing data does not breach the alarm
 
-  Scenario: The alarm sends an email, and the address is not in the repository
+  Scenario: Every monitoring alarm sends an email, and the address is not in the repository
     Given the monitoring stack template for the decisions-stopped alarm
-    Then the alarm notifies one topic
+    Then every alarm in the stack notifies the one alarm topic
     And that topic has one subscription, by email, to an address read from an SSM parameter
     And the template contains no email address
 

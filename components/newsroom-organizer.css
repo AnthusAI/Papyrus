@@ -545,3 +545,13 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-header-button-label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .organizer-header-button[data-newsroom-article-new]{justify-content:center;min-width:44px;padding:4px}
 }
+
+/* Connect the CLI or an agent: flat tones and rounded rectangles, no borders. Tones come from the ink so they follow light and dark. */
+.connect-cli-card{display:grid;gap:12px;border-radius:12px;padding:20px;background:color-mix(in srgb,var(--org-ink) 6%,transparent)}
+.connect-cli-row{display:flex;flex-direction:column;gap:8px}
+.connect-cli-command{display:block;min-width:0;flex:1;border-radius:8px;padding:10px 12px;font:500 14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:break-word;user-select:all;background:color-mix(in srgb,var(--org-ink) 11%,transparent)}
+.connect-cli-inline{border-radius:4px;padding:1px 6px;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;background:color-mix(in srgb,var(--org-ink) 11%,transparent);color:var(--org-ink)}
+.connect-cli-copy{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;border:0;border-radius:8px;font:600 14px var(--kb-theme-ui-font);color:var(--org-ink);cursor:pointer;background:color-mix(in srgb,var(--org-ink) 16%,transparent)}
+.connect-cli-copy:hover{background:color-mix(in srgb,var(--org-ink) 24%,transparent)}
+@media (min-width:640px){.connect-cli-row{flex-direction:row;align-items:stretch}.connect-cli-copy{min-width:120px}}
+.connect-cli-command,.connect-cli-inline{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}

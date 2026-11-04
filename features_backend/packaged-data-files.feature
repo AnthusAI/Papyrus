@@ -28,7 +28,7 @@ Feature: The PyPI wheel carries the data files the commands read at run time
 
   Scenario: The wheel depends on the exact shared login library release
     Given the wheel built from this checkout
-    Then the wheel requires cli-login at exactly version 0.4.0, with the Linux extra on Linux
+    Then the wheel requires cli-login at exactly version 0.4.1, with the Linux extra on Linux
 
   Scenario: A plain install can save a story version
     The documented install is pipx install papyrus-newsroom, with no extras. Saving

@@ -33,10 +33,11 @@ def step_template(context):
     context.resources = load_template()
 
 
-@then("the alarm notifies one topic")
+@then("every alarm in the stack notifies the one alarm topic")
 def step_notifies(context):
-    assert len(alarm_of(context)["AlarmActions"]) == 1
-    assert "- !Ref AlarmTopic" in TEMPLATE.read_text()
+    alarms = [r["Properties"] for r in context.resources.values() if r["Type"] == "AWS::CloudWatch::Alarm"]
+    assert len(alarms) == 5 and all(len(a["AlarmActions"]) == 1 for a in alarms)
+    assert TEMPLATE.read_text().count("- !Ref AlarmTopic") == len(alarms)
     assert context.resources["AlarmTopic"]["Type"] == "AWS::SNS::Topic"
 
 

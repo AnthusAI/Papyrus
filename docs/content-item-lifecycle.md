@@ -58,7 +58,7 @@ rewrites them (dry run by default).
 
 Illustration and typesetting follow copywriting so the board shows the whole
 production line up to publication. Nothing moves an item into them yet; editors
-place items there by hand until those agents exist.
+place items there by hand until those agents exist. See [story-illustration-typesetting.md](story-illustration-typesetting.md).
 
 - **Lifecycle stage is separate from version state.** `Item.versionState`
   (`draft`, `current`, `superseded`) and `PublishedItem` keep their meaning:

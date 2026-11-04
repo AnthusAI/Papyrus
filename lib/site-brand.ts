@@ -201,7 +201,7 @@ const REFERENCE_SITE_BRANDS: Record<SiteBrandId, SiteBrand> = {
     opsChrome: "app",
     corpusKey: "threat-intelligence",
     steeringConfigPath: "corpora/papyrus-steering.yml",
-    newsroomSectionsConfigPath: "corpora/papyrus-newsroom-sections.yml",
+    newsroomSectionsConfigPath: "corpora/threat-intelligence-newsroom-sections.yml",
     analysisProfilesPath: "corpora/papyrus-analysis-profiles.yml",
     publicationName: "Anthus Threat Intelligence",
   },

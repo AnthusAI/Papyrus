@@ -1116,14 +1116,14 @@ tests = ["citeproc-py-styles", "tox"]
 
 [[package]]
 name = "cli-login"
-version = "0.4.0"
+version = "0.4.1"
 description = "Browser sign-in for CLIs without long-lived keys: PKCE, remote approval, secure storage and renewal."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "cli_login-0.4.0-py3-none-any.whl", hash = "sha256:4ef80c0eb083bd68c42c117fe297a50f14932099a9b8d5c9354e5e106d5406c5"},
-    {file = "cli_login-0.4.0.tar.gz", hash = "sha256:1e701ed977c2b665e22fbdfbb4bc4d2df75c6992b9707e0301bf2bd3316de9e3"},
+    {file = "cli_login-0.4.1-py3-none-any.whl", hash = "sha256:b542aec1dd3376f0ebdabf61cea00a3d40531606f42020ed84cb776c4d9b42c5"},
+    {file = "cli_login-0.4.1.tar.gz", hash = "sha256:ab1e85a05ad6840785400996b5ce403c99c69ef1299d77bdd5408a8703372c20"},
 ]
 
 [package.dependencies]
@@ -3085,6 +3085,18 @@ pyyaml = "*"
 requests = "*"
 ruff = "0.15.5"
 sphinx = "*"
+
+[[package]]
+name = "latex2mathml"
+version = "3.81.1"
+description = "Pure Python library for LaTeX to MathML conversion"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "latex2mathml-3.81.1-py3-none-any.whl", hash = "sha256:c337668441b71c819b6733905a8058ba9a9d767bae11a0c5fdacb3aff31361bd"},
+    {file = "latex2mathml-3.81.1.tar.gz", hash = "sha256:c95add0c0fcdecad2d70567e0643050d5ea1149fb2e98a5d5792fb1c8eea2ed5"},
+]
 
 [[package]]
 name = "linkify-it-py"
@@ -9026,4 +9038,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "95e9d224cbd798b88cad13c4b848f4d1756a7f36ace4452738aff83423ca06dd"
+content-hash = "f4f83ac97858e4cefb19923928fa9e051be09e8920694316eb9d35cd7edd4fe2"

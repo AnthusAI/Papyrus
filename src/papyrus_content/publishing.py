@@ -9,6 +9,7 @@ edited in place; each publish increments the published counter kept on the singl
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
@@ -53,6 +54,9 @@ class PublishResult:
     published_item_id: str
     version_number: int | None
     deleted_media_ids: list[str] = field(default_factory=list)
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class PublishError(Exception):
@@ -154,6 +158,8 @@ def _derive_or_raise(front_matter_yaml: str | None, body_markus: str) -> dict:
     if not derivation.ok:
         first = derivation.errors[0]
         raise PublishError(first.code, first.message, list(derivation.errors))
+    for warning in derivation.warnings:
+        LOGGER.warning("%s (line %s): %s", warning.code, warning.line, warning.message)
     return derivation.body_ir
 
 

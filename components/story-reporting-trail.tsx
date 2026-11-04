@@ -1,8 +1,9 @@
 "use client";
 
-import { BookmarkIcon, BotIcon, ExternalLinkIcon, GlobeIcon, LinkIcon } from "lucide-react";
+import { BookmarkIcon, BotIcon, ExternalLinkIcon, GlobeIcon, LinkIcon, PlugIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { CONNECT_CLI_PATH } from "../lib/cli-connect";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { isResearchAssignment, referenceRoleLabel, storyMessageFeed, storyReportingTrailIsEmpty, type StoryReportingTrail, type TrailReference } from "../lib/story-reporting-trail";
 import { loadStoryReportingTrail } from "./story-reporting-trail-client";
@@ -128,6 +129,7 @@ export function StoryReportingTrailView({ assign, citedKeys = [], demo = false, 
     </TrailSection>
     <section className="story-trail-section" data-story-trail-section="work">
       <h3>Work <small>{trail.assignments.length}</small></h3>
+      {assign && <p className="story-trail-reference-links" data-story-trail-connect-agent><Link href={getNewsroomNavHref(CONNECT_CLI_PATH, demo)}><PlugIcon aria-hidden="true" size={14} /> Connect an agent to this site</Link></p>}
       {assign && <AssignResearchBox demo={demo} lineageId={lineageId || itemId} onAssigned={() => setRefresh(count => count + 1)} sectionKey={assign.sectionKey} stage={trail.versions[0]?.stage ?? null} storyTitle={assign.storyTitle} />}
       {trail.assignments.length === 0 ? <p className="story-trail-empty">None recorded.</p> : <ol className="story-trail-list">
         {trail.assignments.map(assignment => <li key={assignment.id}>
