@@ -148,6 +148,13 @@ module.exports = {
     tags: "",
     format: ["summary"],
   },
+  // AI agent notes in a story's Messages view (demo mode). Needs `next dev` on PAPYRUS_BASE_URL.
+  storyAgentNotes: {
+    paths: ["features/newsroom-story-agent-notes.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/story-references.steps.js", "features/step_definitions/assign-research.steps.js", "features/step_definitions/story-agent-notes.steps.js"],
+    tags: "",
+    format: ["summary"],
+  },
   createStory: {
     paths: ["features/newsroom-create-story.feature"],
     require: ["features/step_definitions/create-story.steps.js"],

@@ -45,6 +45,8 @@ COMMAND_USAGE = {
   ("assignments", "fact-check"): "--message RESEARCH_PACKET_MESSAGE_ID [--judge true|false] [--format text|json]  (read only; --judge true makes one model call per claim)",
   ("assignments", "context-pack"): "--story LINEAGE [--assignment ID] [--direction TEXT] [--format text|json] [--max-characters N]  (read only)",
   ("stories", "move"): "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]  (board stage only: --stage published publishes no page; use ops content publish)",
+  ("stories", "note"): "--story LINEAGE --body TEXT|--body-file FILE [--summary TEXT] [--kind note|...] [--reference LINEAGE] [--version N]  (a person's note; the newsroom names you from your sign-in; an AI agent uses agent-note)",
+  ("stories", "agent-note"): "--story LINEAGE --agent NAME --body TEXT|--body-file FILE [--summary TEXT] [--reference LINEAGE] [--version N] [--dry-run]  (an AI agent's note, shown labelled as AI; never a Message)",
   ("stories", "save-version"): "--story LINEAGE --body-file FILE --reason TEXT --author-label NAME [--stage STAGE | --advance]",
   ("messages", "list"): "--kind form_submission [--status open|handled|all] [--form ID] [--limit N] [--json]",
   ("messages", "handle"): "--message-id ID [--note TEXT] [--author-label NAME] [--dry-run]",

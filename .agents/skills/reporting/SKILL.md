@@ -7,7 +7,7 @@ description: Research a Papyrus story while recording immutable draft versions, 
 
 Work on the assigned topic and publication. Inspect repository instructions and active work; preserve other agents' edits. The reusable skill belongs in Papyrus, but editorial records belong in the selected publication's backend, never its product tracker. Before writing, verify the publication repository/configuration, endpoint and authoring identity, then read the existing Item to resolve its actual `lineageId`; an Item version id is not the story lineage. Keep the assigned stage and unpublished status unless authorized otherwise. Use project Kanbus for scoped development work, not as an alternative editorial store.
 
-A story is an Item lineage. All drafts, Reference links and Messages hang off that lineage. Never overwrite historical article text: every article change is a new version. The supported save operation marks the previous version superseded without replacing its text. Attribute agent work as "AI"; do not invent human authorship. Messages come only from people: never write a `Message` for machine work.
+A story is an Item lineage. All drafts, Reference links and Messages hang off that lineage. Never overwrite historical article text: every article change is a new version. The supported save operation marks the previous version superseded without replacing its text. Attribute agent work as "AI"; do not invent human authorship. Messages come only from people: never write a `Message` for machine work, and never run `papyrus stories note` (that is a person's note, and under a person's login it would carry their name). Record your own notes with `papyrus stories agent-note`.
 
 ## Current editorial context
 
@@ -23,7 +23,7 @@ Apply its `text` and precedence, surface conflicts/warnings, and record `context
 
 Use the installed `papyrus` CLI or the project's existing Python environment (`poetry run papyrus` where configured). Inspect current help/source before execution; mutations currently write by default, with `--dry-run` for preview and no `--apply`. Do not repair deployment/schema/authentication problems or bypass the supported CLI to make a write succeed. If unavailable or blocked, provide each unexecuted command and the complete contents of every input file, clearly identifying what actually ran.
 
-Find existing References by exact source URL in the selected publication. `stories link-reference --reference` takes a **Reference record id**: it loads that record and derives its lineage. `stories note --reference` takes the **Reference lineage id**. Resolve both from records, never guess them.
+Find existing References by exact source URL in the selected publication. `stories link-reference --reference` takes a **Reference record id**: it loads that record and derives its lineage. `stories agent-note --reference` takes the **Reference lineage id**. Resolve both from records, never guess them.
 
 If a source needs registration, inspect current `papyrus references create-from-catalog` support and the publication's steering configuration. The supported intake is:
 
@@ -38,7 +38,7 @@ The current catalog shape is `{"items":[{"item_id":"stable-source-id","source_ur
 The order of the steps for a Story, who does each and what comes next is defined once in [docs/story-procedure.md](../../../docs/story-procedure.md). Run `papyrus stories next --story LINEAGE` to see it for this Story; the outline is the editor's step and comes after the research.
 
 1. Read back the story and its versions (`papyrus stories show`, `papyrus stories versions`).
-2. Research. Immediately attach every source you read as `consulted`; register it through supported intake if missing. Record findings in your reporting notes and in each saved version's change reason; do not append Messages. Separate source findings, attributed claims, inference and open questions; never claim more than the source establishes.
+2. Research. Immediately attach every source you read as `consulted`; register it through supported intake if missing. Record findings with `papyrus stories agent-note` and in each saved version's change reason; do not append Messages. Separate source findings, attributed claims, inference and open questions; never claim more than the source establishes.
 3. After each substantial article change, save a new version with a clear reason. Use valid Markus citation syntax and keys supported by the current renderer.
 4. Change every Reference actually cited in the draft to `cited` with its matching Markus citation key. Leave uncited sources `consulted`.
 5. Finish with a handoff (your final report, not a Message) listing unresolved questions, limitations and next reporting steps; raise a review request (`papyrus reviews raise --subject-type item --subject-id <version id> --mode soft_review ...`) when a person must decide something. Read back versions, Reference roles/keys and notes; verify the publication, stage and unpublished status. Report the lineage, versions, references, notes, all commands executed, input files and any blockers.
@@ -49,6 +49,9 @@ papyrus stories versions --story LINEAGE
 papyrus stories save-version --story LINEAGE --body-file draft.md --front-matter-file front-matter.yml --reason "what changed" --author-label "AI"
 papyrus stories link-reference --story LINEAGE --reference REFERENCE_ID --role consulted --note "why it matters" --author-label "AI"
 papyrus stories link-reference --story LINEAGE --reference REFERENCE_ID --role cited --citation-key KEY --author-label "AI"
+papyrus stories agent-note --story LINEAGE --agent "AI" --summary "one line" --body-file note.md [--reference REFERENCE_LINEAGE_ID] [--version N]
 ```
+
+An agent note is saved on the story and shown labelled as AI in `stories show` and the Reporting trail. `--agent` is only a label; the newsroom records who ran the agent from the sign-in.
 
 `--front-matter-file` is optional after the initial outline when unchanged. Keep an auditable record of command results and inputs; do not claim a dry run or prepared command was executed as a write.

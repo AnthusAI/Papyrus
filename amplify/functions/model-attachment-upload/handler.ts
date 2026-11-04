@@ -35,6 +35,7 @@ const ALLOWED_OWNER_KINDS = new Set([
   "semanticRelation",
 ]);
 const ALLOWED_ROLES = new Set([
+  "agent_note",
   "assignment_brief",
   "assignment_instructions",
   "item_body",
