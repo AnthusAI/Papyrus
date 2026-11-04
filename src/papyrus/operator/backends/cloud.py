@@ -7,7 +7,7 @@ from typing import Any
 from papyrus_content.env import load_dotenv
 from papyrus_content.graphql_http import authoring_credentials_available
 
-from ..config import OperatorConfig
+from ..config import OperatorConfig, resolve_default_corpus_key
 from ..errors import OperatorError
 from ..output import OperatorRow
 from .base import (
@@ -79,7 +79,7 @@ class CloudBackend(OperatorBackend):
     return rows[: max(limit, 1)]
 
   def show_reference(self, reference_id: str) -> OperatorRow:
-    rows = self.list_references(corpus_key=self._config.default_corpus_key, limit=10_000, status="", order="newest")
+    rows = self.list_references(corpus_key=resolve_default_corpus_key(self._config), limit=10_000, status="", order="newest")
     for row in rows:
       if row.identifier == reference_id:
         return row

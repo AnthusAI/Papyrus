@@ -556,6 +556,19 @@ def append_story_message(
     return message
 
 
+def story_messages(client, lineage_id: str) -> list[dict[str, Any]]:
+    """The Story's Messages, oldest first: every active, undeleted Message on its ``story_reporting`` and ``story_conversation`` threads."""
+    rows: list[dict[str, Any]] = []
+    for thread in client.list_by_index("messageThreadsByAnchor", story_anchor_key(lineage_id)):
+        if thread.get("threadKind") not in (STORY_THREAD_KIND, "story_conversation"):
+            continue
+        rows.extend(
+            row for row in client.list_by_index("messagesByThreadAndSequence", thread["id"])
+            if row.get("status", "active") == "active" and not row.get("deletedAt")
+        )
+    return sorted(rows, key=lambda row: (str(row.get("createdAt") or ""), int(row.get("sequenceNumber") or 0), str(row.get("id"))))
+
+
 def _next_thread_sequence(client, thread: dict[str, Any]) -> int:
     """One more than the highest number in the thread, from its Messages as well as its count (a count can lag a saved Message)."""
     numbers = [int(row.get("sequenceNumber") or 0) for row in client.list_by_index("messagesByThreadAndSequence", thread["id"])]

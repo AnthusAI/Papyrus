@@ -105,6 +105,8 @@ papyrus stories move --story <lineage> --stage reporting [--reason "why"] [--aut
 warning on stderr saying so (in a `--dry-run` too; stdout keeps its tab-separated lines) and naming
 `papyrus ops content publish --id <item-id>`, which is what publishes.
 
+The `write` line prints only after the move was saved (a failed move prints no `write` line); `--dry-run` prints its `dry run` line. `stories create`, `stories save-version`, `stories link-reference` and `stories set-slug` follow the same rule.
+
 This is the same `Item.stage` update a card move makes. The stage must be one of the content item stages (`idea`, `assignment`, `reporting`, `copywriting`, `illustration`, `typesetting`, `published`, `held`, `spiked`). The move is recorded on the latest version's `metadata.stageMoves` (who, when, from, to and why), which `stories show` lists and the Reporting trail shows under Stage moves; it posts no Message. The `moveStoryStage` GraphQL mutation (input `{ lineageId, stage, reason }`, editor groups) does the same for browser and agent clients.
 
 The new `Item` row gets `versionNumber` n+1, `previousVersionId`, `versionCreatedBy`, `versionCreatedAt` and
@@ -141,10 +143,12 @@ became:
 
 ```bash
 papyrus stories link-reference --story <lineage> --reference <reference id> \
-  --role consulted --note "primary source, sandbox escape write-up" --author-label "ChatGPT"
+  --role consulted --note "primary source, sandbox escape write-up"
 papyrus stories link-reference --story <lineage> --reference <reference id> \
-  --role cited --citation-key pwn2026 --author-label "ChatGPT"
+  --role cited --citation-key pwn2026
 ```
+
+Signed in (`papyrus login`), the link records the person who signed in, taken from the sign-in session, as who added it. `--author-label` is optional there and is ignored (the command says so on stderr), so a link never names someone else. The label comes from the CLI session, not from the newsroom (the relation is written directly, not through a mutation that stamps the author the way `postMessage` does), so it identifies the person for the trail rather than proving it against a caller who writes the record by hand. With an operator's AWS credentials (`PAPYRUS_GRAPHQL_AUTH=iam`) there is no sign-in, so `--author-label` is required and is recorded as given. The `write` line prints only after the link was saved.
 
 Running `link-reference` again for the same pair changes its role and keeps who added it and when. The Reporting trail
 shows each reference with its role, note and the person or agent who attached it, and marks a reference "in the text" when
@@ -203,7 +207,9 @@ The other writers that still create Messages without a person (research and repo
 papyrus stories show --story <lineage>
 ```
 
-prints the latest version, how many versions exist, each stage move, every attached reference with its role, and each agent note (labelled `AI agent <name>`).
+prints the latest version, how many versions exist, each stage move, every attached reference with its role, each Message on the Story's threads (`message`, time, `<author> (<kind>)`, summary; oldest first, active ones only) and each agent note (labelled `AI agent <name>`).
+
+`stories create` prints the new version's record id on the `created` line (`created  content-item-...-v1`) and the Story's lineage id on its own labelled line (`lineage  content-item-...`). The lineage id is what every other command takes as `--story`.
 
 ## Assigning research and the reporter context pack
 
