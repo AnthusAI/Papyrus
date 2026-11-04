@@ -2,6 +2,8 @@
 
 import { AdministrationDelegationsPanel } from "./administration-delegations-panel";
 import { WikiConceptsView } from "./wiki-concepts-view";
+import { SectionConceptsEditor } from "./section-concepts-editor";
+import { parseTrackedConcepts, serializeTrackedConcepts, type TrackedConcept } from "../lib/section-concepts";
 import { Hub } from "aws-amplify/utils";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { gsap } from "gsap";
@@ -846,6 +848,7 @@ function NewsDeskDashboard({
     return () => { cancelled = true; };
   }, [cyclotronPreviewFixtures, dashboard.isDemo, relevanceCyclotronId]);
   const [semanticNodes, setSemanticNodes] = useState(dashboard.semanticNodes);
+  const conceptNames = useMemo(() => Object.fromEntries(semanticNodes.map((node) => [node.lineageId ?? node.id, node.displayName || node.nodeKey])), [semanticNodes]);
   const [assignments, setAssignments] = useState(dashboard.assignments);
   const [assignmentEvents, setAssignmentEvents] = useState(dashboard.assignmentEvents);
   const [editionSlots, setEditionSlots] = useState(dashboard.editionSlots ?? []);
@@ -3245,9 +3248,12 @@ function NewsDeskDashboard({
         ) : null}
         {activeTab === "concepts" ? (
           <ConceptsDeskView
+            disabled={controlsDisabled}
             graph={graph}
             initialNodeLineageId={initialSelection.node}
             isDemo={Boolean(dashboard.isDemo)}
+            onSectionTrackedConcepts={(section, next) => runSectionUpsert({ ...section, trackedConcepts: serializeTrackedConcepts(next) }, section.id)}
+            sections={newsroomSections}
             semanticNodes={semanticNodes}
           />
         ) : null}
@@ -3345,6 +3351,7 @@ function NewsDeskDashboard({
             actionState={actionState}
             administrationPanel={administrationPanel}
             canManageUsers={Boolean(dashboard.canManageUsers)}
+            conceptNames={conceptNames}
             disabled={controlsDisabled}
             doctrineDrafts={doctrineDrafts}
             doctrineRecords={doctrineRecords}
@@ -4347,6 +4354,7 @@ function AdministrationDeskView({
   actionState,
   administrationPanel,
   canManageUsers,
+  conceptNames,
   disabled,
   doctrineCategories,
   doctrineDrafts,
@@ -4378,6 +4386,7 @@ function AdministrationDeskView({
   actionState: ActionState | null;
   administrationPanel: AdministrationPanel;
   canManageUsers: boolean;
+  conceptNames: Record<string, string>;
   disabled: boolean;
   doctrineCategories: DoctrineCategory[];
   doctrineDrafts: DoctrineEditorState;
@@ -4580,6 +4589,7 @@ function AdministrationDeskView({
               {administrationPanel === "sections" ? (
                 <AdministrationSectionsPanel
                   actionState={actionState}
+                  conceptNames={conceptNames}
                   disabled={disabled}
                   sections={newsroomSections}
                   onReorder={onSectionReorder}
@@ -4971,12 +4981,14 @@ function AdministrationPoliciesPanel({
 
 function AdministrationSectionsPanel({
   actionState,
+  conceptNames,
   disabled,
   sections,
   onReorder,
   onSave,
 }: {
   actionState: ActionState | null;
+  conceptNames: Record<string, string>;
   disabled: boolean;
   sections: NewsroomSectionRecord[];
   onReorder: (nextOrder: NewsroomSectionRecord[]) => void;
@@ -5083,6 +5095,12 @@ function AdministrationSectionsPanel({
                 <span>{sectionDraft.type}</span>
               </header>
               <NewsroomSectionEditorBody draft={sectionDraft} disabled={disabled} onChange={setSectionDraft} />
+              <SectionConceptsEditor
+                disabled={disabled}
+                entries={parseTrackedConcepts(sectionDraft.trackedConcepts)}
+                names={conceptNames}
+                onChange={(next) => setSectionDraft({ ...sectionDraft, trackedConcepts: serializeTrackedConcepts(next) })}
+              />
               <div className="news-desk-doctrine-card__footer">
                 <span>Order: {sectionDraft.sortOrder}</span>
                 <div className="news-desk-doctrine-card__actions">
@@ -6423,14 +6441,20 @@ function TopicProposalEditModal({
 }
 
 function ConceptsDeskView({
+  disabled,
   graph,
   initialNodeLineageId,
   isDemo,
+  onSectionTrackedConcepts,
+  sections,
   semanticNodes,
 }: {
+  disabled: boolean;
   graph: SemanticGraph;
   initialNodeLineageId?: string | null;
   isDemo: boolean;
+  onSectionTrackedConcepts: (section: NewsroomSectionRecord, next: TrackedConcept[]) => void;
+  sections: NewsroomSectionRecord[];
   semanticNodes: SemanticNodeRecord[];
 }) {
   const feed = useNewsroomPagedRows({
@@ -6443,7 +6467,7 @@ function ConceptsDeskView({
     if (feed.hasMore && !feed.isLoadingMore) feed.loadMore();
   }, [feed]);
   const nodes = feed.items.length ? feed.items : semanticNodes;
-  return <WikiConceptsView demo={isDemo} graph={graph} initialNodeLineageId={initialNodeLineageId} nodes={nodes} />;
+  return <WikiConceptsView demo={isDemo} disabled={disabled} graph={graph} initialNodeLineageId={initialNodeLineageId} nodes={nodes} onSectionTrackedConcepts={onSectionTrackedConcepts} sections={sections} />;
 }
 
 function ReferencesDeskView({

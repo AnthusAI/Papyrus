@@ -10275,3 +10275,11 @@ img {
   border-radius: 8px;
   padding: 6px 10px;
 }
+
+/* Tracked concepts: flat tiles and rounded rectangles, no outlines or hairlines (the section card's generic button and field borders do not apply here). */
+[data-section-concepts] button,
+[data-section-concepts] textarea,
+[data-wiki-section="tracked-by"] button {
+  border: 0;
+  box-shadow: none;
+}

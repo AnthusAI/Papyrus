@@ -22,6 +22,8 @@ export type ReferenceLinksStore = {
   suggest: (referenceId: string) => Promise<SuggestOutcome>;
   /** Invents the concept named by a typed hashtag if it does not exist and tags the Reference with it, as one confirmed `related_to` link. Asking twice makes one concept and one link. */
   createConceptAndTag?: (referenceLineageId: string, name: string) => Promise<{ relationId: string; item: RelatedItem }>;
+  /** Invents the concept named by a typed hashtag without tagging anything, for a section's list. Absent where the backend has no way to do it yet. */
+  createConcept?: (name: string) => Promise<RelatedItem>;
   /** An editor's words about a concept they invented ("" clears them). */
   describeConcept?: (conceptLineageId: string, description: string) => Promise<void>;
   /** The Needs me queue: one page of open suggestions, from the cursor the last page returned (null for the first). Most likely first within the page. */
@@ -160,6 +162,13 @@ export function createMemoryReferenceLinksStore(options: {
       const id = `memory-link-${links.length + 1}`;
       links.push({ id, subjectKind: "reference", subjectLineageId: referenceLineageId, objectKind: "semanticNode", objectLineageId: item.lineageId, state: "current", provenance: "human" });
       return { relationId: id, item };
+    },
+    async createConcept(name) {
+      note({ type: "createConcept", name });
+      const slug = conceptSlug(name);
+      const item = items.get(`concept#${editorConceptLineageId(slug)}`) ?? editorConceptItem(slug);
+      items.set(`concept#${item.lineageId}`, item);
+      return item;
     },
     async describeConcept(conceptLineageId, description) {
       note({ type: "describeConcept", conceptLineageId, description });
