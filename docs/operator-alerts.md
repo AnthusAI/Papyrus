@@ -31,12 +31,12 @@ When the old SNS email is removed later (PPY-f66e91), exactly these two stay. Th
 
 ## What deploys, in what order
 
-Nothing is deployed by the pull request. Each write is a change set a person reads first. Use `AWS_PROFILE=papyrus-production` and assert the account.
+Nothing is deployed by the pull request, and nobody runs these by hand (PPY-b8cc79). The pull request's `stack-deploy` dry run prints what each stack would change; a person reads that before merging. The release to `main` then builds the zips, deploys the operator sending stack first and `papyrus-monitoring` second, in one run, through GitHub OIDC (`infra/pipeline/README.md`). The run stops without executing if anything would be Removed or Replaced that `infra/pipeline/allowed-changes.json` does not list, or if a stack is in a failed state. Steps 1 to 3 below are what that run does; read them as the description of its work, and as the manual fallback only if the pipeline is unavailable and Ryan says so.
 
 0. **Before anything.** Merge Caducus PR 7 (the handlers this needs), then set `infra/monitoring/caducus-requirement.txt` to the merge commit (or a release tag) and commit that. Until PyPI works the pin is a Git commit; the file's own comments say how to change it.
 1. **Build and upload the zip** (the build needs `git` and network for `pip wheel`):
    `python3 infra/monitoring/build.py --operator --upload "$CODE_BUCKET"` prints `CodeKey papyrus-monitoring/operator-<sha256>.zip`. Same pin and catalog give the same hash, so re-running changes nothing.
-2. **Stack `papyrus-newsletter-sending-operators`** (identity, DKIM, MAIL FROM, DMARC under notify.anth.us, configuration set `papyrus-operators`, delivery events to the default bus). Command in `infra/newsletter/README.md`; run it with `--no-execute-changeset` first. It must exist before step 3: the functions send as this identity. Wait for `aws sesv2 get-email-identity --email-identity notify.anth.us --query '[VerifiedForSendingStatus,DkimAttributes.Status,MailFromAttributes.MailFromDomainStatus]' --output text` to read `True SUCCESS SUCCESS` (minutes, up to about 30).
+2. **Stack `papyrus-newsletter-sending-operators`** (identity, DKIM, MAIL FROM, DMARC under notify.anth.us, configuration set `papyrus-operators`, delivery events to the default bus). Command in `infra/newsletter/README.md`; run it with `--no-execute-changeset` first. It must exist before step 3: the functions send as this identity. The release moves on to step 3 straight away; it does not wait for verification. Check with `aws sesv2 get-email-identity --email-identity notify.anth.us --query '[VerifiedForSendingStatus,DkimAttributes.Status,MailFromAttributes.MailFromDomainStatus]' --output text` to read `True SUCCESS SUCCESS` (minutes, up to about 30).
 3. **Change set on `papyrus-monitoring`.** It adds 37 resources, 7 parameters and 5 outputs and changes **none** of the existing ones (checked against develop): the collector, the router and the five existing alarms are untouched. Upload the template to `CodeBucket` and use `--template-url` (it is far over the 51,200 byte `--template-body` limit), pass `OperatorCodeKey=<CodeKey from step 1>`, and keep every other parameter at `UsePreviousValue` (never omit `EditorUserPoolArns`). Read it, then execute.
 4. **Optional, any time:** write the triage parameter (below) so links open through IAM Identity Center and site names replace app ids.
 
@@ -60,7 +60,7 @@ No KMS grants (SecureString parameters use the AWS-managed key; the table uses t
 
 ## Triage notes and links
 
-`infra/monitoring/alarm-catalog.yaml` is Papyrus's catalog: the nine reviewed patterns, the Amplify site alarms (`DeployRenderDrift`, `InvalidatedPaths`, the login broker's `StartCeiling` and `Throttled`), the email intake alarm and the Prospectus broker alarms. An alarm with no entry still sends, labelled "No triage notes yet". To add one: add an entry (first match wins, so specific patterns go first; `(?P<site>...)` names the site), run `python3 -m pytest procedures/newsroom/tests/test_operator_alerts.py`, rebuild the zip and deploy a change set that changes only `OperatorCodeKey`.
+`infra/monitoring/alarm-catalog.yaml` is Papyrus's catalog: the nine reviewed patterns, the Amplify site alarms (`DeployRenderDrift`, `InvalidatedPaths`, the login broker's `StartCeiling` and `Throttled`), the email intake alarm and the Prospectus broker alarms. An alarm with no entry still sends, labelled "No triage notes yet". To add one: add an entry (first match wins, so specific patterns go first; `(?P<site>...)` names the site), run `python3 -m pytest procedures/newsroom/tests/test_operator_alerts.py`, merge it; the release rebuilds the zip and its change set changes only `OperatorCodeKey`.
 
 Alarm links and site names come from the optional SSM parameter `/papyrus/monitoring/triage`, never from Git:
 
@@ -81,7 +81,7 @@ python3 infra/monitoring/operator_test_alarm.py raise    # one [ALARM] email wit
 python3 infra/monitoring/operator_test_alarm.py clear    # one [CLEARED] email after its 60 second hold-down
 ```
 
-The same by hand: `aws cloudwatch set-alarm-state --alarm-name papyrus-notify-test-alarm --state-value ALARM --state-reason test`, then `--state-value OK`. The command touches only that alarm and refuses any other account. To prove the dead-man: change set with `OperatorHeartbeatState=DISABLED` (every other parameter `UsePreviousValue`); about 45 minutes later `papyrus-operator-deadman` emails by SNS; set it back to `ENABLED` and the OK email follows.
+The same by hand: `aws cloudwatch set-alarm-state --alarm-name papyrus-notify-test-alarm --state-value ALARM --state-reason test`, then `--state-value OK`. The command touches only that alarm and refuses any other account. To prove the dead-man: add `"OperatorHeartbeatState": "DISABLED"` to the `papyrus-monitoring` entry's `parameters` in `infra/pipeline/stacks.json` and release (every other parameter keeps its previous value); about 45 minutes later `papyrus-operator-deadman` emails by SNS; remove the line, release again, and the OK email follows.
 
 ## Operating it
 

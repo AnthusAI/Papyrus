@@ -1,0 +1,136 @@
+# Shared CloudFormation stacks (papyrus-monitoring, the operator sending stack) deploy from a release to main, never by hand (PPY-b8cc79).
+#
+#   pull request  a read-only dry run prints what the release would change, as a job summary
+#   push to main  tests pass, then each stack whose inputs changed since the last successful run is built, change-set, read and executed
+#
+# AWS access is GitHub OIDC only (no stored keys). The roles come from infra/pipeline/papyrus-stack-pipeline.yaml, the one stack a person
+# deploys by hand, once. The account id lives in the AWS_ACCOUNT_ID repository variable, not in Git. Public repository only.
+# Which stacks, which paths and which parameters: infra/pipeline/stacks.json. What may be removed or replaced: infra/pipeline/allowed-changes.json.
+# The safety checks live in infra/pipeline/stack_deploy.py and are tested.
+name: stack-deploy
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - ".github/workflows/stack-deploy.yml"
+      - "infra/monitoring/**"
+      - "infra/newsletter/**"
+      - "infra/pipeline/**"
+      - "src/papyrus_content/**"
+      - "src/papyrus_knowledge_query/**"
+      - "poetry.lock"
+      - "corpora/papyrus-semantic-relation-types.yml"
+      - "corpora/example-publication-doctrine.yml"
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - name: Which stacks does this pull request touch
+        id: scope
+        run: python infra/pipeline/stack_deploy.py scope --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}"
+      - name: Say why there is no dry run yet
+        if: steps.scope.outputs.deploy == 'true' && vars.AWS_ACCOUNT_ID == ''
+        run: echo "::notice::Set the AWS_ACCOUNT_ID repository variable (see infra/pipeline/README.md) to get the dry run."
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        if: steps.scope.outputs.deploy == 'true' && vars.AWS_ACCOUNT_ID != ''
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/papyrus-stack-plan-github
+          aws-region: us-east-1
+          role-session-name: stack-plan-${{ github.run_id }}
+      - name: Dry run (read-only)
+        if: steps.scope.outputs.deploy == 'true' && vars.AWS_ACCOUNT_ID != ''
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          STACKS: ${{ steps.scope.outputs.stacks }}
+        run: |
+          args=()
+          for name in ${STACKS//,/ }; do args+=(--stack "$name"); done
+          python infra/pipeline/stack_deploy.py plan "${args[@]}"
+
+  scope:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      deploy: ${{ steps.scope.outputs.deploy }}
+      stacks: ${{ steps.scope.outputs.stacks }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Base is the last commit this workflow finished on, so a failed or stopped release is retried by the next one
+        id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          base=$(gh run list --workflow stack-deploy.yml --branch main --status success --limit 1 --json headSha --jq '.[0].headSha // empty')
+          echo "sha=${base:-${{ github.event.before }}}" >> "$GITHUB_OUTPUT"
+      - id: scope
+        run: python3 infra/pipeline/stack_deploy.py scope --base "${{ steps.base.outputs.sha }}" --head "${{ github.sha }}"
+
+  tests:
+    needs: scope
+    if: needs.scope.outputs.deploy == 'true'
+    uses: ./.github/workflows/tests.yml
+
+  deploy:
+    needs: [scope, tests]
+    if: needs.scope.outputs.deploy == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    # One deploy at a time, and a newer push waits rather than cancelling one that is mid-change.
+    concurrency:
+      group: stack-deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: The AWS_ACCOUNT_ID variable is set
+        env:
+          ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+        run: test -n "$ACCOUNT" || { echo "::error::Set the AWS_ACCOUNT_ID repository variable (infra/pipeline/README.md)"; exit 1; }
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build tools at the poetry.lock versions (the zips hold copies of these)
+        run: |
+          pip install pyyaml
+          python infra/pipeline/stack_deploy.py requirements > "$RUNNER_TEMP/vendored.txt"
+          pip install -r "$RUNNER_TEMP/vendored.txt"
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/papyrus-stack-deploy-github
+          aws-region: us-east-1
+          role-session-name: stack-deploy-${{ github.run_id }}
+      - name: Deploy the stacks whose inputs changed
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+          STACKS: ${{ needs.scope.outputs.stacks }}
+        run: |
+          args=()
+          for name in ${STACKS//,/ }; do args+=(--stack "$name"); done
+          python infra/pipeline/stack_deploy.py deploy "${args[@]}"
