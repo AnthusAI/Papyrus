@@ -51,7 +51,8 @@ DEFAULT_MAX_CHARACTERS = 100_000
 WHOLE_MAX_CHARACTERS = 200_000
 STORY_THREAD_KINDS = ("story_reporting", "story_conversation")
 RETIRED_STAGE = "retired"
-NOT_IN_PROGRESS = (RETIRED_STAGE, "idea", "spiked", "held", "published")
+IDEA_STAGE = "idea"
+IN_PROGRESS_STAGES = ("assignment", "reporting", "copywriting", "illustration", "typesetting")
 ACCEPTED = "accepted"
 HUMAN = "human"
 EDGE_PREDICATES = ("related_to", "cites", "supports", "contradicts")
@@ -503,15 +504,7 @@ def section_evidence(situation: Situation) -> set[str]:
     """Reference lineages that any other Story in the section, at any stage (ideas included), uses as evidence."""
     if situation.section is None:
         return set()
-    lineages: set[str] = set()
-    for slug in sorted(situation.section_slugs):
-        for status in ("draft", "published"):
-            key = tenant_scoped_value(situation.tenant, f"{slug}#{status}")
-            for row in situation.store.list_by_index("itemsBySectionStatus", key):
-                lineage = str(row.get("lineageId") or row.get("id"))
-                if (lineage != situation.lineage and row.get("stage") != RETIRED_STAGE and row.get("type") not in SYSTEM_ITEM_TYPES
-                        and (not situation.tenant or row.get("tenantId") == situation.tenant)):
-                    lineages.add(lineage)
+    lineages = {str(row.get("lineageId") or row.get("id")) for row in section_stories(situation, (IDEA_STAGE, *IN_PROGRESS_STAGES, "published", "held"))}
     evidence: set[str] = set()
     for lineage in sorted(lineages):
         evidence |= {str(link["referenceLineageId"]) for link in story_references(situation.store, lineage) if link.get("referenceLineageId")}
@@ -708,13 +701,17 @@ def related_entries(situation: Situation) -> LazyEntries:
         via=candidate["edge"]["via"], connection="accepted" if candidate["edge"]["person"] else candidate["edge"]["state"], score=candidate["edge"]["score"]))
 
 
-def section_stories(situation: Situation, status: str) -> list[dict[str, Any]]:
-    """The links of every Story in the section with this status, the Story itself left out."""
+def section_stories(situation: Situation, stages: Iterable[str]) -> list[dict[str, Any]]:
+    """The current version of every Story in the section at these stages, the Story itself left out. It reads by stage: the section index is sorted on
+    ``publishedAt``, so it holds no row for a Story that has not been published."""
     rows = []
-    for slug in sorted(situation.section_slugs):
-        rows += situation.store.list_by_index("itemsBySectionStatus", tenant_scoped_value(situation.tenant, f"{slug}#{status}"))
-    return [row for row in rows if str(row.get("lineageId") or row.get("id")) != situation.lineage and row.get("type") not in SYSTEM_ITEM_TYPES
-            and (not situation.tenant or row.get("tenantId") == situation.tenant)]
+    for stage in stages:
+        rows += situation.store.list_by_index("itemsByStage", stage)
+    links = [row for row in rows if slug_of(str(row.get("section") or "").split("#")[-1]) in situation.section_slugs and row.get("versionState", "current") == "current"
+             and str(row.get("lineageId") or row.get("id")) != situation.lineage and row.get("type") not in SYSTEM_ITEM_TYPES
+             and (not situation.tenant or row.get("tenantId") == situation.tenant)]
+    found = situation.store.get_records_by_id("Item", [row["id"] for row in links])
+    return [found[row["id"]] for row in links if row["id"] in found]
 
 
 def in_progress_entry(row: Mapping[str, Any]) -> Entry:
@@ -727,9 +724,7 @@ def desk_in_progress_layer(situation: Situation) -> tuple[Iterable[Entry], str |
     """Stories someone is working on in the section, an editor's stars first, then the newest. An idea nobody has picked, and a spiked or held Story, is not in progress."""
     if situation.section is None:
         return [], situation.section_problem
-    links = [row for row in section_stories(situation, "draft") if row.get("versionState", "current") == "current" and row.get("stage") not in NOT_IN_PROGRESS]
-    full = situation.store.get_records_by_id("Item", [row["id"] for row in links])
-    rows = [full[row["id"]] for row in links if row["id"] in full]
+    rows = section_stories(situation, IN_PROGRESS_STAGES)
     newest = sorted(sorted(rows, key=lambda row: str(row["id"])), key=lambda row: str(row.get("updatedAt") or row.get("createdAt") or ""), reverse=True)
     ranked = sorted(newest, key=lambda row: -((latest_stars(row) or {}).get("stars") or 0))
     return LazyEntries(ranked, in_progress_entry), "no other Story is in progress in the section"

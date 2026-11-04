@@ -22,10 +22,9 @@ class Store:
         self.updates = []
 
     def list_by_index(self, index, key):
-        assert index == "itemsBySectionStatus", index
-        status = key.rsplit("#", 1)[-1]
-        return [{"id": row["id"], "lineageId": row["lineageId"], "versionState": "current", "type": "article"}
-                for row in self.items.values() if row.get("status", "draft") == status]
+        assert index == "itemsByStage", index
+        return [{"id": row["id"], "lineageId": row["lineageId"], "versionState": "current", "type": "article", "section": "law", "stage": row["stage"]}
+                for row in self.items.values() if row["stage"] == key]
 
     def get_records_by_id(self, model, ids):
         return {record_id: copy.deepcopy(self.items[record_id]) for record_id in ids if record_id in self.items}

@@ -19,12 +19,11 @@ from typing import Any
 from .assignments_workflow import create_research_assignment
 from .editorial_context import _body, find_section
 from .ideas.items import generated_of
-from .newsroom_context_pack import DEFAULT_MAX_CHARACTERS, Situation, _json_object, build_context_pack, fill, _entry, section_stories
+from .newsroom_context_pack import DEFAULT_MAX_CHARACTERS, IDEA_STAGE, IN_PROGRESS_STAGES, Situation, _json_object, build_context_pack, fill, _entry, section_stories
 from .reference_stars import latest_stars
 from .story_commands import research_assignment_options
 from .story_reporting import move_story_stage, to_aws_json
 
-IDEA_STAGE = "idea"
 ACTOR = "automation:idea-selection"
 PICKED = "picked"
 DECLINED = "declined"
@@ -77,12 +76,6 @@ def _moment(value: datetime) -> str:
     return value.isoformat().replace("+00:00", "Z")
 
 
-def _current_rows(situation: Situation, status: str) -> list[dict[str, Any]]:
-    links = [row for row in section_stories(situation, status) if row.get("versionState", "current") == "current"]
-    found = situation.store.get_records_by_id("Item", [row["id"] for row in links])
-    return [found[row["id"]] for row in links if row["id"] in found]
-
-
 def new_stories_in_window(rows: list[dict[str, Any]], *, cutoff: str) -> list[str]:
     """Stories that left the idea stage since the cutoff, whoever moved them: the rate is of new Stories, not of this step's picks."""
     return [str(row.get("lineageId") or row["id"]) for row in rows
@@ -129,12 +122,12 @@ def select_ideas(client: Any, section_id: str, *, llm: Llm, settings: SelectionS
     if section is None:
         raise ValueError(f"Section not found: {section_id}")
     situation = Situation(client, lineage=None, assignment=None, direction=None, section_id=section_id)
-    drafts = _current_rows(situation, "draft")
+    started_rows = section_stories(situation, (*IN_PROGRESS_STAGES, "published"))
     cutoff = _moment(now - timedelta(days=settings.per_days))
-    started = new_stories_in_window(drafts + _current_rows(situation, "published"), cutoff=cutoff)
+    started = new_stories_in_window(started_rows, cutoff=cutoff)
     room = max(settings.max_new_stories - len(started), 0)
     outcome: dict[str, Any] = {"section": section["id"], "settings": settings.recorded(), "startedInWindow": started, "room": room, "decisions": [], "notRead": 0, "contextHash": None}
-    ideas = undecided_ideas(drafts, again=again)
+    ideas = undecided_ideas(section_stories(situation, (IDEA_STAGE,)), again=again)
     outcome["ideas"] = len(ideas)
     if not room or not ideas:
         outcome["stopped"] = "rate limit reached" if not room else "no idea to decide on"

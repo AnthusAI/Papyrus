@@ -430,6 +430,7 @@ PUBLISHED_STORY_LIST_FIELDS = (
 STORY_SECTION_LINK_FIELDS = "id tenantId lineageId versionState stage status type section sectionStatus"
 
 INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
+    "itemsByStage": {"field": "listItemsByStageAndUpdatedAt", "partitionKey": "stage", "fields": STORY_SECTION_LINK_FIELDS},
     "itemsBySectionStatus": {"field": "listItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": STORY_SECTION_LINK_FIELDS},
     "messageThreadsByAnchor": {"field": "listMessageThreadsByAnchorAndUpdatedAt", "partitionKey": "primaryAnchorKey", "fields": MESSAGE_THREAD_FIELDS},
     "publishedItemsBySectionStatus": {"field": "listPublishedItemsBySectionStatusAndPublishedAt", "partitionKey": "sectionStatus", "fields": PUBLISHED_STORY_LIST_FIELDS},

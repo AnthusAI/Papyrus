@@ -78,9 +78,12 @@ class FakeNewsroom:
             return copy.deepcopy([row for row in self.records["Reference"].values() if row.get("lineageId") == key])
         if index == "assignmentsByItemLineageAndCreatedAt":
             return copy.deepcopy([row for row in self.records["Assignment"].values() if row.get("itemLineageId") == key])
+        if index == "itemsByStage":
+            return copy.deepcopy([row for row in self.items if row.get("stage") == key])
         if index == "itemsBySectionStatus":
-            return copy.deepcopy([row for row in self.items
-                                  if f"{TENANT}#{row.get('section')}#{'published' if row.get('status') == 'published' else 'draft'}" == key])
+            # As in DynamoDB: the index is sorted on publishedAt, so a row without one is not in it.
+            return copy.deepcopy([row for row in self.items if row.get("publishedAt")
+                                  and f"{TENANT}#{row.get('section')}#{'published' if row.get('status') == 'published' else 'draft'}" == key])
         if index == "messageThreadsByAnchor":
             return copy.deepcopy([row for row in self.threads if row.get("primaryAnchorKey") == key])
         if index == "messagesByThreadAndSequence":
@@ -1396,3 +1399,8 @@ def step_research_there(context):
 @then("the References lost their summaries")
 def step_lost_summaries(context):
     assert layer(context, "story_references")["droppedCount"] > 0, layer(context, "story_references")
+
+
+@given("none of them has a publication date")
+def step_no_dates(context):
+    assert all(not row.get("publishedAt") for row in context.store.items if row["lineageId"] in ("rated-old", "unrated-new"))

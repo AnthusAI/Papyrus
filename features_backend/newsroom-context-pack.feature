@@ -314,6 +314,12 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
     Then the section's published layer holds 3 Stories
     And the site's published layer holds 2 Stories
 
+  Scenario: A Story that has never been published is still found in its section
+    Given the section has Stories in progress, a rated one older than an unrated one, a spiked one and a held one
+    And none of them has a publication date
+    When the editor's context pack is built for the section alone
+    Then the Stories in progress show the rated one first, with its stars and stage
+
   Scenario: The section's in-progress list leaves out the Story the editor is working on
     Given the section has Stories in progress, a rated one older than an unrated one, a spiked one and a held one
     When the editor's context pack is built for the Story
