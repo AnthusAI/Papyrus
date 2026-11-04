@@ -26,7 +26,7 @@ STAGES_BEFORE_COPYWRITING = ("idea", "assignment", "reporting")
 
 Llm = Callable[[str, str, dict], dict]
 
-OUTLINE_INSTRUCTIONS = """Write the outline for this Story from what the research found. Say in `enough` whether the research can carry a Story, and in `why` the reason in one sentence. `outline` is Markdown: the point of the Story, then its sections in order, each saying what it claims and which sources carry it, by title. A claim marked as needing a check, unchecked or rejected cannot carry a section. `still_thin` lists what is missing, each as something a reporter could go and find. Write no reader-facing prose."""
+OUTLINE_INSTRUCTIONS = """Write the outline for this Story from what the research found. Say in `enough` whether the research can carry a Story, and in `why` the reason in one sentence. `outline` is Markdown: the point of the Story, then its sections in order, each saying what it claims and which sources carry it, by title. A claim marked as needing a check, unchecked or rejected cannot carry a section. Keep the Story's subject: the idea and the editor's directions define it. Use all the research, not only the newest, and do not narrow the Story to one case unless an editor's direction says to; when you think it should be narrowed, say so in `why` and leave that to the editor. `still_thin` lists what is missing, each as something a reporter could go and find. Write no reader-facing prose."""
 
 OUTLINE_SCHEMA = {
     "type": "json_schema", "name": "story_outline", "strict": True,
@@ -35,7 +35,7 @@ OUTLINE_SCHEMA = {
                               "still_thin": {"type": "array", "items": {"type": "string"}}}},
 }
 
-DRAFT_INSTRUCTIONS = """Write the draft of this Story. `body` is Markdown without the title. Cite each outside claim at the point of use as [@key], using only the keys listed under "Citation keys". `title`, `deck` and `blurb` are reader-facing: the blurb is two or three lines for listings. `evidence_gaps` lists what you left out or could not support, for the editor; it is empty only when nothing is missing."""
+DRAFT_INSTRUCTIONS = """Write the draft of this Story. `body` is Markdown without the title. Cite each outside claim at the point of use as [@key], using only the keys listed under "Citation keys". `title`, `deck` and `blurb` are reader-facing: the blurb is two or three lines for listings. Use the breadth of the Story's References; do not rest it on one source when others carry it. `evidence_gaps` lists what you left out or could not support, for the editor; it is empty only when nothing is missing. What the newsroom has not checked goes there and never in the body: readers are told what the sources show and what they do not establish, not what we have yet to do."""
 
 DRAFT_SCHEMA = {
     "type": "json_schema", "name": "story_draft", "strict": True,
