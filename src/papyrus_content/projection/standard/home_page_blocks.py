@@ -8,7 +8,7 @@ place a Reference keeps it, and a later one refills up to its ``count`` from its
 ``homePage.references.defaultCount``. A missing or empty snapshot draws the ``empty`` text, or nothing when there is none.
 
 ``medium="video"`` keeps only the References whose medium is video (a videos block or page): accepted ones with ``select="recent"``. The cards
-show the page's own preview image, link out to the source and carry a "Video" label with a Lucide icon; nothing is embedded and no third-party
+show the page's own preview image and link out to the source (no per-card "Video" label: every card is one); nothing is embedded and no third-party
 script is loaded.
 """
 
@@ -136,7 +136,8 @@ def render(
     card = attributes.get("card", "tile")
     heading = f'<h2 class="home-page-heading">{esc(attributes["heading"])}</h2>' if attributes.get("heading") else ""
     draw = parts.tile if card == "tile" else parts.row
-    cards = "".join(f"<li>{draw(reference)}</li>" for reference in chosen)
+    show_medium = not attributes.get("medium")   # a block of one medium needs no label on every card; a block that mixes media keeps it
+    cards = "".join(f"<li>{draw(reference, show_medium=show_medium)}</li>" for reference in chosen)
     more = f'<p class="home-page-more"><a href="{esc(safe_href(attributes["more"]))}">More</a></p>' if attributes.get("more") else ""
     medium_attribute = f' data-medium="{esc(attributes["medium"])}"' if attributes.get("medium") else ""
     return (

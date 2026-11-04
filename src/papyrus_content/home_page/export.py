@@ -235,7 +235,9 @@ def public_reference(
         "reasonCode": row.get("curationReasonCode"),
         "actor": row.get("curationActorKind"),
         "shareable": row.get("curationShareable"),
-        "confidence": decimal(accept_probability(decision)),
+        # Once an editor has accepted a Reference the Cyclotron's confidence no longer matters, so it is not published (the rank, which
+        # orders the page, is computed from the row, below). A Reference accepted by a Cyclotron or a rule keeps it, and so does a pending one.
+        "confidence": None if accepted and row.get("curationActorKind") == "human" else decimal(accept_probability(decision)),
         "predictedAcceptProbability": decimal(row.get("predictedAcceptProbability")),
         "predictionDecidedAt": row.get("predictionDecidedAt"),
         "inboundCitationCount": row.get("inboundCitationCount"),

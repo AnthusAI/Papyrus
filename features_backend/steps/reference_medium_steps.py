@@ -207,12 +207,12 @@ def no_vote_changed(context) -> None:
 VIDEOS_PAGE = '::band{size="bare"}\n::include{kind="references" select="recent" medium="video" count="12" heading="Videos" empty="No videos yet."}\n'
 
 
-def entry(title: str, address: str, status: str, accepted_at: str, *, image: str | None = None, medium: str | None = "video", stars: int | None = None) -> dict:
+def entry(title: str, address: str, status: str, accepted_at: str, *, image: str | None = None, medium: str | None = "video", stars: int | None = None, actor: str = "human") -> dict:
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
     row = {"id": f"record-{slug}", "lineageId": f"lineage-{slug}", "versionNumber": 1, "versionState": "current", "corpusId": CORPUS, "externalItemId": slug,
            "title": title, "authors": [], "sourceUri": address, "mediaType": "text/html", "curationStatus": status, "curationStatusKey": f"{CORPUS}#{status}",
            "curationStatusUpdatedAt": accepted_at, "feedArrivalAt": accepted_at, "createdAt": accepted_at, "importedAt": accepted_at,
-           "feedStateKey": f"{CORPUS}#unrated" if status == "pending" else f"{CORPUS}#rated", "curationActorKind": "human",
+           "feedStateKey": f"{CORPUS}#unrated" if status == "pending" else f"{CORPUS}#rated", "curationActorKind": actor,
            "curationStatusUpdatedBy": "editor@example.test", "predictedAcceptProbability": 0.9}
     if medium:
         row["medium"] = medium
@@ -306,12 +306,55 @@ def page_omits(context, titles: str) -> None:
         assert f">{title}<" not in text, title
 
 
-@then('every video card says "Video" next to a "video" icon')
-def cards_say_video(context) -> None:
+@then('no video card repeats a "Video" label, because every card in the block is a video')
+def cards_without_label(context) -> None:
     cards = video_cards(context)
     assert cards
     for card in cards:
-        assert re.search(r'data-kind="medium"><svg class="home-page-icon" data-icon="video".*?</svg><span>Video</span>', card, re.S), card
+        assert 'data-kind="medium"' not in card and ">Video<" not in card, card
+
+
+MIXED_PAGE = '::band{size="bare"}\n::include{kind="references" select="recent" count="12" heading="Everything"}\n'
+
+
+@given("a site whose home page places one block of every accepted Reference, and a corpus with an editor-accepted video, a Cyclotron-accepted video and an editor-accepted article")
+def mixed_site(context) -> None:
+    entries = [
+        entry("Newest video", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "accepted", "2026-11-03T09:00:00.000Z", image="https://img.example.org/newest.jpg"),
+        entry("Auto video", "https://vimeo.com/123456789", "accepted", "2026-11-02T09:00:00.000Z", image="https://img.example.org/older.jpg", actor="cyclotron"),
+        entry("An article", "https://example.org/an-article", "accepted", "2026-11-01T09:00:00.000Z", medium=None),
+    ]
+    videos_site(context, MIXED_PAGE, entries)
+    assert context.build_error is None, context.build_error
+
+
+def mixed_card(context, title: str) -> str:
+    page = context.site.text("videos/index.html")
+    for card in GRID_CARD.findall(page):
+        if TITLE.search(card).group(1) == title:
+            return card
+    raise AssertionError(f"no card titled {title!r}")
+
+
+VIDEO_LABEL = re.compile(r'data-kind="medium"><svg class="home-page-icon" data-icon="video".*?</svg><span>Video</span>', re.S)
+
+
+@then('the card for "{title}" says "Video" next to a "video" icon and shows no confidence')
+def card_video_no_confidence(context, title: str) -> None:
+    card = mixed_card(context, title)
+    assert VIDEO_LABEL.search(card) and "home-page-confidence" not in card, card
+
+
+@then('the card for "{title}" says "Video" next to a "video" icon and shows a confidence')
+def card_video_confidence(context, title: str) -> None:
+    card = mixed_card(context, title)
+    assert VIDEO_LABEL.search(card) and "home-page-confidence" in card and "Accepted automatically" in card, card
+
+
+@then('the card for "{title}" has no Video label and shows no confidence')
+def card_plain(context, title: str) -> None:
+    card = mixed_card(context, title)
+    assert 'data-kind="medium"' not in card and "home-page-confidence" not in card, card
 
 
 @then("every video card shows the page's own preview image and links out to its source")

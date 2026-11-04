@@ -198,3 +198,18 @@ def test_the_snapshot_modules_never_import_the_login_library():
     environment = {**os.environ, "PYTHONPATH": str(SOURCE_ROOT)}
     result = subprocess.run([sys.executable, "-c", code], env=environment, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_the_confidence_of_a_reference_an_editor_accepted_is_not_published_but_any_other_keeps_it():
+    row = {"lineageId": "l", "title": "T", "sourceUri": "https://example.org/a", "curationStatus": "accepted", "curationActorKind": "human"}
+    settings = home_page_settings_from_mapping({"references": {"corpus": "c"}})
+    decision = {"label": "include", "confidence": 0.9, "positiveLabel": None}
+
+    def made(**changes):
+        return public_reference({**row, **changes}, decision, None, {}, settings)
+
+    assert made()["confidence"] is None and made()["actor"] == "human"
+    assert made(curationActorKind="cyclotron")["confidence"] == 0.9
+    assert made(curationActorKind="rule")["confidence"] == 0.9
+    assert made(curationActorKind=None)["confidence"] == 0.9
+    assert made(curationStatus="pending")["confidence"] == 0.9

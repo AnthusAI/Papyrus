@@ -7,7 +7,8 @@ Feature: A page places Reference cards from the home-page snapshot with ::includ
   Three selections draw from the snapshot: recent (accepted, newest accepted first), confident (accepted, highest Cyclotron
   confidence first) and recommended (not yet accepted, highest confidence first). Components on one page share a ledger: the first
   component to place a Reference keeps it, and a later component refills up to its count from its own ordering. Nothing is shared
-  between pages. A card shows Cyclotron's confidence as a number with a label, an icon and a meter drawn by shape, and a
+  between pages. A card shows Cyclotron's confidence as a number with a label, an icon and a meter drawn by shape, except for a Reference an editor
+  accepted (once a person accepts it, the confidence no longer matters); one accepted by a Cyclotron or a rule keeps it. A
   recommended Reference says so in words and an icon. Cards use flat tones and rounded rectangles, with no borders.
 
   Scenario: A page places the six most recently accepted References as tiles
@@ -84,20 +85,22 @@ Feature: A page places Reference cards from the home-page snapshot with ::includ
     Then "defaults/index.html" has no Reference grid
 
   Scenario: Reference cards show confidence as text, icon and meter shape, and have no borders and show state in text and icon, not colour alone
+    Once an editor has accepted a Reference the Cyclotron's confidence no longer matters, so its card shows none. A Reference accepted by a Cyclotron or
+    by a rule with no human vote keeps its confidence, and so does one that is only recommended.
     Given the home-page fixture site is projected
-    Then the card for "Accepted two" shows "93% confidence" next to a "gauge" icon and a meter with 5 filled segments
-    And the card for "Accepted seven" shows "70% confidence" next to a "gauge" icon and a meter with 4 filled segments
-    And the card for "Accepted six" shows "50% confidence" next to a "gauge" icon and a meter with 3 filled segments
+    Then the card for "Accepted six" shows "50% confidence" next to a "gauge" icon and a meter with 3 filled segments
     And the card for "Accepted three, contact" shows "10% confidence" next to a "gauge" icon and a meter with 1 filled segments
+    And the card for "Accepted two" shows no confidence
+    And the card for "Accepted seven" shows no confidence
     And the unfilled meter segments of a card are outlined shapes, not only a lighter colour
     And the home-page stylesheet draws no borders or lines
     And the card for "Accepted eight" says it was accepted by an editor
     And the card for "Accepted six" says it was accepted automatically
 
-  Scenario: A row card shows Cyclotron's confidence compactly, with a label and never colour alone
+  Scenario: A row card of an editor-accepted Reference shows no confidence, and a recommended row keeps its compact confidence
     Given the home-page fixture site is projected
-    Then the row card for "Accepted two" shows "93%" with a visually hidden "confidence" label, a "gauge" icon and a meter with 5 filled segments
-    And the row card for "Accepted four" shows "80%" with a visually hidden "confidence" label, a "gauge" icon and a meter with 4 filled segments
+    Then the row card for "Accepted two" shows no confidence
+    And the row card for "Accepted four" shows no confidence
 
   Scenario: A recommended row shows both the recommended label and the confidence
     Given the home-page fixture site is projected

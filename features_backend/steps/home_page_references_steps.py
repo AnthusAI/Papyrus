@@ -220,6 +220,19 @@ def row_card_confidence(context, title: str, text: str, icon: str, filled: int) 
     assert card.count("home-page-meter-segment--filled") == filled, card
 
 
+@then('the card for "{title}" shows no confidence')
+def card_no_confidence(context, title: str) -> None:
+    card = card_titled(context, title)
+    assert "home-page-confidence" not in card and "gauge" not in card, card
+    assert "Accepted by an editor" in card, card
+
+
+@then('the row card for "{title}" shows no confidence')
+def row_card_no_confidence(context, title: str) -> None:
+    card = card_titled(context, title, ("rows/index.html",))
+    assert "home-page-confidence" not in card and "gauge" not in card, card
+
+
 @then('the row card for "{title}" shows the label "{label}" and "{text}"')
 def row_card_label_and_confidence(context, title: str, label: str, text: str) -> None:
     card = card_titled(context, title, ("rows/index.html",))

@@ -120,10 +120,18 @@ Feature: A Reference's medium is read from its address by rule, kept in a sparse
     Given a site whose videos page places a references include with the medium "video", and a corpus with accepted, pending and rejected videos, a playlist and an article
     When the home-page-snapshot task runs
     Then the videos page lists "Newest video", "Older video" and "Loom walkthrough" in that order
-    And every video card says "Video" next to a "video" icon
+    And no video card repeats a "Video" label, because every card in the block is a video
     And every video card shows the page's own preview image and links out to its source
     And the videos page embeds nothing and loads no third-party script
     And the videos page does not list "Pending video", "Rejected video", "A playlist" or "An article"
+
+  Scenario: A block that mixes media keeps the Video label on the video cards, and shows confidence only where no editor accepted
+    Once an editor has accepted a Reference the Cyclotron's confidence no longer matters, so its card shows none; a Reference a Cyclotron accepted on its own keeps it.
+    Given a site whose home page places one block of every accepted Reference, and a corpus with an editor-accepted video, a Cyclotron-accepted video and an editor-accepted article
+    When the home-page-snapshot task runs
+    Then the card for "Newest video" says "Video" next to a "video" icon and shows no confidence
+    And the card for "Auto video" says "Video" next to a "video" icon and shows a confidence
+    And the card for "An article" has no Video label and shows no confidence
 
   Scenario: An editor's stars order public cards but are never published on the videos page
     Given a site whose videos page places a references include with the medium "video", and a corpus with accepted, pending and rejected videos, a playlist and an article
