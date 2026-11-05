@@ -1,0 +1,20 @@
+{
+  "id": "PPY-0db38f88-7625-4a15-8c19-ba7ad5ef7f75",
+  "title": "Markdown twins of authored pages show template directives, not the page's content",
+  "description": "On Machines on Machines, /index.md contains only the title, description, canonical line and raw directives such as ::band and ::include{kind=\"references\" select=\"recent\" ...}. It lists no stories, references or conversations, so it is not the content of the home page. /wire/index.md and /conversations/index.md behave the same on the live site, and a new /stories/ page built from a block include has the same problem. Reported by Ryan, 2026-11-04. Expected: a page's Markdown twin carries what the page shows: includes and blocks are rendered to Markdown lists with titles and links, and no directive reaches a reader or an agent. See _home_markdown, _authored_markdown and _static_twin_documents in projection/standard/projector.py. It matters for the shared page actions (PPY-77df353c), which link to these twins on every page. Needs a Gherkin scenario, including a site hook's block include.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T01:12:54.570965Z",
+  "updated_at": "2026-11-05T01:12:54.571751Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
