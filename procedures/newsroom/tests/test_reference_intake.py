@@ -355,9 +355,12 @@ def test_handler_uses_validated_identity_and_returns_denials():
     spec = importlib.util.spec_from_file_location("intake_actions", Path(__file__).resolve().parents[3] / "amplify/functions/content-actions/handler.py")
     handler = importlib.util.module_from_spec(spec); spec.loader.exec_module(handler)
     c = IntakeClient()
-    with patch.dict("os.environ", ENV), patch.object(handler, "create_authoring_client", return_value=(c, {})), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+    with patch.dict("os.environ", ENV), patch.object(handler, "create_authoring_client", return_value=(c, {})), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload), \
+            patch("papyrus_content.monitoring_view.default_email_store_factory", return_value=lambda: None):   # no monitoring table here: the prediction request is reported, not raised
         e = {"fieldName": "intakePendingReferences", "arguments": {"input": json.dumps(payload())}, "identity": IDENTITY}
-        assert handler.handler(e, None)["ok"]
+        answer = handler.handler(e, None)
+        assert answer["ok"] and len(c.tables["Reference"]) == 1   # the Reference exists whatever happens to its prediction request
+        assert answer["prediction"]["ok"] is False and "not configured" in answer["prediction"]["error"]
         before = copy.deepcopy(c.tables)
         e["identity"] = {}
         assert handler.handler(e, None)["errors"][0]["code"] == "intake-rejected"

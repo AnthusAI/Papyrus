@@ -1364,6 +1364,9 @@ def papyrus_reference_create(args: dict[str, Any]) -> dict[str, Any]:
     changes = build_record_changes(client, plan["records"])
     apply_record_changes(client, changes)
     update_newsroom_summary_after_reference_registration(client, changes, plan)
+    from papyrus_content.reference_prediction_queue import references_created_by, request_predictions
+    wanted_predictions = references_created_by(changes)   # one Cyclotron prediction per new Reference, requested once, here
+    result["prediction"] = request_predictions(client, wanted_predictions).to_json() if wanted_predictions else None
 
     applied_reference_ids = {
         str(change["expected"].get("id") or "")

@@ -1290,6 +1290,62 @@ acceptance, the same task accepts `sourceIds` (1–20 exact queued IDs) and read
 A failed handoff leaves the import visible with an explicit retry notice. Receipt pages link
 to the exact References for normal prediction review.
 
+### Predictions for References created without one
+
+A pending Reference with no prediction is shown nowhere (the References page and the public pages need the Cyclotron's number; an unpredicted Reference is not a fifty percent
+one). Only the router's delivery and the by-hand `decide-relevance` sweep used to record one, so a Reference an editor pasted, an import created, chat created, a research
+packet registered or an inbound email registered stayed hidden. Spec: `features_backend/reference-prediction-on-create.feature`; code:
+`src/papyrus_content/reference_prediction_queue.py` and `monitoring_router.record_reference_prediction`.
+
+**Where the Cyclotron can be reached.** Only the router (it signs with its role; each site or group of sites has its own binding: Distinctive Mark's is its own, the rest share
+one). The code that creates a Reference runs elsewhere, so it does not decide: it **asks the router, once, by the event that creates the Reference**, through the lane the
+editor-selected email imports use. One row per Reference (`DISC#<sha256 of endpoint, corpus and Reference id>#000001`, `sourceType: "reference"`, `predictFor`) in the site's
+`emailMonitorId` partition, on the existing sparse `routing` index under the new partition value `ROUTING#<monitor>#reference-predictions`. A conditional put makes it
+idempotent. No table, no index, no schedule is new. The existing `email-references` task (`EmailReferenceSchedule`, every five minutes, on only when the stack's
+`EmailReferenceMonitorId` is set) now drains both lanes. Nothing scans a corpus to find References that need a prediction.
+
+| Route | Runs in | Status |
+| --- | --- | --- |
+| Monitor delivery (`deliver_reference`) | Router Lambda | Already decides |
+| Inbound email submission (router `email` discovery) | Router Lambda | Already decides |
+| Editor-selected newsletter candidate (`monitoringQueueEmailReference`) | Browser, then monitoring-view Lambda | Already queues, same lane family |
+| Console paste, and the CLI's signed-in `references create-from-catalog` (`intakePendingReferences`) | `content-actions` Lambda | **Changed**: queues straight into the table; the answer carries `prediction` |
+| `papyrus references create-from-catalog` / `-split` (operator, `cursor:` imports) | Laptop with AWS credentials | **Changed**: writes the request rows itself, prints a `prediction` line |
+| Chat `Reference.create` | Chat Lambda or console | **Changed**: asks as its lane allows; the result carries `prediction` |
+| `papyrus assignments process-proposals` (research packets) | Research worker Lambda or laptop | **Changed** the same way |
+| Inbound email direct citations (`email_submissions.py`) | Operator or chat | **Changed** the same way |
+| GROBID citation stubs (`reference_url_text.py`) | Extraction run | **Left**: machine placeholders that the stub retirement archives; predicting them would spend the Cyclotron on records nobody asked about. `references queue-predictions` covers them if an editor wants them |
+| Corpus move (`moveReferenceCorpus`, TypeScript) | `category-action` Lambda | **Left**: the new corpus has a different classifier and the Lambda cannot reach the table; follow-up |
+| Accession replacement / next version | Extraction | Carries the existing prediction (`{**reference}` / `KEPT_FEED_FIELDS`) |
+
+**What the router does.** `Router.selected_references` takes each request whose retry time has come. If the Reference is gone, archived, not current, or in another corpus
+or address, the request is **refused** (final, counted, logged as `{"referencePrediction": "refused"}`). If the row has `predictionDecidedAt` it is dropped without a call. If it
+has a current `relevance_decision_is` but no number on the row, the number is **copied from that decision** (no Cyclotron call). Otherwise it decides as it does for a monitor's
+item (one `decide` per binding, polling, the existing backoff and park) on the Reference's **title and address only**: no page fetch and no summary model run, so no model
+other than the Cyclotron is involved. The Cyclotron item says `source: "email"`, the lab's one value for a source a person chose. It then records with the builders
+`deliver_reference` uses: `lab_decision_records` (the relation) and `record_original_prediction` (`predictedAcceptProbability`, `predictionDecidedAt`, `predictionSortKey`, feed
+keys). It creates nothing, changes no vote or status, attaches nothing, starts no procedure and **sends nothing back**. Votes on these References later reach the Cyclotron
+through the existing feedback pass (the request records a `DELIV#` row), exactly as for a delivered one.
+
+**Failure.** The Reference exists whatever happens and stays hidden until it has a number. A caller that cannot queue says so in its answer (`prediction.ok: false` and the
+reason; the CLI prints `NOT-REQUESTED` and the command `papyrus references queue-predictions`). A request the router cannot finish yet (the binding's criteria pending, the lab
+busy, AppSync down) keeps its place and is retried with the existing backoff (up to six hours) with no limit on tries; a recording that fails half way finishes the rest next
+time (the relation is skipped when its decision id is current). A monitor switched to `direct`, `hold` or `dry-run` leaves its requests waiting (`predictionsWaiting`).
+Counts `predicted`, `predictionSkipped`, `predictionFailed`, `predictionsWaiting` are in the router's receipt.
+
+**A bulk import.** The request is one conditional write per Reference and no decision, so a catalog of thousands costs the importer thousands of small writes (the CLI sends
+them in groups of 100 per AppSync call when signed in; the 100 is a transport size, not a limit) and the router decides them in its own time, as many as fit in each run, the
+rest staying queued for the next. Nothing is decided inside the importing request.
+
+**Deploy.** The router code (`RouterCodeKey`) must ship before any site queues, or requests wait unread (harmless). The site backends need a deploy for the new
+`content-actions` grant (`dynamodb:PutItem` on the table, only the site's own `MONITOR#<emailMonitorId>` partition, `wireEmailReferenceIntake`) and the `monitoringQueueReferencePredictions`
+field (`monitoring-view/schema.ts`). Until a site deploys, its console paste still creates the Reference and the answer carries `prediction.ok: false`. The router's AppSync role
+needs nothing new: it already reads and writes the fields delivery uses on each site.
+
+**The References that predate this.** By hand, once per site: `papyrus references queue-predictions --site KEY --dry-run`, then without `--dry-run`. It lists the corpus's
+pending References once (a scan, said so) and queues those with no prediction. It is idempotent and nothing schedules it. (`papyrus references decide-relevance` is the older
+embedded sweep with its own store and model; it is not the router's Cyclotron. See its section before using it on a site that has no `relevanceCyclotron` block.)
+
 A maintenance deployment must preserve newer shared-router behavior: apply only this change's
 router/intake diff to the verified currently deployed router artifact, test that artifact,
 and update `RouterCodeKey` through a reviewed changeset. Do not replace the shared router with

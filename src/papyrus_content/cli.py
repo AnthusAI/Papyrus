@@ -323,6 +323,7 @@ PORTED_COMMANDS = frozenset(
         "references:backfill-monitor-deliveries",
         "references:backfill-feed-keys",
         "references:backfill-medium",
+        "references:queue-predictions",
         "references:retire-citation-stubs",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
@@ -745,6 +746,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:backfill-medium":
         from .references_commands import references_backfill_medium
         references_backfill_medium(flags)
+    elif route == "references:queue-predictions":
+        from .references_commands import references_queue_predictions
+        references_queue_predictions(flags)
     elif route == "references:retire-citation-stubs":
         from .references_commands import references_retire_citation_stubs
         references_retire_citation_stubs(flags)
@@ -1253,6 +1257,8 @@ def references_register_catalog(flags: list[str]) -> None:
         return
     apply_record_changes(client, result["changes"])
     update_newsroom_summary_after_reference_registration(client, result["changes"], result["plan"])
+    from .reference_prediction_queue import request_for_created
+    request_for_created(client, result["changes"], "references\tcreate-from-catalog")   # one Cyclotron prediction per new Reference, requested once, here
 
 
 def references_register_catalog_split(flags: list[str]) -> None:
@@ -1300,6 +1306,8 @@ def references_register_catalog_split(flags: list[str]) -> None:
         if apply:
             apply_record_changes(client, result["changes"])
             update_newsroom_summary_after_reference_registration(client, result["changes"], result["plan"])
+            from .reference_prediction_queue import request_for_created
+            request_for_created(client, result["changes"], f"references\tcreate-from-catalog-split\t{bucket_name}")
 
 
 def references_source_status(flags: list[str]) -> None:

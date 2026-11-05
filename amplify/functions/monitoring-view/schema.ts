@@ -36,6 +36,14 @@ export const monitoringViewSchemaDefinitions = {
     .returns(a.json())
     .authorization((allow) => [allow.groups(editors)])
     .handler(functionHandler("monitoringView", monitoringView)),
+  // Asks the cloud Cyclotron for one prediction per named Reference that was created without one (a CLI import, a chat request). The function queues
+  // one request row per Reference in the monitoring table's own partition; the router decides them (src/papyrus_content/reference_prediction_queue.py).
+  monitoringQueueReferencePredictions: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(editors)])
+    .handler(functionHandler("monitoringView", monitoringView)),
   // Accept ("release") or Reject ("discard") one held email submission. The function validates the
   // signed-in editor and that the message is routed to this publication; the receiver applies it.
   monitoringDecideEmailSubmission: a

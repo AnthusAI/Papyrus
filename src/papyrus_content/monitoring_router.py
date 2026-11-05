@@ -74,6 +74,7 @@ from .research_assignments_worker import run_research_assignments, validate_rese
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_enrichment import Enricher, copy_curation, decision_inputs, enrich_item, enrich_sk, new_row
+from .reference_prediction_queue import LANE as PREDICTION_LANE, SOURCE_TYPE as PREDICTION_SOURCE, has_real_prediction, is_prediction_request
 from .reference_capture import SHORT_BODY_CHARACTERS
 from .monitoring_feed import FEED_HOSTS
 from .monitoring_huggingface import hf_accepts, validate_rule
@@ -188,7 +189,8 @@ POLL_BACKOFF_MAX = COLLECT_CADENCE_SECONDS * POLL_BACKOFF_CADENCES
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
 #: The `source` a Cyclotron item names, by the discovery's sourceType (HN discoveries carry none).
-ITEM_SOURCES = {"email": "email", "huggingface-models": "huggingface", "web-search": "web-search",
+#: A prediction request (reference_prediction_queue.py) names the source "email", the lab's one value for a source a person chose: the contract has no other.
+ITEM_SOURCES = {"email": "email", "reference": "email", "huggingface-models": "huggingface", "web-search": "web-search",
                 "huggingface-papers": "huggingface-papers", "feed": "feed"}
 ITEM_SOURCE_NAMES = frozenset({"hacker-news", *ITEM_SOURCES.values()})
 PUBLICATION_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
@@ -1088,11 +1090,23 @@ def set_routing(store, monitor_id: str, disc: dict, routing: str, partition: str
     updated = {k: v for k, v in disc.items() if k not in ("gsi1pk",)}
     updated["routing"] = routing
     if partition:
-        updated["gsi1pk"] = gsi_partition(monitor_id, "email-references" if disc.get("editorSelectedReference") else partition)
+        updated["gsi1pk"] = gsi_partition(monitor_id, selected_lane(disc) or partition)
     else:
         updated.pop("gsi1sk", None)
     store.put_any(monitor_id, updated)
     return updated
+
+
+def selected_lane(disc: dict) -> str | None:
+    """The routing lane of a request made for one exact, already created Reference, or None for an ordinary discovery.
+
+    An editor-selected email import (`email-references`) and a prediction request for a Reference created without a decision (`reference-predictions`,
+    reference_prediction_queue.py) are both decided for every label, never start procedures, and retry in their own lane."""
+    if disc.get("editorSelectedReference"):
+        return "email-references"
+    if is_prediction_request(disc):
+        return PREDICTION_LANE
+    return None
 
 
 def route_key(disc: dict) -> str:
@@ -1227,6 +1241,28 @@ def record_original_prediction(client, publication: dict, decision: dict, refere
         client.update_record("Reference", {"id": reference_id, **fields})
 
 
+def record_reference_prediction(client, publication: dict, disc: dict, decision: dict, config: dict) -> dict:
+    """The recording half of `deliver_reference`, for a Reference that already exists (reference_prediction_queue.py).
+
+    The same two builders `deliver_reference` uses write the decision: `lab_decision_records` (the `relevance_decision_is` relation, shaped by the
+    sweep's builder, superseding any current one) and `record_original_prediction` (predictedAcceptProbability, predictionDecidedAt, predictionSortKey
+    and the feed keys on the Reference row). It creates no Reference, changes no curation, attaches nothing and sends nothing back to the Cyclotron.
+    A retry after a partial write finishes the rest: the relation is skipped when its decision id is already current, and the row's first prediction
+    is never rewritten."""
+    from .records import apply_record_changes, build_record_changes
+    request = disc["predictFor"]
+    reference = client.get_record("Reference", request["referenceId"])
+    if not reference or reference.get("corpusId") != publication["corpusId"] or reference.get("sourceUri") != disc["canonicalUrl"]:
+        raise ItemInvalid("the Reference is missing or does not match the prediction request")
+    records = lab_decision_records(client, publication, decision, config, reference, disc)
+    if records:
+        apply_record_changes(client, build_record_changes(client, records))
+    if reference.get("predictionDecidedAt") and not has_real_prediction(reference):
+        client.update_record("Reference", {"id": reference["id"], "predictionDecidedAt": None})   # a time with no number would block the first prediction
+    record_original_prediction(client, publication, decision, reference["id"], disc)
+    return {"referenceId": reference["id"], "referenceLineageId": reference.get("lineageId") or reference["id"]}
+
+
 # --- the run ----------------------------------------------------------------------------------------
 
 class Router:
@@ -1237,7 +1273,8 @@ class Router:
                  enricher: Enricher | None = None, max_decisions: int | None = None, hold_override: bool = False,
                  previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
                  story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None,
-                 suggest_queue: tuple[Any, str] | None = None):
+                 suggest_queue: tuple[Any, str] | None = None, predict=None):
+        self.predict = predict or record_reference_prediction   # records one decision on a Reference that already exists (reference_prediction_queue.py)
         self.suggest_queue = suggest_queue   # (SQS client, queue URL) of the one-check-per-Reference suggestion queue (reference_suggest_once.py); None: no checks are queued
         self.embedding_key = embedding_key   # the OpenAI key the vector pass embeds with (monitoring_vectors.py); held in memory only
         self.story_transport, self.story_drafter = story_transport, story_drafter   # the model transport and the per-publication drafting of the daily monitor-stories task
@@ -1266,7 +1303,8 @@ class Router:
                        "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "backedOff": 0, "deliveryFailed": 0, "skippedNotReady": 0,
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
                        "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureDeferred": 0, "procedureRetried": 0,
-                       "enriched": 0, "enrichmentWaiting": 0, "curationCopied": 0, "curationCopyFailed": 0, "shortBodies": 0}
+                       "enriched": 0, "enrichmentWaiting": 0, "curationCopied": 0, "curationCopyFailed": 0, "shortBodies": 0,
+                       "predicted": 0, "predictionFailed": 0, "predictionSkipped": 0, "predictionsWaiting": 0}
         self._parks: dict = {}
         self._automation_rows: dict = {}
 
@@ -1375,7 +1413,8 @@ class Router:
         return decided + fresh
 
     def selected_references(self, source_ids=None) -> dict:
-        """Only editor-imported References; never sweep receipt discoveries, feedback or procedures."""
+        """Only requests for one exact, already created Reference: editor-imported email candidates and prediction requests for References
+        created without a decision. Never sweeps receipt discoveries, feedback or procedures."""
         if self.lab_paused():
             return {"status": "stopped", "stoppedBy": "lab_backoff"}
         if source_ids is not None:
@@ -1384,20 +1423,30 @@ class Router:
                 raise ValueError("Provide 1 to 20 exact selected source ids")
             candidates = [self.store.get_any(self.monitor_id, f"DISC#{source}#000001") for source in dict.fromkeys(source_ids)]
         else:
-            candidates = self.store.query_partition(gsi_partition(self.monitor_id, "email-references"))
+            candidates = (self.store.query_partition(gsi_partition(self.monitor_id, "email-references"))
+                          + self.store.query_partition(gsi_partition(self.monitor_id, PREDICTION_LANE)))
+        errors: list = []
         for disc in candidates:
-            if (not disc or not disc.get("editorSelectedReference") or disc.get("sourceType") != "email"
-                    or disc.get("gsi1pk") != gsi_partition(self.monitor_id, "email-references")):
+            lane = selected_lane(disc) if disc else None
+            if (not lane or disc.get("gsi1pk") != gsi_partition(self.monitor_id, lane)
+                    or disc.get("sourceType") != ("email" if lane == "email-references" else PREDICTION_SOURCE)):
                 continue
             if self.time_left() < MIN_REMAINING_SECONDS:
                 break
             if (self.get_route(disc).get("nextAttemptAt") or 0) > self.now:
                 continue
+            if lane == PREDICTION_LANE and (self.config["mode"] != "live" or self.config["decisions"] != "cyclotron"):
+                self.counts["predictionsWaiting"] += 1   # no Cyclotron decides for this monitor now: the request keeps its place
+                continue
             try:
                 (self.live if self.config["mode"] == "live" else self.dry_run)(disc)
             except StopSweep as error:
                 return {"status": "stopped", "stoppedBy": str(error)[:200]}
-        return {"status": "completed"}
+            except Exception as error:   # noqa: BLE001 - one request must not hide the rest; it stays in its lane and is reported
+                errors.append({"sourceId": disc.get("sourceId"), "message": short(error)})
+                self.counts["error"] += 1
+                print(json.dumps({"referencePrediction": "failed", "sourceId": disc.get("sourceId"), "reason": short(error)}))
+        return {"status": "partial" if errors else "completed", "errors": errors}
 
     # enrichment -------------------------------------------------------------------------------------
 
@@ -1418,8 +1467,8 @@ class Router:
         """Enrich the item once, before anything is posted. Returns its decision inputs, or None when enrichment is off or the item
         was posted before it existed. Raises EnrichmentPending while an attempt is waiting to be retried or this run is out of time:
         the item is simply picked up again next run (enrichment is attempted, then the decision proceeds with whatever exists)."""
-        if self.enricher is None or self.config["mode"] != "live":
-            return None
+        if self.enricher is None or self.config["mode"] != "live" or is_prediction_request(disc):
+            return None   # a prediction request decides on the Reference's title and address: no page fetch, no summary model (reference_prediction_queue.py)
         if self.inputs_for(disc) is not None:
             return self.inputs_for(disc)
         if (route.get("combinedJob") or {}).get("requestId") or route.get("jobs"):
@@ -1473,6 +1522,8 @@ class Router:
         route = self.get_route(disc)
         try:
             validate_email_discovery_scope(disc, self.config)
+            if is_prediction_request(disc):
+                self.active_publications = [p for p in self.config["publications"] if p["publicationId"] == disc["predictFor"]["publicationId"]]
             if disc.get("sourceType") == "email":
                 self.active_publications = self.authorized_email_publications(disc)
                 if not self.active_publications:
@@ -1597,7 +1648,7 @@ class Router:
         park = self.park(pub_id) or {"pk": pk(self.monitor_id), "sk": PARK_PREFIX + pub_id, "publicationId": pub_id,
                                       "since": _iso(self.now), "backoffSeconds": PARK_BACKOFF_FIRST,
                                       "nextProbeAt": int(self.now + PARK_BACKOFF_FIRST), "probes": 0}
-        if not disc.get("editorSelectedReference"):
+        if not selected_lane(disc):
             self.put_park_item(pub_id, disc["sourceId"], int(disc["revision"]))
         self.save_park(pub_id, {**park, "reason": reason[:200], "ready": False})
         route.setdefault("notReady", {})[pub_id] = {"reason": reason[:200], "at": _iso(self.now)}
@@ -1681,7 +1732,7 @@ class Router:
         route["decision"]["publications"][pub_id] = {k: checked[k] for k in
                                                      DECISION_KEYS if k in checked}
         route.get("notReady", {}).pop(pub_id, None)
-        if checked["label"] == publication["positiveLabel"] or disc.get("editorSelectedReference"):
+        if checked["label"] == publication["positiveLabel"] or selected_lane(disc):
             route.setdefault("publications", {})[pub_id] = {"label": checked["label"], "delivered": False, "attempts": 0}
         self.save(route)
         self.counts["backfilled"] += 1
@@ -1736,7 +1787,7 @@ class Router:
             "publications": {pid: {k: c[k] for k in DECISION_KEYS if k in c}
                              for pid, c in checked.items()}}
         route["publications"] = {pid: {"label": c["label"], "delivered": False, "attempts": 0}
-                                 for pid, c in checked.items() if c["label"] == self.publications[pid]["positiveLabel"] or disc.get("editorSelectedReference")}
+                                 for pid, c in checked.items() if c["label"] == self.publications[pid]["positiveLabel"] or selected_lane(disc)}
         route.pop("nextAttemptAt", None)
         self.save(route)
         self.counts["decided"] += 1
@@ -2002,18 +2053,23 @@ class Router:
                     raise ItemInvalid("publication is no longer configured")
                 receipt = {"decisionId": decision["decisionId"], "decidedAt": decision.get("decidedAt"),
                            **decision["publications"][pub_id]}
-                result = self.deliver(self.client(publication), publication, disc, receipt, self.config)
+                prediction = is_prediction_request(disc)
+                result = (self.predict if prediction else self.deliver)(self.client(publication), publication, disc, receipt, self.config)
                 state.update(delivered=True, deliveredAt=_iso(self.now), referenceId=result["referenceId"],
                              referenceLineageId=result.get("referenceLineageId"),
                              lastError=None)
                 self.record_delivery(publication, disc, route, result)
+                if prediction:   # the Reference exists and is not ours to change: the decision is recorded, and that is all
+                    self.counts["predicted"] += 1
+                    self.save(route)
+                    continue
                 self.counts["delivered"] += 1
                 copied = self.copy_curation(publication, disc, result)   # before the procedure, so it only fills gaps
                 if copied:
                     state["curationCopy"] = copied
                 self.attach_preview(publication, disc, result)   # never raises, never touches the delivery
                 self.accept_by_rule(publication, result)   # never raises, never touches the delivery
-                if not disc.get("editorSelectedReference"):
+                if not selected_lane(disc):
                     self.start_procedures(publication, disc, result)
             except Exception as error:
                 all_delivered = False
@@ -2194,6 +2250,14 @@ class Router:
         original_active_publications = self.active_publications
         try:
             validate_email_discovery_scope(disc, self.config)
+            if is_prediction_request(disc):
+                publication = self.publications.get(disc["predictFor"]["publicationId"])
+                if publication is None:
+                    self.finish(disc, route, "refused", "the publication is no longer configured")
+                    return
+                self.active_publications = [publication]
+                if not route.get("decision") and not self.prediction_needed(publication, disc, route):
+                    return
             if disc.get("sourceType") == "email":
                 self.active_publications = self.authorized_email_publications(disc)
                 allowed = {p["publicationId"] for p in self.active_publications}
@@ -2242,6 +2306,37 @@ class Router:
         finally:
             self.active_publications = original_active_publications
 
+    def prediction_needed(self, publication: dict, disc: dict, route: dict) -> bool:
+        """False, with the request finished, when there is nothing to decide: the Reference is gone, is not the current version, is archived, already has
+        a prediction, or already has a decision that only needs copying onto the row. Costs one read of the Reference and one of its relations; no
+        Cyclotron call."""
+        from .ideas.digest import relevance_of
+        from .reference_feed_keys import original_prediction_fields
+        client = self.client(publication)
+        reference = client.get_record("Reference", disc["predictFor"]["referenceId"])
+        if not reference or reference.get("corpusId") != publication["corpusId"] or reference.get("sourceUri") != disc["canonicalUrl"]:
+            self.finish(disc, route, "refused", "the Reference is missing or does not match the request")
+            return False
+        if reference.get("versionState", "current") != "current" or reference.get("curationStatus") == "archived":
+            self.finish(disc, route, "refused", "the Reference is archived or no longer the current version")
+            return False
+        if has_real_prediction(reference):   # a finite number on the row; a time without one is still hidden (home_page/export.stored_prediction)
+            self.counts["predictionSkipped"] += 1
+            self.finish(disc, route, "routed", "the Reference already has a prediction")
+            return False
+        decision = relevance_of(client.list_by_index("semanticRelationsBySubjectState", f"reference#{reference.get('lineageId') or reference['id']}#current"))
+        if decision:   # decided before (the sweep, an older delivery) but the row never got the number: copy it, do not ask the Cyclotron again
+            fields = original_prediction_fields(
+                {k: v for k, v in reference.items() if k != "predictionDecidedAt"}, label=decision["label"], positive_label=decision.get("positiveLabel") or publication["positiveLabel"],
+                confidence=decision["confidence"] if decision.get("confidence") is not None else decision.get("score"),
+                decided_at=decision.get("decidedAt") or _iso(self.now))
+            if fields:
+                client.update_record("Reference", {"id": reference["id"], **fields})
+            self.counts["predictionSkipped"] += 1
+            self.finish(disc, route, "routed", "the Reference already had a decision; its prediction was copied onto the row")
+            return False
+        return True
+
     def back_off(self, route: dict, reason: str):
         """The lab refused the story for a non-permanent reason: keep it where it is, record the refusal, and ask
         again after an exponential backoff (REFUSAL_BACKOFF_FIRST * 2**n, capped at REFUSAL_BACKOFF_MAX). Never final."""
@@ -2254,15 +2349,19 @@ class Router:
 
     def finish(self, disc: dict, route: dict, routing: str, reason: str):
         route["final"] = {"routing": routing, "reason": reason[:300], "at": _iso(self.now)}
+        if is_prediction_request(disc) and routing != "routed":
+            self.counts["predictionFailed"] += routing != "parked"   # a prediction that did not happen is counted and logged, never silent (a parked one is waiting, and retried)
+            print(json.dumps({"referencePrediction": routing, "reason": reason[:200], "referenceId": disc["predictFor"]["referenceId"],
+                              "publicationId": disc["predictFor"]["publicationId"], "retry": routing == "parked"}))
         partition = None
-        if disc.get("editorSelectedReference") and routing == "parked":
+        if selected_lane(disc) and routing == "parked":
             # Criteria can become ready later. Keep this exact job in its own lane;
             # ordinary backfill must never be needed to recover a selected Reference.
-            publication_id = disc["editorSelectedReference"]["publicationId"]
+            publication_id = (disc.get("editorSelectedReference") or disc["predictFor"])["publicationId"]
             retry_at = max(int(self.now + 300), int((self.park(publication_id) or {}).get("nextProbeAt", 0)))
             route["nextAttemptAt"] = retry_at
             disc = {**disc, "gsi1sk": f"{_iso(retry_at)}#{disc['sourceId']}#{int(disc['revision']):06d}"}
-            partition = "email-references"
+            partition = selected_lane(disc)
         self.save(route)
         set_routing(self.store, self.monitor_id, disc, routing, partition)
         self.counts[routing] += 1
@@ -2895,7 +2994,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                hold_override: bool = False, previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
                story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None,
                publication_id: str | None = None, fan_out: Callable[[str], None] | None = None,
-               suggest_queue: tuple[Any, str] | None = None, write: bool = False) -> dict:
+               suggest_queue: tuple[Any, str] | None = None, write: bool = False, predict=None) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -2943,7 +3042,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
                         start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher,
                         max_decisions=max_decisions, hold_override=hold_override, previewer=previewer,
-                        story_transport=story_transport, story_drafter=story_drafter, embedding_key=embedding_key, suggest_queue=suggest_queue)
+                        story_transport=story_transport, story_drafter=story_drafter, embedding_key=embedding_key, suggest_queue=suggest_queue, predict=predict)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
                    {"status": "skipped"} if task in ("feedback", "auto-accept", "monitor-stories", "research-assignments", "suggest-unchecked") else router.collect() if task == "collect" else router.sweep())
         feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept", "monitor-stories", "research-assignments", "suggest-unchecked") else router.feedback()
