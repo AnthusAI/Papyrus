@@ -1,3 +1,22 @@
 {
-  "allowed": []
+  "allowed": [
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "SuggestBacklogSchedule",
+      "change": "Remove",
+      "reason": "Backlog passes were removed on purpose; suggestions run once per Reference."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "DistinctiveSuggestBacklogSchedule",
+      "change": "Remove",
+      "reason": "Backlog passes were removed on purpose; suggestions run once per Reference."
+    },
+    {
+      "stack": "papyrus-monitoring",
+      "logicalId": "DecisionReadyInvokePermission",
+      "change": "Replace",
+      "reason": "Its template is unchanged; CloudFormation reports a possible replacement because it depends on the router function. Recreated in the same update."
+    }
+  ]
 }

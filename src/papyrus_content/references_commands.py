@@ -71,6 +71,7 @@ from .reference_labels import (
     resolve_reference_for_label,
 )
 from .reference_policy import normalize_reference_rejection_reason_code
+from .reference_stars import MAXIMUM_STARS, MINIMUM_STARS, validated_stars
 from .source_readiness import build_extraction_index
 from .steering import load_steering_config, require_corpus_config, require_steering_config
 
@@ -119,9 +120,26 @@ def references_record_on_behalf_of(flags: list[str], *, action: str) -> None:
     Records a decision a person made, using the delegation they granted this agent.
     The cyclotron counts it as the person's label. Never use it for your own judgment.
     """
-    import os
-
     options = parse_options(flags)
+    reference_id, on_behalf_of, agent_label, token = _relay_arguments(options, f"references {action}")
+    # "approve" is the word the person says; the curation action it records is "accept".
+    action = {"approve": "accept"}.get(action, action)
+    note = str(options.get("note") or "")
+    reason_code = normalize_reference_rejection_reason_code(
+        options.get("reason-code") or options.get("reasonCode"),
+        required=action == "reject" and not note.strip())
+    client, _ = create_authoring_client()
+    recorded = newsroom_reference_actions.record_delegated_curation(
+        client.graphql, reference_id=str(reference_id), action=action, delegation_token=str(token),
+        agent_label=str(agent_label), on_behalf_of=str(on_behalf_of),
+        instruction=str(options["instruction"]), note=note,
+        reason_code=reason_code or "", section_id=_section_option(options))
+    print(f"references\t{action}\t{recorded.get('referenceId')}\t{recorded.get('status')}\t"
+          f"{recorded.get('reasonCode') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
+
+
+def _relay_arguments(options: dict[str, Any], label: str) -> tuple[str, str, str, str]:
+    """The reference, the person, the agent and the delegation token every relayed decision names, or a message saying which are missing."""
     reference_id = options.get("reference") or options.get("reference-id")
     on_behalf_of = options.get("on-behalf-of")
     agent_label = options.get("agent")
@@ -135,19 +153,49 @@ def references_record_on_behalf_of(flags: list[str], *, action: str) -> None:
                                         ("--agent", agent_label), ("--instruction", options.get("instruction")), ("--delegation-file, --delegation-token or PAPYRUS_DELEGATION_TOKEN", token))
                if not value or value is True]
     if missing:
-        raise ValueError(f"references {action} requires {', '.join(missing)}.")
-    note = str(options.get("note") or "")
-    reason_code = normalize_reference_rejection_reason_code(
-        options.get("reason-code") or options.get("reasonCode"),
-        required=action == "reject" and not note.strip())
-    client, _ = create_authoring_client()
-    recorded = newsroom_reference_actions.record_delegated_curation(
-        client.graphql, reference_id=str(reference_id), action=action, delegation_token=str(token),
-        agent_label=str(agent_label), on_behalf_of=str(on_behalf_of),
-        instruction=str(options["instruction"]), note=note,
-        reason_code=reason_code or "", section_id=_section_option(options))
-    print(f"references\t{action}\t{recorded.get('referenceId')}\t{recorded.get('status')}\t"
-          f"{recorded.get('reasonCode') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
+        raise ValueError(f"{label} requires {', '.join(missing)}.")
+    return str(reference_id), str(on_behalf_of), str(agent_label), str(token)
+
+
+def _stars_option(value: Any) -> int | None:
+    """``--stars 1..5`` or ``--stars clear``, with the ``setReferenceStars`` rules (``reference_stars``)."""
+    if value is None or value is True:
+        raise ValueError("references set-stars requires --stars 1 to 5, or --stars clear to remove the rating.")
+    text = str(value).strip().lower()
+    if text in {"clear", "none"}:
+        return None
+    try:
+        return validated_stars(int(text))
+    except ValueError:
+        raise ValueError(f"--stars must be a whole number from {MINIMUM_STARS} to {MAXIMUM_STARS}, or clear.") from None
+
+
+def references_set_stars_on_behalf_of(flags: list[str], *, graphql: Any = None) -> None:
+    """papyrus references set-stars --reference <id> --stars <1-5|clear> --on-behalf-of <person's sign-in email>
+    --agent <your name> --instruction "<the person's words>" [--delegation-file <path> or --delegation-token <token> or PAPYRUS_DELEGATION_TOKEN] [--dry-run]
+
+    Records a star rating a person gave, using the delegation they granted this agent (the one `references approve` and `references reject`
+    use). The rating is filed as theirs relayed by you, never as their own. It does not change the Reference's accept or reject, and it writes
+    unless you pass --dry-run, which checks the arguments and prints what would be sent without contacting the Newsroom.
+    """
+    options = parse_options(flags)
+    if options.get("help"):
+        print(references_set_stars_on_behalf_of.__doc__)
+        return
+    apply = resolve_mutation_apply(options, "references set-stars")
+    reference_id, on_behalf_of, agent_label, token = _relay_arguments(options, "references set-stars")
+    stars = _stars_option(options.get("stars"))
+    shown = "clear" if stars is None else str(stars)
+    if not apply:
+        print(f"references\tset-stars\t{reference_id}\t{shown}\ton behalf of {on_behalf_of} via {agent_label}\tdry-run: nothing sent")
+        return
+    if graphql is None:
+        graphql = create_authoring_client()[0].graphql
+    recorded = newsroom_reference_actions.record_delegated_stars(
+        graphql, reference_id=reference_id, stars=stars, delegation_token=token, agent_label=agent_label,
+        on_behalf_of=on_behalf_of, instruction=str(options["instruction"]))
+    print(f"references\tset-stars\t{recorded.get('referenceId')}\t{'clear' if recorded.get('stars') is None else recorded.get('stars')}\t"
+          f"{recorded.get('status') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
 
 
 DELEGATION_REQUEST_POLL_INTERVAL_SECONDS = 5.0
@@ -199,6 +247,7 @@ def references_request_delegation(
     token_path = Path(str(given_path)).expanduser() if given_path and given_path is not True else default_delegation_token_path(delegation_id)
     write_delegation_token_file(token_path, token)
     print(f"Open the Newsroom, Delegations, approve code {user_code}")
+    print("Only a person in the Newsroom can approve it; this CLI session cannot.")
     print(f"The code expires at {requested.get('pendingExpiresAt')}. After approval, use --delegation-file {token_path}")
     if not options.get("wait"):
         return

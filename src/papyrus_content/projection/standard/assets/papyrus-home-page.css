@@ -55,3 +55,14 @@
 .home-page-message-text { overflow-wrap: anywhere; line-height: 1.55; }
 .home-page-message-text p { margin: 0 0 .75rem; }
 .home-page-message-text p:last-child { margin-bottom: 0; }
+.home-page-more-links { display: flex; justify-content: center; min-height: 2.75rem; margin: 1.5rem 0 0; }
+.home-page-more-links[hidden] { display: none; }
+/* A button and the link it replaces look alike; `all: unset` clears the native button frame without drawing or naming a line. */
+.home-page-load-more { all: unset; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; box-sizing: border-box; min-width: min(100%, 12rem); min-height: 2.75rem; padding: .5rem 1.25rem; border-radius: 999px; background: var(--home-page-chip-bg, color-mix(in srgb, currentColor 10%, transparent)); color: inherit; font: inherit; font-weight: 700; line-height: 1.25; text-decoration: none; cursor: pointer; }
+.home-page-load-more:hover, .home-page-load-more:focus-visible { background: var(--home-page-recommended-bg, color-mix(in srgb, currentColor 16%, transparent)); }
+.home-page-load-more:focus-visible span { text-decoration: underline; }
+.home-page-load-more[aria-disabled="true"] { cursor: progress; }
+.home-page-status { min-height: 1.5rem; margin: .5rem 0 0; text-align: center; font-size: .875rem; color: var(--home-page-muted, color-mix(in srgb, currentColor 70%, transparent)); }
+.home-page-sentinel { height: 1px; }
+.home-page-chunk-links { display: flex; justify-content: center; min-height: 2.75rem; margin: 1rem 0; }
+@media (prefers-reduced-motion: no-preference) { .home-page-load-more { transition: background-color .15s ease; } }

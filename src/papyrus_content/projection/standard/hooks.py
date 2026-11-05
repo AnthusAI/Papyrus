@@ -45,6 +45,11 @@ The hooks that shape an item page before and after it is converted (a site whose
 ``block(name, attributes, page) -> str``    the markup of ``::include{kind="block" name="..."}`` in an authored page; the include's
                                     ``depends`` attribute names the sections it reads (see ``includes.py``)
 
+``page_finish`` and ``card`` also draw the pages of a paged Reference list (``::include{kind="references" paged="true"}``, see
+``home_page_lists.py``): each chunk's page is rendered with ``page.kind == "reference_list"`` and the data file the browser fetches is cut from
+that rendered page, so a site's own card drawing applies to cards loaded later. Those pages read no Story unless ``DEPENDS_ON`` names
+``"reference_list"`` (or is a list of sections).
+
 A hook that takes ``page`` can read any entry, so by default every page depends on all of them. A module may narrow
 that with ``DEPENDS_ON = ["essays", "@root"]`` (section names; ``@root`` is the items with no section) or ``[]`` for
 "nothing beyond the page's own entry and the listing slice". It may also be a dict keyed by page id (``home``,

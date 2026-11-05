@@ -209,18 +209,17 @@ def test_a_mention_inside_the_mention_of_an_accepted_entity_is_not_proposed_agai
     assert [entity["state"] for entity in output["items"][0]["entities"]] == ["resolved"]
 
 
-def test_a_low_confidence_that_the_name_is_real_is_kept_and_a_single_mention_has_no_page_whatever_jev_said():
-    documents = {"i1": "Tern3 beat Maple Lab. Tern3 won.", "i2": "Kestrel flew."}
+def test_a_low_confidence_that_the_name_is_real_is_kept_and_a_name_in_one_document_has_no_page_whatever_jev_said():
+    documents = {"i1": "Tern3 beat Maple Lab. Kestrel flew. Kestrel won.", "i2": "Tern3 won."}
     candidates = {
-        "tern3": {"name": "Tern3", "contexts": ["x"], "mentions": [("i1", 0, 5, "Tern3"), ("i1", 22, 27, "Tern3")]},
-        "kestrel": {"name": "Kestrel", "contexts": ["y"], "mentions": [("i2", 0, 7, "Kestrel")]},
+        "tern3": {"name": "Tern3", "contexts": ["x"], "mentions": [("i1", 0, 5, "Tern3"), ("i2", 0, 5, "Tern3")]},
+        "kestrel": {"name": "Kestrel", "contexts": ["y"], "mentions": [("i1", 22, 29, "Kestrel"), ("i1", 36, 43, "Kestrel")]},
     }
     decisions = {"tern3": {"choice": "model", "real": 0.51, "page": 0.99}, "kestrel": {"choice": "model", "real": 0.9, "page": 0.99}}
     output = ex.build_output(documents, candidates, decisions, ex.RegistryMatcher([]), {}, model="m")
-    tern = [entity for entity in output["items"][0]["entities"]]
-    assert [(e["score"], e["page_score"], e["page_answer"]) for e in tern] == [(0.51, 0.99, True)] * 2
-    kestrel = output["items"][1]["entities"][0]
-    assert (kestrel["score"], kestrel["page_score"], kestrel["page_answer"]) == (0.9, 0.0, False)
+    entities = [entity for item in output["items"] for entity in item["entities"]]
+    assert {(e["text"], e["score"], e["page_score"], e["page_answer"]) for e in entities} == {("Tern3", 0.51, 0.99, True), ("Kestrel", 0.9, 0.0, False)}
+    assert len(entities) == 4
 
 
 def test_the_kinds_come_from_the_vocabulary_with_their_description_when_it_has_one():
