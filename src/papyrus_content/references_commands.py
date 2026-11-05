@@ -452,6 +452,51 @@ def references_backfill_medium(flags: list[str]) -> None:
             print(f"references\tbackfill-medium\t{key}\t{value}")
 
 
+def _word_table_name(options: dict[str, Any]) -> str:
+    """``--word-table NAME``, else ``PAPYRUS_REFERENCE_WORD_TABLE``, else ``custom.referenceWordIndex.tableName`` of ``--outputs`` (default ``amplify_outputs.json``)."""
+    import json
+    import os
+    from pathlib import Path
+
+    named = normalize_string(options.get("word-table")) or os.environ.get("PAPYRUS_REFERENCE_WORD_TABLE", "").strip()
+    if named:
+        return named
+    outputs = Path(normalize_string(options.get("outputs")) or "amplify_outputs.json")
+    if outputs.is_file():
+        found = ((json.loads(outputs.read_text(encoding="utf-8")).get("custom") or {}).get("referenceWordIndex") or {}).get("tableName")
+        if found:
+            return str(found)
+    raise ValueError("references backfill-word-index needs the word table: --word-table NAME, PAPYRUS_REFERENCE_WORD_TABLE, or an amplify_outputs.json from a deploy that has it.")
+
+
+def references_backfill_word_index(flags: list[str]) -> None:
+    """``papyrus references backfill-word-index (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--word-table NAME] [--write]``.
+
+    Writes the word rows the References search reads (src/papyrus_content/reference_word_backfill.py, docs/reference-search.md#word-index), once per site,
+    right after the deploy that adds the word table and its stream consumer. SAFE BY DEFAULT: without ``--write`` it prints one line per Reference it
+    would index and the counts, and writes nothing (``--dry-run`` means the same). It reads Reference rows by curation status, never a scan, and a Reference
+    already indexed is skipped, so a second run writes nothing. It needs AWS credentials for the word table (the operator lane).
+    """
+    from .reference_feed_backfill import corpus_ids_for
+    from .reference_word_backfill import backfill_words
+    from .operator_errors import require_operator_lane
+    from papyrus_knowledge_query.reference_words import WordWriter
+    options = parse_options(flags)
+    write = parse_boolean_option(options.get("write"), default=False, label="--write") and not parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    require_operator_lane("references backfill-word-index", "the word table", writing=write)
+    client, _ = create_authoring_client()
+    corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")),
+                                all_corpora=bool(options.get("all-corpora")))
+    import boto3
+    table = boto3.resource("dynamodb").Table(_word_table_name(options))
+    writer = WordWriter(table, conflict_errors=(table.meta.client.exceptions.ConditionalCheckFailedException,))
+    print(f"references\tbackfill-word-index\tmode\t{'write' if write else 'preview (nothing is written; add --write)'}")
+    for corpus_id in corpus_ids:
+        result = backfill_words(client, writer, corpus_id=corpus_id, dry_run=not write, progress=lambda line: print(f"references\tbackfill-word-index\t{line}"))
+        for key, value in result.items():
+            print(f"references\tbackfill-word-index\t{key}\t{value}")
+
+
 def references_backfill_public_fields(flags: list[str]) -> None:
     """``papyrus references backfill-public-fields (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--write]``.
 
