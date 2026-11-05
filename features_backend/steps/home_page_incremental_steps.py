@@ -193,9 +193,21 @@ def same_ranks(context) -> None:
     assert sorted(ranks.values()) == list(range(1, len(ranks) + 1))
 
 
-@then("no published file mentions a star rating")
-def no_stars_published(context) -> None:
-    assert all(b"starRating" not in content and b'"stars"' not in content for content in context.site.tree.values())
+@then("no published file mentions who rated or when")
+def no_rater_published(context) -> None:
+    assert all(b"starRating" not in content and b"starRatedBy" not in content and b"starRatedAt" not in content for content in context.site.tree.values())
+
+
+@then("the published record of that Reference shows {stars:d} stars")
+def record_shows_stars(context, stars: int) -> None:
+    record = next(record for record in helpers.document(context.site)["references"] if record["title"] == "Reference number 1")
+    assert record["stars"] == stars, record
+
+
+@when("only the stars of that Reference change and the run reads it again")
+def only_stars_change(context) -> None:
+    context.client.rows["reference-1-v1"].update({"starRating": 2})
+    read_again(context, ["reference-1-v1"])
 
 
 @then("the private state holds {stars:d} stars for that Reference")

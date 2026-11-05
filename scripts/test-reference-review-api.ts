@@ -60,6 +60,8 @@ async function main() {
     payloads.set(payloadKey(owner.ownerKind, owner.ownerId, role, payloadKind), clone(value));
   };
   const modules: Record<string, unknown> = {
+    // setItemStars asks content-actions to refresh listings; this test never rates a Story, so the client is never constructed or used.
+    "@aws-sdk/client-lambda": { LambdaClient: class { async send() { throw new Error("no network in this test"); } }, InvokeCommand: class {} },
     "node:crypto": crypto,
     "@aws-amplify/backend/function/runtime": { getAmplifyDataClientConfig: async () => ({ resourceConfig: {}, libraryOptions: {} }) },
     "aws-amplify": { Amplify: { configure: () => undefined } },
@@ -73,7 +75,7 @@ async function main() {
   const bundle = await build({
     absWorkingDir: root, entryPoints: ["amplify/functions/category-action/handler.ts"],
     bundle: true, write: false, platform: "node", format: "cjs", logLevel: "silent",
-    external: ["@aws-amplify/backend/function/runtime", "aws-amplify", "aws-amplify/data"],
+    external: ["@aws-amplify/backend/function/runtime", "aws-amplify", "aws-amplify/data", "@aws-sdk/client-lambda"],
     plugins: [{ name: "offline-payload-storage", setup(builder) {
       builder.onResolve({ filter: /\/shared\/model-payloads$/ }, () => ({ path: "fixture:model-payloads", external: true }));
     } }],

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -338,6 +339,43 @@ def test_a_row_without_a_recorded_confidence_draws_none():
 def test_a_recommended_row_shows_the_label_and_the_confidence():
     markup = home_page_components.row(record("a", "recommended", confidence=0.8))
     assert "Recommended by Cyclotron, not yet accepted" in markup and "80%" in markup and 'data-icon="gauge"' in markup
+
+
+def test_a_rated_accepted_tile_shows_its_stars_by_shape_with_the_words_for_a_screen_reader():
+    markup = home_page_components.tile(record("a", acceptedAt="2026-10-20T09:12:00.000Z", stars=4, confidence=0.92, actor="cyclotron"))
+    assert '<article class="home-page-tile" data-status="accepted" data-stars="4">' in markup
+    assert '<span class="home-page-stars" data-stars="4">' in markup
+    assert markup.count('data-icon="star"') == 5 and markup.count("home-page-star--filled") == 4, "four filled stars and one outlined: the shape says it, not the colour"
+    assert '<span class="home-page-visually-hidden">4 of 5 stars</span>' in markup
+    assert "home-page-confidence" not in markup, "a person's rating stands in for the prediction"
+
+
+def test_an_accepted_tile_nobody_rated_has_no_stars_and_keeps_the_confidence_it_has():
+    markup = home_page_components.tile(record("a", acceptedAt="2026-10-20T09:12:00.000Z", stars=None, confidence=0.92, actor="cyclotron"))
+    assert "home-page-stars" not in markup and "data-stars" not in markup and "92%" in markup
+    assert "home-page-stars" not in home_page_components.tile(record("a", acceptedAt="2026-10-20T09:12:00.000Z", actor="human")), "an older snapshot has no stars field at all"
+
+
+def test_a_recommended_tile_shows_confidence_even_if_a_record_carries_stars():
+    markup = home_page_components.tile(record("a", "recommended", stars=5, confidence=0.8))
+    assert "home-page-stars" not in markup and "data-stars" not in markup and "80%" in markup
+
+
+@pytest.mark.parametrize("value", [0, 6, -1, 2.5, "4", True, None])
+def test_a_count_outside_one_to_five_draws_nothing(value):
+    assert home_page_components.stars_markup({"status": "accepted", "stars": value}) == ""
+
+
+def test_a_rated_row_shows_compact_stars_and_the_count_on_the_row():
+    markup = home_page_components.row(record("a", acceptedAt="2026-10-20T09:12:00.000Z", stars=2, confidence=0.9, actor="cyclotron"))
+    assert 'data-status="accepted" data-stars="2"' in markup and "home-page-stars--compact" in markup and "2 of 5 stars" in markup and "home-page-confidence" not in markup
+
+
+def test_the_stylesheet_draws_stars_with_a_fill_and_no_border():
+    css = (Path(home_page_components.__file__).parent / "assets" / "papyrus-home-page.css").read_text()
+    rules = [line for line in css.splitlines() if line.startswith(".home-page-star")]
+    assert ".home-page-star--filled { fill: currentColor; }" in rules
+    assert not [line for line in rules if "border" in line or "outline" in line], "flat tones: no borders, no outlines"
 
 
 @pytest.mark.parametrize("value", [None, "", "soon", "2026-13-40", "2026-02-30"])

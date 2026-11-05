@@ -542,6 +542,10 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   if (s3ProjectionPublication !== undefined) {
     addProjectionRetries(contentActionsLambda, s3ProjectionPublication.deadLetterQueue);
     addProjectionLeaseAccess(contentActionsLambda);
+    // Rating a Story asks content-actions (one asynchronous call) to re-render the listings whose order the rating changed.
+    const categoryActionLambda = backend.categoryAction.resources.lambda as LambdaFunction;
+    contentActionsLambda.grantInvoke(categoryActionLambda);
+    categoryActionLambda.addEnvironment("PAPYRUS_CONTENT_ACTIONS_FUNCTION", contentActionsLambda.functionName);
   }
   const publicationWiring = contentActionsPublicationWiring(s3ProjectionPublication);
   for (const [name, value] of Object.entries(publicationWiring.environment)) {

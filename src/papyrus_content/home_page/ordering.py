@@ -100,19 +100,56 @@ def _instant(value: Any) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
-def bucket_start(record: Mapping[str, Any], bucket: str) -> str:
-    """The day (``day``) or the Monday of the week (``week``) a record falls in, as ``YYYY-MM-DD`` in UTC; empty when it has no usable date.
+def bucket_of(moment: Any, bucket: str) -> str:
+    """The day (``day``) or the Monday of the week (``week``) an instant falls in, as ``YYYY-MM-DD`` in UTC; empty when it has no usable date.
 
-    The date is the one the selection already orders by: the accepted time, and for a Reference with none (a recommended one) its arrival. A rating never
-    changes it, so a rating never moves a Reference to another bucket. Time zone: UTC, the same for every site.
+    ``moment`` is an ISO timestamp or a plain ``YYYY-MM-DD`` date. This is the one bucket rule: References and Stories both use it, so a bucket means the same
+    on every list. Time zone: UTC, the same for every site.
     """
-    moment = _instant(record.get("acceptedAt")) or _instant(record.get("arrivedAt"))
-    if moment is None:
+    instant = _instant(moment)
+    if instant is None:
         return ""
-    day: date = moment.astimezone(timezone.utc).date()
+    day: date = instant.astimezone(timezone.utc).date()
     if bucket == "week":
         day -= timedelta(days=day.weekday())
     return day.isoformat()
+
+
+def bucket_start(record: Mapping[str, Any], bucket: str) -> str:
+    """The bucket a record falls in (``bucket_of``) by the date the selection already orders by: the accepted time, and for a Reference with none (a
+    recommended one) its arrival. A rating never changes it, so a rating never moves a Reference to another bucket."""
+    return bucket_of(record.get("acceptedAt"), bucket) or bucket_of(record.get("arrivedAt"), bucket)
+
+
+BUCKET_DAYS = {"day": 1, "week": 7}
+
+
+def rolling_age(moment: Any, bucket: str, as_of: date) -> int:
+    """How many whole ``bucket`` windows before ``as_of`` the date falls: 0 is the last day (or last seven days), 1 the window before it, and so on.
+
+    Windows are counted back from ``as_of`` (a UTC day), not from the calendar, so "week" means the last seven days, the seven before that, and so on. A
+    date after ``as_of`` is in window 0; no usable date is the oldest window. ``as_of`` is a day, not a time, so the order can change only when the day does.
+    """
+    instant = _instant(moment)
+    if instant is None:
+        return 2**31
+    days = (as_of - instant.astimezone(timezone.utc).date()).days
+    return max(0, days) // BUCKET_DAYS[bucket]
+
+
+def rank_in_buckets(
+    items: Iterable[T], *, stars: Callable[[T], int | None], moment: Callable[[T], Any], bucket: str, as_of: date | None = None
+) -> list[T]:
+    """``items`` (already newest first) with the newest bucket first and, inside each bucket, the shared order of ratings: 5, 4, 3 stars, then unrated, then 2 and 1.
+
+    Without ``as_of`` a bucket is a calendar day or Monday week (``bucket_of``). With it (Stories) a bucket is a rolling window counted back from that day
+    (``rolling_age``). Both sorts are stable, so equal items keep the order they came in: with nothing rated every bucket keeps its newest-first order, and the
+    whole list is exactly what it was. Nothing is dropped: an older bucket follows the newer ones, ranked inside itself.
+    """
+    chosen = sorted(items, key=lambda item: _primary(valid_stars(stars(item)), MISSING_CONFIDENCE))
+    if as_of is not None:
+        return sorted(chosen, key=lambda item: rolling_age(moment(item), bucket, as_of))
+    return sorted(chosen, key=lambda item: bucket_of(moment(item), bucket), reverse=True)
 
 
 def order_in_buckets(records: Iterable[Mapping[str, Any]], bucket: str) -> list[Mapping[str, Any]]:

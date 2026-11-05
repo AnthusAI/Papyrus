@@ -236,7 +236,7 @@ The Python authoring client asks for the three fields in `ITEM_FIELDS` and, like
 (`NEWER_REFERENCE_FIELDS`), so a router serving sites on different versions keeps working. The legacy `type="assignment"` Item path in `newsroom.py` builds assignment
 Items, not Stories, and is not a rating path.
 
-**Stars are never published.** They order things for editors and never reach `PublishedItem`, a projection or any page: the three fields are not on the
+**Stars are never published.** (A Reference's stars are: see [Home page](home-page.md). A Story's are not.) They order things for editors and, privately, public listings (below), and never reach `PublishedItem`, a projection or any page: the three fields are not on the
 `PublishedItem` model in either schema file, `project_item_to_published` writes an explicit field list and then runs `assert_no_item_stars` on the row, and
 `GraphQLItem`, the type draft previews are built from, does not carry them. `scripts/test-story-stars-api.ts` and `features_backend/story-stars.feature` fail if a
 star reaches published output.
@@ -244,8 +244,45 @@ star reaches published output.
 On the newsroom side the drawer and the Story editor show `components/star-rating.tsx` (label "Rating · optional") and the Stories board card shows the rating read-only, one solid star and the number in its top row: optimistic, kept in one
 store (`components/use-story-stars.ts`) so the three show one rating, and a failed save puts the saved rating back with a message. The Kanbus card has no slot for a
 mark, so each Story card gets one container in its top row that the rating is drawn into (`components/story-board-stars.tsx`). A card read from a published-only row (not from the
-Item) has no control, because its rating is not known there; the drawer has it. The board's ordering and the public Story listings do not use the rating yet.
+Item) has no control, because its rating is not known there; the drawer has it. The board's ordering does not use the rating.
 A schema change: it needs the site backend deployed.
+
+### Published Stories rank by recency bucket, then stars (PPY-5966d7)
+
+The rating is private, but it orders the public listings. Listing includes, the featured slot, the home page's list, a section's listing page (`/articles/`),
+a collection page (`/posts/`) and tag pages put the newest bucket first and, inside a bucket, five, four and three stars first, then Stories nobody rated, then
+two and one stars; equal Stories keep their newest-first order. The order of ratings is the one References follow, and the code is shared (`rank_in_buckets` in
+`src/papyrus_content/home_page/ordering.py`; the Story side is `projection/standard/story_order.py`). **A Story bucket is a rolling window** (Ryan, 2026-11-04:
+"rolling last seven days for the week"): counted back from the UTC day of the projection, `week` (the default of `listings.bucket`) is the last seven days, the
+seven before that, and so on; `day` is the last day, the day before, and so on; `none` is the old newest-first list. An include can say `bucket="day|week|none"`.
+A Reference's bucket stays the calendar UTC day or Monday week, because its page order is computed from a stored snapshot, not at the render: only Stories roll
+(see [Home page](home-page.md#time-buckets)). The feeds, the sitemap and `llms.txt` stay in date order.
+
+**Time moves Stories between buckets with no write.** The order depends on the UTC day (never the time of day), so a listing can change at most once a day. There is
+no schedule and no pass over a corpus for it. A page holds the order of its last render and is corrected whenever something that already re-renders it runs: a publish
+(it rewrites the listings the new Story appears in, computed as of that day, which are the pages most likely to be stale), a rating (`story-stars` runs the whole
+stale-listings pass), the post-release render, or `papyrus ops content project --reconcile`. A page nothing touches can lag by days; that cannot be closed
+without a scheduled pass, which Ryan's rule forbids, so it is the stated limit. The home-page snapshot run only rewrites pages that read the snapshot, so it corrects those and no others.
+
+**What happens to older Stories.** Nothing is dropped. A Story from an earlier bucket follows every Story of the newer buckets and is ranked inside its own, so
+an old five-star Story never rises above a newer week. A listing with `count` shows the first `count` of that ranked list, so it reaches an earlier bucket only
+when the newer ones have fewer Stories than `count`. A listing page shows all of them, page after page, in the same order. Stories nobody rated sort between the
+high and the low ratings in newest-first order, and a site where nothing is rated lists exactly as before (the stable sort leaves the list alone, and the pages
+are byte for byte the same).
+
+**Where the rating comes from.** The rating sits on the Story's working Item version, which is not the published row. At projection time the source reads
+`{lineage: stars}` from a private item in the projection lock table, `story-stars#<site scope>` (`projection/story_stars.py`), in one request. A Story the item
+has not seen is read once from its Item rows and remembered, so a site starts with an empty item and a Story rated before it was published counts at its first
+projection. The ratings travel inside the `SiteIndex` to the projector and are used only to order; `StandardEntry`, `PublishedItem` and every fingerprint carry no
+star, and no public file mentions one. The rule `assert_no_item_stars` still guards every published row.
+
+**What a rating change costs.** `setItemStars` asks the site's content-actions function, once, to run the `story-stars` projection task for the Item version it
+changed (`PAPYRUS_CONTENT_ACTIONS_FUNCTION` on the category-action function; an asynchronous invocation, best effort because the rating is already saved). The
+task (`projection/story_stars_task.py`) reads that one row, sets the Story's entry, and, when the Story is published, runs the ordinary stale-listing pass:
+every listing is ordered with the new rating, and only the pages whose digest (their entries in order) changed are written. It reads the published summaries
+once, as every listing refresh does, and renders no Story page. The same rating twice, or one that moves nothing, rewrites nothing.
+
+**Not ranked.** A listing include inside a Story page (a wiki page) keeps date order, because a Story page is not re-rendered when only a rating changes.
 
 ## Out of scope for now
 

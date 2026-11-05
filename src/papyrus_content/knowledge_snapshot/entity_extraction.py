@@ -1,13 +1,19 @@
-"""The entity step of the knowledge run: a plain text pass finds candidate names, Jev decides what kind of concept each one is.
+"""The entity step of the knowledge run: a plain text pass finds candidate names, Jev decides which are real and what kind they are.
 
 1. ``find_candidates`` reads the extracted texts with no model: capitalised sequences, mixed-case and versioned names, and
-   lower-case words and phrases that appear in two documents or three times. Each distinct name keeps up to three passages from
-   different documents.
-2. ``decide`` asks Jev one ``choice`` per distinct name (not per mention): the site's vocabulary kinds plus ``not_a_concept``, as the
-   name is used in those passages. Answers are cached by name, passages, vocabulary and model, so a rerun pays only for what is new.
-3. ``build_output`` writes the file ``publish-run --entities`` reads: every mention of a name Jev called a concept is a ``proposed``
-   entity whose ``score`` is Jev's confidence, and every mention of a name the registry already holds is a ``resolved`` entity with
-   its ``entity_key``. Jev does not propose relations, so ``relations`` is empty.
+   lower-case words and phrases that appear in two documents or three times. Reference lists and bibliographies are not read, a
+   citation number stuck to a name is cut off, a name is never joined across ``and`` (unless the whole is one proper name), and a name
+   that only ever appears as a whole level-1 heading (a document's title) is not a candidate. Each distinct name keeps up to three
+   passages from different documents.
+2. ``decide`` asks Jev three questions per distinct name (not per mention) in one request: is it a real thing (a yes/no answer that
+   files it or drops it), which of the vocabulary's kinds is it, and does a reader of the publication need a page of its own for it
+   (a second yes/no answer). Answers are cached by name, passages, the question text, the publication and the model, so a rerun
+   pays only for what is new.
+3. ``build_output`` writes the file ``publish-run --entities`` reads: every mention of a real name is a ``proposed`` entity whose
+   ``score`` is Jev's confidence that it is real, with the page answer beside it (``page_score``, ``page_answer``), and every mention
+   of a name the registry already holds is a ``resolved`` entity with its ``entity_key``. A name with a single mention outside the
+   reference lists has page score 0 whatever Jev said: that is decided here in code, not asked in the prompt. Jev does not propose
+   relations, so ``relations`` is empty.
 
 Nothing here cuts entities off by confidence: ``publish-run``'s filter and the AI review decide what is kept.
 """
@@ -28,18 +34,30 @@ from .registry import alias_identity
 
 JEV_URL = "https://api.typesafe.ai/v1/systemone"
 JEV_MODEL = "jev-1.13.0"
-NOT_A_CONCEPT = "not_a_concept"
-NOT_A_CONCEPT_LABEL = "not a specific thing worth its own wiki page: an ordinary word or phrase, a code identifier or variable, a heading, a citation, a sentence fragment"
+PUBLICATION_PURPOSE = "building a wiki of concepts"
 PASSAGES = 3  # passages from different documents that show how a name is used
 PASSAGE_MARGIN = 200  # characters on each side of the first mention in a document
+FILED_AT = 0.5  # the boundary of a yes/no answer: a name Jev does not call real is dropped; the confidence itself is never cut off
 SCHEMA_VERSION = 1
 
-# A name is on one line: its words are joined by spaces or tabs, never by a line break.
-NAMED = re.compile(r"\b[A-Z][\w+.\-]*[\w+](?:(?:[ \t]+(?:of|for|and|the|in|on))?[ \t]+[A-Z0-9][\w+.\-]*[\w+]){0,5}")
+# A name is on one line: its words are joined by spaces or tabs, never by a line break. An apostrophe directly before a capital is
+# inside the name (O'Connell); a possessive 's is not. ``and`` joins words here, and ``_pieces`` takes the joined text apart again.
+TOKEN = r"[A-Z](?:[\w+.\-]|['\u2019](?=[A-Z]))*[\w+]"
+TOKEN_OR_NUMBER = r"[A-Z0-9](?:[\w+.\-]|['\u2019](?=[A-Z]))*[\w+]"
+NAMED = re.compile(r"\b" + TOKEN + r"(?:(?:[ \t]+(?:of|for|and|the|in|on))?[ \t]+" + TOKEN_OR_NUMBER + r"){0,5}")
 MIXED = re.compile(r"\b[a-z]+[A-Z][\w\-]*\b|\b[A-Za-z]+-\d[\w.\-]*\b")
 # A lower-case word starts and ends at a word edge: never inside a capitalised word (``ganization`` of ``Organization``).
 WORD = re.compile(r"(?<![A-Za-z0-9_\-])[a-z][a-z\-]*[a-z](?![A-Za-z0-9_])")
 PHRASE = re.compile(r"[a-z\-]+(?: [a-z\-]+)*")
+CONNECTORS = frozenset({"of", "for", "and", "the", "in", "on"})
+# One proper name that contains ``and``: a head noun and a connector, then words, then ``and`` and a single capitalised word
+# (Center for Democracy and Technology). Two names joined by ``and`` (Facebook and Instagram, University of Zurich and ETH Zurich)
+# have no connector before the ``and`` or more than one plain word after it.
+ONE_NAME_WITH_AND = re.compile(r"[A-Z]\S*(?:[ \t]+(?!and\b)\S+)*?[ \t]+(?:of|for|on|in)(?:[ \t]+(?!and\b)\S+)+?[ \t]+and[ \t]+[A-Z][a-z]+")
+REFERENCE_HEADING = re.compile(r"(?im)^[ \t]*(#{1,6})?[ \t]*(references|bibliography|works cited|literature cited)[ \t]*:?[ \t]*$")
+HEADING = re.compile(r"(?m)^(#{1,6})[ \t]+\S")
+STUCK_NUMBER = re.compile(r"^(.*[A-Za-z])(\d{2,3})$")
+GLUED_WORD = re.compile(r"\b[A-Za-z][\w\-]*[A-Za-z]\d{2,3}\b")
 
 
 class ExtractionError(ValueError):
@@ -47,18 +65,70 @@ class ExtractionError(ValueError):
 
 
 # -- 1. candidates ----------------------------------------------------------------------------------------------------
+def reference_spans(text: str) -> list[tuple[int, int]]:
+    """Where the reference lists are: from a References or Bibliography heading to the next heading of the same or a higher level, or
+    the end of the text. Names in them are citations, not uses of the name."""
+    spans = []
+    for match in REFERENCE_HEADING.finditer(text):
+        level = len(match.group(1) or "") or 7
+        end = next((heading.start() for heading in HEADING.finditer(text, match.end()) if len(heading.group(1)) <= level), len(text))
+        spans.append((match.start(), end))
+    return spans
+
+
+def _pieces(written: str, *, citations: int, glued: Counter) -> list[tuple[int, int]]:
+    """The names inside one match of the name patterns, as offsets into it. ``and`` ends a name unless the whole is one proper name,
+    and a citation number stuck to a word ends the name there: two or three digits after a letter, no larger than the number of entries
+    in the document's reference lists, and a glued form seen at most twice in the document (``Qwen3`` repeats, a citation does not)."""
+    keep_and = bool(ONE_NAME_WITH_AND.fullmatch(written))
+    pieces: list[tuple[int, int]] = []
+    current: list[tuple[str, int, int]] = []
+
+    def close() -> None:
+        while current and current[0][0] in CONNECTORS:
+            current.pop(0)
+        while current and current[-1][0] in CONNECTORS:
+            current.pop()
+        if current:
+            pieces.append((current[0][1], current[-1][2]))
+        current.clear()
+
+    for token in re.finditer(r"\S+", written):
+        word = token.group()
+        stuck = STUCK_NUMBER.match(word) if citations else None
+        if word == "and" and not keep_and:
+            close()
+        elif stuck and 10 <= int(stuck.group(2)) <= citations and glued[word] <= 2 and len(stuck.group(1)) >= 2:
+            current.append((stuck.group(1), token.start(), token.start() + len(stuck.group(1))))
+            close()
+        else:
+            current.append((word, token.start(), token.end()))
+    close()
+    return pieces
+
+
 def scan_mentions(documents: Mapping[str, str], stop_words: Iterable[str]) -> tuple[dict[str, list[tuple[str, int, int, str]]], Counter]:
-    """The finder: every place in the texts a name could be, by its shape, with no model. ``({case-folded name: [(item_id, start,
-    end, text)]}, count of each lower-case word)``. Deciding which of them are worth asking about is ``find_candidates``'s job."""
+    """The finder: every place in the texts a name could be, by its shape, with no model, outside the reference lists. ``({case-folded
+    name: [(item_id, start, end, text)]}, count of each lower-case word)``. Deciding which of them are worth asking about is
+    ``find_candidates``'s job."""
     stop = frozenset(stop_words)
     seen: dict[str, list[tuple[str, int, int, str]]] = defaultdict(list)
     lower_words: Counter = Counter()
     for item_id, text in documents.items():
-        words = [(m.group(), m.start(), m.end()) for m in WORD.finditer(text)]
+        references = reference_spans(text)
+        counted = sum(sum(1 for line in text[a:b].splitlines() if line.strip()) - 1 for a, b in references)
+        glued = Counter(GLUED_WORD.findall(text)) if counted else Counter()
+
+        def outside(at: int) -> bool:
+            return not any(a <= at < b for a, b in references)
+
+        words = [(m.group(), m.start(), m.end()) for m in WORD.finditer(text) if outside(m.start())]
         lower_words.update(word for word, _a, _b in words)
         for pattern in (NAMED, MIXED):
             for match in pattern.finditer(text):
-                seen[match.group().casefold()].append((item_id, match.start(), match.end(), match.group()))
+                for a, b in _pieces(match.group(), citations=counted, glued=glued):
+                    if outside(match.start() + a):
+                        seen[match.group()[a:b].casefold()].append((item_id, match.start() + a, match.start() + b, match.group()[a:b]))
         for size in (1, 2, 3):  # lower-case words and phrases, unbroken by punctuation and with no stop word at either edge
             for at in range(len(words) - size + 1):
                 group = words[at:at + size]
@@ -70,6 +140,15 @@ def scan_mentions(documents: Mapping[str, str], stop_words: Iterable[str]) -> tu
                     continue
                 seen[phrase.casefold()].append((item_id, start, end, phrase))
     return seen, lower_words
+
+
+def _is_document_title(text: str, start: int, end: int) -> bool:
+    """The mention is the whole of a level-1 heading line: the title of an article or paper, which is not a thing to file."""
+    begin = text.rfind("\n", 0, start) + 1
+    stop = text.find("\n", end)
+    line = text[begin:len(text) if stop < 0 else stop]
+    heading = re.match(r"#[ \t]+(.*)$", line)
+    return bool(heading) and heading.group(1).strip().rstrip(".:").casefold() == text[start:end].casefold()
 
 
 def find_candidates(documents: Mapping[str, str], stop_words: Iterable[str]) -> dict[str, dict]:
@@ -92,6 +171,8 @@ def find_candidates(documents: Mapping[str, str], stop_words: Iterable[str]) -> 
         if not lower and len(words) == 1 and key.isalpha() and lower_words[key] > capitalised:  # a word capitalised only at a sentence start
             continue
         mentions = sorted(set(mentions), key=lambda mention: (mention[0], mention[1]))
+        if all(_is_document_title(documents[item_id], start, end) for item_id, start, end, _text in mentions):
+            continue
         found[key] = {"name": Counter(mention[3] for mention in mentions).most_common(1)[0][0], "contexts": _passages(documents, mentions), "mentions": mentions}
     return found
 
@@ -157,23 +238,55 @@ class RegistryMatcher:
 
 
 # -- 2. Jev -----------------------------------------------------------------------------------------------------------
-def criteria_of(vocabulary: Mapping[str, Any]) -> dict[str, str]:
-    """The kinds a name may be: the vocabulary's ``entity_kinds`` (key to label) and ``not_a_concept``."""
-    criteria = {str(entry["key"]): str(entry.get("label") or entry["key"]) for entry in vocabulary.get("entity_kinds") or () if isinstance(entry, Mapping) and entry.get("key")}
+KIND_INSTRUCTIONS = "As the name is used in these passages, which kind of wiki concept is it?"
+REAL_QUESTION = {
+    "type": "noul",
+    "instructions": "Is this name a specific, established thing, such as a named person, organisation, model, dataset, method or tool, or a recognised research concept, as it is used in the passages?",
+    "criteria": {
+        "true": "It names one particular thing or an established concept that people refer to by this name.",
+        "false": "It is an ordinary word or phrase, a code identifier, a heading, a citation string, a sentence fragment, or a generic description.",
+    },
+}
+PAGE_QUESTION = {
+    "type": "noul",
+    "instructions": "Would a reader of this publication look this name up, so that it deserves a wiki page of its own?",
+    "criteria": {
+        "true": "It is a subject the publication explains or returns to, or a well-known thing a reader would want explained, and the passages say what it is or does. A common word counts only when the documents discuss it as a specific concept.",
+        "false": "It is mentioned in passing or as one example among several, is a person or paper cited once, is a minor detail, is not a real thing, or is a common word or generic phrase used in its ordinary sense.",
+    },
+}
+
+
+def criteria_of(vocabulary: Mapping[str, Any]) -> dict[str, Any]:
+    """The kinds a real name may be: the vocabulary's ``entity_kinds``, key to description. A kind with ``what`` (and optionally
+    ``not_for``) is described to Jev by both; one with only a ``label`` by the label."""
+    criteria: dict[str, Any] = {}
+    for entry in vocabulary.get("entity_kinds") or ():
+        if isinstance(entry, Mapping) and entry.get("key"):
+            what = entry.get("what")
+            criteria[str(entry["key"])] = {"what": str(what), "not_for": str(entry.get("not_for") or "")} if what else str(entry.get("label") or entry["key"])
     if not criteria:
         raise ExtractionError("The vocabulary has no entity_kinds with keys.")
-    if NOT_A_CONCEPT in criteria:
-        raise ExtractionError(f"{NOT_A_CONCEPT!r} is the extractor's own answer; it cannot be a kind in the vocabulary.")
-    criteria[NOT_A_CONCEPT] = NOT_A_CONCEPT_LABEL
     return criteria
 
 
-def cache_key(name: str, passages: list[str], criteria: Mapping[str, str], model: str) -> str:
-    return hashlib.sha256(json.dumps([name, passages, sorted(criteria.items()), model], ensure_ascii=False).encode("utf-8")).hexdigest()
+def describe_publication(vocabulary: Mapping[str, Any]) -> str:
+    """How Jev is told what the publication is. Set ``description`` in the site's vocabulary (``a publication about ...``); without
+    it the publication's key is used."""
+    description = str(vocabulary.get("description") or "").strip() or f"the {vocabulary.get('publication') or 'knowledge'} publication"
+    return f"{description}, {PUBLICATION_PURPOSE}"
+
+
+def questions_for(criteria: Mapping[str, Any]) -> dict[str, Any]:
+    return {"real": REAL_QUESTION, "kind": {"type": "choice", "instructions": KIND_INSTRUCTIONS, "criteria": dict(criteria)}, "page": PAGE_QUESTION}
+
+
+def cache_key(name: str, passages: list[str], questions: Mapping[str, Any], publication: str, model: str) -> str:
+    return hashlib.sha256(json.dumps([name, passages, questions, publication, model], ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
 
 
 class JevClient:
-    """One ``choice`` question per name. ``ask`` returns the answer, or None when Jev could not be reached after the retries."""
+    """Three questions per name in one request. ``ask`` returns the answers, or None when Jev could not be reached after the retries."""
 
     RETRY = frozenset({408, 429, 500, 502, 503, 504})
 
@@ -188,23 +301,27 @@ class JevClient:
         self.session.headers["Authorization"] = f"Bearer {api_key}"
         self.failures: Counter = Counter()
 
-    def ask(self, name: str, passages: list[str], criteria: Mapping[str, str], publication: str) -> dict | None:
-        body = {
-            "model": self.model,
-            "state": {"publication": f"the {publication} publication, building a wiki of concepts", "name": name, "passages": passages},
-            "questions": {"kind": {"type": "choice", "instructions": "As the name is used in these passages, which kind of wiki concept is it?", "criteria": dict(criteria)}},
-        }
+    def ask(self, name: str, passages: list[str], criteria: Mapping[str, Any], publication: str) -> dict | None:
+        """``{real, choice, kind_confidence, page, usage, model}``: ``real`` and ``page`` are Jev's probabilities of a yes."""
+        body = {"model": self.model, "state": {"publication": publication, "name": name, "passages": passages}, "questions": questions_for(criteria)}
         for attempt in range(self.attempts):
             try:
-                response = self.session.post(self.url, json=body, timeout=30)
+                response = self.session.post(self.url, json=body, timeout=60)
                 if response.status_code == 200:
                     answer = response.json()
-                    kind = answer["answers"]["kind"]
-                    return {"choice": kind["choice"], "confidence": kind["confidence"], "usage": answer.get("usage"), "model": answer.get("model") or self.model}
+                    answers = answer["answers"]
+                    return {
+                        "real": float(answers["real"]["noul"]),
+                        "choice": answers["kind"]["choice"],
+                        "kind_confidence": answers["kind"]["confidence"],
+                        "page": float(answers["page"]["noul"]),
+                        "usage": answer.get("usage"),
+                        "model": answer.get("model") or self.model,
+                    }
                 if response.status_code not in self.RETRY:
                     self.failures[response.status_code] += 1
                     return None
-            except (OSError, KeyError, ValueError):  # a network error (requests' errors are OSErrors) or an answer of another shape
+            except (OSError, KeyError, ValueError, TypeError):  # a network error (requests' errors are OSErrors) or an answer of another shape
                 pass
             self.sleep(2 ** attempt)
         self.failures["gave up"] += 1
@@ -223,9 +340,10 @@ def read_cache(path: Path) -> dict[str, dict]:
 
 def decide(
     candidates: Mapping[str, dict],
-    criteria: Mapping[str, str],
+    criteria: Mapping[str, Any],
     ask: Callable[[str, list[str]], dict | None],
     *,
+    publication: str,
     model: str,
     cache_path: Path,
     workers: int = 12,
@@ -233,7 +351,8 @@ def decide(
     """``(decisions by candidate key, usage of the calls made, names left undecided)``. Cached answers are not asked again; every new
     answer is appended to the cache as it arrives, so a run that stops half way keeps what it paid for."""
     cache = read_cache(cache_path)
-    keys = {key: cache_key(candidate["name"], candidate["contexts"], criteria, model) for key, candidate in candidates.items()}
+    questions = questions_for(criteria)
+    keys = {key: cache_key(candidate["name"], candidate["contexts"], questions, publication, model) for key, candidate in candidates.items()}
     decisions = {key: cache[digest] for key, digest in keys.items() if digest in cache}
     todo = [key for key in candidates if key not in decisions]
     usage: list[dict] = []
@@ -243,7 +362,7 @@ def decide(
             for key, answer in zip(todo, pool.map(lambda key: ask(candidates[key]["name"], candidates[key]["contexts"]), todo)):
                 if answer is None:
                     continue
-                row = {"key": keys[key], "choice": answer["choice"], "confidence": answer["confidence"], "model": answer["model"]}
+                row = {"key": keys[key], **{field: answer[field] for field in ("real", "choice", "kind_confidence", "page")}, "model": answer["model"]}
                 out.write(json.dumps(row) + "\n")
                 out.flush()
                 decisions[key] = row
@@ -263,24 +382,30 @@ def build_output(
     *,
     model: str,
 ) -> dict:
-    """The file ``publish-run --entities`` reads. Mentions of names Jev has not answered for are left out."""
-    by_item: dict[str, list[tuple[int, int, str, str, float, str | None]]] = defaultdict(list)
+    """The file ``publish-run --entities`` reads. Mentions of names Jev has not answered for are left out, and so are names it does not
+    call real. Each proposed entity carries the page answer: Jev's probability that the name deserves a page of its own and whether
+    that is a yes, both 0 for a name with a single mention outside the reference lists (decided here, not asked in the prompt)."""
+    by_item: dict[str, list[tuple[int, int, str, str, float, str | None, float | None]]] = defaultdict(list)
     for item_id, text in documents.items():
         for start, end, written, key, kind in matcher.find(text):
-            by_item[item_id].append((start, end, written, kind, 1.0, key))
+            by_item[item_id].append((start, end, written, kind, 1.0, key, None))
     resolved_spans = {item_id: [(start, end) for start, end, *_rest in mentions] for item_id, mentions in by_item.items()}
     for key, decision in decisions.items():
-        if decision["choice"] == NOT_A_CONCEPT or matcher.knows(candidates[key]["name"]):
+        if decision["real"] < FILED_AT or matcher.knows(candidates[key]["name"]):
             continue
+        page = 0.0 if len(candidates[key]["mentions"]) == 1 else decision["page"]
         for item_id, start, end, written in candidates[key]["mentions"]:
             if any(a <= start and end <= b for a, b in resolved_spans.get(item_id, ())):  # inside the mention of an accepted entity
                 continue
-            by_item[item_id].append((start, end, written, decision["choice"], decision["confidence"], None))
+            by_item[item_id].append((start, end, written, decision["choice"], decision["real"], None, page))
     items = []
     for item_id in sorted(documents):
         entities = [
-            {"id": f"e{number}", "kind": kind, "text": written, "state": "resolved" if entity_key else "proposed", "entity_key": entity_key, "span": {"start": start, "end": end}, "score": score}
-            for number, (start, end, written, kind, score, entity_key) in enumerate(sorted(by_item[item_id], key=lambda mention: mention[:3]), 1)
+            {
+                "id": f"e{number}", "kind": kind, "text": written, "state": "resolved" if entity_key else "proposed", "entity_key": entity_key,
+                "span": {"start": start, "end": end}, "score": score, "page_score": page, "page_answer": None if page is None else page >= FILED_AT,
+            }
+            for number, (start, end, written, kind, score, entity_key, page) in enumerate(sorted(by_item[item_id], key=lambda mention: mention[:3]), 1)
         ]
         items.append({"item_id": item_id, "entities": entities, "relations": []})
     resolved = sum(1 for item in items for entity in item["entities"] if entity["state"] == "resolved")

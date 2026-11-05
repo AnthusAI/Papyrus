@@ -5,7 +5,8 @@ import pytest
 from . import entity_extraction as ex
 
 STOP = {"the", "a", "of", "and", "is", "in", "was", "with", "this", "that", "for"}
-CRITERIA = {"model": "named AI model", "organization": "AI lab or company", ex.NOT_A_CONCEPT: ex.NOT_A_CONCEPT_LABEL}
+CRITERIA = {"model": "named AI model", "organization": "AI lab or company"}
+PUBLICATION = "a publication about demos, building a wiki of concepts"
 
 
 def passages_of(documents):
@@ -58,6 +59,55 @@ def test_each_name_keeps_up_to_three_passages_from_different_documents():
     assert len(found["mentions"]) == 10
 
 
+def names_in(documents):
+    return {found["name"] for found in passages_of(documents).values()}
+
+
+def test_names_inside_a_reference_list_do_not_count():
+    body = "Tern3 beat Maple Lab twice.\n\n## References\n\nSmith J. Cormorant Networks. 2024.\nJones K. Heron Labs. 2023.\n\n## Appendix\n\nTern3 again."
+    documents = {"a": body, "b": body}
+    found = passages_of(documents)
+    assert "tern3" in found and "cormorant networks" not in found and "heron labs" not in found
+    assert all(documents["a"].find("Heron") not in (start,) for _i, start, _e, _t in found["tern3"]["mentions"])
+    assert [mention[1] for mention in found["tern3"]["mentions"] if mention[0] == "a"] == [0, body.index("Tern3 again")]
+
+
+def test_a_citation_number_stuck_to_a_name_is_cut_off_but_a_version_stays():
+    entries = "".join(f"[{n}] Some Author. Paper {n}.\n" for n in range(1, 40))
+    body = f"Tern3 and LiRA27 were compared. Qwen3 won, Qwen3 again, Qwen3 once more. Maple Labs34 agreed.\n\n## References\n\n{entries}"
+    names = names_in({"a": body, "b": body})
+    assert "LiRA" in names and "LiRA27" not in names and "Maple Labs" in names and "Qwen3" in names
+
+
+def test_an_apostrophe_inside_a_name_keeps_it_whole_and_a_possessive_does_not():
+    names = names_in({"a": "Then O'Connell spoke. Maple Lab's staff agreed.", "b": "O'Connell and Maple Lab's staff."})
+    assert "O'Connell" in names and "Maple Lab" in names and "O" not in names
+
+
+def test_a_name_whose_every_mention_is_a_whole_level_one_heading_is_a_title_not_a_candidate():
+    documents = {"a": "# Heron Networks Report\n\nIt is long. Tern3 appears.", "b": "# Heron Networks Report\n\nTern3 again."}
+    names = names_in(documents)
+    assert "Heron Networks Report" not in names and "Tern3" in names
+    kept = names_in({"a": "# Heron Networks Report\n\nThe Heron Networks Report said so.", "b": "Heron Networks Report"})
+    assert "Heron Networks Report" in kept
+    section = names_in({"a": "## Tern Migration\n\ntext", "b": "## Tern Migration\n\ntext"})
+    assert "Tern Migration" in section
+
+
+def test_names_are_not_joined_across_and_unless_the_whole_is_one_proper_name():
+    names = names_in({"a": "Facebook and Instagram met. Cedar Lab and Maple Lab agreed. Ministry of Communications and NITDA spoke. University of Zurich and ETH Zurich co-wrote it.",
+                      "b": "It was the Center for Democracy and Technology that said so. Facebook and Instagram again. Matthew and Maria Raine."})
+    assert {"Facebook", "Instagram", "Cedar Lab", "Maple Lab", "Matthew", "Maria Raine", "NITDA", "ETH Zurich", "University of Zurich"} <= names
+    assert "Center for Democracy and Technology" in names
+    assert not [name for name in names if " and " in name and name != "Center for Democracy and Technology"]
+    assert "Ministry of Communications" in names
+
+
+def test_two_names_joined_by_and_after_a_connector_are_still_two_names():
+    names = names_in({"a": "Institute for Diagnostic and Interventional Radiology. Terms of Service and Privacy Policy. National Agency for Food and Drug Administration and Control.", "b": "x"})
+    assert not [name for name in names if " and " in name]
+
+
 def test_registry_names_resolve_whatever_their_punctuation_or_case_and_a_short_word_keeps_its_case():
     matcher = ex.RegistryMatcher([
         {"key": "model--gpt-4", "kind": "model", "aliases": ["GPT-4"]},
@@ -76,9 +126,10 @@ class Jev:
         self.answers, self.asked = answers, []
 
     def __call__(self, name, passages):
+        """Answers are ``(kind, real, page)``."""
         self.asked.append(name)
         answer = self.answers.get(name.casefold())
-        return {"choice": answer[0], "confidence": answer[1], "usage": {"input_tokens": 500, "output_tokens": 50}, "model": "jev-1.13.0"} if answer else None
+        return {"choice": answer[0], "real": answer[1], "kind_confidence": 0.9, "page": answer[2], "usage": {"input_tokens": 500, "output_tokens": 50}, "model": "jev-1.13.0"} if answer else None
 
 
 def candidates_of(text):
@@ -88,38 +139,48 @@ def candidates_of(text):
 def test_answers_are_cached_by_name_passages_vocabulary_and_model(tmp_path):
     candidates = candidates_of("Tern3 beat Maple Lab.")
     cache = tmp_path / "cache.jsonl"
-    jev = Jev({"tern3": ("model", 0.9), "maple lab": ("organization", 0.8), "beat": (ex.NOT_A_CONCEPT, 0.7)})
-    decisions, usage, undecided = ex.decide(candidates, CRITERIA, jev, model="jev-1", cache_path=cache)
+    jev = Jev({"tern3": ("model", 0.9, 0.8), "maple lab": ("organization", 0.8, 0.4), "beat": ("model", 0.1, 0.0)})
+    decisions, usage, undecided = ex.decide(candidates, CRITERIA, jev, publication=PUBLICATION, model="jev-1", cache_path=cache)
     assert undecided == 0 and len(usage) == len(jev.asked) == len(candidates) and usage[0] == {"model": "jev-1.13.0", "promptTokens": 500, "completionTokens": 50}
     again = Jev({})
-    decisions_again, usage_again, undecided_again = ex.decide(candidates, CRITERIA, again, model="jev-1", cache_path=cache)
+    decisions_again, usage_again, undecided_again = ex.decide(candidates, CRITERIA, again, publication=PUBLICATION, model="jev-1", cache_path=cache)
     assert again.asked == [] and usage_again == [] and undecided_again == 0 and decisions_again == decisions
-    for change in ({"model": "jev-2"}, {"criteria": {**CRITERIA, "software": "a tool"}}):
+    for change in ({"model": "jev-2"}, {"criteria": {**CRITERIA, "software": "a tool"}}, {"publication": "a publication about something else"}):
         fresh = Jev({})
-        ex.decide(candidates, change.get("criteria", CRITERIA), fresh, model=change.get("model", "jev-1"), cache_path=cache)
+        ex.decide(candidates, change.get("criteria", CRITERIA), fresh, publication=change.get("publication", PUBLICATION), model=change.get("model", "jev-1"), cache_path=cache)
         assert len(fresh.asked) == len(candidates)
     changed = {**candidates_of("Tern3 beat Maple Lab.")}
     changed["tern3"] = {**changed["tern3"], "contexts": [*changed["tern3"]["contexts"], "Tern3 in a third document."]}
     fresh = Jev({})
-    ex.decide(changed, CRITERIA, fresh, model="jev-1", cache_path=cache)
+    ex.decide(changed, CRITERIA, fresh, publication=PUBLICATION, model="jev-1", cache_path=cache)
     assert fresh.asked == ["Tern3"]
+
+
+def test_an_answer_cached_for_other_question_text_is_not_reused(tmp_path, monkeypatch):
+    candidates = candidates_of("Tern3 beat Maple Lab.")
+    cache = tmp_path / "cache.jsonl"
+    ex.decide(candidates, CRITERIA, Jev({"tern3": ("model", 0.9, 0.8), "maple lab": ("organization", 0.8, 0.4)}), publication=PUBLICATION, model="jev-1", cache_path=cache)
+    monkeypatch.setattr(ex, "PAGE_QUESTION", {**ex.PAGE_QUESTION, "instructions": "Would a reader want a page?"})
+    fresh = Jev({})
+    ex.decide(candidates, CRITERIA, fresh, publication=PUBLICATION, model="jev-1", cache_path=cache)
+    assert len(fresh.asked) == len(candidates)
 
 
 def test_a_name_jev_could_not_answer_is_counted_and_what_was_paid_for_stays_cached(tmp_path):
     candidates = candidates_of("Tern3 beat Maple Lab.")
     cache = tmp_path / "cache.jsonl"
-    _decisions, usage, undecided = ex.decide(candidates, CRITERIA, Jev({"tern3": ("model", 0.9)}), model="jev-1", cache_path=cache)
+    _decisions, usage, undecided = ex.decide(candidates, CRITERIA, Jev({"tern3": ("model", 0.9, 0.8)}), publication=PUBLICATION, model="jev-1", cache_path=cache)
     assert undecided == len(candidates) - 1 and len(usage) == 1 and len(cache.read_text().splitlines()) == 1
 
 
-def test_the_output_has_the_shape_publish_run_reads_and_keeps_every_confidence(tmp_path):
+def test_the_output_has_the_shape_publish_run_reads_and_keeps_both_answers(tmp_path):
     text = "Tern3 beat Maple Lab. Mistral AI released Tern3. Mistral spoke. Beat."
     documents = {"i1": text, "i2": text}
     candidates = ex.find_candidates(documents, STOP)
     matcher = ex.RegistryMatcher([{"key": "organization--mistral-ai", "kind": "organization", "aliases": ["Mistral AI"]}])
     candidates = {key: found for key, found in candidates.items() if not matcher.knows(found["name"])}
-    jev = Jev({"tern3": ("model", 0.12), "maple lab": ("organization", 0.8), "mistral": ("organization", 0.6)})
-    decisions, _usage, undecided = ex.decide(candidates, CRITERIA, lambda name, passages: jev(name, passages) or {"choice": ex.NOT_A_CONCEPT, "confidence": 0.5, "model": "jev-1.13.0"}, model="jev-1.13.0", cache_path=tmp_path / "c.jsonl")
+    jev = Jev({"tern3": ("model", 0.62, 0.7), "maple lab": ("organization", 0.8, 0.3), "mistral": ("organization", 0.6, 0.9)})
+    decisions, _usage, undecided = ex.decide(candidates, CRITERIA, lambda name, passages: jev(name, passages) or {"choice": "model", "real": 0.2, "kind_confidence": 0.9, "page": 0.9, "model": "jev-1.13.0"}, publication=PUBLICATION, model="jev-1.13.0", cache_path=tmp_path / "c.jsonl")
     output = ex.build_output(documents, candidates, decisions, matcher, {"publication": "p", "version": 1}, model="jev-1.13.0")
     assert undecided == 0 and output["schema_version"] == 1 and output["backend"] == {"id": "jev", "model": "jev-1.13.0"}
     assert set(output) == {"schema_version", "backend", "vocabulary", "items", "summary"} and output["vocabulary"]["publication"] == "p"
@@ -129,12 +190,14 @@ def test_the_output_has_the_shape_publish_run_reads_and_keeps_every_confidence(t
     for entity in item["entities"]:
         by_text.setdefault(entity["text"], []).append(entity)
         assert text[entity["span"]["start"]:entity["span"]["end"]] == entity["text"]
-        assert set(entity) == {"id", "kind", "text", "state", "entity_key", "span", "score"}
+        assert set(entity) == {"id", "kind", "text", "state", "entity_key", "span", "score", "page_score", "page_answer"}
     assert [entity["id"] for entity in item["entities"]] == [f"e{n}" for n in range(1, len(item["entities"]) + 1)]
-    assert by_text["Tern3"][0] == {**by_text["Tern3"][0], "kind": "model", "state": "proposed", "entity_key": None, "score": 0.12}  # no confidence cut-off
+    assert by_text["Tern3"][0] == {**by_text["Tern3"][0], "kind": "model", "state": "proposed", "entity_key": None, "score": 0.62, "page_score": 0.7, "page_answer": True}
     assert by_text["Mistral AI"][0]["state"] == "resolved" and by_text["Mistral AI"][0]["entity_key"] == "organization--mistral-ai" and by_text["Mistral AI"][0]["score"] == 1.0
+    assert (by_text["Mistral AI"][0]["page_score"], by_text["Mistral AI"][0]["page_answer"]) == (None, None)
+    assert (by_text["Maple Lab"][0]["score"], by_text["Maple Lab"][0]["page_score"], by_text["Maple Lab"][0]["page_answer"]) == (0.8, 0.3, False)
     assert [entity["text"] for entity in item["entities"] if entity["text"].startswith("Mistral")] == ["Mistral AI", "Mistral"]
-    assert "Beat" not in by_text
+    assert "Beat" not in by_text  # Jev called it no real thing
     assert output["summary"] == {"entities": sum(len(i["entities"]) for i in output["items"]), "items": 2, "proposed": output["summary"]["entities"] - 2, "resolved": 2, "relations": 0}
 
 
@@ -142,16 +205,34 @@ def test_a_mention_inside_the_mention_of_an_accepted_entity_is_not_proposed_agai
     documents = {"i1": "Mistral AI shipped it."}
     matcher = ex.RegistryMatcher([{"key": "organization--mistral-ai", "kind": "organization", "aliases": ["Mistral AI"]}])
     candidates = {"mistral": {"name": "Mistral", "contexts": ["x"], "mentions": [("i1", 0, 7, "Mistral")]}}
-    output = ex.build_output(documents, candidates, {"mistral": {"choice": "organization", "confidence": 0.9}}, matcher, {}, model="m")
+    output = ex.build_output(documents, candidates, {"mistral": {"choice": "organization", "real": 0.9, "page": 0.9}}, matcher, {}, model="m")
     assert [entity["state"] for entity in output["items"][0]["entities"]] == ["resolved"]
 
 
-def test_the_vocabulary_cannot_use_the_answer_that_means_not_a_concept():
-    with pytest.raises(ex.ExtractionError):
-        ex.criteria_of({"entity_kinds": [{"key": ex.NOT_A_CONCEPT, "label": "x"}]})
+def test_a_low_confidence_that_the_name_is_real_is_kept_and_a_single_mention_has_no_page_whatever_jev_said():
+    documents = {"i1": "Tern3 beat Maple Lab. Tern3 won.", "i2": "Kestrel flew."}
+    candidates = {
+        "tern3": {"name": "Tern3", "contexts": ["x"], "mentions": [("i1", 0, 5, "Tern3"), ("i1", 22, 27, "Tern3")]},
+        "kestrel": {"name": "Kestrel", "contexts": ["y"], "mentions": [("i2", 0, 7, "Kestrel")]},
+    }
+    decisions = {"tern3": {"choice": "model", "real": 0.51, "page": 0.99}, "kestrel": {"choice": "model", "real": 0.9, "page": 0.99}}
+    output = ex.build_output(documents, candidates, decisions, ex.RegistryMatcher([]), {}, model="m")
+    tern = [entity for entity in output["items"][0]["entities"]]
+    assert [(e["score"], e["page_score"], e["page_answer"]) for e in tern] == [(0.51, 0.99, True)] * 2
+    kestrel = output["items"][1]["entities"][0]
+    assert (kestrel["score"], kestrel["page_score"], kestrel["page_answer"]) == (0.9, 0.0, False)
+
+
+def test_the_kinds_come_from_the_vocabulary_with_their_description_when_it_has_one():
     with pytest.raises(ex.ExtractionError):
         ex.criteria_of({"entity_kinds": []})
-    assert list(ex.criteria_of({"entity_kinds": [{"key": "model", "label": "a model"}]})) == ["model", ex.NOT_A_CONCEPT]
+    assert ex.criteria_of({"entity_kinds": [{"key": "model", "label": "a model"}, {"key": "task", "label": "a task", "what": "a job a system does", "not_for": "its method"}]}) == {
+        "model": "a model", "task": {"what": "a job a system does", "not_for": "its method"}}
+
+
+def test_the_publication_is_described_from_the_vocabulary_not_from_code():
+    assert ex.describe_publication({"publication": "demo", "description": "a publication about gardens"}) == "a publication about gardens, building a wiki of concepts"
+    assert ex.describe_publication({"publication": "demo"}) == "the demo publication, building a wiki of concepts"
 
 
 class Response:
@@ -174,18 +255,19 @@ class Session:
         return response
 
 
-ANSWER = {"answers": {"kind": {"choice": "model", "confidence": 0.9}}, "usage": {"input_tokens": 5, "output_tokens": 1}, "model": "jev-1.13.0"}
+ANSWER = {"answers": {"real": {"type": "noul", "noul": 0.7}, "kind": {"choice": "model", "confidence": 0.9}, "page": {"type": "noul", "noul": 0.4}}, "usage": {"input_tokens": 5, "output_tokens": 1}, "model": "jev-1.13.0"}
 
 
-def test_the_client_asks_one_choice_per_name_and_retries_what_is_worth_retrying():
+def test_the_client_asks_three_questions_per_name_in_one_request_and_retries_what_is_worth_retrying():
     waits = []
     session = Session([Response(429), OSError("reset"), Response(200, ANSWER)])
     client = ex.JevClient("key", session=session, sleep=waits.append)
     answer = client.ask("Tern3", ["p1"], CRITERIA, "demo")
-    assert answer["choice"] == "model" and answer["usage"] == {"input_tokens": 5, "output_tokens": 1} and waits == [1, 2]
+    assert (answer["real"], answer["choice"], answer["kind_confidence"], answer["page"]) == (0.7, "model", 0.9, 0.4) and answer["usage"] == {"input_tokens": 5, "output_tokens": 1} and waits == [1, 2]
     assert session.headers["Authorization"] == "Bearer key"
     body = session.posted[0]
-    assert body["model"] == "jev-1.13.0" and body["state"]["name"] == "Tern3" and body["state"]["passages"] == ["p1"]
+    assert body["model"] == "jev-1.13.0" and body["state"] == {"publication": "demo", "name": "Tern3", "passages": ["p1"]}
+    assert list(body["questions"]) == ["real", "kind", "page"] and body["questions"]["real"]["type"] == body["questions"]["page"]["type"] == "noul"
     assert body["questions"]["kind"]["type"] == "choice" and body["questions"]["kind"]["criteria"] == CRITERIA
 
 
@@ -208,7 +290,7 @@ class FakeClient:
 
     def ask(self, name, passages, criteria, publication):
         FakeClient.asked.append(name)
-        return None if name == "Stuck" else {"choice": "model", "confidence": 0.9, "usage": {"input_tokens": 10, "output_tokens": 2}, "model": self.model}
+        return None if name == "Stuck" else {"choice": "model", "real": 0.9, "kind_confidence": 0.9, "page": 0.8, "usage": {"input_tokens": 10, "output_tokens": 2}, "model": self.model}
 
 
 def corpus_for_command(tmp_path, text):

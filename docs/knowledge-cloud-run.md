@@ -20,7 +20,7 @@ Each stage is one ECS Fargate task (ARM64, CPU, 4 vCPU and 16 GB to start) from 
 | --- | --- |
 | `corpus-sync` | Checkout of the site repository at the commit of the Amplify app's latest successful deploy (see below), `corpus export`, `reindex`, extraction snapshot (steps 1-3) |
 | `topic-model` | BERTopic, weekly trends, topic identity against the previous run kept in S3 (steps 4-6) |
-| `typed-extraction` | Front-matter import, registry, `papyrus knowledge extract-entities` (Jev decides what kind of concept each candidate name is; steps 7-8) |
+| `typed-extraction` | Front-matter import, registry, `papyrus knowledge extract-entities` (Jev decides which candidate names are real, what kind they are and whether they deserve a page; steps 7-8) |
 | `publish-run` | Import clusters, entities and relations; then record the run as next week's `previousRunId` (steps 9-10) |
 | `ai-review` | GPT-6 Luna reviews the extractor's entities, new clusters and relations (step 11); see below |
 | `publish-relations` | Import again, so relations between entities accepted by the review land |
