@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a48e9c69-f454-49b9-9089-6642dd61e980",
+  "issue_id": "PPY-427b0509-dd35-402f-b729-74c321856cd5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T20:45:43.454Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Complete delegated Reference ratings and publication actions",
+    "description": "Reuse the existing delegated star authority for hosted MCP without handing secrets to chat or a card. Define safe conditional publication under existing gates; retain the current exact-version approval request until it is proven. Close the documented Reference lineage concurrency window.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
+    "labels": []
+  }
+}
