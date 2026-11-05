@@ -40,7 +40,7 @@ from html.parser import HTMLParser
 from typing import Any
 
 from papyrus_content import pdf_text
-from papyrus_content.monitoring import _SESSION_PATH_PARAMETER, without_session_junk
+from papyrus_content.monitoring import _SESSION_PATH_PARAMETER, is_tracking_parameter, without_session_junk
 from papyrus_content.ideas.excerpt import MAXIMUM_BYTES, TIMEOUT_SECONDS, USER_AGENT, excerpt_from_html
 from papyrus_content.ideas.source_text import MAXIMUM_PDF_BYTES, WRAPPER_TEXT_CHARACTERS, excerpt_from_pdf, main_pdf_link
 from papyrus_content.link_search import (
@@ -79,14 +79,6 @@ MATCH_THRESHOLD = 0.6
 REDIRECT_STATUSES = frozenset({300, 301, 302, 303, 307, 308})
 BLOCKED_STATUSES = frozenset({401, 403, 407, 429, 999})
 ACCEPT = "text/html,application/pdf;q=0.9,*/*;q=0.5"
-
-TRACKING_PARAMETERS = frozenset({
-    "fbclid", "gclid", "dclid", "gbraid", "wbraid", "msclkid", "yclid", "twclid", "igshid", "li_fat_id", "mc_cid", "mc_eid",
-    "_hsenc", "_hsmi", "__hssc", "__hstc", "__hsfp", "mkt_tok", "vero_id", "vero_conv", "oly_enc_id", "oly_anon_id", "_bhlid",
-    "bhlid", "ck_subscriber_id", "s_cid", "cmpid", "ref_src", "ss_source", "ss_campaign_id", "trk", "trkcampaign", "wickedid",
-    "elqtrackid", "sg_uid", "rb_clickid", "ito", "__s", "_ga", "_gl", "pk_campaign", "pk_kwd", "sc_cid", "mbid",
-})
-TRACKING_PREFIXES = ("utm_", "mc_", "hsa_", "elq", "vero_", "sg_", "oly_", "pk_")
 
 GENERIC_LINK_TEXT = re.compile(
     r"^(?:read|view|click|see|learn|watch|listen|get|open|continue|visit|check)\b.{0,24}$|^(?:more|here|link|source|article|story|"
@@ -287,11 +279,6 @@ def _address_problem(url: str) -> str | None:
     except ValueError:
         return None if "." in lowered else "not_public"
     return None if address.is_global else "not_public"
-
-
-def is_tracking_parameter(name: str) -> bool:
-    lowered = name.lower()
-    return lowered in TRACKING_PARAMETERS or lowered.startswith(TRACKING_PREFIXES)
 
 
 def canonical_url(url: str) -> str:

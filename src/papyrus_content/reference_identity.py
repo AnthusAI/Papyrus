@@ -37,7 +37,7 @@ _TITLE_WORDS = re.compile(r"[^\W_]+", re.UNICODE)
 def canonical_url_key(value: Any) -> str | None:
     """The URL key of an address, or None when it is not an HTTP(S) address.
 
-    Starts from ``monitoring.canonical_url`` (scheme and host lower-cased, fragment dropped, ``utm_*``, ``fbclid`` and ``gclid`` dropped) and then
+    Starts from ``monitoring.canonical_url`` (scheme and host lower-cased, fragment dropped, tracking parameters dropped) and then
     also ignores what ``reference_intake_validation.canonical_source_url`` removes and the older monitor key keeps: the default port, and an
     internationalised host spelled in Unicode versus punycode. It additionally treats these as the same address: http and https, a leading
     ``www.``, a trailing slash on the path, and the order of query parameters.
