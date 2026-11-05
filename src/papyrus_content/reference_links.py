@@ -124,7 +124,8 @@ def _write_edge(
         **_state_keys(subject["kind"], subject["lineageId"], object_["kind"], object_["lineageId"], predicate, state),
         "subjectVersionKey": f"{subject['kind']}#{subject['id']}",
         "objectVersionKey": f"{object_['kind']}#{object_['id']}",
-        "score": score,
+        # score sorts two indexes on this model and DynamoDB refuses a null index key; a person's link is certain (as in catalog.semantic_relation_record).
+        "score": score if score is not None else 1,
         "confidence": confidence,
         "rank": 1,
         "classifierId": classifier_id,

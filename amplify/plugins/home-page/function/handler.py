@@ -15,13 +15,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import time
 from typing import Any, Mapping
 
+#: ``predictedAcceptProbability`` is the prediction itself: its first write is what makes a pending Reference appear, so it is watched on its own (the sort key moves with it, but the number is the fact).
 #: ``starRating`` is printed on an accepted Reference's tile and orders every page, so a rating change on its own (the old and new image differ in nothing else)
 #: must reach the pages. Who rated and when are private and not watched.
-CHANGE_FIELDS = ("curationStatus", "feedStateKey", "predictionSortKey", "versionState", "title", "curationSectionId", "starRating", "medium", "thumbnailPath")
+CHANGE_FIELDS = ("curationStatus", "feedStateKey", "predictionSortKey", "predictedAcceptProbability", "versionState", "title", "curationSectionId", "starRating", "medium", "thumbnailPath")
 MESSAGE_CHANGE_FIELDS = ("status", "content", "editedAt", "deletedAt")
 PUBLIC_MESSAGE_KIND = "comment"
 CHANGING_EVENTS = ("INSERT", "MODIFY")
@@ -34,7 +36,6 @@ FULL_KEY_PREFIX = "home-page-full#"
 DIRTY_LIMIT = 2000
 ACCEPTED = "accepted"
 NOT_RECOMMENDABLE = ("rejected", "archived")
-NO_THUMBNAIL = "none"
 HOUR_SECONDS = 3600
 CONDITION_FAILED = "ConditionalCheckFailedException"
 SCHEDULE_CONFLICT = "ConflictException"
@@ -46,32 +47,31 @@ def error_code(error: Exception) -> str:
     return str(response.get("Error", {}).get("Code") or type(error).__name__)
 
 
+def has_prediction(image: Mapping[str, Any]) -> bool:
+    """True when the row holds a real prediction: a finite number in ``predictedAcceptProbability``.
+
+    This mirrors ``papyrus_content.home_page.export.stored_prediction``, the rule the snapshot publishes by (this file cannot import that package; a test in
+    ``home_page/export_test.py`` runs both over the same rows). ``predictionDecidedAt`` is written together with the number and is not the test, and
+    ``predictionSortKey`` is no evidence at all: every Reference gets one at creation (``0.500000#...`` when unpredicted).
+    """
+    value = (image.get("predictedAcceptProbability") or {}).get("N")
+    try:
+        return value is not None and math.isfinite(float(value))
+    except (TypeError, ValueError):
+        return False
+
+
 def can_show(image: Mapping[str, Any]) -> bool:
-    """True for a Reference a page can show: an accepted one, or a pending one the Cyclotron has predicted (the only kind that is ever recommended)."""
+    """True for a Reference a page can show: an accepted one, or a pending one the Cyclotron has predicted. A pending one nobody has predicted is on no page, so a change to it schedules nothing until its first prediction arrives (that write is the change that makes it appear)."""
     status = (image.get("curationStatus") or {}).get("S")
     if status == ACCEPTED:
         return True
     if not status or status in NOT_RECOMMENDABLE:
         return False
-    return any(image.get(name) is not None and not image[name].get("NULL") for name in ("predictionDecidedAt", "predictedAcceptProbability"))
+    return has_prediction(image)
 
 
-def thumbnail_stored(old_image: Mapping[str, Any], new_image: Mapping[str, Any]) -> bool:
-    """True when the change gives a Reference that is not rejected or archived a copy of its video's picture.
-
-    A pending video nobody has predicted is not a prediction-gated Reference in the snapshot: the full read lists every unrated pending Reference and
-    publishes it as recommended when the undecided probability reaches the threshold, so its card is on the page, without an image until its row is read
-    again. Only this one write is let through the gate (the capture worker writes it once per video); every other write to an unpredicted pending
-    Reference still schedules nothing. ``none`` (no picture could be fetched) leaves the card as it was.
-    """
-    status = (new_image.get("curationStatus") or {}).get("S")
-    if not status or status in NOT_RECOMMENDABLE:
-        return False
-    path = (new_image.get("thumbnailPath") or {}).get("S")
-    return bool(path) and path != NO_THUMBNAIL and (old_image.get("thumbnailPath") or {}).get("S") != path
-
-
-def record_change(record:Mapping[str, Any]) -> dict[str, Any] | None:
+def record_change(record: Mapping[str, Any]) -> dict[str, Any] | None:
     """What the record changes for a public page: ``{"id": <Reference id>}`` or ``{"message": True}``; ``None`` when it changes nothing a page shows."""
     event_name = record.get("eventName")
     images = record.get("dynamodb") or {}
@@ -85,7 +85,7 @@ def record_change(record:Mapping[str, Any]) -> dict[str, Any] | None:
         return None
     if "messageKind" in new_image:
         return {"message": True} if message_changed(old_image, new_image) else None
-    if not (can_show(old_image) or can_show(new_image) or thumbnail_stored(old_image, new_image)):
+    if not (can_show(old_image) or can_show(new_image)):
         return None
     if event_name == "MODIFY" and not any(old_image.get(field) != new_image.get(field) for field in CHANGE_FIELDS):
         return None

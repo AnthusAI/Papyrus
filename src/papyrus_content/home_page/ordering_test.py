@@ -173,3 +173,24 @@ def test_rank_in_buckets_ranks_stories_inside_a_bucket_and_keeps_every_story():
 def test_rank_in_buckets_without_any_stars_is_the_list_it_was_given():
     stories = [("a", "2026-02-08"), ("b", "2026-02-07"), ("c", "2026-01-30"), ("d", "2026-01-20")]
     assert rank_in_buckets(stories, stars=lambda story: None, moment=lambda story: story[1], bucket="week") == stories
+
+
+def test_a_reference_with_no_confidence_ranks_below_every_scored_one_and_never_ties_with_a_real_half():
+    """Ryan, 2026-11-05: no confidence is not 0.5. An accepted Reference the Cyclotron never scored is unrated and unscored: after the scored ones, before a low rating."""
+    items = [reference("unscored", None, None, "2026-10-20T00:00:00.000Z"), reference("half", None, 0.5, "2026-10-01T00:00:00.000Z"), reference("zero", None, 0.0, "2026-10-01T00:00:00.000Z"),
+             reference("low", 2, None), reference("high", 4, None)]
+    assert shared(items) == ["high", "half", "zero", "unscored", "low"], "newer does not lift it over a scored one, not even a confident reject"
+
+
+def test_unscored_references_go_newest_first_then_by_key():
+    items = [reference("b", None, None, "2026-10-02T00:00:00.000Z"), reference("a", None, None, "2026-10-02T00:00:00.000Z"), reference("c", None, None, "2026-10-03T00:00:00.000Z")]
+    assert shared(items) == ["c", "a", "b"]
+
+
+def test_a_missing_or_bad_confidence_in_a_public_record_is_none_and_the_build_orders_it_as_unscored():
+    from papyrus_content.home_page.ordering import confidence_of
+
+    assert confidence_of({"confidence": None}) is None and confidence_of({}) is None and confidence_of({"confidence": True}) is None
+    assert confidence_of({"confidence": 0.0}) == 0.0 and confidence_of({"confidence": 0.5}) == 0.5
+    records = [{"key": "none", "arrivedAt": "2026-10-09T00:00:00.000Z"}, {"key": "half", "confidence": 0.5, "arrivedAt": "2026-10-01T00:00:00.000Z"}]
+    assert [record["key"] for record in order_public_records(records)] == ["half", "none"]

@@ -15,7 +15,7 @@ if (!sitePath) {
 }
 const site = parseSiteConfig(JSON.parse(fs.readFileSync(path.resolve(sitePath), "utf8")));
 const env = resolveDeployEnvironment(site);
-const config = resolveKnowledgeRunConfig(site);
+const config = resolveKnowledgeRunConfig(site, process.env, path.dirname(path.resolve(sitePath)));
 
 // Synth works without an image tag so tests and `cdk diff` of everything but the image run; deploy with a real one.
 const imageTag = (app.node.tryGetContext("imageTag") as string | undefined)?.trim() || "placeholder";

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftIcon, CheckIcon, CircleDashedIcon, ExternalLinkIcon, GlobeLockIcon, ImagePlusIcon, RouteIcon } from "lucide-react";
+import { ArrowLeftIcon, CheckIcon, CircleDashedIcon, ExternalLinkIcon, GlobeLockIcon, ImagePlusIcon, ImagesIcon, RouteIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { isGeneratedIdeaFrontMatter, stageForIdeaDecision, writeIdeaDecision, type IdeaDecisionRecord } from "../lib/idea-decision";
 import { IdeaDecision } from "./idea-decision";
 import { SeededFromReferenceNote } from "./seeded-from-reference-note";
+import { CoverImagePicker, type PickedImage } from "./cover-image-picker";
+import { accessTokenFromAmplify, createLiveStockImageClient } from "../lib/stock-images/client";
+import { createDemoStockImageClient } from "../lib/stock-images/demo-client";
+import { bodyWithCover, coverDirective, coverRecord, creditLine, frontMatterWithCover, replaceableCoverSources } from "../lib/stock-images/cover";
 import { FRONT_MATTER_BLURB_KEY, FRONT_MATTER_SUBTITLE_KEY, FRONT_MATTER_TITLE_KEY, readFrontMatterText, writeFrontMatterText } from "../lib/front-matter-fields";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ContentActionFailure, type ContentActionError } from "../lib/content-actions-client";
@@ -162,11 +166,13 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
   const [imageUploading, setImageUploading] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
   const [imageNotice, setImageNotice] = useState<string | null>(null);
+  const [coverPickerOpen, setCoverPickerOpen] = useState(false);
 
   const frontMatterRef = useRef<HTMLTextAreaElement | null>(null);
   const bodyRef = useRef<MarkusBodyEditorHandle | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const mediaBackend = useMemo(() => resolveMediaBackend(previewMode), [previewMode]);
+  const stockImageClient = useMemo(() => (previewMode ? createDemoStockImageClient() : createLiveStockImageClient(accessTokenFromAmplify)), [previewMode]);
   const validationSequence = useRef(0);
 
   useEffect(() => {
@@ -333,6 +339,21 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
     } finally {
       setImageUploading(false);
     }
+  };
+
+  /** The editor accepted a stock image: copy it in through the same upload as "Insert image", then put it in the draft as the cover. Saving makes the new version. */
+  const acceptCover = async (picked: PickedImage) => {
+    if (!editor || editor.id === null) return;
+    const uploaded = await uploadArticleImage(mediaBackend, readImageDimensions, { itemId: editor.id, slug: editor.slug, file: picked.file });
+    const record = coverRecord(picked.candidate, uploaded.srcPath, new Date().toISOString(), picked.pickedBy);
+    const directive = coverDirective(uploaded.srcPath, picked.candidate.description || picked.candidate.title, creditLine(picked.candidate));
+    const bodyMarkus = bodyWithCover(editor.bodyMarkus, directive, replaceableCoverSources(editor.frontMatterYaml));
+    const frontMatterYaml = frontMatterWithCover(editor.frontMatterYaml, record);
+    setImageUrls((current) => ({ ...current, [uploaded.srcPath]: uploaded.imageUrl }));
+    patchEditor({ bodyMarkus, frontMatterYaml });
+    setCoverPickerOpen(false);
+    setImageError(null);
+    setImageNotice(`Cover set to "${picked.candidate.title}" by ${picked.candidate.creator}. Save the draft to keep it as a new version. A photo has no Night version, so it is shown as it is in dark mode.`);
   };
 
   useEffect(() => {
@@ -883,6 +904,17 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
                     {imageUploading ? <Spinner /> : <ImagePlusIcon aria-hidden="true" />}
                     Insert image
                   </Button>
+                  <Button
+                    data-newsroom-article-cover-image
+                    disabled={editor.id === null || busy !== null || coverPickerOpen}
+                    onClick={() => setCoverPickerOpen(true)}
+                    size="xs"
+                    type="button"
+                    variant="outline"
+                  >
+                    <ImagesIcon aria-hidden="true" />
+                    Cover image
+                  </Button>
                   <input
                     accept="image/*"
                     aria-label="Image file"
@@ -905,6 +937,15 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
                 <p className="text-xs font-normal text-muted-foreground" data-newsroom-article-image-dark-hint>
                   For a dark-mode picture, insert the light image first, then upload a file named like it with .dark before the extension (figure.png and figure.dark.png). Same proportions, please.
                 </p>
+                {coverPickerOpen && editor.id !== null ? (
+                  <CoverImagePicker
+                    client={stockImageClient}
+                    onClose={() => setCoverPickerOpen(false)}
+                    onPicked={acceptCover}
+                    summary={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_BLURB_KEY) || readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_SUBTITLE_KEY) || editor.bodyMarkus.split("\n").filter((line) => !/^\s*(:::?|#)/.test(line)).join(" ").slice(0, 600)}
+                    title={readFrontMatterText(editor.frontMatterYaml, FRONT_MATTER_TITLE_KEY) || editor.slug}
+                  />
+                ) : null}
                 {imageNotice ? (
                   <p className="text-xs font-normal text-muted-foreground" data-newsroom-article-image-notice role="status">
                     {imageNotice}

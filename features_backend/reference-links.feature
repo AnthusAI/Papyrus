@@ -77,3 +77,7 @@ Feature: References are linked to each other and tagged with concepts, and a sug
     When the suggestion cut is learned
     Then there is no cut and the reason is "no cut: too few decisions"
     And a suggestion scored 0.85 is not marked
+
+  Scenario: A person's link is written with a score the indexes accept
+    When an editor tags "reference-a" with the concept "node-voice"
+    Then the link has a score, because the indexes that sort by it refuse a null

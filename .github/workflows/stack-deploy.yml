@@ -3,8 +3,11 @@
 #   pull request  a read-only dry run prints what the release would change, as a job summary
 #   push to main  tests pass, then each stack whose inputs changed since the last successful run is built, change-set, read and executed
 #
-# AWS access is GitHub OIDC only (no stored keys). The roles come from infra/pipeline/papyrus-stack-pipeline.yaml, the one stack a person
-# deploys by hand, once. The account id lives in the AWS_ACCOUNT_ID repository variable, not in Git. Public repository only.
+# AWS access is GitHub OIDC only (no stored keys). The roles come from infra/pipeline/papyrus-stack-pipeline.yaml, which is changed only by the
+# approval-gated workflow role-stack-deploy.yml (merge, a plan appears, the reviewer approves in GitHub). The dry run and the deploy both say, in the
+# job summary, when the roles in the account differ from that file, and a permission refusal names that workflow. A change to that file puts
+# both stacks in scope on purpose, so the release runs this check. The account id lives in the AWS_ACCOUNT_ID
+# repository variable, not in Git. Public repository only.
 # Which stacks, which paths and which parameters: infra/pipeline/stacks.json. What may be removed or replaced: infra/pipeline/allowed-changes.json.
 # The safety checks live in infra/pipeline/stack_deploy.py and are tested.
 name: stack-deploy
@@ -49,7 +52,7 @@ jobs:
         run: python infra/pipeline/stack_deploy.py scope --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}"
       - name: Say why there is no dry run yet
         if: steps.scope.outputs.deploy == 'true' && vars.AWS_ACCOUNT_ID == ''
-        run: echo "::notice::Set the AWS_ACCOUNT_ID repository variable (see infra/pipeline/README.md) to get the dry run."
+        run: echo "::notice::Set the AWS_ACCOUNT_ID repository variable (one-time account setup, see infra/pipeline/README.md) to get the dry run."
       - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         if: steps.scope.outputs.deploy == 'true' && vars.AWS_ACCOUNT_ID != ''
         with:
@@ -111,7 +114,7 @@ jobs:
       - name: The AWS_ACCOUNT_ID variable is set
         env:
           ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
-        run: test -n "$ACCOUNT" || { echo "::error::Set the AWS_ACCOUNT_ID repository variable (infra/pipeline/README.md)"; exit 1; }
+        run: test -n "$ACCOUNT" || { echo "::error::Set the AWS_ACCOUNT_ID repository variable - one-time account setup, see infra/pipeline/README.md"; exit 1; }
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:

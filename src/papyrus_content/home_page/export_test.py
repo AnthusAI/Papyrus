@@ -15,6 +15,10 @@ from papyrus_content.home_page.export import (
     PUBLIC_SOURCE_FIELDS,
     WithheldReference,
     accept_probability,
+    entry_of,
+    has_prediction,
+    is_chosen,
+    stored_prediction,
     clip_summary,
     collect_references,
     public_key,
@@ -53,7 +57,7 @@ def test_public_key_is_twelve_hex_characters_of_the_lineage_hash():
 @pytest.mark.parametrize(
     ("decision", "expected"),
     [
-        (None, 0.5),
+        (None, None),
         ({"label": "include", "confidence": 0.93, "positiveLabel": None}, 0.93),
         ({"label": "exclude", "confidence": 0.9, "positiveLabel": None}, pytest.approx(0.1)),
         ({"label": "keep", "confidence": 0.8, "positiveLabel": "keep"}, 0.8),
@@ -111,7 +115,7 @@ def test_an_excluded_name_in_the_allowlist_is_refused_when_a_record_is_built(mon
 def test_an_export_of_the_fixture_has_no_excluded_name_value_or_identity():
     client = FixtureClient()
     records = collect_references(client, client.corpus_id, HomePageSettings())
-    assert len(records) == 12
+    assert len(records) == 11
     text = json.dumps(records)
     for record in records:
         assert not set(record) & set(EXCLUDED_REFERENCE_FIELDS)
@@ -126,9 +130,9 @@ def test_an_export_of_the_fixture_has_no_excluded_name_value_or_identity():
 def test_collect_references_returns_accepted_then_recommended_and_nothing_else():
     client = FixtureClient()
     records = collect_references(client, client.corpus_id, HomePageSettings())
-    assert [record["status"] for record in records] == ["accepted"] * 8 + ["recommended"] * 4
+    assert [record["status"] for record in records] == ["accepted"] * 8 + ["recommended"] * 3
     titles = [record["title"] for record in records]
-    for absent in ("Rejected", "Archived", "Pending low", "Pending predicted reject", "Superseded old version"):
+    for absent in ("Rejected", "Archived", "Pending low", "Pending predicted reject", "Superseded old version", "Pending undecided"):
         assert absent not in titles
 
 
@@ -233,3 +237,79 @@ def test_the_confidence_of_a_reference_an_editor_accepted_is_not_published_but_a
     assert made(curationActorKind="rule")["confidence"] == 0.9
     assert made(curationActorKind=None)["confidence"] == 0.9
     assert made(curationStatus="pending")["confidence"] == 0.9
+
+
+def pending_row(**changes):
+    return {"id": "l-v1", "lineageId": "l", "title": "T", "sourceUri": "https://example.org/a", "curationStatus": "pending", **changes}
+
+
+def test_what_counts_as_a_real_prediction_is_the_stored_probability_alone():
+    """Ryan, 2026-11-05: an unpredicted Reference is not 50%. Only a finite ``predictedAcceptProbability`` on the row is a prediction."""
+    assert stored_prediction(pending_row()) is None
+    assert stored_prediction(pending_row(predictedAcceptProbability=None)) is None
+    assert stored_prediction(pending_row(predictedAcceptProbability=True)) is None
+    assert stored_prediction(pending_row(predictedAcceptProbability="0.9")) is None
+    assert stored_prediction(pending_row(predictedAcceptProbability=float("nan"))) is None
+    assert stored_prediction(pending_row(predictionDecidedAt="2026-11-04T10:00:00.000Z")) is None, "a decision time without the number is not a prediction"
+    assert stored_prediction(pending_row(predictionSortKey="0.500000#2026-11-04T18:49:50.761Z#reference-a-v1")) is None, "every row has a sort key from creation"
+    assert stored_prediction(pending_row(predictedAcceptProbability=0.5)) == 0.5, "a prediction that really is 0.5 is a prediction"
+    assert stored_prediction(pending_row(predictedAcceptProbability=0)) == 0.0
+
+
+def test_a_pending_reference_with_no_prediction_is_not_chosen_whatever_its_decision_or_the_threshold():
+    settings = HomePageSettings()
+    decision = {"label": "include", "confidence": 0.99, "positiveLabel": None}
+    assert not is_chosen(pending_row(), None, settings)
+    assert not is_chosen(pending_row(), decision, settings), "a decision relation without the prediction written onto the row is not public yet"
+    low = home_page_settings_from_mapping({"references": {"recommendedThreshold": 0}})
+    assert not is_chosen(pending_row(), None, low), "not even a threshold of zero lets a missing prediction through"
+
+
+def test_a_prediction_of_exactly_the_threshold_still_passes_and_the_threshold_still_decides():
+    settings = HomePageSettings()
+    assert is_chosen(pending_row(predictedAcceptProbability=0.5), None, settings)
+    assert not is_chosen(pending_row(predictedAcceptProbability=0.49), None, settings)
+    assert is_chosen(pending_row(predictedAcceptProbability=0.2), {"label": "include", "confidence": 0.9, "positiveLabel": None}, settings), "the live decision is the number compared"
+
+
+def test_an_accepted_reference_with_no_prediction_stays_public_and_shows_no_confidence():
+    row = {**pending_row(curationStatus="accepted", curationActorKind="rule")}
+    settings = home_page_settings_from_mapping({"references": {"corpus": "c"}})
+    assert is_chosen(row, None, settings)
+    record = public_reference(row, None, None, {}, settings)
+    assert record["confidence"] is None and record["predictedAcceptProbability"] is None
+    entry = entry_of(row, None, None, {}, settings)
+    assert entry.standing.confidence is None, "the order is told there is none, not 0.5"
+
+
+def test_the_stored_prediction_stands_in_for_a_decision_relation_that_is_missing_but_a_decision_wins():
+    settings = home_page_settings_from_mapping({"references": {"corpus": "c"}})
+    row = pending_row(predictedAcceptProbability=0.8)
+    assert public_reference(row, None, None, {}, settings)["confidence"] == 0.8
+    assert public_reference(row, {"label": "include", "confidence": 0.7, "positiveLabel": None}, None, {}, settings)["confidence"] == 0.7
+
+
+def test_the_home_page_trigger_and_the_snapshot_agree_on_which_pending_rows_have_a_prediction():
+    """The trigger cannot import this package, so its ``can_show`` mirrors ``stored_prediction``; both are run over the same rows."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("home_page_trigger", SOURCE_ROOT.parent / "amplify" / "plugins" / "home-page" / "function" / "handler.py")
+    trigger = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(trigger)
+
+    def image_of(row):
+        return {name: ({"N": str(value)} if isinstance(value, (int, float)) and not isinstance(value, bool) else {"NULL": True} if value is None else {"S": str(value)}) for name, value in row.items()}
+
+    rows = [
+        pending_row(), pending_row(predictedAcceptProbability=None), pending_row(predictedAcceptProbability=0.9), pending_row(predictedAcceptProbability=0.5),
+        pending_row(predictedAcceptProbability=0), pending_row(predictedAcceptProbability="0.9"),
+        pending_row(predictionDecidedAt="2026-11-04T10:00:00.000Z"), pending_row(predictionSortKey="0.500000#a#b"),
+        pending_row(predictionDecidedAt="2026-11-04T10:00:00.000Z", predictionSortKey="0.500000#a#b"),
+    ]
+    for row in rows:
+        row = {**row, "predictedAcceptProbability": row.get("predictedAcceptProbability")} if "predictedAcceptProbability" in row else row
+        assert trigger.can_show(image_of(row)) == has_prediction(row), row
+    accepted = pending_row(curationStatus="accepted")
+    assert trigger.can_show(image_of(accepted)) and is_chosen(accepted, None, HomePageSettings())
+    for status in ("rejected", "archived"):
+        assert not trigger.can_show(image_of(pending_row(curationStatus=status, predictedAcceptProbability=0.9)))

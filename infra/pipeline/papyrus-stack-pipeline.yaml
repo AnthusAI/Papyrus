@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Roles for the release pipeline that deploys the shared stacks (PPY-b8cc79). This is the one stack a person deploys by hand,
-  once; after that every shared stack deploys from a release to main with GitHub OIDC (no stored keys).
-  The account's GitHub OIDC provider already exists (one per account); this stack references it by ARN and never creates it.
-  Deploy with: aws cloudformation deploy --template-file infra/pipeline/papyrus-stack-pipeline.yaml
-  --stack-name papyrus-stack-pipeline --capabilities CAPABILITY_NAMED_IAM
+  Roles for the release pipeline that deploys the shared stacks (PPY-b8cc79). Nobody deploys this stack from a laptop: the workflow
+  .github/workflows/role-stack-deploy.yml plans a change to it on every merge to develop or main and applies it after a person approves
+  in the GitHub environment pipeline-roles (PPY-9d1b3e). The small stack that workflow runs as is infra/pipeline/papyrus-pipeline-approver.yaml,
+  applied once per AWS account. Every other shared stack then deploys from a release to main with GitHub OIDC (no stored keys).
+  The account's GitHub OIDC provider is referenced by ARN; the approver stack can create it on an account that has none.
 
 Parameters:
   GitHubRepository:
@@ -42,6 +42,10 @@ Resources:
                 Resource:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-monitoring/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-newsletter-sending-operators/*
+              - Sid: ReadThePipelineStackToSeeWhetherItIsOutOfDate
+                Effect: Allow
+                Action: [cloudformation:DescribeStacks, cloudformation:GetTemplate]
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-stack-pipeline/*
               - Sid: LookUpTheZone
                 Effect: Allow
                 Action: route53:ListHostedZonesByName
@@ -109,6 +113,10 @@ Resources:
                 Effect: Allow
                 Action: ssm:GetParameters
                 Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/*
+              - Sid: ReadThePipelineStackToSeeWhetherItIsOutOfDate
+                Effect: Allow
+                Action: [cloudformation:DescribeStacks, cloudformation:GetTemplate]
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-stack-pipeline/*
               - Sid: LookUpTheZone
                 Effect: Allow
                 Action: route53:ListHostedZonesByName

@@ -1,8 +1,7 @@
 """What a publication's knowledge run needs from its operator, with a generic default for each, so a new site needs none of it.
 
-A site that wants its own entity vocabulary, stop words or review guidance puts them in ``config/`` of the run state (or, for the beats
-and concept kinds, in its ``knowledgeRun`` settings); a site that does not gets these. The defaults are written into the state on the first
-stage that needs them, so the operator can then edit the seeded file.
+A site that wants its own entity vocabulary, stop words or review guidance commits them beside its ``infra/site.json`` (``settings.py``; for
+the beats and concept kinds, it uses its ``knowledgeRun`` settings); a site that does not gets these. Nothing is written to the run state.
 """
 
 from __future__ import annotations

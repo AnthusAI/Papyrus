@@ -74,7 +74,7 @@ from .research_assignments_worker import run_research_assignments, validate_rese
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_enrichment import Enricher, copy_curation, decision_inputs, enrich_item, enrich_sk, new_row
-from .reference_prediction_queue import LANE as PREDICTION_LANE, SOURCE_TYPE as PREDICTION_SOURCE, is_prediction_request
+from .reference_prediction_queue import LANE as PREDICTION_LANE, SOURCE_TYPE as PREDICTION_SOURCE, has_real_prediction, is_prediction_request
 from .reference_capture import SHORT_BODY_CHARACTERS
 from .monitoring_feed import FEED_HOSTS
 from .monitoring_huggingface import hf_accepts, validate_rule
@@ -1257,6 +1257,8 @@ def record_reference_prediction(client, publication: dict, disc: dict, decision:
     records = lab_decision_records(client, publication, decision, config, reference, disc)
     if records:
         apply_record_changes(client, build_record_changes(client, records))
+    if reference.get("predictionDecidedAt") and not has_real_prediction(reference):
+        client.update_record("Reference", {"id": reference["id"], "predictionDecidedAt": None})   # a time with no number would block the first prediction
     record_original_prediction(client, publication, decision, reference["id"], disc)
     return {"referenceId": reference["id"], "referenceLineageId": reference.get("lineageId") or reference["id"]}
 
@@ -2318,14 +2320,14 @@ class Router:
         if reference.get("versionState", "current") != "current" or reference.get("curationStatus") == "archived":
             self.finish(disc, route, "refused", "the Reference is archived or no longer the current version")
             return False
-        if reference.get("predictionDecidedAt"):
+        if has_real_prediction(reference):   # a finite number on the row; a time without one is still hidden (home_page/export.stored_prediction)
             self.counts["predictionSkipped"] += 1
             self.finish(disc, route, "routed", "the Reference already has a prediction")
             return False
         decision = relevance_of(client.list_by_index("semanticRelationsBySubjectState", f"reference#{reference.get('lineageId') or reference['id']}#current"))
         if decision:   # decided before (the sweep, an older delivery) but the row never got the number: copy it, do not ask the Cyclotron again
             fields = original_prediction_fields(
-                reference, label=decision["label"], positive_label=decision.get("positiveLabel") or publication["positiveLabel"],
+                {k: v for k, v in reference.items() if k != "predictionDecidedAt"}, label=decision["label"], positive_label=decision.get("positiveLabel") or publication["positiveLabel"],
                 confidence=decision["confidence"] if decision.get("confidence") is not None else decision.get("score"),
                 decided_at=decision.get("decidedAt") or _iso(self.now))
             if fields:

@@ -43,6 +43,7 @@
   "knowledgeRun": {
     "schedule": "cron(0 12 * * ? *)",
     "corpusKey": "ai-ml-research",
+    "settingsDirectory": "knowledge-run-settings/machines-on-machines",
     "reuseImageRepository": true,
     "siteBucket": "amplify-d260vp72hqglnc-main-bra-sitebucket397a1860-ohsbrwmezxev",
     "edgeDistributionId": "E1PTZ8B9ZF9GCU",

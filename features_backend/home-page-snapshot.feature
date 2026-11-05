@@ -24,22 +24,39 @@ Feature: The home-page snapshot publishes the accepted and recommended Reference
     And the file mentions none of the excluded values the fixture holds
     And the file does not list "Superseded old version"
 
-  Scenario: Pending References at or above the recommended threshold are exported as recommended; rejected, archived and superseded ones never are
+  Scenario: Pending References the Cyclotron has predicted at or above the recommended threshold are exported as recommended; rejected, archived and superseded ones never are
     Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
     When the home-page-snapshot task runs
-    Then the recommended titles in the file are "Pending high", "Pending mid", "Pending unrecorded confidence", "Pending undecided"
+    Then the recommended titles in the file are "Pending high", "Pending mid", "Pending unrecorded confidence"
     And every recommended record has no acceptedAt
     And the file does not list "Pending low", "Pending predicted reject", "Rejected", "Archived", "Superseded old version"
+
+  Scenario: A pending Reference nobody has predicted is published nowhere, and its first prediction publishes it
+    Ryan, 2026-11-05: an unpredicted Reference is not 50% and shows nothing until there is a prediction. The test is the number the Cyclotron wrote onto the
+    Reference (predictedAcceptProbability). Every Reference has a prediction sort key from the day it is created, 0.5 when unpredicted, so the key is not evidence,
+    nor is a decision time. "Pending undecided" has no prediction, so it is not in the file at all, even though a 0.5 would pass the threshold.
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    Then the file does not list "Pending undecided"
+    When the Cyclotron predicts 0.8 for "Pending undecided" and the home-page-snapshot task runs again
+    Then the recommended titles in the file are "Pending high", "Pending mid", "Pending unrecorded confidence", "Pending undecided"
+    And the record titled "Pending undecided" has confidence 0.8
+
+  Scenario: A prediction that really is 0.5 is a prediction and keeps the threshold behaviour
+    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the Cyclotron predicts 0.5 for "Pending undecided" and the home-page-snapshot task runs
+    Then the record titled "Pending undecided" has confidence 0.5
+    And the record titled "Pending undecided" has status "recommended"
 
   Scenario: The live Cyclotron decision sets confidence the way the newsroom console computes it
     A decision for the other label counts for the opposite (0.9 sure of "exclude" is 0.1 to accept). A label other than
     include is positive only when the decision names it. A decision with no recorded confidence is a mild lean (0.6).
-    No decision at all is 0.5.
+    No decision and no prediction at all is no confidence: the record carries none, not 0.5.
     Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
     When the home-page-snapshot task runs
     Then the record titled "Pending high" has confidence 0.92
     And the record titled "Accepted three, contact" has confidence 0.1
-    And the record titled "Accepted six" has confidence 0.5
+    And the record titled "Accepted six" has actor "rule" and no confidence
 
   Scenario: Once an editor has accepted a Reference its confidence is not published
     The Cyclotron's confidence stops mattering when a person accepts. The snapshot leaves it out of the record of a Reference an editor accepted
@@ -50,7 +67,7 @@ Feature: The home-page snapshot publishes the accepted and recommended Reference
     Then the record titled "Accepted two" has no confidence
     And the record titled "Accepted four" has no confidence
     And the record titled "Accepted one" has no confidence
-    And the record titled "Accepted six" has actor "rule" and confidence 0.5
+    And the record titled "Accepted six" has actor "rule" and no confidence
     And the record titled "Accepted three, contact" has actor "cyclotron" and confidence 0.1
 
   Scenario: A preview attachment supplies image and summary; a Reference without one has neither field

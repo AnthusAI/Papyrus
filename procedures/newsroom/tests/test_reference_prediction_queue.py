@@ -138,6 +138,16 @@ def test_a_reference_that_already_has_a_prediction_is_not_decided_again(world):
     assert not lane_rows(world.table)
 
 
+def test_a_time_without_a_number_is_not_a_prediction_and_is_decided_and_given_its_number(world):
+    reference(world).update(predictionDecidedAt="2026-11-05T09:00:00.000Z")   # hidden by the public pages: no finite predictedAcceptProbability
+    world.ask()
+    assert world.drain()["counts"]["predicted"] == 1
+    row = reference(world)
+    assert isinstance(row["predictedAcceptProbability"], float) and row["predictionDecidedAt"] != "2026-11-05T09:00:00.000Z"
+    assert queue.has_real_prediction(row) and not queue.has_real_prediction({"predictionDecidedAt": "x", "predictedAcceptProbability": None})
+    assert not queue.has_real_prediction({"predictedAcceptProbability": float("nan")})
+
+
 def test_a_reference_with_a_decision_but_no_prediction_fields_gets_them_copied_without_asking_the_model(world):
     world.ask()
     # The same Reference was decided before (the by-hand sweep): a current relation, no fields on the row.

@@ -1,0 +1,55 @@
+version: 1
+publication: machines-on-machines
+entity_kinds:
+- key: organization
+  label: AI lab, company, university or research institution
+  what: a named AI lab, company, university, government body or other institution
+  not_for: a product or model an organisation makes, an individual person, or a generic group of people
+- key: model
+  label: named AI model, such as GPT-4 or LLaMA
+  what: one specific named AI model or checkpoint, usually with a version or size
+  not_for: a whole series of models, a technique, or ordinary software that merely uses a model
+- key: model_family
+  label: family or series of AI models
+  what: a named series or line of AI models with no single version
+  not_for: one versioned model
+- key: technique
+  label: machine learning technique, method or architecture
+  what: a named machine learning method, algorithm, training approach or architecture
+  not_for: the task it is used for, a general research topic, or a measurement
+- key: task
+  label: task an AI system performs
+  what: a job that an AI system performs, such as a kind of prediction, generation or decision
+  not_for: the method used to do it, or a risk or social issue
+- key: benchmark
+  label: benchmark or evaluation suite
+  what: a named benchmark, evaluation suite or test used to compare systems
+  not_for: a dataset used only for training
+- key: dataset
+  label: dataset or training corpus
+  what: a named dataset or training corpus
+  not_for: a benchmark used to score systems
+- key: software
+  label: software framework, library or tool
+  what: a named software framework, library, application, service or developer tool
+  not_for: an AI model itself, or a company
+- key: topic
+  label: AI research topic, concept or risk
+  what: an established research topic, concept, phenomenon or risk in AI and its use in society, specific enough to be a subject of its own
+  not_for: an ordinary word or phrase, a feeling, a generic adjective or action, or a detail of one document
+- key: person
+  label: named researcher or public figure discussed in the coverage
+  what: 'a specific named individual: a full name, or a surname that clearly refers to one individual'
+  not_for: an organisation, a group of people, or a generic role
+relation_types:
+- key: made_by
+  label: made by
+- key: built_on
+  label: built on
+- key: member_of
+  label: member of
+- key: measured_by
+  label: measured by
+- key: successor_of
+  label: successor of
+description: a publication about artificial intelligence

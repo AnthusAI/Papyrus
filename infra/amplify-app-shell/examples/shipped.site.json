@@ -40,6 +40,7 @@
     "repoId": 1428297675
   },
   "knowledgeRun": {
+    "settingsDirectory": "knowledge-run-settings/shipped",
     "schedule": "cron(0 5 * * ? *)",
     "vCpu": 4,
     "memoryMiB": 16384,

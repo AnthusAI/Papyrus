@@ -12,7 +12,7 @@ decision with the same builders ``deliver_reference`` uses. No new table, no new
 
 The request is made once, by the event that creates the Reference. Nothing scans a corpus to find References that lack a prediction. A request is
 idempotent: its row id derives from the publication, the corpus and the Reference, and the router drops a request for a Reference that already has a
-prediction (``predictionDecidedAt`` or a current ``relevance_decision_is`` relation) without calling the Cyclotron.
+prediction (a finite ``predictedAcceptProbability``, as the public pages define it) without calling the Cyclotron.
 
 A request that cannot be made is reported by its caller (``PredictionRequest.error``), never swallowed: the Reference exists and stays hidden until
 it has a prediction. A request the router could not complete keeps its row in the lane and is retried with backoff; one it must refuse ends with its
@@ -21,6 +21,7 @@ reason on the ROUTE row and in the router's log and receipt.
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -44,12 +45,14 @@ def is_prediction_request(disc: dict[str, Any] | None) -> bool:
     return bool(disc) and disc.get("sourceType") == SOURCE_TYPE and isinstance(disc.get("predictFor"), dict)
 
 
-def has_prediction(reference: dict[str, Any], relations: list[dict[str, Any]] | None = None) -> bool:
-    """A Reference is predicted when its row says so or it has a current relevance decision (the router and the sweep write both)."""
-    from .relevance_decisions import RELEVANCE_RELATION
-    if reference.get("predictionDecidedAt") or isinstance(reference.get("predictedAcceptProbability"), (int, float)):
-        return True
-    return any(row.get("predicate") == RELEVANCE_RELATION and row.get("relationState") == "current" for row in relations or ())
+def has_real_prediction(reference: dict[str, Any]) -> bool:
+    """A real prediction is a finite ``predictedAcceptProbability`` on the row, the definition the public pages use (home_page/export.stored_prediction).
+    ``predictionDecidedAt`` and ``predictionSortKey`` are not evidence: a row with a time but no number is still hidden."""
+    value = reference.get("predictedAcceptProbability")
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+has_prediction = has_real_prediction
 
 
 def queue_reference_predictions(store, *, endpoint: str, references: list[dict[str, Any]], subject: str, now: str | None = None) -> dict[str, Any]:

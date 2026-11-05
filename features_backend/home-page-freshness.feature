@@ -81,30 +81,27 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
     When the Cyclotron's first prediction is written onto a pending Reference
     Then one home-page snapshot run is scheduled for 300 seconds later
 
+  Scenario: A decision time and a sort key are not a prediction
+    Every Reference gets a prediction sort key when it is created (0.5 for an unpredicted one, because the index needs a key), and a decision time travels
+    with the prediction. Ryan, 2026-11-05: an unpredicted Reference is not 50% and shows nothing, so only the probability itself is a prediction.
+    Given a trigger function with a 300 second debounce window
+    When a decision time and a sort key are written onto a pending Reference without a probability
+    Then no home-page snapshot run is scheduled
+    And no debounce slot is claimed
+
+  Scenario: The picture of a video on a Reference nobody has predicted schedules nothing, and its first prediction does
+    A pending video nobody has predicted is on no page, so its picture has nothing to update. When the Cyclotron's first prediction arrives the run reads
+    the Reference again, picture included, so the card appears complete.
+    Given a trigger function with a 300 second debounce window
+    When the picture of a video is stored on a pending Reference nobody has predicted
+    Then no home-page snapshot run is scheduled
+    And no debounce slot is claimed
+    When the Cyclotron's first prediction is written onto that Reference
+    Then one home-page snapshot run is scheduled for 300 seconds later
+
   Scenario: Editing a Reference no page can show schedules nothing, whatever the field
     Given a trigger function with a 300 second debounce window
     When an unpredicted pending Reference is retitled and rated
-    Then no home-page snapshot run is scheduled
-    And no debounce slot is claimed
-
-  Scenario: The picture of a video on a pending Reference nobody has predicted schedules a snapshot
-    The snapshot lists every unrated pending Reference and publishes it as recommended when the undecided probability reaches the threshold, so a
-    pending video nobody has predicted can already be on a page, without a picture. The picture is copied into our storage and recorded on the
-    Reference some time later, and that one write must reach the page.
-    Given a trigger function with a 300 second debounce window
-    When the picture of a video is stored on a pending Reference nobody has predicted
-    Then one home-page snapshot run is scheduled for 300 seconds later
-
-  Scenario: A video with no picture to fetch schedules nothing
-    The value "none" only records that the platform gave no picture, so the card is as it was.
-    Given a trigger function with a 300 second debounce window
-    When no picture could be fetched for a video on a pending Reference nobody has predicted
-    Then no home-page snapshot run is scheduled
-    And no debounce slot is claimed
-
-  Scenario: The picture of a video on a rejected Reference schedules nothing
-    Given a trigger function with a 300 second debounce window
-    When the picture of a video is stored on a rejected Reference
     Then no home-page snapshot run is scheduled
     And no debounce slot is claimed
 
