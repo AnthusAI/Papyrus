@@ -6,6 +6,9 @@
 - [Hedgerows](https://ledger.example.org/essays/hedgerows/index.md) (2026-03-15)
 - [Stone Walls](https://ledger.example.org/essays/stone-walls/index.md): Walls without mortar. (2026-03-08)
 
-::include{kind="references" select="recent" count="2" section="essays"}
+## References
+
+- [Hedge ledger](https://www.example.org/fronts/4)
+- [Walls atlas](https://www.example.org/fronts/2)
 
 Page 1 of 2 · [next](https://ledger.example.org/essays/page/2/index.md)

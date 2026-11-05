@@ -194,14 +194,12 @@ def test_values_are_part_of_the_shared_fingerprint():
     assert fingerprint({"price": "$5"}) != fingerprint({"price": "$6"})
 
 
-def test_the_markdown_twin_keeps_the_page_blocks_as_written(blocked):
+def test_the_markdown_twin_says_what_the_page_blocks_show(blocked):
     twin = blocked.text("index.md")
-    assert '::band{id="top" tone="card" size="hero" eyebrow="Open source" columns="home"}' in twin
-    assert '::column{panel="card"}' in twin and '::band{tone="muted"}' in twin and '::band{size="bare"}' in twin
-    assert '::button{href="/start/" label="Start" size="lg"}' in twin
-    assert '::button{href="https://example.org/" label="Source" variant="secondary"}' in twin
+    assert "::band" not in twin and "::column" not in twin and "::button" not in twin and "::island" not in twin
+    assert "[Start](https://example.org/start/)" in twin and "[Source](https://example.org/)" in twin
     assert "papyrus-island" not in twin and "# Price $5" in twin and "{{price}}" not in twin   # tokens are still replaced
-    assert '::island{name="Chart" height="20rem" kind="bar" note="it\'s <b>"}' in twin
+    assert "Plain *text*." in twin and "Second band." in twin
 
 
 # ------------------------------------------------------------------ islands

@@ -232,6 +232,8 @@ function oacStatements(template: Template) {
   const { template, publication } = synthesize({ kind: "s3-projection", edgeDistributionArn: edgeArn, projector: "web/projector.py" });
   assertSharedParts(template);
   template.resourceCountIs("AWS::CloudFront::Distribution", 0);
+  template.resourceCountIs("AWS::CloudFront::Function", 1);   // the redirect function only: the edge stack's own template carries the Markdown content-type function
+  assert.equal(publication.markdownContentTypeFunction, undefined);
   const allowed = oacStatements(template);
   assert.equal(allowed.length, 1);
   assert.deepEqual(allowed[0].Condition, { StringEquals: { "aws:SourceArn": edgeArn } });
@@ -283,7 +285,7 @@ function oacStatements(template: Template) {
       DefaultCacheBehavior: Match.objectLike({
         ViewerProtocolPolicy: "redirect-to-https",
         Compress: true,
-        FunctionAssociations: [Match.objectLike({ EventType: "viewer-request" })],
+        FunctionAssociations: [Match.objectLike({ EventType: "viewer-request" }), Match.objectLike({ EventType: "viewer-response" })],
       }),
       CustomErrorResponses: Match.arrayWith([
         Match.objectLike({ ErrorCode: 404, ResponseCode: 404, ResponsePagePath: "/404.html" }),
@@ -291,6 +293,14 @@ function oacStatements(template: Template) {
       Origins: [Match.objectLike({ OriginAccessControlId: Match.anyValue(), S3OriginConfig: { OriginAccessIdentity: "" } })],
     }),
   });
+  // PPY-40f96a: a browser is shown a Markdown twin as text/plain by a viewer-response function; it adds no Content-Disposition.
+  template.resourceCountIs("AWS::CloudFront::Function", 2);
+  template.hasResourceProperties("AWS::CloudFront::Function", {
+    AutoPublish: true,
+    FunctionCode: Match.stringLikeRegexp("text/plain; charset=utf-8"),
+  });
+  assert.ok(!JSON.stringify(template.toJSON()).toLowerCase().includes("content-disposition"));
+  assert.ok(publication.markdownContentTypeFunction !== undefined);
   const distributionConfig = Object.values(template.findResources("AWS::CloudFront::Distribution"))[0].Properties.DistributionConfig;
   assert.equal(distributionConfig.Logging, undefined);
   assert.equal(distributionConfig.Aliases, undefined);

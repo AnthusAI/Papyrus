@@ -50,7 +50,7 @@ from ..public_data import clipped, entry_for, hidden_from_public_data, owns_publ
 from ..writers import request_paths_for_key
 import inspect
 
-from . import alexa_pages, blocks, components, forum_pages, home_page_blocks, includes, knowledge_blocks, newsletter_pages
+from . import alexa_pages, blocks, components, forum_pages, home_page_blocks, includes, knowledge_blocks, newsletter_pages, page_twin
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
@@ -59,9 +59,10 @@ from .head import HeadBuilder, PageHead
 from .home_page import HomePageSource
 from .knowledge import DATA_PREFIX, KnowledgeSource
 from .knowledge_lookup import KnowledgeLookup
-from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path, section_index_markdown, sections_home_markdown
+from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, entry_line, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path, section_index_markdown, sections_home_markdown
 from . import wiki
 from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, render_page_actions
+from .page_ledger import PageLedger
 from .forms import FORM_SCRIPT_PATH, render_form
 from .fragments import MARKUS_ARTICLE_CLOSE_PATTERN, first_image_of, lede_of, with_date_format, with_lede, with_listing
 from .family import family_footer
@@ -317,6 +318,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
             for _page_key, thread, _reference in self._public_threads():
                 keys.update(self.thread_page_keys(thread["key"]))
             keys.update(self.policy.key(name) for name in (LLMS_KEY, *SITEMAP_KEYS))   # they list the thread pages
+        if self.standard.agents.markdown:
+            keys.update(twin for twin in (md_key(key) for key in list(keys)) if twin)   # a page's Markdown twin lists the same data, so it is rewritten with the page
+            if keys and self.standard.agents.llms_full:
+                keys.add(self.policy.key(LLMS_FULL_KEY))   # and llms-full.txt carries the twins of the authored pages
         return frozenset(keys)
 
     def _reads_home_page(self, source: str, owner: str) -> bool:
@@ -469,7 +474,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             page = self._page("home", head, site, entries=entries, fragment=fragment)
             pages = {key: self._render(page)}
             if len(paths) > 1:
-                pages[paths[1]] = self._home_markdown(title, head.description, self._twin(item.source_text, summary.output_path)).encode("utf-8")
+                pages[paths[1]] = self._home_markdown(title, head.description, item.source_text, page, summary.output_path).encode("utf-8")
             return pages
         entry = self._entry(summary)
         description = entry.summary_text or lede_of(fragment) or self.standard.identity.description
@@ -498,8 +503,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
             pages[paths[1]] = self._item_twin(entry, item.source_text, canonical).encode("utf-8")
         return pages
 
-    def _home_markdown(self, title: str, description: str, source_text: str) -> str:
-        return home_markdown(title, description, source_text)
+    def _home_markdown(self, title: str, description: str, source_text: str, page: StandardPage, source: str = "") -> str:
+        """The home twin: the home source with its page directives rendered as the page shows them (see :meth:`_page_twin`)."""
+        return home_markdown(title, description, self._page_twin(source_text, source, page))
 
     def _based_on(self, entry: StandardEntry) -> str:
         """The original this page is based on: the URL in ``seo.isBasedOnField``, only when it is an absolute http(s) URL."""
@@ -810,11 +816,46 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """The ``pages`` entries written as a file (``source``) that have a Markdown twin: not ``noindex``."""
         return [custom for custom in self.standard.pages if custom.source and not custom.noindex]
 
-    def _authored_markdown(self, custom: CustomPage) -> str:
-        """The twin of an authored page: its title, description and canonical URL, then the page file's Markus source."""
+    def _authored_markdown(self, custom: CustomPage, page: StandardPage) -> str:
+        """The twin of an authored page: its title, description and canonical URL, then what the page file shows (see :meth:`_page_twin`)."""
         path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
         facts = SimpleNamespace(title=custom.title, authors=(), author_details=(), date="", updated="", summary_text=custom.description or "")
-        return item_markdown(facts, self._twin(self._page_text(custom.source, f"pages.{custom.id}"), custom.source), self.head.absolute(path))
+        return item_markdown(facts, self._page_twin(self._page_text(custom.source, f"pages.{custom.id}"), custom.source, page), self.head.absolute(path))
+
+    def _authored_twin_page(self, custom: CustomPage, site: SiteIndex, listed) -> StandardPage:
+        """The page an authored page's include data is read from when the twin is written without rendering the page (``llms-full.txt``)."""
+        path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
+        head = PageHead(title=custom.title, path=path, description=custom.description or self.standard.identity.description)
+        return self._page("custom", head, site, entries=tuple(listed), custom_id=custom.id)
+
+    def _twin_url(self, path: str) -> str:
+        return (self.environment.origin or "") + path
+
+    def _page_twin(self, text: str, source: str, page: StandardPage) -> str:
+        """The Markdown of a page file: ``::band`` and ``::column`` dropped, a button as a link, an island as its summary, and every ``::include``
+        as the list of titles and links it places. The includes read the same data, in the same order, as the page does."""
+        ledger = PageLedger()
+        return page_twin.render(text, dict(self.standard.values), source, lambda attributes: self._include_markdown(attributes, page, source, ledger), self._twin_url)
+
+    def _include_markdown(self, attributes: dict, page: StandardPage, source: str, ledger: PageLedger) -> str:
+        kind = includes.check(attributes, self.standard, source)
+        if kind == "listing":
+            return "\n".join(entry_line(entry, self.environment.origin) for entry in includes.listing_entries(attributes, list(page.entries), self.standard))
+        if kind == "showcase":
+            wall = self.standard.showcase
+            sites = showcase_sites(page.summaries, wall) if wall is not None else []
+            return "\n".join(f"- [{site.name}]({site.url})" + (f": {site.description}" if site.description else "") for site in sites)
+        if kind == "form":
+            return ""
+        if kind == "references":
+            labels = {section.name: section.label for section in self.standard.sections}
+            return home_page_blocks.render_markdown(attributes, self._home_page.references(), ledger, self.standard.home_page, labels, self._twin_url)
+        if kind == "threads":
+            return home_page_blocks.render_threads_markdown(
+                attributes, self._home_page.threads(), ledger, self.standard.home_page,
+                (lambda key: self._twin_url(self._thread_href(key))) if self._forum() is not None else None,
+            )
+        return page_twin.markup_markdown(self._include(attributes, page, source), self._twin_url)
 
     def _static_twin_documents(self) -> list[tuple[str, str, str]]:
         """``(title, twin path, text)`` for each ``sitemap.extra`` route whose Markdown twin the site publishes by hand (``static.copy``)."""
@@ -839,8 +880,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
         origin = self.environment.origin
         full_entries = self._llms_full_entries(entries)
         static_documents = self._static_twin_documents()
-        authored = [self._authored_markdown(custom) for custom in self._authored_pages()]
-        full_enabled = agents.llms_full and 0 < len(full_entries) + len(authored) + len(static_documents) <= agents.llms_full_max_items
+        authored_pages = self._authored_pages()
+        full_enabled = agents.llms_full and 0 < len(full_entries) + len(authored_pages) + len(static_documents) <= agents.llms_full_max_items
+        authored = [self._authored_markdown(custom, self._authored_twin_page(custom, site, listed)) for custom in authored_pages] if full_enabled else []
         if agents.llms_txt:
             optional = []
             if self.standard.section_fronts:
@@ -900,7 +942,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return forum_pages.thread_markdown(page.thread, self.head.absolute(page.path), anchor_line)
         custom = next((c for c in self.standard.pages if c.id == page.custom_id and c.source), None) if page.kind == "custom" else None
         if custom is not None:
-            return self._authored_markdown(custom)
+            return self._authored_markdown(custom, page)
         return "\n".join([f"# {page.title}", "", *([f"> {description}", ""] if description else [])]).rstrip() + "\n"
 
     def _section_index_markdown(self, page: StandardPage) -> str:
@@ -909,13 +951,15 @@ class StandardMarkusProjector(MarkusSiteProjector):
         origin = self.environment.origin
         if section.index.source:
             facts = SimpleNamespace(title=page.title, authors=(), author_details=(), date="", updated="", summary_text=page.description or "")
-            return item_markdown(facts, self._twin(self._page_text(section.index.source, f"{section.where}.index"), section.index.source), self.head.absolute(page.path))
-        include_line = ""
+            return item_markdown(facts, self._page_twin(self._page_text(section.index.source, f"{section.where}.index"), section.index.source, page), self.head.absolute(page.path))
+        references = ""
         if section.index.references:
-            attributes = " ".join(f'{name}="{value}"' for name, value in self._reference_attributes(section).items())
-            include_line = f"::include{{{attributes}}}"
+            labels = {configured.name: configured.label for configured in self.standard.sections}
+            references = home_page_blocks.render_markdown(
+                {**self._reference_attributes(section), "heading": "References"}, self._home_page.references(), PageLedger(), self.standard.home_page, labels, self._twin_url,
+            )
         return section_index_markdown(
-            page.title, page.description or self.standard.identity.description, view.entries, origin, include_line=include_line,
+            page.title, page.description or self.standard.identity.description, view.entries, origin, references=references,
             page=view.page, pages=view.pages, page_md=lambda number: md_path(self.policy.listing_key(view.base, number)),
         )
 

@@ -134,14 +134,14 @@ def listing_markdown(title: str, description: str, entries, origin: str | None, 
     return "\n".join(lines).rstrip() + "\n"
 
 
-def section_index_markdown(title: str, description: str, entries, origin: str | None, *, include_line: str = "", page: int = 1, pages: int = 1, page_md=None) -> str:
-    """A section front page: the stories as a link list, then the Reference include line as written, then the way to older pages."""
+def section_index_markdown(title: str, description: str, entries, origin: str | None, *, references: str = "", page: int = 1, pages: int = 1, page_md=None) -> str:
+    """A section front page: the stories as a link list, then the References the page shows as a list, then the way to older pages."""
     lines = [f"# {title}", ""]
     if description:
         lines += [f"> {description}", ""]
     lines += [entry_line(entry, origin) for entry in entries] or ["_Nothing is published here yet._"]
-    if include_line:
-        lines += ["", include_line]
+    if references:
+        lines += ["", references]
     if pages > 1 and page_md is not None:
         lines += ["", f"Page {page} of {pages} · [next]({_link(origin, page_md(page + 1))})"]
     return "\n".join(lines).rstrip() + "\n"

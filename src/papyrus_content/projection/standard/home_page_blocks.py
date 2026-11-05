@@ -146,6 +146,59 @@ def render(
     )
 
 
+def _link_text(value: Any, fallback: str) -> str:
+    return " ".join(str(value or fallback).replace("[", "(").replace("]", ")").split())
+
+
+def render_markdown(
+    attributes: Mapping,
+    source_doc: Mapping | None,
+    ledger: PageLedger,
+    settings: HomePageSettings,
+    section_labels: Mapping[str, str] | None = None,
+    absolute: Callable[[str], str] = lambda path: path,
+) -> str:
+    """What :func:`render` places, for the Markdown twin: an optional heading and one list item per Reference, a title linked to its source.
+
+    The References are the ones :func:`select_references` chooses (same ordering, same ledger rules), so the twin lists what the page shows.
+    Only the title, the address and, for a Reference no editor has accepted yet, the words that say so are written."""
+    chosen = select_references(source_doc, attributes, ledger, count_of({}, settings), section_labels)
+    if not chosen:
+        return attributes.get("empty", "")
+    lines = [f"## {attributes['heading']}", ""] if attributes.get("heading") else []
+    for reference in chosen:
+        title = _link_text(reference.get("title"), reference.get("url") or "Untitled")
+        href = safe_href(reference.get("url"))
+        line = f"- [{title}]({href})" if href else f"- {title}"
+        if reference.get("status") == parts.STATUS_RECOMMENDED:
+            line += f" ({parts.RECOMMENDED_LABEL})"
+        lines.append(line)
+    more = safe_href(attributes.get("more"))
+    if more:
+        lines += ["", f"[More]({absolute(more) if more.startswith('/') else more})"]
+    return "\n".join(lines)
+
+
+def render_threads_markdown(
+    attributes: Mapping,
+    source_doc: Mapping | None,
+    ledger: PageLedger,
+    settings: HomePageSettings,
+    thread_href: Callable[[str], str] | None = None,
+) -> str:
+    """What :func:`render_threads` places, for the Markdown twin: one list item per conversation, its title linked to its page when the site has one."""
+    chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings))
+    if not chosen:
+        return attributes.get("empty", "")
+    lines = [f"## {attributes['heading']}", ""] if attributes.get("heading") else []
+    for thread in chosen:
+        title = _link_text(thread.get("title"), "Conversation")
+        count = thread.get("messages") if isinstance(thread.get("messages"), int) else 0
+        link = f"[{title}]({thread_href(thread['key'])})" if thread_href else title
+        lines.append(f"- {link} ({parts.message_count_text(count)})")
+    return "\n".join(lines)
+
+
 def check_threads(attributes: Mapping, source: str) -> None:
     """Validate a threads include's attributes; ``source`` names the file for the error."""
     unknown = set(attributes) - THREADS_ATTRIBUTES - {"kind"}
