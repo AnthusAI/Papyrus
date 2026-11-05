@@ -1,7 +1,7 @@
 Feature: Curation changes reach the home-page pages by themselves, in one debounced run
   A site that turns on the home-page plugin does not wait for someone to run a command. Every change to a Reference that a
   public page shows or ranks by (its curation status, its place in the feed, its prediction, its version state, its title, its
-  section or an editor's star rating, which orders the pages and is never printed on them) arrives on the Reference table's DynamoDB stream. A small trigger function turns a burst of such changes into
+  section or an editor's star rating, which orders the pages and is printed on an accepted Reference's tile; who rated and when are not watched) arrives on the Reference table's DynamoDB stream. A small trigger function turns a burst of such changes into
   one home-page-snapshot run at the end of a quiet window: the first change opens the window and schedules the run, the
   changes that follow inside the window find it open and schedule nothing, but each adds the id of its Reference to a list the run reads, so
   the run reads again those rows and no others (home-page-incremental.feature). A Reference that no page can show, for example a new pending one
@@ -49,6 +49,11 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
   Scenario: Rating a Reference schedules one snapshot, because a rating changes the order of the pages
     Given a trigger function with a 300 second debounce window
     When a Reference is rated
+    Then one home-page snapshot run is scheduled for 300 seconds later
+
+  Scenario: Changing nothing but the number of stars on an accepted Reference schedules one snapshot, because its tile prints the count
+    Given a trigger function with a 300 second debounce window
+    When an accepted Reference changes from 5 stars to 3 and nothing else
     Then one home-page snapshot run is scheduled for 300 seconds later
 
   Scenario: Changing only who rated a Reference, or when, schedules nothing

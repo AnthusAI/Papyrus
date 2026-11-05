@@ -37,7 +37,7 @@ NOT_PUBLIC_STATUSES = ("rejected", "archived")
 
 PUBLIC_REFERENCE_FIELDS = (
     "key", "status", "title", "authors", "url", "host", "mediaType", "sourceDate", "sourceUpdatedAt", "retrievedAt", "importedAt",
-    "arrivedAt", "acceptedAt", "decidedAt", "section", "reasonCode", "actor", "shareable", "confidence", "predictedAcceptProbability",
+    "arrivedAt", "acceptedAt", "decidedAt", "section", "reasonCode", "actor", "shareable", "stars", "confidence", "predictedAcceptProbability",
     "predictionDecidedAt", "inboundCitationCount", "outboundCitationCount", "versionNumber", "medium", "image", "summary", "siteName",
     RANK_FIELD,
 )
@@ -48,7 +48,7 @@ PUBLIC_SOURCE_FIELDS = (
     "versionNumber", "title", "authors", "sourceUri", "mediaType", "sourcePublishedAt", "sourceUpdatedAt", "retrievedAt",
     "inboundCitationCount", "outboundCitationCount", "importedAt", "createdAt", "curationStatus", "curationStatusUpdatedAt",
     "curationReasonCode", "curationActorKind", "curationSectionId", "curationShareable", "feedArrivalAt", "predictedAcceptProbability",
-    "predictionDecidedAt", "medium", "thumbnailPath",
+    "predictionDecidedAt", "medium", "thumbnailPath", "starRating",
 )
 
 IDENTITY = "identity: can name a person or carry an address"
@@ -75,8 +75,7 @@ EXCLUDED_REFERENCE_FIELDS = {
     "importRunId": PLUMBING,
     "discoveredByMonitorId": PLUMBING,
     "curationDecisionRelationId": PLUMBING,
-    "starRating": "editorial signal: an editor's private interest, not for readers",
-    "starRatedAt": "editorial signal: an editor's private interest, not for readers",
+    "starRatedAt": "editorial signal: when an editor rated it is private (the count itself is published as stars on an accepted Reference)",
     "starRatedBy": IDENTITY + " (who rated it)",
     "newsroomFeedKey": PLUMBING,
     "reviewedFeedKey": PLUMBING,
@@ -243,6 +242,9 @@ def public_reference(
         "reasonCode": row.get("curationReasonCode"),
         "actor": row.get("curationActorKind"),
         "shareable": row.get("curationShareable"),
+        # An accepted Reference shows the count an editor gave it (1 to 5); who gave it and when stay private. A pending one shows its confidence instead, and a
+        # Reference nobody rated has no count. The rank, which orders the page, is computed from the row in every case.
+        "stars": valid_stars(row.get("starRating")) if accepted else None,
         # Once an editor has accepted a Reference the Cyclotron's confidence no longer matters, so it is not published (the rank, which
         # orders the page, is computed from the row, below). A Reference accepted by a Cyclotron or a rule keeps it, and so does a pending one.
         "confidence": None if accepted and row.get("curationActorKind") == "human" else decimal(accept_probability(decision)),

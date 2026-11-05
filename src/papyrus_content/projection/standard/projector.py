@@ -20,12 +20,13 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import datetime as dt
 import hashlib
 import itertools
 import json
 import math
 import re
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 
@@ -55,6 +56,7 @@ from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, 
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
+from .story_order import rank_entries
 from .head import HeadBuilder, PageHead
 from .home_page import HomePageSource
 from .knowledge import DATA_PREFIX, KnowledgeSource
@@ -233,8 +235,19 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """Read the home-page snapshot (``references.json``) from a local directory instead of the store."""
         self._home_page.use_directory(directory)
 
+    _story_stars: Mapping[str, int] = {}
+    #: The UTC day Story buckets are counted back from (``story_order.py``): today for a real run, set by a test to fix it.
+    clock: Callable[[], dt.date] = staticmethod(lambda: dt.datetime.now(dt.timezone.utc).date())
+    _as_of: dt.date = dt.date.min
+
+    def _ranked(self, entries, bucket: str | None = None) -> list[StandardEntry]:
+        """``entries`` (newest first) in the Story ranking of ``story_order.py``: the newest bucket first, the editors' stars inside it. Unchanged when nothing is rated."""
+        return rank_entries(entries, self._story_stars, bucket or self.standard.listings.bucket, self._as_of)
+
     def _use_site(self, site: SiteIndex) -> None:
-        """A new site index is a new projection run: the snapshot files are read again."""
+        """A new site index is a new projection run: the snapshot files are read again, and so are the editors' private Story ratings."""
+        self._story_stars = site.story_stars
+        self._as_of = self.clock()
         if site.items is not self._knowledge_items:
             self._knowledge.reset()
             self._home_page.reset()
@@ -600,7 +613,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
         # home
         if not self._authored_home(site) and not any(custom.path == "" for custom in self.standard.pages):
-            home_entries = tuple(listed[: self.standard.listings.home_count])
+            home_entries = tuple(self._ranked(listed)[: self.standard.listings.home_count])
             home_blocks: tuple[HomeSectionBlock, ...] = ()
             home_digest: list = [self._fingerprints(home_entries), self._section_links()]
             if self.standard.sections_home:
@@ -645,6 +658,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         # collections: listings selected by tag or section, not by CMS section
         for collection in self.standard.collections:
             members = sorted_by(collection.select.select(entries), collection.sort, collection.ties)
+            if collection.sort == "date":
+                members = self._ranked(members)
             if not members and not collection.list_empty:
                 continue
             drafts = tuple(sorted_by(collection.select.select(entries, drafts=True), collection.sort, collection.ties)) if collection.drafts else ()
@@ -691,7 +706,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 slug = slugify_tag(tag)
                 if not slug:
                     continue
-                for view in self._paginate(self.policy.tag_base(slug), tag, found, None, tag=tag):
+                for view in self._paginate(self.policy.tag_base(slug), tag, self._ranked(found), None, tag=tag):
                     key = self.policy.listing_key(view.base, view.page)
                     add(key, "tag", [self._fingerprints(view.entries), view.page, view.pages], self._listing_builder("tag", view, site, listed))
 
@@ -717,7 +732,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             digest_input = [self._fingerprints(selected, full=True) if self.hooks.page_body else []]
             if authored is not None:
                 text, found = authored
-                digest_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)]
+                digest_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard, self._story_stars, self._as_of), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)]
             path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
             add(
                 self.policy.listing_key(custom.path),
@@ -745,7 +760,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         not_found_input: list = []
         if not_found.source:
             text, found = self._page_includes(not_found.source, "notFound")
-            not_found_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)]
+            not_found_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard, self._story_stars, self._as_of), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)]
         add(
             NOT_FOUND_KEY,
             "not_found",
@@ -852,7 +867,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _include_markdown(self, attributes: dict, page: StandardPage, source: str, ledger: PageLedger) -> str:
         kind = includes.check(attributes, self.standard, source)
         if kind == "listing":
-            return "\n".join(entry_line(entry, self.environment.origin) for entry in includes.listing_entries(attributes, list(page.entries), self.standard))
+            return "\n".join(entry_line(entry, self.environment.origin) for entry in includes.listing_entries(attributes, list(page.entries), self.standard, self._story_stars, self._as_of))
         if kind == "showcase":
             wall = self.standard.showcase
             sites = showcase_sites(page.summaries, wall) if wall is not None else []
@@ -992,14 +1007,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _listing_groups(self, listed: list[StandardEntry]):
         if not self.standard.sectioned:
             if listed:
-                yield self.standard.listings.flat_path, "Archive", None, listed
+                yield self.standard.listings.flat_path, "Archive", None, self._ranked(listed)
             return
         for section in self.standard.sections:
             if not section.listing or not section.listing_page:
                 continue
             members = [entry for entry in listed if entry.section and entry.section.name == section.name]
-            if section.sort == "order":
-                members = sorted(members, key=order_of)
+            members = sorted(members, key=order_of) if section.sort == "order" else self._ranked(members)
             if members or section.list_empty:
                 yield section.base, section.label, section.name, members
 
@@ -1134,7 +1148,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             inputs.append(self._home_page_stylesheet_token())
         if index.source:
             text, found = self._page_includes(index.source, f"{section.where}.index")
-            inputs.append([hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)])
+            inputs.append([hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard, self._story_stars, self._as_of), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)])
         return inputs
 
     def _reference_attributes(self, section: SectionConfig) -> dict:
@@ -1537,7 +1551,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _include(self, attributes: dict, page: StandardPage, source: str) -> str:
         kind = includes.check(attributes, self.standard, source)
         if kind == "listing":
-            return self._listing_markup(attributes, includes.listing_entries(attributes, list(page.entries), self.standard), page)
+            return self._listing_markup(attributes, includes.listing_entries(attributes, list(page.entries), self.standard, self._story_stars, self._as_of), page)
         if kind == "showcase":
             wall = self.standard.showcase
             if wall is None:

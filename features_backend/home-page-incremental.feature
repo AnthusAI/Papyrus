@@ -5,8 +5,9 @@ Feature: One changed Reference costs a fixed number of requests, not the size of
   trigger listed, and keeps what it knows about the others between runs.
 
   What it keeps is the previous public file and a private state: for each public Reference an editor's stars, the confidence the page order reads, its
-  arrival time, its Reference version and its section. The stars are private, so the state lives in the projection lock table and never in the public
-  bucket. When the state is missing, was built for other settings, or is not the one that goes with the file in the bucket, the run reads the whole
+  arrival time, its Reference version and its section. The state also holds the stars of pending References, which only order the page and are not shown,
+  so it lives in the projection lock table and never in the public bucket (an accepted Reference's stars are published on its record; who rated it and
+  when are never). When the state is missing, was built for other settings, or is not the one that goes with the file in the bucket, the run reads the whole
   corpus once and starts a new state; that is also how a site starts, once.
 
   The page a run produces is the page a full read would produce: the same records, the same ranks, the same file.
@@ -48,11 +49,21 @@ Feature: One changed Reference costs a fixed number of requests, not the size of
     Then the snapshot file holds exactly what a full read of the same corpus would write
     And the ranks are the ranks a full read would give
 
-  Scenario: An editor's stars stay out of every public file and sit in the private state
+  Scenario: An accepted Reference's stars are published, who rated stays out of every public file, and the private state keeps the count for the order
     Given a corpus of 90 References whose snapshot was built by a full read
     When an editor accepts one Reference with 5 stars and the run reads it again
-    Then no published file mentions a star rating
+    Then the published record of that Reference shows 5 stars
+    And no published file mentions who rated or when
     And the private state holds 5 stars for that Reference
+
+  Scenario: A change to nothing but the stars reaches the page in the incremental run
+    The star count is a field the trigger watches, so a rating that changes nothing else on an accepted Reference still lists that Reference and the next run
+    reads it again: the file is written with the new count, through the same four requests as any other change.
+    Given a corpus of 90 References whose snapshot was built by a full read
+    When an editor accepts one Reference with 5 stars and the run reads it again
+    And only the stars of that Reference change and the run reads it again
+    Then the published record of that Reference shows 2 stars
+    And the run made exactly 4 requests: one section list, the Reference, its decision and its preview
 
   Scenario: Threads are read again only when a Message changed or an older Reference entered the page
     A Reference that was created after the file was last built cannot have a thread yet, so a run that only adds such References does not read the

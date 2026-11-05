@@ -215,6 +215,12 @@ def reference_rated(context) -> None:
     context.site.receive([{"eventName": "MODIFY", "dynamodb": {"Keys": KEYS, "OldImage": {"curationStatus": {"S": "accepted"}}, "NewImage": {"curationStatus": {"S": "accepted"}, "starRating": {"N": "5"}}}}], 0)
 
 
+@when("an accepted Reference changes from {before:d} stars to {after:d} and nothing else")
+def stars_changed(context, before: int, after: int) -> None:
+    accepted = {"curationStatus": {"S": "accepted"}, "starRatedBy": {"S": "a"}, "starRatedAt": {"S": "t1"}}
+    context.site.receive([{"eventName": "MODIFY", "dynamodb": {"Keys": KEYS, "OldImage": {**accepted, "starRating": {"N": str(before)}}, "NewImage": {**accepted, "starRating": {"N": str(after)}}}}], 0)
+
+
 @when("a Reference changes only who rated it")
 def rater_changed(context) -> None:
     rated = {"curationStatus": {"S": "accepted"}, "starRating": {"N": "5"}}

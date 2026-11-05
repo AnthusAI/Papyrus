@@ -158,11 +158,12 @@ def test_a_rating_that_only_reorders_the_page_rewrites_the_file_and_the_pages_th
     site.writer.operations.clear()
     report = run(site, client)
     after = json.loads(site.writer.get("_data/home-page/references.json"))
-    strip = lambda document: [{key: value for key, value in record.items() if key != "rank"} for record in document["references"]]  # noqa: E731
-    assert strip(after) == strip(before), "no public field changed"
+    strip = lambda document: [{key: value for key, value in record.items() if key not in ("rank", "stars")} for record in document["references"]]  # noqa: E731
+    assert strip(after) == strip(before), "no public field other than the count changed"
+    assert [record["stars"] for record in after["references"] if record["title"] == "Accepted one"] == [5], "the accepted Reference now shows its count"
     assert [record["rank"] for record in after["references"]] != [record["rank"] for record in before["references"]]
     assert report["written"] == ["_data/home-page/references.json"]
     assert "ranked/index.html" in report["rewritten"], report
     assert set(report["rewritten"]) <= set(site.projector.home_page_reader_keys())
     assert "front/index.html" in report["rewritten"]
-    assert all(b"starRating" not in content and b"editor-who-rated" not in content for content in site.tree.values()), "no published file mentions a rating"
+    assert all(b"starRating" not in content and b"starRatedBy" not in content and b"editor-who-rated" not in content for content in site.tree.values()), "no published file mentions who rated"

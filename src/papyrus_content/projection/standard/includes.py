@@ -16,6 +16,7 @@ source) says where generated blocks go::
               variant) or the default card; ``layout="grid"`` (default) wraps them in the card grid, ``bare`` does not.
               ``tag`` (``ul``, ``ol``, ``div`` or ``section``, with ``class``) wraps them in that element instead, and draws
               nothing at all when the selection is empty.
+              A listing sorted by date also ranks by the editors' stars inside a ``bucket`` (``day``, ``week`` or ``none``; see ``story_order.py``).
 ``showcase``  the logo wall of the ``showcase`` settings.
 ``form``      a ``forms`` entry of ``projection.json``.
 ``references`` a grid of Reference cards from the home-page snapshot (see ``home_page_blocks.py``); needs ``homePage`` in
@@ -32,14 +33,16 @@ selection does not match writes nothing, and saving one it matches re-renders th
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import date
 
 from . import home_page_blocks, knowledge_blocks
-from .config import StandardSettings
+from .config import STORY_BUCKETS, StandardSettings
 from .entries import StandardEntry, sorted_by
 from .select import Selection, selection_from_mapping
+from .story_order import rank_entries
 
 KINDS = ("listing", "showcase", "form", "block", "references", "threads")
-LISTING_ATTRIBUTES = {"kind", "collection", "sections", "tags", "allTags", "notTags", "types", "notTypes", "sort", "ties", "count", "skip", "card", "layout", "tag", "class"}
+LISTING_ATTRIBUTES = {"kind", "collection", "sections", "tags", "allTags", "notTags", "types", "notTypes", "sort", "ties", "bucket", "count", "skip", "card", "layout", "tag", "class"}
 WRAPPER_TAGS = ("ul", "ol", "div", "section")
 LAYOUTS = ("grid", "bare")
 
@@ -76,6 +79,8 @@ def check(attributes: Mapping, settings: StandardSettings, source: str) -> str:
             raise ValueError(f"{source}: ::include tag is one of {', '.join(WRAPPER_TAGS)}, and class needs a tag")
         if "tag" in attributes and attributes.get("layout", "grid") != "bare":
             raise ValueError(f"{source}: ::include tag goes with layout=\"bare\"")
+        if "bucket" in attributes and attributes["bucket"] not in STORY_BUCKETS:
+            raise ValueError(f"{source}: ::include listing bucket must be one of {', '.join(STORY_BUCKETS)}, got {attributes['bucket']!r}")
         _number(attributes, "count", source)
         _number(attributes, "skip", source)
     elif kind == "form":
@@ -116,10 +121,16 @@ def _listing_selection(attributes: Mapping, settings: StandardSettings) -> tuple
     return merged, sort, ties
 
 
-def listing_entries(attributes: Mapping, entries: list[StandardEntry], settings: StandardSettings) -> list[StandardEntry]:
-    """The entries a ``listing`` include shows, in order."""
+def listing_entries(attributes: Mapping, entries: list[StandardEntry], settings: StandardSettings, stars: Mapping[str, int] | None = None, as_of: date | None = None) -> list[StandardEntry]:
+    """The entries a ``listing`` include shows, in order.
+
+    A listing sorted by date also ranks by the editors' stars (``story_order.py``) when it is given the ``stars`` of the rated Stories: the newest ``bucket``
+    first (``listings.bucket``, the last seven days unless the include says ``day``, ``week`` or ``none``; windows counted back from the day ``as_of``) and the stars inside it. ``skip`` and ``count`` cut the ranked list.
+    """
     selection, sort, ties = _listing_selection(attributes, settings)
     chosen = sorted_by(selection.select(entries), sort, ties)
+    if sort == "date" and stars:
+        chosen = rank_entries(chosen, stars, attributes.get("bucket") or settings.listings.bucket, as_of)
     skip = _number(attributes, "skip", "::include") or 0
     count = _number(attributes, "count", "::include")
     chosen = chosen[skip:]
@@ -130,13 +141,13 @@ def depends_of(attributes: Mapping) -> tuple[str, ...]:
     return tuple(part.strip() for part in attributes.get("depends", "").split(",") if part.strip())
 
 
-def include_inputs(includes: list[dict], entries: list[StandardEntry], settings: StandardSettings) -> list:
+def include_inputs(includes: list[dict], entries: list[StandardEntry], settings: StandardSettings, stars: Mapping[str, int] | None = None, as_of: date | None = None) -> list:
     """What a page's includes render from, as JSON-able data: the full fingerprint of each entry a listing shows (or a block reads)."""
     inputs: list = []
     for attributes in includes:
         kind = attributes.get("kind")
         if kind == "listing":
-            inputs.append([dict(attributes), [entry.fingerprint(full=True) for entry in listing_entries(attributes, entries, settings)]])
+            inputs.append([dict(attributes), [entry.fingerprint(full=True) for entry in listing_entries(attributes, entries, settings, stars, as_of)]])
         elif kind == "block":
             wanted = depends_of(attributes)
             chosen = [entry for entry in entries if "*" in wanted or (entry.topic or "@root") in wanted]

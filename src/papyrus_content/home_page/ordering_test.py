@@ -6,11 +6,13 @@ import random
 import pytest
 
 from papyrus_content.home_page.ordering import (
+    bucket_of,
     bucket_start,
     has_ranks,
     order_in_buckets,
     order_public_records,
     ordered,
+    rank_in_buckets,
     rank_records,
     valid_stars,
 )
@@ -121,3 +123,34 @@ def test_newest_bucket_first_and_the_shared_order_inside_each_bucket():
 def test_a_reference_with_no_date_is_in_the_oldest_bucket():
     records = [public("dated", 2, acceptedAt="2026-10-20T00:00:00.000Z"), {"key": "undated", "rank": 1}]
     assert [record["key"] for record in order_in_buckets(records, "week")] == ["dated", "undated"]
+
+
+# ------------------------------------------------------------------ Stories use the same buckets and the same order
+
+
+@pytest.mark.parametrize(
+    ("moment", "bucket", "expected"),
+    [
+        ("2026-02-08", "week", "2026-02-02"),          # a Sunday belongs to the week that began on the Monday before
+        ("2026-02-09", "week", "2026-02-09"),
+        ("2026-02-08", "day", "2026-02-08"),
+        ("2026-02-08T23:30:00-05:00", "day", "2026-02-09"),   # UTC, whatever the offset says
+        ("", "week", ""),
+        (None, "day", ""),
+        ("not a date", "week", ""),
+    ],
+)
+def test_bucket_of_takes_a_date_or_a_timestamp_and_buckets_it_in_utc(moment, bucket, expected):
+    assert bucket_of(moment, bucket) == expected
+
+
+def test_rank_in_buckets_ranks_stories_inside_a_bucket_and_keeps_every_story():
+    stories = [("a", "2026-02-08", None), ("b", "2026-02-07", 5), ("c", "2026-02-06", 1), ("d", "2026-01-30", 5), ("e", "2026-02-05", 3), ("f", None, 4)]
+    ranked = rank_in_buckets(stories, stars=lambda story: story[2], moment=lambda story: story[1], bucket="week")
+    assert [story[0] for story in ranked] == ["b", "e", "a", "c", "d", "f"]
+    assert sorted(story[0] for story in ranked) == sorted(story[0] for story in stories)
+
+
+def test_rank_in_buckets_without_any_stars_is_the_list_it_was_given():
+    stories = [("a", "2026-02-08"), ("b", "2026-02-07"), ("c", "2026-01-30"), ("d", "2026-01-20")]
+    assert rank_in_buckets(stories, stars=lambda story: None, moment=lambda story: story[1], bucket="week") == stories
