@@ -48,7 +48,7 @@ The `homePage` key of `projection.json`; a site without it has no home-page beha
 
 ## Serving the blocks from the public index
 
-`references.source` is `"snapshot"` (the default: every block picks from `_data/home-page/references.json`) or `"index"`: each block asks the public index ([the design](plans/public-blocks-from-indexes.md), PPY-7f1e54; [the attributes and the index](reference-feed-indexes.md#the-public-blocks-attributes)) for the rows it shows, in the order it shows them, and each row already carries its card (`cardImage`, `cardSummary`, `cardSiteName`, `cardPageTitle`), so no decision and no preview is read. **A site stays on the snapshot until it opts in**, and an opted-in site writes no `references.json`. A `recommendedThreshold` below 0.5 is a build error on the index path (the index holds only pending rows predicted at 0.5 or more), and `references.paging` is refused for now (paged lists follow in their own change).
+`references.source` is `"snapshot"` (the default: every block picks from `_data/home-page/references.json`) or `"index"`: each block asks the public index ([the design](plans/public-blocks-from-indexes.md), PPY-7f1e54; [the attributes and the index](reference-feed-indexes.md#the-public-blocks-attributes)) for the rows it shows, in the order it shows them, and each row already carries its card (`cardImage`, `cardSummary`, `cardSiteName`, `cardPageTitle`), so no decision and no preview is read. **A site stays on the snapshot until it opts in**, and an opted-in site writes no `references.json`. A `recommendedThreshold` below 0.5 is a build error on the index path (the index holds only pending rows predicted at 0.5 or more).
 
 | Block | What it reads |
 | --- | --- |
@@ -68,7 +68,9 @@ The design estimates a whole render from nothing at about 21 and 29 requests on 
 
 **Before a site flips**, run `papyrus home-page parity --site KEY --static-dir SITE/web`: it renders every page that places a Reference from the file and from the index into two scratch directories (the backend is only read), lists any page that differs with its first differing card, and calls a page `rounding tier` when its cards differ only in order between cards that show the same confidence percentage. Exit status 1 for any other difference. The flip is one line in `projection.json`; after it `references.json` is no longer written.
 
-**Not yet:** paged lists (`paging`), the anchor card on a thread page (the thread files themselves are written, and a thread about a Reference is public when its row is in the public index), and the removal of the snapshot code (a later change, when every site has flipped).
+**Paged lists** (`references.paging`) are served too: the list is the whole selection, so its block reads to the end (one request for every hundred rows, with the stars once) and the chunks are cut by `chunks.py` exactly as from the file. This is the one block whose render still grows with the table. A row that is, or was, in the list's partition asks the list again and nothing else does; the files of every chunk are named from the list, so they are written together, and a chunk file the new cuts no longer make is deleted. The design's layout record (re-cutting from a remembered start to bound the read) is not built: a change to a paged list reads the whole list.
+
+**Not yet:** the anchor card on a thread page (the thread files themselves are written, and a thread about a Reference is public when its row is in the public index), and the removal of the snapshot code (a later change, when every site has flipped).
 
 ## The task
 

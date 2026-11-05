@@ -20,7 +20,7 @@ from datetime import date
 from typing import Any
 
 from ...home_page.export import clip_summary
-from ...home_page.indexed import IndexDocument
+from ...home_page.indexed import WHOLE, IndexDocument
 from ...home_page.ordering import BUCKETS, order_in_buckets, order_public_records, utc_today
 from ...home_page.settings import HomePageSettings
 from ...reference_medium import MEDIUMS
@@ -116,7 +116,8 @@ def _in_section(record: Mapping, section: str, labels: Mapping[str, str]) -> boo
 def candidates_of(document: Mapping | None, attributes: Mapping, section_labels: Mapping[str, str] | None = None, as_of: date | None = None) -> list[Mapping[str, Any]]:
     """Every Reference an include's selection could place, in the order it places them: no ledger, no count."""
     if isinstance(document, IndexDocument):   # asked outside a page (a digest): the rows its own count needs
-        document = document.for_block(attributes, int(attributes["count"]) if "count" in attributes else document.reader.settings.references.default_count, as_of or utc_today(), section_labels)
+        wanted = WHOLE if is_paged(attributes) else int(attributes["count"]) if "count" in attributes else document.reader.settings.references.default_count
+        document = document.for_block(attributes, wanted, as_of or utc_today(), section_labels)
     records = (document or {}).get("references") or []
     candidates = ordered(records, attributes["select"], attributes.get("bucket"), as_of)
     if attributes.get("medium"):   # only the References whose address certainly says this medium; a record with no `medium` field never matches

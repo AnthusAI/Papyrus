@@ -22,6 +22,7 @@ from .state_store import DirtyBatch
 from .task import (
     ProjectorRefused,  # noqa: F401
     _project_listings,
+    _stale_list_files,
     _stale_thread_files,
     _stale_thread_pages,
     corpus_id_for,
@@ -74,13 +75,10 @@ def run_home_page_render(
     ``mode`` is ``incremental`` when the trigger's coordinates and the remembered blocks decided what to render, and ``full`` when every block was asked."""
     if settings is None or not settings.references.indexed:
         return {"skipped": "this site is not served from the public index", "written": [], "deleted": [], "pagesRewritten": 0, "rewritten": [], "purged": []}
-    if settings.references.paging is not None:
-        raise ValueError("homePage.references.paging: paged Reference lists are not served from the public index yet; set homePage.references.source to \"snapshot\" for a site that has them")
     settings = with_public_data_limits(settings, context.projector)
     corpus_id = corpus_id_for(settings, site)
     stamp = now or datetime.now(timezone.utc)
     projector = context.projector
-    readers = reader_pages_of(projector)
     as_of = projector._day()
     by_page = projector.home_page_blocks_by_page()
     wanted = {block_key(attributes, as_of) for blocks in by_page.values() for attributes in blocks}
@@ -93,8 +91,16 @@ def run_home_page_render(
     read_threads = settings.threads.enabled and (mode == "full" or bool(dirty and dirty.messages) or any((c.feed0 is None) != (c.feed1 is None) for c in coordinates or []))
     everything = mode == "full" or read_threads   # a thread page and the files that list it are written with the pages, so every page is asked once
     touched = set(wanted) if everything else touched_blocks(states, wanted, coordinates or [], as_of=as_of)
+    paged = {block_key(attributes, as_of) for blocks in by_page.values() for attributes in blocks if attributes.get("paged") == "true"}
+    if paged and (touched or everything):
+        touched |= paged   # a paged list is the whole selection, and the files of every chunk are named from it: all of them are asked together or not at all
     index = reader or IndexReader(client, corpus_id, settings)
+    if not touched and not read_threads:   # nothing a block shows changed: no block is asked, and the pages that name the chunk files of a paged list are not even worked out
+        _remember(block_store, fingerprint, states, index, wanted, dry_run)
+        return {"mode": mode, "blocks": len(wanted), "touchedBlocks": 0, "pagesTouched": 0, "pagesRewritten": 0, "rewritten": [], "threads": 0, "threadsRead": False, "written": [],
+                "deleted": [], "purged": [], "unchanged": [], "requests": {}}
     projector.use_home_page_index(index, frozenset(touched))
+    readers = reader_pages_of(projector)   # after the index is attached: the chunk files of a paged list are named from the list
     touched_pages = {page for page, blocks in by_page.items() if any(block_key(attributes, as_of) in touched for attributes in blocks)}
     thread_files: dict[str, bytes] = {}
     thread_count = 0
@@ -103,6 +109,8 @@ def run_home_page_render(
     report: dict[str, Any] = {"mode": mode, "blocks": len(wanted), "touchedBlocks": len(touched), "pagesTouched": len(touched_pages), "pagesRewritten": 0, "rewritten": [],
                               "threads": thread_count, "threadsRead": read_threads, "written": [], "deleted": [], "purged": [], "unchanged": []}
     selection = _selection(projector, readers, touched_pages, everything=everything)
+    if paged & touched and not everything:
+        selection |= frozenset(projector.reference_list_keys())   # the files of the chunks are written with the page that places the list
     if not selection and not read_threads:
         report["requests"] = dict(index.requests)
         _remember(block_store, fingerprint, states, index, wanted, dry_run)
@@ -129,6 +137,10 @@ def run_home_page_render(
             context.writer.delete(name)
             report["deleted"].append(name)
         projected = _project_listings(context, selection)
+        if paged & touched:
+            for name in _stale_list_files(context):   # the chunk files of a paged list that the cuts no longer make
+                context.writer.delete(name)
+                report["deleted"].append(name)
         report["rewritten"] = list(projected.written)
         report["pagesRewritten"] = len(projected.written)
         if settings.freshness.purge and context.invalidate is not None:

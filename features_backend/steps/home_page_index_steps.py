@@ -161,3 +161,48 @@ def rounding(context) -> None:
 @then("the check does not fail")
 def does_not_fail(context) -> None:
     assert context.parity["ok"] is True
+
+
+# --- paged lists ---------------------------------------------------------------------------------------------------------------------------------
+
+
+@when("the paged fixture site is rendered from the file and from the public index")
+def render_paged_both(context) -> None:
+    from papyrus_content.home_page.render_paged_test import build
+
+    context.file_site = remember(context, build("snapshot", context.rows, snapshot=True))
+    context.index_site = remember(context, build("index", context.rows, snapshot=False))
+    context.report, context.client = render_from_index(context.index_site, context.rows, block_store=MemoryBlockStore())
+
+
+@then("every page and every chunk file of every paged list is identical in both")
+def chunks_identical(context) -> None:
+    from papyrus_content.home_page.render_paged_test import lists_of
+
+    wanted, found = lists_of(context.file_site), lists_of(context.index_site)
+    assert any(key.startswith("reference-lists/") for key in wanted) and set(wanted) == set(found)
+    assert [key for key in wanted if wanted[key] != found[key]] == []
+
+
+@given("the paged fixture site rendered from the public index")
+def paged_rendered(context) -> None:
+    from papyrus_content.home_page.render_paged_test import build
+
+    context.index_site = remember(context, build("index", context.rows, snapshot=False))
+    context.store = MemoryBlockStore()
+    context.report, context.client = render_from_index(context.index_site, context.rows, block_store=context.store)
+
+
+@when("a new recommended Reference is recorded as a change")
+def recommended_arrives(context) -> None:
+    newcomer = make_row("pen-wire", "pending", probability=0.8, arrived=TODAY)
+    coordinate = Coordinate("pen-wire-v1", feed1=newcomer["publicFeedKey"], order1=newcomer["publicOrderKey"])
+    batch = DirtyBatch(ids=frozenset({coordinate.identifier}), coords=frozenset({json.dumps(coordinate.to_json(), sort_keys=True)}))
+    context.report, context.client = render_from_index(context.index_site, [*context.rows, newcomer], block_store=context.store, dirty=batch)
+
+
+@then("the paged list shows it")
+def paged_shows(context) -> None:
+    from papyrus_content.home_page.render_paged_test import lists_of
+
+    assert "Title of pen-wire" in "".join(lists_of(context.index_site).values())
