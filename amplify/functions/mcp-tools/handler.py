@@ -76,6 +76,8 @@ def handler(event: dict, context: Any) -> dict:
             tenant = os.environ.get("PAPYRUS_TENANT_ID", "").strip() or None
             staff = StaffReads(UserPoolClient(endpoint, raw["idToken"], tenant))
             available = set(staff.available_tools)
+            if os.environ.get("PAPYRUS_MCP_STORY_DRAFT_ENABLED") != "true":
+                available.discard("story_save_draft")
             if tenant:
                 available -= {"reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "story_evidence", "story_next", "assignments_list", "assignment_get", "reviews_list", "review_get", "review_answer"}
             elif os.environ.get("PAPYRUS_MCP_REFERENCE_SINGLE_TENANT") != "true":
@@ -97,17 +99,17 @@ def handler(event: dict, context: Any) -> dict:
         if event.get("operation") != "call" or not isinstance(event.get("name"), str) or not isinstance(event.get("arguments"), dict):
             return _failure("invalid_request", "The request is malformed.")
         result = call_tool(principal, event["name"], event["arguments"], staff=staff, reader=reader)
-        if kind == "reader" and result.get("statusCode", 500) >= 400:
+        if result.get("ok") is False or (kind == "reader" and result.get("statusCode", 500) >= 400):
             return {"isError": True, "content": [{"type": "text", "text": json.dumps(result, default=str)}], "structuredContent": result}
         return {"content": [{"type": "text", "text": json.dumps(result, default=str)}], "structuredContent": result}
     except PermissionError:
         return _failure("forbidden", "This identity cannot use that tool.")
     except ValueError as error:
-        if "stale_revision" in str(error):
+        if "stale_revision" in str(error) or "stale_version" in str(error):
             return _failure("stale_revision", "The record changed. Refresh the card and try again.")
         return _failure("invalid_request", "The request could not be accepted.")
     except GraphQLRequestError as error:
-        if "stale_revision" in str(error):
+        if "stale_revision" in str(error) or "stale_version" in str(error):
             return _failure("stale_revision", "The record changed. Refresh the card and try again.")
         return _failure("site_error", "The site could not complete the request.")
     except Exception:

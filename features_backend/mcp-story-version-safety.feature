@@ -12,10 +12,10 @@ Feature: Safe agent Story writes
     When another write claims the planned new version ID
     Then the draft is refused without changing the Story
 
-  Scenario: Story writes stay unavailable without an atomic gate-aware operation
+  Scenario: Publishing stays unavailable without an atomic gate-aware operation
     Given the site has no safe agent publishing operation
     When an agent discovers the site's Story tools
-    Then the agent cannot call a Story write tool
+    Then the agent cannot call the Story publish tool
 
   Scenario: A signed-in editor's agent saves a draft without overwriting a competing version
     Given a Story has a single current version

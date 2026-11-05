@@ -131,10 +131,13 @@ def call_tool(principal: Principal, name: str, arguments: dict, *, staff: Any,
     return operation(principal, **arguments)
 
 
-class StaffReads:
+from .mcp_story_writes import StaffStoryWrites
+
+
+class StaffReads(StaffStoryWrites):
     """Read through the same scoped GraphQL client used by the operator library."""
 
-    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list", "review_answer", "story_star"})
+    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list", "review_answer", "story_star", "story_save_draft"})
 
     def __init__(self, client: Any):
         self.client = client

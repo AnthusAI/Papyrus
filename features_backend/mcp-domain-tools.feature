@@ -96,3 +96,8 @@ Feature: Site tools preserve editorial and reader authority
     Given a reader connected to a site with a verified site subject
     When the reader tries to rate a Story
     Then the staff tool is refused
+
+  Scenario: A saved draft remains saved when its editorial check is unavailable
+    Given an editor connected to a site with the agent draft operation
+    When the agent saves a new draft and its check is unavailable
+    Then the tool reports both the saved draft and the check status

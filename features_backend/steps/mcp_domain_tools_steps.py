@@ -366,3 +366,26 @@ def reader_rates_story(context):
         call_tool(context.principal, "story_star", {"lineageId": "story", "expectedCurrentVersionId": "story-v1", "expectedRevision": '["2026-11-01T10:00:00Z",null]', "stars": 4}, staff=context.staff)
     except PermissionError as error:
         context.error = error
+
+
+@given('an editor connected to a site with the agent draft operation')
+def draft_site(context):
+    class DraftSite(Site):
+        def graphql(self, query, variables):
+            import json
+            assert json.loads(variables["input"])["expectedCurrentVersionId"] == "story-v1"
+            return {"agentSaveStoryDraft": {"ok": True, "item": {"id": "story-v2"}, "editorialCheck": {"notChecked": "Check unavailable"}}}
+    context.principal = Principal("staff", "editor", is_agent=True)
+    context.staff = StaffReads(DraftSite())
+
+
+@when('the agent saves a new draft and its check is unavailable')
+def save_draft_unchecked(context):
+    context.result = call_tool(context.principal, "story_save_draft", {"lineageId": "story", "expectedCurrentVersionId": "story-v1", "body": "New draft.", "reason": "Revision"}, staff=context.staff)
+
+
+@then('the tool reports both the saved draft and the check status')
+def saved_draft_and_check(context):
+    assert context.result["ok"] is True
+    assert context.result["item"]["id"] == "story-v2"
+    assert context.result["editorialCheck"]["notChecked"] == "Check unavailable"

@@ -32,10 +32,9 @@ def step(context):
 def step(context):
     context.names = {tool["name"] for tool in list_tools(Principal(kind="staff", subject="person", is_agent=True), staff=context.staff)}
 
-@then("the agent cannot call a Story write tool")
+@then("the agent cannot call the Story publish tool")
 def step(context):
     assert "story_publish" not in context.names
-    assert "story_save_draft" not in context.names
 
 @when("the site's draft operation checks the current version in its transaction")
 def step(context):

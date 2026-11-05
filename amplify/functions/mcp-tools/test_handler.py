@@ -75,3 +75,24 @@ def test_shared_backend_hides_unscoped_models(monkeypatch):
     names = {tool["name"] for tool in result["tools"]}
     assert "story_get" in names
     assert not names.intersection({"reference_get", "story_evidence", "concept_get", "assignment_get", "review_get"})
+
+
+def test_story_save_discovery_requires_deployment_opt_in(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_ENDPOINT", "https://example.org/graphql")
+    monkeypatch.delenv("PAPYRUS_MCP_STORY_DRAFT_ENABLED", raising=False)
+    event = {"operation": "list", "principal": {"kind": "staff", "subject": "editor", "idToken": "token"}}
+    assert "story_save_draft" not in {t["name"] for t in module.handler(event, None)["tools"]}
+    monkeypatch.setenv("PAPYRUS_MCP_STORY_DRAFT_ENABLED", "true")
+    assert "story_save_draft" in {t["name"] for t in module.handler(event, None)["tools"]}
+
+
+def test_save_result_preserves_post_save_check_status(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_ENDPOINT", "https://example.org/graphql")
+    monkeypatch.setenv("PAPYRUS_MCP_STORY_DRAFT_ENABLED", "true")
+    def saved(*args, **kwargs):
+        return {"ok": True, "item": {"id": "story-v2"}, "editorialCheck": {"notChecked": "Check unavailable"}}
+    monkeypatch.setattr(module, "call_tool", saved)
+    result = module.handler({"operation": "call", "principal": {"kind": "staff", "subject": "editor", "idToken": "token"},
+                             "name": "story_save_draft", "arguments": {}}, None)
+    assert result["structuredContent"]["editorialCheck"]["notChecked"] == "Check unavailable"
+    assert result["structuredContent"]["item"]["id"] == "story-v2"
