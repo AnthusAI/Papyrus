@@ -53,4 +53,4 @@ Feature: A site's knowledge run settings are committed, reviewed and deployed li
   Scenario: The settings committed for Machines on Machines and Shipped are valid
     Then the committed vocabularies of "machines-on-machines" and "shipped" name their publication, their kinds and their relation types
     And Machines on Machines' vocabulary has a description and a "what" and "not_for" for every kind
-    And Shipped's vocabulary has no description, because none has been written
+    And Shipped's vocabulary has a description
