@@ -17,6 +17,11 @@ const defaultProfile = {
 
 module.exports = {
   default: defaultProfile,
+  mcpTransport: {
+    paths: ["features/mcp/streamable-http.feature"],
+    require: ["features/step_definitions/mcp-transport.steps.js"],
+    format: ["summary"],
+  },
   // Hermetic component/browser acceptance: no server, credentials or production reads.
   emailReceipt: {
     paths: ["features/newsroom-email-receipt.feature"],
