@@ -33,6 +33,7 @@ selection does not match writes nothing, and saving one it matches re-renders th
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import date
 
 from . import home_page_blocks, knowledge_blocks
 from .config import STORY_BUCKETS, StandardSettings
@@ -120,16 +121,16 @@ def _listing_selection(attributes: Mapping, settings: StandardSettings) -> tuple
     return merged, sort, ties
 
 
-def listing_entries(attributes: Mapping, entries: list[StandardEntry], settings: StandardSettings, stars: Mapping[str, int] | None = None) -> list[StandardEntry]:
+def listing_entries(attributes: Mapping, entries: list[StandardEntry], settings: StandardSettings, stars: Mapping[str, int] | None = None, as_of: date | None = None) -> list[StandardEntry]:
     """The entries a ``listing`` include shows, in order.
 
     A listing sorted by date also ranks by the editors' stars (``story_order.py``) when it is given the ``stars`` of the rated Stories: the newest ``bucket``
-    first (``listings.bucket``, a week unless the include says ``day``, ``week`` or ``none``) and the stars inside it. ``skip`` and ``count`` cut the ranked list.
+    first (``listings.bucket``, the last seven days unless the include says ``day``, ``week`` or ``none``; windows counted back from the day ``as_of``) and the stars inside it. ``skip`` and ``count`` cut the ranked list.
     """
     selection, sort, ties = _listing_selection(attributes, settings)
     chosen = sorted_by(selection.select(entries), sort, ties)
     if sort == "date" and stars:
-        chosen = rank_entries(chosen, stars, attributes.get("bucket") or settings.listings.bucket)
+        chosen = rank_entries(chosen, stars, attributes.get("bucket") or settings.listings.bucket, as_of)
     skip = _number(attributes, "skip", "::include") or 0
     count = _number(attributes, "count", "::include")
     chosen = chosen[skip:]
@@ -140,13 +141,13 @@ def depends_of(attributes: Mapping) -> tuple[str, ...]:
     return tuple(part.strip() for part in attributes.get("depends", "").split(",") if part.strip())
 
 
-def include_inputs(includes: list[dict], entries: list[StandardEntry], settings: StandardSettings, stars: Mapping[str, int] | None = None) -> list:
+def include_inputs(includes: list[dict], entries: list[StandardEntry], settings: StandardSettings, stars: Mapping[str, int] | None = None, as_of: date | None = None) -> list:
     """What a page's includes render from, as JSON-able data: the full fingerprint of each entry a listing shows (or a block reads)."""
     inputs: list = []
     for attributes in includes:
         kind = attributes.get("kind")
         if kind == "listing":
-            inputs.append([dict(attributes), [entry.fingerprint(full=True) for entry in listing_entries(attributes, entries, settings, stars)]])
+            inputs.append([dict(attributes), [entry.fingerprint(full=True) for entry in listing_entries(attributes, entries, settings, stars, as_of)]])
         elif kind == "block":
             wanted = depends_of(attributes)
             chosen = [entry for entry in entries if "*" in wanted or (entry.topic or "@root") in wanted]

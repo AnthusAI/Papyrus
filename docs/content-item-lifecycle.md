@@ -251,10 +251,18 @@ A schema change: it needs the site backend deployed.
 
 The rating is private, but it orders the public listings. Listing includes, the featured slot, the home page's list, a section's listing page (`/articles/`),
 a collection page (`/posts/`) and tag pages put the newest bucket first and, inside a bucket, five, four and three stars first, then Stories nobody rated, then
-two and one stars; equal Stories keep their newest-first order. This is the rule References follow, and the code is shared (`bucket_of` and `rank_in_buckets` in
-`src/papyrus_content/home_page/ordering.py`; the Story side is `projection/standard/story_order.py`). A bucket is the UTC calendar week starting Monday
-(`listings.bucket`, default `week`; `day` or `none` too), and an include can say `bucket="day|week|none"`; `none` is the old newest-first list. The feeds, the
-sitemap and `llms.txt` stay in date order.
+two and one stars; equal Stories keep their newest-first order. The order of ratings is the one References follow, and the code is shared (`rank_in_buckets` in
+`src/papyrus_content/home_page/ordering.py`; the Story side is `projection/standard/story_order.py`). **A Story bucket is a rolling window** (Ryan, 2026-11-04:
+"rolling last seven days for the week"): counted back from the UTC day of the projection, `week` (the default of `listings.bucket`) is the last seven days, the
+seven before that, and so on; `day` is the last day, the day before, and so on; `none` is the old newest-first list. An include can say `bucket="day|week|none"`.
+A Reference's bucket stays the calendar UTC day or Monday week, because its page order is computed from a stored snapshot, not at the render: only Stories roll
+(see [Home page](home-page.md#time-buckets)). The feeds, the sitemap and `llms.txt` stay in date order.
+
+**Time moves Stories between buckets with no write.** The order depends on the UTC day (never the time of day), so a listing can change at most once a day. There is
+no schedule and no pass over a corpus for it. A page holds the order of its last render and is corrected whenever something that already re-renders it runs: a publish
+(it rewrites the listings the new Story appears in, computed as of that day, which are the pages most likely to be stale), a rating (`story-stars` runs the whole
+stale-listings pass), the post-release render, or `papyrus ops content project --reconcile`. A page nothing touches can lag by days; that cannot be closed
+without a scheduled pass, which Ryan's rule forbids, so it is the stated limit. The home-page snapshot run only rewrites pages that read the snapshot, so it corrects those and no others.
 
 **What happens to older Stories.** Nothing is dropped. A Story from an earlier bucket follows every Story of the newer buckets and is ranked inside its own, so
 an old five-star Story never rises above a newer week. A listing with `count` shows the first `count` of that ranked list, so it reaches an earlier bucket only

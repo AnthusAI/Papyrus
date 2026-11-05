@@ -30,6 +30,7 @@ def names(text: str) -> list[str]:
 def build(context, settings=None) -> None:
     context.site = cms_site(settings or ranking.SETTINGS, ranking.stories(), ranking.FILES)
     context.site.context.source.star_store = MemoryStarStore()
+    context.site.projector.clock = lambda: ranking.AS_OF
     context.add_cleanup(context.site.cleanup)
     context.before = dict(context.site.tree)
 
@@ -79,6 +80,37 @@ def projected(context) -> None:
 @when("the site is projected again")
 def projected_again(context) -> None:
     project_again(context)
+
+
+@when("the site is projected two days later")
+def projected_two_days_later(context) -> None:
+    context.site.projector.clock = lambda: ranking.date(2026, 2, 10)
+    project_again(context)
+
+
+@when("two days pass with no write")
+def two_days_pass(context) -> None:
+    context.site.projector.clock = lambda: ranking.date(2026, 2, 10)
+
+
+@when("the stale-listings pass runs")
+def stale_pass(context) -> None:
+    from papyrus_content.projection.engine import project_stale_listings
+
+    context.report = project_stale_listings(context.site.context)
+    assert context.report.ok, context.report.errors
+
+
+@then("a second stale-listings pass rewrites nothing")
+def second_stale_pass(context) -> None:
+    from papyrus_content.projection.engine import project_stale_listings
+
+    assert not project_stale_listings(context.site.context).written
+
+
+@then('the "{name}" listing still starts with {slug}')
+def listing_still_starts(context, name: str, slug: str) -> None:
+    assert listing(context, name)[0] == slug, listing(context, name)
 
 
 @then("every page is byte for byte what it was")

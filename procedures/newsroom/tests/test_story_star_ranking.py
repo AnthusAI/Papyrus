@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from papyrus_content.projection.engine import project_all, project_stale_listings
@@ -23,7 +25,9 @@ FILES = {
     "plain.md": f'{BAND}::include{{kind="listing" types="article" count="20" layout="bare" bucket="none"}}\n',
     "hero.md": f'{BAND}::include{{kind="listing" types="article" count="1" layout="bare"}}\n',
 }
-# Monday 2026-02-02 starts the week of the five-star article; the six that are newer land later in the same week.
+# Projected on 2026-02-08 the last seven days are 2026-02-02 to 2026-02-08: the five-star article (the 2nd) and the six newer ones are in that window, and
+# the two Stories of the week before (the 29th and 30th) are in the window before it.
+AS_OF = date(2026, 2, 8)
 WEEK = [("eight", "2026-02-08"), ("seven", "2026-02-07"), ("six", "2026-02-06"), ("five", "2026-02-05"), ("four", "2026-02-04"), ("three", "2026-02-03")]
 THIS_WEEK_STAR = ("star", "2026-02-02")
 LAST_WEEK = [("old-a", "2026-01-30"), ("old-b", "2026-01-29")]
@@ -48,6 +52,7 @@ def rate(site, slug: str, count: int | None) -> None:
 def site():
     projected = cms_site(SETTINGS, stories(), FILES)
     projected.context.source.star_store = MemoryStarStore()
+    projected.projector.clock = lambda: AS_OF
     yield projected
     projected.cleanup()
 
@@ -211,6 +216,38 @@ def test_a_story_published_after_it_was_rated_is_ranked_without_a_rating_event(s
     assert store.writes == 1 and store.reads == reads + 1
 
 
+# ------------------------------------------------------------------ rolling windows
+
+
+def test_a_week_is_the_last_seven_days_counted_back_from_the_day_of_the_projection(site):
+    rate(site, "star", 5)
+    rate(site, "three", 1)
+    site.projector.clock = lambda: date(2026, 2, 10)   # two days later: the 2nd and 3rd have fallen out of the last seven days
+    reproject(site)
+    assert listing(site) == ["eight", "seven", "six", "five", "four", "star", "old-a", "old-b", "three"]
+
+
+def test_a_story_changes_bucket_with_time_alone_and_only_a_later_pass_corrects_the_pages(site):
+    rate(site, "star", 5)
+    reproject(site)
+    assert listing(site)[0] == "star"
+    site.projector.clock = lambda: date(2026, 2, 10)
+    assert listing(site)[0] == "star", "nothing re-rendered, so the page still holds the old order"
+    site.writer.operations.clear()
+    report = project_stale_listings(site.context)
+    assert report.ok and {"latest/index.html", "posts/index.html", "index.html"} <= set(report.written)
+    assert listing(site)[0] == "eight"
+    again = project_stale_listings(site.context)
+    assert not again.written, "once corrected, nothing is rewritten until the day changes again"
+
+
+def test_the_order_depends_on_the_day_and_never_on_the_time():
+    from papyrus_content.home_page.ordering import rolling_age
+
+    assert [rolling_age(day, "week", date(2026, 2, 8)) for day in ("2026-02-08", "2026-02-02", "2026-02-01", "2026-01-26", "2026-02-20", "", None)] == [0, 0, 1, 1, 0, 2**31, 2**31]
+    assert rolling_age("2026-02-07T23:59:00Z", "day", date(2026, 2, 8)) == 1
+
+
 # ------------------------------------------------------------------ settings
 
 
@@ -226,6 +263,7 @@ def test_a_bucket_other_than_day_week_or_none_is_a_build_error_that_names_where(
 def test_a_site_can_make_none_its_default_bucket_and_keep_every_listing_newest_first():
     plain = cms_site({**SETTINGS, "listings": {"featuredCount": 1, "pageSize": 20, "bucket": "none"}}, stories(), FILES)
     plain.context.source.star_store = MemoryStarStore()
+    plain.projector.clock = lambda: AS_OF
     try:
         rate(plain, "three", 5)
         reproject(plain)

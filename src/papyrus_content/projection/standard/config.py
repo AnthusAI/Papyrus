@@ -277,7 +277,7 @@ class ListingSettings:
     tag_title: str = "Tagged {tag}"       # the title and heading of a tag page
     draft_field: str = ""             # a front matter field whose value (draft_values) marks an item as a draft
     draft_values: tuple[str, ...] = ("draft",)
-    bucket: str = DEFAULT_STORY_BUCKET   # Stories rank by stars inside this bucket, newest bucket first; "none" keeps newest first (story_order.py)
+    bucket: str = DEFAULT_STORY_BUCKET   # Stories rank by stars inside this rolling window (last 7 days for "week", last day for "day"), newest first; "none" keeps newest first (story_order.py)
 
 
 @dataclass(frozen=True)

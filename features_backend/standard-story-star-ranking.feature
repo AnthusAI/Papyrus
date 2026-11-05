@@ -6,8 +6,13 @@ Feature: Published Stories rank by recency bucket and then by the editors' priva
   The rule is the one References already follow (home-page-human-ratings.feature), applied to Stories wherever the site lists them: listing includes
   (::include{kind="listing"}), the featured slot of a listing page, the home page's list, a section's listing page (/articles/), a collection page
   (/posts/) and a tag page. Newest bucket first; inside a bucket five, four and three stars first, then Stories nobody rated, then two and one stars; equal
-  Stories keep their newest-first order. A bucket is a calendar week starting on Monday, in UTC, unless the site (listings.bucket) or the include
-  (bucket="day|week|none") says otherwise; "none" is the plain newest-first list.
+  Stories keep their newest-first order. A bucket is a ROLLING window counted back from the UTC day of the projection (Ryan: "rolling last seven days for
+  the week"): the last seven days, the seven before that, and so on. The site (listings.bucket) or the include (bucket="day|week|none") can choose a day
+  instead; "none" is the plain newest-first list. References keep their calendar buckets (home-page-human-ratings.feature); only Stories roll.
+
+  A Story moves to an older window with time alone, and no write triggers anything. The order depends on the day, never the time, so a listing can change
+  at most once a day, and nothing is scheduled to walk the corpus. A page holds the order of its last render until something that already re-renders it
+  runs again: a publish that touches it, a rating, the render a release does, or a reconcile. A quiet page can therefore lag by days; that is the stated limit.
 
   Nothing disappears. A Story from an earlier bucket follows every Story of the newer buckets, ranked inside its own bucket, so an old five-star Story never
   rises above a newer week. A Story is rated on its working Item version and the rating is read at projection time from a private store in the
@@ -49,6 +54,20 @@ Feature: Published Stories rank by recency bucket and then by the editors' priva
     And the first Story of the "everything" listing page is three
     And the first Story on the home page is three
     And the feed lists "eight" before "three"
+
+  Scenario: Two days later the week has rolled and the oldest of this week's Stories fall into the window before it
+    Given the editors rated "star" 5 stars and "three" 1 star
+    When the site is projected two days later
+    Then the "latest" listing is eight, seven, six, five, four, star, old-a, old-b, three
+
+  Scenario: Time alone leaves a page stale until something that already re-renders it runs
+    Given the editors rated "star" 5 stars
+    And the site is projected again
+    When two days pass with no write
+    Then the "latest" listing still starts with star
+    When the stale-listings pass runs
+    Then the "latest" listing starts with eight
+    And a second stale-listings pass rewrites nothing
 
   Scenario: A day bucket and no bucket
     Given the editors rated "three" 5 stars

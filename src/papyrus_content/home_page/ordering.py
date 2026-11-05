@@ -121,13 +121,34 @@ def bucket_start(record: Mapping[str, Any], bucket: str) -> str:
     return bucket_of(record.get("acceptedAt"), bucket) or bucket_of(record.get("arrivedAt"), bucket)
 
 
-def rank_in_buckets(items: Iterable[T], *, stars: Callable[[T], int | None], moment: Callable[[T], Any], bucket: str) -> list[T]:
+BUCKET_DAYS = {"day": 1, "week": 7}
+
+
+def rolling_age(moment: Any, bucket: str, as_of: date) -> int:
+    """How many whole ``bucket`` windows before ``as_of`` the date falls: 0 is the last day (or last seven days), 1 the window before it, and so on.
+
+    Windows are counted back from ``as_of`` (a UTC day), not from the calendar, so "week" means the last seven days, the seven before that, and so on. A
+    date after ``as_of`` is in window 0; no usable date is the oldest window. ``as_of`` is a day, not a time, so the order can change only when the day does.
+    """
+    instant = _instant(moment)
+    if instant is None:
+        return 2**31
+    days = (as_of - instant.astimezone(timezone.utc).date()).days
+    return max(0, days) // BUCKET_DAYS[bucket]
+
+
+def rank_in_buckets(
+    items: Iterable[T], *, stars: Callable[[T], int | None], moment: Callable[[T], Any], bucket: str, as_of: date | None = None
+) -> list[T]:
     """``items`` (already newest first) with the newest bucket first and, inside each bucket, the shared order of ratings: 5, 4, 3 stars, then unrated, then 2 and 1.
 
-    Both sorts are stable, so equal items keep the order they came in: with nothing rated every bucket keeps its newest-first order, and the whole list is
-    exactly what it was. Nothing is dropped: an older bucket follows the newer ones, ranked inside itself.
+    Without ``as_of`` a bucket is a calendar day or Monday week (``bucket_of``). With it (Stories) a bucket is a rolling window counted back from that day
+    (``rolling_age``). Both sorts are stable, so equal items keep the order they came in: with nothing rated every bucket keeps its newest-first order, and the
+    whole list is exactly what it was. Nothing is dropped: an older bucket follows the newer ones, ranked inside itself.
     """
     chosen = sorted(items, key=lambda item: _primary(valid_stars(stars(item)), MISSING_CONFIDENCE))
+    if as_of is not None:
+        return sorted(chosen, key=lambda item: rolling_age(moment(item), bucket, as_of))
     return sorted(chosen, key=lambda item: bucket_of(moment(item), bucket), reverse=True)
 
 
