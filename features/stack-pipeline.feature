@@ -60,6 +60,13 @@ Feature: Shared stacks deploy from the release, never by hand
     Then it creates its own CREATE change set and leaves the other one alone
     And it looks the hosted zone up and never stores its id
 
+  Scenario: A first create whose change set disappears while it runs
+    Given the release executed the change set that creates a new stack
+    And CloudFormation no longer finds that change set
+    When the stack finishes creating
+    Then the deploy succeeds, because it judged the stack and not the change set
+    And a stack that rolls back still fails the release
+
   Scenario: A pull request shows a dry run and changes nothing
     Given a pull request that edits infra/monitoring
     When the dry-run job runs with the read-only role
