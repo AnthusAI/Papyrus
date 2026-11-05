@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d077379c-169a-4e45-9c05-08909236308f",
+  "issue_id": "PPY-ec0d0a4e-7214-4699-b3bd-60191e036a67",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T19:19:50.649Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Find References in the Newsroom by medium and by title",
+    "description": "Ryan, 2026-11-05, relayed by the Machines on Machines session: 'I don't have any way to find that video... we need some UI in the references page for showing videos or for filtering by media... There are just too many things.' Thousands of References, no way to find the one video. Add medium filter buttons (video first, from the existing mediumFeedKey index, no scan) and check whether search by title exists. Buttons, not dropdowns; Lucide icons; Gherkin. Scope to discuss with Ryan.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
