@@ -31,6 +31,8 @@ When the old SNS email is removed later (PPY-f66e91), exactly these two stay. Th
 
 ## What deploys, in what order
 
+**Required first on a new AWS account:** a person runs `infra/pipeline/bootstrap.sh --account <12-digit account id>` so the release has roles to deploy with, and again after any change to `infra/pipeline/papyrus-stack-pipeline.yaml` ([why and how](../infra/pipeline/README.md#required-the-role-bootstrap-a-person-runs-it)).
+
 Nothing is deployed by the pull request, and nobody runs these by hand (PPY-b8cc79). The pull request's `stack-deploy` dry run prints what each stack would change; a person reads that before merging. The release to `main` then builds the zips, deploys the operator sending stack first and `papyrus-monitoring` second, in one run, through GitHub OIDC (`infra/pipeline/README.md`). The run stops without executing if anything would be Removed or Replaced that `infra/pipeline/allowed-changes.json` does not list, or if a stack is in a failed state. Steps 1 to 3 below are what that run does; read them as the description of its work, and as the manual fallback only if the pipeline is unavailable and Ryan says so.
 
 0. **Before anything.** Merge Caducus PR 7 (the handlers this needs), then set `infra/monitoring/caducus-requirement.txt` to the merge commit (or a release tag) and commit that. Until PyPI works the pin is a Git commit; the file's own comments say how to change it.

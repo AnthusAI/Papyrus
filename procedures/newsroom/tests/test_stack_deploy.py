@@ -409,3 +409,231 @@ def test_the_aws_wrapper_passes_the_service_role_and_tags_only_on_create():
     assert "--role-arn" in calls[0] and "--tags" not in calls[0] and "--change-set-type" in calls[0] and "UPDATE" in calls[0]
     assert "--tags" in calls[1] and "Key=a,Value=b" in calls[1] and "CREATE" in calls[1] and "CAPABILITY_IAM" in calls[1]
     assert not any("wait" in part for command in calls for part in command)
+
+
+# --- the role bootstrap: one repeatable step, documented, and impossible to miss (PPY-9d1b3e) -----------------------------------------
+
+PIPELINE_TEMPLATE = PIPELINE / "papyrus-stack-pipeline.yaml"
+
+
+def _policy_documents(template):
+    for name, resource in template["Resources"].items():
+        props = resource.get("Properties", {})
+        if resource["Type"] == "AWS::IAM::ManagedPolicy":
+            yield name, props["PolicyDocument"]
+        elif resource["Type"] == "AWS::IAM::Role":
+            yield f"{name} trust", props["AssumeRolePolicyDocument"]
+            for policy in props.get("Policies", []):
+                yield f"{name} {policy['PolicyName']}", policy["PolicyDocument"]
+
+
+def test_no_policy_in_the_role_template_repeats_a_statement_id():
+    # A duplicate Sid made IAM refuse the policy and failed a release on 2026-11-05.
+    template = sd.parse_template(PIPELINE_TEMPLATE.read_text())
+    checked = 0
+    for where, document in _policy_documents(template):
+        sids = [s["Sid"] for s in document["Statement"] if "Sid" in s]
+        assert len(sids) == len(set(sids)), f"duplicate Sid in {where}: {sorted(x for x in sids if sids.count(x) > 1)}"
+        checked += 1
+    assert checked >= 5
+
+
+def test_the_provider_is_created_only_when_asked_and_the_default_changes_nothing():
+    template = sd.parse_template(PIPELINE_TEMPLATE.read_text())
+    assert template["Parameters"]["CreateGitHubOidcProvider"]["Default"] == "false"
+    provider = template["Resources"]["GitHubOidcProvider"]
+    assert provider["Condition"] == "CreatesProvider" and provider["Properties"]["ClientIdList"] == ["sts.amazonaws.com"]
+    assert provider["Properties"]["Url"] == "https://token.actions.githubusercontent.com"
+    for role in ("PlanRole", "DeployRole"):
+        federated = template["Resources"][role]["Properties"]["AssumeRolePolicyDocument"]["Statement"][0]["Principal"]["Federated"]
+        assert "Fn::If" in federated  # the existing ARN when the provider is not ours, the created one when it is
+
+
+def test_both_roles_may_read_the_pipeline_stack_and_only_read_it():
+    template = sd.parse_template(PIPELINE_TEMPLATE.read_text())
+    for role in ("PlanRole", "DeployRole"):
+        statements = template["Resources"][role]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+        read = [s for s in statements if "stack/papyrus-stack-pipeline/" in json.dumps(s["Resource"])]
+        assert len(read) == 1 and set(read[0]["Action"]) == {"cloudformation:DescribeStacks", "cloudformation:GetTemplate"}
+
+
+def test_the_service_role_covers_the_service_of_every_resource_type_the_stacks_create():
+    # Service level only: it cannot know every action a resource needs. A new service in a stack template fails here before it fails a release.
+    pipeline = sd.parse_template(PIPELINE_TEMPLATE.read_text())
+    granted = set()
+    for name in ("ComputeAndIdentityPolicy", "DataAndMailPolicy"):
+        for statement in pipeline["Resources"][name]["Properties"]["PolicyDocument"]["Statement"]:
+            actions = statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
+            granted |= {a.split(":")[0] for a in actions}
+    for stack in json.loads((PIPELINE / "stacks.json").read_text())["stacks"]:
+        for logical, resource in sd.parse_template((ROOT / stack["template"]).read_text())["Resources"].items():
+            kind = resource["Type"]
+            if kind.startswith("Custom::") or kind == "AWS::CloudFormation::CustomResource":
+                service = "lambda"
+            elif kind.startswith("AWS::"):
+                service = kind.split("::")[1].lower()
+            else:
+                continue
+            assert service in granted, f"{stack['name']} {logical} ({kind}): the service role has no {service}:* permission"
+
+
+def test_a_change_to_the_role_template_puts_both_stacks_in_scope_so_the_release_checks_the_roles():
+    config = json.loads((PIPELINE / "stacks.json").read_text())
+    assert sd.changed_stacks(config, ["infra/pipeline/papyrus-stack-pipeline.yaml"]) == [s["name"] for s in config["stacks"]]
+
+
+class PipelineCloud(FakeCloud):
+    def __init__(self, deployed, **kwargs):
+        super().__init__(**kwargs)
+        self.deployed = deployed
+
+    def get_template(self, name):
+        if name == sd.PIPELINE_STACK:
+            if isinstance(self.deployed, Exception):
+                raise self.deployed
+            return self.deployed
+        return TEMPLATE
+
+
+REPO_PIPELINE = PIPELINE_TEMPLATE.read_text()
+STALE_PIPELINE = REPO_PIPELINE.replace("MaxSessionDuration: 3600", "MaxSessionDuration: 7200", 1)
+
+
+@pytest.mark.parametrize("deployed, state", [
+    (REPO_PIPELINE, "same"),
+    (STALE_PIPELINE, "differs"),
+    (sd.AwsError("Stack with id papyrus-stack-pipeline does not exist"), "missing"),
+    (sd.AwsError("User is not authorized to perform: cloudformation:GetTemplate"), "unreadable"),
+])
+def test_the_deployed_roles_are_compared_with_the_template_in_the_repo(deployed, state):
+    assert sd.pipeline_state(PipelineCloud(deployed), REPO_PIPELINE)[0] == state
+
+
+def test_an_out_of_date_role_is_said_plainly_once_names_the_command_and_stops_nothing(tmp_path):
+    cloud = PipelineCloud(STALE_PIPELINE, params=CURRENT)
+    ctx = make(tmp_path, cloud)
+    ctx.check_pipeline = True
+    sd.plan_stack(ctx, CFG)
+    sd.plan_stack(ctx, CFG)
+    text = "\n".join(ctx.messages)
+    assert text.count("### The pipeline roles are out of date") == 1
+    assert "infra/pipeline/bootstrap.sh --account" in text and "::warning::" in text
+    assert "Resources added" in text and cloud.created == []  # the dry run went on as usual
+
+
+def test_unreadable_roles_from_before_the_check_are_a_notice_not_a_failure(tmp_path):
+    ctx = make(tmp_path, PipelineCloud(sd.AwsError("not authorized to perform cloudformation:GetTemplate"), params=CURRENT))
+    ctx.check_pipeline = True
+    assert sd.pipeline_notice(ctx) == "unreadable"
+    assert "cannot read the papyrus-stack-pipeline stack" in "\n".join(ctx.messages)
+
+
+def test_matching_roles_add_no_noise(tmp_path):
+    ctx = make(tmp_path, PipelineCloud(REPO_PIPELINE, params=CURRENT))
+    ctx.check_pipeline = True
+    assert sd.pipeline_notice(ctx) == "same" and ctx.messages == []
+
+
+def test_a_not_authorized_failure_names_the_bootstrap_command():
+    hint = sd.bootstrap_hint("User: arn:aws:sts::1:assumed-role/papyrus-stack-deploy-cloudformation is not authorized to perform: cloudwatch:PutCompositeAlarm")
+    assert "infra/pipeline/bootstrap.sh --account" in hint and "only by a person" in hint
+    assert sd.bootstrap_hint("Resource handler returned message: queue name already exists") == ""
+
+
+def test_the_first_papyrus_monitoring_of_a_new_account_takes_the_cdk_bootstrap_bucket(tmp_path):
+    cloud = FakeCloud(stack_status=None, changes=[change("Id", "Add")],
+                      script=[("CREATE_COMPLETE", "AVAILABLE"), ("CREATE_IN_PROGRESS", "EXECUTE_IN_PROGRESS"), ("CREATE_COMPLETE", "EXECUTE_COMPLETE")])
+    assert sd.deploy_stack(make(tmp_path, cloud), CFG) == "deployed"
+    bucket = "cdk-hnb659fds-assets-123456789012-us-east-1"
+    assert cloud.created[0]["kind"] == "create" and {"ParameterKey": "CodeBucket", "ParameterValue": bucket} in cloud.created[0]["parameters"]
+    assert cloud.uploaded[0][0] == bucket
+
+
+BOOTSTRAP_DOCS = ["README.md", "AGENTS.md", "infra/pipeline/README.md", "docs/site-hosting.md", "docs/operator-alerts.md", "docs/releasing.md", "docs/standard-site.md"]
+
+
+@pytest.mark.parametrize("path", BOOTSTRAP_DOCS)
+def test_every_place_that_describes_account_setup_points_at_the_one_bootstrap_step(path):
+    assert "bootstrap.sh" in (ROOT / path).read_text(), f"{path} must name infra/pipeline/bootstrap.sh"
+
+
+@pytest.mark.parametrize("path", ["README.md", "AGENTS.md", "infra/pipeline/README.md"])
+def test_the_main_docs_say_it_is_required_a_persons_step_and_when_to_run_it_again(path):
+    text = (ROOT / path).read_text().replace("*", "")
+    assert "papyrus-stack-pipeline.yaml" in text and "any change" in text.lower() and "person" in text and "new AWS account" in text
+    assert "<12-digit account id>" in text
+
+
+def test_agents_are_told_not_to_run_it_and_how_to_ask():
+    text = (ROOT / "AGENTS.md").read_text()
+    assert "Never run it" in text and "unless the user tells you to" in text and "The pipeline roles are out of date" in text
+
+
+ACCOUNT = "2" * 12  # made up, and built rather than written so no account-id shape sits in the file
+OTHER = "9" * 12
+
+
+def _fake_tools(tmp_path, account, providers=f"arn:aws:iam::{ACCOUNT}:oidc-provider/token.actions.githubusercontent.com"):
+    """An `aws` and a `gh` that record every call and answer just enough. Nothing leaves the machine."""
+    log = tmp_path / "calls.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "aws").write_text(f"""#!/bin/sh
+echo "aws $*" >> {log}
+case "$*" in
+  *"sts get-caller-identity"*) echo {account} ;;
+  *"list-open-id-connect-providers"*) echo '{providers}' ;;
+  *"describe-stacks"*) exit 255 ;;
+  *"describe-change-set"*"StatusReason"*) echo None ;;
+  *"describe-change-set"*"Status"*) echo CREATE_COMPLETE ;;
+esac
+exit 0
+""")
+    (bin_dir / "gh").write_text(f"#!/bin/sh\necho \"gh $*\" >> {log}\n")
+    for tool in ("aws", "gh"):
+        (bin_dir / tool).chmod(0o755)
+    return bin_dir, log
+
+
+def _bootstrap(tmp_path, actual, *args, **tools):
+    bin_dir, log = _fake_tools(tmp_path, actual, **tools)
+    env = {"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)}
+    done = subprocess.run(["bash", str(PIPELINE / "bootstrap.sh"), *args], capture_output=True, text=True, env=env, input="no\n")
+    return done, (log.read_text() if log.exists() else "")
+
+
+def test_bootstrap_refuses_the_wrong_account_before_changing_anything(tmp_path):
+    done, calls = _bootstrap(tmp_path, OTHER, "--account", ACCOUNT)
+    assert done.returncode == 2 and f"belong to account {OTHER}, not {ACCOUNT}" in done.stderr
+    assert "create-change-set" not in calls and "variable set" not in calls
+
+
+def test_bootstrap_needs_an_account_and_never_assumes_one(tmp_path):
+    done, calls = _bootstrap(tmp_path, ACCOUNT)
+    assert done.returncode == 2 and "--account" in done.stderr and calls == ""
+
+
+def test_bootstrap_shows_a_change_set_and_applies_nothing_without_a_yes(tmp_path):
+    done, calls = _bootstrap(tmp_path, ACCOUNT, "--account", ACCOUNT)
+    assert done.returncode == 2 and "not confirmed" in done.stderr
+    assert "create-change-set" in calls and "--change-set-type CREATE" in calls and "execute-change-set" not in calls and "variable set" not in calls
+
+
+def test_bootstrap_plan_only_deletes_its_change_set(tmp_path):
+    done, calls = _bootstrap(tmp_path, ACCOUNT, "--account", ACCOUNT, "--plan-only")
+    assert done.returncode == 0 and "execute-change-set" not in calls and "delete-change-set" in calls
+
+
+def test_bootstrap_asks_for_the_provider_flag_when_the_account_has_none(tmp_path):
+    done, calls = _bootstrap(tmp_path, ACCOUNT, "--account", ACCOUNT, providers="")
+    assert done.returncode == 2 and "--create-oidc-provider" in done.stderr and "create-change-set" not in calls
+
+
+def test_bootstrap_refuses_to_create_a_second_provider(tmp_path):
+    done, calls = _bootstrap(tmp_path, ACCOUNT, "--account", ACCOUNT, "--create-oidc-provider")
+    assert done.returncode == 2 and "already has" in done.stderr and "create-change-set" not in calls
+
+
+def test_the_bootstrap_script_and_docs_hold_no_real_account_id():
+    for path in [PIPELINE / "bootstrap.sh", PIPELINE / "README.md", PIPELINE_TEMPLATE]:
+        assert not re.search(r"(?<![\d<-])\d{12}(?![\d>])", path.read_text()), path

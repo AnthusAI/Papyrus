@@ -260,6 +260,8 @@ patch the lock when a Papyrus bump breaks `npm ci`.
 
 ### 1.6 The per-site backend, repo connection and CI auth
 
+A new AWS account first needs the pipeline role bootstrap, run by a person (`infra/pipeline/bootstrap.sh`, [why and when](../infra/pipeline/README.md#required-the-role-bootstrap-a-person-runs-it)).
+
 `@anthusai/papyrus/infra` (the CDK constructs, run from the site's own `infra/` app) provisions the container; `ampx pipeline-deploy`
 (run by the Amplify build) creates the backend inside it. Today the shell
 knows one site, hardcoded (C4). Standard:

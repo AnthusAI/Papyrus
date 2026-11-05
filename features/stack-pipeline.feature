@@ -79,3 +79,50 @@ Feature: Shared stacks deploy from the release, never by hand
     Then the deploy role trusts only this repository's main branch
     And the dry-run role trusts only this repository's pull requests and holds only read permissions
     And no account id and no stored key appears in the repository
+
+  # The role bootstrap (PPY-9d1b3e). Ryan, 2026-11-05: a command that sets up a role the deployment needs must be repeatable as code and
+  # written down for people and agents, because a release failed on an out-of-date role and only a person running a command from chat fixed it.
+  # Checked by the same test file.
+
+  Scenario: One command sets up or updates the pipeline roles
+    Given a person with administrator credentials for an AWS account
+    When they run infra/pipeline/bootstrap.sh and name the account
+    Then it refuses if the credentials belong to another account, before changing anything
+    And it shows a change set and applies it only after the person types yes
+    And it sets the AWS_ACCOUNT_ID repository variable and verifies the roles and the deployed template
+    And running it again with nothing to change says so and touches nothing
+
+  Scenario: An account with no GitHub OIDC provider gets one only when asked
+    Given an account whose GitHub OIDC provider does not exist
+    When the person runs the bootstrap without asking for the provider
+    Then it stops and tells them to pass --create-oidc-provider
+    And an account that already has a provider is never given a second one, and the default template change leaves it untouched
+
+  Scenario: The first papyrus-monitoring on a new account has a bucket to upload to
+    Given the papyrus-monitoring stack does not exist yet
+    When the release deploys it
+    Then the templates and zips go to the CDK bootstrap bucket named from the account and region
+    And that bucket name is passed as the stack's CodeBucket, which later releases read back from the live stack
+
+  Scenario: The release says when the deployed roles are older than the template
+    Given the template in the repository differs from the deployed papyrus-stack-pipeline stack
+    When a pull request dry run or a release deploy starts
+    Then the job summary says the pipeline roles are out of date and names the bootstrap command
+    And the release carries on, because this is a notice and not a failure
+    And a deployed role that cannot read the pipeline stack yet gets the same notice
+
+  Scenario: A permission refusal names the fix
+    Given a deploy fails because the service role is not authorized to perform an action
+    When the job summary is written
+    Then it says roles are changed only by a person and names infra/pipeline/bootstrap.sh
+
+  Scenario: The requirement is written down where people and agents look
+    Given the top-level README, AGENTS.md, the pipeline README and the account-setup docs
+    Then each names infra/pipeline/bootstrap.sh
+    And the README, AGENTS.md and the pipeline README say it is required, that a person runs it, and that any change to the role template needs it again
+    And AGENTS.md tells an agent never to run it unless told to, and what to say to ask for it
+
+  Scenario: The role template cannot repeat a statement id
+    Given the role template
+    Then no policy in it has two statements with the same Sid
+    And every AWS service a shared stack template creates resources in is granted to the service role

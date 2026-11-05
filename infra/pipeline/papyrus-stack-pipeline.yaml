@@ -1,18 +1,37 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Roles for the release pipeline that deploys the shared stacks (PPY-b8cc79). This is the one stack a person deploys by hand,
-  once; after that every shared stack deploys from a release to main with GitHub OIDC (no stored keys).
-  The account's GitHub OIDC provider already exists (one per account); this stack references it by ARN and never creates it.
-  Deploy with: aws cloudformation deploy --template-file infra/pipeline/papyrus-stack-pipeline.yaml
-  --stack-name papyrus-stack-pipeline --capabilities CAPABILITY_NAMED_IAM
+  Roles for the release pipeline that deploys the shared stacks (PPY-b8cc79). This is the one stack a person applies by hand, because a
+  pipeline must not be able to raise its own permissions. Apply it with infra/pipeline/bootstrap.sh on a new account, and again after
+  every change to this file (infra/pipeline/README.md). Every other shared stack then deploys from a release to main with GitHub OIDC
+  (no stored keys). The account's GitHub OIDC provider is referenced by ARN; CreateGitHubOidcProvider=true makes this stack create it
+  on an account that has none (default false, so an account that already has one is untouched).
 
 Parameters:
   GitHubRepository:
     Type: String
     Default: AnthusAI/Papyrus
     Description: owner/repo whose workflow may assume the roles.
+  CreateGitHubOidcProvider:
+    Type: String
+    Default: "false"
+    AllowedValues: ["false", "true"]
+    Description: >-
+      "true" creates the account's GitHub OIDC provider (token.actions.githubusercontent.com) in this stack. An account can hold one
+      provider per issuer, so leave it "false" where one already exists. Once "true", keep it "true": setting it back deletes the provider.
+
+Conditions:
+  CreatesProvider: !Equals [!Ref CreateGitHubOidcProvider, "true"]
 
 Resources:
+  # Only on an account with no provider yet. Audience sts.amazonaws.com is what GitHub's documentation and aws-actions/configure-aws-credentials use.
+  # No thumbprint: it is optional, and for token.actions.githubusercontent.com IAM verifies the certificate against its own trusted CAs.
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreatesProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+
   # Pull requests: read-only. The dry run reads stacks and templates and changes nothing.
   PlanRole:
     Type: AWS::IAM::Role
@@ -25,7 +44,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+              Federated: !If [CreatesProvider, !Ref GitHubOidcProvider, !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"]
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
@@ -42,6 +61,10 @@ Resources:
                 Resource:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-monitoring/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-newsletter-sending-operators/*
+              - Sid: ReadThePipelineStackToSeeWhetherItIsOutOfDate
+                Effect: Allow
+                Action: [cloudformation:DescribeStacks, cloudformation:GetTemplate]
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-stack-pipeline/*
               - Sid: LookUpTheZone
                 Effect: Allow
                 Action: route53:ListHostedZonesByName
@@ -60,7 +83,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+              Federated: !If [CreatesProvider, !Ref GitHubOidcProvider, !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"]
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
@@ -109,6 +132,10 @@ Resources:
                 Effect: Allow
                 Action: ssm:GetParameters
                 Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/papyrus/*
+              - Sid: ReadThePipelineStackToSeeWhetherItIsOutOfDate
+                Effect: Allow
+                Action: [cloudformation:DescribeStacks, cloudformation:GetTemplate]
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-stack-pipeline/*
               - Sid: LookUpTheZone
                 Effect: Allow
                 Action: route53:ListHostedZonesByName
@@ -235,11 +262,6 @@ Resources:
             # CloudWatch authorizes PutCompositeAlarm against alarm:*, not the alarm's name (the 2026-11-05 release was refused on the name).
             Action: cloudwatch:PutCompositeAlarm
             Resource: !Sub arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:*
-          # CloudWatch checks this action against every alarm, whatever the composite alarm is called: scoping it to papyrus-* is refused.
-          - Sid: CompositeAlarms
-            Effect: Allow
-            Action: cloudwatch:PutCompositeAlarm
-            Resource: !Sub arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:*
           - Sid: DescribeAlarms
             Effect: Allow
             Action: cloudwatch:DescribeAlarms
@@ -264,6 +286,9 @@ Resources:
             Resource: !Sub arn:${AWS::Partition}:route53:::change/*
 
 Outputs:
+  GitHubOidcProviderArn:
+    Condition: CreatesProvider
+    Value: !Ref GitHubOidcProvider
   PlanRoleArn:
     Value: !GetAtt PlanRole.Arn
   DeployRoleArn:
