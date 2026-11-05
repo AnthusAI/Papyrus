@@ -51,7 +51,7 @@ from ..public_data import clipped, entry_for, hidden_from_public_data, owns_publ
 from ..writers import request_paths_for_key
 import inspect
 
-from . import alexa_pages, blocks, components, forum_pages, home_page_blocks, includes, knowledge_blocks, newsletter_pages, page_twin
+from . import alexa_pages, blocks, components, forum_pages, home_page_blocks, home_page_lists, includes, knowledge_blocks, newsletter_pages, page_twin
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
@@ -137,6 +137,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[KNOWLEDGE_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-knowledge.css").read_bytes()
         if standard.home_page is not None:
             files[HOME_PAGE_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-home-page.css").read_bytes()
+            if standard.home_page.references.paging is not None:   # a site that has not opted in to paged Reference lists publishes no script for them
+                files[home_page_lists.SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-reference-list.js").read_bytes()
         if standard.section_fronts:
             files[SECTION_FRONTS_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-section-fronts.css").read_bytes()
         if standard.nav_disclosure:
@@ -181,9 +183,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
         self._knowledge_lookup = KnowledgeLookup(self._knowledge)
         self._knowledge_items: object = None
         self._home_page = HomePageSource()
+        self._paged_cache: tuple[object, dict] = (None, {})
         if "convert_text" not in kwargs:
             self._convert_text = self._convert_with_wiki_directives
         self.standard = standard
+        if standard.home_page is not None and standard.home_page.references.paging is not None:
+            taken = [custom.id for custom in standard.pages if custom.path.split("/")[0] == home_page_lists.LIST_DIRECTORY]
+            if taken:
+                raise ValueError(f"pages {', '.join(taken)}: the path {home_page_lists.LIST_DIRECTORY!r} is where paged Reference lists are written (homePage.references.paging is set)")
         self.hooks = hooks
         self.environment = environment or resolve_environment(standard)
         self.policy = UrlPolicy(standard)
@@ -338,6 +345,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 keys.add(self.policy.listing_key(custom.path))
         if self.standard.not_found.source and self._reads_home_page(self.standard.not_found.source, "notFound"):
             keys.add(NOT_FOUND_KEY)
+        keys.update(self.reference_list_keys())   # the files of paged Reference lists change with the snapshot, and there are more or fewer of them
         if self._forum() is not None:
             self._home_page.reset()
             for _page_key, thread, _reference in self._public_threads():
@@ -348,6 +356,62 @@ class StandardMarkusProjector(MarkusSiteProjector):
             if keys and self.standard.agents.llms_full:
                 keys.add(self.policy.key(LLMS_FULL_KEY))   # and llms-full.txt carries the twins of the authored pages
         return frozenset(keys)
+
+    # ------------------------------------------------------------------ paged Reference lists
+
+    def _paged_list(self, custom: CustomPage, attributes: dict) -> home_page_lists.PagedList:
+        """The layout of one paged list of an authored page, from the snapshot as it is now (memoised until the snapshot is read again)."""
+        document = self._home_page.references()
+        if self._paged_cache[0] is not document:
+            self._paged_cache = (document, {})
+        memo = self._paged_cache[1]
+        key = (custom.id, json.dumps(attributes, sort_keys=True))
+        if key not in memo:
+            settings = self.standard.home_page
+            labels = {section.name: section.label for section in self.standard.sections}
+            candidates = home_page_blocks.candidates_of(document, attributes, labels)
+            memo[key] = home_page_lists.build(
+                candidates, attributes, page_path=f"/{custom.path}/" if custom.path else "/", page_title=custom.title,
+                count=home_page_blocks.count_of(attributes, settings), page_size=settings.references.paging.page_size, path=self.policy.path,
+            )
+        return memo[key]
+
+    def _paged_lists_of(self, custom: CustomPage, found: list[dict]) -> list[home_page_lists.PagedList]:
+        """The paged lists an authored page places, in document order."""
+        lists = [self._paged_list(custom, attributes) for attributes in found if home_page_blocks.is_home_page_include(attributes) and home_page_blocks.is_paged(attributes)]
+        home_page_lists.check_unique(lists, custom.source or custom.id)
+        return lists
+
+    def reference_list_keys(self) -> frozenset[str]:
+        """The keys of every file of every paged list (a page and a data file for each chunk), from the snapshot as it is now."""
+        if self.standard.home_page is None or self.standard.home_page.references.paging is None:
+            return frozenset()
+        self._home_page.reset()
+        keys: set[str] = set()
+        for custom in self.standard.pages:
+            if not custom.source:
+                continue
+            _text, found = self._page_includes(custom.source, f"pages.{custom.id}")
+            for paged in self._paged_lists_of(custom, found):
+                for chunk in paged.chunks:
+                    page_key = self.policy.listing_key(paged.address.page_base(chunk.name))
+                    keys.add(page_key)
+                    keys.add(self.policy.key(paged.address.data_key(chunk.name)))
+                    if self.standard.agents.markdown:
+                        keys.add(md_key(page_key))
+        return frozenset(keys)
+
+    def reference_list_prefix(self) -> str:
+        """The object-key prefix every paged-list file is under (``reference-lists/``, below ``urls.basePath``)."""
+        return self.policy.key(f"{home_page_lists.LIST_DIRECTORY}/")
+
+    def _paged_list_for_include(self, attributes: dict, page: StandardPage, source: str) -> home_page_lists.PagedList | None:
+        if not home_page_blocks.is_paged(attributes):
+            return None
+        custom = next((found for found in self.standard.pages if found.id == page.custom_id), None) if page.kind == "custom" else None
+        if custom is None:
+            raise ValueError(f"{source}: ::include references paged=\"true\" works on a page of the site's `pages` list, not on this kind of page")
+        return self._paged_list(custom, attributes)
 
     def _reads_home_page(self, source: str, owner: str) -> bool:
         _text, found = self._page_includes(source, owner)
@@ -559,6 +623,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
         keyed by those ids (``"*"`` is the fallback key).
         """
         declared = self.hooks.depends_on
+        if page_id == "reference_list":   # the files of a paged list read no Story unless the hooks module says so (DEPENDS_ON["reference_list"] or a plain list)
+            declared = declared.get(page_id, ()) if isinstance(declared, dict) else (declared or ())
+            declared = (declared,) if isinstance(declared, str) else tuple(declared)
+            return tuple(dict.fromkeys((*declared, *self.standard.item_depends_on))) if declared else ()
         if isinstance(declared, dict):
             declared = declared.get(page_id, declared.get("*", ("*",)))
             declared = (declared,) if isinstance(declared, str) else tuple(declared)
@@ -734,6 +802,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 text, found = authored
                 digest_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard, self._story_stars, self._as_of), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)]
             path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
+            if authored is not None:
+                self._add_list_files(plan, self._paged_lists_of(custom, authored[1]), shared, entries, listed, site, page_inputs)
             add(
                 self.policy.listing_key(custom.path),
                 f"custom:{custom.id}",
@@ -839,6 +909,45 @@ class StandardMarkusProjector(MarkusSiteProjector):
         ]
         return [*groups, ("Pages", pages[:limit]), *([("Conversations", threads[:limit])] if threads else [])]
 
+    def _add_list_files(self, plan, found_lists, shared: str, entries, listed, site: SiteIndex, page_inputs) -> None:
+        """Two files per chunk of each paged list, both from one render of the chunk's page (so the site's hooks draw the cards of both).
+
+        A chunk's digest is its own Reference records, its neighbours' names and the build: inserting a Reference rewrites the chunk it lands in, and the
+        neighbour whose link changes, and nothing else (``home_page/chunks.py``). Neither file reads a Story unless the hooks module asks (``reference_list`` in ``DEPENDS_ON``)."""
+        dependency = self._dependency_digest(entries, "reference_list")
+        token = self._home_page_stylesheet_token()
+        for paged in found_lists:
+            rendered: dict[int, tuple[bytes, bytes]] = {}
+
+            def render(index: int, paged=paged, rendered=rendered) -> tuple[bytes, bytes]:
+                if index not in rendered:
+                    chunk = paged.chunks[index]
+                    fragment = home_page_lists.chunk_page_fragment(paged, index, home_page_lists.chunk_items(paged, chunk, self.policy.path))
+                    head = PageHead(
+                        title=f"{paged.page_title}: more References", path=paged.address.page_href(chunk.name),
+                        description=f"References that follow the first page of {paged.page_title}.",
+                    )
+                    page = self._page("reference_list", head, site, entries=tuple(listed), fragment=fragment)
+                    page.ledger.home_page_used = True
+                    html_text, cards = home_page_lists.cut_cards(self._render(page).decode("utf-8"))
+                    rendered[index] = (html_text.encode("utf-8"), home_page_lists.data_file(paged, index, cards))
+                return rendered[index]
+
+            for index, chunk in enumerate(paged.chunks):
+                base = paged.address.page_base(chunk.name)
+                digest = digest_of([shared, base, home_page_lists.chunk_signature(paged, index), dependency, page_inputs, token])
+                page_key = self.policy.listing_key(base)
+                plan[page_key] = (digest, lambda index=index, render=render: render(index)[0])
+                twin = md_key(page_key) if self.standard.agents.markdown else None
+                if twin:
+                    plan[twin] = (digest_of([digest, "markdown"]), lambda index=index, paged=paged: self._chunk_markdown(paged, index).encode("utf-8"))
+                plan[self.policy.key(paged.address.data_key(chunk.name))] = (digest_of([digest, "data"]), lambda index=index, render=render: render(index)[1])
+
+    def _chunk_markdown(self, paged: home_page_lists.PagedList, index: int) -> str:
+        """The twin of a chunk's page: its title and canonical address, then the Reference list with the links back and on."""
+        facts = SimpleNamespace(title=f"{paged.page_title}: more References", authors=(), author_details=(), date="", updated="", summary_text="")
+        return item_markdown(facts, home_page_blocks.render_chunk_markdown(paged, index, self._twin_url), self.head.absolute(paged.address.page_href(paged.chunks[index].name)))
+
     def _authored_pages(self) -> list[CustomPage]:
         """The ``pages`` entries written as a file (``source``) that have a Markdown twin: not ``noindex``."""
         return [custom for custom in self.standard.pages if custom.source and not custom.noindex]
@@ -876,7 +985,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return ""
         if kind == "references":
             labels = {section.name: section.label for section in self.standard.sections}
-            return home_page_blocks.render_markdown(attributes, self._home_page.references(), ledger, self.standard.home_page, labels, self._twin_url)
+            return home_page_blocks.render_markdown(
+                attributes, self._home_page.references(), ledger, self.standard.home_page, labels, self._twin_url,
+                paged_list=self._paged_list_for_include(attributes, page, source),
+            )
         if kind == "threads":
             return home_page_blocks.render_threads_markdown(
                 attributes, self._home_page.threads(), ledger, self.standard.home_page,
@@ -1274,6 +1386,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return False   # the knowledge snapshot belongs to `papyrus knowledge snapshot`; reconcile leaves it alone
         if owns_public_data_key(key):
             return True
+        if key.startswith(f"{home_page_lists.LIST_DIRECTORY}/") and key.endswith(".json"):
+            return True    # the data files of paged Reference lists go when their chunk does (the pages are .html and owned below)
         return key.endswith(".html") and not key.startswith(("css/", "assets/", "_"))
 
     def static_files(self) -> dict[str, bytes]:
@@ -1374,6 +1488,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             scripts += (FORM_SCRIPT_PATH,)
         if page.kind == "newsletter_page":
             scripts += (newsletter_pages.PAGES_SCRIPT_PATH,)
+        if page.ledger.paged_lists_used:   # only a page with a paged Reference list loads the script that loads more
+            scripts += (home_page_lists.SCRIPT_PATH,)
         if page.page_actions:  # only pages that render the actions load their script
             scripts += (PAGE_ACTIONS_SCRIPT,)
         identity = self.standard.identity
@@ -1561,7 +1677,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return render_form(next(spec for spec in self.standard.forms if spec.id == attributes["id"]))
         if kind == "references":
             labels = {section.name: section.label for section in self.standard.sections}
-            return home_page_blocks.render(attributes, self._home_page.references(), page.ledger, self.standard.home_page, labels, self.policy.path)
+            return home_page_blocks.render(
+                attributes, self._home_page.references(), page.ledger, self.standard.home_page, labels, self.policy.path,
+                paged_list=self._paged_list_for_include(attributes, page, source),
+            )
         if kind == "threads":
             return home_page_blocks.render_threads(attributes, self._home_page.threads(), page.ledger, self.standard.home_page, self._thread_href if self._forum() is not None else None)
         if knowledge_blocks.is_knowledge_block(attributes):
@@ -1591,7 +1710,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             actions = page.page_actions
             before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
             return before + page.fragment + after
-        if page.kind in ("home", "custom", "newsletter_page", "plugin_page", "thread") and page.fragment:
+        if page.kind in ("home", "custom", "newsletter_page", "plugin_page", "thread", "reference_list") and page.fragment:
             return page.fragment
         if page.kind == "listing" and page.section_index is not None:
             if page.section_index.section.index.source:

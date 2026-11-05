@@ -34,13 +34,15 @@ The `homePage` key of `projection.json`; a site without it has no home-page beha
 
 ```json
 {"homePage": {"layout": "latest", "perSection": 4,
-  "references": {"corpus": "knowledge-corpus-example", "fields": "all", "defaultCount": 6, "recommendedThreshold": 0.5},
+  "references": {"corpus": "knowledge-corpus-example", "fields": "all", "defaultCount": 6, "recommendedThreshold": 0.5, "paging": {"pageSize": 48}},
   "threads": {"enabled": false, "authors": "handle", "anonymousLabel": "Editor"},
   "forum": {"threadBase": "conversations", "index": {"pageSize": 50}},
   "freshness": {"debounceSeconds": 300, "intervalHours": null, "purge": false}}}
 ```
 
 `layout: "sections"` (with `perSection`, `homeLead` and `homeSections`) and the `urls.sections.<name>.index` setting are described in [Section index pages and a home of sections](building-a-papyrus-static-site.md#section-index-pages-and-a-home-of-sections); a site that does not set them is unchanged.
+
+`references.paging` is off unless it is set: `true`, or `{"pageSize": 48}` (at least 4). It is the site's opt-in to [paged Reference lists](#paged-reference-lists); a site without it publishes no script, no list file and no page of them.
 
 `references.corpus` defaults to the corpus of the site's publication key (`PAPYRUS_PUBLICATION_CORPUS_KEY` in the Lambda, `--site KEY` on the CLI).
 
@@ -64,7 +66,7 @@ A home page that interleaves Stories with the Reference grids uses the ordinary 
 
 ## The references include
 
-`::include{kind="references" select="recent|confident|recommended" count="6" [bucket="day|week"] [section="Tools"] [medium="video"] [card="tile|row"] [heading="..."] [more="/path/"] [empty="..."]}` places Reference cards on an authored page, rendered at projection time from `_data/home-page/references.json`. A site needs the `homePage` setting; without it the include is a build error that names the page file.
+`::include{kind="references" select="recent|confident|recommended" count="6" [bucket="day|week"] [section="Tools"] [medium="video"] [card="tile|row"] [heading="..."] [more="/path/"] [empty="..."] [paged="true" [id="name"]]}` places Reference cards on an authored page, rendered at projection time from `_data/home-page/references.json`. A site needs the `homePage` setting; without it the include is a build error that names the page file.
 
 - `medium="video"` keeps only the References whose `medium` is `video` (a videos block, [Videos on a public page](standard-site.md#videos-on-a-public-page)); any other value is a build error. A card with a medium shows it as a small label with a Lucide icon and the word ("Video"), except in a block that is itself filtered by `medium` (every card is that medium, so the label would only repeat); a block that mixes media keeps it.
 - `recent`: accepted, newest accepted first. `confident`: accepted, in the shared order of an editor's rating and then the Cyclotron's confidence (below). `recommended`: not yet accepted, in the same shared order. Without a `bucket`, `recent` ignores ratings.
@@ -75,6 +77,49 @@ A home page that interleaves Stories with the Reference grids uses the ordinary 
 - A card shows confidence as "93% confidence" with a Lucide `gauge` icon and a five-segment meter drawn by shape (filled or outlined), **except on a Reference an editor accepted**: once a person accepts it the Cyclotron's confidence no longer matters, so the card shows none ("Accepted by an editor" stays). A Reference accepted by a Cyclotron or a rule with no human vote ("Accepted automatically") keeps its confidence, and so does a recommended one. The record's `actor` field (from the Reference's `curationActorKind`: `human`, `cyclotron`, `rule`, `agent` or `catalog`) tells these apart, and the snapshot itself leaves `confidence` null for an accepted record whose actor is `human`; the cards also hide it for an older snapshot that still carries it. The order is unaffected: `rank` is computed from the row. A recommended card says "Recommended by Cyclotron, not yet accepted" with a `sparkles` icon. Cards use flat tones and rounded corners, with no borders. A component with nothing left draws the `empty` text, or nothing.
 - The Markdown twin keeps the include line as written. A page's digest folds in the snapshot digest, so a changed snapshot rewrites only the pages that place a references include.
 - `pages[].path`, a section `base` or a collection `base` equal to `_data`, `_plugins`, `_papyrus`, `_next` or `api` is a build error. `newsroom` is also reserved on sites whose edge routes the CMS.
+
+## Paged Reference lists
+
+> Status: Beta (PPY-61f941). Public static Reference lists only; the newsroom's own feed is a different thing.
+
+A list that must show every Reference, such as a "wire" of everything accepted, used to ask for `count="500"`, a cap that hides whatever comes after it. A paged list has no cap: the first cards are in the page and more arrive as the reader scrolls. The API stays paged (static data files, below); only the reader's experience is infinite scrolling.
+
+**How a site opts in.** Two steps, each explicit, so a site that takes neither is unchanged.
+
+1. In `projection.json`: `"homePage": {"references": {"paging": {"pageSize": 48}}}` (or `"paging": true`). This publishes `js/papyrus-reference-list.js` and lets includes be paged.
+2. On each list: `::include{kind="references" select="recent" count="24" paged="true"}`. `count` is now the size of the **first page**; it is the only number that is a size, and the list has no limit after it. `id="name"` names the list when a page has two with the same selection (otherwise the id is made from `select`, `section`, `medium` and `bucket`, such as `recent` or `recommended-tools`; two lists with the same name on a page are a build error). `paged` with `more` is a build error (the list is complete), and `paged` without the site setting is a build error that names the setting. A paged include works on a page of the `pages` list; the 404 page and section front pages cannot place one. A site that already uses the path `reference-lists` for a page cannot set `paging`.
+
+**What is written.** The first page is ordinary cards in the HTML, then a link:
+
+```html
+<div class="home-page-more-links" data-reference-more data-src="/reference-lists/wire/recent/c4a8226a26b.json">
+  <a class="home-page-load-more" rel="next" href="/reference-lists/wire/recent/c4a8226a26b/">Load more</a></div>
+<p class="home-page-status" role="status" aria-live="polite" data-reference-status></p>
+```
+
+The rest of the list, in the same order, is cut into chunks of about `pageSize` cards (see "Which chunk a Reference is in", below). Each chunk is two files, plus a Markdown twin when the site publishes twins, all drawn from one render:
+
+| File | Holds |
+| --- | --- |
+| `reference-lists/<page>/<list>/<chunk>/index.html` | A real page in the site's chrome: the chunk's cards and "Previous" / "Next" links. This is how a reader without a script, and a crawler, reaches the rest. It is an ordinary indexable page, linked by `rel="next"` and `rel="prev"`. It is not in the sitemap. |
+| `reference-lists/<page>/<list>/<chunk>.json` | `{"format": 1, "count": 12, "html": "<li data-key=...>...", "next": "/reference-lists/.../<next>.json" or null, "nextPage": "/reference-lists/.../<next>/" or null}` |
+| `reference-lists/<page>/<list>/<chunk>/index.md` | The Markdown twin of the page: its Reference list, "Previous" and "Next". |
+
+`<page>` is the page's path with `/` written `--` (`_home` for the home page); every path is under `urls.basePath`. Nothing private is in them: the cards are drawn from the public snapshot record, and a card carries no position, no total and no time of reading (so "Showing 48 of 1,203" is not possible, and not written).
+
+**How the script works.** `papyrus-reference-list.js` loads only on a page that has a paged list. It turns the "Load more" link into a button and, where `IntersectionObserver` exists, fetches the next file when the end of the list comes within 600 px of the viewport, up to five files in a row; then the button asks ("Press Load more to see more."), so the footer stays reachable (this is a pace, not a limit: the button always loads the next file, to the last). A polite live region says "Loaded 12 more References. Showing 18." and, at the end, "All 130 are shown." The button keeps its size in every state (Load more, Loading..., Try again), new cards are added after the old ones, so nothing above them moves, and the card images have a fixed aspect ratio. A keyboard press of the button moves focus to the first new card; an automatic load never moves focus. A card already shown (the order moved while the reader scrolled) is skipped by its `data-key`. A failed fetch says so and keeps the button, labelled "Try again". If a file was replaced while the reader scrolled (the list changed), the next press fails the same way and a reload shows the new list. Without a script nothing here is needed.
+
+**One renderer, including the site's hooks.** The script draws nothing: it inserts HTML the build drew. A site that redraws the stock tile as its own card in a build-time hook (Machines on Machines does it in `page_finish`) gets the same drawing on every later page, because the chunk's page is rendered through the same path as any page (`page_finish` and `card` hooks included) and the data file is the part of that rendered page between two comment markers (`<!--papyrus:cards-->`, removed from the published page). There is no client-side template to keep in step with the hook. A `page_finish` hook that rewrites the head of a page should leave a page of kind `reference_list` that has no `<head>` markup it expects alone; a hook that only replaces stock tiles needs no change. The page is `page.kind == "reference_list"` for a hook that wants to know.
+
+**The shared order.** The list is the include's whole selection in the order the include already uses (`recent`: newest accepted first; `confident` and `recommended`: the rank of the shared order; with `bucket`, newest bucket first), cut after its first `count`. Nothing is re-ranked or dropped at the end. A paged list does not skip what an earlier component on the page placed (its files are the same whichever page has the list), and the first page claims what it shows, so a later component does not repeat it.
+
+**Which chunk a Reference is in.** Cutting a list every N items moves every cut after an insertion, so one new Reference at the top would rewrite every file. Instead the cut is made by the Reference (`src/papyrus_content/home_page/chunks.py`): a chunk ends after a Reference whose key hashes to a cut once the chunk has at least a quarter of `pageSize` cards, and always at twice `pageSize`. A cut depends on the key and the length of the run, not on the place in the list, so after an insertion or removal the cuts find their old places again within a chunk or two. A chunk is named by the key of its first Reference. Measured on 5,000 References in chunks of 48 (117 chunks): one inserted or removed Reference changes 1 to 3 chunks, and a Reference moved elsewhere (a rating) changes about 2 to 6, where a fixed cut would change all 117.
+
+**Freshness.** Pages come out of the same incremental path as every listing page (see [Freshness](#freshness) and [Cost](#cost-a-change-is-read-not-the-corpus)); nothing runs on a schedule and no index is added. Each chunk's input digest is the public records in it (without `rank`, which every insertion shifts and no card shows), the names of its two neighbours, the list's own attributes and the build. When the snapshot changes, the task re-renders the page that has the list (its digest folds in the whole snapshot, as before) and the chunks whose digest changed, which is the chunk a change landed in and, when a chunk's first Reference changed, its predecessor (whose "next" link names it). Every other chunk keeps its stored digest and is not rendered, written or purged. Measured with 2,000 accepted References in 45 chunks: a new Reference at the top of the order, with every other rank one lower, wrote the page, its Markdown twin, `llms-full.txt` and 6 chunk files (two chunks); removing a Reference from the middle wrote 5 files in all. A snapshot that changes nothing a list shows (only the `generatedAt` stamp, which is not a change) writes nothing. Chunks that the cuts no longer make are deleted in the same run (one list request on the `reference-lists/` prefix, in proportion to the files, not to the Reference rows); a full reconcile treats them as owned pages and removes them too. The files a chunk read no Story: a hooks module that reads Stories while drawing a chunk's page declares `DEPENDS_ON["reference_list"]` (or a plain list that names them) and then those chunks are written again when those Stories change.
+
+**The Markdown twin.** A page's twin lists the first page of each paged list and ends it with `[More](.../index.md)`, a link to the twin of the first chunk, which lists its References and links to the one after it, so an agent can read the whole list a page at a time. It does not list everything: a twin, and `llms-full.txt` which carries the twins of authored pages, would then grow with the corpus (the cap again, moved), and would change on every insertion.
+
+**Deploying it.** Nothing new to provision. The files are projected like any page, so a deploy of the site's front-end package that carries this change is enough, then the next snapshot run (or a full projection) writes the lists. Every page that loads `css/papyrus-home-page.css` gets a new `?v=` token, because the stylesheet gained rules; nothing else about a page of a site that has not opted in changes. A site that opts in should be deployed with its own page change (`paged="true"` in the page file) in the same deploy as the version bump that carries the code, because the site's hook, page and `projection.json` are read together. To test locally: `npm run test:reference-list-browser` (needs `node_modules` and a Chromium) projects a synthetic site and drives it at 375 and 1440 px.
 
 ## Ordering: human ratings, then Cyclotron confidence
 

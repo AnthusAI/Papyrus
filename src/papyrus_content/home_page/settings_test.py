@@ -73,3 +73,19 @@ def test_the_threads_author_policy_accepts_handle_and_none():
 
     assert home_page_settings_from_mapping({"threads": {"enabled": True, "authors": "none"}}).threads.authors == "none"
     assert home_page_settings_from_mapping({"threads": {"authors": "handle"}}).threads.authors == "handle"
+
+
+def test_paging_is_off_unless_the_site_opts_in():
+    assert home_page_settings_from_mapping({}).references.paging is None
+    assert home_page_settings_from_mapping({"references": {"paging": False}}).references.paging is None
+    assert home_page_settings_from_mapping({"references": {"paging": True}}).references.paging.page_size == 48
+    assert home_page_settings_from_mapping({"references": {"paging": {"pageSize": 24}}}).references.paging.page_size == 24
+
+
+@pytest.mark.parametrize(
+    ("paging", "message"),
+    [("yes", "paging must be true, false or an object"), ({"size": 4}, "Unknown homePage.references.paging settings: size"), ({"pageSize": 2}, "pageSize must be a whole number of at least 4")],
+)
+def test_a_wrong_paging_setting_is_a_build_error_that_names_it(paging, message):
+    with pytest.raises(ValueError, match=message):
+        home_page_settings_from_mapping({"references": {"paging": paging}})
