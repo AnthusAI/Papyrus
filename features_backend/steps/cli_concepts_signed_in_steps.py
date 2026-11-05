@@ -32,7 +32,7 @@ LAMBDA_TEST = "scripts/test-concept-management.ts"
 
 def lambda_behaviour(context, pattern: str) -> None:
     """The named behaviour of the site's own code holds: one node test, found by its name."""
-    done = subprocess.run(["node", "--import", "tsx", "--test", f"--test-name-pattern={re.escape(pattern)}", LAMBDA_TEST], cwd=REPO_ROOT, capture_output=True, text=True, timeout=240)
+    done = subprocess.run(["node", "--import", "tsx", "--test", "--test-reporter=spec", f"--test-name-pattern={re.escape(pattern)}", LAMBDA_TEST], cwd=REPO_ROOT, capture_output=True, text=True, timeout=240)
     assert done.returncode == 0, done.stdout + done.stderr
     assert re.search(r"^ℹ pass [1-9]", done.stdout, re.M) and re.search(r"^ℹ fail 0", done.stdout, re.M), done.stdout
 
