@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9d1b3e2e-c814-461f-9b31-47638d530d3f",
+  "title": "Bootstrap the stack pipeline roles as one repeatable, documented, checked step (follow-up to PPY-b8cc79)",
+  "description": "Ryan 2026-11-05: the pipeline role stack (infra/pipeline/papyrus-stack-pipeline.yaml) is hand-applied and the requirement was local knowledge; a release failed on an out-of-date role. Deliver: infra/pipeline/bootstrap.sh (account assert, change set shown first, AWS_ACCOUNT_ID variable, verify, rerunnable); OIDC provider creatable by parameter; README/AGENTS/docs say it is required and when to re-run; stack-deploy.yml says when the deployed role is older than the template and names the command on a not-authorized failure; tests (duplicate Sid, docs note). Parent story: PPY-b8cc79.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T12:49:55.644400Z",
+  "updated_at": "2026-11-05T12:49:55.644920Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

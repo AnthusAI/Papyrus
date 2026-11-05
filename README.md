@@ -97,10 +97,25 @@ Develop and verify on a local dev server (`npm run dev:preview`, seeded, no AWS;
 
 Details: [Releasing](docs/releasing.md), [Deploy on release to main](docs/site-hosting.md#deploy-on-merge-to-main). This repository's own `main` does not deploy a site; the engine ships as packages. Production deploys through `ampx pipeline-deploy` are never run from a laptop.
 
+## Set up a new AWS account or deployment (once), and how pipeline roles change
+
+Shared stacks (`papyrus-monitoring`, `papyrus-newsletter-sending-operators`) deploy from a release through IAM roles. Nobody applies those roles by hand. A merge to `develop` that changes `infra/pipeline/papyrus-stack-pipeline.yaml` starts the `role-stack-deploy` workflow: it plans the change in the job summary, and the reviewer approves it with one click in GitHub. After **any** change to that file, that is the whole process. Agents link the reviewer to the approval; they never approve it.
+
+On a **new AWS account** there is one setup step, once, run by a person, because the workflow cannot create the roles it runs as:
+
+```bash
+export AWS_PROFILE=<profile for the account>
+infra/pipeline/bootstrap.sh --account <12-digit account id> --approver-only      # add --create-oidc-provider if the account has no GitHub OIDC provider
+infra/pipeline/create-environment.sh --reviewer <github login>                  # the GitHub approval environment
+```
+
+If a release says "The pipeline roles are out of date" or fails "not authorized", an approval is waiting or the template change is not merged. What a new account needs besides this (CDK bootstrap, a hosted zone), what the roles can do, and the console alternative: [infra/pipeline/README.md](infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github).
+
 ## Start a new Papyrus site
 
 The steps below are the real sequence; each links to the page that holds the detail. A site repository starts from the layout of a recent one (Shipped-web is the cleanest example) and contains no engine code.
 
+0. **The account must be set up first**: [account setup](#set-up-a-new-aws-account-or-deployment-once-and-how-pipeline-roles-change). Skip it only if the account has been set up before.
 1. **Create the site repository** with `papyrus.config.ts` (`defineSite`), `web/projection.json`, `web/css/`, `amplify.yml`, `infra/site.json` and `requirements-publication.txt`. [Building a static site](docs/building-a-papyrus-static-site.md), [standard site layout](docs/standard-site.md).
 2. **Write `infra/site.json`** with an `aws` block (`profile`, `region`). The account comes from `PAPYRUS_AWS_ACCOUNT_ID` in the deploy environment (a legacy `aws.accountId` still works), never a default: with neither, the deploy fails with `does not say where it deploys` ([AWS identifiers outside Git](docs/site-hosting.md#aws-identifiers-outside-git)). Also set `cms.cognitoDomainPrefix` (distinct per site), `cms.siteOrigin` for a site behind its own edge, and the `github` block with `ownerId` and `repoId`. Examples: [`infra/amplify-app-shell/examples/`](infra/amplify-app-shell/examples), reference: [app-shell README](infra/amplify-app-shell/README.md).
 3. **Pin the engine** to one released version in the four places listed above.
