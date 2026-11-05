@@ -38,6 +38,8 @@ export function addMcpTools(stack: Stack, plan: McpOAuthPlan, options: { endpoin
     timeout: Duration.seconds(25), memorySize: 256,
     environment: {
       PAPYRUS_GRAPHQL_ENDPOINT: options.endpoint,
+      // The same site backend provisions the conditional draft mutation and Item transaction grant.
+      PAPYRUS_MCP_STORY_DRAFT_ENABLED: 'true',
       ...(options.tenant ? { PAPYRUS_TENANT_ID: options.tenant } : {}),
       ...(options.reader && options.publication ? { PAPYRUS_READER_STEERING_FUNCTION: options.reader.functionName, PAPYRUS_PUBLICATION_ID: options.publication } : {}),
       ...(options.referenceSingleTenant && !options.tenant ? { PAPYRUS_MCP_REFERENCE_SINGLE_TENANT: 'true' } : {}),
