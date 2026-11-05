@@ -31,8 +31,10 @@ from typing import Any
 from ..knowledge_snapshot.parallel import map_with_clients
 from .export import PUBLIC_REFERENCE_FIELDS, PublicEntry, Standing, entry_for_row, ranked_records, scrub, section_labels_of
 
-#: Bumped whenever the shape of a stored record or a Standing changes, so state written by an older build is replaced and never read.
-STATE_FORMAT = 1
+#: Bumped whenever the shape of a stored record or a Standing changes, or what makes a Reference public, so state written by an older build is replaced and never read.
+#: The fingerprint holds it, so a bump makes the next run refuse the stored state and read the whole corpus once (``task.py``). 2: a pending Reference with no
+#: prediction is no longer public; an incremental run only re-reads the ids it is given, so the 170-odd already published would otherwise stay.
+STATE_FORMAT = 2
 CREATED_FIELD = "createdAt"
 
 

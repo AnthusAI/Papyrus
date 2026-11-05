@@ -256,3 +256,66 @@ def next_run_incremental(context) -> None:
 @then("no state was saved and no file was written")
 def nothing_saved(context) -> None:
     assert context.store.saves == 0 and context.site.writer.get(REFERENCES_KEY) is None
+
+
+def unpredicted_row(context):
+    return context.client.rows["reference-5-v1"]   # every tenth pending Reference of the test corpus, from the fifth, has no prediction yet
+
+
+def listed_keys(context) -> set[str]:
+    return {record["key"] for record in json.loads(context.site.writer.get(REFERENCES_KEY))["references"]}
+
+
+@when("a pending Reference nobody has predicted is retitled and the run reads it again")
+def unpredicted_retitled(context) -> None:
+    unpredicted_row(context)["title"] = "Retitled while unpredicted"
+    read_again(context, [unpredicted_row(context)["id"]])
+
+
+@then("the run made {count:d} requests: one section list and the Reference")
+def made_requests_section_and_reference(context, count: int) -> None:
+    assert kinds(context) == {"sections": 1, "getReference": 1}, kinds(context)
+
+
+@then("the snapshot file does not list that Reference")
+def file_lacks_unpredicted(context) -> None:
+    assert helpers.public_key("reference-5") not in listed_keys(context)
+
+
+@when("the Cyclotron predicts {probability:f} for it, the picture of its video is stored, and the run reads it again")
+def predicted_with_picture(context, probability: float) -> None:
+    row = unpredicted_row(context)
+    row.update({"medium": "video", "thumbnailPath": "assets/reference-thumbnails/a4645fd6b3de98f4-bb02a57c6adf.jpg", "predictedAcceptProbability": probability})
+    context.client.relations["reference-5"][0]["confidence"] = probability
+    read_again(context, [row["id"]])
+
+
+@then("the snapshot file lists that Reference as recommended with confidence {probability:f} and its stored picture")
+def file_lists_predicted(context, probability: float) -> None:
+    record = next(item for item in json.loads(context.site.writer.get(REFERENCES_KEY))["references"] if item["key"] == helpers.public_key("reference-5"))
+    assert (record["status"], record["confidence"]) == ("recommended", probability), record
+    assert record["image"] == "/assets/reference-thumbnails/a4645fd6b3de98f4-bb02a57c6adf.jpg", record
+
+
+@given("a corpus of {size:d} References whose snapshot was built under the old rule, which published Reference rows nobody had predicted")
+def built_under_old_rule(context, size: int) -> None:
+    from unittest import mock
+
+    from papyrus_content.home_page import incremental
+
+    context.site = helpers.projected_site()
+    context.add_cleanup(context.site.cleanup)
+    context.client, context.store, context.threads, context.size = helpers.CorpusClient(size), MemoryStateStore(), False, size
+    with mock.patch.object(incremental, "STATE_FORMAT", 1), mock.patch("papyrus_content.home_page.export.has_prediction", lambda row: True):
+        helpers.run(context.site, context.client, context.store)
+    assert helpers.public_key("reference-5") in listed_keys(context), "the old rule published it"
+
+
+@then("the run read the whole corpus because the build of the fields changed")
+def full_because_build_changed(context) -> None:
+    assert context.report["mode"] == "full" and "build of the fields" in context.report["fullBecause"], context.report
+
+
+@then("the snapshot file no longer lists the Reference nobody had predicted")
+def file_lacks_after_full_read(context) -> None:
+    assert helpers.public_key("reference-5") not in listed_keys(context)

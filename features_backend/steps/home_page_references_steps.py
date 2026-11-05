@@ -227,6 +227,12 @@ def card_no_confidence(context, title: str) -> None:
     assert "Accepted by an editor" in card, card
 
 
+@then('the card for "{title}" shows no confidence of any kind, though no person accepted it')
+def card_no_confidence_of_any_kind(context, title: str) -> None:
+    card = card_titled(context, title)
+    assert "home-page-confidence" not in card and "gauge" not in card and "home-page-meter" not in card and "%" not in card, card
+
+
 @then('the row card for "{title}" shows no confidence')
 def row_card_no_confidence(context, title: str) -> None:
     card = card_titled(context, title, ("rows/index.html",))

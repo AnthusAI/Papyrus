@@ -22,13 +22,17 @@ Feature: A page places Reference cards from the home-page snapshot with ::includ
     Then the "recent" grid on "defaults/index.html" lists "Accepted eight", "Accepted seven"
 
   Scenario: A page ranks accepted References by Cyclotron confidence
-    Two References with the same confidence are ordered by the newest arrival.
+    Two References with the same confidence are ordered by the newest arrival. A Reference with no confidence at all ("Accepted six", accepted by a rule
+    that was never scored) is last among the unrated ones: it is not placed as if it were 50%.
     Given the home-page fixture site is projected
-    Then the "confident" grid on "ranked/index.html" lists "Accepted eight", "Accepted two", "Accepted four", "Accepted seven", "Accepted five", "Accepted six", "Accepted one", "Accepted three, contact"
+    Then the "confident" grid on "ranked/index.html" lists "Accepted eight", "Accepted two", "Accepted four", "Accepted seven", "Accepted five", "Accepted one", "Accepted three, contact", "Accepted six"
 
   Scenario: A page shows recommended References labelled as not yet accepted, in text and icon
     Given the home-page fixture site is projected
-    Then the "recommended" grid on "recommended/index.html" lists "Pending high", "Pending mid", "Pending unrecorded confidence", "Pending undecided"
+    Then the "recommended" grid on "recommended/index.html" lists "Pending high", "Pending mid", "Pending unrecorded confidence"
+    And "recommended/index.html" does not contain "Pending undecided"
+    And "recommended/index.md" does not contain "Pending undecided"
+    And "llms-full.txt" does not contain "Pending undecided"
     And every card in the "recommended" grid on "recommended/index.html" says "Recommended by Cyclotron, not yet accepted" next to a "sparkles" icon
     And no card in the "recent" grid on "front/index.html" says "not yet accepted"
 
@@ -92,7 +96,7 @@ Feature: A page places Reference cards from the home-page snapshot with ::includ
     Once an editor has accepted a Reference the Cyclotron's confidence no longer matters, so its card shows none. A Reference accepted by a Cyclotron or
     by a rule with no human vote keeps its confidence, and so does one that is only recommended.
     Given the home-page fixture site is projected
-    Then the card for "Accepted six" shows "50% confidence" next to a "gauge" icon and a meter with 3 filled segments
+    Then the card for "Accepted six" shows no confidence of any kind, though no person accepted it
     And the card for "Accepted three, contact" shows "10% confidence" next to a "gauge" icon and a meter with 1 filled segments
     And the card for "Accepted two" shows no confidence
     And the card for "Accepted seven" shows no confidence

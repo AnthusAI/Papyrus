@@ -42,6 +42,25 @@ Feature: One changed Reference costs a fixed number of requests, not the size of
     Then the run made 3 requests: one section list, the Reference and its decision
     And the snapshot file is unchanged
 
+  Scenario: A pending Reference nobody has predicted is on no page, costs one request to look at, and appears with its first prediction
+    Ryan, 2026-11-05: an unpredicted Reference is not 50% and shows nothing. The run reads the Reference row, sees there is no prediction written onto it, and
+    stops: it does not read its decision or its preview. When the Cyclotron's first prediction is written onto the row, that write is a change, the run reads the
+    row again, and the Reference appears with whatever it holds at that moment, a stored video picture included.
+    Given a corpus of 100 References whose snapshot was built by a full read
+    When a pending Reference nobody has predicted is retitled and the run reads it again
+    Then the run made 2 requests: one section list and the Reference
+    And the snapshot file does not list that Reference
+    When the Cyclotron predicts 0.8 for it, the picture of its video is stored, and the run reads it again
+    Then the snapshot file lists that Reference as recommended with confidence 0.8 and its stored picture
+
+  Scenario: State written before the rule changed is replaced by one full read, so unpredicted References already published leave
+    A run reads again only the Reference rows it is given, so a Reference published under the old rule would stay. The state format is part of what the
+    stored state must match, and changing it makes the next run read the whole corpus once.
+    Given a corpus of 100 References whose snapshot was built under the old rule, which published Reference rows nobody had predicted
+    When a run starts with one Reference listed
+    Then the run read the whole corpus because the build of the fields changed
+    And the snapshot file no longer lists the Reference nobody had predicted
+
   Scenario: The page built from changes is the page a full read builds
     Given a corpus of 300 References whose snapshot was built by a full read
     When References are accepted, rated, retitled, rejected, archived and added, one is superseded by a new version and one has been deleted

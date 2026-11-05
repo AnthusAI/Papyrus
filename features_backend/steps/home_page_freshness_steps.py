@@ -172,6 +172,26 @@ def first_prediction(context) -> None:
     context.site.receive([reference_record("reference-new-v1", PENDING_IMAGE, {**PENDING_IMAGE, **PREDICTION})], 0)
 
 
+THUMBNAIL = {"S": "assets/reference-thumbnails/a4645fd6b3de98f4-bb02a57c6adf.jpg"}
+
+
+@when("a decision time and a sort key are written onto a pending Reference without a probability")
+def decision_time_and_sort_key(context) -> None:
+    written = {**PENDING_IMAGE, "predictionDecidedAt": {"S": "2026-11-04T10:00:00.000Z"}, "predictionSortKey": {"S": "0.500000#a#b"}}
+    context.site.receive([reference_record("reference-new-v1", PENDING_IMAGE, written)], 0)
+
+
+@when("the picture of a video is stored on a pending Reference nobody has predicted")
+def thumbnail_stored(context) -> None:
+    context.site.receive([reference_record("reference-video-v1", PENDING_IMAGE, {**PENDING_IMAGE, "thumbnailPath": THUMBNAIL})], 0)
+
+
+@when("the Cyclotron's first prediction is written onto that Reference")
+def first_prediction_on_video(context) -> None:
+    pictured = {**PENDING_IMAGE, "thumbnailPath": THUMBNAIL}
+    context.site.receive([reference_record("reference-video-v1", pictured, {**pictured, **PREDICTION})], 0)
+
+
 @when("an unpredicted pending Reference is retitled and rated")
 def unpredicted_edited(context) -> None:
     context.site.receive([reference_record("reference-new-v1", PENDING_IMAGE, {**PENDING_IMAGE, "title": {"S": "B"}, "starRating": {"N": "5"}})], 0)

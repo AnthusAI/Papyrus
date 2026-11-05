@@ -28,17 +28,17 @@ Feature: Human ratings shape what the public home page features, and an accepted
   Scenario: A rating beats a prediction in both directions
     Given editors rated these References: "Accepted three" 3, "Accepted eight" 2
     When the home-page-snapshot task runs
-    Then the "confident" grid on "by-confidence/index.html" lists "Accepted three, contact", "Accepted two", "Accepted four", "Accepted seven", "Accepted five", "Accepted six", "Accepted one", "Accepted eight"
+    Then the "confident" grid on "by-confidence/index.html" lists "Accepted three, contact", "Accepted two", "Accepted one", "Accepted four", "Accepted seven", "Accepted five", "Accepted six", "Accepted eight"
 
   Scenario: Equal ratings go to the newest arrival
     Given editors rated these References: "Accepted two" 3, "Accepted four" 3, "Accepted seven" 3
     When the home-page-snapshot task runs
-    Then the "confident" grid on "by-confidence/index.html" lists "Accepted seven", "Accepted four", "Accepted two", "Accepted eight", "Accepted five", "Accepted six", "Accepted one", "Accepted three, contact"
+    Then the "confident" grid on "by-confidence/index.html" lists "Accepted seven", "Accepted four", "Accepted two", "Accepted eight", "Accepted one", "Accepted five", "Accepted three, contact", "Accepted six"
 
   Scenario: The recommended selection uses the same order, so a rating can lift or sink a pending Reference
     Given editors rated these References: "Pending mid" 5, "Pending high" 1
     When the home-page-snapshot task runs
-    Then the "recommended" grid on "suggested/index.html" lists "Pending mid", "Pending unrecorded confidence", "Pending undecided", "Pending high"
+    Then the "recommended" grid on "suggested/index.html" lists "Pending mid", "Pending unrecorded confidence", "Pending high"
 
   Scenario: Recent with no bucket keeps its newest-accepted order whatever the ratings
     Given editors rated these References: "Accepted one" 5, "Accepted eight" 1
@@ -54,7 +54,7 @@ Feature: Human ratings shape what the public home page features, and an accepted
     Given editors rated these References: "Accepted one" 5, "Accepted eight" 1
     And the day of the render is 2026-11-02
     When the home-page-snapshot task runs
-    Then the "recent" grid on "weekly/index.html" lists "Accepted eight", "Accepted one", "Accepted two", "Accepted four", "Accepted seven", "Accepted five", "Accepted six", "Accepted three, contact"
+    Then the "recent" grid on "weekly/index.html" lists "Accepted eight", "Accepted one", "Accepted two", "Accepted four", "Accepted seven", "Accepted five", "Accepted three, contact", "Accepted six"
 
   Scenario: A day bucket keeps every Reference in its own day, so a rating never moves it to another bucket
     Given editors rated these References: "Accepted one" 5, "Accepted eight" 1
