@@ -79,12 +79,13 @@ assert.match(mediumPartition, /@index\(sortKeyFields: \["feedArrivalAt"\], query
 // And the sparse content-needed index (the transcript worker's list): one partition per corpus, medium and status, read by arrival.
 const contentPartition = referenceType.split("\n").find((line) => /^\s+contentNeededKey: String/.test(line)) ?? "";
 assert.match(contentPartition, /@index\(sortKeyFields: \["feedArrivalAt"\], queryField: "listReferencesByContentNeededAndArrival"\)/, "content-needed index");
-// The public-blocks attributes are plain attributes with no index (the index is a later, separate deploy: one new index per table per deploy).
+// The public-blocks attributes, and the one sparse index over two of them (PPY-7f1e54): partition publicFeedKey, sort publicOrderKey, and no other new index.
 for (const attribute of ["publicFeedKey", "publicOrderKey", "cardImage", "cardSummary", "cardSiteName", "cardPageTitle"]) {
   assert.match(referenceType, new RegExp(`\\s${attribute}: String`), `${attribute} is on Reference`);
-  assert.doesNotMatch(referenceType, new RegExp(`${attribute}: String @index`), `${attribute} has no index yet`);
 }
-assert.doesNotMatch(referenceType, /listReferencesByPublicFeed/, "the public index is not in this change");
+const publicPartition = referenceType.split("\n").find((line) => /^\s+publicFeedKey: String/.test(line)) ?? "";
+assert.match(publicPartition, /@index\(sortKeyFields: \["publicOrderKey"\], queryField: "listReferencesByPublicFeed"\)/, "public index");
+assert.equal((referenceType.match(/@index\(/g) ?? []).length, 16, "one index was added to the fifteen Reference had: one new index per table per deploy");
 assert.match(referenceType, /predictedAcceptProbability: Float/);
 assert.match(referenceType, /predictionDecidedAt: AWSDateTime/);
 assert.match(referenceType, /feedArrivalAt: AWSDateTime/);
