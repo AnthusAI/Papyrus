@@ -197,7 +197,7 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
         return 0
     if command in {"entities", "clusters", "relations"}:
         allowed = {
-            "entities": "list, accept, reject, rename, alias, describe, accept-description, link, retype or registry",
+            "entities": "list, accept, reject, rename, alias, describe, accept-description, page, link, retype or registry",
             "clusters": "list, accept, name or reject",
             "relations": "list, accept or reject",
         }[command]

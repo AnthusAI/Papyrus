@@ -59,6 +59,20 @@ class EntityNode:
     description_state: str = DESCRIPTION_NONE
     accepted_by: Actor | None = None
     description_edited_by: Actor | None = None
+    #: The extractor's answer to "does this name deserve a page of its own" (``page_answer.py``), with the number of documents it was found in.
+    #: ``None`` for a concept the extractor has not answered for: it keeps the page state it has.
+    page_score: float | None = None
+    page_answer: bool | None = None
+    page_documents: int | None = None
+    #: An editor's own decision, which wins over the machine's answer: ``True`` gives the concept a page, ``False`` takes it away.
+    page_override: bool | None = None
+
+    @property
+    def has_page(self) -> bool:
+        """Whether the concept may have a public page: the editor's decision, else the extractor's answer, else (no answer yet) yes as before."""
+        if self.page_override is not None:
+            return self.page_override
+        return True if self.page_answer is None else self.page_answer
 
 
 @dataclass(frozen=True)

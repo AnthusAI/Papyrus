@@ -15,6 +15,7 @@ from typing import Any
 from .actors import Actor, decode_review
 from .keys import contains_email, normalize_name, kind_key
 from .model import LINK_EXTRACTOR
+from .page_answer import page_override
 from .publish_run import STATUS_ACCEPTED, STATUS_REJECTED, is_extractor_mention, json_object
 
 REVIEW_STATUSES = ("accepted", "generated", "rejected")
@@ -178,3 +179,15 @@ def accept_description_patches(node: Mapping[str, Any], *, actor: Actor, now: st
     if recorded is not None and recorded.is_human and (recorded.actor, recorded.name) == (actor.actor, actor.name):
         return []
     return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "changeReason": marks.replace(description_edited_by=actor).encode(), "updatedAt": now}}]
+
+
+def page_decision_patches(node: Mapping[str, Any], wanted: bool | None, *, actor: Actor, now: str) -> list[dict]:
+    """An editor's decision whether the concept has a public page, as ``actor``, against the extractor's answer: ``True`` gives it a page, ``False`` takes
+    it away, ``None`` hands it back to the machine's answer. A run never changes it (``page_answer.py``). Nothing changes when it is already recorded."""
+    if node.get("status") == STATUS_REJECTED:
+        raise EntityReviewError(f"{node['nodeKey']} is rejected; a rejected entity has no page to give or take.")
+    if page_override(node) == wanted:
+        return []
+    given, taken = (actor, None) if wanted is True else (None, actor) if wanted is False else (None, None)
+    marks = decode_review(node.get("changeReason")).replace(page_given_by=given, page_taken_by=taken)
+    return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "changeReason": marks.encode(), "updatedAt": now}}]

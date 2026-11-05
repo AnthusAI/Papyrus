@@ -192,6 +192,18 @@ test("a rename and an alias are written, and the node keeps its key", async () =
   assert.deepEqual(decodeReviewMarks(nodes.get(node.id)!.changeReason).aliasedBy, { ...person, via: "cli" });
 });
 
+test("an editor's page decision is stamped as made through the CLI, keeps the other marks, and handing it back removes it", () => {
+  const stored = encodeReviewMarks({ acceptedBy: person, descriptionEditedBy: null, rejectedBy: null });
+  const taken = encodeReviewMarks({ acceptedBy: person, descriptionEditedBy: null, rejectedBy: null, pageTakenBy: person });
+  const written = stampedChangeReason(taken, stored, "cli");
+  const marks = decodeReviewMarks(written);
+  assert.deepEqual(marks.pageTakenBy, { ...person, via: "cli" });
+  assert.deepEqual(marks.acceptedBy, person);
+  const back = decodeReviewMarks(stampedChangeReason(stored, written, "cli"));
+  assert.equal(back.pageTakenBy, undefined);
+  assert.equal(back.pageGivenBy, undefined);
+});
+
 test("a person's accept from the CLI is stamped as made through the CLI, whatever the call says, and an earlier stamp is kept", () => {
   const forged = encodeReviewMarks({ acceptedBy: { ...person, via: "newsroom" }, descriptionEditedBy: null, rejectedBy: null });
   assert.deepEqual(decodeReviewMarks(stampedChangeReason(forged, undefined, "cli")).acceptedBy, { ...person, via: "cli" });

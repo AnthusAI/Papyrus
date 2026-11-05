@@ -55,11 +55,13 @@ from .entity_review import (
     alias_patches,
     describe_patches,
     find_node,
+    page_decision_patches,
     reject_patches,
     rename_patches,
 )
 from .entity_retype import retype_plan
 from .keys import kind_key
+from .page_answer import page_label, page_order_key
 from .loaders import (
     beats_from_categories,
     beats_from_config,
@@ -112,6 +114,7 @@ from .run_input import load_run, translate_item_ids
 from .weeks import current_monday, parse_day
 
 AUTH_LANES = ("user", "iam")
+PAGE_CHOICES = {"yes": True, "no": False, "machine": None}
 
 
 def utc_now() -> str:
@@ -715,6 +718,7 @@ def _entity_row(row: dict) -> str:
             str(row.get("nodeKind") or ""),
             str(row.get("displayName") or ""),
             str(row.get("id") or ""),
+            page_label(row),
         ]
     )
 
@@ -729,15 +733,17 @@ def knowledge_entities_list(flags: list[str]) -> None:
     import_run = normalize_string(options.get("import-run"))
     limit = int(options.get("limit") or 100)
     client = authoring_client(options)
+    # With --import-run the nodes of that run come from the import-run index; otherwise the list is every current node.
+    nodes = client.list_semantic_nodes_by_import_run_and_node_key(import_run) if import_run else client.list_records("SemanticNode")
     rows = [
         row
-        for row in current_nodes(client.list_records("SemanticNode"))
+        for row in current_nodes(nodes)
         if (status == "all" or row.get("status") == status)
         and (not kind or row.get("nodeKind") == kind)
         and (not import_run or row.get("importRunId") == import_run)
         and (not query or query in str(row.get("displayName") or "").casefold())
     ]
-    rows.sort(key=lambda row: (str(row.get("nodeKind")), str(row.get("displayName") or "").casefold(), row["id"]))
+    rows.sort(key=page_order_key)  # the highest page score first, the document count beside it; no threshold
     shown = rows[:limit]
     if options.get("counts"):
         for row in shown:
@@ -835,6 +841,20 @@ def knowledge_entities_describe(flags: list[str]) -> None:
         return describe_patches(node, text, actor=actor, now=utc_now())
 
     _review(flags, "describe", build)
+
+
+def knowledge_entities_page(flags: list[str]) -> None:
+    """papyrus knowledge entities page --key K --set yes|no|machine --actor ai|human [--actor-name N] [--dry-run]
+
+    An editor's decision whether the concept has a public page of its own, against the extractor's answer: ``yes`` gives it a page, ``no`` takes it away,
+    ``machine`` hands the decision back to the extractor's answer. A knowledge run never changes it. The page appears or goes with the next ``wiki sync``."""
+    def build(options, node, client, rows, actor):
+        choice = (normalize_string(options.get("set")) or "").casefold()
+        if choice not in PAGE_CHOICES:
+            raise EntityReviewError("knowledge entities page requires --set yes, no or machine.")
+        return page_decision_patches(node, PAGE_CHOICES[choice], actor=actor, now=utc_now())
+
+    _review(flags, "page", build)
 
 
 def knowledge_entities_accept_description(flags: list[str]) -> None:
@@ -1098,6 +1118,7 @@ KNOWLEDGE_COMMANDS = {
     "entities-describe": knowledge_entities_describe,
     "entities-alias": knowledge_entities_alias,
     "entities-accept-description": knowledge_entities_accept_description,
+    "entities-page": knowledge_entities_page,
     "entities-link": knowledge_entities_link,
     "entities-retype": knowledge_entities_retype,
     "entities-registry": knowledge_entities_registry,

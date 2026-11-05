@@ -2059,6 +2059,8 @@ const schema = a.schema({
       acceptedReferenceMentionCount: a.integer(),
       distinctSourceKindCount: a.integer(),
       relationCount: a.integer(),
+      // The extractor's answer whether the concept deserves a page of its own: JSON {score, answer, documents, runId}. An editor's own decision is in changeReason.
+      pageAnswer: a.string(),
       status: a.string().required(),
       importRunId: a.id(),
       createdAt: a.datetime(),

@@ -84,14 +84,44 @@ def test_an_apostrophe_inside_a_name_keeps_it_whole_and_a_possessive_does_not():
     assert "O'Connell" in names and "Maple Lab" in names and "O" not in names
 
 
-def test_a_name_whose_every_mention_is_a_whole_level_one_heading_is_a_title_not_a_candidate():
+def test_a_name_whose_every_mention_is_a_whole_heading_is_a_section_name_not_a_candidate():
     documents = {"a": "# Heron Networks Report\n\nIt is long. Tern3 appears.", "b": "# Heron Networks Report\n\nTern3 again."}
     names = names_in(documents)
     assert "Heron Networks Report" not in names and "Tern3" in names
     kept = names_in({"a": "# Heron Networks Report\n\nThe Heron Networks Report said so.", "b": "Heron Networks Report"})
     assert "Heron Networks Report" in kept
     section = names_in({"a": "## Tern Migration\n\ntext", "b": "## Tern Migration\n\ntext"})
-    assert "Tern Migration" in section
+    assert "Tern Migration" not in section  # a heading at any level is a section name
+    prose = names_in({"a": "## Tern Migration\n\nWe saw Tern Migration begin.", "b": "## Tern Migration\n\ntext"})
+    assert "Tern Migration" in prose  # one mention that is not a heading keeps it
+
+
+def test_a_heading_that_lists_section_names_gives_none_of_them_unless_the_text_uses_them():
+    headings = "## Materials and Methods\n\nTern Lab ran it.\n\n### Authors and Affiliations\n\ntext\n\n#### Results, Discussion and Limits\n\ntext"
+    names = names_in({"a": headings, "b": headings})
+    assert {"Materials", "Methods", "Authors", "Affiliations", "Results", "Discussion", "Limits"}.isdisjoint(names)
+    assert "Tern Lab" in names
+    used = names_in({"a": headings + "\nWe found Methods sound.", "b": headings})
+    assert "Methods" in used and "Materials" not in used
+
+
+def test_dates_bare_numbers_and_quantities_are_not_names():
+    body = (
+        "Tern Lab ran it on October 22 and 23 at Hz and 10 over 3.5 weeks. It shipped 5 March 2024 and 12th June. "
+        "The signal was 10 Hz, then 50 kHz and 2020-2024 saw 1,000 runs at 95%. Tern Lab used GPT-4 and Windows 10 and ML."
+    )
+    names = names_in({"a": body, "b": body})
+    assert "Tern Lab" in names and "GPT-4" in names and "Windows 10" in names
+    forbidden = {"October 22", "October 22 and 23", "23", "Hz", "10", "10 Hz", "3.5", "March 2024", "June", "kHz", "50 kHz", "2020-2024", "1,000", "95%", "12th June"}
+    assert forbidden.isdisjoint(names)
+    assert not [name for name in names if any(character.isdigit() for character in name) and name not in {"GPT-4", "Windows 10"}]
+
+
+def test_a_quantity_is_told_from_a_name_by_its_words():
+    for quantity in ("October 22 and 23", "Hz and 10", "10 Hz", "3.5", "2020-2024", "22nd March", "kHz and 10"):
+        assert ex.is_quantity(quantity), quantity
+    for name in ("GPT 4", "Qwen 3", "Windows 10", "May", "Hz", "ML", "Llama 3.1"):
+        assert not ex.is_quantity(name), name
 
 
 def test_names_are_not_joined_across_and_unless_the_whole_is_one_proper_name():
@@ -190,11 +220,12 @@ def test_the_output_has_the_shape_publish_run_reads_and_keeps_both_answers(tmp_p
     for entity in item["entities"]:
         by_text.setdefault(entity["text"], []).append(entity)
         assert text[entity["span"]["start"]:entity["span"]["end"]] == entity["text"]
-        assert set(entity) == {"id", "kind", "text", "state", "entity_key", "span", "score", "page_score", "page_answer"}
+        assert set(entity) == {"id", "kind", "text", "state", "entity_key", "span", "score", "page_score", "page_answer", "page_documents"}
     assert [entity["id"] for entity in item["entities"]] == [f"e{n}" for n in range(1, len(item["entities"]) + 1)]
     assert by_text["Tern3"][0] == {**by_text["Tern3"][0], "kind": "model", "state": "proposed", "entity_key": None, "score": 0.62, "page_score": 0.7, "page_answer": True}
     assert by_text["Mistral AI"][0]["state"] == "resolved" and by_text["Mistral AI"][0]["entity_key"] == "organization--mistral-ai" and by_text["Mistral AI"][0]["score"] == 1.0
-    assert (by_text["Mistral AI"][0]["page_score"], by_text["Mistral AI"][0]["page_answer"]) == (None, None)
+    assert (by_text["Mistral AI"][0]["page_score"], by_text["Mistral AI"][0]["page_answer"], by_text["Mistral AI"][0]["page_documents"]) == (None, None, None)
+    assert by_text["Tern3"][0]["page_documents"] == 2 and by_text["Maple Lab"][0]["page_documents"] == 2
     assert (by_text["Maple Lab"][0]["score"], by_text["Maple Lab"][0]["page_score"], by_text["Maple Lab"][0]["page_answer"]) == (0.8, 0.3, False)
     assert [entity["text"] for entity in item["entities"] if entity["text"].startswith("Mistral")] == ["Mistral AI", "Mistral"]
     assert "Beat" not in by_text  # Jev called it no real thing
@@ -218,7 +249,7 @@ def test_a_low_confidence_that_the_name_is_real_is_kept_and_a_name_in_one_docume
     decisions = {"tern3": {"choice": "model", "real": 0.51, "page": 0.99}, "kestrel": {"choice": "model", "real": 0.9, "page": 0.99}}
     output = ex.build_output(documents, candidates, decisions, ex.RegistryMatcher([]), {}, model="m")
     entities = [entity for item in output["items"] for entity in item["entities"]]
-    assert {(e["text"], e["score"], e["page_score"], e["page_answer"]) for e in entities} == {("Tern3", 0.51, 0.99, True), ("Kestrel", 0.9, 0.0, False)}
+    assert {(e["text"], e["score"], e["page_score"], e["page_answer"], e["page_documents"]) for e in entities} == {("Tern3", 0.51, 0.99, True, 2), ("Kestrel", 0.9, 0.0, False, 1)}
     assert len(entities) == 4
 
 

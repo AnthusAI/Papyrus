@@ -94,6 +94,10 @@ class TypedMention(_Input):
     entity_key: str | None = None
     span: Span | None = None
     score: float | None = None
+    #: The extractor's answer whether the name deserves a page of its own, and how many documents it is in (``page_answer.py``). Absent on a resolved entity.
+    page_score: float | None = None
+    page_answer: bool | None = None
+    page_documents: int | None = Field(default=None, ge=0)
 
 
 class TypedRelation(_Input):

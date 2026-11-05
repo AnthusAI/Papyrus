@@ -173,7 +173,7 @@ ITEM_TAG_FIELDS = "id itemId tagId itemType itemStatus tagSlug publishedAt"
 TAG_FIELDS = "id slug label type description"
 SEMANTIC_NODE_FIELDS = (
     f"{VERSION_FIELDS} id nodeKey nodeKind corpusId categorySetId categoryLineageId categoryKey displayName "
-    "description aliases authorityScore authorityRank acceptedReferenceMentionCount distinctSourceKindCount relationCount "
+    "description aliases authorityScore authorityRank acceptedReferenceMentionCount distinctSourceKindCount relationCount pageAnswer "
     "status importRunId createdAt updatedAt newsroomFeedKey"
 )
 KNOWLEDGE_ARTIFACT_FIELDS = (

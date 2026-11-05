@@ -12,6 +12,7 @@ from ..projection.source import is_projectable, summary_from_row
 from .cluster_records import cluster_from_proposal
 from .actors import Actor, decode_review
 from .keys import normalize_name, slug
+from .page_answer import PAGE_FIELD, decode_page_answer, page_override
 from .model import (
     DESCRIPTION_AI_EDITED,
     DESCRIPTION_DRAFT,
@@ -92,6 +93,7 @@ def description_state(row: Mapping[str, Any]) -> tuple[str, Actor | None]:
 
 def entity_node(row: Mapping[str, Any]) -> EntityNode:
     state, editor = description_state(row)
+    answer = decode_page_answer(row.get(PAGE_FIELD))
     return EntityNode(
         lineage_id=str(row.get("lineageId") or row["id"]),
         node_key=str(row.get("nodeKey") or ""),
@@ -103,6 +105,10 @@ def entity_node(row: Mapping[str, Any]) -> EntityNode:
         description_state=state,
         accepted_by=decode_review(row.get("changeReason")).accepted_by,
         description_edited_by=editor,
+        page_score=answer.score if answer else None,
+        page_answer=answer.answer if answer else None,
+        page_documents=answer.documents if answer else None,
+        page_override=page_override(row),
     )
 
 
