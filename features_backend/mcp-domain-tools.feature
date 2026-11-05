@@ -40,3 +40,13 @@ Feature: Site tools preserve editorial and reader authority
     Given an editor connected to a site with a current Reference
     When the agent accepts an outdated Reference card
     Then the Reference decision is refused
+
+  Scenario: A reader cannot give itself staff authority through tool arguments
+    Given a reader connected to the private site-tools service
+    When the reader includes an administrative role in a tool request
+    Then the service refuses the forged role
+
+  Scenario: Reader tools are unavailable when the site has no reader plugin
+    Given a reader connected to the private site-tools service without a reader plugin
+    When the reader lists the site's tools
+    Then the reader sees no reader tools

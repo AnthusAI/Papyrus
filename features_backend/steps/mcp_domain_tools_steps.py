@@ -144,3 +144,49 @@ def stale_reference(context):
 def decision_refused(context):
     assert context.error
     assert not hasattr(context.staff.client, "decision")
+
+
+def private_handler():
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[2] / "amplify/functions/mcp-tools/handler.py"
+    spec = importlib.util.spec_from_file_location("papyrus_mcp_handler", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@given('a reader connected to the private site-tools service')
+def private_reader(context):
+    context.handler = private_handler()
+
+
+@given('a reader connected to the private site-tools service without a reader plugin')
+def private_reader_no_plugin(context):
+    import os
+    private_reader(context)
+    context.old_reader_function = os.environ.pop("PAPYRUS_READER_STEERING_FUNCTION", None)
+
+
+@when('the reader includes an administrative role in a tool request')
+def forge_role(context):
+    context.result = context.handler.handler({"operation": "call", "principal": {"kind": "reader", "siteSubject": "verified"},
+        "name": "reader_submit", "arguments": {"url": "https://example.org", "title": "Example", "role": "admin"}}, None)
+
+
+@then('the service refuses the forged role')
+def forged_role_refused(context):
+    assert context.result["isError"]
+
+
+@when("the reader lists the site's tools")
+def list_reader_tools(context):
+    context.result = context.handler.handler({"operation": "list", "principal": {"kind": "reader", "siteSubject": "verified"}}, None)
+    if context.old_reader_function is not None:
+        import os
+        os.environ["PAPYRUS_READER_STEERING_FUNCTION"] = context.old_reader_function
+
+
+@then('the reader sees no reader tools')
+def no_reader_tools(context):
+    assert context.result == {"tools": []}
