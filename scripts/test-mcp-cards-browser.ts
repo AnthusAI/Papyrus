@@ -26,7 +26,7 @@ async function main() {
         if (msg.method === 'tools/call') {
           if (msg.params.name === 'reference_decide') reply({isError:true,structuredContent:{code:'stale_revision',message:'Changed'}});
           else if (msg.params.name === 'reference_get') reply({structuredContent:{reference:{id:'v2',lineageId:'r1',updatedAt:'4',title:'Refreshed'}}});
-          else if (msg.params.name === 'story_get') reply({structuredContent:{story:{id:'s1v1',lineageId:'s1',title:'Story'}}});
+          else if (msg.params.name === 'story_get') reply({structuredContent:{story:{id:'s1v1',lineageId:'s1',title:'Story'}},_meta:{papyrus:{availableTools:['story_evidence','story_next']}}});
           else reply({structuredContent:{evidence:[{referenceLineageId:'r1'}]}});
         }
       });
