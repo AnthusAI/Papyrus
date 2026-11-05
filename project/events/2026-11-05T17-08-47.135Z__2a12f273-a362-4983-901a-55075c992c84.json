@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2a12f273-a362-4983-901a-55075c992c84",
+  "issue_id": "PPY-a1e2b0ea-b61a-4de7-9662-53fce48ef541",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T17:08:47.135Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "References show a raw web address as their title",
+    "description": "Reported by the Machines on Machines session, 2026-11-05: on its live references.json, 29 of 76 accepted and 1,312 of 4,472 recommended References have a web address as title, some with the page title visible in the summary text. Find why capture leaves the address as the title and fix it, once on create or change, plus a one-time repair for existing rows.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
