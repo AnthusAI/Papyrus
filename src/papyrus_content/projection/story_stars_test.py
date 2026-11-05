@@ -20,6 +20,7 @@ class FakeTable:
 
     def update_item(self, Key, UpdateExpression, ExpressionAttributeValues, ExpressionAttributeNames=None):
         self.calls.append("update")
+        assert len(UpdateExpression.encode()) <= 4096, "DynamoDB refuses an update expression over 4 KB"
         item = self.items.setdefault(Key["publication"], {"publication": Key["publication"]})
         if UpdateExpression.startswith("SET stars = if_not_exists"):
             item.setdefault("stars", dict(ExpressionAttributeValues[":empty"]))
@@ -88,3 +89,21 @@ def test_without_a_function_name_or_a_lock_table_there_is_no_store_and_listings_
     assert isinstance(store, DynamoStarStore) and store.scope == scope_of("site-content-actions")
     operator = star_store_from_environment({"PAPYRUS_CONTENT_ACTIONS_FUNCTION": "site-content-actions"}, table=FakeTable())
     assert operator is not None and operator.scope == store.scope, "an operator's local run finds the same entry the Lambda writes"
+
+
+def test_a_first_render_of_a_large_site_records_every_rating_within_the_expression_limit():
+    table = FakeTable()
+    store = DynamoStarStore(table, "abcd1234")
+    entries = {f"lineage-{number}": number % 6 for number in range(1000)}
+    store.record(entries)
+    assert store.load() == entries
+    assert table.calls.count("update") == 21  # the empty map, then 20 requests of 50
+
+
+def test_a_rating_store_that_cannot_write_does_not_fail_the_render():
+    class Refusing(MemoryStarStore):
+        def record(self, entries):
+            raise RuntimeError("the table refused")
+
+    found = known_stars(Refusing(), ["rated", "unrated"], lambda lineage: 4 if lineage == "rated" else 0)
+    assert found == {"rated": 4}

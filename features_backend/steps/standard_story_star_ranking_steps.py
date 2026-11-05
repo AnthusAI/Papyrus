@@ -248,3 +248,57 @@ def store_reads_once(context) -> None:
     project_again(context)
     reads_of_items = [call for call in context.site.client.calls[calls:] if call[:2] == ("list_by_index", "itemsByLineageAndVersion")]
     assert store.writes == writes and not reads_of_items, (store.writes, writes, reads_of_items)
+
+
+class _LimitedTable:
+    def __init__(self):
+        self.stars, self.largest = {}, 0
+
+    def update_item(self, Key, UpdateExpression, ExpressionAttributeValues, ExpressionAttributeNames=None):
+        self.largest = max(self.largest, len(UpdateExpression.encode()))
+        assert len(UpdateExpression.encode()) <= 4096
+        if UpdateExpression.startswith("SET stars = if_not_exists"):
+            return
+        for assignment in UpdateExpression.removeprefix("SET ").split(", "):
+            target, value = assignment.split(" = ")
+            self.stars[ExpressionAttributeNames[target.removeprefix("stars.")]] = ExpressionAttributeValues[value]
+
+
+@given("a rating store that refuses an update over DynamoDB's size limit")
+def step_limited_store(context):
+    from papyrus_content.projection.story_stars import DynamoStarStore
+
+    context.limited_table = _LimitedTable()
+    context.limited_store = DynamoStarStore(context.limited_table, "abcd1234")
+
+
+@when("a thousand Stories nobody has seen before are remembered at once")
+def step_remember_thousand(context):
+    context.limited_store.record({f"lineage-{number}": number % 6 for number in range(1000)})
+
+
+@then("every rating is remembered and no single write went over the limit")
+def step_all_remembered(context):
+    assert len(context.limited_table.stars) == 1000 and 0 < context.limited_table.largest <= 4096
+
+
+@given("a rating store that refuses every write")
+def step_refusing_store(context):
+    class Refusing(MemoryStarStore):
+        def record(self, entries):
+            raise RuntimeError("the table refused")
+
+    context.refusing_store = Refusing()
+
+
+@when("a Story rated four stars is looked up for the first time")
+def step_look_up(context):
+    from papyrus_content.projection.story_stars import known_stars
+
+    context.found_stars = known_stars(context.refusing_store, ["rated"], lambda lineage: 4)
+
+
+@then("the listing still has its four stars, and the next render reads it again")
+def step_still_stars(context):
+    assert context.found_stars == {"rated": 4} and context.refusing_store.load() == {}
+
