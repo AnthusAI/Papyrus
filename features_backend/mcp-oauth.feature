@@ -32,3 +32,13 @@ Feature: Site-bound authorization for hosted MCP
     Given a client holds a grant for one publication
     When the grant is revoked or presented to another publication
     Then the grant cannot authorize access
+
+  Scenario: Malformed bearer values never reach grant storage
+    Given a client holds a grant for one publication
+    When malformed tokens are presented
+    Then they are refused without looking them up
+
+  Scenario: Too many refreshes require a new authorization
+    Given a client holds a grant for one publication
+    When its refresh limit is reached
+    Then the grant is revoked and its stored identity is removed

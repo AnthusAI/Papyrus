@@ -131,3 +131,29 @@ def step(context):
 
 @then('the grant cannot authorize access')
 def step(context): assert context.grants.verify(context.tokens["access_token"], resource=context.args["resource"]) is None
+
+@when('malformed tokens are presented')
+def step(context):
+    context.store.rows.clear()
+    context.lookups = []
+    context.store.get = lambda key: context.lookups.append(key)
+    refused(lambda: context.grants.refresh('unicode.☃', client='client', resource=context.args['resource']))
+    assert context.grants.verify('bad.value', resource=context.args['resource']) is None
+    context.grants.revoke('bad.value', client='client')
+
+@then('they are refused without looking them up')
+def step(context): assert not context.lookups
+
+@when('its refresh limit is reached')
+def step(context):
+    context.key = context.tokens['refresh_token'].split('.')[0]
+    context.store.rows[context.key]['used_refresh'] = ['x'] * g.MAX_REFRESHES
+    refused(lambda: context.grants.refresh(context.tokens['refresh_token'], client='client', resource=context.args['resource']))
+
+@then('the grant is revoked and its stored identity is removed')
+def step(context):
+    row = context.store.get(context.key)
+    assert row['state'] == 'revoked' and row['principal'] is None
+    version = row['version']
+    context.grants.revoke(context.tokens['refresh_token'], client='client')
+    assert context.store.get(context.key)['version'] == version

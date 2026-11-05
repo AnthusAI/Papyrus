@@ -12,6 +12,7 @@ from typing import Any, Protocol
 MAX_LIFETIME = 7 * 24 * 60 * 60
 CODE_LIFETIME = 300
 ACCESS_LIFETIME = 3600
+MAX_REFRESHES = 128
 
 
 class InvalidGrant(Exception):
@@ -38,7 +39,7 @@ def token() -> str:
 
 def split(value: str) -> tuple[str, str]:
     parts = value.split(".")
-    if len(parts) != 2 or not all(parts):
+    if len(parts) != 2 or not all(re.fullmatch(r"[A-Za-z0-9_-]{43}", part) for part in parts):
         raise InvalidGrant()
     return parts[0], parts[1]
 
@@ -106,12 +107,17 @@ class Grants:
             if not row or row["state"] != "active" or now >= row["expires"] or row["client"] != client or row["resource"] != resource:
                 raise InvalidGrant()
             if secret_hash in row["used_refresh"]:
-                revoked = dict(row, state="revoked", version=row["version"] + 1)
+                revoked = dict(row, state="revoked", principal=None, version=row["version"] + 1)
                 if self.store.replace(key, row["version"], revoked):
                     raise InvalidGrant()
                 continue
             if not hmac.compare_digest(secret_hash, row["refresh"]):
                 raise InvalidGrant()
+            if len(row["used_refresh"]) >= MAX_REFRESHES:
+                revoked = dict(row, state="revoked", principal=None, version=row["version"] + 1)
+                if self.store.replace(key, row["version"], revoked):
+                    raise InvalidGrant()
+                continue
             row["used_refresh"] = [*row["used_refresh"], secret_hash]
             try:
                 return self._rotate(key, row, now)
@@ -138,9 +144,9 @@ class Grants:
             secret_hash = digest(secret)
             for _ in range(4):
                 row = self.store.get(key)
-                if not row or row["client"] != client or secret_hash not in [row.get("access"), row.get("refresh"), *row.get("used_refresh", [])]:
+                if not row or row["state"] == "revoked" or row["client"] != client or secret_hash not in [row.get("access"), row.get("refresh"), *row.get("used_refresh", [])]:
                     return
-                if self.store.replace(key, row["version"], dict(row, state="revoked", version=row["version"] + 1)):
+                if self.store.replace(key, row["version"], dict(row, state="revoked", principal=None, version=row["version"] + 1)):
                     return
         except (InvalidGrant, UnicodeError, ValueError):
             return
