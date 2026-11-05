@@ -29,6 +29,7 @@ import { referenceContentNeededKey, referenceFeedArrivalAt, referenceFeedKeys, r
 import {
   classifyCurationCaller,
   cliClientIdFromEnvironment,
+  isCliSession,
   requireDelegationAgent,
   requireDelegationApprover,
   requireDelegationWithdrawer,
@@ -565,6 +566,9 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
  * no `feedArrivalAt` gets one, because the star index sorts by it and a row without it is not in the index.
  */
 async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
+  if (isCliSession(curationCaller(event))) {
+    throw new Error("A CLI session cannot file a rating as the person. Use `papyrus references set-stars` with a delegation the person approved.");
+  }
   const client = await getDataClient();
   const actor = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom";
   return writeReferenceStars(client, {
@@ -599,6 +603,10 @@ async function writeReferenceStars(client: DataClient, input: { referenceId: str
  * does not republish it. Stars are private editorial signals and are never copied to `PublishedItem` or any projection.
  */
 async function setItemStars(event: Parameters<ItemStarsHandler>[0]) {
+  // No CLI command rates Stories, and a CLI-client session may not file a rating as the person (it also chooses `actorLabel`).
+  if (isCliSession(curationCaller(event))) {
+    throw new Error("A CLI session cannot file a Story rating as the person. Rate Stories in the Newsroom.");
+  }
   const client = await getDataClient();
   const itemId = normalizeRequiredString(event.arguments.itemId, "itemId");
   const stars = normalizeReferenceStars(event.arguments.stars);

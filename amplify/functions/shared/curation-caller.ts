@@ -24,6 +24,18 @@ export type CurationCaller =
   | { lane: "newsroom-session"; sub: string; groups: string[] }
   /** A person's token on a backend that has not named a CLI client, so the Newsroom and the CLI cannot be told apart. */
   | { lane: "unseparated-session"; sub: string; groups: string[] }
+  /** A token whose client cannot be read (no aud or client_id): neither the CLI nor provably the Newsroom, so it can do nothing here. */
+  | { lane: "unreadable-client-session"; sub: string; groups: string[] }
+
+const UNREADABLE_CLIENT_MESSAGE = "This session's sign-in client could not be read, so it cannot be used for curation delegations. Sign in again."
+
+/**
+ * Direct ratings and votes: a session on the CLI client is a script or agent working in an editor's account, so it may not file a decision as
+ * the person. Returns whether the caller is that kind of session; the Lambda refuses or relabels it.
+ */
+export function isCliSession(caller: CurationCaller): boolean {
+  return caller.lane === "cli-session"
+}
 
 export function cliClientIdFromEnvironment(environment: Record<string, string | undefined> = process.env): string | null {
   const value = (environment[CURATION_CLI_CLIENT_ID_VARIABLE] ?? "").trim()
@@ -45,7 +57,9 @@ export function classifyCurationCaller(identity: unknown, cliClientId: string | 
   if (!sub) return { lane: "iam" }
   const groups = claimGroups(claims["cognito:groups"])
   if (!cliClientId) return { lane: "unseparated-session", sub, groups }
-  return { lane: tokenClientId(claims) === cliClientId ? "cli-session" : "newsroom-session", sub, groups }
+  const client = tokenClientId(claims)
+  if (!client) return { lane: "unreadable-client-session", sub, groups }
+  return { lane: client === cliClientId ? "cli-session" : "newsroom-session", sub, groups }
 }
 
 export function isDelegationEditor(groups: string[]): boolean {
@@ -65,12 +79,14 @@ export function requireDelegationAgent(caller: CurationCaller): void {
       + "Turn on cliOnFederationClient for the site, then sign in again with papyrus login.",
     )
   }
+  if (caller.lane === "unreadable-client-session") throw new Error(UNREADABLE_CLIENT_MESSAGE)
   throw new Error("Ask for a delegation from the CLI. The Newsroom approves requests; it does not make them.")
 }
 
 /** Approving, denying (with a code), creating and listing: the person's routes in the Newsroom. */
 export function requireDelegationApprover(caller: CurationCaller): { sub: string; groups: string[] } {
   if (caller.lane === "iam") throw new Error("Only a person signed in to the Newsroom can manage curation delegations.")
+  if (caller.lane === "unreadable-client-session") throw new Error(UNREADABLE_CLIENT_MESSAGE)
   if (caller.lane === "cli-session") {
     throw new Error("A delegation is approved by a person in the Newsroom, not from the CLI session that asked for it.")
   }
@@ -81,6 +97,7 @@ export function requireDelegationApprover(caller: CurationCaller): { sub: string
 /** Denying and revoking only reduce what an agent may do, so the CLI session that asked may do them too. */
 export function requireDelegationWithdrawer(caller: CurationCaller): { sub: string; groups: string[] } {
   if (caller.lane === "iam") throw new Error("Only a person signed in to the Newsroom can manage curation delegations.")
+  if (caller.lane === "unreadable-client-session") throw new Error(UNREADABLE_CLIENT_MESSAGE)
   if (!isDelegationEditor(caller.groups)) throw new Error("Only an editor or administrator can manage curation delegations.")
   return { sub: caller.sub, groups: caller.groups }
 }

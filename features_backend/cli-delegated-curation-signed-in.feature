@@ -102,6 +102,19 @@ Feature: An agent on the signed-in CLI records an editor's accept, reject and st
     When the agent runs set-stars with a rating outside one to five, with a dry run, and with help
     Then no request is sent for any of them
 
+  Scenario: A token whose sign-in client cannot be read can do nothing with delegations
+    Given a site that signs its CLI in on its own client
+    And the agent asked for a delegation from a signed-in session
+    When an editor's token that names no sign-in client tries to approve, create, list, deny, revoke, ask or check a delegation
+    Then each attempt is refused because the client could not be read
+    And the request is still waiting for the Newsroom
+
+  Scenario: A CLI session cannot file a rating as the editor without a delegation
+    Given a site that signs its CLI in on its own client
+    When a CLI session sets a Reference or Story rating directly, naming the editor as the rater
+    Then both are refused, the first pointing at set-stars, and nothing is written
+    And a Newsroom session's own rating and a delegated rating still work
+
   Scenario: Delegation routes grant no rule to a signed-in reader
     When the deployed authorization of the delegation routes is read
     Then the agent routes allow the operator lane and the editor and admin groups

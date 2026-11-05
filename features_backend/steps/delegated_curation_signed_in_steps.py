@@ -128,6 +128,14 @@ newsroom_step("ratings outside one to five are refused and write nothing", "star
 newsroom_step("the newest rating wins and a clear removes who and when", "stars_follow_the_set_reference_stars_rules", then)
 newsroom_step("a rating never changes the accept or reject", "stars_follow_the_set_reference_stars_rules", then)
 
+newsroom_step("an editor's token that names no sign-in client tries to approve, create, list, deny, revoke, ask or check a delegation", "a_token_whose_client_cannot_be_read_can_do_nothing_with_delegations", when)
+newsroom_step("each attempt is refused because the client could not be read", "a_token_whose_client_cannot_be_read_can_do_nothing_with_delegations", then)
+newsroom_step("the request is still waiting for the Newsroom", "a_token_whose_client_cannot_be_read_can_do_nothing_with_delegations", then)
+
+newsroom_step("a CLI session sets a Reference or Story rating directly, naming the editor as the rater", "a_cli_session_cannot_file_a_rating_as_the_person", when)
+newsroom_step("both are refused, the first pointing at set-stars, and nothing is written", "a_cli_session_cannot_file_a_rating_as_the_person", then)
+newsroom_step("a Newsroom session's own rating and a delegated rating still work", "a_cli_session_cannot_file_a_rating_as_the_person", then)
+
 newsroom_step("the deployed authorization of the delegation routes is read", "the_declared_authorization_has_no_broad_signed_in_rule", when)
 newsroom_step("the agent routes allow the operator lane and the editor and admin groups", "the_declared_authorization_has_no_broad_signed_in_rule", then)
 newsroom_step("the person routes allow the editor and admin groups only", "the_declared_authorization_has_no_broad_signed_in_rule", then)

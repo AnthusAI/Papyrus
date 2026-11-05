@@ -464,6 +464,22 @@ change; nothing about the Newsroom's own approval changes. The federation client
 the site's server uses for Prospectus sign-in; a token from it is treated as a CLI session
 (it can ask, not approve), which is the safe direction.
 
+A token whose client cannot be read (no `aud` or `client_id`) is refused on every delegation
+route. A CLI-client session also cannot call `setReferenceStars` or `setItemStars` directly: those
+would file the rating as the person, under a name the caller chooses (`actorLabel`). No CLI command
+rates Stories, so nothing a person relies on is removed; use `references set-stars` with a
+delegation for References.
+
+**This is honest labelling, not containment.** The gate stops the normal routes from labelling an
+agent's decision as the person's. It does not stop an editor-group session from writing some data
+directly through the model API: `Item` (including a Story's `starRating`) and `KnowledgeRawPayload`
+(the delegation index rows) are writable by the editor and admin groups, whereas `Reference` is
+read-only to them (its votes and ratings are written only by the Lambdas), so a Reference's
+curation and star fields are contained. Other category-action routes that record a person's
+decision under a name the caller supplies (`setReferenceQualityRating`, `decideReferenceLink`,
+`reviewReferenceTopicLabel`, `reviewSteeringProposal`, `createReferenceNote`, `moveReferenceCorpus`)
+are not gated against CLI sessions.
+
 Expiry (72 hours at most, eight by default), the audit record (agent name, the approver, the
 editor whose session asked), revocation and the checks of agent name, named person and token are
 the same on both lanes. A delegation is stored in the site's own backend, so another site's

@@ -362,6 +362,37 @@ const behaviours: Record<string, () => Promise<void>> = {
     assert.equal(backend.table("Reference").get(bare)!.feedArrivalAt, "2026-10-01T00:00:00.000Z");
     assert.equal(backend.table("Reference").get(bare)!.curationStatus, "accepted", "stars leave the vote alone");
   },
+
+  async a_token_whose_client_cannot_be_read_can_do_nothing_with_delegations() {
+    const backend = await makeBackend();
+    const unreadable = { sub: "editor-sub-1", claims: { sub: "editor-sub-1", email: EDITOR, "cognito:groups": ["editor", "admin"] } };
+    const blank = { sub: "editor-sub-1", claims: { sub: "editor-sub-1", aud: "  ", client_id: "", "cognito:groups": ["admin"] } };
+    const request = await requested(backend);
+    const secret = agentSecret();
+    for (const identity of [unreadable, blank]) {
+      await assert.rejects(backend.call("approveCurationDelegation", identity, { userCode: request.userCode }), /could not be read/);
+      await assert.rejects(backend.call("createCurationDelegation", identity, { agentLabel: "Claude", hours: 1 }), /could not be read/);
+      await assert.rejects(backend.call("listCurationDelegations", identity), /could not be read/);
+      await assert.rejects(backend.call("denyCurationDelegation", identity, { userCode: request.userCode }), /could not be read/);
+      await assert.rejects(backend.call("revokeCurationDelegation", identity, { delegationId: request.delegationId }), /could not be read/);
+      await assert.rejects(backend.call("requestCurationDelegation", identity, { delegationId: secret.delegationId, tokenHash: secret.tokenHash, agentLabel: "Claude" }), /could not be read/);
+      await assert.rejects(backend.call("getCurationDelegationStatus", identity, { delegationId: request.delegationId }), /could not be read/);
+    }
+    assert.equal((await backend.call("getCurationDelegationStatus", cliSession, { delegationId: request.delegationId })).state, "pending", "the request is still waiting");
+  },
+
+  async a_cli_session_cannot_file_a_rating_as_the_person() {
+    const backend = await makeBackend();
+    await assert.rejects(backend.call("setReferenceStars", cliSession, { referenceId, stars: 5, actorLabel: EDITOR }), /papyrus references set-stars/);
+    await assert.rejects(backend.call("setItemStars", cliSession, { itemId: "item-1", stars: 5, actorLabel: EDITOR }), /Rate Stories in the Newsroom/);
+    assert.equal(backend.reference().starRating, undefined, "nothing was written");
+    // The Newsroom's own rating is unchanged, and so is the delegated one.
+    assert.equal((await backend.call("setReferenceStars", newsroomSession, { referenceId, stars: 3 })).stars, 3);
+    assert.equal(backend.reference().starRatedBy, EDITOR);
+    const request = await approved(backend);
+    await relay(backend, "recordDelegatedStars", request, { stars: 4 });
+    assert.match(String(backend.reference().starRatedBy), /via Claude \(delegation /);
+  },
 };
 
 async function main() {
