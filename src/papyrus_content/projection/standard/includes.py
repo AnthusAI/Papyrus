@@ -21,6 +21,8 @@ source) says where generated blocks go::
 ``form``      a ``forms`` entry of ``projection.json``.
 ``references`` a grid of Reference cards from the home-page snapshot (see ``home_page_blocks.py``); needs ``homePage`` in
               ``projection.json``. Components on one page never show the same Reference twice: the first one wins.
+              ``paged="true"`` (with ``homePage.references.paging``) makes it a list that loads more as the reader scrolls, with no cap:
+              ``count`` is the first page, the rest is in data files (see ``home_page_lists.py`` and docs/home-page.md).
 ``block``     the markup the site's ``block`` hook returns for ``name``; the remaining attributes are passed to it.
               ``depends`` lists the sections (``@root`` for items without one, ``*`` for all) it reads. The names that start
               with ``knowledge-`` are the standard knowledge blocks (see ``knowledge_blocks.py``), rendered without a hook.
@@ -95,6 +97,8 @@ def check(attributes: Mapping, settings: StandardSettings, source: str) -> str:
         if settings.home_page is None:
             raise ValueError(f"{source}: ::include references: {home_page_blocks.NOT_CONFIGURED}")
         home_page_blocks.check(attributes, source)
+        if home_page_blocks.is_paged(attributes) and settings.home_page.references.paging is None:
+            raise ValueError(f"{source}: ::include references paged=\"true\" needs homePage.references.paging in projection.json (the site has not opted in)")
     elif kind == "threads":
         if settings.home_page is None:
             raise ValueError(f"{source}: ::include threads: {home_page_blocks.NOT_CONFIGURED}")

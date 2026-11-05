@@ -156,6 +156,7 @@
     "test:newsletter-plugin": "tsx scripts/test-newsletter-plugin.ts",
     "test:newsletter-api": "tsx scripts/test-newsletter-api.ts",
     "test:newsletter-pages-browser": "tsx --test scripts/test-newsletter-pages-browser.ts",
+    "test:reference-list-browser": "poetry run python -m procedures.newsroom.tests.build_reference_list_site out/reference-list-site && REFERENCE_LIST_SITE=out/reference-list-site tsx --test scripts/test-reference-list-scroll-browser.ts",
     "test:newsletter-panel": "tsx scripts/test-newsletter-panel.ts",
     "test:editorial-checks": "tsx scripts/test-editorial-checks.ts && tsx scripts/test-editorial-context-api.ts",
     "test:editorial-preview": "cucumber-js --profile editorialPreview",

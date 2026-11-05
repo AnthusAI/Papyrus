@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 class PageLedger:
     seen: set[str] = field(default_factory=set)
     home_page_used: bool = False
+    paged_lists_used: bool = False   # a paged references list was placed: the page also loads the script that loads more
 
     def claim(self, key: str) -> bool:
         """Record ``key`` and return True when it was free; return False when an earlier component on the page already holds it."""
