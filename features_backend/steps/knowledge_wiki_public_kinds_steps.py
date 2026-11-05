@@ -233,6 +233,66 @@ def step_back(context, title):
     assert _live(_scene(context), title) and "retired" not in front_matter_of(_page_titled(_scene(context), title))
 
 
+def _check(context, title):
+    from procedures.newsroom.tests.test_knowledge_wiki import run_preflight
+
+    scene = _scene(context)
+    run_preflight(scene["client"], _page_titled(scene, title)["id"], scene["dir"])
+
+
+@given('the wiki was synced with a vocabulary of the kinds "{kinds}"')
+def step_synced_only(context, kinds):
+    _sync(context, kinds)
+
+
+@when('the page "{title}" places an include the site does not know')
+def step_unknown_include(context, title):
+    _page_titled(_scene(context), title)["bodyMarkus"] += '\n::include{kind="nonsense" name="nothing"}\n'
+
+
+@when("every draft is published and the site fails to project the pages")
+def step_publish_failing(context):
+    import contextlib
+    import io
+
+    failing = {"projection": {"ok": False, "error": "the site could not render the page", "retry": "papyrus ops content publish --id ITEM"}}
+    buffer = io.StringIO()
+    with mock.patch.object(wiki_commands, "run_site_triggers", lambda *args, **kwargs: failing), contextlib.redirect_stdout(buffer):
+        try:
+            wiki_commands.knowledge_wiki_publish(["--all-drafts", "--actor", "ai", "--apply", "--on", DAY])
+        except SystemExit:
+            pass
+    _scene(context)["out"] = buffer.getvalue()
+
+
+@then('the publish check passes for the page "{title}"')
+def step_check_passes(context, title):
+    _check(context, title)
+
+
+@then('the publish check refuses the page "{title}" by name and says nothing was published')
+def step_check_refuses(context, title):
+    from papyrus_content.publishing import PublishError
+
+    try:
+        _check(context, title)
+    except PublishError as error:
+        assert error.code == "page-not-renderable" and _page_titled(_scene(context), title)["slug"] in error.message and "Nothing was published" in error.message
+    else:
+        raise AssertionError("the publish check did not refuse the page")
+
+
+@then("the publish report names the unprojected page and gives the retry command")
+def step_report_unprojected(context):
+    out = _scene(context)["out"]
+    assert "is published but its page was not projected" in out and "retry: papyrus ops content publish --id" in out, out
+
+
+@then('the page "{title}" is live')
+def step_page_live(context, title):
+    assert _live(_scene(context), title)
+
+
 @then("the sync is refused because the vocabulary declares no entity kinds")
 def step_refused(context):
     assert "declares no entity kinds" in (_scene(context)["error"] or "")

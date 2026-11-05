@@ -100,26 +100,31 @@ def render_preflight(client, item_id: str, environ: Mapping[str, str] | None = N
             front_matter = json.loads(front_matter)
         except ValueError:
             front_matter = {}
-    render_body_preflight((front_matter or {}).get("frontMatterYaml"), row.get("bodyMarkus") or "", environ)
+    render_body_preflight((front_matter or {}).get("frontMatterYaml"), row.get("bodyMarkus") or "", environ, page=str(row.get("slug") or row.get("title") or item_id), item_type=str(row.get("type") or ""))
 
 
-def render_body_preflight(front_matter_yaml: str | None, body_markus: str, environ: Mapping[str, str] | None = None) -> None:
+def render_body_preflight(front_matter_yaml: str | None, body_markus: str, environ: Mapping[str, str] | None = None, *, page: str = "", item_type: str = "") -> None:
     """``render_preflight`` for a body that is not stored yet (an edit that would go live as it is saved)."""
     if not projection_configured(environ):
         return
-    fragment = getattr(load_projector(environ), "_fragment", None)
-    if not callable(fragment):
+    projector = load_projector(environ)
+    fragment = getattr(projector, "preflight_fragment", None)
+    if callable(fragment):
+        render = lambda source: fragment(source, 1, page, item_type)  # noqa: E731
+    elif callable(getattr(projector, "_fragment", None)):
+        render = lambda source: projector._fragment(source, 1)  # noqa: E731
+    else:
         return
     from ..markus_renderer.derive import compose_source
     from ..publishing import PublishError
-    from .engine import content_error_types
 
+    name = f" {page!r}" if page else ""
     try:
-        fragment(compose_source(front_matter_yaml, body_markus), 1)
-    except content_error_types() as error:
+        render(compose_source(front_matter_yaml, body_markus))
+    except Exception as error:  # noqa: BLE001 - any render error is a refusal that names the page, never a crash of the function
         raise PublishError(
             "page-not-renderable",
-            f"This Story cannot be published because its page cannot be rendered: {error}. Nothing was published; fix the Story and publish it again.",
+            f"The page{name} cannot be published because it cannot be rendered ({type(error).__name__}): {error}. Nothing was published; fix the page and publish it again.",
         ) from error
 
 
