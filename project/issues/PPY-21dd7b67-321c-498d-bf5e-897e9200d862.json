@@ -1,0 +1,25 @@
+{
+  "id": "PPY-21dd7b67-321c-498d-bf5e-897e9200d862",
+  "title": "p.apyr.us docs page: the cover image picker (stock images from Wikimedia Commons)",
+  "description": "Document for editors on p.apyr.us: the Cover image button on a saved Story, four options, Accept, reload, search words, Give up; where the credit shows (under the picture on the article page only, never on cards or index pages); which licences are offered and which are not; that the picture is copied into the site's own storage; that saving makes the new Story version. Not written yet; per the rule that every feature epic ends with a docs task. Built in the PR for PPY-a36ac3 and PPY-956dff first step.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-956dff77-886f-4c7a-acfd-3c5d06988b15",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T12:36:14.552858Z",
+  "updated_at": "2026-11-05T12:36:19.254755Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Opus 5.5",
+    "name": "Cover picker agent"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

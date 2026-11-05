@@ -1,0 +1,20 @@
+{
+  "id": "PPY-eac36e58-056a-4fe2-b80b-d6a6bbc7f500",
+  "title": "Predict once when a Reference is created by user intake or an import",
+  "description": "References created by user intake (reference_intake.py) and reference-catalog imports never get a Cyclotron decision, so after PR 1227 (no prediction, no show) the 173 on Machines on Machines never appear. Queue one decision per new Reference through the existing monitoring router lane (the editor-selected email-references lane), record it with the same builders deliver_reference uses (relevance_decision_is relation, predictedAcceptProbability, predictionDecidedAt), never send anything back to the model, never lose the Reference on failure.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T13:18:14.006757Z",
+  "updated_at": "2026-11-05T13:18:14.006990Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-30e656fb-9abe-4cfa-9548-9856a23b43a4",
+  "title": "Page actions on every page: home, listings and authored pages",
+  "description": "Ryan asked for page actions on every page, relayed by the Machines on Machines session, 2026-11-05. page.article_actions() returns empty on listings and the home page, so that site kept its own actions in the 5.89.0 release and cannot delete them yet. Make the shared actions work on those pages, using each page's own title, canonical address and Markdown twin, including paged list pages. Existing sites stay unchanged unless they opt in. Screenshots at phone and desktop width.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T11:53:40.910851Z",
+  "updated_at": "2026-11-05T11:53:40.910889Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a96f7898-c837-4339-b631-8587185da8b5",
+  "title": "Build the four-option picker on a Story",
+  "description": "Show four candidates with what each is and its source. Choosing one sets it as the Story's cover, reversibly. Loading, empty and failure states say so in words. Works on phone and tablet, in light and dark. Reviewed by Ryan with screenshots, per the UX rule.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-956dff77-886f-4c7a-acfd-3c5d06988b15",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T12:10:32.554174Z",
+  "updated_at": "2026-11-05T12:11:34.092864Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

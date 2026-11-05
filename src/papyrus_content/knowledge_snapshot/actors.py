@@ -31,9 +31,12 @@ class Actor:
     actor: str
     name: str | None
     on: str
+    #: Where the decision was made, stamped by the site and never by the person: ``cli``, ``newsroom`` or ``signed-in`` (see
+    #: ``amplify/functions/shared/edit-origin.ts``). Absent on a decision from before it was recorded, or one written with AWS credentials.
+    via: str | None = None
 
     def to_dict(self) -> dict:
-        return {"actor": self.actor, "name": self.name, "on": self.on}
+        return {"actor": self.actor, "name": self.name, "on": self.on, **({"via": self.via} if self.via else {})}
 
     @property
     def is_human(self) -> bool:
@@ -65,7 +68,8 @@ def actor_from_dict(value: Any) -> Actor | None:
     if not isinstance(value, Mapping) or value.get("actor") not in ACTORS or not isinstance(value.get("on"), str):
         return None
     name = value.get("name")
-    return Actor(actor=value["actor"], name=name if isinstance(name, str) and name.strip() else None, on=value["on"])
+    via = value.get("via")
+    return Actor(actor=value["actor"], name=name if isinstance(name, str) and name.strip() else None, on=value["on"], via=via if isinstance(via, str) and via.strip() else None)
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "fa9c6108-9c74-461f-9684-6dbd3da88a6f",
+  "issue_id": "PPY-3a770bec-da6a-4f49-9563-9d06809135dc",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-05T12:11:34.827Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "parent": {
+        "from": null,
+        "to": "PPY-58e89179-4d12-461d-86dd-235a64273733"
+      }
+    }
+  }
+}

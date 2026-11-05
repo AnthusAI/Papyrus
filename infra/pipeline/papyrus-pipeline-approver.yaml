@@ -1,0 +1,210 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  The small, separate stack behind the approval-gated role deploy (PPY-9d1b3e). Three roles, used only by
+  .github/workflows/role-stack-deploy.yml, which keeps the papyrus-stack-pipeline stack (the release pipeline's roles) up to date.
+  The plan role creates a change set on merged code; the apply role runs it only after a person approves in the GitHub environment
+  pipeline-roles; the service role is what CloudFormation uses, and holds the IAM rights, limited to the pipeline's own roles and
+  managed policies by name. Nothing here can change this stack or its own roles. It is applied by a person once per AWS account
+  (infra/pipeline/bootstrap.sh --approver-only) and again only when this file changes. It can also create the account's GitHub OIDC
+  provider (CreateGitHubOidcProvider=true) on an account that has none.
+
+Parameters:
+  GitHubRepository:
+    Type: String
+    Default: AnthusAI/Papyrus
+    Description: owner/repo whose workflow may assume the roles.
+  ApprovalEnvironment:
+    Type: String
+    Default: pipeline-roles
+    Description: The GitHub environment (with required reviewers) whose approved jobs may apply role changes.
+  CreateGitHubOidcProvider:
+    Type: String
+    Default: "false"
+    AllowedValues: ["false", "true"]
+    Description: >-
+      "true" creates the account's GitHub OIDC provider (token.actions.githubusercontent.com) in this stack. An account can hold one
+      provider per issuer, so leave it "false" where one exists. Once "true", keep it "true": setting it back deletes the provider.
+
+Conditions:
+  CreatesProvider: !Equals [!Ref CreateGitHubOidcProvider, "true"]
+
+Resources:
+  # Only on an account with no provider yet. Audience sts.amazonaws.com is what GitHub's documentation and aws-actions/configure-aws-credentials use.
+  # No thumbprint: it is optional, and for token.actions.githubusercontent.com IAM verifies the certificate against its own trusted CAs.
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreatesProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+
+  # Pushes to develop or main: creates the change set and reads. It cannot execute one.
+  PlanRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: papyrus-pipeline-roles-plan-github
+      Description: Creates and reads the change set for the pipeline roles, from merged code on develop or main (GitHub OIDC, no keys). Cannot execute it.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If [CreatesProvider, !Ref GitHubOidcProvider, !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"]
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub":
+                  - !Sub repo:${GitHubRepository}:ref:refs/heads/develop
+                  - !Sub repo:${GitHubRepository}:ref:refs/heads/main
+      Policies:
+        - PolicyName: plan-the-pipeline-roles
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadAndPlan
+                Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:GetTemplate
+                  - cloudformation:ListChangeSets
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:DeleteChangeSet
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-stack-pipeline/*
+              - Sid: CreateChangeSetsOnlyThroughTheServiceRole
+                Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-stack-pipeline/*
+                Condition:
+                  StringEquals:
+                    "cloudformation:RoleArn": !GetAtt ServiceRole.Arn
+              - Sid: HandOverTheServiceRoleToCloudFormationOnly
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt ServiceRole.Arn
+                Condition:
+                  StringEquals:
+                    "iam:PassedToService": cloudformation.amazonaws.com
+
+  # Jobs in the GitHub environment pipeline-roles only. The environment's required reviewer is the approval; its deployment branches
+  # (develop, main) are set on the GitHub side by infra/pipeline/create-environment.sh. The subject below names the environment exactly.
+  ApplyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: papyrus-pipeline-roles-apply-github
+      Description: Executes the approved change set on the pipeline stack, for jobs in the pipeline-roles GitHub environment (GitHub OIDC, no keys).
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If [CreatesProvider, !Ref GitHubOidcProvider, !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"]
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                "token.actions.githubusercontent.com:sub": !Sub repo:${GitHubRepository}:environment:${ApprovalEnvironment}
+      Policies:
+        - PolicyName: apply-the-pipeline-roles
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ExecuteAndWatch
+                Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplate
+                  - cloudformation:ListChangeSets
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-stack-pipeline/*
+              # Only to clear a first create that rolled back (ROLLBACK_COMPLETE cannot be updated). The roles it would have made do not exist then.
+              - Sid: ClearAFirstCreateThatRolledBack
+                Effect: Allow
+                Action: cloudformation:DeleteStack
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/papyrus-stack-pipeline/*
+
+  # What CloudFormation uses for the pipeline stack. IAM rights on the pipeline's own roles and managed policies, by name, and nothing else.
+  # It does not name this stack's roles, so it cannot change them, and it cannot create any other role.
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: papyrus-pipeline-roles-cloudformation
+      Description: Service role CloudFormation uses for the papyrus-stack-pipeline stack; passable only from the plan role.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: the-pipeline-roles-and-nothing-else
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ThePipelineRoles
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:UpdateRole
+                  - iam:UpdateRoleDescription
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:ListRoleTags
+                  - iam:ListInstanceProfilesForRole
+                Resource:
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-plan-github
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-deploy-github
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-deploy-cloudformation
+              # Attaching is limited to the pipeline stack's own managed policies, so no role can be given an AWS-managed policy such as administrator.
+              - Sid: AttachOnlyThePipelinesOwnPolicies
+                Effect: Allow
+                Action: [iam:AttachRolePolicy, iam:DetachRolePolicy]
+                Resource:
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-plan-github
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-deploy-github
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-stack-deploy-cloudformation
+                Condition:
+                  ArnLike:
+                    "iam:PolicyARN": !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/papyrus-stack-pipeline-*
+              # CloudFormation names these after the stack (papyrus-stack-pipeline-<LogicalId>-<suffix>).
+              - Sid: ThePipelineManagedPolicies
+                Effect: Allow
+                Action:
+                  - iam:CreatePolicy
+                  - iam:DeletePolicy
+                  - iam:GetPolicy
+                  - iam:CreatePolicyVersion
+                  - iam:DeletePolicyVersion
+                  - iam:GetPolicyVersion
+                  - iam:ListPolicyVersions
+                  - iam:TagPolicy
+                  - iam:UntagPolicy
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/papyrus-stack-pipeline-*
+
+Outputs:
+  PlanRoleArn:
+    Value: !GetAtt PlanRole.Arn
+  ApplyRoleArn:
+    Value: !GetAtt ApplyRole.Arn
+  ServiceRoleArn:
+    Value: !GetAtt ServiceRole.Arn
+  GitHubOidcProviderArn:
+    Condition: CreatesProvider
+    Value: !Ref GitHubOidcProvider

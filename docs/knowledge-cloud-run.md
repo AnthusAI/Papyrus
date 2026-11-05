@@ -147,7 +147,7 @@ For each unreviewed entity (`generated`), each new cluster and each proposed rel
 - Everything is recorded as accepted or rejected by the actor `ai` (shown as "AI" on the site) with the day. The decisions, quotes and reasons of each run are kept in `runs/<week>/ai-review.json` in the state bucket.
 - The OpenAI key is read from the SSM SecureString `/papyrus/<publication>/openai-api-key` by the task role at run time. It is never in the image, the template or a log. `KNOWLEDGE_REVIEW_MAX_CALLS` (default 150) is the named setting that caps the calls of one run. **Budget rule:** each kind of work (entities in batches of 20, clusters in batches of 8, relations in batches of 20) is owed what it needs up to a max-min fair share of the cap (the kinds that need little are served in full, the others share what is left equally); entities run first and may use every call except what clusters and relations are owed, clusters may use every call except what relations are owed, and relations may use the rest, so a long list of entities cannot starve the later work and a call a later kind does not need goes back to the pool. The log records `budget`: the cap, the calls each kind `needed`, was `owed` and `used`.
 
-`config/review-guidance.md` in the state bucket, if present, is appended to the instructions: the publication's editors' preferences, kept out of code.
+`config/review-guidance.md` of the site's [committed settings](#committed-settings), if it has one, is appended to the instructions: the publication's editors' preferences, kept out of code.
 
 ## The preview gate: bulk writes wait for a person
 
@@ -180,7 +180,7 @@ State is per publication in the stack's S3 bucket (versioned, private), under `p
 
 | Prefix | Holds |
 | --- | --- |
-| `config/` | What an operator maintains, all optional: `vocabulary.yml` (default: a generic vocabulary), `stop-words.txt`, `review-guidance.md`, `amplify_outputs.json` (endpoint only, no secrets; default: the endpoint AppSync reports for `appSyncApiId`). See [Adding a knowledge run to a new site](#adding-a-knowledge-run-to-a-new-site) |
+| `config/` | Not in the state. What a person maintains (`vocabulary.yml`, `stop-words.txt`, `review-guidance.md`) is committed with the site and read from the deploy: see [Committed settings](#committed-settings). `amplify_outputs.json` (endpoint only, no secrets) is generated: each stage writes it to its work directory from the endpoint AppSync reports for `appSyncApiId` |
 | `corpus/` | The long-lived Biblicus corpus, including `knowledge-run.json` (the previous run's identity state) |
 | `runs/<ISO week>/` | Scratch of a run: topics, trends, identity, registry, typed output, `ai-review.json`, `state.json` |
 
@@ -232,7 +232,23 @@ aws stepfunctions start-execution --state-machine-arn <StateMachineArn> \
 
 Inspect: the Step Functions console (one state per stage), the log group of the stack (`/aws/ecs/...`, one stream per task, each line prefixed by the command run), the ledger rows, and `runs/<week>/ai-review.json`. Change the schedule or pause it with `schedule` and `scheduleState` in `knowledgeRun`, then `cdk deploy`.
 
-Seeding state for a new publication is optional: the first stage writes the defaults (below) into `config/` for whatever is missing. To use your own, upload `vocabulary.yml`, `stop-words.txt` and `amplify_outputs.json` to `config/`, and, to carry cluster identity from an earlier workstation run, the whole workstation corpus to `corpus/` (its `knowledge-run.json` names the previous run, and that run's analysis must be in the corpus).
+Nothing needs seeding for a new publication, and nothing under `config/` is ever read from or written to the state. To carry cluster identity from an earlier workstation run, upload the whole workstation corpus to `corpus/` (its `knowledge-run.json` names the previous run, and that run's analysis must be in the corpus).
+
+### Committed settings
+
+What a person maintains for a site's run lives in the repository, so it has history and review and deploys with the stack. Put any of these files in a directory beside the site file (`infra/amplify-app-shell/examples/knowledge-run-settings/<siteId>/` for the sites whose job stacks take their site file from there) and name it in `knowledgeRun.settingsDirectory`, relative to the site file:
+
+| File | What it holds |
+| --- | --- |
+| `vocabulary.yml` | The publication's `description`, its `entity_kinds` (each with a `label` and optional `what` and `not_for`) and its `relation_types`. Without one the run uses the [generic vocabulary](#adding-a-knowledge-run-to-a-new-site). |
+| `stop-words.txt` | Extra words the topic model and the candidate filter treat as stop words. |
+| `review-guidance.md` | The editors' preferences, appended to the AI review's instructions. |
+
+`cdk deploy` zips the directory into an asset, names it in `KNOWLEDGE_SETTINGS_ARCHIVE` and lets the task role read that one object. Every stage unpacks it into `config/` of its work directory, so a change takes effect when the stack is deployed, and the next run uses it. The stack refuses a directory that is missing, empty, outside the site file's directory or holds another file name.
+
+**Which copy wins.** The committed settings, always. The run state is not consulted for them, so an old `config/` copy there cannot override what was deployed; if one is still there, the log says so and names it, and it can be deleted. A file the site did not commit is the generic vocabulary (for `vocabulary.yml`) or absent. Each stage's log starts with one line per file, `config/<name>: committed settings`, `generic default` or `none`, so a run shows what it used. A run that cannot find the asset fails the stage rather than falling back to the default.
+
+Machines on Machines and Shipped commit theirs. Shipped has no `description` yet, so Jev is told only `the shipped publication`; write one in its vocabulary.
 
 ### Building and pushing the image
 
@@ -269,11 +285,11 @@ Add `"plugins": [...]` if the site enables any (the run refuses to project when 
 | What Shipped has | Setting | Default for a site that does not set it |
 | --- | --- | --- |
 | A corpus named like the site | `corpusKey` | The `siteId`. `corpusKey` is the `<key>` of `knowledge-corpus-<key>` and is used wherever the run names the corpus: `corpus export --corpus-key`, the monitor records, `publish-run --corpus-key`, and `papyrus ideas monitor-stories --corpus-key` (`KNOWLEDGE_CORPUS_KEY` in the task). The run's state prefix, ledger rows, alarm topic, SSM names and the actor name stay keyed by `siteId`. The Cited Trends step reads the published snapshot, which has no corpus, so it needs nothing. |
-| A hand-written vocabulary | `config/vocabulary.yml` in the run state | Generic kinds `organization`, `product`, `person`, `topic` and relation types `made_by`, `built_on`, `member_of`. The first stage that finds no file writes it to `config/` (and uses it), so an editor can then edit the seeded file; a file that exists is never replaced. |
+| A hand-written vocabulary | `vocabulary.yml` in the site's [committed settings](#committed-settings) | Generic kinds `organization`, `product`, `person`, `topic` and relation types `made_by`, `built_on`, `member_of`, used from the code; nothing is written to the state. |
 | A Knowledge Map and `scoring.json` in the site repository | `beatsConfig` | None: the snapshot has no beats. A `beatsConfig` that names a file the checkout does not have is logged and left out; it does not fail the stage. |
 | A list of concept kinds | `conceptKinds` | None: every kind is a candidate for the concept of the week. |
-| `config/amplify_outputs.json` in the state | `appSyncApiId` (required anyway) | The first stage asks AppSync for the API's GraphQL endpoint (`GetGraphqlApi`; the host is not the API id) and writes it as `{"data": {"url": ...}}` when the state has none (`KNOWLEDGE_APPSYNC_API_ID` in the task). |
-| `stop-words.txt`, `review-guidance.md` | The same files in `config/` | Not used. |
+| A hand-placed `amplify_outputs.json` | `appSyncApiId` (required anyway) | Each stage asks AppSync for the API's GraphQL endpoint (`GetGraphqlApi`; the host is not the API id) and writes it as `{"data": {"url": ...}}` to its work directory (`KNOWLEDGE_APPSYNC_API_ID` in the task). |
+| `stop-words.txt`, `review-guidance.md` | The same files in the committed settings | Not used. |
 | Its own OpenAI key, Jev key and alarm mailbox | `openAiKeyParameter`, `decisionKeyParameter`, `alarmEmailParameter` | `/papyrus/<siteId>/openai-api-key`, `/papyrus/shared/typesafe-api-key` (the Jev key every site shares) and `/papyrus/<siteId>/knowledge-run/alarm-email`. |
 
 **Sharing the key and the mailbox.** `openAiKeyParameter` and `alarmEmailParameter` name any existing SSM parameter in the site's account and region, and several sites may name the same one (`/papyrus/shared/openai-api-key`). The task role of each stack is allowed to read exactly the parameter its site names (no wildcard), and the alarm address is read when the stack is deployed. Each site still has its own stack and alarm topic, so each topic sends a subscription confirmation to the shared mailbox once, and the alarm says which publication failed. Create a shared parameter by infrastructure code, never by hand, and never commit the address.

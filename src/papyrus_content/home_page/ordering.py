@@ -3,7 +3,8 @@
 Human ratings are a stronger signal than a prediction, so they come first and, where they exist, override it:
 
 1. three, four and five stars, the most stars first;
-2. References nobody rated, the highest Cyclotron confidence first;
+2. References nobody rated, the highest Cyclotron confidence first, and after them the ones with no confidence at all (an accepted Reference the
+   Cyclotron never scored). A missing confidence is not a number: it is not 0.5 and does not tie with a real 0.5, it simply ranks below every scored one;
 3. one and two stars, the most stars first, so a low rating is a real downgrade and beats a confident prediction.
 
 Equal References go to the newest arrival, then to the key. Stars are private: they change this order and are never printed or published. The public
@@ -21,7 +22,6 @@ from typing import Any, TypeVar
 
 T = TypeVar("T")
 
-MISSING_CONFIDENCE = 0.5
 HIGH_STARS = (5, 4, 3)
 LOW_STARS = (2, 1)
 RANK_FIELD = "rank"
@@ -35,20 +35,22 @@ def valid_stars(value: Any) -> int | None:
     return int(value) if 1 <= int(value) <= 5 else None
 
 
-def _primary(stars: int | None, confidence: float) -> tuple[int, float]:
-    """The part of the order before the tie-breaks, smaller first: rated up, then unrated by confidence, then rated down."""
+def _primary(stars: int | None, confidence: float | None) -> tuple[int, int, float]:
+    """The part of the order before the tie-breaks, smaller first: rated up, then unrated by confidence (the unscored last), then rated down."""
     if stars in HIGH_STARS:
-        return (0, -float(stars))
+        return (0, 0, -float(stars))
     if stars in LOW_STARS:
-        return (2, -float(stars))
-    return (1, -confidence)
+        return (2, 0, -float(stars))
+    if confidence is None:
+        return (1, 1, 0.0)
+    return (1, 0, -confidence)
 
 
 def ordered(
     items: Iterable[T],
     *,
     stars: Callable[[T], int | None],
-    confidence: Callable[[T], float],
+    confidence: Callable[[T], float | None],
     newest: Callable[[T], str],
     key: Callable[[T], str],
 ) -> list[T]:
@@ -59,9 +61,10 @@ def ordered(
     return chosen
 
 
-def confidence_of(record: Mapping[str, Any]) -> float:
+def confidence_of(record: Mapping[str, Any]) -> float | None:
+    """The record's confidence, or None when it has none (never a stand-in number)."""
     value = record.get("confidence")
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else MISSING_CONFIDENCE
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def _text(record: Mapping[str, Any], name: str) -> str:
@@ -83,7 +86,7 @@ def has_ranks(records: Iterable[Mapping[str, Any]]) -> bool:
 
 def order_public_records(records: Iterable[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
     """Public records in the shared order. A record carries its ``rank`` when the snapshot was written with ratings known; a snapshot written before ranks
-    existed has none, and its records are ordered as unrated References (confidence, newest, key), which is what it always did."""
+    existed has none, and its records are ordered as unrated References (confidence, the unscored last, newest, key)."""
     chosen = list(records)
     if has_ranks(chosen):
         return sorted(chosen, key=lambda record: (record[RANK_FIELD], _text(record, "key")))
@@ -115,10 +118,14 @@ def bucket_of(moment: Any, bucket: str) -> str:
     return day.isoformat()
 
 
-def bucket_start(record: Mapping[str, Any], bucket: str) -> str:
-    """The bucket a record falls in (``bucket_of``) by the date the selection already orders by: the accepted time, and for a Reference with none (a
-    recommended one) its arrival. A rating never changes it, so a rating never moves a Reference to another bucket."""
-    return bucket_of(record.get("acceptedAt"), bucket) or bucket_of(record.get("arrivedAt"), bucket)
+def bucket_moment(record: Mapping[str, Any]) -> Any:
+    """The date a Reference is bucketed by, the one the selection already orders by: the accepted time, and for a Reference with none (a recommended one)
+    its arrival. A rating never changes it, so a rating never moves a Reference to another bucket."""
+    return record.get("acceptedAt") if _instant(record.get("acceptedAt")) is not None else record.get("arrivedAt")
+
+
+def utc_today() -> date:
+    return datetime.now(timezone.utc).date()
 
 
 BUCKET_DAYS = {"day": 1, "week": 7}
@@ -142,16 +149,19 @@ def rank_in_buckets(
 ) -> list[T]:
     """``items`` (already newest first) with the newest bucket first and, inside each bucket, the shared order of ratings: 5, 4, 3 stars, then unrated, then 2 and 1.
 
-    Without ``as_of`` a bucket is a calendar day or Monday week (``bucket_of``). With it (Stories) a bucket is a rolling window counted back from that day
+    Without ``as_of`` a bucket is a calendar day or Monday week (``bucket_of``). With it a bucket is a rolling window counted back from that day
     (``rolling_age``). Both sorts are stable, so equal items keep the order they came in: with nothing rated every bucket keeps its newest-first order, and the
     whole list is exactly what it was. Nothing is dropped: an older bucket follows the newer ones, ranked inside itself.
     """
-    chosen = sorted(items, key=lambda item: _primary(valid_stars(stars(item)), MISSING_CONFIDENCE))
+    chosen = sorted(items, key=lambda item: _primary(valid_stars(stars(item)), None))
     if as_of is not None:
         return sorted(chosen, key=lambda item: rolling_age(moment(item), bucket, as_of))
     return sorted(chosen, key=lambda item: bucket_of(moment(item), bucket), reverse=True)
 
 
-def order_in_buckets(records: Iterable[Mapping[str, Any]], bucket: str) -> list[Mapping[str, Any]]:
-    """Newest bucket first, and the shared order inside each bucket (a sort on the bucket alone is stable, and ``reverse`` keeps it so)."""
-    return sorted(order_public_records(records), key=lambda record: bucket_start(record, bucket), reverse=True)
+def order_in_buckets(records: Iterable[Mapping[str, Any]], bucket: str, as_of: date | None = None) -> list[Mapping[str, Any]]:
+    """Newest window first, and the shared order inside each window (a sort on the window alone is stable). References use the same ROLLING windows as
+    Stories: ``week`` is the last seven days counted back from the UTC day ``as_of``, the seven before that, and so on; ``day`` likewise. ``as_of`` is a day,
+    so the result can change only when the day changes, and only for a Reference whose window changed. Nothing is dropped. Without ``as_of`` it is today (UTC)."""
+    day = as_of or utc_today()
+    return sorted(order_public_records(records), key=lambda record: rolling_age(bucket_moment(record), bucket, day))

@@ -71,6 +71,17 @@ Feature: Scheduled container jobs
     And when it is enabled and the step fails or times out, the execution still ends in Done
     And the failure is in the task log and the ledger row, and no Fail state, alarm or rollback follows from it
 
+  Scenario: a site's committed run settings ship with the stack and nowhere else
+    Given the site's knowledgeRun block names a settingsDirectory beside its site file, holding a vocabulary.yml and a stop-words.txt
+    Then the stack uploads that directory as one asset at deploy time and the tasks get KNOWLEDGE_SETTINGS_ARCHIVE with its s3:// address
+    And the task role may read that one object and nothing else in the asset bucket
+    And the asset adds no resource to the template
+    And a site without a settingsDirectory gets no such variable and no such grant, and its template is what it was
+
+  Scenario: the settingsDirectory is validated
+    Then a directory that does not exist, an empty one, one that leaves the site file's directory and one that holds a file other than vocabulary.yml, stop-words.txt and review-guidance.md are all refused with the field named
+    And Shipped's directory holds no description in its vocabulary, because none has been written, and Machines on Machines' holds the evaluated one
+
   Scenario: a site can list source hosts its AI drafts never cite
     Given the site's knowledgeRun block says excludedSourceHosts is ["ipwatchdog.com"]
     Then the task environment has KNOWLEDGE_EXCLUDED_SOURCE_HOSTS "ipwatchdog.com" and the trend-drafts and monitor-stories steps pass it to their commands as --exclude-host

@@ -50,6 +50,7 @@ from .cluster_records import CLUSTER_KIND, decode_metadata
 from .entity_review import (
     REVIEW_STATUSES,
     EntityReviewError,
+    accept_description_patches,
     accept_patches,
     alias_patches,
     describe_patches,
@@ -761,8 +762,21 @@ def _apply_patches(client: Any, options: dict[str, Any], patches: list[dict], *,
         print(f"knowledge\t{group}\t{name}\tupdate\t{patch['modelName']}\t{patch['expected']['id']}")
     if not patches:
         print(f"knowledge\t{group}\t{name}\tnothing to change")
-    if not dry_run:
-        apply_record_changes(client, [{"modelName": patch["modelName"], "expected": patch["expected"], "current": None, "action": "update"} for patch in patches])
+    if not dry_run and patches:
+        write_patches(client, patches)
+
+
+def write_patches(client: Any, patches: list[dict]) -> None:
+    """Write review patches. A signed-in person's token cannot write the graph directly (the model rules allow AWS credentials only, which is why
+    these failed with "Failed to apply update SemanticNode"), so on that lane the site's ``applyKnowledgeReview`` mutation checks and writes them and
+    records that the review came from the CLI. With AWS credentials (``--auth iam``) they are written to the models, as before."""
+    from ..signed_in_concepts import apply_review_patches, on_signed_in_lane  # noqa: PLC0415
+
+    if on_signed_in_lane(client):
+        answer = apply_review_patches(client, patches)
+        print(f"knowledge\treview\tapplied\t{answer['applied']}\tvia {answer['origin'] or 'the site'}")
+        return
+    apply_record_changes(client, [{"modelName": patch["modelName"], "expected": patch["expected"], "current": None, "action": "update"} for patch in patches])
 
 
 def _review(flags: list[str], name: str, build) -> None:
@@ -821,6 +835,25 @@ def knowledge_entities_describe(flags: list[str]) -> None:
         return describe_patches(node, text, actor=actor, now=utc_now())
 
     _review(flags, "describe", build)
+
+
+def knowledge_entities_accept_description(flags: list[str]) -> None:
+    """papyrus knowledge entities accept-description --key K --actor human [--actor-name N] [--dry-run]
+
+    A person accepts the description the entity already has, as it stands, so the wiki publishes it instead of the factual line. Only a person: the
+    command refuses ``--actor ai``. To accept words you typed yourself, ``knowledge entities describe --text ... --actor human`` does it in one step."""
+    def build(options, node, client, rows, actor):
+        return accept_description_patches(node, actor=actor, now=utc_now())
+
+    _review(flags, "accept-description", build)
+
+
+def knowledge_entities_link(flags: list[str]) -> None:
+    """papyrus knowledge entities link --key CONCEPT --to CONCEPT --note TEXT [--dry-run]"""
+    from ..signed_in_concepts import knowledge_entities_link as link  # noqa: PLC0415
+
+    select_backend(parse_options(flags))
+    link(flags)
 
 
 def knowledge_entities_retype(flags: list[str]) -> None:
@@ -1064,6 +1097,8 @@ KNOWLEDGE_COMMANDS = {
     "entities-rename": knowledge_entities_rename,
     "entities-describe": knowledge_entities_describe,
     "entities-alias": knowledge_entities_alias,
+    "entities-accept-description": knowledge_entities_accept_description,
+    "entities-link": knowledge_entities_link,
     "entities-retype": knowledge_entities_retype,
     "entities-registry": knowledge_entities_registry,
     "extract-entities": knowledge_extract_entities,

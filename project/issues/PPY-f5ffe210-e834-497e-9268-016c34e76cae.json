@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f5ffe210-e834-497e-9268-016c34e76cae",
+  "title": "Move between diagram, stock and generated options",
+  "description": "The order follows the initiative: diagram, stock, then generated. Generation is only offered after the editor has seen stock options or there are none. Show the current cover and let the editor go back.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-956dff77-886f-4c7a-acfd-3c5d06988b15",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T12:10:32.753891Z",
+  "updated_at": "2026-11-05T12:11:34.238294Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

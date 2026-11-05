@@ -13,6 +13,10 @@ release number. Publishing uses npm and PyPI trusted publishing (OIDC); there is
 - Versions are stamped into the staged copies only; nothing is committed back.
 - Do not hand-tag. Semantic Release picks the first version (`1.0.0-next.1`).
 
+## Shared AWS stacks: pipeline roles
+
+A release to `main` also deploys the shared AWS stacks (`.github/workflows/stack-deploy.yml`). That needs the pipeline's IAM roles. They are changed by the `role-stack-deploy` workflow when a change to `infra/pipeline/papyrus-stack-pipeline.yaml` is merged to `develop` or `main`: it plans in the job summary and the reviewer approves in GitHub, so the roles can be updated before the release that needs them. On a new AWS account a person runs the one-time setup (`infra/pipeline/bootstrap.sh --approver-only`, `infra/pipeline/create-environment.sh`). A release whose summary says "The pipeline roles are out of date" has an approval waiting. Details: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github).
+
 ## The publish switch
 
 The `release` and `pypi` jobs run only when the repository variable `PUBLISH_ENABLED`

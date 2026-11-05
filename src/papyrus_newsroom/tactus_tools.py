@@ -209,12 +209,25 @@ def _finding(finding: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _lanes_finished(lanes: Any) -> bool:
+    from papyrus_content.editorial_checks import FINISHED_LANE_STATUSES, _awsjson_document
+
+    return all((lane or {}).get("status") in FINISHED_LANE_STATUSES for lane in (_awsjson_document(lanes) or {}).values() if isinstance(lane, dict))
+
+
 def _check_result(item: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
     findings = [_finding(finding) for finding in run["findings"]]
+    from papyrus_content.editorial_checks import lanes_not_run
+
     violations, reviews = int(run.get("violations") or 0), int(run.get("reviews") or 0)
+    lanes = run.get("lanes")
+    not_run = lanes_not_run(lanes)
+    # A lane that broke (unavailable, failed, partial) makes the result not clean; one switched off or skipped for want of a
+    # mission is the publication's choice, so it stays clean but is named in lanesNotRun.
     return {
         "status": "checked",
-        "clean": violations == 0 and reviews == 0,
+        "clean": violations == 0 and reviews == 0 and _lanes_finished(lanes),
+        "lanesNotRun": not_run,
         "versionId": item["id"],
         "lineageId": run.get("lineageId") or item.get("lineageId"),
         "versionNumber": int(run.get("versionNumber") or item.get("versionNumber") or 0),

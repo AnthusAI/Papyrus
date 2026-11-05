@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from papyrus_content.home_page.export import public_key
 from papyrus_content.home_page.incremental import StateRefused, StoredState, apply_changes, fingerprint_of, sha_of, usable_state
 from papyrus_content.home_page.settings import ThreadsSettings
 from papyrus_content.home_page.state_store import DirtyBatch, MemoryStateStore
@@ -53,6 +54,8 @@ class CorpusClient:
         }
         self.rows[row["id"]] = row
         confidence = 0.3 + (index % 7) / 10
+        if not accepted and index % 10 != 5:
+            row["predictedAcceptProbability"] = confidence   # the Cyclotron's first prediction, written onto the row; every tenth pending Reference has none yet
         self.relations[lineage] = [{"predicate": RELEVANCE_PREDICATE, "relationState": "current", "objectLineageId": "semantic-node-relevance-include-v1", "confidence": confidence, "createdAt": arrival}]
         if index % 4 == 0:
             self.previews[lineage] = [{"role": "preview", "sourceUri": f"https://images.example.org/{index}.jpg", "importedAt": arrival, "metadata": json.dumps({"description": f"About {index}.", "siteName": "Example"})}]
@@ -210,6 +213,61 @@ def test_a_pending_reference_that_will_not_show_costs_two_requests_and_publishes
     run(site, client, store, DirtyBatch(ids=frozenset({row["id"]})))
     assert dict(client.requests) == {"sections": 1, "getReference": 1, "relations": 1}
     assert without_stamp(document(site)) == without_stamp(before)
+
+
+def keys_of(site) -> set[str]:
+    return {record["key"] for record in document(site)["references"]}
+
+
+def test_a_pending_reference_nobody_has_predicted_is_on_no_page_and_costs_one_request_to_skip(site):
+    """Ryan, 2026-11-05: an unpredicted Reference is not 50% and shows nothing. Reference 5 has a decision relation but no prediction written onto its row yet."""
+    client, store = CorpusClient(100), MemoryStateStore()
+    run(site, client, store)
+    row = client.rows["reference-5-v1"]
+    assert "predictedAcceptProbability" not in row
+    assert public_key("reference-5") not in keys_of(site)
+    row["title"] = "Retitled while unpredicted"
+    client.requests.clear()
+    run(site, client, store, DirtyBatch(ids=frozenset({row["id"]})))
+    assert dict(client.requests) == {"sections": 1, "getReference": 1}, "its relations and attachments are not read"
+    assert public_key("reference-5") not in keys_of(site)
+
+
+def test_the_first_prediction_makes_the_reference_appear_with_its_video_picture_read_at_that_point(site):
+    client, store = CorpusClient(100), MemoryStateStore()
+    run(site, client, store)
+    row = client.rows["reference-5-v1"]
+    row.update({"medium": "video", "thumbnailPath": "assets/reference-thumbnails/a4645fd6b3de98f4-bb02a57c6adf.jpg"})
+    run(site, client, store, DirtyBatch(ids=frozenset({row["id"]})))
+    assert public_key("reference-5") not in keys_of(site), "a picture on an unpredicted row publishes nothing"
+    row["predictedAcceptProbability"] = 0.8
+    client.relations["reference-5"][0]["confidence"] = 0.8
+    run(site, client, store, DirtyBatch(ids=frozenset({row["id"]})))
+    record = next(item for item in document(site)["references"] if item["key"] == public_key("reference-5"))
+    assert record["status"] == "recommended" and record["predictedAcceptProbability"] == 0.8 and record["confidence"] == 0.8
+    assert record["image"] == "/assets/reference-thumbnails/a4645fd6b3de98f4-bb02a57c6adf.jpg"
+
+
+def test_state_written_before_the_rule_changed_is_refused_so_the_unpredicted_rows_already_published_leave(monkeypatch, site):
+    """An incremental run re-reads only the ids it is given, so rows published under the old rule would stay without a full read. The state format forces it."""
+    from papyrus_content.home_page import incremental
+
+    client, store = CorpusClient(100), MemoryStateStore()
+    monkeypatch.setattr(incremental, "STATE_FORMAT", 1)
+    for row in client.rows.values():
+        row.pop("predictedAcceptProbability", None)   # under format 1 an unpredicted pending Reference counted as 0.5 and was published
+    monkeypatch.setattr("papyrus_content.home_page.export.has_prediction", lambda row: True)
+    run(site, client, store)
+    assert public_key("reference-5") in keys_of(site)
+    monkeypatch.undo()
+
+    for index in range(100):
+        row = client.rows[f"reference-{index}-v1"]
+        if row["curationStatus"] == "pending" and index % 10 != 5:
+            row["predictedAcceptProbability"] = 0.3 + (index % 7) / 10
+    report = run(site, client, store, DirtyBatch(ids=frozenset({"reference-2-v1"})))
+    assert report["mode"] == "full" and "settings or the build" in report["fullBecause"]
+    assert public_key("reference-5") not in keys_of(site)
 
 
 def test_threads_are_read_again_only_when_a_message_changed_or_an_old_reference_entered_the_page(site):

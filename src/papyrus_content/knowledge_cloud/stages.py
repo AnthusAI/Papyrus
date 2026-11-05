@@ -23,8 +23,9 @@ from typing import Any
 from . import cost as costs
 from . import preview_gate
 from .config import PROJECTION_STAGE, STAGES, CloudRunConfig
-from .defaults import OUTPUTS_FILE, VOCABULARY_FILE, default_outputs, default_vocabulary
+from .defaults import VOCABULARY_FILE, default_outputs
 from .ledger import SUCCEEDED, RunLedger
+from .settings import load_settings
 from .state import StateStore
 
 IDENTITY_THRESHOLD = "0.5"
@@ -83,6 +84,7 @@ class Run:
     task_info: Callable[[], dict] = field(default_factory=lambda: dict)  # the Fargate task's size and start (cost accounting)
     clock: Callable[[], float] = time.monotonic
     now: Callable[[], dt.datetime] = field(default_factory=lambda: lambda: dt.datetime.now(dt.timezone.utc))
+    settings_loaded: bool = False  # the task's ``config/`` is filled once, and said so once, however many times a stage pulls
 
     @property
     def work(self) -> Path:
@@ -140,7 +142,6 @@ class Run:
 
     # -- state transfer ---------------------------------------------------------------------------------------------
     def pull(self, *, corpus: bool = False, run: bool = False, site: bool = False) -> None:
-        self.state.download("config/", self.config_dir)
         self.seed_config()
         if corpus:
             self.state.download("corpus/", self.corpus)
@@ -150,22 +151,21 @@ class Run:
             self.clone_site()
 
     def seed_config(self) -> None:
-        """Write the default of every operator file that is missing from ``config/``, locally and into the state, never over a file that exists.
+        """Fill ``config/`` for this task from the site's committed settings (``settings.py``); nothing is read from, or seeded into, the run state.
 
-        A site that has not written a vocabulary gets the generic one (organization, product, person, topic); a site whose state has no
-        ``amplify_outputs.json`` gets one holding the endpoint AppSync reports for ``appSyncApiId``. Stop words and review guidance are optional and have no default file."""
-        seeds = {VOCABULARY_FILE: default_vocabulary(self.config.publication)}
-        if self.config.appsync_api_id and not (self.config_dir / OUTPUTS_FILE).exists():
-            # An AppSync API id is not its endpoint host, so the address is asked of AppSync (only when the file is missing).
-            seeds[OUTPUTS_FILE] = default_outputs(self.services.appsync_endpoint(self.config.appsync_api_id))
-        for name, text in seeds.items():
-            target = self.config_dir / name
-            if target.exists():
-                continue
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(text)
-            self.state.write_text(f"config/{name}", text)
-            print(f"config/{name} was not in the run state; seeded the default", flush=True)
+        A file the committed settings carry is used as is; a site with none gets the generic vocabulary and no stop words or review guidance.
+        ``amplify_outputs.json`` is generated, not maintained: it holds the endpoint AppSync reports for ``appSyncApiId`` (only that is read)."""
+        if self.settings_loaded:
+            return
+        self.settings_loaded = True
+        load_settings(self.config, self.config_dir, self.services.read_object)
+        stale = self.state.names("config/")
+        if stale:
+            print(f"the run state still holds config/ files, which a run no longer reads: {', '.join(stale)}; the committed settings above are what this run used", flush=True)
+        if self.config.appsync_api_id:
+            # An AppSync API id is not its endpoint host, so the address is asked of AppSync.
+            self.config_dir.mkdir(parents=True, exist_ok=True)
+            self.outputs.write_text(default_outputs(self.services.appsync_endpoint(self.config.appsync_api_id)))
 
     def push(self, *, corpus: bool = False, run: bool = False) -> None:
         if corpus:

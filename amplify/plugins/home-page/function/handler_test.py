@@ -113,7 +113,7 @@ def test_a_status_change_is_a_change():
 
 @pytest.mark.parametrize("field", handler_module.CHANGE_FIELDS)
 def test_each_public_field_is_a_change(field):
-    old, new = ("pending", "accepted") if field == "curationStatus" else ("a", "b")
+    old, new = ("pending", "accepted") if field == "curationStatus" else ({"N": "0.7"}, {"N": "0.8"}) if field == "predictedAcceptProbability" else ("a", "b")
     assert handler_module.record_changed(record(old={**PENDING_PREDICTED, field: old}, new={**PENDING_PREDICTED, field: new}))
 
 
@@ -140,6 +140,25 @@ def test_a_new_pending_reference_changes_no_page():
     """A monitor delivers dozens of pending References an hour: nobody has predicted one yet, so none can be recommended, and none runs the snapshot."""
     assert not handler_module.record_changed(record("INSERT", new=PENDING))
     assert not handler_module.record_changed(record("INSERT", new={**PENDING, "predictionDecidedAt": {"NULL": True}}))
+
+
+def test_only_a_stored_probability_is_a_prediction_not_a_decision_time_nor_a_sort_key():
+    """Ryan, 2026-11-05: an unpredicted Reference is not 50% and shows nothing. Every Reference has a ``predictionSortKey`` from creation (``0.500000#...``)."""
+    sort_key_only = {**PENDING, "predictionSortKey": {"S": "0.500000#2026-11-04T18:49:50.761Z#reference-a-v1"}}
+    assert not handler_module.can_show(typed(sort_key_only))
+    assert not handler_module.can_show(typed({**sort_key_only, "predictionDecidedAt": {"S": "2026-11-04T10:00:00.000Z"}}))
+    assert not handler_module.can_show(typed({**PENDING, "predictedAcceptProbability": {"NULL": True}}))
+    assert not handler_module.can_show(typed({**PENDING, "predictedAcceptProbability": {"S": "0.9"}}))
+    assert handler_module.can_show(typed({**PENDING, "predictedAcceptProbability": {"N": "0.5"}})), "a prediction of exactly 0.5 is still a prediction"
+    assert handler_module.can_show(typed({**PENDING, "predictedAcceptProbability": {"N": "0"}})), "so is a certain reject"
+    assert not handler_module.record_changed(record(old=PENDING, new={**sort_key_only, "predictionDecidedAt": {"S": "t"}}))
+
+
+def test_the_picture_of_a_video_on_an_unpredicted_pending_reference_changes_no_page_until_the_first_prediction():
+    """It is on no page, so its picture has nothing to update; when the first prediction arrives the run reads the row, picture included."""
+    picture = {"thumbnailPath": {"S": "assets/reference-thumbnails/a.jpg"}}
+    assert not handler_module.record_changed(record(old=PENDING, new={**PENDING, **picture}))
+    assert handler_module.record_changed(record(old={**PENDING, **picture}, new={**PENDING, **picture, **PREDICTED}))
 
 
 def test_the_first_prediction_of_a_pending_reference_is_a_change_because_it_may_be_recommended():

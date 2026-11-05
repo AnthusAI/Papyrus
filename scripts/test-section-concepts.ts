@@ -91,7 +91,7 @@ test("the field and the backend mutation exist in both schema files, and only ed
     assert.match(source, /coreConcepts: a\.json\(\)/, file);
     const mutation = source.slice(source.indexOf("createEditorConcept: a"));
     const block = mutation.slice(0, mutation.indexOf(".handler("));
-    assert.match(block, /arguments\(\{ name: a\.string\(\)\.required\(\) \}\)/, file);
+    assert.match(block, /arguments\(\{ name: a\.string\(\)\.required\(\), displayName: a\.string\(\) \}\)/, file);
     assert.match(block, /allow\.groups\(categoryWriteGroups\)/, file);
   }
   assert.match(readFileSync("amplify/functions/category-action/handler.ts", "utf8"), /fieldName === "createEditorConcept"/);

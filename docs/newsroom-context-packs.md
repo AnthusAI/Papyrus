@@ -33,7 +33,9 @@ papyrus sections concepts add --section <section> --concept "containment problem
 papyrus sections concepts remove --section <section> --concept "#containment-problem"
 ```
 
-A concept is named by its name, an alias, a `#hashtag` or its node key; it must be current and not rejected. An unknown name fails unless `--create`, which makes an `editor_concept` node exactly as typing its hashtag in the console does (`scripts/fixtures/editor-concept-vectors.json` keeps the two writers identical). Writes happen by default; `--dry-run` previews.
+A concept is named by its name, an alias, a `#hashtag` or its node key; it must be current and not rejected. An unknown name fails unless `--create`, which makes an `editor_concept` node as typing its hashtag in the console does (`scripts/fixtures/editor-concept-vectors.json` keeps the two writers identical), through the site's `createEditorConcept` route, so it works on a signed-in session with no AWS login. The name keeps the capitals typed (`"Information flow control"`, `"Non-interference"`); a `#hashtag` or a bare lower-case slug reads with spaces, and `--display-name "Non-interference"` gives other words with the same letters. Writes happen by default; `--dry-run` previews, and `--help` sends nothing.
+
+A link between two concepts, with the words that say how they relate, is `papyrus knowledge entities link --key <concept> --to <concept> --note "..."` (see [cli-login.md](cli-login.md#managing-concepts-from-the-signed-in-cli)). The card above lists it on both concepts with the editor's words.
 
 Two layers carry them into every agent's pack, first in the section block:
 

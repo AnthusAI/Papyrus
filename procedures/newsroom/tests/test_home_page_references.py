@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -28,8 +29,11 @@ def keys_of(chosen):
     return [reference["key"] for reference in chosen]
 
 
+AS_OF = date(2026, 10, 29)   # the UTC day rolling buckets count back from; fixed so no test depends on today
+
+
 def pick(documents, **attributes):
-    return keys_of(home_page_blocks.select_references(documents, attributes, PageLedger()))
+    return keys_of(home_page_blocks.select_references(documents, attributes, PageLedger(), as_of=AS_OF))
 
 
 # ------------------------------------------------------------------ ledger
@@ -245,8 +249,8 @@ def test_section_keeps_references_whose_section_is_the_label_or_the_named_sectio
 
 def test_three_components_on_one_page_never_repeat_a_reference_and_the_first_wins(snapshot):
     ledger = PageLedger()
-    first = keys_of(home_page_blocks.select_references(snapshot, {"select": "recent", "count": "2"}, ledger))
-    second = keys_of(home_page_blocks.select_references(snapshot, {"select": "confident", "count": "2"}, ledger))
+    first = keys_of(home_page_blocks.select_references(snapshot, {"select": "recent", "count": "2"}, ledger, as_of=AS_OF))
+    second = keys_of(home_page_blocks.select_references(snapshot, {"select": "confident", "count": "2"}, ledger, as_of=AS_OF))
     third = keys_of(home_page_blocks.select_references(snapshot, {"select": "recent", "count": "5"}, ledger))
     assert first == ["new", "tie-late"]
     assert second == ["old", "tie-early"]
@@ -257,7 +261,7 @@ def test_three_components_on_one_page_never_repeat_a_reference_and_the_first_win
 def test_a_later_component_refills_to_its_count_after_skipping_what_is_taken(snapshot):
     ledger = PageLedger()
     home_page_blocks.select_references(snapshot, {"select": "recent", "count": "3"}, ledger)
-    refilled = keys_of(home_page_blocks.select_references(snapshot, {"select": "confident", "count": "2"}, ledger))
+    refilled = keys_of(home_page_blocks.select_references(snapshot, {"select": "confident", "count": "2"}, ledger, as_of=AS_OF))
     assert refilled == ["old", "no-confidence"]
 
 
@@ -499,8 +503,8 @@ def test_a_bucket_takes_the_arrival_for_a_recommended_reference_and_keeps_the_le
         record("new-a", "recommended", arrivedAt="2026-10-29T00:00:00.000Z", rank=2),
     )
     ledger = PageLedger()
-    first = home_page_blocks.select_references(snapshot, {"select": "recommended", "bucket": "week", "count": "2"}, ledger)
-    second = home_page_blocks.select_references(snapshot, {"select": "recommended", "bucket": "week", "count": "2"}, ledger)
+    first = home_page_blocks.select_references(snapshot, {"select": "recommended", "bucket": "week", "count": "2"}, ledger, as_of=AS_OF)
+    second = home_page_blocks.select_references(snapshot, {"select": "recommended", "bucket": "week", "count": "2"}, ledger, as_of=AS_OF)
     assert keys_of(first) == ["new-a", "new-b"] and keys_of(second) == ["old"], "the first component keeps what it placed; the next refills from its own ordering"
 
 

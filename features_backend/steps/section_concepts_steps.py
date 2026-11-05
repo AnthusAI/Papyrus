@@ -32,7 +32,14 @@ def core(context):
 def run_command(context, flags):
     context.error = None
     out = io.StringIO()
-    with mock.patch.object(section_concepts, "create_authoring_client", return_value=(context.store, None)), contextlib.redirect_stdout(out):
+    def site_creates_the_concept(client, typed, display_name=None):
+        # The site's createEditorConcept mutation: the same node, written by the site (an editor's token cannot write the graph itself).
+        made = build_editor_concept_node(typed, "papyrus-cli", moment(9), section_concepts.display_name_for(typed, display_name))
+        context.store.records["SemanticNode"][made["id"]] = made
+        return {"ok": True, "lineageId": made["lineageId"], "displayName": made["displayName"]}
+
+    with mock.patch.object(section_concepts, "create_authoring_client", return_value=(context.store, None)), \
+            mock.patch("papyrus_content.signed_in_concepts.create_editor_concept", site_creates_the_concept), contextlib.redirect_stdout(out):
         try:
             section_concepts.sections_concepts(flags)
         except ValueError as error:
@@ -159,7 +166,7 @@ def step_nothing_written(context):
 def step_matches_fixture(context):
     case = next(case for case in json.load(open(FIXTURE))["cases"] if case["slug"] == "a" * 80)
     row = context.store.records["SemanticNode"]["semantic-node-editor_concept--the-sandbox-problem-v1"]
-    made = build_editor_concept_node("the sandbox problem", "papyrus-cli", row["createdAt"])
+    made = build_editor_concept_node("the sandbox problem", "papyrus-cli", row["createdAt"], "the sandbox problem")
     assert row == made, (row, made)
     assert set(row) == set(case["node"]), set(row) ^ set(case["node"])
 

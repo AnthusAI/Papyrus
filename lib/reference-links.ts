@@ -31,7 +31,7 @@ export type RelatedItem = {
 export type RelatedLinkState = "current" | "suggested";
 
 /** What a person wrote about why two things are linked, and when. The author is only ever "an editor": the row holds an account id, not a name. */
-export type LinkExplanation = { text: string; by: "editor"; at: string | null };
+export type LinkExplanation = { text: string; by: "editor"; at: string | null; via?: "cli" | null };
 export type SuggestionLabel = "likely" | "possible";
 
 export type RelatedEntry = {
@@ -109,12 +109,13 @@ export function linkExplanationOf(row: Pick<RelationRow, "metadata" | "relationS
   const decidedBy = typeof meta.decidedBy === "string" ? meta.decidedBy : "";
   const byPerson = meta.decision === "accepted" || meta.provenance === "human";
   if (!text || !byPerson || decidedBy.startsWith("auto:")) return null;
-  return { text, by: "editor", at: isoDay(typeof meta.decidedAt === "string" ? meta.decidedAt : null) };
+  // `decidedVia` is stamped by the site from the token that made the decision (`edit-origin.ts`), so the words written through the CLI say so.
+  return { text, by: "editor", at: isoDay(typeof meta.decidedAt === "string" ? meta.decidedAt : null), ...(meta.decidedVia === "cli" ? { via: "cli" as const } : {}) };
 }
 
-/** "Written by an editor on 2026-11-02": says who and when, in words. */
+/** "Written by an editor on 2026-11-02": says who and when, in words; "through the CLI" when it was not written in the Newsroom. */
 export function explanationByline(explanation: LinkExplanation): string {
-  return `Written by an editor${explanation.at ? ` on ${explanation.at}` : ""}`;
+  return `Written by an editor${explanation.at ? ` on ${explanation.at}` : ""}${explanation.via === "cli" ? " through the CLI" : ""}`;
 }
 
 export function relatedEdgeWords(predicate: string, direction: "outgoing" | "incoming"): string {

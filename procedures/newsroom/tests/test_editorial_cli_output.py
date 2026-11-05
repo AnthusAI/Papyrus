@@ -55,3 +55,27 @@ def test_version_is_the_installed_distribution_with_a_source_fallback():
         raise PackageNotFoundError(name)
 
     assert papyrus.installed_version(lookup=missing) == papyrus.SOURCE_CHECKOUT_VERSION
+
+
+def test_summary_line_of_a_reused_check_says_so_with_the_time_of_the_check():
+    line = commands.check_summary_line({"itemId": "s-v1", "violations": 0, "reviews": 0, "skipped": "unchanged", "reused": True, "checkedAt": "2026-10-01T09:00:00Z"})
+    assert "reused: not checked again" in line and "2026-10-01T09:00:00Z" in line and "checked now" not in line
+
+
+def test_summary_line_of_a_fresh_check_says_it_was_checked_now():
+    assert commands.check_summary_line({"itemId": "s-v1", "violations": 0, "reviews": 0, "reused": False}).endswith("checked now")
+
+
+def test_summary_line_names_a_judgment_lane_that_did_not_run():
+    lanes = {"rules": {"status": "ran"}, "classifier": {"status": "unavailable", "reason": "no decision model is configured"}}
+    line = commands.check_summary_line({"itemId": "s-v1", "violations": 0, "reviews": 0, "reused": False, "lanes": lanes})
+    assert "judgment questions did not run (unavailable: no decision model is configured)" in line
+
+
+def test_summary_line_of_a_disabled_check_is_a_skip():
+    assert commands.check_summary_line({"itemId": "s-v1", "skipped": "disabled"}).endswith("skipped\tdisabled")
+
+
+def test_lanes_not_run_is_empty_when_every_lane_ran_and_reads_stored_json():
+    assert editorial.lanes_not_run({"rules": {"status": "ran"}, "classifier": {"status": "ran"}}) == []
+    assert editorial.lanes_not_run('{"classifier": {"status": "failed", "reason": "timeout"}}') == ["judgment questions did not run (failed: timeout)"]

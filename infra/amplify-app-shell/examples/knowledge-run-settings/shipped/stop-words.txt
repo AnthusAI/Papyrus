@@ -1,0 +1,4 @@
+# words every model card repeats
+card model models date weights hugging face
+# fragments that read as terms
+f1 plus

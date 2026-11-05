@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9d9f7692-a419-4047-83a8-a6f2003340a6",
+  "title": "A one-sentence why it matters for each public Reference",
+  "description": "Requested through the Machines on Machines session, 2026-11-05, ticket MOM-943ea6: each public finding shows a plain title and one sentence on why it matters. Today's summary is a raw page extract, and the tile does not publish it. Generated once on create or change, under the fact-checking standard (PPY-b32e85), published through the tile for sites to draw. Open with Ryan: every Reference or only accepted ones, and the model; the default for LLM tasks is GPT-6 Luna. No scheduled pass.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T17:08:47.255021Z",
+  "updated_at": "2026-11-05T17:08:47.255045Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -233,6 +233,21 @@ rewritten in the new shape the next time a site is saved.
 `papyrus logout` with no name is refused when several sites are signed in. A signed-out
 site stays in the registry so a later command cannot silently fall back to IAM.
 
+### Managing concepts from the signed-in CLI
+
+An editor's token can read the concepts and links of a site and write none of them directly (the model rules allow AWS credentials only). These commands therefore go through the site's own routes, which are open to the `editor` and `admin` groups only and check what may change, so a signed-in editor needs no AWS login:
+
+| Command | Route |
+| --- | --- |
+| `papyrus sections concepts add --section S --concept NAME --create [--display-name TEXT]` | `createEditorConcept(name, displayName)` |
+| `papyrus knowledge entities accept\|reject\|rename\|alias\|describe\|accept-description --key K --actor ai\|human ...` | `applyKnowledgeReview(patches)` |
+| `papyrus knowledge entities link --key A --to B --note TEXT` | `createConceptLink` (the words are required) |
+| `papyrus references link --reference R (--to-reference R2 \| --concept NAME [--create]) [--predicate P] [--note TEXT]` | `createReferenceLink` |
+
+All of them write unless `--dry-run`, and `--help` sends nothing. A review may change only a node's name, aliases, description, status and review marks, and a link's confirmation; it cannot change a kind, a key or another model. `knowledge entities retype` still needs AWS credentials (`--auth iam`).
+
+**Where a decision was made is on the record.** A person may decide from the CLI, but a script or agent can work inside the same session, so the site stamps `via` on what it writes, from the sign-in client the token was issued to (Cognito signs it): `cli`, `newsroom`, or `signed-in` on a site that has not named its CLI client (`cliOnFederationClient`) and so cannot tell. On a link: `metadata.addedVia` and `metadata.decidedVia`. On a review mark in a node's change reason: `via` on the reviewer. The call cannot choose it: a mark it claims for the Newsroom is stamped `cli`, and a mark it leaves unchanged keeps the place it was made. The console shows words written through the CLI as "Written by an editor on <date> through the CLI". This does not make a CLI decision count for less (a person's `--actor human` is a person's review), and it does not change the Cyclotron's accept and reject counts; it makes the record tell the truth. Votes and ratings are different and stricter (`curation-caller.ts`): a vote from a CLI session is recorded as an agent's.
+
 ### How a request picks its session
 
 Every GraphQL request carries its endpoint. The CLI uses the registered site whose

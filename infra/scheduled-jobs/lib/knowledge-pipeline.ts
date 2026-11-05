@@ -1,5 +1,6 @@
 import { CfnParameter, Stack, StackProps, Tags } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as s3assets from "aws-cdk-lib/aws-s3-assets";
 import { Construct } from "constructs";
 import { KNOWLEDGE_STAGE_NAMES, DEFAULT_STAGE_TIMEOUT_SECONDS, type KnowledgeRunConfig } from "./knowledge-run-config";
 import { PROJECTION_LOCK_PARAMETER_NAME, PROJECTION_LOCK_TABLE_NAME } from "./projection-lock-stack";
@@ -69,7 +70,7 @@ export function knowledgePipeline(config: KnowledgeRunConfig, trendDrafts?: Tren
 }
 
 /** Container environment from config. Computed variables win over the free-form `environment` map. */
-export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string, string> {
+export function knowledgeEnvironment(config: KnowledgeRunConfig, settingsArchive?: string): Record<string, string> {
   return {
     ...config.environment,
     PAPYRUS_PROJECTION_LOCK_TABLE: PROJECTION_LOCK_TABLE_NAME,
@@ -77,7 +78,9 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     KNOWLEDGE_PUBLICATION: config.publication,
     // Only a site whose corpus key is not its siteId sets it; every other task finds the corpus by the siteId, as before.
     ...(config.corpusKey ? { KNOWLEDGE_CORPUS_KEY: config.corpusKey } : {}),
-    // Lets the first stage write config/amplify_outputs.json into a state bucket that has none (the run only reads the endpoint from it).
+    // The zip of the site's committed settings (vocabulary, stop words, review guidance), shipped with this deploy; the run reads them from it and from nowhere else.
+    ...(settingsArchive ? { KNOWLEDGE_SETTINGS_ARCHIVE: settingsArchive } : {}),
+    // Lets every stage ask AppSync for the GraphQL endpoint it writes to config/amplify_outputs.json (the run only reads the endpoint from it).
     KNOWLEDGE_APPSYNC_API_ID: config.appSyncApiId,
     KNOWLEDGE_SITE_REPO: config.siteRepo,
     KNOWLEDGE_SITE_BRANCH: config.siteBranch,
@@ -125,9 +128,13 @@ function ssmParameterArn(config: KnowledgeRunConfig, name: string): string {
 }
 
 /** Task role statements beyond the state bucket and ledger: everything is named in config, nothing is `*`. */
-export function knowledgeTaskStatements(config: KnowledgeRunConfig): iam.PolicyStatement[] {
+export function knowledgeTaskStatements(config: KnowledgeRunConfig, settings?: s3assets.Asset): iam.PolicyStatement[] {
   const siteBucketArn = `arn:aws:s3:::${config.siteBucket}`;
   return [
+    // Only a site that commits settings: read that one object of the CDK asset bucket, nothing else.
+    ...(settings
+      ? [new iam.PolicyStatement({ sid: "ReadRunSettings", actions: ["s3:GetObject"], resources: [`arn:aws:s3:::${settings.s3BucketName}/${settings.s3ObjectKey}`] })]
+      : []),
     new iam.PolicyStatement({
       sid: "ProjectionLockTable",
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem"],
@@ -242,6 +249,8 @@ export class KnowledgeRunStack extends Stack {
           endpoint: trendDrafts.endpoint,
         }
       : undefined;
+    // Only a site that commits settings gets the asset (any other stack's template is unchanged). CDK zips the directory and uploads it at deploy.
+    const settings = config.settingsDirectory ? new s3assets.Asset(this, "RunSettings", { path: config.settingsDirectory }) : undefined;
     this.job = new ScheduledContainerJob(this, "Job", {
       jobId: KNOWLEDGE_JOB_ID,
       publication: config.publication,
@@ -252,10 +261,10 @@ export class KnowledgeRunStack extends Stack {
       defaultStageTimeoutSeconds: DEFAULT_STAGE_TIMEOUT_SECONDS,
       schedule: { expression: config.schedule, state: config.scheduleState },
       scheduleInput: { publication: config.publication },
-      environment: knowledgeEnvironment(config),
+      environment: knowledgeEnvironment(config, settings ? `s3://${settings.s3BucketName}/${settings.s3ObjectKey}` : undefined),
       stateBucketEnvVar: "KNOWLEDGE_STATE_BUCKET",
       ledgerTableEnvVar: "KNOWLEDGE_LEDGER_TABLE",
-      taskPolicyStatements: knowledgeTaskStatements(config),
+      taskPolicyStatements: knowledgeTaskStatements(config, settings),
       alarmEmailParameter: config.alarmEmailParameter,
     });
     this.job.addOutputs(this);

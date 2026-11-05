@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "de387eb9-4cb2-4bc5-8e7d-7ad2c4b0adb1",
+  "issue_id": "PPY-3deac7f2-2b07-4d5d-bc62-1915f314d0b3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:32.149Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Choose and add further royalty-free image sources",
+    "description": "Ryan: there are at least one or two other common royalty-free sources. Candidates to review: Openverse, Unsplash, Pexels, Pixabay. Read each provider's licence and API terms, including rate limits, whether copying the file is allowed or hotlinking is required, and any attribution or key requirements. Record the findings here, get Ryan's choice, then add the chosen ones behind the interface.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

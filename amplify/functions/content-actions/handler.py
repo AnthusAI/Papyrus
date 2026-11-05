@@ -488,7 +488,9 @@ def handler(event, context):
         if field == "intakePendingReferences":
             client, _claims = create_authoring_client()
             try:
-                return intake_references(client, arguments, event.get("identity") or {})
+                created = intake_references(client, arguments, event.get("identity") or {})
+                from papyrus_content.reference_prediction_queue import queue_after_intake
+                return {**created, "prediction": queue_after_intake(created, arguments)}   # one Cyclotron prediction per new Reference, requested once, here
             except IntakeError as error:
                 return {"ok": False, "errors": [{"code": "intake-rejected", "message": str(error)}]}
         if field == "intakeEmailSubmissionReferences":

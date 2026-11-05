@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6fd22b10-3ccf-41b9-8ab5-e403f502ba8e",
+  "issue_id": "PPY-4192393e-5d59-4d8e-91c6-8d3bda255e59",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:33.372Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Show an editor how a cover looks among recent covers",
+    "description": "When choosing a cover, show the option beside the section's recent covers, as they'd look in a list. Keep it a visual aid and don't impose a rule.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

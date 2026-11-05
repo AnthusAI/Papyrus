@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "734ac242-3eb6-4e27-8158-37479d05dac8",
+  "issue_id": "PPY-f5ffe210-e834-497e-9268-016c34e76cae",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:32.753Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Move between diagram, stock and generated options",
+    "description": "The order follows the initiative: diagram, stock, then generated. Generation is only offered after the editor has seen stock options or there are none. Show the current cover and let the editor go back.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

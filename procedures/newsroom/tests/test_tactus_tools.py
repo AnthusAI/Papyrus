@@ -181,6 +181,17 @@ class CheckStoryVersionTests(unittest.TestCase):
         self.assertTrue(result["clean"])
         self.assertEqual(result["findings"], [])
 
+    def test_a_check_whose_judgment_lane_was_unavailable_is_not_clean_and_says_why(self):
+        run = {**stored_run([]), "lanes": {"rules": {"status": "ran"}, "classifier": {"status": "unavailable", "reason": "no decision model is configured"}}}
+        result = self.check(checking_client(run=run), version=LINEAGE)
+        self.assertFalse(result["clean"])
+        self.assertEqual(result["lanesNotRun"], ["judgment questions did not run (unavailable: no decision model is configured)"])
+
+    def test_a_judgment_lane_skipped_for_want_of_a_mission_stays_clean_but_is_named(self):
+        result = self.check(checking_client(run=stored_run([])), version=LINEAGE)
+        self.assertTrue(result["clean"])
+        self.assertEqual(result["lanesNotRun"], ["judgment questions did not run (skipped)"])
+
     def test_a_review_finding_is_not_clean(self):
         review = [{**RUN_FINDINGS[0], "status": "review"}]
         self.assertFalse(self.check(checking_client(run=stored_run(review)), version=LINEAGE)["clean"])

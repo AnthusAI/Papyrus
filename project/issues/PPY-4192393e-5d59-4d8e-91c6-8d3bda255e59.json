@@ -1,0 +1,20 @@
+{
+  "id": "PPY-4192393e-5d59-4d8e-91c6-8d3bda255e59",
+  "title": "Show an editor how a cover looks among recent covers",
+  "description": "When choosing a cover, show the option beside the section's recent covers, as they'd look in a list. Keep it a visual aid and don't impose a rule.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-58e89179-4d12-461d-86dd-235a64273733",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T12:10:33.372634Z",
+  "updated_at": "2026-11-05T12:11:34.681357Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

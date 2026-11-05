@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import datetime as dt
+import io
 import itertools
 import json
+import zipfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,10 @@ from .state import StateStore
 STATE_BUCKET = "knowledge-state"
 LEDGER_TABLE = "knowledge-ledger"
 SITE_BUCKET = "site-bucket"
+SETTINGS_BUCKET = "cdk-assets"
+SETTINGS_KEY = "run-settings.zip"
+#: What a publication whose operator committed its settings holds; a new site commits none.
+COMMITTED_SETTINGS = {"vocabulary.yml": "entity_kinds:\n  - {key: maker, label: company or developer}\n", "stop-words.txt": "card\n"}
 ENVIRONMENT = {
     "KNOWLEDGE_PUBLICATION": "shipped",
     "KNOWLEDGE_STATE_BUCKET": STATE_BUCKET,
@@ -35,6 +41,15 @@ ENVIRONMENT = {
     "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION": "content-actions-fn",
     "KNOWLEDGE_AMPLIFY_APP_ID": "dapp123",
 }
+
+
+def settings_archive(files: Mapping[str, str]) -> bytes:
+    """The zip the job stack builds from a site's committed settings directory."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, text in files.items():
+            archive.writestr(name, text)
+    return buffer.getvalue()
 DEPLOYED_COMMIT = "d" * 40
 STAGE_SECONDS = 90
 APPSYNC_ENDPOINT = "https://vuagbw3fmvalta762m4zsacxce.appsync-api.us-east-1.amazonaws.com/graphql"  # the host AppSync reports; unrelated to the API id
@@ -47,6 +62,7 @@ class FakeSite:
     def __init__(self, plugins: str = "reader-steering,newsletter") -> None:
         self.variables = {"PAPYRUS_PLUGINS": plugins}
         self.objects: dict[str, bytes] = {}
+        self.assets: dict[str, bytes] = {}  # the deploy-time asset bucket: the zip of the committed settings
         self.key_parameter: str | None = None  # the SSM parameter the last key was read from
         self.client: Any = None  # the site's data API: review requests are raised and read here
 
@@ -62,6 +78,8 @@ class FakeSite:
         return self.client
 
     def read_object(self, bucket: str, key: str) -> bytes | None:
+        if bucket == SETTINGS_BUCKET:
+            return self.assets.get(key)
         assert bucket == SITE_BUCKET
         return self.objects.get(key)
 
@@ -170,9 +188,13 @@ class FakeShell:
             stdout.write_text(out)
 
 
-def make_run(work: Path, environment: Mapping[str, str] | None = None, *, execution: str | None = None, seeded: bool = True) -> tuple[Run, FakeShell]:
-    """A Run over moto S3 and DynamoDB (call inside ``mock_aws``). ``config/`` holds the operator-maintained files."""
+def make_run(work: Path, environment: Mapping[str, str] | None = None, *, execution: str | None = None, seeded: bool = True,
+             settings: Mapping[str, str] | None = None) -> tuple[Run, FakeShell]:
+    """A Run over moto S3 and DynamoDB (call inside ``mock_aws``). ``seeded`` publications commit ``COMMITTED_SETTINGS`` (or ``settings``); a new site commits none."""
     values = {**ENVIRONMENT, "KNOWLEDGE_WORK_DIR": str(work), **(environment or {})}
+    files = settings if settings is not None else (COMMITTED_SETTINGS if seeded else None)
+    if files is not None:
+        values.setdefault("KNOWLEDGE_SETTINGS_ARCHIVE", f"s3://{SETTINGS_BUCKET}/{SETTINGS_KEY}")
     if execution:
         values["KNOWLEDGE_EXECUTION_NAME"] = execution
     config = CloudRunConfig.from_environment(values)
@@ -186,11 +208,6 @@ def make_run(work: Path, environment: Mapping[str, str] | None = None, *, execut
             AttributeDefinitions=[{"AttributeName": "publication", "AttributeType": "S"}, {"AttributeName": "runKey", "AttributeType": "S"}],
             BillingMode="PAY_PER_REQUEST",
         )
-        state = StateStore(s3, STATE_BUCKET, config.state_prefix)
-        if seeded:  # a publication whose operator wrote its config; a new site has none of it
-            state.write_text("config/vocabulary.yml", "entity_kinds:\n  - {key: maker, label: company or developer}\n")
-            state.write_text("config/stop-words.txt", "card\n")
-            state.write_text("config/amplify_outputs.json", json.dumps({"data": {"url": "https://api.example.test/graphql"}}))
     state = StateStore(s3, STATE_BUCKET, config.state_prefix)
     table = boto3.resource("dynamodb", region_name="us-east-1").Table(LEDGER_TABLE)
     ledger = RunLedger(table, config.publication, config.week, config.execution_name, clock=lambda: dt.datetime(2026, 10, 26, 5, tzinfo=dt.timezone.utc))
@@ -198,4 +215,6 @@ def make_run(work: Path, environment: Mapping[str, str] | None = None, *, execut
     ticks = itertools.count(0, STAGE_SECONDS)  # every stage takes STAGE_SECONDS on this clock (read once at its start, once at its end)
     run = Run(config=config, state=state, ledger=ledger, shell=shell, environment=values, services=FakeSite(),
               task_info=lambda: dict(TASK), clock=lambda: float(next(ticks)), now=lambda: dt.datetime(2026, 10, 26, 6, tzinfo=dt.timezone.utc))
+    if files is not None:
+        run.services.assets[SETTINGS_KEY] = settings_archive(files)
     return run, shell

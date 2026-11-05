@@ -25,6 +25,7 @@ import {
 } from "../shared/curation-delegation-flow";
 import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
 import { referenceContentNeededKey, referenceFeedArrivalAt, referenceFeedKeys, referenceFeedStateKey, referenceMediumFeedKey, referenceMediumKeyPatch, starFeedKeyFor } from "../../../lib/reference-feed-keys";
+import { claimGroups, hasEditorRights } from "../../../lib/staff-groups";
 import {
   classifyCurationCaller,
   cliClientIdFromEnvironment,
@@ -36,7 +37,9 @@ import {
 } from "../shared/curation-caller";
 import { isStoryItemType } from "../../../lib/content-item-lifecycle";
 import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
-import { createReferenceLink, decideReferenceLink, describeEditorConcept, ensureEditorConcept, type ReferenceLinkStore } from "./reference-links";
+import { createConceptLink, createReferenceLink, decideReferenceLink, describeEditorConcept, ensureEditorConcept, type ReferenceLinkStore } from "./reference-links";
+import { applyKnowledgeReview, type KnowledgeReviewStore } from "./knowledge-review";
+import { editOriginOfIdentity } from "../shared/edit-origin";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
@@ -68,10 +71,14 @@ type CreateReferenceLinkHandler = Schema["createReferenceLink"]["functionHandler
 type DescribeConceptHandler = Schema["describeConcept"]["functionHandler"];
 type CreateEditorConceptHandler = Schema["createEditorConcept"]["functionHandler"];
 type DecideReferenceLinkHandler = Schema["decideReferenceLink"]["functionHandler"];
+type CreateConceptLinkHandler = Schema["createConceptLink"]["functionHandler"];
+type ApplyKnowledgeReviewHandler = Schema["applyKnowledgeReview"]["functionHandler"];
 type CategoryActionEvent =
   | Parameters<LinkMessageHashtagsHandler>[0]
   | Parameters<CreateReferenceLinkHandler>[0]
   | Parameters<DecideReferenceLinkHandler>[0]
+  | Parameters<CreateConceptLinkHandler>[0]
+  | Parameters<ApplyKnowledgeReviewHandler>[0]
   | Parameters<DescribeConceptHandler>[0]
   | Parameters<CreateEditorConceptHandler>[0]
   | Parameters<ReviewHandler>[0]
@@ -153,6 +160,8 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "createReferenceLink") return createReferenceLinkAction(event as Parameters<CreateReferenceLinkHandler>[0]);
   if (fieldName === "createEditorConcept") return createEditorConceptAction(event as Parameters<CreateEditorConceptHandler>[0]);
   if (fieldName === "describeConcept") return describeConceptAction(event as Parameters<DescribeConceptHandler>[0]);
+  if (fieldName === "createConceptLink") return createConceptLinkAction(event as Parameters<CreateConceptLinkHandler>[0]);
+  if (fieldName === "applyKnowledgeReview") return applyKnowledgeReviewAction(event as Parameters<ApplyKnowledgeReviewHandler>[0]);
   if (fieldName === "decideReferenceLink") return decideReferenceLinkAction(event as Parameters<DecideReferenceLinkHandler>[0]);
   if (fieldName === "linkMessageHashtags") return linkMessageHashtagsAction(event as Parameters<LinkMessageHashtagsHandler>[0]);
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
@@ -874,13 +883,17 @@ async function createReferenceLinkAction(event: Parameters<CreateReferenceLinkHa
     newConceptName: normalizeOptionalString(event.arguments.newConceptName),
     callerSub,
     now: new Date().toISOString(),
+    origin: editOriginOfIdentity(event.identity),
   });
 }
 
 async function createEditorConceptAction(event: Parameters<CreateEditorConceptHandler>[0]) {
   const callerSub = getIdentitySub(event);
   if (!callerSub) throw new Error("Sign in to create a concept.");
-  const node = await ensureEditorConcept((await referenceLinkStore()) as any, normalizeRequiredString(event.arguments.name, "name"), callerSub, new Date().toISOString());
+  const node = await ensureEditorConcept((await referenceLinkStore()) as any, normalizeRequiredString(event.arguments.name, "name"), callerSub, new Date().toISOString(), {
+    displayName: normalizeOptionalString(event.arguments.displayName),
+    origin: editOriginOfIdentity(event.identity),
+  });
   return { ok: true, lineageId: node.lineageId ?? node.id, nodeKey: node.nodeKey ?? null, displayName: (node as { displayName?: string | null }).displayName ?? null, nodeKind: node.nodeKind ?? null };
 }
 
@@ -892,6 +905,7 @@ async function describeConceptAction(event: Parameters<DescribeConceptHandler>[0
     description: normalizeOptionalString(event.arguments.description),
     callerSub,
     now: new Date().toISOString(),
+    origin: editOriginOfIdentity(event.identity),
   });
 }
 
@@ -905,7 +919,53 @@ async function decideReferenceLinkAction(event: Parameters<DecideReferenceLinkHa
     note: normalizeOptionalString(event.arguments.note),
     callerSub,
     now: new Date().toISOString(),
+    origin: editOriginOfIdentity(event.identity),
   });
+}
+
+async function createConceptLinkAction(event: Parameters<CreateConceptLinkHandler>[0]) {
+  const callerSub = getIdentitySub(event);
+  if (!callerSub) throw new Error("Sign in to link concepts.");
+  requireEditorGroups(event, "link concepts");
+  return createConceptLink(await referenceLinkStore(), {
+    subjectLineageId: normalizeRequiredString(event.arguments.subjectLineageId, "subjectLineageId"),
+    objectLineageId: normalizeRequiredString(event.arguments.objectLineageId, "objectLineageId"),
+    note: normalizeOptionalString(event.arguments.note),
+    callerSub,
+    now: new Date().toISOString(),
+    origin: editOriginOfIdentity(event.identity),
+  });
+}
+
+/** The schema lets only the editor and admin groups call these routes; this repeats the check, so a rule loosened by mistake still does not open them. */
+function requireEditorGroups(event: { identity?: unknown }, doing: string) {
+  const claims = (event.identity as { claims?: Record<string, unknown> } | null | undefined)?.claims ?? {};
+  if (!hasEditorRights(claimGroups(claims["cognito:groups"]))) throw new Error(`Only an editor or administrator can ${doing}.`);
+}
+
+async function applyKnowledgeReviewAction(event: Parameters<ApplyKnowledgeReviewHandler>[0]) {
+  if (!getIdentitySub(event)) throw new Error("Sign in to review knowledge.");
+  requireEditorGroups(event, "review knowledge");
+  const client = await getDataClient();
+  const store: KnowledgeReviewStore = {
+    getNode: async (id) => {
+      const response = await client.models.SemanticNode.get({ id });
+      assertNoDataErrors(response.errors, "get SemanticNode");
+      return (response.data as any) ?? null;
+    },
+    updateNode: async (patch) => {
+      await requireDataResult(client.models.SemanticNode.update(patch as any), "update SemanticNode");
+    },
+    getRelation: async (id) => {
+      const response = await client.models.SemanticRelation.get({ id });
+      assertNoDataErrors(response.errors, "get SemanticRelation");
+      return (response.data as any) ?? null;
+    },
+    updateRelation: async (patch) => {
+      await requireDataResult(client.models.SemanticRelation.update(patch as any), "update SemanticRelation");
+    },
+  };
+  return applyKnowledgeReview(store, { patches: event.arguments.patches, origin: editOriginOfIdentity(event.identity) });
 }
 
 async function createReferenceNote(event: Parameters<ReferenceNoteHandler>[0]) {

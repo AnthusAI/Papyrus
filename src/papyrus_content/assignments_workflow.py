@@ -1293,9 +1293,13 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
     registration = {"plan": plan, "changes": changes}
     url_text_result: dict[str, Any] | None = None
     metadata_generation_result: dict[str, Any] | None = None
+    prediction: dict[str, Any] | None = None
     if apply:
         apply_record_changes(client, registration["changes"])
         update_newsroom_summary_after_reference_registration(client, registration["changes"], registration["plan"])
+        from .reference_prediction_queue import references_created_by, request_predictions
+        wanted_predictions = references_created_by(registration["changes"])   # one Cyclotron prediction per new Reference, requested once, here
+        prediction = request_predictions(client, wanted_predictions).to_json() if wanted_predictions else None
         changed_reference_ids = {
             str(change["expected"].get("id") or "")
             for change in registration["changes"]
@@ -1372,6 +1376,7 @@ def intake_research_packet_proposals(client: PapyrusGraphQLAuthoringClient, opti
         "curationAssignmentCount": changed_assignments,
         "importRunId": registration["plan"]["importRunId"],
         "references": references,
+        "prediction": prediction,
         "blockedReason": blocked_reason,
         "next": (
             f"poetry run papyrus references process-status --config {options.get('config')} "

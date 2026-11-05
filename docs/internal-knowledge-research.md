@@ -34,7 +34,7 @@ accept them.
 
 When an editor accepts a link between two References, or tags a Reference with a
 concept, and writes why (`SemanticRelation` `metadata.note`, edge kinds
-`reference.link` and `reference.concept`; see
+`reference.link`, `reference.concept` and `concept.link`, an editor's link between two concepts; see
 [idea-context-packs.md](./idea-context-packs.md) section 2.2.1), that explanation
 is searchable meaning.
 

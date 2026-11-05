@@ -7,6 +7,7 @@ Subcommands (all read `infra/pipeline/stacks.json`):
   requirements                    pip requirements for the vendored packages at the poetry.lock versions (a reproducible zip)
   plan [--stack NAME ...]         READ-ONLY dry run: what a release would change, as a job summary (pull requests)
   deploy [--stack NAME ...]       build, upload, create a change set, read it, execute it, watch it (push to main)
+  pipeline-check                  does the deployed papyrus-stack-pipeline match infra/pipeline/papyrus-stack-pipeline.yaml (exit 1 if not)
 
 Safety, in this file and nowhere else:
   * parameter values and code keys are single-line and well formed before any call;
@@ -33,6 +34,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = Path(__file__).resolve().parent / "stacks.json"
 ALLOWED_PATH = Path(__file__).resolve().parent / "allowed-changes.json"
+PIPELINE_STACK = "papyrus-stack-pipeline"
+PIPELINE_TEMPLATE = Path(__file__).resolve().parent / "papyrus-stack-pipeline.yaml"
+ROLES_WORKFLOW = "role-stack-deploy"
+ROLES_WORKFLOW_URL = "https://github.com/AnthusAI/Papyrus/actions/workflows/role-stack-deploy.yml"
 
 CHANGE_SET_PREFIX = "papyrus-release-"
 CODE_KEY = re.compile(r"^papyrus-monitoring/(router-|operator-|email-)?[0-9a-f]{64}\.zip$")
@@ -214,6 +219,46 @@ def diff_templates(live: dict, new: dict) -> dict:
 # ------------------------------------------------------------------------------------------------------------------ AWS access
 
 
+def bootstrap_hint(message: str) -> str:
+    """A permission refusal on the service role or deploy role is fixed by changing the pipeline roles, which only the approval-gated workflow does."""
+    if re.search(r"not authorized|AccessDenied|is not allowed to perform|UnauthorizedOperation", message, re.IGNORECASE):
+        return (f"This looks like a permission the pipeline roles do not have. Roles are changed only by the {ROLES_WORKFLOW} workflow, after a person "
+                f"approves it in GitHub: {ROLES_WORKFLOW_URL}. Open its latest run on develop or main and approve the pending 'pipeline-roles' "
+                f"deployment (an agent links it and never approves). If it ran and was approved, re-run this workflow. If there is no run, the "
+                f"template change has not been merged.")
+    return ""
+
+
+def pipeline_state(cloud, template_text: str) -> tuple[str, str]:
+    """('same' | 'differs' | 'missing' | 'unreadable', detail). Compares the template in this checkout with the one deployed as papyrus-stack-pipeline."""
+    try:
+        deployed = cloud.get_template(PIPELINE_STACK)
+    except AwsError as error:
+        text = str(error)
+        if "does not exist" in text:
+            return "missing", "the papyrus-stack-pipeline stack does not exist in this account"
+        if re.search(r"not authorized|AccessDenied", text, re.IGNORECASE):
+            return "unreadable", "the role in use cannot read the papyrus-stack-pipeline stack (the role predates that permission)"
+        raise
+    if parse_template(deployed) == parse_template(template_text):
+        return "same", "the deployed roles match infra/pipeline/papyrus-stack-pipeline.yaml"
+    return "differs", "the deployed roles differ from infra/pipeline/papyrus-stack-pipeline.yaml in this checkout"
+
+
+def pipeline_notice(ctx: "Context") -> str:
+    """Say plainly, in the job summary, when the roles in the account are not the roles in the repository. Never fails the run for it."""
+    if not ctx.check_pipeline or ctx.pipeline_said:
+        return ctx.pipeline_said or "same"
+    state, detail = pipeline_state(ctx.cloud, PIPELINE_TEMPLATE.read_text(encoding="utf-8"))
+    ctx.pipeline_said = state
+    if state != "same":
+        ctx.write_summary(f"### The pipeline roles are out of date\n{detail[0].upper() + detail[1:]}. A permission added to the template since the last approved apply is not in the account, "
+                          f"so a deploy can be refused for it. The {ROLES_WORKFLOW} workflow updates them after a person approves in GitHub: "
+                          f"{ROLES_WORKFLOW_URL} (see infra/pipeline/README.md). Nothing is stopped for this.")
+        ctx.out(f"::warning::The pipeline roles are out of date ({detail}). Approve the {ROLES_WORKFLOW} run: {ROLES_WORKFLOW_URL}")
+    return state
+
+
 class AwsCli:
     """The only code that talks to AWS. Tests replace it with a fake that has the same methods."""
 
@@ -278,9 +323,9 @@ class AwsCli:
 
 class Context:
     def __init__(self, cloud, config: dict, allowed: list[dict], run_tag: str, root: Path = ROOT, runner=subprocess.run, out=print,
-                 summary: Path | None = None, change_set_timeout: float = 600, execute_timeout: float = 3000, poll: float = 10, start_grace: float = 180):
+                 summary: Path | None = None, check_pipeline: bool = False, change_set_timeout: float = 600, execute_timeout: float = 3000, poll: float = 10, start_grace: float = 180):
         self.cloud, self.config, self.allowed, self.run_tag, self.root, self.runner, self.out = cloud, config, allowed, run_tag, root, runner, out
-        self.summary = summary
+        self.summary, self.check_pipeline, self.pipeline_said = summary, check_pipeline, None
         self.change_set_timeout, self.execute_timeout, self.poll, self.start_grace = change_set_timeout, execute_timeout, poll, start_grace
 
     def write_summary(self, text: str) -> None:
@@ -298,6 +343,9 @@ def template_bucket(ctx: Context) -> str:
     source = ctx.config["templateBucketFrom"]
     stack = ctx.cloud.describe_stack(source["stack"])
     value = (param_map(stack) or {}).get(source["parameter"], "")
+    if stack is None:
+        # A new account has no papyrus-monitoring yet. The CDK bootstrap bucket has a fixed name, so the first stack can still be created.
+        value = f"cdk-hnb659fds-assets-{ctx.cloud.account()}-{ctx.cloud.region}"
     if not BUCKET.match(value):
         raise Stop(f"cannot read a bucket name from {source['stack']} parameter {source['parameter']}")
     return value
@@ -382,6 +430,7 @@ def wait_for_execution(ctx: Context, stack: str, name: str, known: set[str]) -> 
 
 def deploy_stack(ctx: Context, cfg: dict) -> str:
     cloud, name = ctx.cloud, cfg["name"]
+    pipeline_notice(ctx)
     stack = cloud.describe_stack(name)
     kind, status = classify_stack(stack)
     ctx.out(f"{name}: {status}, will {kind}")
@@ -392,6 +441,9 @@ def deploy_stack(ctx: Context, cfg: dict) -> str:
     overrides = dict(cfg.get("parameters", {}))
     overrides.update(lookup_parameters(ctx, cfg))
     overrides.update(build_keys(ctx, cfg, bucket))
+    source = ctx.config["templateBucketFrom"]
+    if stack is None and cfg["name"] == source["stack"]:
+        overrides[source["parameter"]] = bucket  # the first create takes the bucket from the bootstrap name; later runs keep the live value
     validate_parameters(overrides)
 
     template_path = ctx.root / cfg["template"]
@@ -438,6 +490,7 @@ def deploy_stack(ctx: Context, cfg: dict) -> str:
 def plan_stack(ctx: Context, cfg: dict) -> None:
     """Read-only. Never builds, uploads or creates anything; says what it cannot know."""
     cloud, name = ctx.cloud, cfg["name"]
+    pipeline_notice(ctx)
     stack = cloud.describe_stack(name)
     lines = [f"### {name}"]
     try:
@@ -501,6 +554,7 @@ def main(argv: list[str] | None = None) -> int:
     scope.add_argument("--base", required=True)
     scope.add_argument("--head", required=True)
     sub.add_parser("requirements")
+    sub.add_parser("pipeline-check")
     for command in ("plan", "deploy"):
         p = sub.add_parser(command)
         p.add_argument("--stack", action="append")
@@ -529,7 +583,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     tag = f"{os.environ.get('GITHUB_SHA', 'local')[:12]}-{os.environ.get('GITHUB_RUN_ID', '0')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
-    ctx = Context(cloud, config, load_json(ALLOWED_PATH)["allowed"], tag, summary=Path(summary) if summary else None)
+    ctx = Context(cloud, config, load_json(ALLOWED_PATH)["allowed"], tag, summary=Path(summary) if summary else None, check_pipeline=True)
+    if args.command == "pipeline-check":
+        state, detail = pipeline_state(cloud, PIPELINE_TEMPLATE.read_text(encoding="utf-8"))
+        print(f"{state}: {detail}")
+        return 0 if state == "same" else 1
     try:
         for cfg in selected(config, args.stack):
             (plan_stack if args.command == "plan" else deploy_stack)(ctx, cfg)
@@ -538,7 +596,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     except (Failed, AwsError) as failure:
         print(f"::error::DEPLOY FAILED: {failure}")
-        ctx.write_summary(f"### DEPLOY FAILED\n```\n{failure}\n```")
+        hint = bootstrap_hint(str(failure))
+        ctx.write_summary(f"### DEPLOY FAILED\n```\n{failure}\n```" + (f"\n**{hint}**" if hint else ""))
+        if hint:
+            print(f"::error::{hint}")
         return 1
     return 0
 

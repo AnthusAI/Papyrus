@@ -481,3 +481,44 @@ def test_the_cyclotron_rejecting_a_video_moves_it_to_the_rejected_video_list():
     assert reject_reference_automatically(client, {"id": "reference-v-v1"}, cyclotron_id="relevance", probability=0.99, proof_id="proof-1", decision_id="d1", now=NOW)
     rejected = client.get_record("Reference", "reference-v-v1")
     assert rejected["mediumFeedKey"] == f"{corpus_id}#video#rejected" and rejected["contentNeededKey"] == f"{corpus_id}#video#needs_content#rejected"
+
+
+# --- a prediction: every route either decides, carries one, or asks for one (src/papyrus_content/reference_prediction_queue.py, PPY-eac36e) ---------
+#
+# The References page and the public pages show a pending Reference only once the Cyclotron has predicted it. The router's delivery decides its own; an accession
+# keeps the prediction of the Reference it replaces; every other path below creates a pending Reference with none, and the code that calls it asks for one.
+# `LEFT_WITHOUT_A_REQUEST` names the paths that do not, with the reason, so adding a path forces the question.
+
+DECIDES_ITSELF = {"monitor delivery": "the router decides before it delivers (monitoring_router.deliver_reference)"}
+CARRIES_ONE = {"accession replacement": "{**reference} keeps the replaced Reference's prediction", "accession next version": "records.py KEPT_FEED_FIELDS"}
+LEFT_WITHOUT_A_REQUEST = {"GROBID cited reference": "a machine placeholder that stub retirement archives; `papyrus references queue-predictions` covers it by hand"}
+ASKS_FOR_ONE = {"papyrus references import (CLI)", "email submission", "named import (cursor:...)", "Slack / console chat Reference.create",
+                "console intake mutation (intakePendingReferences)"}
+
+
+def test_every_path_that_creates_a_reference_is_accounted_for_in_the_prediction_rule():
+    assert set(PATHS) == ASKS_FOR_ONE | set(DECIDES_ITSELF) | set(CARRIES_ONE) | set(LEFT_WITHOUT_A_REQUEST)
+
+
+@pytest.mark.parametrize("key", CORPUS_KEYS)
+@pytest.mark.parametrize("path", sorted(ASKS_FOR_ONE))
+def test_a_reference_created_by_an_asking_path_is_one_a_prediction_is_requested_for(path, key):
+    from .reference_prediction_queue import references_for_prediction
+
+    reference = PATHS[path](key)
+    (request,) = references_for_prediction([reference])
+    assert request["referenceId"] == reference["id"] and request["sourceUri"]
+
+
+@pytest.mark.parametrize("path", sorted(CARRIES_ONE))
+def test_an_accession_keeps_the_prediction_it_started_with(path):
+    old = {"id": "reference-old-v1", "lineageId": "reference-old", "corpusId": "knowledge-corpus-alpha-site", "curationStatus": "pending", "versionState": "current",
+           "createdAt": NOW, "metadata": "{}", "sourceUri": PAPER, "predictedAcceptProbability": 0.8, "predictionDecidedAt": "2026-11-01T00:00:00.000Z"}
+    from .accession import new_reference_for_accession_replacement, next_reference_version_for_accession
+    if path == "accession replacement":
+        accession = {"biblicusItemId": "item-new", "storagePath": "corpus/item-new.pdf", "mediaType": "application/pdf", "byteSize": 3, "sha256": "abc"}
+        new = new_reference_for_accession_replacement(old, "knowledge-corpus-alpha-site", "import-run-1", accession, "accession", NOW)
+    else:
+        accession = {"storagePath": "corpus/item.pdf", "mediaType": "application/pdf", "byteSize": 3, "sha256": "abc"}
+        new = next_reference_version_for_accession(old, "import-run-1", accession, "accession", NOW)
+    assert new["predictedAcceptProbability"] == 0.8 and new["predictionDecidedAt"] == "2026-11-01T00:00:00.000Z"

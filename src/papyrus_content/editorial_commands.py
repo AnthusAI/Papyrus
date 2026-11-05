@@ -291,11 +291,19 @@ def check_saved_version_best_effort(item_id: str, execute=None) -> dict[str, Any
 
 
 def check_summary_line(result: dict[str, Any]) -> str:
-    if result.get("skipped") == "unchanged":
-        return f"editorial\tcheck\t{result.get('itemId')}\t{result.get('violations', 0)} violations\t{result.get('reviews', 0)} for review\tunchanged since its last check"
-    if result.get("skipped"):
+    from .editorial_checks import lanes_not_run
+
+    if result.get("skipped") and result.get("skipped") != "unchanged":
         return f"editorial\tcheck\t{result.get('itemId')}\tskipped\t{result['skipped']}"
-    return f"editorial\tcheck\t{result.get('itemId')}\t{result.get('violations', 0)} violations\t{result.get('reviews', 0)} for review"
+    counts = f"{result.get('violations', 0)} violations\t{result.get('reviews', 0)} for review"
+    if result.get("reused"):
+        # Said first, so a reused 0 is never taken for a fresh pass: nothing was checked just now.
+        origin = f"reused: not checked again, same text and policies as the check of {result.get('checkedAt') or 'an earlier time'}"
+        line = f"editorial\tcheck\t{result.get('itemId')}\t{counts}\t{origin}"
+    else:
+        line = f"editorial\tcheck\t{result.get('itemId')}\t{counts}\tchecked now"
+    notes = lanes_not_run(result.get("lanes"))
+    return line + "".join(f"\t{note}" for note in notes)
 
 
 def check_after_save(item_id: str, execute=None) -> None:
