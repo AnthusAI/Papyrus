@@ -1,4 +1,4 @@
-"""Run ``scripts/test-reference-list-scroll-browser.ts`` (Playwright) against a synthetic site this repo's projector builds.
+"""Run ``scripts/browser-reference-list-scroll.ts`` (Playwright) against a synthetic site this repo's projector builds.
 
 Skipped where ``node_modules`` (tsx and Playwright) or a Chromium is not installed, so the Python suite needs neither. Locally:
 ``npm run test:reference-list-browser`` does the same two steps.
@@ -30,7 +30,7 @@ def chromium_available() -> bool:
 def test_paged_reference_lists_behave_in_a_real_browser(tmp_path):
     site = build(tmp_path / "site")
     result = subprocess.run(
-        [str(TSX), "--test", "scripts/test-reference-list-scroll-browser.ts"],
+        [str(TSX), "--test", "scripts/browser-reference-list-scroll.ts"],
         cwd=ROOT, env={**os.environ, "REFERENCE_LIST_SITE": str(site)}, capture_output=True, text=True, timeout=300,
     )
     assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-2000:]

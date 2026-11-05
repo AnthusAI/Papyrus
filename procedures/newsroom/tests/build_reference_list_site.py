@@ -1,4 +1,4 @@
-"""Write a synthetic public site with long, paged Reference lists to a directory, for ``scripts/test-reference-list-scroll-browser.ts`` and the screenshots.
+"""Write a synthetic public site with long, paged Reference lists to a directory, for ``scripts/browser-reference-list-scroll.ts`` and the screenshots.
 
     python -m procedures.newsroom.tests.build_reference_list_site <directory> [accepted] [recommended]
 
