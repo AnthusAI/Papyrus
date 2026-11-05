@@ -20,6 +20,10 @@ DEFAULT_INDEX_PAGE_SIZE = 50
 
 
 DEFAULT_PAGE_SIZE = 48
+SOURCES = ("snapshot", "index")
+DEFAULT_SOURCE = "snapshot"
+#: The lowest threshold the public index can serve: a pending row is in it only with a stored prediction of at least this (``reference_feed_keys.RECOMMENDED_FLOOR``).
+INDEX_FLOOR = 0.5
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,13 @@ class ReferencesSettings:
     recommended_threshold: float = 0.5
     summary_characters: int = DEFAULT_SUMMARY_CHARACTERS
     paging: PagingSettings | None = None
+    #: Where the public blocks get their References: ``snapshot`` (the file ``_data/home-page/references.json``, the default) or ``index`` (each block asks the public index for the
+    #: rows it shows, and the file is no longer written; docs/plans/public-blocks-from-indexes.md).
+    source: str = DEFAULT_SOURCE
+
+    @property
+    def indexed(self) -> bool:
+        return self.source == "index"
 
 
 @dataclass(frozen=True)
@@ -166,7 +177,7 @@ def home_page_settings_from_mapping(raw: Any) -> HomePageSettings:
     if layout not in LAYOUTS:
         raise ValueError(f"homePage.layout must be one of {', '.join(LAYOUTS)}")
     references_raw = _section(raw, "references", "homePage")
-    _only(references_raw, ("corpus", "fields", "defaultCount", "recommendedThreshold", "paging"), "homePage.references")
+    _only(references_raw, ("corpus", "fields", "defaultCount", "recommendedThreshold", "paging", "source"), "homePage.references")
     threads_raw = _section(raw, "threads", "homePage")
     _only(threads_raw, ("enabled", "authors", "anonymousLabel"), "homePage.threads")
     freshness_raw = _section(raw, "freshness", "homePage")
@@ -177,6 +188,11 @@ def home_page_settings_from_mapping(raw: Any) -> HomePageSettings:
     threshold = references_raw.get("recommendedThreshold", defaults.references.recommended_threshold)
     if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1:
         raise ValueError("homePage.references.recommendedThreshold must be a number from 0 to 1")
+    source = references_raw.get("source", defaults.references.source)
+    if source not in SOURCES:
+        raise ValueError(f"homePage.references.source must be one of {', '.join(SOURCES)}")
+    if source == "index" and float(threshold) < INDEX_FLOOR:
+        raise ValueError(f"homePage.references.recommendedThreshold is {threshold} but homePage.references.source is \"index\", which holds only pending References predicted at {INDEX_FLOOR} or more; raise the threshold or use the snapshot")
     authors = threads_raw.get("authors", defaults.threads.authors)
     if authors not in THREAD_AUTHOR_POLICIES:
         raise ValueError(f"homePage.threads.authors must be one of {', '.join(THREAD_AUTHOR_POLICIES)}")
@@ -197,6 +213,7 @@ def home_page_settings_from_mapping(raw: Any) -> HomePageSettings:
             default_count=_whole_number(references_raw.get("defaultCount", defaults.references.default_count), "homePage.references.defaultCount", 1),
             recommended_threshold=float(threshold),
             paging=_paging(references_raw.get("paging")),
+            source=source,
         ),
         threads=ThreadsSettings(
             enabled=_flag(threads_raw.get("enabled", defaults.threads.enabled), "homePage.threads.enabled"),

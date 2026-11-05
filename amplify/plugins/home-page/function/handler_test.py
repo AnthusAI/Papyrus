@@ -35,6 +35,7 @@ class FakeDynamo:
         self.puts = 0
         self.updates: list[dict] = []
         self.ids: dict[str, set[str]] = {}
+        self.coords: dict[str, set[str]] = {}
         self.counters: dict[tuple[str, str], int] = {}
         self.item_limit = item_limit
 
@@ -55,6 +56,12 @@ class FakeDynamo:
                 raise ClientError("ValidationException")
             held |= set(ExpressionAttributeValues[":ids"]["SS"])
             return {"Attributes": {"ids": {"SS": sorted(held)}}}
+        if UpdateExpression == "ADD coords :coords":
+            held = self.coords.setdefault(key, set())
+            if self.item_limit is not None and len(held | set(ExpressionAttributeValues[":coords"]["SS"])) > self.item_limit:
+                raise ClientError("ValidationException")
+            held |= set(ExpressionAttributeValues[":coords"]["SS"])
+            return {}
         attribute = UpdateExpression.removeprefix("ADD ").split(" ")[0]
         amount = int(next(iter(ExpressionAttributeValues.values()))["N"])
         self.counters[(key, attribute)] = self.counters.get((key, attribute), 0) + amount
@@ -314,3 +321,60 @@ def test_writing_the_public_blocks_attributes_alone_changes_no_page():
     assert not handler_module.record_changed(record(old=ACCEPTED, new={**ACCEPTED, **written}))
     assert not handler_module.record_changed(record(old=PENDING_PREDICTED, new={**PENDING_PREDICTED, **written}))
     assert not set(written) & set(handler_module.CHANGE_FIELDS)
+
+
+# --- a site served from the public index: the trigger records coordinates and drops what no block can show (PPY-7f1e54) -------------------------------------------------
+
+
+def public(feed, order, **more):
+    return {"publicFeedKey": feed, "publicOrderKey": order, **more}
+
+
+def test_without_the_index_setting_the_trigger_records_ids_only(monkeypatch):
+    _result, dynamo, _scheduler = run([record(old=PENDING_PREDICTED, new={**PENDING_PREDICTED, "title": "B"})], monkeypatch=monkeypatch)
+    assert dynamo.ids and not dynamo.coords
+
+
+def test_a_site_served_from_the_index_records_the_coordinate_of_a_change(monkeypatch):
+    monkeypatch.setenv(handler_module.COORDINATES_ENVIRONMENT, "1")
+    old = {**PENDING_PREDICTED, **public("c#recommended#2026-11-04", "p0.900000#2026-11-04T10:00:00.000Z#r")}
+    new = {**ACCEPTED, **PREDICTED, **public("c#accepted", "p0.900000#2026-11-04T10:00:00.000Z#r", curationStatusUpdatedAt="2026-11-05T09:00:00.000Z")}
+    _result, dynamo, _scheduler = run([record(old=old, new=new)], monkeypatch=monkeypatch)
+    (scope_coords,) = dynamo.coords.values()
+    (coordinate,) = [json.loads(entry) for entry in scope_coords]
+    assert coordinate["i"] == "reference-1-v1" and coordinate["f0"] == "c#recommended#2026-11-04" and coordinate["f1"] == "c#accepted"
+    assert coordinate["o1"].startswith("p0.9") and coordinate["a1"] == "2026-11-05T09:00:00.000Z" and "h0" in coordinate and "h1" in coordinate
+
+
+def test_a_change_to_a_row_that_is_in_no_public_partition_before_or_after_schedules_nothing(monkeypatch):
+    """A new recommended Reference at 0.3 (a prediction, so the snapshot trigger would run) has no key: no block can show it, so no run is scheduled and no id is listed."""
+    monkeypatch.setenv(handler_module.COORDINATES_ENVIRONMENT, "1")
+    result, dynamo, scheduler = run([record(old=PENDING, new={**PENDING, "predictedAcceptProbability": {"N": "0.3"}, "predictionDecidedAt": "2026-11-04T10:00:00.000Z"})], monkeypatch=monkeypatch)
+    assert result["changed"] == 0 and result["scheduled"] is False and not dynamo.ids and not dynamo.coords and scheduler.calls == []
+
+
+def test_a_row_that_leaves_the_public_index_is_a_change(monkeypatch):
+    monkeypatch.setenv(handler_module.COORDINATES_ENVIRONMENT, "1")
+    old = {**ACCEPTED, **public("c#accepted", "n#2026-11-04T10:00:00.000Z#r")}
+    result, dynamo, _scheduler = run([record(old=old, new={**old, "curationStatus": "rejected", "publicFeedKey": None, "publicOrderKey": None})], monkeypatch=monkeypatch)
+    assert result["changed"] == 1
+    (coordinate,) = [json.loads(entry) for entry in next(iter(dynamo.coords.values()))]
+    assert coordinate["f0"] == "c#accepted" and "f1" not in coordinate
+
+
+def test_a_message_is_still_a_change_for_a_site_served_from_the_index(monkeypatch):
+    monkeypatch.setenv(handler_module.COORDINATES_ENVIRONMENT, "1")
+    result, _dynamo, _scheduler = run([message_record("INSERT", None, COMMENT)], monkeypatch=monkeypatch)
+    assert result["changed"] == 1
+
+
+def test_a_batch_with_more_coordinates_than_the_item_holds_asks_every_block_to_run_again(monkeypatch):
+    monkeypatch.setenv(handler_module.COORDINATES_ENVIRONMENT, "1")
+    new = {**ACCEPTED, **public("c#accepted", "n#2026-11-04T10:00:00.000Z#r")}
+    _result, dynamo, _scheduler = run([record(old=PENDING, new=new)], DynamoWithLimit(), monkeypatch=monkeypatch)
+    assert any(update["key"].startswith("home-page-full#") for update in dynamo.updates)
+
+
+class DynamoWithLimit(FakeDynamo):
+    def __init__(self):
+        super().__init__(item_limit=0)

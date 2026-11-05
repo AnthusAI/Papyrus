@@ -508,6 +508,16 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "mediumFeedKey",
         "fields": REFERENCE_FIELDS,
     },
+    "referencesByStarFeedAndArrival": {
+        "field": "listReferencesByStarFeedAndArrival",
+        "partitionKey": "starFeedKey",
+        "fields": REFERENCE_FIELDS,
+    },
+    "referencesByPublicFeed": {
+        "field": "listReferencesByPublicFeed",
+        "partitionKey": "publicFeedKey",
+        "fields": REFERENCE_FIELDS,
+    },
     "referencesByContentNeededAndArrival": {
         "field": "listReferencesByContentNeededAndArrival",
         "partitionKey": "contentNeededKey",
@@ -630,11 +640,11 @@ query {operation}(${partition_key}: {partition_type}!, $limit: Int, $nextToken: 
 """
 
 
-def _newest_first_query(field: str, partition_key: str, fields: str, partition_type: str = "String") -> str:
+def _newest_first_query(field: str, partition_key: str, fields: str, partition_type: str = "String", direction: str = "DESC") -> str:
     operation = field[0].upper() + field[1:]
     return f"""
-query {operation}NewestFirst(${partition_key}: {partition_type}!, $limit: Int, $nextToken: String) {{
-  {field}({partition_key}: ${partition_key}, sortDirection: DESC, limit: $limit, nextToken: $nextToken) {{
+query {operation}{"NewestFirst" if direction == "DESC" else "OldestFirst"}(${partition_key}: {partition_type}!, $limit: Int, $nextToken: String) {{
+  {field}({partition_key}: ${partition_key}, sortDirection: {direction}, limit: $limit, nextToken: $nextToken) {{
     items {{ {fields} }}
     nextToken
   }}
@@ -1003,6 +1013,23 @@ class PapyrusGraphQLAuthoringClient:
             for entry in connection.get("items") or []:
                 if entry:
                     yield entry
+            next_token = connection.get("nextToken")
+            if not next_token:
+                return
+
+    def iterate_pages(self, index_name: str, key_value: str, *, page_size: int = 100, descending: bool = True):
+        """The pages (lists of rows, one request each) of an index partition in sort-key order, newest first by default; stop reading and no further page is fetched.
+
+        The public blocks read through this: a request is a page, so the number of requests a block costs is the number of pages it pulls."""
+        index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
+        definition = INDEX_DEFINITIONS[index_name]
+        query = _newest_first_query(definition["field"], definition["partitionKey"], definition["fields"], definition.get("partitionType", "String"),
+                                    "DESC" if descending else "ASC")
+        next_token = None
+        while True:
+            result = self.graphql(query, {definition["partitionKey"]: key_value, "limit": page_size, "nextToken": next_token})
+            connection = result.get(definition["field"]) or {}
+            yield [entry for entry in connection.get("items") or [] if entry]
             next_token = connection.get("nextToken")
             if not next_token:
                 return

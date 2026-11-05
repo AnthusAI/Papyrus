@@ -29,6 +29,16 @@ class HomePageSource:
         self._reader: Reader | None = None
         self._directory: Path | None = None
         self._memo: dict[str, tuple[bytes | None, dict | None]] = {}
+        self._index = None
+
+    @property
+    def indexed(self) -> bool:
+        """True when the References come from the public index (``homePage.references.source: "index"``) and not from the file."""
+        return self._index is not None
+
+    def attach_index(self, reader) -> None:
+        """Answer ``references()`` from an :class:`~...home_page.indexed.IndexReader`, block by block, instead of from ``references.json``."""
+        self._index = reader
 
     def attach_store(self, reader: Reader) -> None:
         """Read from a site store (``writer.get``). A directory chosen with :meth:`use_directory` keeps winning, in any call order."""
@@ -68,6 +78,10 @@ class HomePageSource:
         return self._memo[file_key]
 
     def references(self) -> dict | None:
+        if self._index is not None:
+            from ...home_page.indexed import IndexDocument
+
+            return IndexDocument(self._index)
         return self._load(REFERENCES_FILE, REFERENCES_NAME, "references")[1]
 
     def threads(self) -> dict | None:

@@ -11,7 +11,8 @@ from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
 from papyrus_content.projection.lease import ProjectionLeaseHeld
 from papyrus_content.projection.engine import project, project_all, project_item_pages
-from papyrus_content.home_page.runtime import stores_for as home_page_stores_for
+from papyrus_content.home_page.render import run_home_page_render
+from papyrus_content.home_page.runtime import block_store_for as home_page_block_store_for, stores_for as home_page_stores_for
 from papyrus_content.home_page.task import TASK_NAME as HOME_PAGE_SNAPSHOT_TASK, home_page_settings_of, run_home_page_snapshot
 from papyrus_content.projection.story_stars_task import TASK_NAME as STORY_STARS_TASK, run_story_stars_task
 from papyrus_content.reader_steering.task import TASK_NAME as READER_SNAPSHOT_TASK, run_reader_snapshot
@@ -217,6 +218,15 @@ def run_home_page_snapshot_task(client, task: dict | None = None) -> dict:
     """
     context = projection_context(client)
     state_store, dirty_store, batch = home_page_stores_for(task or {})
+    settings = home_page_settings_of(context.projector)
+    if getattr(getattr(settings, "references", None), "indexed", False):
+        # A site served from the public index: the blocks ask the index, there is no references.json, and the stream trigger's coordinates say which blocks to ask again.
+        report = run_home_page_render(context, client, settings, block_store=home_page_block_store_for(task or {}), dirty=batch)
+        if report.get("errors"):
+            raise ProjectionTaskFailed("; ".join(report["errors"]))
+        if dirty_store is not None and batch is not None:
+            dirty_store.acknowledge(batch)
+        return {"ok": True, **report}
     report = run_home_page_snapshot(
         context,
         client,

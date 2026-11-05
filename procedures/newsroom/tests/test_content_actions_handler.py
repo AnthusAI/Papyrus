@@ -340,5 +340,39 @@ class ContentActionsSiteTriggerTest(unittest.TestCase):
         self.assertIn("ProjectionLeaseHeld", result["error"])
 
 
+class HomePageIndexTaskTest(unittest.TestCase):
+    """A site served from the public index runs the render task, not the snapshot: it reads the batch and the block record, and acknowledges only after success."""
+
+    def run_task(self, report: dict):
+        from types import SimpleNamespace
+
+        from papyrus_content.home_page.state_store import DirtyBatch
+
+        batch, dirty, state, blocks = DirtyBatch(ids=frozenset({"reference-1-v1"})), mock.Mock(), mock.Mock(), mock.Mock()
+        self.dirty = dirty
+        settings = SimpleNamespace(references=SimpleNamespace(indexed=True))
+        with mock.patch.object(content_actions_handler, "projection_context", return_value=mock.Mock()), \
+                mock.patch.object(content_actions_handler, "home_page_settings_of", return_value=settings), \
+                mock.patch.object(content_actions_handler, "home_page_stores_for", return_value=(state, dirty, batch)), \
+                mock.patch.object(content_actions_handler, "home_page_block_store_for", return_value=blocks), \
+                mock.patch.object(content_actions_handler, "run_home_page_render", return_value=report) as render, \
+                mock.patch.object(content_actions_handler, "run_home_page_snapshot") as snapshot:
+            result = content_actions_handler.run_home_page_snapshot_task(object(), {"task": "home-page-snapshot", "incremental": True, "scope": "abc"})
+        return result, render, snapshot, batch, blocks
+
+    def test_the_render_task_gets_the_batch_and_the_block_record_and_the_snapshot_is_not_run(self) -> None:
+        result, render, snapshot, batch, blocks = self.run_task({"mode": "incremental", "written": []})
+        self.assertTrue(result["ok"])
+        snapshot.assert_not_called()
+        self.assertIs(render.call_args.kwargs["dirty"], batch)
+        self.assertIs(render.call_args.kwargs["block_store"], blocks)
+        self.dirty.acknowledge.assert_called_once_with(batch)
+
+    def test_a_run_that_reports_errors_keeps_the_list_for_the_retry(self) -> None:
+        with self.assertRaises(content_actions_handler.ProjectionTaskFailed):
+            self.run_task({"errors": ["a page failed"]})
+        self.dirty.acknowledge.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

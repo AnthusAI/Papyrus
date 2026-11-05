@@ -101,7 +101,12 @@ def anchor_of(thread: Mapping[str, Any], public_references: Mapping[str, str], s
     """The public anchor of a thread, or ``None`` when its Reference is not in the snapshot or its Story is not published."""
     anchor_key = str(thread.get("primaryAnchorKey") or "")
     if thread.get("threadKind") == REFERENCE_THREAD_KIND and anchor_key.startswith(REFERENCE_ANCHOR_PREFIX):
-        key = public_key(anchor_key.removeprefix(REFERENCE_ANCHOR_PREFIX))
+        lineage = anchor_key.removeprefix(REFERENCE_ANCHOR_PREFIX)
+        key = public_key(lineage)
+        resolve = getattr(public_references, "title_of_lineage", None)   # a site served from the public index asks for the one Reference, not for a list of them all
+        if resolve is not None:
+            title = resolve(lineage)
+            return {"kind": "reference", "key": key, "title": title} if title else None
         return {"kind": "reference", "key": key, "title": public_references[key]} if key in public_references else None
     if thread.get("threadKind") == STORY_THREAD_KIND and anchor_key.startswith(STORY_ANCHOR_PREFIX) and story_anchor is not None:
         story = story_anchor(anchor_key.removeprefix(STORY_ANCHOR_PREFIX))

@@ -24,6 +24,10 @@ from typing import Any, Mapping
 #: ``starRating`` is printed on an accepted Reference's tile and orders every page, so a rating change on its own (the old and new image differ in nothing else)
 #: must reach the pages. Who rated and when are private and not watched.
 CHANGE_FIELDS = ("curationStatus", "feedStateKey", "predictionSortKey", "predictedAcceptProbability", "versionState", "title", "curationSectionId", "starRating", "medium", "thumbnailPath")
+#: Set to "1" for a site whose ``homePage.references.source`` is ``index``: the trigger then records a coordinate for each change (the old and new public keys and what the index
+#: task's router needs, ``papyrus_content/home_page/routing.py``) and drops a change to a row that is in no public partition before or after, because no block can show it.
+COORDINATES_ENVIRONMENT = "PAPYRUS_HOME_PAGE_COORDINATES"
+CARD_HASH_FIELDS = ("title", "cardImage", "cardSummary", "cardSiteName", "cardPageTitle", "medium", "curationSectionId", "thumbnailPath", "curationActorKind", "sourceUri")
 MESSAGE_CHANGE_FIELDS = ("status", "content", "editedAt", "deletedAt")
 PUBLIC_MESSAGE_KIND = "comment"
 CHANGING_EVENTS = ("INSERT", "MODIFY")
@@ -69,6 +73,39 @@ def can_show(image: Mapping[str, Any]) -> bool:
     if not status or status in NOT_RECOMMENDABLE:
         return False
     return has_prediction(image)
+
+
+def typed_text(image: Mapping[str, Any], name: str) -> str | None:
+    value = (image.get(name) or {}).get("S")
+    return value if isinstance(value, str) and value else None
+
+
+def typed_stars(image: Mapping[str, Any]) -> int | None:
+    value = (image.get("starRating") or {}).get("N")
+    try:
+        return int(float(value)) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def card_hash(image: Mapping[str, Any]) -> str:
+    """A hash of what a card shows besides its place; the same material as ``papyrus_content/home_page/routing.card_hash`` (a test holds the two together)."""
+    material = json.dumps([typed_text(image, name) for name in CARD_HASH_FIELDS], separators=(",", ":"))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:12]
+
+
+def coordinate_of(record: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The coordinate of a Reference change (``routing.Coordinate``, compact keys), or ``None`` when the row is in no public partition before and after."""
+    images = record.get("dynamodb") or {}
+    old, new = images.get("OldImage") or {}, images.get("NewImage") or {}
+    feed0, feed1 = typed_text(old, "publicFeedKey"), typed_text(new, "publicFeedKey")
+    if not feed0 and not feed1:
+        return None
+    full = {"i": reference_id(record), "f0": feed0, "f1": feed1, "o0": typed_text(old, "publicOrderKey"), "o1": typed_text(new, "publicOrderKey"), "s0": typed_stars(old), "s1": typed_stars(new),
+            "a0": typed_text(old, "curationStatusUpdatedAt"), "a1": typed_text(new, "curationStatusUpdatedAt"), "m0": typed_text(old, "medium"), "m1": typed_text(new, "medium"),
+            "h0": card_hash(old) if old else None, "h1": card_hash(new) if new else None,
+            "x0": typed_text(old, "curationSectionId"), "x1": typed_text(new, "curationSectionId")}
+    return {name: value for name, value in full.items() if value is not None}
 
 
 def record_change(record: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -132,7 +169,7 @@ def full_key(scope: str) -> str:
     return f"{FULL_KEY_PREFIX}{scope}"
 
 
-def record_changes(dynamodb_client: Any, table: str, scope: str, ids: set[str], messages: int) -> None:
+def record_changes(dynamodb_client: Any, table: str, scope: str, ids: set[str], messages: int, coordinates: set[str] | None = None) -> None:
     """Writes what changed where the task will read it: the ids into a set, the Messages into a counter, and a flag when the set would not fit.
 
     This runs before the schedule is created, so a run never starts without the list that explains it. The task takes out exactly what it read.
@@ -159,6 +196,18 @@ def record_changes(dynamodb_client: Any, table: str, scope: str, ids: set[str], 
         if error_code(error) != "ValidationException":
             raise
         listed = DIRTY_LIMIT + 1  # the item is full
+    if coordinates and listed <= DIRTY_LIMIT:
+        try:
+            dynamodb_client.update_item(
+                TableName=table,
+                Key={"publication": {"S": dirty_key(scope)}},
+                UpdateExpression="ADD coords :coords",
+                ExpressionAttributeValues={":coords": {"SS": sorted(coordinates)}},
+            )
+        except Exception as error:
+            if error_code(error) != "ValidationException":
+                raise
+            listed = DIRTY_LIMIT + 1  # the item is full of coordinates (larger than ids): every block is rendered again
     if listed > DIRTY_LIMIT:
         dynamodb_client.update_item(
             TableName=table,
@@ -254,6 +303,17 @@ def schedule_for_changes(
 def handler(event: Mapping[str, Any], context: Any = None, *, dynamodb_client: Any = None, scheduler_client: Any = None, now_seconds: float | None = None) -> dict[str, Any]:
     records = event.get("Records") or []
     changes = [change for change in (record_change(record) for record in records) if change is not None]
+    coordinates: set[str] = set()
+    if os.environ.get(COORDINATES_ENVIRONMENT) == "1":
+        by_id = {reference_id(record): coordinate_of(record) for record in records if (record.get("dynamodb") or {}).get("Keys")}
+        kept = []
+        for change in changes:
+            if change.get("message"):
+                kept.append(change)
+            elif by_id.get(change.get("id")):
+                kept.append(change)
+                coordinates.add(json.dumps(by_id[change["id"]], sort_keys=True, separators=(",", ":")))
+        changes = kept
     if not changes:
         return {"records": len(records), "changed": 0, "scheduled": False}
     if dynamodb_client is None or scheduler_client is None:
@@ -263,6 +323,6 @@ def handler(event: Mapping[str, Any], context: Any = None, *, dynamodb_client: A
         scheduler_client = scheduler_client or boto3.client("scheduler")
     ids = {change["id"] for change in changes if change.get("id")}
     scope = scope_of(os.environ["PAPYRUS_HOME_PAGE_SNAPSHOT_FUNCTION_ARN"])
-    record_changes(dynamodb_client, os.environ["PAPYRUS_PROJECTION_LOCK_TABLE"], scope, ids, sum(1 for change in changes if change.get("message")))
+    record_changes(dynamodb_client, os.environ["PAPYRUS_PROJECTION_LOCK_TABLE"], scope, ids, sum(1 for change in changes if change.get("message")), coordinates)
     result = schedule_for_changes(dynamodb_client, scheduler_client, os.environ, time.time() if now_seconds is None else now_seconds)
     return {"records": len(records), "changed": len(changes), **result}

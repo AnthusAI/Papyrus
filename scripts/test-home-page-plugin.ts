@@ -89,13 +89,16 @@ function resourceTypes(templates: Template[]): string[] {
 const behaviours: Record<string, () => Promise<unknown>> = {
   async the_defaults_are_justified_and_configurable() {
     assert.equal(DEFAULT_DEBOUNCE_SECONDS, 300, "the window equals the HTML s-maxage the writers set");
-    assert.deepEqual(resolveHomePageConfig("home-page"), { debounceSeconds: 300, intervalHours: null, purge: false, threads: false });
-    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 60, intervalHours: 6 }), { debounceSeconds: 60, intervalHours: 6, purge: false, threads: false });
+    assert.deepEqual(resolveHomePageConfig("home-page"), { debounceSeconds: 300, intervalHours: null, purge: false, threads: false, indexed: false });
+    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 60, intervalHours: 6 }), { debounceSeconds: 60, intervalHours: 6, purge: false, threads: false, indexed: false });
     const directory = siteDirectory({ homePage: { freshness: { debounceSeconds: 120, intervalHours: 12, purge: true } } });
-    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: directory }), { debounceSeconds: 120, intervalHours: 12, purge: true, threads: false }, "projection.json supplies the freshness");
-    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 30, intervalHours: null }, { staticDir: directory }), { debounceSeconds: 30, intervalHours: null, purge: true, threads: false }, "the request wins over projection.json");
-    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: {} }) }), { debounceSeconds: 300, intervalHours: null, purge: false, threads: false });
+    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: directory }), { debounceSeconds: 120, intervalHours: 12, purge: true, threads: false, indexed: false }, "projection.json supplies the freshness");
+    assert.deepEqual(resolveHomePageConfig({ name: "home-page", debounceSeconds: 30, intervalHours: null }, { staticDir: directory }), { debounceSeconds: 30, intervalHours: null, purge: true, threads: false, indexed: false }, "the request wins over projection.json");
+    assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: {} }) }), { debounceSeconds: 300, intervalHours: null, purge: false, threads: false, indexed: false });
     assert.deepEqual(resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: { threads: { enabled: true } } }) }).threads, true, "homePage.threads.enabled turns the Message stream on");
+    assert.equal(resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: { references: { source: "index" } } }) }).indexed, true, "homePage.references.source index makes the trigger record coordinates");
+    assert.equal(resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: { references: { source: "snapshot" } } }) }).indexed, false);
+    assert.throws(() => resolveHomePageConfig("home-page", { staticDir: siteDirectory({ homePage: { references: { source: "files" } } }) }), /source must be/);
     assert.throws(() => resolveHomePageConfig({ name: "home-page", debounceSeconds: 0 }), /whole number of seconds/);
     assert.throws(() => resolveHomePageConfig({ name: "home-page", debounceSeconds: 1.5 }), /whole number of seconds/);
     assert.throws(() => resolveHomePageConfig({ name: "home-page", intervalHours: 0 }), /hours/);
@@ -172,6 +175,10 @@ const behaviours: Record<string, () => Promise<unknown>> = {
     assert.equal(triggerEnvironment?.PAPYRUS_PROJECTION_LOCK_TABLE, "papyrus-projection-locks");
     assert.ok("PAPYRUS_HOME_PAGE_SNAPSHOT_FUNCTION_ARN" in (triggerEnvironment ?? {}) && "PAPYRUS_HOME_PAGE_SCHEDULER_ROLE_ARN" in (triggerEnvironment ?? {}));
     assert.ok(contentActions);
+    assert.ok(!("PAPYRUS_HOME_PAGE_COORDINATES" in (triggerEnvironment ?? {})), "a site served from the file records ids only");
+    const indexedSite = wireFake(["home-page"], { staticDir: siteDirectory({ homePage: { references: { source: "index" } } }) });
+    const indexedVariables = indexedSite.templates().flatMap((template) => Object.values(template.findResources("AWS::Lambda::Function"))).map((resource) => resource.Properties.Environment?.Variables ?? {});
+    assert.ok(indexedVariables.some((variables) => variables.PAPYRUS_HOME_PAGE_COORDINATES === "1"), "a site served from the public index records a coordinate for each change");
     const published = (outputs[0] as { custom: Record<string, Record<string, unknown>> }).custom[PLUGINS_OUTPUT_KEY];
     assert.deepEqual(published, { "home-page": { contract: 1, debounceSeconds: 300, intervalHours: null, purge: false } });
     return {};

@@ -11,6 +11,9 @@ site needs no new table and no new permission beyond ``GetItem`` and ``UpdateIte
 * ``home-page-dirty#<scope>``: the string set ``ids`` the stream trigger adds the id of each changed Reference to, and ``messageSeq``, a counter the
   trigger raises for a changed Message. The task reads them, does the work and takes out exactly what it read, so a change that lands meanwhile stays
   for the next run;
+* ``home-page-dirty#<scope>`` also holds ``coords``, a string set of JSON coordinates (``routing.Coordinate``) the trigger adds for a site whose
+  ``homePage.references.source`` is ``index``: the old and new keys of each change, so the task can say which blocks a change touches without reading the row;
+* ``home-page-blocks#<scope>``: what the index task remembers of each block it rendered (``routing``, ``indexed.Block.state``), one small compressed record;
 * ``home-page-full#<scope>``: ``seq``, raised by the trigger when a window held more changes than one item can list (a mass import): the next run
   reads the corpus once.
 
@@ -32,6 +35,7 @@ from .incremental import StoredState
 STATE_PREFIX = "home-page-state#"
 DIRTY_PREFIX = "home-page-dirty#"
 FULL_PREFIX = "home-page-full#"
+BLOCKS_PREFIX = "home-page-blocks#"
 SHARDS = "0123456789abcdef"
 CONDITION_FAILED = "ConditionalCheckFailedException"
 
@@ -50,6 +54,10 @@ def dirty_key(scope: str) -> str:
 
 def full_key(scope: str) -> str:
     return f"{FULL_PREFIX}{scope}"
+
+
+def blocks_key(scope: str) -> str:
+    return f"{BLOCKS_PREFIX}{scope}"
 
 
 def _is_condition_failure(error: Exception) -> bool:
@@ -135,6 +143,7 @@ class DirtyBatch:
     ids: frozenset[str] = frozenset()
     message_seq: int = 0
     full_seq: int = 0
+    coords: frozenset[str] = frozenset()   # JSON coordinates (routing.Coordinate), present only for a site served from the index
 
     @property
     def full(self) -> bool:
@@ -161,11 +170,14 @@ class DirtyStore:
             ids=frozenset(str(identifier) for identifier in dirty.get("ids") or ()),
             message_seq=int(dirty.get("messageSeq") or 0),
             full_seq=int(full.get("seq") or 0),
+            coords=frozenset(str(entry) for entry in dirty.get("coords") or ()),
         )
 
     def acknowledge(self, batch: DirtyBatch) -> None:
         if batch.ids:
             self.table.update_item(Key={"publication": dirty_key(self.scope)}, UpdateExpression="DELETE ids :read", ExpressionAttributeValues={":read": set(batch.ids)})
+        if batch.coords:
+            self.table.update_item(Key={"publication": dirty_key(self.scope)}, UpdateExpression="DELETE coords :read", ExpressionAttributeValues={":read": set(batch.coords)})
         if batch.messages:
             self._clear(dirty_key(self.scope), "messageSeq", batch.message_seq)
         if batch.full:
@@ -182,3 +194,42 @@ class DirtyStore:
         except Exception as error:  # noqa: BLE001 - botocore ClientError; a counter raised since we read it stays for the next run
             if not _is_condition_failure(error):
                 raise
+
+
+class MemoryBlockStore:
+    """What the index task remembers of its blocks, in memory: what a test (and a one-off run that has nowhere to keep it) uses."""
+
+    def __init__(self) -> None:
+        self.record: dict[str, Any] | None = None
+        self.saves = 0
+
+    def load(self) -> dict[str, Any] | None:
+        return self.record
+
+    def save(self, record: dict[str, Any]) -> None:
+        self.record = record
+        self.saves += 1
+
+
+class DynamoBlockStore:
+    """The block record in the projection lock table: one compressed item, a few hundred bytes for each block a page places."""
+
+    def __init__(self, table: Any, scope: str) -> None:
+        self.table, self.scope = table, scope
+        self._held: bytes | None = None
+
+    def load(self) -> dict[str, Any] | None:
+        item = self.table.get_item(Key={"publication": blocks_key(self.scope)}, ConsistentRead=True).get("Item")
+        if not item:
+            return None
+        self._held = _bytes_of(item["body"])
+        try:
+            return json.loads(zlib.decompress(self._held))
+        except (zlib.error, ValueError):
+            return None   # a record that cannot be read is no record: every block is rendered again and the record is rebuilt
+
+    def save(self, record: dict[str, Any]) -> None:
+        blob = zlib.compress(json.dumps(record, sort_keys=True, separators=(",", ":")).encode(), 6)
+        if blob != self._held:
+            self.table.put_item(Item={"publication": blocks_key(self.scope), "body": blob})
+            self._held = blob

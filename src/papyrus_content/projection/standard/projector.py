@@ -242,6 +242,16 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """Read the knowledge snapshot from a local directory (``index.json``, ``clusters.json``, ``entities/``) instead of the store."""
         self._knowledge.use_directory(directory)
 
+    _index_scope: frozenset[str] | None = None
+
+    def use_home_page_index(self, reader, evaluate: frozenset[str] | None = None) -> None:
+        """Read the home-page References from the public index through this reader (``homePage.references.source: "index"``), block by block.
+
+        ``evaluate`` names the blocks (``indexed.block_key``) a run may ask the index about: a page none of whose blocks is named gets a placeholder digest and no
+        request, which is how a run that knows what changed leaves the other pages alone. ``None`` evaluates every block."""
+        self._home_page.attach_index(reader)
+        self._index_scope = evaluate
+
     def use_home_page_directory(self, directory) -> None:
         """Read the home-page snapshot (``references.json``) from a local directory instead of the store."""
         self._home_page.use_directory(directory)
@@ -315,8 +325,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _home_page_inputs(self, found: list[dict]) -> list:
         inputs = []
         if any(home_page_blocks.is_home_page_include(attributes) for attributes in found):
-            inputs.append(self._home_page.digest())
-            inputs.extend(self._bucket_orders(found))
+            if self._home_page.indexed:
+                inputs.append(self._indexed_inputs(found))
+            else:
+                inputs.append(self._home_page.digest())
+                inputs.extend(self._bucket_orders(found))
         if any(home_page_blocks.is_threads_include(attributes) for attributes in found):
             inputs.append(["threads", self._home_page.threads_digest()])
             if self._forum() is not None:
@@ -324,6 +337,42 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if inputs:
             inputs.append(self._home_page_stylesheet_token())
         return inputs
+
+    def _indexed_inputs(self, found: list[dict]) -> list:
+        """A page's digest over the public records its blocks place, in order (the public index has no file to digest). It asks the blocks what a render asks, so the
+        answers are read once and shared."""
+        from ...home_page.indexed import block_key
+
+        if self._index_scope is not None and not any(block_key(attributes, self._day()) in self._index_scope for attributes in found if home_page_blocks.is_home_page_include(attributes)):
+            return ["indexedBlocks", "not asked"]
+        document = self._home_page.references()
+        labels = {section.name: section.label for section in self.standard.sections}
+        ledger = PageLedger()
+        placed = []
+        for attributes in found:
+            if not home_page_blocks.is_home_page_include(attributes):
+                continue
+            if home_page_blocks.is_paged(attributes):
+                raise ValueError("::include references paged=\"true\" is not served from the public index yet: set homePage.references.source to \"snapshot\" for this site")
+            chosen = home_page_blocks.select_references(document, attributes, ledger, home_page_blocks.count_of({}, self.standard.home_page), labels, self._day())
+            placed.append([dict(record) for record in chosen])
+        return ["indexedBlocks", hashlib.sha256(json.dumps(placed, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]]
+
+    def home_page_blocks_by_page(self) -> dict[str, list[dict]]:
+        """``{page key: the references includes it places}`` for the pages that read the home page (authored text only: no request)."""
+        pages: dict[str, list[dict]] = {}
+        for custom in self.standard.pages:
+            if custom.source:
+                _text, found = self._page_includes(custom.source, f"pages.{custom.id}")
+                blocks = [attributes for attributes in found if home_page_blocks.is_home_page_include(attributes)]
+                if blocks:
+                    pages[self.policy.listing_key(custom.path)] = blocks
+        if self.standard.not_found.source:
+            _text, found = self._page_includes(self.standard.not_found.source, "notFound")
+            blocks = [attributes for attributes in found if home_page_blocks.is_home_page_include(attributes)]
+            if blocks:
+                pages[NOT_FOUND_KEY] = blocks
+        return pages
 
     def _home_page_stylesheet_token(self) -> str:
         """The version token of ``papyrus-home-page.css`` alone: a short hash of that file, empty when the site has no ``homePage``."""
@@ -388,6 +437,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def _paged_list(self, custom: CustomPage, attributes: dict) -> home_page_lists.PagedList:
         """The layout of one paged list of an authored page, from the snapshot as it is now (memoised until the snapshot is read again)."""
+        if self._home_page.indexed:
+            raise ValueError("paged Reference lists are not served from the public index yet: set homePage.references.source to \"snapshot\" for a site that has them")
         document = self._home_page.references()
         if self._paged_cache[0] is not document:
             self._paged_cache = (document, {})
