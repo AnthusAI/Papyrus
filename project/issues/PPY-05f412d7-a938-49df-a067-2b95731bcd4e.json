@@ -1,0 +1,20 @@
+{
+  "id": "PPY-05f412d7-a938-49df-a067-2b95731bcd4e",
+  "title": "An agent on the signed-in CLI can record an editor's accept, reject and star rating",
+  "description": "Ryan, 2026-11-04, relayed by the Machines on Machines session: 'I need the agent to be able to help me with that.' With papyrus-newsroom 5.87.0 signed in, references request-delegation --agent Claude --hours 2 fails with Not Authorized to access requestCurationDelegation on type Mutation. requestCurationDelegation, getCurationDelegationStatus and recordDelegatedCuration allow only the identity pool lane, which conflicts with the rule that Papyrus work goes through the signed-in CLI with no AWS login. There is also no CLI route for setReferenceStars. Wanted: request-delegation, approve and reject work from a signed-in session, so an agent relays Ryan's decision under the delegation he approves in the Newsroom; a CLI command sets a Reference's stars under the same delegation; a Gherkin scenario on the signed-in lane. The human approval in the Newsroom must stay the gate: an agent must not be able to approve its own delegation. Test case: blog.gitguardian.com/the-state-of-secrets-sprawl-2026 accepted with four stars, which is still pending on Machines on Machines; do not change that row while testing.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T03:54:40.901593Z",
+  "updated_at": "2026-11-05T03:54:40.901838Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
