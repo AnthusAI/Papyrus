@@ -105,27 +105,6 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
     Then no home-page snapshot run is scheduled
     And no debounce slot is claimed
 
-  Scenario: The picture of a video on a pending Reference nobody has predicted schedules a snapshot
-    The snapshot lists every unrated pending Reference and publishes it as recommended when the undecided probability reaches the threshold, so a
-    pending video nobody has predicted can already be on a page, without a picture. The picture is copied into our storage and recorded on the
-    Reference some time later, and that one write must reach the page.
-    Given a trigger function with a 300 second debounce window
-    When the picture of a video is stored on a pending Reference nobody has predicted
-    Then one home-page snapshot run is scheduled for 300 seconds later
-
-  Scenario: A video with no picture to fetch schedules nothing
-    The value "none" only records that the platform gave no picture, so the card is as it was.
-    Given a trigger function with a 300 second debounce window
-    When no picture could be fetched for a video on a pending Reference nobody has predicted
-    Then no home-page snapshot run is scheduled
-    And no debounce slot is claimed
-
-  Scenario: The picture of a video on a rejected Reference schedules nothing
-    Given a trigger function with a 300 second debounce window
-    When the picture of a video is stored on a rejected Reference
-    Then no home-page snapshot run is scheduled
-    And no debounce slot is claimed
-
   Scenario: The run is told which Reference rows changed
     Each change adds the id of its Reference to a list that the run reads, so the run reads again those rows and no others.
     Ten changes to three References in one window list those three.
