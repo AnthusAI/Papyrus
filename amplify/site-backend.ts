@@ -479,6 +479,11 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
     }
   }
+  // Explicit operator attestation; never enable Reference decisions on a tenant-scoped backend.
+  if ((process.env.PAPYRUS_MCP_REFERENCE_SINGLE_TENANT ?? "").trim() === "true") {
+    if (backendTenantId) throw new Error("MCP Reference decisions require a dedicated backend without PAPYRUS_TENANT_ID.");
+    (backend.categoryAction.resources.lambda as LambdaFunction).addEnvironment("PAPYRUS_MCP_REFERENCE_SINGLE_TENANT", "true");
+  }
   // The CLI's own sign-in client, so the curation delegation routes can tell a CLI session from the Newsroom's: a token's client is signed by
   // Cognito, so an agent working in an editor's CLI session can ask for a delegation but cannot approve it. Without this variable (the CLI is on the
   // web client with the Newsroom) a signed-in session can do neither, and only an operator on AWS credentials can ask (docs/story-reporting.md).

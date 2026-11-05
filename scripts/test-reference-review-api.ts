@@ -95,9 +95,10 @@ async function main() {
       builder.onResolve({ filter: /\/shared\/model-payloads$/ }, () => ({ path: "fixture:model-payloads", external: true }));
     } }],
   });
+  const environment: Record<string, string> = {};
   const fixtureModule = { exports: {} as { handler?: (event: HandlerEvent) => Promise<CurationResult> } };
   runInNewContext(bundle.outputFiles[0].text, {
-    module: fixtureModule, exports: fixtureModule.exports, process: { env: {} }, console,
+    module: fixtureModule, exports: fixtureModule.exports, process: { env: environment }, console,
     require: (name: string) => {
       assert.ok(Object.hasOwn(modules, name), `no unmocked cloud or network dependency: ${name}`);
       return modules[name];
@@ -122,6 +123,8 @@ async function main() {
   table("Reference").get(referenceId)!.updatedAt = "revision-one";
   const agentEvent = { info: { fieldName: "agentReviewReferenceCuration" }, identity: editor,
     arguments: { referenceId, lineageId: "reference-fixture", expectedRevision: "revision-one", action: "accept" } };
+  await assert.rejects(handler(agentEvent), /not enabled/);
+  environment.PAPYRUS_MCP_REFERENCE_SINGLE_TENANT = "true";
   await handler(agentEvent);
   assert.equal(current().curationActorKind, "agent");
   const latestRevision = String(current().updatedAt);

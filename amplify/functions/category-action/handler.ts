@@ -169,6 +169,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
   if (fieldName === "agentReviewReferenceCuration") {
+    if (process.env.PAPYRUS_MCP_REFERENCE_SINGLE_TENANT !== "true") throw new Error("Reference agent decisions are not enabled for this backend.");
     const agentEvent = event as Parameters<AgentReferenceCurationHandler>[0];
     const { lineageId, expectedRevision } = agentEvent.arguments;
     return reviewReferenceCuration(agentEvent as unknown as Parameters<ReferenceCurationHandler>[0], null, { lineageId, expectedRevision });
@@ -345,9 +346,10 @@ async function reviewReferenceCuration(
 }
 
 /** Each Reference vote or star advances the revision, even within the same millisecond. */
-function nextReferenceRevision(previous: unknown): string {
+function nextReferenceRevision(previous: unknown, requested: string = new Date().toISOString()): string {
   const previousMs = typeof previous === "string" ? Date.parse(previous) : NaN;
-  return new Date(Math.max(Date.now(), Number.isFinite(previousMs) ? previousMs + 1 : 0)).toISOString();
+  const requestedMs = Date.parse(requested);
+  return new Date(Math.max(requestedMs, Number.isFinite(previousMs) ? previousMs + 1 : 0)).toISOString();
 }
 
 /** Use the generated AppSync conditional mutation; the model convenience client omits conditions. */
@@ -635,7 +637,7 @@ async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
 async function writeReferenceStars(client: DataClient, input: { referenceId: string; stars: number | null; actor: string; now: string }) {
   const { referenceId, stars, actor } = input;
   const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
-  const now = nextReferenceRevision(reference.updatedAt);
+  const now = nextReferenceRevision(reference.updatedAt, input.now);
   await requireDataResult(
     client.models.Reference.update({
       id: referenceId,
