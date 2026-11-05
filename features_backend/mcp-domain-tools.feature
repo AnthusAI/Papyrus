@@ -6,9 +6,9 @@ Feature: Site tools preserve editorial and reader authority
     When the editor asks for the Story and its evidence
     Then the tools return the current Story version and the evidence lineage
 
-  Scenario: A stale card cannot change a Reference
+  Scenario: A site without conditional writes refuses a Reference decision
     Given an editor connected to a site with a Story and evidence
-    When the editor decides a Reference using an obsolete revision
+    When the editor decides a Reference without a conditional-write adapter
     Then the decision is refused without changing the Reference
 
   Scenario: A reader cannot use staff tools

@@ -38,7 +38,7 @@ def story_result(context):
     assert context.evidence["evidence"][0]["referenceLineageId"] == "ref"
 
 
-@when('the editor decides a Reference using an obsolete revision')
+@when('the editor decides a Reference without a conditional-write adapter')
 def stale(context):
     try:
         call_tool(context.principal, "reference_decide", {"lineageId": "ref", "expectedCurrentVersionId": "ref-v1", "expectedRevision": "old", "decision": "accept"}, staff=context.staff)
