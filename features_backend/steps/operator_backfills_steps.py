@@ -19,6 +19,7 @@ from papyrus_content.operator_errors import OperatorError  # noqa: E402
 
 HANDLERS = {
     "references backfill-medium": (references_commands, "references_backfill_medium", ["--site", "demo"]),
+    "references backfill-public-fields": (references_commands, "references_backfill_public_fields", ["--site", "demo"]),
     "references backfill-feed-keys": (references_commands, "references_backfill_feed_keys", ["--site", "demo"]),
     "references backfill-reviewed-feed-key": (references_commands, "references_backfill_reviewed_feed_key", []),
     "references backfill-corpus-storage-paths": (references_commands, "references_backfill_corpus_storage_paths", []),
@@ -55,7 +56,7 @@ def run(context, command: str, extra: list[str]) -> None:
 
 @when('"{command}" is run to write')
 def run_write(context, command: str) -> None:
-    run(context, command, ["--write"] if command == "references backfill-medium" else [])
+    run(context, command, ["--write"] if command in ("references backfill-medium", "references backfill-public-fields") else [])
 
 
 @when('"{command}" is run as a preview')

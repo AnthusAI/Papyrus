@@ -10,7 +10,7 @@ from .graphql_authoring import PapyrusGraphQLAuthoringClient, strip_unsupported_
 from .ids import hash_short
 from .model_attachments import expand_private_payload_records, upload_attachment_body
 from .reference_capture_state import EXTRACTED_TEXT_ROLES, sync_capture_state
-from .reference_feed_keys import feed_keys, prediction_sort_key, star_feed_key
+from .reference_feed_keys import CARD_FIELDS, feed_keys, prediction_sort_key, star_feed_key
 
 LOGGER = logging.getLogger(__name__)
 
@@ -120,7 +120,9 @@ def _feed_keys_for_new_version(next_reference: dict[str, Any], current: dict[str
     # The capture state carries too (the curation card and the captured text belong to the old version's id, but the newsroom reads a Reference's
     # attachments by lineage), and with it the settled reason and the content-needed key that derive from it. A new version whose own batch writes
     # extracted text has that state re-derived afterwards by apply_record_changes.
-    capture = {key: current[key] for key in ("captureState", "captureReason", "thumbnailPath") if current.get(key) and not next_reference.get(key)}
+    # The card copies (picture, description, site name) come from the preview, which is read by lineage, so they carry too: the new version is a card
+    # like the old one, and the public keys below are made from its own facts.
+    capture = {key: current[key] for key in ("captureState", "captureReason", "thumbnailPath", *CARD_FIELDS) if current.get(key) and not next_reference.get(key)}
     keys = feed_keys({**next_reference, **carried, **capture})
     if carried.get("feedArrivalAt"):
         keys["feedArrivalAt"] = carried["feedArrivalAt"]
@@ -329,6 +331,7 @@ def prepare_versioned_knowledge_records(
                     "feedStateKey": None,   # a superseded version is in no feed
                     **({"mediumFeedKey": None} if current.get("mediumFeedKey") else {}),   # nor in a medium list
                     **({"contentNeededKey": None} if current.get("contentNeededKey") else {}),   # nor in the list of videos waiting for content
+                    **({"publicFeedKey": None, "publicOrderKey": None} if current.get("publicFeedKey") else {}),   # nor in the public index
                     "updatedAt": expected.get("updatedAt") or expected.get("importedAt"),
                 },
                 current,

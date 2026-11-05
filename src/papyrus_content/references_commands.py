@@ -452,6 +452,33 @@ def references_backfill_medium(flags: list[str]) -> None:
             print(f"references\tbackfill-medium\t{key}\t{value}")
 
 
+def references_backfill_public_fields(flags: list[str]) -> None:
+    """``papyrus references backfill-public-fields (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--write]``.
+
+    Sets the public-blocks attributes on the rows a public page can show (docs/plans/public-blocks-from-indexes.md, src/papyrus_content/reference_public_fields.py):
+    ``publicFeedKey`` and ``publicOrderKey`` on every accepted row and on every pending row with a stored prediction of at least 0.5, and ``cardImage``,
+    ``cardSummary``, ``cardSiteName`` and ``cardPageTitle`` copied from each of those rows' preview (a video's picture is its own thumbnail copy). Rejected, archived, unpredicted and
+    low-scored rows are not read or touched. This is the one command that reads preview attachments of existing rows; it is run once per site. Like
+    ``backfill-medium`` it is SAFE BY DEFAULT: without ``--write`` it prints one line per row it would change and the counts, and writes nothing
+    (``--dry-run`` is accepted and means the same). A second run writes nothing. Run ``backfill-feed-keys`` first on a site whose pending rows never got
+    their prediction keys, and run this before the release that adds the index, so the index is complete the moment it is active.
+    """
+    from .reference_feed_backfill import corpus_ids_for
+    from .reference_public_fields import backfill_public_fields
+    from .operator_errors import require_operator_lane
+    options = parse_options(flags)
+    write = parse_boolean_option(options.get("write"), default=False, label="--write") and not parse_boolean_option(options.get("dry-run"), default=False, label="--dry-run")
+    require_operator_lane("references backfill-public-fields", "Reference records", writing=write)
+    client, _ = create_authoring_client()
+    corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")),
+                                all_corpora=bool(options.get("all-corpora")))
+    print(f"references\tbackfill-public-fields\tmode\t{'write' if write else 'preview (nothing is written; add --write)'}")
+    for corpus_id in corpus_ids:
+        result = backfill_public_fields(client, corpus_id=corpus_id, dry_run=not write, progress=lambda line: print(f"references\tbackfill-public-fields\t{line}"))
+        for key, value in result.items():
+            print(f"references\tbackfill-public-fields\t{key}\t{value}")
+
+
 def references_retire_citation_stubs(flags: list[str]) -> None:
     """``papyrus references retire-citation-stubs --corpus-key KEY [--dry-run]``.
 

@@ -103,6 +103,13 @@ def attach_preview(
             raise RuntimeError(f"page not readable: {found.failure or 'unknown'}")
         row = preview_attachment(reference, found, now())
         client.upsert("ReferenceAttachment", row)
+        # The card copies (picture, description, site name) go onto the Reference at the moment the preview is known, so a public block draws its card
+        # from the one row an index returns. One mutation per new Reference; none when the row already holds the same values.
+        from .reference_public_fields import card_update
+        try:
+            card_update(client, reference, row)
+        except Exception as error:  # noqa: BLE001 - the preview is saved; a card copy that failed is filled in by `papyrus references backfill-public-fields`
+            log(json.dumps({"referenceCardFields": "failed", "referenceId": reference_id, "reason": f"{type(error).__name__}: {str(error)[:200]}"}, sort_keys=True))
         log(json.dumps({"referencePreview": "written", "referenceId": reference_id, "withImage": bool(row["sourceUri"]),
                         "reused": exploration is not None}, sort_keys=True))
         return "written"
@@ -149,6 +156,8 @@ def enrich_reference_previews(
         counts["withImage" if row["sourceUri"] else "withoutImage"] += 1
         if not dry_run:
             client.upsert("ReferenceAttachment", row)
+            from .reference_public_fields import card_update
+            card_update(client, reference, row)
             counts["written"] += 1
     return counts
 

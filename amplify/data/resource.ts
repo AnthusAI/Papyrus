@@ -1981,6 +1981,13 @@ const schema = a.schema({
       // The video's own thumbnail, copied into the media bucket by `papyrus references capture-thumbnails`: the site path of the copy
       // ("assets/reference-thumbnails/<hash>.jpg"), or "none" when the platform has no thumbnail (recorded so it is not asked again). Else empty.
       thumbnailPath: a.string(),
+      // The public blocks of a site's pages (docs/plans/public-blocks-from-indexes.md, PPY-7f1e54): the index keys and the card copies. See schema.ts.
+      publicFeedKey: a.string(),
+      publicOrderKey: a.string(),
+      cardImage: a.string(),
+      cardSummary: a.string(),
+      cardSiteName: a.string(),
+      cardPageTitle: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [

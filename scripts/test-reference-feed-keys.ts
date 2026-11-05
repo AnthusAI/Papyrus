@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { schema } from "../amplify/data/schema";
-import { referenceContentNeededKey, referenceFeedKeys, referenceMediumFeedKey, referenceMediumKeyPatch, starFeedKeyFor, type ReferenceFeedKeyInput } from "../lib/reference-feed-keys";
+import { referenceContentNeededKey, referenceFeedKeys, referenceMediumFeedKey, referenceMediumKeyPatch, referencePublicFeedKeys, referencePublicKeyPatch, starFeedKeyFor, type ReferenceFeedKeyInput, type ReferencePublicKeyInput } from "../lib/reference-feed-keys";
 
 type Vector = { name: string; reference: ReferenceFeedKeyInput & { starRating?: number | null; medium?: string | null; captureState?: string | null; captureReason?: string | null }; mediumFeedKey?: string | null; contentNeededKey?: string | null; keys: ReturnType<typeof referenceFeedKeys>; starFeedKey?: string | null };
 const vectors = JSON.parse(readFileSync(join(process.cwd(), "scripts/fixtures/reference-feed-key-vectors.json"), "utf8")) as Vector[];
@@ -28,6 +28,24 @@ assert.equal(starFeedKeyFor("c", 0), null);
 assert.equal(starFeedKeyFor("c", 6), null);
 assert.equal(starFeedKeyFor("c", Number.NaN), null);
 assert.equal(starFeedKeyFor(null, 3), null);
+
+// The public keys (the attributes the public blocks' index will read): the same vectors the Python twin is tested against.
+type PublicVector = { name: string; reference: ReferencePublicKeyInput; publicKeys: { publicFeedKey: string | null; publicOrderKey: string | null } };
+const publicVectors = JSON.parse(readFileSync(join(process.cwd(), "scripts/fixtures/public-feed-key-vectors.json"), "utf8")) as PublicVector[];
+for (const vector of publicVectors) assert.deepEqual(referencePublicFeedKeys(vector.reference), vector.publicKeys, vector.name);
+// A prediction that is not a finite number is never a number: a pending row without one is not public.
+for (const bad of [null, undefined, Number.NaN, Number.POSITIVE_INFINITY]) {
+  assert.deepEqual(referencePublicFeedKeys({ id: "r", corpusId: "c", curationStatus: "pending", createdAt: "2026-10-28T12:00:00Z", predictedAcceptProbability: bad }), { publicFeedKey: null, publicOrderKey: null }, String(bad));
+}
+// A vote moves the row between the partitions and keeps its place in the order; an ordinary row's patch names nothing.
+const votable: ReferencePublicKeyInput = { id: "r", corpusId: "c", curationStatus: "pending", createdAt: "2026-10-28T12:00:00Z", predictedAcceptProbability: 0.7, publicFeedKey: "c#recommended#2026-10-28" };
+assert.deepEqual(referencePublicKeyPatch(votable, { curationStatus: "accepted" }), { publicFeedKey: "c#accepted", publicOrderKey: "p0.700000#2026-10-28T12:00:00.000Z#r" });
+assert.deepEqual(referencePublicKeyPatch(votable, { curationStatus: "rejected" }), { publicFeedKey: null, publicOrderKey: null });
+assert.deepEqual(referencePublicKeyPatch(votable, { curationStatus: "archived" }), { publicFeedKey: null, publicOrderKey: null });
+const lowScored: ReferencePublicKeyInput = { id: "s", corpusId: "c", curationStatus: "pending", createdAt: "2026-10-28T12:00:00Z", predictedAcceptProbability: 0.3 };
+assert.deepEqual(referencePublicKeyPatch(lowScored, { curationStatus: "accepted" }), { publicFeedKey: "c#accepted", publicOrderKey: "p0.300000#2026-10-28T12:00:00.000Z#s" });
+assert.deepEqual(referencePublicKeyPatch(lowScored, { curationStatus: "rejected" }), {});
+assert.deepEqual(referenceFeedKeys(votable), { feedStateKey: "c#unrated", feedArrivalAt: "2026-10-28T12:00:00.000Z", predictionSortKey: "0.700000#2026-10-28T12:00:00.000Z#r" }, "the feed keys never carry the public keys: callers spread them on partial patches");
 
 // Predictions reads the index newest-key-first: the highest P(accept) first, then the newest arrival.
 const keyed = (id: string, probability: number | null, createdAt: string) =>
@@ -61,6 +79,12 @@ assert.match(mediumPartition, /@index\(sortKeyFields: \["feedArrivalAt"\], query
 // And the sparse content-needed index (the transcript worker's list): one partition per corpus, medium and status, read by arrival.
 const contentPartition = referenceType.split("\n").find((line) => /^\s+contentNeededKey: String/.test(line)) ?? "";
 assert.match(contentPartition, /@index\(sortKeyFields: \["feedArrivalAt"\], queryField: "listReferencesByContentNeededAndArrival"\)/, "content-needed index");
+// The public-blocks attributes are plain attributes with no index (the index is a later, separate deploy: one new index per table per deploy).
+for (const attribute of ["publicFeedKey", "publicOrderKey", "cardImage", "cardSummary", "cardSiteName", "cardPageTitle"]) {
+  assert.match(referenceType, new RegExp(`\\s${attribute}: String`), `${attribute} is on Reference`);
+  assert.doesNotMatch(referenceType, new RegExp(`${attribute}: String @index`), `${attribute} has no index yet`);
+}
+assert.doesNotMatch(referenceType, /listReferencesByPublicFeed/, "the public index is not in this change");
 assert.match(referenceType, /predictedAcceptProbability: Float/);
 assert.match(referenceType, /predictionDecidedAt: AWSDateTime/);
 assert.match(referenceType, /feedArrivalAt: AWSDateTime/);

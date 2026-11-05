@@ -196,7 +196,7 @@ def test_a_stored_thumbnail_is_recorded_on_the_video_and_an_unchanged_one_writes
     found = thumbnails.read_picture(picture(480, 360), "youtube", "u")
     request = thumbnails.stored_request(row, found)
     assert thumbnails.record_thumbnail(site, row, request)["changed"] is True
-    assert site.updates == [{"id": row["id"], "thumbnailPath": request["path"]}]
+    assert site.updates == [{"id": row["id"], "thumbnailPath": request["path"], "cardImage": f"/{request['path']}"}], "the card picture is written with the path, in one update"
     assert thumbnails.record_thumbnail(site, row, request)["changed"] is False and len(site.updates) == 1
 
 
