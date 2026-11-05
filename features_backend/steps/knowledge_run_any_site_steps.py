@@ -53,7 +53,7 @@ def step_monitor_sources(context, site, sources):
     start(context, {"KNOWLEDGE_PUBLICATION": site, "KNOWLEDGE_MONITOR_SOURCES": sources}, seeded=True)
 
 
-@given('a new site "{site}" with published items and no configuration in its run state')
+@given('a new site "{site}" with published items and no committed settings')
 def step_new_site(context, site):
     begin(context)
     start(context, {**NEW_SITE, "KNOWLEDGE_PUBLICATION": site}, seeded=False)
@@ -71,7 +71,7 @@ def step_records_only(context, site, count, source):
     start(context, {**NEW_SITE, "KNOWLEDGE_PUBLICATION": site, "KNOWLEDGE_MONITOR_SOURCES": source}, seeded=False, items=0, records=count)
 
 
-@given('a site "{site}" whose editors wrote their own vocabulary')
+@given('a site "{site}" whose editors committed their own vocabulary')
 def step_own_vocabulary(context, site):
     begin(context)
     start(context, {"KNOWLEDGE_PUBLICATION": site}, seeded=True)
@@ -167,6 +167,17 @@ def step_snapshot_no_beats(context):
 @then("a snapshot was written and the site was projected")
 def step_snapshot_projected(context):
     assert called(context, "papyrus", "knowledge", "snapshot") and called(context, "papyrus", "ops", "content", "project")
+
+
+@then('the state in S3 holds nothing under "{prefix}"')
+def step_state_holds_nothing(context, prefix):
+    assert context.run_.state.names(prefix) == []
+
+
+@then("the endpoint file in the work directory holds that address and the state in S3 holds nothing under \"config/\"")
+def step_endpoint_file(context):
+    assert json.loads(context.run_.outputs.read_text()) == {"data": {"url": APPSYNC_ENDPOINT}}
+    assert context.run_.state.names("config/") == []
 
 
 @then("the backend endpoint of the commands is the address AppSync reports for the API")

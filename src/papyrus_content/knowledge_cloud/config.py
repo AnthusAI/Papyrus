@@ -93,6 +93,7 @@ class CloudRunConfig:
     excluded_source_hosts: tuple[str, ...]
     openai_parameter: str
     decision_parameter: str  # the SSM parameter that holds the Jev (TypeSafe) key
+    settings_archive: str | None  # s3://bucket/key of the zip of the site's committed run settings (infra/scheduled-jobs); None: the site commits none
     work_dir: Path
     region: str
 
@@ -159,6 +160,7 @@ class CloudRunConfig:
             excluded_source_hosts=normalize_hosts(environment.get("KNOWLEDGE_EXCLUDED_SOURCE_HOSTS")),
             openai_parameter=(environment.get("KNOWLEDGE_OPENAI_KEY_PARAMETER") or f"/papyrus/{publication}/openai-api-key").strip(),
             decision_parameter=(environment.get("KNOWLEDGE_DECISION_KEY_PARAMETER") or "/papyrus/shared/typesafe-api-key").strip(),
+            settings_archive=(environment.get("KNOWLEDGE_SETTINGS_ARCHIVE") or "").strip() or None,
             work_dir=Path((environment.get("KNOWLEDGE_WORK_DIR") or "/work").strip()),
             region=(environment.get("AWS_REGION") or "us-east-1").strip(),
         )

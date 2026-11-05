@@ -1,0 +1,36 @@
+version: 1
+publication: shipped
+entity_kinds:
+  - key: maker
+    label: company or developer
+  - key: model
+    label: AI model
+  - key: model_family
+    label: AI model family
+  - key: task
+    label: task a model performs
+  - key: technique
+    label: machine learning technique
+  - key: licence
+    label: software licence
+  - key: dataset
+    label: dataset
+  - key: platform
+    label: platform or hosting service
+  - key: concept
+    label: technical concept
+relation_types:
+  - key: made_by
+    label: made by
+  - key: built_on
+    label: built on
+  - key: measured_by
+    label: measured by
+  - key: replaces
+    label: replaces
+  - key: successor_of
+    label: successor of
+  - key: member_of
+    label: member of
+  - key: licensed_under
+    label: licensed under
