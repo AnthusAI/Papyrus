@@ -1,0 +1,20 @@
+{
+  "id": "PPY-bd48d078-1e9a-4690-b0c5-b84d7482dfa6",
+  "title": "The console concept page lists links between concepts, with the editor's words",
+  "description": "Found in PPY-bcb81f. components/reference-links-client.ts and lib/reference-links.ts keep only rows whose subject is a Reference, so concept.link rows (an editor's related_to link between two concepts, with a note, written by createConceptLink) are invisible on /newsroom/concepts/<key>. Show them with the explanation block and the 'through the CLI' byline, and let an editor edit the words. UX: screenshot review before release.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T05:51:40.525408Z",
+  "updated_at": "2026-11-05T05:51:40.525495Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

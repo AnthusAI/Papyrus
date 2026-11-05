@@ -414,6 +414,7 @@ const schema = a.schema({
     .returns(a.ref("CurationDelegationRequestResult"))
     .authorization((allow) => [
       allow.authenticated("identityPool"),
+      allow.groups(categoryWriteGroups),
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 
@@ -447,6 +448,7 @@ const schema = a.schema({
     .returns(a.ref("CurationDelegationStatusResult"))
     .authorization((allow) => [
       allow.authenticated("identityPool"),
+      allow.groups(categoryWriteGroups),
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 
@@ -469,6 +471,26 @@ const schema = a.schema({
     .returns(a.ref("ReferenceCurationActionResult"))
     .authorization((allow) => [
       allow.authenticated("identityPool"),
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  // A star rating the person gave, relayed by an agent under a delegation they approved. Same agent routes as recordDelegatedCuration.
+  recordDelegatedStars: a
+    .mutation()
+    .arguments({
+      referenceId: a.id().required(),
+      stars: a.integer(),
+      delegationId: a.id().required(),
+      delegationToken: a.string().required(),
+      agentLabel: a.string().required(),
+      onBehalfOf: a.string().required(),
+      instruction: a.string().required(),
+    })
+    .returns(a.ref("ReferenceStarsActionResult"))
+    .authorization((allow) => [
+      allow.authenticated("identityPool"),
+      allow.groups(categoryWriteGroups),
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 
@@ -1650,6 +1672,22 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ]),
+
+  // The curation delegations (an editor's permission for an agent to relay their decisions). Only the Lambdas granted by the schema's
+  // `allow.resource` rules can write it; the admin group may read it. No session can create or change a record, so none can forge an approved
+  // delegation (PPY-05f412). Never add a write rule here, and never move these records to a model editors can write.
+  CurationDelegationRecord: a
+    .model({
+      id: a.id().required(),
+      grantorSub: a.string().required(),
+      recordJson: a.string().required(),
+      createdAt: a.datetime().required(),
+      updatedAt: a.datetime(),
+    })
+    .secondaryIndexes((index) => [
+      index("grantorSub").sortKeys(["createdAt"]).queryField("listCurationDelegationRecordsByGrantor"),
+    ])
+    .authorization((allow) => [allow.groups([adminGroup]).to(["read"])]),
 
   KnowledgeArtifact: a
     .model({

@@ -530,6 +530,11 @@ days** (access and ID tokens stay at 60 minutes), so a CLI login lasts a week be
 sign-ins. With the flag off the client is exactly as registered with Prospectus: 60-minute
 refresh tokens, so sites already registered under reviews that record 60 minutes do not change.
 
+The flag also lets the backend tell a CLI session from the Newsroom's, because the token names its
+client. The curation-delegation routes use that: an agent in a CLI session can ask for a delegation
+and relay decisions under one, but only the Newsroom's sessions can approve it, and a site without
+the flag refuses signed-in requests for a delegation ([story reporting](story-reporting.md#an-agent-on-the-signed-in-cli-no-aws-login)).
+
 ## Enrollment
 
 Enrollment makes a CLI login a Prospectus Person. It is off for every site until the site switches it on, and it

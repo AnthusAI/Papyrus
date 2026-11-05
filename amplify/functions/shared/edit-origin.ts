@@ -12,10 +12,14 @@ import { classifyCurationCaller, cliClientIdFromEnvironment, type CurationCaller
  * - `newsroom`: a session on any other client.
  * - `signed-in`: a person's session on a site that has not named a CLI client, so the two cannot be told apart.
  * - `operator`: AWS credentials, no person signed in.
+ * - a token whose client cannot be read is refused, not labelled.
  */
 export type EditOrigin = "cli" | "newsroom" | "signed-in" | "operator"
 
 export function editOriginOf(caller: CurationCaller): EditOrigin {
+  // A token with no readable sign-in client is neither provably the CLI nor provably the Newsroom, so a decision from it could only be labelled wrongly.
+  // These editor actions refuse it (as the delegation routes do) rather than record it under a name it may not deserve.
+  if (caller.lane === "unreadable-client-session") throw new Error("This session's sign-in client could not be read, so it cannot make this change. Sign in again.")
   if (caller.lane === "iam") return "operator"
   if (caller.lane === "cli-session") return "cli"
   if (caller.lane === "newsroom-session") return "newsroom"
