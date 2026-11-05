@@ -212,7 +212,9 @@ def compose_pack(records: list[dict[str, Any]], section: str | None, settings: d
         if section and record.get("scope") == section:
             chosen[record["policyKey"]] = record
     policies = [policy_from_record(chosen[key]) for key in sorted(chosen)]
-    fingerprint = hashlib.sha256(json.dumps([(p["id"], p["version"]) for p in policies]).encode()).hexdigest()[:12]
+    # The fingerprint covers what is checked, not only which policies exist: a policy edited or added without a version
+    # bump, or the pack guidance, still changes it. A stored check is reused only under an identical pack version.
+    fingerprint = hashlib.sha256(json.dumps({"policies": policies, "guidance": settings.get("guidance") or ""}, sort_keys=True, default=str).encode()).hexdigest()[:12]
     pack: dict[str, Any] = {
         "schemaVersion": 1,
         "packId": "papyrus",
@@ -232,10 +234,14 @@ def skipped_judgments(missing_doctrine: list[str]) -> dict[str, Any]:
     return {"status": "skipped", "reason": f"this publication has no {' or '.join(missing_doctrine)} yet"}
 
 
-def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
+def check_editorial(arguments: dict[str, Any], services: Services, prepared: tuple[dict[str, Any], dict[str, Any], dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Check text against the pack for its section. ``prepared`` is the (settings, pack, context) the caller already built."""
     from .editorial_model_context import editing_pack_and_context
-    settings = running_settings(services.store)
-    pack, context = editing_pack_and_context(services.store, arguments.get("section"), settings)
+    if prepared is None:
+        settings = running_settings(services.store)
+        pack, context = editing_pack_and_context(services.store, arguments.get("section"), settings)
+    else:
+        settings, pack, context = prepared
     # Judgments apply the mission and policy; rule checks do not need them, so they still run (PPY-2c4b56).
     missing_doctrine = context.get("missingPublicationDoctrine") or []
     if missing_doctrine or context.get("missingSectionConfiguration"):
@@ -426,9 +432,11 @@ def check_run_record(item: dict[str, Any], result: dict[str, Any], checked_at: d
     }
 
 
-CHECK_SUMMARY_KEYS = ("itemId", "lineageId", "versionNumber", "violations", "reviews", "packVersion", "checkedAt")
+CHECK_SUMMARY_KEYS = ("itemId", "lineageId", "versionNumber", "violations", "reviews", "packVersion", "checkedAt", "lanes")
 # A stored lane that did not finish is not a result worth keeping: the next check of the same text runs again.
 FINISHED_LANE_STATUSES = ("ran", "disabled", "skipped")
+# What a lane that the settings turn on must have done for a stored check to stand in for a new one.
+COVERING_LANE_STATUSES = ("ran", "skipped")
 PRIOR_RUNS_CONSIDERED = 3
 
 
@@ -437,11 +445,35 @@ def _finished(run: dict[str, Any]) -> bool:
     return all((lane or {}).get("status") in FINISHED_LANE_STATUSES for lane in lanes.values() if isinstance(lane, dict))
 
 
-def reusable_check_run(item: dict[str, Any], services: Services) -> dict[str, Any] | None:
-    """A finished stored check of identical content: this version's own, or a recent earlier version of the story.
+def _covers_enabled_lanes(run: dict[str, Any], enabled: dict[str, Any]) -> bool:
+    """A lane the settings turn on must have run (or been skipped for want of doctrine) in the stored check.
 
-    The key is the version's content hash (front matter and body) plus its section, which picks the policies. Identical
-    content is never sent to the provider again.
+    A check made with the judgment lane off (a rules-only copy edit, say) must not stand in for one with it on.
+    """
+    lanes = _awsjson_document(run.get("lanes")) or {}
+    return all(((lanes.get(name) or {}).get("status") in COVERING_LANE_STATUSES) for name, on in enabled.items() if on and name in ("rules", "classifier"))
+
+
+def lanes_not_run(lanes: Any) -> list[str]:
+    """Plain statements for each lane that did not run, so a result without judgments never reads as passing them."""
+    notes = []
+    for name, lane in (_awsjson_document(lanes) or {}).items():
+        if not isinstance(lane, dict) or name not in ("rules", "classifier", "section") or lane.get("status") == "ran":
+            continue
+        label = {"classifier": "judgment questions", "rules": "rule checks", "section": "section configuration"}[name]
+        reason = f": {lane['reason']}" if lane.get("reason") else ""
+        notes.append(f"{label} did not run ({lane.get('status')}{reason})")
+    return notes
+
+
+def reusable_check_run(item: dict[str, Any], services: Services, *, pack_version: str, lanes: dict[str, Any]) -> dict[str, Any] | None:
+    """A finished stored check of identical content under identical policies: this version's own, or a recent earlier one.
+
+    The key is the version's content hash (front matter and body), its section, and the pack version, whose fingerprint
+    covers the full text of the policies that apply (and the context they were checked with). Identical content under
+    identical policies is never sent to the provider again; a policy that was added or changed makes the stored check
+    stale, so the next check of this version runs. A check stored before the pack version held that fingerprint never
+    matches. A check whose enabled lanes did not all run is not reused either.
     """
     content_hash = item.get("contentHash")
     if not content_hash:
@@ -450,7 +482,8 @@ def reusable_check_run(item: dict[str, Any], services: Services) -> dict[str, An
     lineage_id = item.get("lineageId") or item["id"]
     candidates += services.store.list_check_runs_by_lineage(lineage_id, PRIOR_RUNS_CONSIDERED)
     for run in candidates:
-        if run and run.get("contentHash") == content_hash and (run.get("section") or None) == (item.get("section") or None) and _finished(run):
+        if (run and run.get("contentHash") == content_hash and (run.get("section") or None) == (item.get("section") or None)
+                and run.get("packVersion") == pack_version and _finished(run) and _covers_enabled_lanes(run, lanes)):
             return run
     return None
 
@@ -475,42 +508,52 @@ def with_cross_story_findings(item: dict[str, Any], findings: list[dict[str, Any
     return kept + boilerplate.cross_story_findings(item.get("bodyMarkus") or "", lineage_id, index, segments)
 
 
+def _counts(findings: list[dict[str, Any]]) -> dict[str, int]:
+    return {"violations": sum(1 for f in findings if f.get("status") == "violation"), "reviews": sum(1 for f in findings if f.get("status") == "review")}
+
+
 def check_item_version(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
     """Check one saved version of a story against its section's pack and store the result with the version.
 
     Every save path (the article editor, ``stories save-version``, imports, copywriting) calls this, so drafts written
     by people and by agents are copy-edited the same way. Turned-off checks are a skip, not an error. A version whose
-    content (and section) was already checked is not checked again: its stored result is kept or copied to it.
+    content, section and policies were already checked is not checked again: its stored result is kept or copied to it,
+    and the answer says ``reused`` with the time of the check it came from, so a reused result never reads as a fresh one.
+    Cross-story boilerplate findings are the exception: they are recomputed now against the site's other stories.
     """
+    from .editorial_model_context import editing_pack_and_context
     item = services.store.get_item(arguments["itemId"])
     if item is None:
         raise ValueError(f"No item version {arguments['itemId']}.")
-    reusable = reusable_check_run(item, services)
+    try:
+        settings = running_settings(services.store)
+    except EditorialChecksDisabled:
+        return {"itemId": item["id"], "skipped": "disabled"}
+    pack, context = editing_pack_and_context(services.store, item.get("section"), settings)
+    reusable = reusable_check_run(item, services, pack_version=pack["version"], lanes=settings["lanes"])
     if reusable is not None:
         stored = _awsjson_document(reusable.get("findings")) or []
         findings = with_cross_story_findings(item, stored, services)
+        counts = _counts(findings)
+        lanes = _awsjson_document(reusable.get("lanes"))
         if reusable.get("id") != item["id"] or findings != stored:
             services.store.put_check_run({
                 **{key: reusable.get(key) for key in ("section", "contentHash", "packVersion", "checkedAt")},
-                "violations": sum(1 for finding in findings if finding.get("status") == "violation"),
-                "reviews": sum(1 for finding in findings if finding.get("status") == "review"),
+                **counts,
                 "id": item["id"], "itemId": item["id"], "lineageId": item.get("lineageId") or item["id"],
                 "versionNumber": int(item.get("versionNumber") or 1),
                 "findings": [{key: finding.get(key) for key in FINDING_SUMMARY_FIELDS if finding.get(key) is not None} for finding in findings],
-                "lanes": _awsjson_document(reusable.get("lanes")),
+                "lanes": lanes,
             })
-            return {**{key: reusable.get(key) for key in CHECK_SUMMARY_KEYS}, "itemId": item["id"], "violations": sum(1 for f in findings if f.get("status") == "violation"), "skipped": "unchanged"}
-        return {**{key: reusable.get(key) for key in CHECK_SUMMARY_KEYS}, "itemId": item["id"], "skipped": "unchanged"}
-    try:
-        result = check_editorial({"body": item.get("bodyMarkus") or "", "format": "markus", "section": item.get("section")}, services)
-    except EditorialChecksDisabled:
-        return {"itemId": item["id"], "skipped": "disabled"}
+        return {**{key: reusable.get(key) for key in CHECK_SUMMARY_KEYS}, **counts, "itemId": item["id"], "lanes": lanes,
+                "skipped": "unchanged", "reused": True, "reusedFrom": reusable.get("itemId") or reusable.get("id")}
+    result = check_editorial({"body": item.get("bodyMarkus") or "", "format": "markus", "section": item.get("section")}, services, prepared=(settings, pack, context))
     result = {**result, "findings": with_cross_story_findings(item, result.get("findings") or [], services, result.get("segments"))}
     record = check_run_record(item, result, services.now())
     if services.last_check_request:
         record["packVersion"] = services.last_check_request["pack"].get("version")
     services.store.put_check_run(record)
-    return {key: record[key] for key in CHECK_SUMMARY_KEYS if key != "itemId"} | {"itemId": record["itemId"]}
+    return {key: record[key] for key in CHECK_SUMMARY_KEYS if key != "itemId"} | {"itemId": record["itemId"], "reused": False}
 
 
 def recalibrate(arguments: dict[str, Any], services: Services) -> dict[str, Any]:

@@ -1,7 +1,7 @@
 {
   "id": "PPY-ff3780ac-803a-4452-b943-af1d4d993b07",
   "title": "Generated images: the last-choice option",
-  "description": "Generate cover images when a diagram doesn't make sense and no stock image gets approved. Uses the same four-option picker.\n\nOpen decisions for Ryan: which image model and provider, a per-site cost limit, and whether generated images are labelled for readers. Any model or provider choice needs his explicit approval.",
+  "description": "Generate cover images when a diagram doesn't make sense and no stock image gets approved. Uses the same four-option picker.\n\nOpen decisions for Ryan: which image model and provider, and whether generated images are labelled for readers. Any model or provider choice needs his explicit approval.\n\nOut of scope (Ryan 2026-11-05): quotas, usage limits and billing. Cost accounting belongs to the separate billing initiative. This epic only records each generation's model and prompt on the image, which is already part of PPY-7c3f6a.",
   "type": "epic",
   "status": "open",
   "priority": 2,
@@ -12,7 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-11-05T12:11:11.573208Z",
-  "updated_at": "2026-11-05T12:11:11.573235Z",
+  "updated_at": "2026-11-05T12:14:25.218738Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

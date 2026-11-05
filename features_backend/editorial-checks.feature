@@ -285,6 +285,67 @@ Feature: Editorial checks
     When version 1 of the story is checked again
     Then Humanus was asked to check
 
+  # A stored check is only as good as the policies it was made under. A rule added on Machines on Machines left a check
+  # that said "0 findings, unchanged" while a direct check found two.
+  Scenario: A policy added after a check makes the stored check stale
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    And a "no-self-reference" policy for "this release" is added to the publication
+    When version 1 of the story is saved with "A calm release of synergy." and checked
+    Then Humanus was asked to check
+    And version 1 has a stored check with 0 finding for policy "no-hype"
+
+  Scenario: A policy edited in place, without a new version, makes the stored check stale
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    And the "jargon" policy is edited in place to flag "calm release"
+    When version 1 of the story is checked again
+    Then Humanus was asked to check
+    And version 1 has a stored check with 1 finding for policy "jargon"
+
+  Scenario: A policy added after a check also makes the earlier version's check unusable for a new version
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    And a "no-self-reference" policy for "this release" is added to the publication
+    When version 2 of the story is saved with the same content as version 1 and checked
+    Then Humanus was asked to check
+
+  Scenario: Identical content under identical policies says it was reused, with the time of the check
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    When version 1 of the story is checked again
+    Then Humanus was not asked again
+    And the check says it was reused from the check made at the stored time
+    And the check summary line says it was not checked again
+
+  Scenario: A changed policy does not check any other story
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    And another story's version 1 is saved with "A quiet note." and checked
+    And a "no-self-reference" policy for "this release" is added to the publication
+    When version 1 of the story is checked again
+    Then Humanus was asked to check
+    And the other story's stored check is still the one made before the policy was added
+
+  # Checks stored before the pack version carried a content fingerprint are checked once more.
+  Scenario: A check stored under the old pack version is checked again once
+    Given version 1 of the story is saved with "A calm release of synergy." and checked
+    And the stored check of version 1 was made under the old pack version
+    When version 1 of the story is checked again
+    Then Humanus was asked to check
+    When version 1 of the story is checked again
+    Then Humanus was not asked again
+
+  Scenario: A check made without the judgment lane does not stand in for one with it on
+    Given the editorial check settings turn the judgment lane off
+    And version 1 of the story is saved with "A calm release of synergy." and checked
+    And the editorial check settings turn the classifier on with a 12 second deadline
+    When version 1 of the story is checked again
+    Then Humanus was asked to check
+
+  Scenario: A site with no model key says its judgment questions did not run
+    Given policy "no-hype" also has a sentence classifier detector "hype-judge"
+    And the editorial check settings turn the classifier on with a 12 second deadline
+    When version 1 of the story is saved with "A calm release of synergy." and checked
+    Then the stored check run records the classifier lane as unavailable
+    And the check summary line says the judgment questions did not run
+    And the stored check is not reused on the next check
+
   # A closing section pasted into several articles goes stale in all of them at once (seven Anth.us articles did).
   # The check compares a story with the latest version of the site's other stories; it never calls a model.
   Scenario: A closing paragraph copied across stories is flagged, naming the other story

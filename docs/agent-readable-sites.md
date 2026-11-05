@@ -100,6 +100,7 @@ Article pages that have a twin get an actions group above the article (`placemen
 - **Copy Markdown** and **View as Markdown** are on by default.
 - **Open in ChatGPT**, **Open in Claude** and **Open in Perplexity** are off by default. Opt in with `pageActions.ai`, a list drawn from `chatgpt`, `claude`, `perplexity`. Each link opens the provider's new-chat URL with a short prompt that names the page URL. The page body is never put in a URL.
 - `pageActions.display: "icons"` switches to compact Lucide icon buttons and unlocks **Post on X**, **Post on Reddit** and a **Share** popup (`actions: ["view", "copy", "x", "reddit", "share"]`). Post links carry only the title and address. A site with its own article template places the group with `page.article_actions()`.
+- `pageActions.everywhere: true` (off by default) gives the home page, listings, section and collection fronts, tag and archive pages, paged list pages and standing pages the same group, each with its own title, canonical address and Markdown twin, and only where the twin exists. `page.article_actions()` returns the markup on those pages too. See [building a static site](building-a-papyrus-static-site.md#actions-on-every-page-pageactionseverywhere).
 - The links need an absolute page URL, so they do not appear on a site with no known origin.
 
 Details are in [building-a-papyrus-static-site.md](building-a-papyrus-static-site.md#page-actions).

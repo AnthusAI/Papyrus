@@ -93,7 +93,7 @@ class StandardPage:
     tags: dict = field(default_factory=dict)    # tag index: tag -> entries
     showcase: tuple = ()                        # showcase page: the ShowcaseSite records, sorted
     site: HookSite | None = None                # the site-wide view the item-level hooks also get
-    page_actions: str = ""                      # item pages: the page-actions markup core would place (empty when off), for hooks that compose their own body
+    page_actions: str = ""                      # the page-actions markup core would place (empty when off or when the page has no twin), for hooks that compose their own body
     wiki_stamp: str = ""                        # wiki pages: the review stamp and any superseded notice, placed above the text
     wiki_footer: str = ""                       # wiki pages: "Updated", the data link and the suggest-an-edit form, placed below the text
     section_index: SectionIndexView | None = None    # section front pages: what the generated layout shows (empty fragment unless the index is authored)
@@ -114,7 +114,9 @@ class StandardPage:
     def article_actions(self) -> str:
         """The shared page actions for this page (View as Markdown, Copy, Open in ..., and with ``pageActions.display: "icons"``
         X, Reddit and Share), exactly as core would place them; empty when the page is not eligible. A hook that returns its own
-        ``main`` or ``page_body`` calls this where the actions belong; the script and stylesheet load because the page has actions."""
+        ``main`` or ``page_body`` calls this where the actions belong; the script and stylesheet load because the page has actions.
+        On the home page, listings, tag, archive and paged list pages it returns the markup only when the site sets
+        ``pageActions.everywhere``; each page's own title, canonical address and Markdown twin are used."""
         return self.page_actions
 
     def form(self, form_id: str) -> str:

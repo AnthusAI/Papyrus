@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 from behave import given, then, when
@@ -25,6 +26,7 @@ PAGES = {
     "daily": '::band{size="bare"}\n::include{kind="references" select="recent" bucket="day" count="12"}\n',
     "confident-weekly": '::band{size="bare"}\n::include{kind="references" select="confident" bucket="week" count="12"}\n',
 }
+AS_OF = date(2026, 10, 31)   # the UTC day rolling buckets count back from, fixed so the scenarios do not depend on today
 PRIVATE_SENTINELS = ("starRating", "starRatedAt", "starRatedBy", "editor-who-rated@example.test", "2026-10-31T09:00:00.000Z")
 
 
@@ -37,7 +39,7 @@ def build_site(context, pages: dict[str, str]) -> None:
     context.reports = []
     context.base_path = ""
     try:
-        context.site = ProjectedSite(settings=settings, content=FIXTURES / "flat" / "content", extra_files={f"pages/{name}.md": text for name, text in pages.items()})
+        context.site = ProjectedSite(settings=settings, content=FIXTURES / "flat" / "content", clock=lambda: AS_OF, extra_files={f"pages/{name}.md": text for name, text in pages.items()})
     except (AssertionError, ValueError) as error:
         context.build_error = str(error)
         return
@@ -59,6 +61,11 @@ def site_with_every_grid(context) -> None:
 @given('a home-page site with a page whose references include has the bucket "{bucket}"')
 def site_with_a_bad_bucket(context, bucket: str) -> None:
     build_site(context, {"bad": f'::band{{size="bare"}}\n::include{{kind="references" select="recent" bucket="{bucket}" count="3"}}\n'})
+
+
+@given("the day of the render is {day}")
+def day_of_the_render(context, day: str) -> None:
+    context.site.projector.clock = lambda: date.fromisoformat(day)
 
 
 @given("editors rated these References: {ratings}")
