@@ -1933,6 +1933,19 @@ const definitions = {
       // The video's own thumbnail, copied into the media bucket by `papyrus references capture-thumbnails`: the site path of the copy
       // ("assets/reference-thumbnails/<hash>.jpg"), or "none" when the platform has no thumbnail (recorded so it is not asked again). Else empty.
       thumbnailPath: a.string(),
+      // The public blocks of a site's pages (docs/plans/public-blocks-from-indexes.md, PPY-7f1e54). `publicFeedKey` and `publicOrderKey` are the partition and
+      // sort key of the index a block will read (the index is a later, separate deploy): "<corpusId>#accepted" or "<corpusId>#recommended#<UTC day of arrival>",
+      // sorted "p<P to six places>#<arrival>#<id>" ("n#..." for an accepted row nobody scored). Both are null (the attributes absent) unless the row can be public:
+      // accepted, or pending with a stored prediction of at least 0.5. Written in each writer that changes a vote, a prediction or a version, never on a schedule.
+      // `cardImage`, `cardSummary`, `cardSiteName` and `cardPageTitle` are what a card shows besides the row's own fields, copied from the preview when it is captured (a video's
+      // picture is its own thumbnail copy): the address of the picture, the description scrubbed and not clipped, the site name scrubbed, and the title the page declared
+      // for link previews (a Reference titled with its own address shows it, or a readable name made from the site name and the address, never the address).
+      publicFeedKey: a.string(),
+      publicOrderKey: a.string(),
+      cardImage: a.string(),
+      cardSummary: a.string(),
+      cardSiteName: a.string(),
+      cardPageTitle: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [

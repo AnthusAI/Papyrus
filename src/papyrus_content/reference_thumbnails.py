@@ -35,6 +35,7 @@ from .youtube_transcript import video_id
 DIRECTORY = "assets/reference-thumbnails"
 NO_THUMBNAIL = "none"
 FIELD = "thumbnailPath"
+CARD_IMAGE_FIELD = "cardImage"   # the row's copy of the picture a public card shows (reference_public_fields.py); a video's is this thumbnail
 YOUTUBE_ADDRESS = "https://img.youtube.com/vi/{id}/hqdefault.jpg"
 #: oEmbed endpoints by platform (``reference_medium.PLATFORMS``). Twitch has none.
 OEMBED = {
@@ -250,10 +251,18 @@ def record_thumbnail(client: Any, reference: dict[str, Any], request: Mapping[st
         value = NO_THUMBNAIL
     else:
         raise Refused("A thumbnail request is either stored or none.")
-    if reference.get(FIELD) == value:
+    # The card shows this picture (a video's card never shows an address on the platform), so it goes onto the row with the path in the same update: a public
+    # block draws its card from the row alone (PPY-7f1e54). `none` and an unset path both mean no picture yet.
+    update: dict[str, Any] = {}
+    if reference.get(FIELD) != value:
+        update[FIELD] = value
+    card_image = public_image({FIELD: value})
+    if (reference.get(CARD_IMAGE_FIELD) or None) != card_image:
+        update[CARD_IMAGE_FIELD] = card_image
+    if not update:
         return {"referenceId": reference["id"], "thumbnailPath": value, "changed": False}
-    client.update_record("Reference", {"id": reference["id"], FIELD: value})
-    reference[FIELD] = value
+    client.update_record("Reference", {"id": reference["id"], **update})
+    reference.update(update)
     return {"referenceId": reference["id"], "thumbnailPath": value, "changed": True}
 
 

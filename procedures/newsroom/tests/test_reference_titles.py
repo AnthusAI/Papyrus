@@ -114,7 +114,7 @@ def test_the_page_title_replaces_an_address_once():
     site = Site([row])
     assert titles.record_page_title(site, row, PAGE_TITLE) == "set"
     assert titles.record_page_title(site, row, "A later page title") == "kept"
-    assert site.updates == [{"id": row["id"], "title": PAGE_TITLE}]
+    assert [update for update in site.updates if "title" in update] == [{"id": row["id"], "title": PAGE_TITLE}]   # and the card copies, in their own update (PPY-7f1e54)
 
 
 # --- the readable stand-in -------------------------------------------------------------------------------------------------------------------
@@ -144,21 +144,21 @@ def test_a_new_reference_takes_the_title_its_preview_page_declared():
     site = Site([row])
     assert attach_preview(site, row, exploration=explored(), now=lambda: NOW, log=lambda line: None) == "written"
     assert site.rows[row["id"]]["title"] == PAGE_TITLE
-    assert site.updates == [{"id": row["id"], "title": PAGE_TITLE}]
+    assert [update for update in site.updates if "title" in update] == [{"id": row["id"], "title": PAGE_TITLE}]   # and the card copies, in their own update (PPY-7f1e54)
 
 
 def test_a_new_reference_with_a_real_title_keeps_it():
     row = reference(title="The editor's title")
     site = Site([row])
     attach_preview(site, row, exploration=explored(), now=lambda: NOW, log=lambda line: None)
-    assert site.updates == [] and row["title"] == "The editor's title"
+    assert not [update for update in site.updates if "title" in update] and row["title"] == "The editor's title"
 
 
 def test_a_page_with_no_title_leaves_the_address_and_still_gets_its_preview():
     row = reference()
     site = Site([row])
     assert attach_preview(site, row, exploration=explored(title=None), now=lambda: NOW, log=lambda line: None) == "written"
-    assert site.updates == [] and preview_attachment_id(row) in site.attachments
+    assert not [update for update in site.updates if "title" in update] and preview_attachment_id(row) in site.attachments
 
 
 def test_a_title_write_that_fails_never_fails_the_preview():

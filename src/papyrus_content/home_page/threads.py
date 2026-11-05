@@ -16,7 +16,8 @@ import re
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
-from .export import KEY_LENGTH, PRIVATE_SHAPES, public_key
+from ..public_text import PRIVATE_SHAPES
+from .export import KEY_LENGTH, public_key
 from .handles import public_author
 
 if TYPE_CHECKING:

@@ -17,6 +17,7 @@ Feature: A backfill that only an operator can run says so before it does anythin
     Examples:
       | command                                      |
       | references backfill-medium                   |
+      | references backfill-public-fields            |
       | references backfill-feed-keys                |
       | references backfill-reviewed-feed-key        |
       | references backfill-corpus-storage-paths     |
@@ -38,4 +39,5 @@ Feature: A backfill that only an operator can run says so before it does anythin
     Examples:
       | command                    |
       | references backfill-medium |
+      | references backfill-public-fields |
       | references backfill-feed-keys |

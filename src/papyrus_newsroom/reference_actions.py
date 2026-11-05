@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable
 
-from papyrus_content.reference_feed_keys import feed_state_key, medium_key_patch
+from papyrus_content.reference_feed_keys import feed_state_key, medium_key_patch, public_key_patch
 from papyrus_content.reference_stars import validated_stars
 from papyrus_content.reference_vote import AGENT, vote_fields
 
@@ -30,6 +30,15 @@ query GetReference($id: ID!) {
     curationStatus
     newsroomFeedKey
     contentNeededKey
+    predictedAcceptProbability
+    feedArrivalAt
+    createdAt
+    importedAt
+    retrievedAt
+    sourcePublishedAt
+    versionCreatedAt
+    publicFeedKey
+    publicOrderKey
   }
 }
 """
@@ -379,6 +388,7 @@ def review_reference_curation(
                 "curationStatusKey": f"{_required(reference.get('corpusId'), 'reference.corpusId')}#{next_status}",
                 "feedStateKey": feed_state_key({**reference, "curationStatus": next_status}),   # a vote moves it between the feeds; its prediction stays
                 **medium_key_patch(reference, curationStatus=next_status),
+                **public_key_patch(reference, curationStatus=next_status),   # the prediction and arrival it needs are in GET_REFERENCE_QUERY
                 "curationStatusUpdatedAt": now,
                 "curationStatusUpdatedBy": actor,
                 "curationStatusReason": user_note,

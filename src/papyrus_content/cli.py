@@ -323,6 +323,7 @@ PORTED_COMMANDS = frozenset(
         "references:backfill-monitor-deliveries",
         "references:backfill-feed-keys",
         "references:backfill-medium",
+        "references:backfill-public-fields",
         "references:queue-predictions",
         "references:retire-citation-stubs",
         "references:backfill-corpus-storage-paths",
@@ -746,6 +747,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:backfill-medium":
         from .references_commands import references_backfill_medium
         references_backfill_medium(flags)
+    elif route == "references:backfill-public-fields":
+        from .references_commands import references_backfill_public_fields
+        references_backfill_public_fields(flags)
     elif route == "references:queue-predictions":
         from .references_commands import references_queue_predictions
         references_queue_predictions(flags)
