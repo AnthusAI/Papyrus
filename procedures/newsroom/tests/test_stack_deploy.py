@@ -276,6 +276,8 @@ def test_a_first_create_keeps_waiting_after_its_change_set_disappears(tmp_path):
     class Vanishing(FakeCloud):
         def describe_change_set(self, stack, name):
             if self.executed:
+                if len(self.script) > 1:
+                    self.script.pop(0)
                 raise sd.AwsError(f"An error occurred (ChangeSetNotFound) when calling the DescribeChangeSet operation: ChangeSet [{name}] does not exist")
             return super().describe_change_set(stack, name)
 
