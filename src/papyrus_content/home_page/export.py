@@ -19,7 +19,8 @@ from urllib.parse import urlsplit
 
 from ..ideas.digest import RELEVANCE_PREDICATE, relations_of, relevance_of
 from ..knowledge_snapshot.parallel import map_with_clients
-from ..reference_medium import medium_of
+from ..reference_medium import MEDIUM_VIDEO, medium_of
+from ..reference_thumbnails import EDITOR_IMAGE, public_image as thumbnail_image
 from ..reference_feed_keys import UNDECIDED_PROBABILITY, accept_probability as decision_probability
 from .ordering import RANK_FIELD, rank_records, valid_stars
 
@@ -47,7 +48,7 @@ PUBLIC_SOURCE_FIELDS = (
     "versionNumber", "title", "authors", "sourceUri", "mediaType", "sourcePublishedAt", "sourceUpdatedAt", "retrievedAt",
     "inboundCitationCount", "outboundCitationCount", "importedAt", "createdAt", "curationStatus", "curationStatusUpdatedAt",
     "curationReasonCode", "curationActorKind", "curationSectionId", "curationShareable", "feedArrivalAt", "predictedAcceptProbability",
-    "predictionDecidedAt", "medium", "starRating",
+    "predictionDecidedAt", "medium", "thumbnailPath", "starRating",
 )
 
 IDENTITY = "identity: can name a person or carry an address"
@@ -185,16 +186,20 @@ def decimal(value: Any) -> float | None:
         return None
 
 
-def preview_details(preview: Mapping[str, Any] | None, summary_characters: int) -> dict[str, str | None]:
-    if not preview:
-        return {"image": None, "summary": None, "siteName": None}
-    metadata = preview.get("metadata")
+def preview_metadata(preview: Mapping[str, Any] | None) -> Mapping[str, Any]:
+    metadata = (preview or {}).get("metadata")
     if isinstance(metadata, str):
         try:
             metadata = json.loads(metadata)
         except ValueError:
             metadata = {}
-    metadata = metadata if isinstance(metadata, Mapping) else {}
+    return metadata if isinstance(metadata, Mapping) else {}
+
+
+def preview_details(preview: Mapping[str, Any] | None, summary_characters: int) -> dict[str, str | None]:
+    if not preview:
+        return {"image": None, "summary": None, "siteName": None}
+    metadata = preview_metadata(preview)
     image = preview.get("sourceUri")
     try:
         image = public_url(image)
@@ -251,6 +256,10 @@ def public_reference(
         "medium": row.get("medium") or medium_of(row.get("sourceUri")),
         **preview_details(preview, settings.references.summary_characters),
     }
+    if full["medium"] == MEDIUM_VIDEO and preview_metadata(preview).get("via") != EDITOR_IMAGE:
+        # A video's card shows its own thumbnail from our storage, never an address on the platform (a reader's browser must not contact it,
+        # and a takedown must not break the card). No copy yet means no image. An image an editor set is the exception: it is theirs.
+        full["image"] = thumbnail_image(row)
     record = {name: full[name] for name in PUBLIC_REFERENCE_FIELDS if name in settings.references.fields and name in full}
     leaked = sorted(set(record) & set(EXCLUDED_REFERENCE_FIELDS))
     if leaked:

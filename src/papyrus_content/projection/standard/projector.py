@@ -1517,7 +1517,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return render_form(next(spec for spec in self.standard.forms if spec.id == attributes["id"]))
         if kind == "references":
             labels = {section.name: section.label for section in self.standard.sections}
-            return home_page_blocks.render(attributes, self._home_page.references(), page.ledger, self.standard.home_page, labels)
+            return home_page_blocks.render(attributes, self._home_page.references(), page.ledger, self.standard.home_page, labels, self.policy.path)
         if kind == "threads":
             return home_page_blocks.render_threads(attributes, self._home_page.threads(), page.ledger, self.standard.home_page, self._thread_href if self._forum() is not None else None)
         if knowledge_blocks.is_knowledge_block(attributes):

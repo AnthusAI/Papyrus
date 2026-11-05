@@ -8,7 +8,7 @@ place a Reference keeps it, and a later one refills up to its ``count`` from its
 ``homePage.references.defaultCount``. A missing or empty snapshot draws the ``empty`` text, or nothing when there is none.
 
 ``medium="video"`` keeps only the References whose medium is video (a videos block or page): accepted ones with ``select="recent"``. The cards
-show the page's own preview image and link out to the source (no per-card "Video" label: every card is one); nothing is embedded and no third-party
+show the video's own thumbnail (a copy in the site's storage, published as ``image``; never an address on the platform) and link out to the source (no per-card "Video" label: every card is one); nothing is embedded and no third-party
 script is loaded.
 """
 
@@ -127,9 +127,12 @@ def render(
     ledger: PageLedger,
     settings: HomePageSettings,
     section_labels: Mapping[str, str] | None = None,
+    asset_href: Callable[[str], str] | None = None,
 ) -> str:
     ledger.home_page_used = True
     chosen = select_references(source_doc, attributes, ledger, count_of({}, settings), section_labels)
+    if asset_href is not None:   # an image of ours is a site path ("/assets/..."); under urls.basePath it lives below the base path
+        chosen = [{**record, "image": asset_href(record["image"])} if _text(record, "image").startswith("/") else record for record in chosen]
     empty = attributes.get("empty", "")
     if not chosen:
         return f'<p class="home-page-empty">{esc(empty)}</p>' if empty else ""

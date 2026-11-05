@@ -1035,6 +1035,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       ...(current.starRating ? { starRating: current.starRating, starRatedAt: current.starRatedAt, starRatedBy: current.starRatedBy, starFeedKey: starFeedKeyFor(targetCorpusId, current.starRating) } : {}),
       ...(current.captureState ? { captureState: current.captureState } : {}),
       ...(current.captureReason ? { captureReason: current.captureReason } : {}),
+      ...(current.thumbnailPath ? { thumbnailPath: current.thumbnailPath } : {}),
       ...(current.medium ? { medium: current.medium } : {}),
       ...(current.evidenceLevel ? { evidenceLevel: current.evidenceLevel } : {}),
       ...(current.playlistUrl ? { playlistUrl: current.playlistUrl } : {}),
