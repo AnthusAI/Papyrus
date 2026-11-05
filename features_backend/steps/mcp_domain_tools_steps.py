@@ -170,7 +170,7 @@ def private_reader_no_plugin(context):
 
 @when('the reader includes an administrative role in a tool request')
 def forge_role(context):
-    context.result = context.handler.handler({"operation": "call", "principal": {"kind": "reader", "siteSubject": "verified"},
+    context.result = context.handler.handler({"operation": "call", "principal": {"kind": "reader", "siteSubject": "ss1_" + "a" * 43},
         "name": "reader_submit", "arguments": {"url": "https://example.org", "title": "Example", "role": "admin"}}, None)
 
 
@@ -181,7 +181,7 @@ def forged_role_refused(context):
 
 @when("the reader lists the site's tools")
 def list_reader_tools(context):
-    context.result = context.handler.handler({"operation": "list", "principal": {"kind": "reader", "siteSubject": "verified"}}, None)
+    context.result = context.handler.handler({"operation": "list", "principal": {"kind": "reader", "siteSubject": "ss1_" + "a" * 43}}, None)
     if context.old_reader_function is not None:
         import os
         os.environ["PAPYRUS_READER_STEERING_FUNCTION"] = context.old_reader_function

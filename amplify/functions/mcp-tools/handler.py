@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from typing import Any
@@ -15,6 +16,11 @@ from typing import Any
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
 from papyrus_content.mcp_tools import Principal, ReaderSteeringInvoke, StaffReads, call_tool, list_tools
 from papyrus_content.operator_errors import GraphQLRequestError
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 class UserPoolClient(PapyrusGraphQLAuthoringClient):
@@ -36,7 +42,7 @@ class UserPoolClient(PapyrusGraphQLAuthoringClient):
         payload = json.dumps({"query": query, "variables": variables or {}}).encode()
         request = urllib.request.Request(self.endpoint, data=payload, headers=self._request_headers(payload), method="POST")
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with urllib.request.build_opener(_NoRedirect()).open(request, timeout=self.timeout_seconds) as response:
                 result = json.load(response)
         except (urllib.error.URLError, ValueError, TimeoutError, OSError) as error:
             raise GraphQLRequestError("The site API request failed.") from error
@@ -50,7 +56,7 @@ class UserPoolClient(PapyrusGraphQLAuthoringClient):
 
 def _failure(code: str, message: str) -> dict:
     return {"isError": True, "content": [{"type": "text", "text": message}],
-            "structuredContent": {"error": {"code": code, "message": message}}}
+            "structuredContent": {"code": code, "message": message}}
 
 
 def handler(event: dict, context: Any) -> dict:
@@ -75,7 +81,7 @@ def handler(event: dict, context: Any) -> dict:
             elif os.environ.get("PAPYRUS_MCP_REFERENCE_SINGLE_TENANT") != "true":
                 available.discard("reference_decide")
             staff.available_tools = frozenset(available)
-        elif kind == "reader" and isinstance(raw.get("siteSubject"), str) and raw["siteSubject"]:
+        elif kind == "reader" and isinstance(raw.get("siteSubject"), str) and re.fullmatch(r"ss1_[A-Za-z0-9_-]{43}", raw["siteSubject"]):
             if set(raw) - {"kind", "siteSubject", "expiresAt"}:
                 return _failure("invalid_request", "The identity is malformed.")
             principal = Principal("reader", raw["siteSubject"], site_subject=raw["siteSubject"])

@@ -16,7 +16,9 @@ def test_user_pool_client_uses_only_supplied_token(monkeypatch):
     def urlopen(request, timeout):
         seen.append(request)
         return Response()
-    monkeypatch.setattr(module.urllib.request, "urlopen", urlopen)
+    class Opener:
+        open = staticmethod(urlopen)
+    monkeypatch.setattr(module.urllib.request, "build_opener", lambda *_: Opener())
     client = module.UserPoolClient("https://example.org/graphql", "verified-id-token", None)
     assert client.graphql("query { result }") == {"result": True}
     assert seen[0].get_header("Authorization") == "verified-id-token"
@@ -28,20 +30,39 @@ def test_public_arguments_cannot_choose_identity_or_tenant(monkeypatch):
     event = {"operation": "call", "principal": {"kind": "staff", "subject": "editor", "idToken": "token"},
              "name": "story_get", "arguments": {"lineageId": "story", "tenant": "other", "role": "admin"}}
     result = module.handler(event, None)
-    assert result["isError"] and result["structuredContent"]["error"]["code"] == "invalid_request"
+    assert result["isError"] and result["structuredContent"]["code"] == "invalid_request"
 
 
 def test_missing_id_token_never_uses_access_or_iam():
     result = module.handler({"operation": "list", "principal": {"kind": "staff", "subject": "editor", "accessToken": "token"}}, None)
-    assert result["structuredContent"]["error"]["code"] == "unauthorized"
+    assert result["structuredContent"]["code"] == "unauthorized"
 
 
 def test_missing_reader_plugin_exposes_no_reader_actions(monkeypatch):
     monkeypatch.delenv("PAPYRUS_READER_STEERING_FUNCTION", raising=False)
-    result = module.handler({"operation": "list", "principal": {"kind": "reader", "siteSubject": "verified"}}, None)
+    result = module.handler({"operation": "list", "principal": {"kind": "reader", "siteSubject": "ss1_" + "a" * 43}}, None)
     assert result == {"tools": []}
 
 
 def test_reader_cannot_forge_staff_role():
-    result = module.handler({"operation": "list", "principal": {"kind": "reader", "siteSubject": "verified", "role": "admin"}}, None)
-    assert result["structuredContent"]["error"]["code"] == "invalid_request"
+    result = module.handler({"operation": "list", "principal": {"kind": "reader", "siteSubject": "ss1_" + "a" * 43, "role": "admin"}}, None)
+    assert result["structuredContent"]["code"] == "invalid_request"
+
+
+def test_stale_revision_is_a_stable_tool_error(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_ENDPOINT", "https://example.org/graphql")
+    def conflict(*args, **kwargs):
+        raise module.GraphQLRequestError("stale_revision: changed")
+    monkeypatch.setattr(module, "call_tool", conflict)
+    result = module.handler({"operation": "call", "principal": {"kind": "staff", "subject": "editor", "idToken": "token"},
+                             "name": "reference_decide", "arguments": {}}, None)
+    assert result["isError"] and result["structuredContent"]["code"] == "stale_revision"
+
+
+def test_graphql_redirect_is_never_followed():
+    assert module._NoRedirect().redirect_request(None, None, 302, "Found", {}, "https://other.example") is None
+
+
+def test_reader_identity_requires_verified_subject_format():
+    result = module.handler({"operation": "list", "principal": {"kind": "reader", "siteSubject": "forged"}}, None)
+    assert result["structuredContent"]["code"] == "unauthorized"
