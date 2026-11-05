@@ -861,6 +861,13 @@ const schema = a.schema({
     .authorization((allow) => [allow.groups(contentWriteGroups)])
     .handler(functionHandler("contentActions", contentActions)),
 
+  agentRequestStoryPublish: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
   agentSaveStoryDraft: a
     .mutation()
     .arguments({ input: a.json().required() })

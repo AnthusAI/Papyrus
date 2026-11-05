@@ -478,14 +478,31 @@ def create_story_from_reference_action(arguments: dict, actor: str) -> dict:
     return {"ok": True, **result}
 
 
-def agent_save_story_draft_action(arguments: dict, identity: dict, *, client=None, dynamodb=None) -> dict:
-    """One signed-in editor's agent saves one immutable, conditionally-current draft."""
-    from papyrus_content.mcp_story_transaction import persist_agent_story_version
+def _require_agent_staff(identity: dict) -> None:
     from papyrus_content.staff_groups import has_editor_rights
     issuer = os.environ.get("PAPYRUS_USER_POOL_ISSUER")
     claims = identity.get("claims") or {}
     if not issuer or identity.get("issuer") != issuer or not identity.get("sub") or not has_editor_rights(claims.get("cognito:groups")):
         raise PermissionError("A verified editor is required.")
+
+
+def agent_request_story_publish_action(arguments: dict, identity: dict, *, client=None, dynamodb=None) -> dict:
+    from papyrus_content.mcp_publish_request import request_publish
+    _require_agent_staff(identity)
+    lineage, expected = arguments.get("lineageId"), arguments.get("expectedCurrentVersionId")
+    if not all(isinstance(value, str) and value.strip() for value in (lineage, expected)):
+        raise ValueError("A Story and its expected current version are required.")
+    if client is None: client, _ = create_authoring_client()
+    if dynamodb is None:
+        import boto3
+        dynamodb = boto3.client("dynamodb")
+    return request_publish(client, dynamodb, os.environ.get("PAPYRUS_ITEM_TABLE", ""), os.environ.get("PAPYRUS_REVIEW_REQUEST_TABLE", ""), lineage=lineage, expected=expected, actor="agent:" + identity["sub"])
+
+
+def agent_save_story_draft_action(arguments: dict, identity: dict, *, client=None, dynamodb=None) -> dict:
+    """One signed-in editor's agent saves one immutable, conditionally-current draft."""
+    from papyrus_content.mcp_story_transaction import persist_agent_story_version
+    _require_agent_staff(identity)
     expected = arguments.get("expectedCurrentVersionId")
     lineage = arguments.get("lineageId")
     body = arguments.get("body")
@@ -552,6 +569,8 @@ def handler(event, context):
                 return {"ok": False, "errors": [{"code": "correction-rejected", "message": str(error)}]}
         if field == "deriveMarkus":
             return derive_markus_action(arguments)
+        if field == "agentRequestStoryPublish":
+            return agent_request_story_publish_action(arguments, event.get("identity") or {})
         if field == "agentSaveStoryDraft":
             return agent_save_story_draft_action(arguments, event.get("identity") or {})
         if field == "saveItemDraft":

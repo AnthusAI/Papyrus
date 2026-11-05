@@ -18,3 +18,13 @@ class StaffStoryWrites:
         if not isinstance(result, dict):
             raise ValueError("Invalid Story save response.")
         return result
+
+    def story_request_publish(self, principal, *, lineageId: str, expectedCurrentVersionId: str) -> dict:
+        query = """mutation AgentRequestStoryPublish($input: AWSJSON!) {
+          agentRequestStoryPublish(input: $input)
+        }"""
+        payload = {"lineageId": lineageId, "expectedCurrentVersionId": expectedCurrentVersionId}
+        result = self.client.graphql(query, {"input": json.dumps(payload)})["agentRequestStoryPublish"]
+        if isinstance(result, str): result = json.loads(result)
+        if not isinstance(result, dict): raise ValueError("Invalid publish request response.")
+        return result

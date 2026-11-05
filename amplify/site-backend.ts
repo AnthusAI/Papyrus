@@ -480,6 +480,10 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   // Agent drafts commit the new and prior Item in one conditional transaction.
   const itemTable = backend.data.resources.tables.Item;
   contentActionsLambda.addEnvironment("PAPYRUS_ITEM_TABLE", itemTable.tableName);
+  const reviewTable = backend.data.resources.tables.ReviewRequest;
+  contentActionsLambda.addEnvironment("PAPYRUS_REVIEW_REQUEST_TABLE", reviewTable.tableName);
+  contentActionsLambda.addToRolePolicy(new PolicyStatement({ actions: ["dynamodb:ConditionCheckItem"], resources: [itemTable.tableArn], conditions: { "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] } } }));
+  contentActionsLambda.addToRolePolicy(new PolicyStatement({ actions: ["dynamodb:PutItem"], resources: [reviewTable.tableArn], conditions: { "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] } } }));
   contentActionsLambda.addToRolePolicy(new PolicyStatement({ actions: ["dynamodb:PutItem", "dynamodb:UpdateItem"], resources: [itemTable.tableArn], conditions: { "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] } } }));
   // A backend whose editorial records (sections, doctrine, stories) carry a tenant (one copied with --stamp-tenant) is read and written as that tenant:
   // the editorial check refuses a record whose tenant differs from the Lambda's, so without this a story on such a backend cannot be created or edited.
