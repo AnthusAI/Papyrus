@@ -107,7 +107,7 @@ def an_exploration(image: str | None = "https://img.example.org/a.jpg") -> Explo
 
 
 def test_capturing_a_preview_writes_the_card_copies_in_one_more_mutation_and_only_once():
-    reference = {"id": "r-v1", "lineageId": "r", "sourceUri": "https://example.org/a"}
+    reference = {"id": "r-v1", "lineageId": "r", "title": "A title", "sourceUri": "https://example.org/a"}
     client = Writes({"r-v1": dict(reference)})
     assert attach_preview(client, reference, exploration=an_exploration(), log=lambda line: None) == "written"
     assert client.calls == [("get", "ReferenceAttachment"), ("upsert", "ReferenceAttachment"), ("update", "Reference")], "one read, the attachment, and one mutation for the card"
@@ -118,14 +118,14 @@ def test_capturing_a_preview_writes_the_card_copies_in_one_more_mutation_and_onl
 
 
 def test_a_row_that_already_holds_the_same_card_copies_costs_no_mutation():
-    reference = {"id": "r-v1", "lineageId": "r", "sourceUri": "https://example.org/a", "cardImage": "https://img.example.org/a.jpg", "cardSummary": "A description.", "cardSiteName": "Example News", "cardPageTitle": "T"}
+    reference = {"id": "r-v1", "lineageId": "r", "title": "A title", "sourceUri": "https://example.org/a", "cardImage": "https://img.example.org/a.jpg", "cardSummary": "A description.", "cardSiteName": "Example News", "cardPageTitle": "T"}
     client = Writes({"r-v1": dict(reference)})
     attach_preview(client, reference, exploration=an_exploration(), log=lambda line: None)
     assert ("update", "Reference") not in client.calls
 
 
 def test_a_card_copy_that_fails_does_not_fail_the_preview():
-    reference = {"id": "r-v1", "lineageId": "r", "sourceUri": "https://example.org/a"}
+    reference = {"id": "r-v1", "lineageId": "r", "title": "A title", "sourceUri": "https://example.org/a"}
     client = Writes({"r-v1": dict(reference)})
     logged: list[str] = []
 
