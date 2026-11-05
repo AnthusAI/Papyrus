@@ -540,6 +540,23 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
         return blocks.render(body, source, convert, include, trusted=trusted, implicit_band=implicit_band)
 
+    def preflight_fragment(self, text: str, depth: int, source: str = "", item_type: str = "") -> str:
+        """``_fragment`` as the publish check renders a body: ``::include`` blocks are placed (knowledge blocks) or only checked (listings,
+        which need the site's entries), and a wiki page (by its ``item_type``) needs no ``::band``, as ``item_pages`` renders it. So a body that
+        renders when projected also passes the check, and an include the site does not know is refused."""
+        return self._fragment(
+            text, depth, source, include=lambda attributes: self._preflight_include(attributes, source),
+            implicit_band=item_type in self.standard.wiki.types,
+        )
+
+    def _preflight_include(self, attributes: dict, source: str) -> str:
+        if knowledge_blocks.is_knowledge_block(attributes):
+            return knowledge_blocks.render_block(attributes, self._knowledge, source)
+        if attributes.get("kind") != "listing":
+            raise ValueError(f"{source}: ::include is not available here")
+        includes.check(attributes, self.standard, source)
+        return ""
+
     def _twin(self, text: str, source: str) -> str:
         return blocks.twin(text, dict(self.standard.values), source)
 

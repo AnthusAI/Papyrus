@@ -86,3 +86,18 @@ Feature: The public wiki publishes the subjects of a publication and nothing els
   Scenario: A vocabulary with no entity kinds is refused rather than read as "everything"
     When the wiki sync runs with a vocabulary that declares no kinds
     Then the sync is refused because the vocabulary declares no entity kinds
+
+  Scenario: A wiki page that places knowledge blocks passes the publish check
+    When the wiki sync runs with a vocabulary of the kinds "maker, tool"
+    Then the publish check passes for the page "Acme Loom"
+
+  Scenario: A page that places an include the site does not know is refused by name
+    When the wiki sync runs with a vocabulary of the kinds "maker, tool"
+    And the page "Acme Loom" places an include the site does not know
+    Then the publish check refuses the page "Acme Loom" by name and says nothing was published
+
+  Scenario: A publish whose page could not be projected says so and how to retry
+    Given the wiki was synced with a vocabulary of the kinds "maker, tool"
+    When every draft is published and the site fails to project the pages
+    Then the publish report names the unprojected page and gives the retry command
+    And the page "Acme Loom" is live
