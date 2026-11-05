@@ -812,7 +812,7 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
     if field_name is not None and nested_field is not None and field_name != nested_field:
         return {"error": "bad_request"}
     field_name = field_name if field_name is not None else nested_field
-    if not isinstance(field_name, str) or field_name not in {"monitoringOverview", "monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference", "monitoringDecideEmailSubmission", "monitoringPage"}:
+    if not isinstance(field_name, str) or field_name not in {"monitoringOverview", "monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference", "monitoringQueueReferencePredictions", "monitoringDecideEmailSubmission", "monitoringPage"}:
         return {"error": "bad_request"}
     args = event.get("arguments") or {}
     scope = args.get("scope") or "publication"
@@ -823,7 +823,7 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
         return {"error": "bad_request"}
     try:
         make_store = store_factory or default_store_factory(env)
-        if field_name in ("monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference",
+        if field_name in ("monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference", "monitoringQueueReferencePredictions",
                           "monitoringDecideEmailSubmission"):
             email_monitor_id = configured_email_monitor_id(env)
             if email_monitor_id == MONITOR_ID and email_store_factory is None:
@@ -852,6 +852,19 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
                                              endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"))
             except IntakeError as error:
                 return {"error": "handoff_rejected", "message": str(error)}
+        if field_name == "monitoringQueueReferencePredictions":
+            from .reference_intake_validation import IntakeError, _actor
+            from .reference_prediction_queue import queue_reference_predictions
+            try:
+                payload = args.get("input")
+                if isinstance(payload, str):
+                    payload = json.loads(payload)
+                if not isinstance(payload, dict) or set(payload) != {"references"}:
+                    raise IntakeError("Name the References to predict as {references: [{referenceId, sourceUri, title}]}.")
+                return queue_reference_predictions(email_store, endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT") or "", references=payload["references"],
+                                                   subject=_actor(event.get("identity") or {}))
+            except IntakeError as error:
+                return {"error": "queue_rejected", "message": str(error)}
         if field_name == "monitoringResolveEmailArticleLink":
             return monitoring_email_resolve_article_link(
                 email_store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),

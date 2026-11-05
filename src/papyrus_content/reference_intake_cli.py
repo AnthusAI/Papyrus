@@ -59,6 +59,10 @@ def register_pending_catalog(client, options: dict, *, apply: bool) -> None:
             continue
         for reference in result.get("references") or [{}]:
             print(f"references\tcreate-from-catalog\trecorded\t{label}\t{reference.get('id') or '-'}\t{reference.get('curationStatus') or '-'}", flush=True)
+        prediction = result.get("prediction") or {}
+        if prediction.get("ok") is False:   # the server could not queue it: the Reference exists and stays hidden until it has a prediction
+            print(f"references\tcreate-from-catalog\tprediction\tNOT-REQUESTED\t{label}\t{prediction.get('error')}\t"
+                  "queue it with `papyrus references queue-predictions` once the cause is fixed", flush=True)
     print(f"references\tcreate-from-catalog\tsummary\tconfirmed={total - len(failed)}\tnot-confirmed={len(failed)}", flush=True)
     if failed:
         raise ValueError(

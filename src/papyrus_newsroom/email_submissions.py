@@ -708,9 +708,13 @@ def _create_find_process_direct_citations(
     planned_reference_ids.discard("")
     changes = build_record_changes(client, plan["records"])
     registered_reference_ids: set[str] = set(planned_reference_ids)
+    prediction = None
     if apply:
         apply_record_changes(client, changes)
         update_newsroom_summary_after_reference_registration(client, changes, plan)
+        from papyrus_content.reference_prediction_queue import references_created_by, request_predictions
+        wanted_predictions = references_created_by(changes)   # one Cyclotron prediction per new Reference, requested once, here
+        prediction = request_predictions(client, wanted_predictions).to_json() if wanted_predictions else None
         from papyrus_content.reference_images import attach_preview
         for change in changes:   # newly created References only; never raises
             if change.get("modelName") == "Reference" and change.get("action") == "create":
@@ -755,6 +759,7 @@ def _create_find_process_direct_citations(
 
     return {
         "importRunId": plan.get("importRunId"),
+        "prediction": prediction,
         "registeredReferenceCount": len(registered_reference_ids),
         "registeredReferenceIds": sorted(registered_reference_ids),
         "directCitationCount": len(citations),
