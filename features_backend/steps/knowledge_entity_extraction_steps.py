@@ -17,31 +17,42 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 
 from papyrus_content.knowledge_snapshot import commands  # noqa: E402
+from papyrus_content.knowledge_snapshot.entity_extraction import JevClient  # noqa: E402
 
 
-class FakeJev:
-    """Jev as the scenario describes it: the answers it gives, and every question it was asked."""
+class Response:
+    def __init__(self, status, body=None):
+        self.status_code, self.body = status, body
 
-    model = "jev-1.13.0"
+    def json(self):
+        return self.body
+
+
+class FakeTransport:
+    """Jev's endpoint as the scenario describes it: it answers the three questions of each request, and every request is kept."""
 
     def __init__(self, context):
-        self.context, self.failures = context, {}
+        self.context, self.headers = context, {}
 
-    def ask(self, name, passages, criteria, publication):
+    def post(self, url, json, timeout):
+        self.context.requests.append(json)
+        name = json["state"]["name"]
         self.context.asked.append(name)
         if name in self.context.silent:
-            return None
-        answer = self.context.answers.get(name, ("model", 0.5))
-        return {"choice": answer[0], "confidence": answer[1], "usage": {"input_tokens": 500, "output_tokens": 50}, "model": self.model}
+            return Response(401)
+        kind, real, page = self.context.answers.get(name, ("model", 0.5, 0.5))
+        answers = {"real": {"type": "noul", "noul": real}, "kind": {"type": "choice", "choice": kind, "confidence": 0.9}, "page": {"type": "noul", "noul": page}}
+        return Response(200, {"answers": answers, "usage": {"input_tokens": 500, "output_tokens": 50}, "model": "jev-1.13.0"})
 
 
 def one_item_text(context, text):
     context.work = Path(tempfile.mkdtemp(prefix="entity-extraction-"))
     texts = context.work / "corpus" / "extracted" / "pipeline" / "ext1" / "text"
     texts.mkdir(parents=True)
+    text = text.replace("\\n", "\n")
     for number in (1, 2):
         (texts / f"doc-{number}.txt").write_text(text)
-    context.corpus_text, context.registry, context.asked, context.error, context.output_file = text, [], [], None, None
+    context.corpus_text, context.registry, context.asked, context.requests, context.error, context.output_file = text, [], [], [], None, None
     context.silent = getattr(context, "silent", set())
     if getattr(context, "vocabulary", None):
         (context.work / "vocabulary.yml").write_text(context.vocabulary)
@@ -59,6 +70,26 @@ def step_paragraphs(context, first, second):
     one_item_text(context, f"{first}\n\n{second}")
 
 
+@given('a corpus of two documents that read "{first}" and "{second}"')
+def step_two_documents(context, first, second):
+    context.answers = getattr(context, "answers", {})
+    one_item_text(context, first)
+    texts = context.work / "corpus" / "extracted" / "pipeline" / "ext1" / "text"
+    (texts / "doc-2.txt").write_text(second)
+
+
+@given('a corpus of two documents that both read "{text}" followed by a reference list of {count:d} entries')
+def step_reference_list(context, text, count):
+    context.answers = getattr(context, "answers", {})
+    one_item_text(context, text + "\n\n## References\n\n" + "\n".join(f"[{number}] Author {number}. Title." for number in range(1, count + 1)))
+
+
+@given('the publication\'s vocabulary describes it as "{description}"')
+def step_description(context, description):
+    context.vocabulary += f"description: {description}\n"
+    (context.work / "vocabulary.yml").write_text(context.vocabulary)
+
+
 @given('the publication\'s vocabulary has the kinds "{first}" and "{second}"')
 def step_vocabulary(context, first, second):
     context.vocabulary = f"publication: demo\nversion: 1\nentity_kinds:\n  - {{key: {first}, label: {first}}}\n  - {{key: {second}, label: {second}}}\n"
@@ -70,14 +101,14 @@ def step_registry(context, name, key):
     context.registry.append({"key": key, "kind": "model", "aliases": [name]})
 
 
-@given('Jev answers "{first}" is a model with confidence {first_confidence:f}, and "{second}" is an organization with confidence {second_confidence:f}')
-def step_answers(context, first, first_confidence, second, second_confidence):
-    context.answers = {first: ("model", first_confidence), second: ("organization", second_confidence)}
+@given('Jev answers "{first}" is a real {first_kind} with confidence {first_real:f} and page {first_page:f}, and "{second}" is a real {second_kind} with confidence {second_real:f} and page {second_page:f}')
+def step_answers(context, first, first_kind, first_real, first_page, second, second_kind, second_real, second_page):
+    context.answers = {first: (first_kind, first_real, first_page), second: (second_kind, second_real, second_page)}
 
 
-@given('Jev answers "{name}" is a model with confidence {confidence:f}')
-def step_answer(context, name, confidence):
-    context.answers[name] = ("model", confidence)
+@given('Jev answers "{name}" is a real {kind} with confidence {real:f} and page {page:f}')
+def step_answer(context, name, kind, real, page):
+    context.answers[name] = (kind, real, page)
 
 
 @given('Jev does not answer for "{name}"')
@@ -93,8 +124,8 @@ def extract(context):
             stale.unlink()
     flags = ["--corpus", str(context.work / "corpus"), "--extraction-snapshot", "pipeline:ext1", "--vocabulary", str(context.work / "vocabulary.yml"),
              "--registry", str(context.work / "registry.json"), "--out", str(out), "--usage-out", str(context.work / "usage.json")]
-    context.asked, context.error = [], None
-    with mock.patch.object(commands, "JevClient", lambda key: FakeJev(context)), mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "key"}):
+    context.asked, context.requests, context.error = [], [], None
+    with mock.patch.object(commands, "JevClient", lambda key: JevClient(key, session=FakeTransport(context), sleep=lambda _seconds: None)), mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "key"}):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             try:
                 commands.knowledge_extract_entities(flags)
@@ -127,6 +158,23 @@ def step_proposed_twice(context, item, kind, text, confidence):
     assert len(found) == 2 and all((e["kind"], e["state"], e["entity_key"], e["score"]) == (kind, "proposed", None, confidence) for e in found), found
 
 
+@then('the item "{item}" has "{text}" with page score {score:f} and a page')
+def step_page(context, item, text, score):
+    found = [e for e in entities_of(context, item) if e["text"] == text]
+    assert found and all((e["page_score"], e["page_answer"]) == (score, True) for e in found), found
+
+
+@then('the item "{item}" has "{text}" with page score {score:f} and no page')
+def step_no_page(context, item, text, score):
+    found = [e for e in entities_of(context, item) if e["text"] == text]
+    assert found and all((e["page_score"], e["page_answer"]) == (score, False) for e in found), found
+
+
+@then('the item "{item}" has no entity "{text}"')
+def step_no_entity(context, item, text):
+    assert not [e for e in entities_of(context, item) if e["text"] == text]
+
+
 @then('the item "{item}" has the proposed {kind} "{text}" once, with confidence {confidence:f}')
 def step_proposed_once(context, item, kind, text, confidence):
     found = [e for e in entities_of(context, item) if e["text"] == text]
@@ -149,9 +197,32 @@ def step_not_asked(context, name):
     assert name not in context.asked, context.asked
 
 
+@then('Jev was asked only once about "{name}"')
+def step_asked_one(context, name):
+    assert context.asked.count(name) == 1, context.asked
+
+
 @then('Jev was asked about "{first}" once and about "{second}" once')
-def step_asked_once(context, first, second):
+def step_asked_two(context, first, second):
     assert context.asked.count(first) == 1 and context.asked.count(second) == 1, context.asked
+
+
+@then("every request to Jev asks, in this order, whether the name is real, which kind it is and whether it deserves a page")
+def step_three_questions(context):
+    assert context.requests
+    for body in context.requests:
+        assert list(body["questions"]) == ["real", "kind", "page"], body["questions"]
+        assert [body["questions"][name]["type"] for name in ("real", "kind", "page")] == ["noul", "choice", "noul"]
+
+
+@then('every request describes the publication as "{description}"')
+def step_publication(context, description):
+    assert context.requests and all(body["state"]["publication"] == description for body in context.requests)
+
+
+@then('the kinds offered to Jev are "{first}" and "{second}" and no answer for something that is not a concept')
+def step_kinds(context, first, second):
+    assert all(list(body["questions"]["kind"]["criteria"]) == [first, second] for body in context.requests)
 
 
 @then("Jev was not asked anything")
