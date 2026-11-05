@@ -61,7 +61,7 @@ from .knowledge import DATA_PREFIX, KnowledgeSource
 from .knowledge_lookup import KnowledgeLookup
 from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path, section_index_markdown, sections_home_markdown
 from . import wiki
-from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, render_page_actions
+from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, STYLESHEET_PATH as PAGE_ACTIONS_STYLESHEET, render_page_actions, stylesheet_text as page_actions_stylesheet_text
 from .forms import FORM_SCRIPT_PATH, render_form
 from .fragments import MARKUS_ARTICLE_CLOSE_PATTERN, first_image_of, lede_of, with_date_format, with_lede, with_listing
 from .family import family_footer
@@ -94,6 +94,7 @@ def copy_directories(static_directory: Path | None, names, files: dict[str, byte
 
 ARTICLE_OPEN_PATTERN = re.compile(r'^\s*<article class="markus-document"[^>]*>')
 COMPONENTS_CSS_PATH = "css/markus-components.css"
+
 KNOWLEDGE_CSS_PATH = "css/papyrus-knowledge.css"
 HOME_PAGE_CSS_PATH = "css/papyrus-home-page.css"
 SECTION_FRONTS_CSS_PATH = "css/papyrus-section-fronts.css"
@@ -103,6 +104,15 @@ MERMAID_SCRIPT_PATH = "_plugins/papyrus-mermaid-v1.js"
 MERMAID_LIBRARY_PATH = "_plugins/mermaid-11.17.2.min.js"   # the vendored library; the loader fetches it from the site's own origin
 MERMAID_BLOCK = '<pre><code class="language-mermaid">'
 ASSET_DIRECTORY = Path(__file__).parent / "assets"
+
+
+def own_page_actions_stylesheet(standard: StandardSettings) -> bool:
+    """The icon form of the page actions on a site that does not link the whole component stylesheet gets its own small one.
+    Every other site, and the text form, render exactly as before."""
+    settings = standard.page_actions
+    return settings.enabled and settings.display == "icons" and standard.agents.markdown and not standard.components_css
+
+
 class StandardMarkusProjector(MarkusSiteProjector):
     def __init__(
         self,
@@ -130,6 +140,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[NAV_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-nav.js").read_bytes()
         if standard.page_actions.enabled and standard.agents.markdown:
             files[PAGE_ACTIONS_SCRIPT] = (ASSET_DIRECTORY / "papyrus-page-actions.js").read_bytes()
+            if own_page_actions_stylesheet(standard):
+                files[PAGE_ACTIONS_STYLESHEET] = page_actions_stylesheet_text((ASSET_DIRECTORY / "markus-components.css").read_text(encoding="utf-8")).encode("utf-8")
         if standard.mermaid:
             files[MERMAID_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-mermaid.js").read_bytes()
             files[MERMAID_LIBRARY_PATH] = (ASSET_DIRECTORY / "mermaid.min.js").read_bytes()
@@ -1293,6 +1305,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             own_versions = ((HOME_PAGE_CSS_PATH, self._home_page_stylesheet_token()),)
         if self.standard.section_fronts and SECTION_FRONTS_CSS_PATH not in sheets:
             sheets.append(SECTION_FRONTS_CSS_PATH)
+        if page.page_actions and own_page_actions_stylesheet(self.standard) and PAGE_ACTIONS_STYLESHEET not in sheets:
+            sheets.append(PAGE_ACTIONS_STYLESHEET)  # a page that places the icon actions itself, on a site without the component stylesheet
         if self.standard.islands is not None and self.standard.islands.stylesheet:
             sheets.append(self.standard.islands.stylesheet)
         if self.environment.guarded and (base.ga_measurement_id is not None or base.consent_mode is not None):

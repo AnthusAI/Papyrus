@@ -84,6 +84,17 @@
 .markus-actions-status { min-width: 6rem; font-size: .875rem; }
 .markus-actions-fallback { width: 100%; min-height: 6rem; }
 .markus-page-actions-aside { margin-top: 2rem; }
+.markus-page-actions-icons { gap: .25rem; }
+.markus-page-actions-icons .markus-actions-icons { display: flex; flex-wrap: wrap; gap: .25rem; margin: 0; padding: 0; list-style: none; }
+.markus-page-actions-icons :is(.markus-icon-action, .markus-actions-menu-button) { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 2.75rem; height: 2.75rem; padding: 0; border: 0; border-radius: .5rem; background: var(--papyrus-action-bg, rgba(127,127,127,.14)); color: inherit; }
+.markus-page-actions-icons :is(.markus-icon-action, .markus-actions-menu-button):hover { background: var(--papyrus-hover, rgba(127,127,127,.28)); }
+.markus-page-actions-icons .markus-actions-menu-button[aria-expanded="true"] { background: var(--papyrus-hover, rgba(127,127,127,.28)); }
+.markus-action-icon { display: block; flex: none; }
+.markus-page-actions-icons .markus-actions-links a { display: inline-flex; align-items: center; min-height: 2.75rem; box-sizing: border-box; padding: 0 .875rem; border: 0; border-radius: .5rem; background: var(--papyrus-action-bg, rgba(127,127,127,.14)); color: inherit; }
+.markus-page-actions-icons :is(a, button):focus-visible { outline: 3px solid var(--papyrus-focus, currentColor); outline-offset: 2px; }
+.markus-page-actions-icons .markus-actions-menu { position: static; }
+.markus-page-actions-icons .markus-actions-menu [role="menu"] { left: 0; width: min(18rem, 100%); min-width: 0; box-sizing: border-box; padding: .375rem; border: 0; border-radius: .5rem; background: var(--papyrus-menu-bg, color-mix(in srgb, var(--papyrus-bg, Canvas) 88%, currentColor 12%)); }
+.markus-page-actions-icons .markus-actions-menu [role="menuitem"] { display: block; box-sizing: border-box; width: 100%; padding: .75rem; border: 0; border-radius: .375rem; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .papyrus-wiki-stamp, .papyrus-wiki-superseded { margin: 0 0 1rem; padding: .5rem .75rem; border: 1px solid var(--papyrus-rule, currentColor); border-radius: .25rem; font-size: .9375rem; }
 .papyrus-wiki-stamp p, .papyrus-wiki-superseded p { margin: 0; }
 .papyrus-wiki-stamp[data-state="draft"] { border-style: dashed; }
