@@ -50,7 +50,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
 | `agents` | agent-readable output, all on by default: `markdown` (a `.md` twin per page), `llmsTxt`, `llmsFull`, `llmsFullMaxItems` (200), `llmsFullMaxBytes` (1000000), `llmsMaxLinks` (200) |
 | `mermaid` | `{enabled}`: ` ```mermaid ` blocks render as diagrams (default on; see Mermaid diagrams) |
-| `pageActions` | copy / view / open-in / post / share actions on article pages: `{enabled, placement (header\|aside), actions (copy, view, x, reddit, share), display (text\|icons), ai (chatgpt, claude, perplexity), prompt, types}` |
+| `pageActions` | copy / view / open-in / post / share actions on article pages: `{enabled, placement (header\|aside), actions (copy, view, x, reddit, share), display (text\|icons), ai (chatgpt, claude, perplexity), prompt, types, everywhere}` |
 | `wiki` | public wiki pages (see [public-wiki.md](public-wiki.md)): `{types (default ["wiki_page"]), suggestForm (the id of a forms entry), dataLink (default true)}` |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
 | `values` | `{ "name": "text or number" }`: the `{{name}}` tokens of page blocks (see "Page blocks") |
@@ -707,13 +707,25 @@ only reporting is a `page_action` event through the site's existing `gtag`, so c
 
 Authored pages (`pages` entries with `source`) get the same actions, above or after the page file's content, unless the
 page is `noindex`; `page.page_actions` is set on them for hooks that compose the page. Only entries of a listed type get actions by default. `pageActions.types` names further entry types (`["page"]`, `["guide"]`)
-that get them too, for guides and standing pages; listings, archives and the home page never do. A site whose `page_body` or `main` hook composes
+that get them too, for guides and standing pages; listings, archives and the home page get them only on `pageActions.everywhere` (below). A site whose `page_body` or `main` hook composes
 the whole page places the group itself: `page.page_actions` holds the markup core would have used (empty when the page gets none) on item pages.
 
 Without JavaScript the markup is a list of links (View as Markdown, Open in ...) and the copy button stays hidden
 (`visibility: hidden`, so it also stays out of the accessibility tree and keeps its space: no layout shift). With
 JavaScript the links become a menu button following the ARIA menu pattern (Enter, Space, Arrow keys, Home, End, Escape,
 Tab). Styling uses the `--papyrus-*` tokens, so light and dark themes follow the site's.
+
+### Actions on every page (`pageActions.everywhere`)
+
+`"everywhere": true` (off by default; a site that does not set it projects the same bytes as before) puts the same actions on
+the other pages core generates: the home page (generated or authored), listings, section and collection fronts, the tag
+index and tag pages, archive pages, the showcase page, forum thread pages, paged Reference list pages and every page `n` of a
+listing, plus standing pages of any entry type and `pages` entries written without a `source`. Each page offers its own
+title (page 2 of a listing reads "Essays — page 2"), its own canonical address and its own Markdown twin, and only a page
+that has a twin gets them: a `noindex` page, the 404 page and a site with `agents.markdown: false` get none. Placement
+follows `placement`. A site whose `main` hook composes a page places the group itself with `page.article_actions()`, which now
+returns the markup on all of these pages (and an empty string without the setting); a hook that returns nothing leaves
+the page to core, which never places the actions twice.
 
 ### Icons, post links and the share popup
 
