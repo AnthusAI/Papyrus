@@ -144,6 +144,16 @@ the front matter wrote them, so `", ".join(entry.authors)` works in any hook. `e
 tuple of `Author` objects (`papyrus_content.authors.Author`: `name`, and `url`, empty when the front matter gave none);
 read it to link a name. `str(author)` is the name.
 
+An entry's `image_dark` is the Night version of its `image` (front matter `imageDark`, `coverDark` or `thumbnailDark`; ignored when
+the entry has no `image`). The standard listing cards, which every site gets unless it sets a `card` hook, then carry both
+pictures and `markus-components.css` shows one by theme: the system setting, or a theme picked by hand (`dark` or `dark-theme`
+on the root element shows Night, `light`, `light-theme` or `data-theme="light"` shows Day). It needs no JavaScript, and the picture
+that is hidden is not fetched. Social images (`og:image`), feeds and the public data always use `image`. A site's own `card` hook
+reads `entry.image_dark` itself, or `components.card_image(entry)` for the same markup. Nothing needs to be written by hand: when a Story is
+published, and its `image` is a body `::image` figure that has a `srcDark` (the file itself or one of its
+`assets/responsive/<folder>/<stem>-<width>.<ext>` renditions), the Night file or rendition is stored with the item's listing data as
+`imageDark`. A hand-written `imageDark` wins. Stories published before this change get it when they are next published.
+
 `authors` (or `author`) may be a string (`Ann Lee, Bo Reed`), a list of strings, or a list of `{name, url}` objects
 (`url` optional). One shared reader (`papyrus_content.authors.normalize_authors`) turns each into authors, so every output
 shows the name: Atom `<author><name>` plus `<uri>` (made absolute with the site origin), RSS `<dc:creator>`, the Markdown

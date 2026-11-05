@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b5688f61-0a27-4a9c-a291-99d0504d8948",
+  "title": "Article bodies show the Night image when Light is picked by hand on a dark system",
+  "description": "In src/papyrus_content/markus_renderer/images.py DARK_VARIANT_CSS, the dark rule is :root:not([data-theme]):not(.dark) inside a prefers-color-scheme dark media query. The app's hand-picked Light sets class light / light-theme (no data-theme, no dark class), so on a dark system the media rule still hides the Day image and shows Night. Fix: also exclude :root.light, :root.light-theme and [data-theme=light], as the card CSS in markus-components.css does. Found while doing PPY-7d34fa.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T05:02:53.882158Z",
+  "updated_at": "2026-11-05T05:02:53.882247Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

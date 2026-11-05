@@ -120,9 +120,22 @@ def pager(page: int, pages: int, url_for_page) -> str:
     )
 
 
+def card_image(entry: StandardEntry) -> str:
+    """The card's picture. With a Night version it is a Day and a Night ``<img>``, each in a ``display:contents`` span (the site's own rules for ``.markus-card-image`` still apply); ``markus-components.css`` shows one by theme (the hidden span is ``display:none``, so a browser does not fetch its image)."""
+    if not entry.image:
+        return ""
+    if not entry.image_dark:
+        return f'<img class="markus-card-image" src="{esc(entry.image)}" alt="" loading="lazy">'
+
+    def picture(source: str, theme: str) -> str:
+        return f'<span class="markus-card-image-{theme}"><img class="markus-card-image" src="{esc(source)}" alt="" loading="lazy"></span>'
+
+    return picture(entry.image, "day") + picture(entry.image_dark, "night")
+
+
 def card(entry: StandardEntry, *, heading_level: int = 2, date_format: str = "") -> str:
     level = f"h{heading_level}"
-    image = f'<img class="markus-card-image" src="{esc(entry.image)}" alt="" loading="lazy">' if entry.image else ""
+    image = card_image(entry)
     href = entry.url or entry.link or "#"
     summary = f'<p class="markus-card-summary">{esc(entry.summary_text)}</p>' if entry.summary_text else ""
     meta = byline(entry, date_format)

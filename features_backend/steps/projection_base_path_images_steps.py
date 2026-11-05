@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import sys
@@ -264,6 +265,11 @@ def pages_equal_recorded(context) -> None:
     site = context.images_site
     assert site.error is None, site.error
     rendered = pages(site.cloud_out)
+    if os.environ.get("UPDATE_GOLDEN") == "1":  # regenerate the recorded pages (e.g. after a shared asset changes its token)
+        for key, data in rendered.items():
+            target = EXPECTED_ROOT / key
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
     recorded = {path.relative_to(EXPECTED_ROOT).as_posix(): path.read_bytes() for path in sorted(EXPECTED_ROOT.rglob("*")) if path.is_file()}
     assert set(rendered) == set(recorded), sorted(set(rendered) ^ set(recorded))
     different = [key for key in recorded if rendered[key] != recorded[key]]
