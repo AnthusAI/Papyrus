@@ -107,7 +107,8 @@ import { useReferencePredictions } from "../lib/use-reference-predictions";
 import { buildFeedItems, feedWindow } from "../lib/reference-feed-ranking";
 import { loadFeedSnapshot, saveFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
 import { referencePreviewsByLineage } from "../lib/reference-preview";
-import { PREVIEW_SEARCH_MEANING, previewSearch, type ReferenceSearchReader } from "../lib/reference-search";
+import { PREVIEW_SEARCH_MEANING, normalizeSearchQuery, previewSearch, statusFromLocation, type ReferenceSearchReader } from "../lib/reference-search";
+import { NewsroomSearchResults } from "./newsroom-search-results";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
@@ -423,6 +424,8 @@ export type NewsDeskSelection = {
   item?: string | null;
   panel?: string | null;
   searchQuery?: string | null;
+  /** `?status=` on the search page: pending, accepted or rejected; absent is Any. */
+  searchStatus?: string | null;
   searchAnchorKind?: string | null;
   searchAnchorId?: string | null;
   searchAnchorLineageId?: string | null;
@@ -3204,7 +3207,15 @@ function NewsDeskDashboard({
             savedCopy={savedFeedCopy}
           />
         ) : null}
-        {activeTab === "search" ? (
+        {activeTab === "search" && !initialSearchRequest?.anchor ? (
+          <NewsroomSearchResults
+            hrefFor={(lineageId) => getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, Boolean(dashboard.isDemo))}
+            initialQuery={normalizeSearchQuery(initialSelection.searchQuery)}
+            initialStatus={statusFromLocation(`status=${encodeURIComponent(initialSelection.searchStatus ?? "")}`)}
+            search={dashboard.isDemo ? (input) => Promise.resolve(previewSearch(references, input, { meaning: PREVIEW_SEARCH_MEANING })) : searchReferences}
+          />
+        ) : null}
+        {activeTab === "search" && initialSearchRequest?.anchor ? (
           <SearchDeskView
             assignments={assignments}
             categories={mergeCategoryRecords(categorys, activeCategoryTreeNodes)}
