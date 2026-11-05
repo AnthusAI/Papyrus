@@ -81,6 +81,21 @@ still surface as an error in the panel.
 
 **Reading a check from the command line.** `papyrus editorial check-version --item VERSION_ID` prints the summary line and then every finding, violations first and then those for review: status, severity, policy, probability, id, message and excerpt. `--json` prints the summary and the full findings. A judgment that is about the whole story has no passage to quote, so Humanus gives it an empty excerpt (and one id per detector, so the id does not change when the text does); Papyrus starts its message with "Applies to the whole story." so it never reads as a missing excerpt.
 
+**When a stored check is reused.** A saved version is not sent to the provider again when a stored check of this
+version, or of a recent earlier version of the same story, has the same content hash, the same section and the same pack
+version, finished every lane the settings turn on (`ran`, or `skipped` for want of a mission), and left no lane
+`unavailable`, `failed` or `partial`. The pack version (`packVersion` on the check run) ends in a fingerprint of the full
+text of the policies that apply and the pack guidance, so a policy that was added, edited in place without a new version
+number, enabled or disabled makes the stored check stale. Nothing else is checked when a policy changes: the version is
+checked again when someone asks (`papyrus editorial check-version`) or on its next save. A reused answer says so: the
+JSON has `reused: true`, `reusedFrom` and the original `checkedAt`, and the summary line reads `reused: not checked
+again, same text and policies as the check of <time>`; a fresh one reads `checked now`. Cross-story boilerplate findings
+are the one part that is recomputed on a reused check. A check stored before the fingerprint existed has an old pack
+version, so the first check of each such version after the release runs once more (one provider call per version, only
+for versions someone checks or saves; there is no sweep). A lane that did not run is named on the summary line
+(`judgment questions did not run (unavailable: no decision model is configured)`) and in `lanesNotRun` from the
+Tactus `papyrus_check_story_version` tool, which also stops calling such a result `clean`.
+
 **Passages copied across stories.** Each server check of a saved version (`checkItemVersion`, which `papyrus
 editorial check-version`, `papyrus stories save-version` and the article editor's save all use) also looks for
 boilerplate: a run of 12 or more consecutive words (the same `COPIED_RUN_WORDS` the reference copy guard uses) that
