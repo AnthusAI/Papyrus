@@ -286,7 +286,7 @@ def project_item_to_published(
     section = item.get("section")
     metadata = _parse_json_object(item.get("metadata"))
     metadata["sourceContentHash"] = item.get("contentHash")
-    metadata[PROJECTION_METADATA_KEY] = projection_metadata(metadata.get("frontMatterYaml"))
+    metadata[PROJECTION_METADATA_KEY] = projection_metadata(metadata.get("frontMatterYaml"), item.get("bodyMarkus"))
     published = {
         "id": published_id,
         "sourceItemId": item["id"],

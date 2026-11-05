@@ -68,6 +68,34 @@ def system_dark(context) -> None:
     assert ":root:not([data-theme=light]):not(.light):not(.light-theme) .markus-card-image-night { display: contents; }" in context.css
 
 
+@given("a Story whose card picture is a rendition of a body figure that has a srcDark")
+def story_with_rendition(context) -> None:
+    body = '::image{\n  src="assets/story/reach-3.png" srcDark="assets/story/reach.dark-3.png"\n  layout="full"\n}\n'
+    context.pub_item = {
+        "id": "i1",
+        "slug": "s",
+        "type": "article",
+        "bodyMarkus": body,
+        "metadata": {"frontMatterYaml": "image: /assets/responsive/assets/story/reach-3-1024.png\n"},
+    }
+
+
+@when("the Story is published with its body")
+def publish_story(context) -> None:
+    import json
+
+    from papyrus_content.publishing import project_item_to_published
+
+    published, _ = project_item_to_published(context.pub_item, [], published_at="2026-02-01T00:00:00Z", version_number=1)
+    metadata = published["metadata"]
+    context.published_metadata = json.loads(metadata) if isinstance(metadata, str) else metadata
+
+
+@then("the published Story records the Night rendition of the figure as the card's Night picture")
+def records_night(context) -> None:
+    assert context.published_metadata["projection"]["frontMatter"]["imageDark"] == "/assets/responsive/assets/story/reach.dark-3-1024.png"
+
+
 @then("the Night picture shows when the reader picked Dark by hand, whatever the system says")
 def hand_dark(context) -> None:
     for selector in (":root[data-theme=dark]", ":root.dark", ":root.dark-theme"):

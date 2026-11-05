@@ -78,3 +78,54 @@ def test_the_stylesheet_follows_system_and_hand_picked_themes():
     # A hand-picked Dark shows Night even when the system is Light.
     for selector in (":root[data-theme=dark]", ":root.dark", ":root.dark-theme"):
         assert f"{selector} .markus-card-image-night" in css and f"{selector} .markus-card-image-day" in css
+
+
+BODY = """Intro.
+
+::image{
+  src="assets/story/reach-3.png" srcDark="assets/story/reach.dark-3.png"
+  layout="full"
+  alt="A figure"
+}
+
+More.
+"""
+RENDITION = "/assets/responsive/assets/story/reach-3-1024.png"
+
+
+def test_a_card_that_shows_a_figure_with_a_pair_gets_its_night_rendition_from_the_body():
+    from papyrus_content.projection.stored import night_image_for, projection_metadata
+
+    assert night_image_for(RENDITION, BODY) == "/assets/responsive/assets/story/reach.dark-3-1024.png"
+    assert night_image_for("assets/story/reach-3.png", BODY) == "assets/story/reach.dark-3.png"
+    stored = projection_metadata(f"title: T\nimage: {RENDITION}\n", BODY)["frontMatter"]
+    assert stored["imageDark"] == "/assets/responsive/assets/story/reach.dark-3-1024.png"
+
+
+def test_no_night_picture_is_invented():
+    from papyrus_content.projection.stored import night_image_for, projection_metadata
+
+    assert night_image_for("/assets/responsive/assets/story/other-1024.png", BODY) is None
+    assert night_image_for(RENDITION, BODY.replace('srcDark="assets/story/reach.dark-3.png"', "")) is None
+    assert night_image_for("/assets/responsive/assets/story/reach-3-x.png", BODY) is None
+    assert "imageDark" not in projection_metadata("title: T\n", BODY)["frontMatter"]
+    assert projection_metadata("title: T\nimage: /x.png\n", BODY) == projection_metadata("title: T\nimage: /x.png\n")
+
+
+def test_an_authors_own_night_picture_is_kept():
+    from papyrus_content.projection.stored import projection_metadata
+
+    stored = projection_metadata(f"image: {RENDITION}\nimageDark: /mine.png\n", BODY)["frontMatter"]
+    assert stored["imageDark"] == "/mine.png"
+
+
+def test_publishing_stores_the_pair_for_cards():
+    import json
+
+    from papyrus_content.publishing import project_item_to_published
+
+    item = {"id": "i1", "slug": "s", "type": "article", "metadata": {"frontMatterYaml": f"image: {RENDITION}\n"}, "bodyMarkus": BODY}
+    published, _ = project_item_to_published(item, [], published_at="2026-02-01T00:00:00Z", version_number=1)
+    metadata = published["metadata"]
+    metadata = json.loads(metadata) if isinstance(metadata, str) else metadata
+    assert metadata["projection"]["frontMatter"]["imageDark"].endswith("reach.dark-3-1024.png")

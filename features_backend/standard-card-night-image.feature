@@ -20,6 +20,13 @@ Feature: A story card shows the Night picture when its figure has a Day and Nigh
     When the listing page is projected
     Then no social image tag, feed or data file names the Night picture
 
+  Scenario: Publishing a Story whose card shows a figure with a Day and Night pair stores the Night picture by itself
+    The author adds nothing. The card's picture is the first figure's 1024 px rendition, and the body names that figure's srcDark,
+    so the published Story records the Night rendition for its card. A Night picture an author wrote is kept.
+    Given a Story whose card picture is a rendition of a body figure that has a srcDark
+    When the Story is published with its body
+    Then the published Story records the Night rendition of the figure as the card's Night picture
+
   Scenario: The stylesheet follows the system setting and a theme picked by hand
     When the shared components stylesheet is read
     Then the Night picture shows when the system is dark unless the reader picked Light by hand
