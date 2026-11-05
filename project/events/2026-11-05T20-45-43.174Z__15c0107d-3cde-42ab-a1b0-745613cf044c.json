@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "15c0107d-3cde-42ab-a1b0-745613cf044c",
+  "issue_id": "PPY-17c201e7-4661-4530-8169-76e338bca167",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T20:45:43.174Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Verify Papyrus MCP on an HTTPS pilot site and live clients",
+    "description": "After local and CI checks, use a configured HTTPS test site with both identities. Exercise sign-in and refresh, tools and card actions in ChatGPT first, then Claude, Antigravity, Cursor, Brockbot and other candidates. Record connection and App support separately. See draft PR #1244 and docs/mcp-host-trial.md.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
+    "labels": []
+  }
+}
