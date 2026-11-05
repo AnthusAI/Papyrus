@@ -1,24 +1,43 @@
 version: 1
 publication: shipped
+description: a publication about new arrivals in machine learning, tracking open-weights model releases, decision models used in production and the products built on them
 entity_kinds:
   - key: maker
     label: company or developer
+    what: a named company, lab, university, research group or developer account that releases or builds machine learning models or products
+    not_for: a model or product the maker released, a platform that only hosts the work, or a person mentioned for any other reason
   - key: model
     label: AI model
+    what: one specific named machine learning model or checkpoint, usually with a version or size
+    not_for: a whole series of models, a technique, or a product that merely uses a model
   - key: model_family
     label: AI model family
+    what: a named series or line of machine learning models with no single version
+    not_for: one versioned model, or the company that makes the series
   - key: task
     label: task a model performs
+    what: a job a model is used for, such as speech synthesis, content moderation, routing or classification
+    not_for: the method used to do the job, a product that does it, or a score or measurement
   - key: technique
     label: machine learning technique
+    what: a named machine learning method, training approach or architecture
+    not_for: the task it is used for, a model built with it, or a general research topic
   - key: licence
     label: software licence
+    what: a named licence that a model or its weights are released under, such as Apache-2.0 or MIT
+    not_for: a general statement about openness, or terms of service with no licence name
   - key: dataset
     label: dataset
+    what: a named dataset or training corpus
+    not_for: a benchmark used only to score models, or a generic description of training data
   - key: platform
     label: platform or hosting service
+    what: a named service where models are hosted, served or run, such as a model hub or an inference provider
+    not_for: the company behind the service when the company itself is the subject, a model, or a local software library
   - key: concept
     label: technical concept
+    what: an established technical idea in machine learning, specific enough to be a subject of its own
+    not_for: an ordinary word or phrase, a marketing claim, a generic adjective or action, or a detail of one document
 relation_types:
   - key: made_by
     label: made by
