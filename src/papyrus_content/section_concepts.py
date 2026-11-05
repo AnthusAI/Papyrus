@@ -5,8 +5,9 @@ alias, ``#hashtag`` or node key means, and makes the concept an editor invents b
 ``ensureEditorConcept`` writes in ``amplify/functions/category-action/reference-links.ts``; ``scripts/fixtures/editor-concept-vectors.json`` is read by
 both, so the two cannot drift.
 
-``papyrus sections concepts --section S`` lists; ``... add --section S --concept NAME [--note TEXT] [--create]`` and ``... remove --section S --concept NAME``
-write unless ``--dry-run``.
+``papyrus sections concepts --section S`` lists; ``... add --section S --concept NAME [--note TEXT] [--create [--display-name TEXT]]`` and
+``... remove --section S --concept NAME`` write unless ``--dry-run``. A concept made by ``--create`` is made by the site's ``createEditorConcept`` mutation
+(``signed_in_concepts.py``), so it works on a signed-in session with no AWS login, and it keeps the capitals the person typed.
 """
 
 from __future__ import annotations
@@ -35,6 +36,25 @@ def concept_slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", stripped).strip("-")[:80]
 
 
+BARE_SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def display_name_for(typed: str, given: str | None = None) -> str:
+    """The name a new concept shows. ``--display-name`` wins. Else the words as typed, capitals kept (``Information flow control``, ``Non-interference``),
+    except that a ``#hashtag`` or a bare lower-case slug (``fake-website-networks``) reads with spaces, as a hashtag always has."""
+    stripped = typed.strip()
+    name = " ".join(stripped.lstrip("#").split())
+    if given:
+        name = " ".join(given.split())
+    elif stripped.startswith("#") or BARE_SLUG.match(name):
+        name = name.replace("-", " ")
+    if not name:
+        raise ValueError("A concept needs a name.")
+    if concept_slug(name) != concept_slug(typed):
+        raise ValueError(f"The name {name!r} is not the same words as {typed!r}, which makes the concept's key; give --display-name with the same words.")
+    return name
+
+
 def editor_concept_key(slug: str) -> str:
     return f"{EDITOR_CONCEPT_KIND}{CONCEPT_KEY_SEPARATOR}{slug}"
 
@@ -43,7 +63,7 @@ def editor_concept_lineage_id(slug: str) -> str:
     return f"semantic-node-{editor_concept_key(slug)}"
 
 
-def build_editor_concept_node(name: str, actor: str, now: str) -> dict[str, Any]:
+def build_editor_concept_node(name: str, actor: str, now: str, display_name: str | None = None) -> dict[str, Any]:
     slug = concept_slug(name)
     if not slug:
         raise ValueError("A concept needs a name.")
@@ -51,7 +71,7 @@ def build_editor_concept_node(name: str, actor: str, now: str) -> dict[str, Any]
     return {
         "id": f"{lineage_id}-v1", "lineageId": lineage_id, "versionNumber": 1, "versionState": "current", "versionCreatedAt": now,
         "versionCreatedBy": actor, "changeReason": EDITOR_CONCEPT_CHANGE_REASON, "nodeKey": editor_concept_key(slug),
-        "nodeKind": EDITOR_CONCEPT_KIND, "displayName": slug.replace("-", " "), "status": "accepted", "aliases": [], "createdAt": now,
+        "nodeKind": EDITOR_CONCEPT_KIND, "displayName": display_name or slug.replace("-", " "), "status": "accepted", "aliases": [], "createdAt": now,
         "updatedAt": now, "newsroomFeedKey": "semanticNodes",
     }
 
@@ -174,7 +194,7 @@ def _add(client: Any, section: dict[str, Any], options: dict[str, Any], apply: b
     node = resolve_concept(nodes, text)
     made = False
     if node is None:
-        invented = build_editor_concept_node(text, COMMAND_ACTOR, now) if concept_slug(text) else None
+        invented = build_editor_concept_node(text, COMMAND_ACTOR, now, display_name_for(text, normalize_string(options.get("display-name")))) if concept_slug(text) else None
         existing = resolve_concept(nodes, text, allow_rejected=True) or (nodes_by_lineage(nodes).get(invented["lineageId"]) if invented else None)
         if existing is not None:
             raise ValueError(f"The concept {concept_label(existing)!r} was rejected, so a section cannot have it as a core concept.")
@@ -193,7 +213,10 @@ def _add(client: Any, section: dict[str, Any], options: dict[str, Any], apply: b
     if not apply:
         return
     if made:
-        client.create_record("SemanticNode", node)
+        # An editor's token cannot write the graph directly; the site's own mutation makes the concept (and records that it was made from the CLI).
+        from .signed_in_concepts import create_editor_concept
+
+        create_editor_concept(client, text, normalize_string(options.get("display-name")))
     if held is not None:
         held["note"] = note
     else:
@@ -220,14 +243,18 @@ def _remove(client: Any, section: dict[str, Any], options: dict[str, Any], apply
 
 
 def sections_concepts(flags: list[str]) -> None:
-    """papyrus sections concepts --section S | add --section S --concept NAME [--note TEXT] [--create] [--dry-run] | remove --section S --concept NAME [--dry-run]
+    """papyrus sections concepts --section S | add --section S --concept NAME [--note TEXT] [--create] [--display-name TEXT] [--dry-run] | remove --section S --concept NAME [--dry-run]
 
     ``NAME`` is a name, an alias, a ``#hashtag`` or a node key. An unknown name fails unless ``--create``, which makes an ``editor_concept``
-    concept exactly as typing its hashtag in the console does."""
+    concept as typing its hashtag in the console does, except that the name keeps the capitals typed (``--display-name`` gives other words with the same
+    letters, for a lower-case slug such as ``non-interference``)."""
+    if any(flag in ("--help", "-h") for flag in flags):
+        print((sections_concepts.__doc__ or "").strip())
+        return
     verb = flags[0] if flags and not flags[0].startswith("--") else "list"
     options = parse_options(flags[1:] if verb != "list" or (flags and not flags[0].startswith("--")) else flags)
     if verb not in ("list", "add", "remove"):
-        raise ValueError("Usage: papyrus sections concepts [add|remove] --section S [--concept NAME] [--note TEXT] [--create] [--dry-run]")
+        raise ValueError("Usage: papyrus sections concepts [add|remove] --section S [--concept NAME] [--note TEXT] [--create] [--display-name TEXT] [--dry-run]")
     apply = resolve_mutation_apply(options, f"sections concepts {verb}") if verb != "list" else False
     value = normalize_string(options.get("section"))
     if not value or value is True:

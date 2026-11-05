@@ -777,8 +777,32 @@ const definitions = {
 
   createEditorConcept: a
     .mutation()
-    .arguments({ name: a.string().required() })
+    .arguments({ name: a.string().required(), displayName: a.string() })
     .returns(a.ref("CreateConceptResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  createConceptLink: a
+    .mutation()
+    .arguments({
+      subjectLineageId: a.id().required(),
+      objectLineageId: a.id().required(),
+      note: a.string().required(),
+    })
+    .returns(a.ref("ReferenceLinkResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  KnowledgeReviewResult: a.customType({
+    ok: a.boolean().required(),
+    applied: a.integer().required(),
+    origin: a.string().required(),
+  }),
+
+  applyKnowledgeReview: a
+    .mutation()
+    .arguments({ patches: a.json().required() })
+    .returns(a.ref("KnowledgeReviewResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(functionHandler("categoryAction", categoryAction)),
 
