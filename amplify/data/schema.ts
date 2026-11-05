@@ -1869,6 +1869,9 @@ const definitions = {
       // (`captureState` not "full" or "running") and no `captureReason` (null otherwise): the partition the transcript worker reads as
       // "<corpusId>#video#needs_content#accepted", newest first by `feedArrivalAt`. Sparse: removed when the content arrives.
       contentNeededKey: a.string(),
+      // The video's own thumbnail, copied into the media bucket by `papyrus references capture-thumbnails`: the site path of the copy
+      // ("assets/reference-thumbnails/<hash>.jpg"), or "none" when the platform has no thumbnail (recorded so it is not asked again). Else empty.
+      thumbnailPath: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [

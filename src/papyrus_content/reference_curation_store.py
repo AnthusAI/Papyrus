@@ -359,11 +359,21 @@ def correct_reference_capture(client: Any, arguments: dict[str, Any], identity: 
     (``no_transcript``, ``unavailable`` or ``unsupported_platform``: the transcript worker found nothing to capture on this video). The editor recorded is the
     signed-in caller (never a field of the request).
     """
-    if set(arguments) - {"referenceId", "text", "grobid", "assessment", "note", "pdfAttachmentId", "captureReason"}:
+    if set(arguments) - {"referenceId", "text", "grobid", "assessment", "note", "pdfAttachmentId", "captureReason", "thumbnail"}:
         raise CurationError("Unsupported correction fields; the editor is taken from the signed-in session.")
     reference_id = arguments.get("referenceId")
     if not isinstance(reference_id, str) or not _REFERENCE_ID.match(reference_id):
         raise CurationError("referenceId must be a Reference id.")
+    if arguments.get("thumbnail") is not None:
+        # The thumbnail worker (`papyrus references capture-thumbnails`) records a video's own picture, already copied to the media bucket, on the Reference.
+        if set(arguments) - {"referenceId", "thumbnail"} or not isinstance(arguments["thumbnail"], dict):
+            raise CurationError("A thumbnail is sent alone, as an object.")
+        from .reference_thumbnails import Refused, record_thumbnail
+
+        try:
+            return {"ok": True, **record_thumbnail(client, find_reference(client, reference_id), arguments["thumbnail"])}
+        except Refused as refusal:
+            raise CurationError(str(refusal)) from refusal
     editor = str((identity or {}).get("username") or (identity or {}).get("sub") or "").strip()
     note = arguments.get("note") or ""
     if not isinstance(note, str) or len(note) > 4000:

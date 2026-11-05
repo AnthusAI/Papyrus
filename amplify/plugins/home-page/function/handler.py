@@ -20,7 +20,7 @@ import time
 from typing import Any, Mapping
 
 #: ``starRating`` is never printed on a page, but it orders them: a rating that moves a Reference up or down must reach the pages. Who rated and when do not.
-CHANGE_FIELDS = ("curationStatus", "feedStateKey", "predictionSortKey", "versionState", "title", "curationSectionId", "starRating", "medium")
+CHANGE_FIELDS = ("curationStatus", "feedStateKey", "predictionSortKey", "versionState", "title", "curationSectionId", "starRating", "medium", "thumbnailPath")
 MESSAGE_CHANGE_FIELDS = ("status", "content", "editedAt", "deletedAt")
 PUBLIC_MESSAGE_KIND = "comment"
 CHANGING_EVENTS = ("INSERT", "MODIFY")
