@@ -15,7 +15,7 @@ Feature: Jev decides which names in the texts are real, what kind they are and w
   the name is real, and nothing is cut off by that confidence, because the import's candidate
   filter and the AI review decide what stays. The page answer travels beside it on every
   proposed entity, as a score and a yes or no, so that later steps can rank names by it. A name
-  that appears only once outside the reference lists never gets a page, whatever Jev said: that
+  that appears in only one document outside the reference lists never gets a page, whatever Jev said: that
   is decided by the extractor, not left to the wording of the prompt.
 
   The publication is described to Jev by the "description" in the site's vocabulary, so every
@@ -55,8 +55,8 @@ Feature: Jev decides which names in the texts are real, what kind they are and w
     Then the item "doc-1" has no entity "Tern3"
     And the item "doc-1" has the proposed organization "Maple Lab" once, with confidence 0.9
 
-  Scenario: A name with a single mention never gets a page, whatever Jev answered
-    Given a corpus of two documents that read "Tern3 beat Maple Lab." and "Maple Lab won."
+  Scenario: A name in only one document never gets a page, however often that document mentions it
+    Given a corpus of two documents that read "Tern3 beat Maple Lab. Tern3 won again." and "Maple Lab won."
     And Jev answers "Tern3" is a real model with confidence 0.9 and page 0.95, and "Maple Lab" is a real organization with confidence 0.9 and page 0.95
     When the entities are extracted
     Then the item "doc-1" has "Tern3" with page score 0.0 and no page
