@@ -38,7 +38,7 @@ export type CommonsOptions = {
 };
 
 export function userAgent(contact?: string): string {
-  const where = (contact ?? "").trim() || "https://p.apyr.us/";
+  const where = (contact ?? "").trim() || "https://github.com/AnthusAI/Papyrus";
   return `PapyrusNewsroomImagePicker/1.0 (${where}) fetch`;
 }
 
