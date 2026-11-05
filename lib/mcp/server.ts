@@ -1,11 +1,13 @@
+import { mcpOAuthClients } from './oauth-clients';
 import { createMcpHandler, type McpTool, type McpToolResult } from './transport';
 import { invokeMcpOAuth, mcpOAuthConfig, type McpPrincipal } from './oauth-runtime';
 import { listMcpAppResources, readMcpAppResource, withMcpAppMetadata, withMcpAppResult } from './cards';
 import { readAmplifyOutputsFile } from '../amplify-outputs-path';
 
-type Config = { functionArn: string };
-type DomainRequest = { operation: 'list' | 'call'; principal: McpPrincipal; name?: string; arguments?: Record<string, unknown> };
-type Options = { oauth?: ReturnType<typeof mcpOAuthConfig>; domain?: Config | null; verify?: typeof invokeMcpOAuth; invoke?: (arn: string, request: DomainRequest) => Promise<unknown> };
+type Config = { functionArn: string; appsEnabled?: boolean; allowedOrigins?: string[] };
+type DomainPrincipal = { kind: 'staff'; subject: string; idToken: string } | { kind: 'reader'; siteSubject: string };
+type DomainRequest = { operation: 'list' | 'call'; principal: DomainPrincipal; name?: string; arguments?: Record<string, unknown> };
+type Options = { clientsConfigured?: boolean; oauth?: ReturnType<typeof mcpOAuthConfig>; domain?: Config | null; verify?: typeof invokeMcpOAuth; invoke?: (arn: string, request: DomainRequest) => Promise<unknown> };
 
 function domainConfig(): Config | null {
   const outputs = readAmplifyOutputsFile() as { custom?: { mcpTools?: Config } } | null;
@@ -25,14 +27,14 @@ export function createSiteMcpHandler(options: Options = {}) {
   const oauth = options.oauth === undefined ? mcpOAuthConfig() : options.oauth;
   const domain = options.domain === undefined ? domainConfig() : options.domain;
   const invoke = options.invoke ?? invokeDomain;
-  const list = async (principal: McpPrincipal): Promise<McpTool[]> => {
+  const list = async (principal: DomainPrincipal): Promise<McpTool[]> => {
     if (!domain) throw new Error('MCP tools are not configured');
     const result = await invoke(domain.functionArn, { operation: 'list', principal });
     if (!isObject(result) || !Array.isArray(result.tools) || !result.tools.every((tool: unknown) => isObject(tool) && typeof tool.name === 'string' && isObject(tool.inputSchema))) throw new Error('Invalid MCP tools response');
-    return (result.tools as McpTool[]).map(withMcpAppMetadata);
+    return domain.appsEnabled ? (result.tools as McpTool[]).map(withMcpAppMetadata) : result.tools as McpTool[];
   };
-  return createMcpHandler<McpPrincipal>({
-    enabled: !!oauth && !!domain,
+  return createMcpHandler<DomainPrincipal>({
+    enabled: !!oauth && !!domain && (options.clientsConfigured ?? !!mcpOAuthClients()),
     resourceMetadataUrl: oauth ? `${oauth.origin}/api/mcp/oauth/resource` : undefined,
     verifyBearer: async token => {
       if (!oauth) return null;
@@ -43,16 +45,17 @@ export function createSiteMcpHandler(options: Options = {}) {
       if (principal.kind === 'reader') return { kind: 'reader', siteSubject: principal.siteSubject };
       const raw = principal as unknown as Record<string, unknown>;
       if (typeof raw.idToken !== 'string' || !raw.idToken) throw new Error('Invalid staff identity');
-      return { kind: 'staff', subject: principal.subject, idToken: raw.idToken } as unknown as McpPrincipal;
+      return { kind: 'staff', subject: principal.subject, idToken: raw.idToken };
     },
+    allowedOrigins: domain?.allowedOrigins,
     listTools: list,
-    callTool: async (principal, name, args) => {
+    callTool: async (principal, name, args, available) => {
       if (!domain) throw new Error('MCP tools are not configured');
       const result = await invoke(domain.functionArn, { operation: 'call', principal, name, arguments: args });
       if (!isObject(result) || !Array.isArray(result.content)) throw new Error('Invalid MCP tool result');
-      return withMcpAppResult(result as McpToolResult, (await list(principal)).map(tool => tool.name));
+      return domain.appsEnabled && !result.isError && (name === 'reference_get' || name === 'story_get')
+        ? withMcpAppResult(result as McpToolResult, available) : result as McpToolResult;
     },
-    listResources: async () => listMcpAppResources(),
-    readResource: async (_principal, uri) => readMcpAppResource(uri),
+    ...(domain?.appsEnabled ? { listResources: async () => listMcpAppResources(), readResource: async (_principal: DomainPrincipal, uri: string) => readMcpAppResource(uri) } : {}),
   });
 }

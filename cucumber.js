@@ -27,6 +27,11 @@ module.exports = {
     require: ["features/step_definitions/mcp-site-integration.steps.js"],
     format: ["summary"],
   },
+  mcpCards: {
+    paths: ["features/mcp/cards.feature"],
+    require: ["features/step_definitions/mcp-cards.steps.js"],
+    format: ["summary"],
+  },
   mcpTransport: {
     paths: ["features/mcp/streamable-http.feature"],
     require: ["features/step_definitions/mcp-transport.steps.js"],

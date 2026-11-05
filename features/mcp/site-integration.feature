@@ -17,3 +17,14 @@ Feature: Site MCP integration
     Given a site with incomplete MCP configuration
     Then MCP is unavailable
     And an invalid token is challenged while an unavailable verifier returns service unavailable
+
+  Scenario: Browser and App access are explicit site choices
+    Given a configured site with exact browser origins and Apps enabled
+    When a browser from an allowed origin connects and another origin tries to connect
+    Then only the allowed origin receives browser access
+    And disabling Apps hides their resources
+
+  Scenario: A successful write is not followed by another discovery call
+    Given a configured site with a seeded staff story
+    When a verified staff client saves a draft
+    Then the authorized tool list is reused for the response

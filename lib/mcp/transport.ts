@@ -5,7 +5,7 @@ export type McpDependencies<P> = {
   enabled: boolean;
   verifyBearer: (token: string, request: Request) => Promise<P | null>;
   listTools: (principal: P) => Promise<McpTool[]>;
-  callTool: (principal: P, name: string, args: Record<string, unknown>) => Promise<McpToolResult>;
+  callTool: (principal: P, name: string, args: Record<string, unknown>, availableTools: string[]) => Promise<McpToolResult>;
   listResources?: (principal: P) => Promise<Array<Record<string, unknown>>>;
   readResource?: (principal: P, uri: string) => Promise<Record<string, unknown>>;
   allowedOrigins?: string[];
@@ -24,10 +24,11 @@ const json = (value: unknown, status = 200, additional: Record<string, string> =
 const error = (id: unknown, code: number, message: string, status = 200) => json({ jsonrpc: "2.0", id: id ?? null, error: { code, message } }, status);
 
 export function createMcpHandler<P>(deps: McpDependencies<P>) {
-  return async (request: Request): Promise<Response> => {
+  const handle = async (request: Request): Promise<Response> => {
     if (!deps.enabled || !deps.resourceMetadataUrl) return new Response(null, { status: 404, headers });
     const origin = request.headers.get("origin");
     if (origin && !deps.allowedOrigins?.includes(origin)) return new Response(null, { status: 403, headers });
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
     const match = /^Bearer\s+(\S+)$/i.exec(request.headers.get("authorization") ?? "");
     let principal: P | null = null;
     try { if (match) principal = await deps.verifyBearer(match[1], request); } catch { return new Response(null, { status: 503, headers }); }
@@ -78,8 +79,12 @@ export function createMcpHandler<P>(deps: McpDependencies<P>) {
         case "tools/call":
           if (typeof params.name !== "string" || (params.arguments !== undefined && !object(params.arguments))) return error(id, -32602, "Invalid params");
           // Discovery is not authorization: reject names unavailable to this principal on every call.
-          if (!(await deps.listTools(principal)).some(tool => tool.name === params.name)) return error(id, -32602, "Unknown or unavailable tool");
-          result = await deps.callTool(principal, params.name, object(params.arguments) ? params.arguments : {}); break;
+          {
+            const available = (await deps.listTools(principal)).map(tool => tool.name);
+            if (!available.includes(params.name)) return error(id, -32602, "Unknown or unavailable tool");
+            result = await deps.callTool(principal, params.name, object(params.arguments) ? params.arguments : {}, available);
+          }
+          break;
         case "resources/list":
           if (!deps.listResources || !deps.readResource) return error(id, -32601, "Method not found");
           result = { resources: await deps.listResources(principal) }; break;
@@ -91,5 +96,17 @@ export function createMcpHandler<P>(deps: McpDependencies<P>) {
       }
       return json({ jsonrpc: "2.0", id, result });
     } catch { return error(id, -32603, "Internal error"); }
+  };
+  return async (request: Request): Promise<Response> => {
+    const response = await handle(request);
+    const origin = request.headers.get("origin");
+    if (!origin || !deps.enabled || !deps.resourceMetadataUrl || !deps.allowedOrigins?.includes(origin)) return response;
+    const cors = new Headers(response.headers);
+    cors.set("Access-Control-Allow-Origin", origin);
+    cors.set("Vary", "Origin");
+    cors.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    cors.set("Access-Control-Allow-Headers", "Authorization, Content-Type, MCP-Protocol-Version");
+    cors.set("Access-Control-Expose-Headers", "WWW-Authenticate, MCP-Protocol-Version");
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers: cors });
   };
 }

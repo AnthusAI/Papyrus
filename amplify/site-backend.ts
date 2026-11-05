@@ -31,7 +31,7 @@ import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY
 import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
 import { addMcpOAuth, planMcpOAuth } from "./mcp-oauth/resource";
-import { addMcpTools, readerPublication } from "./mcp-tools/resource";
+import { addMcpTools, mcpBrowserOptions, readerPublication } from "./mcp-tools/resource";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
@@ -840,7 +840,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     custom: {
       publicForms: { endpoint: publicFormsEndpoint },
       ...(mcpOAuth ? { mcpOAuth } : {}),
-      ...(mcpTools ? { mcpTools } : {}),
+      ...(mcpTools ? { mcpTools: { ...mcpTools, ...mcpBrowserOptions(process.env) } } : {}),
       // Lets the operator CLI re-project on publish without PAPYRUS_PUBLICATION_KIND / PAPYRUS_CONTENT_ACTIONS_FUNCTION (PPY-0c0b75).
       publication:
         s3ProjectionPublication !== undefined
