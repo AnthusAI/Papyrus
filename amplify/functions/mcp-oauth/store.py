@@ -25,7 +25,7 @@ class DynamoGrantStore:
 
     def _item(self, key, value):
         return {"pk": {"S": key}, "version": {"N": str(value["version"])},
-                "expiresAt": {"N": str(value["expires"])}, "sealed": {"S": self._seal(key, value)}}
+                "expiresAt": {"N": str(value.get("storage_expiry", value["expires"]))}, "sealed": {"S": self._seal(key, value)}}
 
     @staticmethod
     def _conditional_failure(error):

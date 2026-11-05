@@ -1,13 +1,13 @@
 import { readAmplifyOutputsFile } from "../amplify-outputs-path";
 
-export type McpPrincipal = { kind: "staff"; subject: string; accessToken: string; expiresAt?: number }
+export type McpPrincipal = { kind: "staff"; subject: string; accessToken: string; idToken: string; expiresAt?: number }
   | { kind: "reader"; siteSubject: string };
 export type McpOAuthRequest =
   | { operation: "verify"; token: string; resource: string }
   | { operation: "exchange"; code: string; client: string; redirect: string; resource: string; verifier: string }
   | { operation: "refresh"; token: string; client: string; resource: string }
   | { operation: "revoke"; token: string; client: string }
-  | { operation: "issue"; client: string; redirect: string; resource: string; challenge: string; principal: McpPrincipal; upstream_expiry: number };
+  | { operation: "issue"; client: string; redirect: string; resource: string; challenge: string; principal: McpPrincipal; upstream_expiry: number; transaction_id: string };
 export type McpOAuthResult = { principal: McpPrincipal | null } | { code: string }
   | { access_token: string; refresh_token: string; token_type: "Bearer"; expires_in: number }
   | { error: "invalid_grant" | "invalid_request" } | Record<string, never>;
@@ -43,7 +43,7 @@ function isResult(operation: McpOAuthRequest["operation"], result: unknown): res
     if (value.principal === null) return true;
     if (!value.principal || typeof value.principal !== "object") return false;
     const principal = value.principal as Record<string, unknown>;
-    return principal.kind === "staff" ? typeof principal.subject === "string" && !!principal.subject && typeof principal.accessToken === "string" && !!principal.accessToken
+    return principal.kind === "staff" ? typeof principal.subject === "string" && !!principal.subject && typeof principal.accessToken === "string" && !!principal.accessToken && typeof principal.idToken === "string" && !!principal.idToken
       : principal.kind === "reader" && typeof principal.siteSubject === "string" && /^ss1_[A-Za-z0-9_-]{43}$/.test(principal.siteSubject);
   }
   return typeof value.access_token === "string" && !!value.access_token && typeof value.refresh_token === "string" && !!value.refresh_token

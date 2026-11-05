@@ -34,6 +34,8 @@ assert.deepEqual(await invokeMcpOAuth(request, { readOutputs, invoke: async () =
 await assert.rejects(() => invokeMcpOAuth(request, { readOutputs, invoke: async () => { throw new Error("offline"); } }), /offline/);
 await assert.rejects(() => invokeMcpOAuth(request, { readOutputs, invoke: async () => ({ principal: { kind: "staff" } }) }), /invalid response/);
 await assert.rejects(() => invokeMcpOAuth(request, { readOutputs: () => null }), /not configured/);
+await assert.rejects(() => invokeMcpOAuth(request, { readOutputs, invoke: async () => ({ principal: { kind: "staff", subject: "staff", accessToken: "access" } }) }), /invalid response/);
+assert.deepEqual(await invokeMcpOAuth(request, { readOutputs, invoke: async () => ({ principal: { kind: "staff", subject: "staff", accessToken: "access", idToken: "id" } }) }), { principal: { kind: "staff", subject: "staff", accessToken: "access", idToken: "id" } });
 console.log("MCP OAuth configuration and private invocation checks passed");
 }
 void main();

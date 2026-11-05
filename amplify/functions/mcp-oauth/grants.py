@@ -49,25 +49,25 @@ class Grants:
         self.store, self.origin, self.clock = store, origin, clock
 
     def issue_code(self, *, client: str, redirect: str, resource: str, challenge: str,
-                   principal: dict[str, Any], upstream_expiry: int) -> str:
+                   principal: dict[str, Any], upstream_expiry: int, transaction_id: str) -> str:
         now = int(self.clock())
-        if resource != self.origin + "/api/mcp" or not client or not redirect or not re.fullmatch(r"[A-Za-z0-9_-]{43}", challenge):
+        if resource != self.origin + "/api/mcp" or not client or not redirect or not re.fullmatch(r"[A-Za-z0-9_-]{43}", challenge) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", transaction_id):
             raise InvalidGrant()
         if principal.get("kind") == "reader":
             subject = principal.get("siteSubject", "")
             if not isinstance(subject, str) or not re.fullmatch(r"ss1_[A-Za-z0-9_-]{43}", subject):
                 raise InvalidGrant()
         elif principal.get("kind") == "staff":
-            if not principal.get("subject") or not principal.get("accessToken"):
+            if not all(isinstance(principal.get(key), str) and principal[key] for key in ("subject", "accessToken", "idToken")):
                 raise InvalidGrant()
         else:
             raise InvalidGrant()
         expires = min(now + MAX_LIFETIME, upstream_expiry)
         if expires <= now:
             raise InvalidGrant()
-        key, secret = token(), token()
+        key, secret = transaction_id, token()
         row = {"version": 0, "client": client, "redirect": redirect, "resource": resource,
-               "challenge": challenge, "principal": principal, "expires": expires,
+               "challenge": challenge, "principal": principal, "expires": expires, "storage_expiry": max(expires, now + CODE_LIFETIME),
                "code_expires": min(now + CODE_LIFETIME, expires), "code": digest(secret),
                "state": "code", "used_refresh": []}
         if not self.store.create(key, row):

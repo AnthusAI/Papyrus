@@ -29,11 +29,11 @@ def setup(context):
     context.grants = g.Grants(context.store, "https://cms.example", clock=lambda: context.now)
     context.verifier = "v" * 43
     context.args = dict(client="client", redirect="https://client.example/callback", resource="https://cms.example/api/mcp")
-    context.person = dict(kind="staff", subject="staff-subject", accessToken="user-token")
+    context.person = dict(kind="staff", subject="staff-subject", accessToken="user-token", idToken="id-token")
 
 
 def issue(context, expiry=4600):
-    return context.grants.issue_code(**context.args, challenge=g.pkce(context.verifier), principal=context.person, upstream_expiry=expiry)
+    return context.grants.issue_code(**context.args, challenge=g.pkce(context.verifier), principal=context.person, upstream_expiry=expiry, transaction_id=g.token())
 
 
 def exchange(context, code):
@@ -157,3 +157,12 @@ def step(context):
     version = row['version']
     context.grants.revoke(context.tokens['refresh_token'], client='client')
     assert context.store.get(context.key)['version'] == version
+
+@when("the member's ID credential is absent")
+def step(context):
+    context.person.pop("idToken")
+
+@then("no staff grant is issued")
+def step(context):
+    refused(lambda: issue(context))
+    assert not context.store.rows

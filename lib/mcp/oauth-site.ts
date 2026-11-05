@@ -6,6 +6,7 @@ import { getAmplifyServerRuntime } from "../amplify-server-runtime";
 import { resolveNewsroomChatIdentity } from "../newsroom-chat-identity";
 import { loadProspectusSessionSealingSecret, signedInProspectusSession } from "../prospectus-session";
 import { readerSubject } from "../reader-subject";
+import { mcpOAuthClients } from "./oauth-clients";
 import { createOAuthHttp } from "./oauth-http";
 import { invokeMcpOAuth, mcpOAuthConfig } from "./oauth-runtime";
 
@@ -14,17 +15,20 @@ export async function siteOAuth() {
   const config = mcpOAuthConfig();
   const secret = await loadProspectusSessionSealingSecret();
   if (!config || !secret) return null;
-  let clients: Record<string, string[]>;
-  try {
-    const value: unknown = JSON.parse(process.env.PAPYRUS_MCP_OAUTH_CLIENTS ?? "{}");
-    if (!value || typeof value !== "object" || Array.isArray(value) || Object.values(value).some(v => !Array.isArray(v) || v.some(x => typeof x !== "string"))) return null;
-    clients = value as Record<string, string[]>;
-  } catch { return null; }
+  const clients = mcpOAuthClients();
+  if (!clients) return null;
   return createOAuthHttp({
-    origin: config.origin, secret, clients,
+    origin: config.origin, secret, clients, readerSignInAvailable: process.env.PAPYRUS_SITE_ORIGIN === config.origin,
     invoke: request => invokeMcpOAuth(request),
-    identity: async request => {
+    identity: async (request, kind) => {
       const nextRequest = new NextRequest(request);
+      if (kind === "reader") {
+        if (process.env.PAPYRUS_SITE_ORIGIN !== config.origin) return null;
+        const reader = signedInProspectusSession(nextRequest, secret);
+        const subject = readerSubject(reader);
+        if (!reader || !subject || reader.accessTokenExpiresAt <= Math.floor(Date.now() / 1000)) return null;
+        return { principal: { kind: "reader" as const, siteSubject: subject }, upstream_expiry: reader.accessTokenExpiresAt };
+      }
       const response = new NextResponse();
       const { runWithAmplifyServerContext } = getAmplifyServerRuntime();
       const tokens = await runWithAmplifyServerContext({ nextServerContext: { request: nextRequest, response }, operation: async context => {
@@ -43,10 +47,7 @@ export async function siteOAuth() {
           return { principal: { kind: "staff" as const, subject: staff.subject, accessToken: tokens.accessToken, idToken: tokens.idToken, expiresAt: expiry }, upstream_expiry: expiry };
         }
       }
-      const reader = signedInProspectusSession(nextRequest, secret);
-      const subject = readerSubject(reader);
-      if (!reader || !subject || reader.accessTokenExpiresAt <= Math.floor(Date.now() / 1000)) return null;
-      return { principal: { kind: "reader" as const, siteSubject: subject }, upstream_expiry: reader.accessTokenExpiresAt };
+      return null;
     },
   });
 }

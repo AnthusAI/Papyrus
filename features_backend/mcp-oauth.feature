@@ -42,3 +42,8 @@ Feature: Site-bound authorization for hosted MCP
     Given a client holds a grant for one publication
     When its refresh limit is reached
     Then the grant is revoked and its stored identity is removed
+
+  Scenario: A staff grant needs both credentials from the verified session
+    Given an authenticated newsroom staff member
+    When the member's ID credential is absent
+    Then no staff grant is issued

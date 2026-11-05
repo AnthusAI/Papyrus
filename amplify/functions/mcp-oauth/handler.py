@@ -29,7 +29,7 @@ def handler(event, _context):
         if operation == "issue":
             return {"code": grants.issue_code(client=event["client"], redirect=event["redirect"],
                     resource=event["resource"], challenge=event["challenge"], principal=event["principal"],
-                    upstream_expiry=event["upstream_expiry"])}
+                    upstream_expiry=event["upstream_expiry"], transaction_id=event["transaction_id"])}
     except InvalidGrant:
         return {"error": "invalid_grant"}
     except (KeyError, TypeError):

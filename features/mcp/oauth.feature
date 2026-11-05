@@ -22,3 +22,8 @@ Feature: Authorize an MCP client
     Given signed-in staff and reader sessions
     When each approves a valid client
     Then the server sends its verified identity and expiry to the token service
+
+  Scenario: A signed-out reader can sign in and return to the pending consent
+    Given an MCP site with a configured public client
+    When a signed-out reader attempts to approve the client
+    Then the reader can sign in and return to the pending consent

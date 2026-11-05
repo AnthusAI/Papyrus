@@ -14,6 +14,7 @@ class Store:
         self.items, self.lock, self.barrier = {}, threading.Lock(), None
     def create(self, key, value):
         with self.lock:
+            if key in self.items: return False
             self.items[key] = copy.deepcopy(value)
         return True
     def get(self, key):
@@ -36,7 +37,7 @@ def test_simultaneous_exchange_and_refresh():
     grants = g.Grants(store, 'https://cms.example', clock=lambda: 1000)
     verifier = 'v' * 43
     args = {'client': 'client', 'redirect': 'https://client.example/cb', 'resource': 'https://cms.example/api/mcp'}
-    code = grants.issue_code(**args, challenge=g.pkce(verifier), principal={'kind': 'staff', 'subject': 's', 'accessToken': 't'}, upstream_expiry=4600)
+    code = grants.issue_code(**args, challenge=g.pkce(verifier), principal={'kind': 'staff', 'subject': 's', 'accessToken': 't', 'idToken': 'id'}, upstream_expiry=4600, transaction_id=g.token())
     def exchange():
         try: return grants.exchange(code, **args, verifier=verifier)
         except g.InvalidGrant: return None
@@ -52,3 +53,25 @@ def test_simultaneous_exchange_and_refresh():
     assert sum(answer is not None for answer in answers) == 1
     store.barrier = None
     assert grants.verify(next(answer for answer in answers if answer)['access_token'], resource=args['resource']) is None
+
+
+def test_staff_grants_require_both_tokens():
+    grants = g.Grants(Store(), 'https://cms.example', clock=lambda: 1000)
+    try:
+        grants.issue_code(client='client', redirect='https://client.example/cb', resource='https://cms.example/api/mcp', challenge=g.pkce('v' * 43), principal={'kind': 'staff', 'subject': 's', 'accessToken': 't'}, upstream_expiry=4600, transaction_id=g.token())
+    except g.InvalidGrant:
+        return
+    assert False, 'staff grant without an ID token was accepted'
+
+
+def test_consent_transaction_is_single_use_and_retained():
+    store = Store()
+    grants = g.Grants(store, 'https://cms.example', clock=lambda: 1000)
+    args = dict(client='client', redirect='https://client.example/cb', resource='https://cms.example/api/mcp', challenge=g.pkce('v' * 43), principal={'kind': 'staff', 'subject': 's', 'accessToken': 't', 'idToken': 'i'}, upstream_expiry=1010, transaction_id='a' * 43)
+    grants.issue_code(**args)
+    assert store.items['a' * 43]['storage_expiry'] >= 1300
+    try:
+        grants.issue_code(**args)
+    except g.InvalidGrant:
+        return
+    assert False, 'transaction replay issued another code'
