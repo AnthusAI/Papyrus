@@ -68,6 +68,15 @@ class FakeCloud:
     def create_change_set(self, stack, name, kind, template_url, parameters, capabilities, tags, role_arn):
         self.created.append({"name": name, "kind": kind, "parameters": parameters, "url": template_url, "role": role_arn, "tags": tags})
 
+    validation_events: list = []
+    events_error = None
+
+    def change_set_events(self, stack, change_set_id):
+        self.events_read_after_deletes = len(self.deleted)   # the events must be read while the change set still exists
+        if self.events_error:
+            raise sd.AwsError(self.events_error)
+        return self.validation_events
+
     def delete_change_set(self, stack, name):
         self.deleted.append(name)
 
@@ -257,6 +266,53 @@ def test_a_change_set_that_cannot_be_created_fails_the_run(tmp_path):
     cloud = FakeCloud(params=CURRENT, create_status="FAILED", reason="Parameters: [X] do not exist in the template")
     with pytest.raises(sd.Failed, match="do not exist"):
         sd.deploy_stack(make(tmp_path, cloud), CFG)
+
+
+EARLY_VALIDATION = "The following hook(s)/validation failed: [AWS::EarlyValidation::ResourceExistenceCheck]"
+EXISTENCE_EVENT = {"EventType": "VALIDATION_ERROR", "LogicalResourceId": "OperatorTable", "ResourceType": "AWS::DynamoDB::Table", "ValidationName": "AWS::EarlyValidation::ResourceExistenceCheck",
+                   "ValidationStatus": "FAILED", "ValidationStatusReason": "Resource of type 'AWS::DynamoDB::Table' with identifier 'papyrus-operator-alerts' already exists."}
+
+
+def test_a_failed_early_validation_names_the_resource_from_the_change_set_events_before_the_change_set_is_deleted(tmp_path):
+    # 2026-11-05: a retained table left by a rolled-back first create failed the next change set with only "validation failed", twice.
+    cloud = FakeCloud(params=CURRENT, create_status="FAILED", reason=EARLY_VALIDATION)
+    cloud.validation_events = [{"EventType": "VALIDATION_ERROR", "ValidationName": "other", "ValidationStatus": "PASSED"}, EXISTENCE_EVENT]
+    with pytest.raises(sd.Failed) as raised:
+        sd.deploy_stack(make(tmp_path, cloud), CFG)
+    message = str(raised.value)
+    assert "OperatorTable (AWS::DynamoDB::Table)" in message and "papyrus-operator-alerts" in message and "ResourceExistenceCheck" in message
+    assert "outside the stack" in message and "never deletes data" in message   # says what to do, and that the pipeline will not do it
+    assert cloud.events_read_after_deletes == 0 and cloud.deleted and not cloud.executed
+
+
+def test_events_that_cannot_be_read_do_not_hide_the_original_reason(tmp_path):
+    cloud = FakeCloud(params=CURRENT, create_status="FAILED", reason=EARLY_VALIDATION)
+    cloud.events_error = "AccessDenied: not authorized to perform cloudformation:DescribeEvents"
+    with pytest.raises(sd.Failed) as raised:
+        sd.deploy_stack(make(tmp_path, cloud), CFG)
+    assert "ResourceExistenceCheck" in str(raised.value) and "could not be read" in str(raised.value) and cloud.deleted
+
+
+def test_the_job_summary_carries_the_named_resource_when_the_run_fails(tmp_path, monkeypatch):
+    cloud = FakeCloud(params=CURRENT, create_status="FAILED", reason=EARLY_VALIDATION)
+    cloud.validation_events = [EXISTENCE_EVENT]
+    ctx = make(tmp_path, cloud)
+    with pytest.raises(sd.Failed) as raised:
+        sd.deploy_stack(ctx, CFG)
+    assert "OperatorTable" in str(raised.value)   # main() writes this exact text into the job summary and the error annotation
+    assert 'ctx.write_summary(f"### DEPLOY FAILED' in (PIPELINE / "stack_deploy.py").read_text()
+
+
+def test_a_retained_table_with_a_fixed_name_is_deleted_by_the_rollback_of_the_create_that_made_it():
+    # RetainExceptOnCreate keeps the table on stack delete (the data is the point) but removes it when its own first create rolls back, so a failed
+    # first deploy no longer leaves a table that makes the next change set fail the existence check.
+    template = sd.parse_template((ROOT / "infra" / "monitoring" / "papyrus-monitoring.yaml").read_text())
+    table = template["Resources"]["OperatorTable"]
+    assert table["Properties"]["TableName"] == "papyrus-operator-alerts"
+    assert table["DeletionPolicy"] == "RetainExceptOnCreate" and table["UpdateReplacePolicy"] == "Retain"
+    # The recipient key is a custom resource whose create never overwrites (ParameterAlreadyExists is swallowed), so a leftover cannot trap a retry.
+    key = template["Resources"]["OperatorRecipientKeyFunction"]["Properties"]["Code"]["ZipFile"]
+    assert "Overwrite=False" in key and "ParameterAlreadyExists" in key
 
 
 def test_a_first_create_uses_a_create_change_set_and_leaves_changes_sets_it_does_not_own(tmp_path):
@@ -899,6 +955,21 @@ def test_a_plan_with_nothing_to_change_ends_quietly_without_asking_anyone(tmp_pa
     assert len(cloud.deleted) == 1  # its empty change set is removed
 
 
+def test_a_change_set_with_no_changes_asks_nobody_for_approval(tmp_path):
+    # Run 42066386724: the template text differed from the deployed text by a blank line, so CloudFormation made a change set that was CREATE_COMPLETE with
+    # no changes (not the "didn't contain changes" failure), and the plan asked a reviewer to approve an empty table.
+    cloud = RolesFake(params={"GitHubRepository": "AnthusAI/Papyrus"}, changes=[])
+    code, outputs, text = _plan(tmp_path, cloud)
+    assert code == 0 and outputs == {"needed": "false"}
+    assert "nothing to do" in text.lower() and "waiting for approval" not in text and "No approval is needed" in text
+    assert len(cloud.deleted) == 1 and not cloud.executed   # the empty change set is removed; nothing was executed
+
+
+def test_the_workflow_starts_the_approval_job_only_when_the_plan_says_a_change_is_needed():
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "role-stack-deploy.yml").read_text())
+    assert workflow["jobs"]["apply"]["if"] == "needs.plan.outputs.needed == 'true'" and workflow["jobs"]["apply"]["environment"] == "pipeline-roles"
+
+
 def test_a_plan_stops_on_a_failed_change_set_and_on_a_stack_in_a_bad_state(tmp_path):
     with pytest.raises(sd.Failed, match="could not be created"):
         _plan(tmp_path, RolesFake(params={"GitHubRepository": "x"}, create_status="FAILED", reason="Template format error"))
@@ -977,3 +1048,171 @@ def test_a_stack_that_finishes_but_differs_from_the_repository_fails_the_verify(
     cloud = RolesFake(params={"GitHubRepository": "x"}, deployed=STALE_PIPELINE, script=list(APPLY_RUN))
     with pytest.raises(sd.Failed, match="differ"):
         _apply(tmp_path, cloud)
+
+
+# --- IAM size limits: found by the first full deploy of papyrus-monitoring, not by a test (2026-11-05) ----------------------------------
+
+IAM_MANAGED_POLICY_LIMIT = 6144     # characters, whitespace not counted; the account quota PolicySize
+IAM_INLINE_ROLE_LIMIT = 10240       # all of a role's inline policies together
+POLICY_SIZE_MARGIN = 0.90           # fail at 90% of the limit, so a policy that is near it is split in the pull request, not by a rollback
+
+
+def _expanded(node, template, region):
+    """The template value as IAM would see it, with every substitution made as long as it can be: the region of the stack, a 12-digit account,
+    the longest partition, and for a parameter its MaxLength or a long value (an ARN parameter 200 characters, a bucket name 63, an API id 26)."""
+    parameters = template.get("Parameters", {})
+    pseudo = {"AWS::Partition": "aws-us-gov", "AWS::Region": region, "AWS::AccountId": "123456789012", "AWS::StackName": "x" * 128}
+
+    def value_of(name):
+        if name in pseudo:
+            return pseudo[name]
+        if name in parameters:
+            declared = parameters[name]
+            if "MaxLength" in declared:
+                return "x" * int(declared["MaxLength"])
+            if name.endswith("ApiId"):
+                return "x" * 26
+            if name.endswith("BucketName"):
+                return "x" * 63
+            return "x" * 200 if name.endswith("Arn") else "x" * max(64, len(str(declared.get("Default", ""))))
+        return "x" * 200   # another resource's Ref or GetAtt: an ARN or a name, as long as a generated one gets
+
+    def walk(item):
+        if isinstance(item, dict) and len(item) == 1:
+            ((key, arg),) = item.items()
+            if key == "Fn::Sub":
+                text = arg if isinstance(arg, str) else arg[0]
+                return re.sub(r"\$\{([^}!]+)\}", lambda m: value_of(m.group(1).split(".")[0]), text)
+            if key in ("Ref", "Fn::GetAtt", "Fn::ImportValue"):
+                return value_of(arg if isinstance(arg, str) else arg[0])
+            if key == "Fn::If":
+                return max((walk(arg[1]), walk(arg[2])), key=lambda option: len(json.dumps(option)))
+            if key == "Fn::Join":
+                return arg[0].join(str(walk(part)) for part in arg[1])
+        if isinstance(item, dict):
+            return {k: walk(v) for k, v in item.items()}
+        if isinstance(item, list):
+            return [walk(v) for v in item]
+        return item
+
+    return walk(node)
+
+
+def _iam_size(document):
+    return len(re.sub(r"\s", "", json.dumps(document, separators=(",", ":"))))
+
+
+def _policy_sizes(template, region):
+    managed, inline = {}, {}
+    for name, resource in template["Resources"].items():
+        properties = resource.get("Properties", {})
+        if resource["Type"] == "AWS::IAM::ManagedPolicy":
+            managed[name] = _iam_size(_expanded(properties["PolicyDocument"], template, region))
+        elif resource["Type"] == "AWS::IAM::Role":
+            inline[name] = sum(_iam_size(_expanded(p["PolicyDocument"], template, region)) for p in properties.get("Policies", []))
+    return managed, inline
+
+
+def test_no_managed_policy_in_a_shared_stack_is_near_the_iam_size_limit():
+    # RouterIdeaPolicy was over 6144 characters and failed the first full deploy of papyrus-monitoring with "Cannot exceed quota for PolicySize".
+    # Every !Sub is expanded to its longest, so a policy that passes here passes in the account.
+    config = json.loads((PIPELINE / "stacks.json").read_text())
+    checked = 0
+    templates = [(stack["name"], ROOT / stack["template"]) for stack in config["stacks"]] + [("papyrus-stack-pipeline", PIPELINE / "papyrus-stack-pipeline.yaml")]
+    for stack_name, path in templates:
+        template = sd.parse_template(path.read_text())
+        managed, inline = _policy_sizes(template, config["region"])
+        too_big = {name: size for name, size in managed.items() if size > IAM_MANAGED_POLICY_LIMIT * POLICY_SIZE_MARGIN}
+        assert not too_big, f"{stack_name}: managed policies near IAM's {IAM_MANAGED_POLICY_LIMIT}-character limit (split or trim them): {too_big}"
+        too_big = {name: size for name, size in inline.items() if size > IAM_INLINE_ROLE_LIMIT * POLICY_SIZE_MARGIN}
+        assert not too_big, f"{stack_name}: a role's inline policies near IAM's {IAM_INLINE_ROLE_LIMIT}-character limit: {too_big}"
+        checked += len(managed)
+    assert checked >= 30   # papyrus-monitoring alone has thirty managed policies
+
+
+def test_the_size_check_catches_a_policy_over_the_limit_and_counts_a_substitution_at_its_longest():
+    resources = [{"Fn::Sub": "arn:${AWS::Partition}:s3:::${Bucket}/key-%d" % i} for i in range(120)]
+    statement = {"Effect": "Allow", "Action": "s3:GetObject", "Resource": resources}
+    template = {"Parameters": {"Bucket": {"Type": "String", "Default": ""}},
+                "Resources": {"Big": {"Type": "AWS::IAM::ManagedPolicy", "Properties": {"PolicyDocument": {"Statement": [statement]}}}}}
+    managed, _ = _policy_sizes(template, "us-east-1")
+    assert managed["Big"] > IAM_MANAGED_POLICY_LIMIT * POLICY_SIZE_MARGIN
+    assert managed["Big"] > len(json.dumps(template["Resources"]["Big"]["Properties"]["PolicyDocument"], separators=(",", ":")))   # the unexpanded text is shorter
+
+
+# --- what the service role may do, per resource type: create, update, delete and the reads and tags they make (2026-11-05) ------------------
+# The first full deploy of papyrus-monitoring was refused for lambda:GetEventSourceMapping and lambda:DeleteEventSourceMapping while rolling back. These
+# are the actions CloudFormation's own resource handlers list for the resource types the two templates use (aws cloudformation describe-type, the
+# handlers' permissions), limited to the ones the templates' properties can reach, so a type that gains a handler permission is a pull-request failure.
+
+HANDLER_ACTIONS = {
+    "AWS::Lambda::Function": ["lambda:CreateFunction", "lambda:GetFunction", "lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration", "lambda:DeleteFunction", "lambda:TagResource", "lambda:UntagResource", "lambda:PutFunctionConcurrency", "lambda:DeleteFunctionConcurrency"],
+    "AWS::Lambda::Permission": ["lambda:AddPermission", "lambda:RemovePermission", "lambda:GetPolicy"],
+    "AWS::Lambda::EventInvokeConfig": ["lambda:PutFunctionEventInvokeConfig", "lambda:UpdateFunctionEventInvokeConfig", "lambda:DeleteFunctionEventInvokeConfig", "lambda:GetFunctionEventInvokeConfig"],
+    "AWS::Lambda::EventSourceMapping": ["lambda:CreateEventSourceMapping", "lambda:GetEventSourceMapping", "lambda:UpdateEventSourceMapping", "lambda:DeleteEventSourceMapping", "lambda:TagResource", "lambda:UntagResource", "lambda:ListTags"],
+    "AWS::Events::Rule": ["events:PutRule", "events:DescribeRule", "events:DeleteRule", "events:PutTargets", "events:RemoveTargets", "events:ListTargetsByRule", "events:TagResource", "events:UntagResource", "events:ListTagsForResource"],
+    "AWS::Events::EventBus": ["events:CreateEventBus", "events:DeleteEventBus", "events:DescribeEventBus", "events:TagResource", "events:UntagResource", "events:ListTagsForResource"],
+    "AWS::Scheduler::Schedule": ["scheduler:CreateSchedule", "scheduler:UpdateSchedule", "scheduler:DeleteSchedule", "scheduler:GetSchedule"],
+    "AWS::IAM::Role": ["iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:UpdateRole", "iam:UpdateRoleDescription", "iam:UpdateAssumeRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:GetRolePolicy", "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies", "iam:TagRole", "iam:UntagRole", "iam:PassRole"],
+    "AWS::IAM::ManagedPolicy": ["iam:CreatePolicy", "iam:DeletePolicy", "iam:GetPolicy", "iam:GetPolicyVersion", "iam:CreatePolicyVersion", "iam:DeletePolicyVersion", "iam:ListPolicyVersions", "iam:ListEntitiesForPolicy", "iam:AttachRolePolicy", "iam:DetachRolePolicy"],
+    "AWS::DynamoDB::Table": ["dynamodb:CreateTable", "dynamodb:DeleteTable", "dynamodb:DescribeTable", "dynamodb:UpdateTable", "dynamodb:DescribeContinuousBackups", "dynamodb:UpdateContinuousBackups", "dynamodb:DescribeTimeToLive", "dynamodb:UpdateTimeToLive", "dynamodb:DescribeContributorInsights", "dynamodb:DescribeKinesisStreamingDestination", "dynamodb:TagResource", "dynamodb:UntagResource", "dynamodb:ListTagsOfResource"],
+    "AWS::SQS::Queue": ["sqs:CreateQueue", "sqs:DeleteQueue", "sqs:GetQueueAttributes", "sqs:SetQueueAttributes", "sqs:GetQueueUrl", "sqs:TagQueue", "sqs:UntagQueue", "sqs:ListQueueTags"],
+    "AWS::SQS::QueuePolicy": ["sqs:SetQueueAttributes"],
+    "AWS::SNS::Topic": ["sns:CreateTopic", "sns:DeleteTopic", "sns:GetTopicAttributes", "sns:SetTopicAttributes", "sns:TagResource", "sns:UntagResource", "sns:ListTagsForResource", "sns:ListSubscriptionsByTopic"],
+    "AWS::SNS::TopicPolicy": ["sns:SetTopicAttributes"],
+    "AWS::Logs::LogGroup": ["logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:PutRetentionPolicy", "logs:DeleteRetentionPolicy", "logs:TagResource", "logs:UntagResource", "logs:ListTagsForResource", "logs:DescribeLogGroups"],
+    "AWS::Logs::MetricFilter": ["logs:PutMetricFilter", "logs:DeleteMetricFilter", "logs:DescribeMetricFilters"],
+    "AWS::CloudWatch::Alarm": ["cloudwatch:PutMetricAlarm", "cloudwatch:DeleteAlarms", "cloudwatch:DescribeAlarms", "cloudwatch:TagResource", "cloudwatch:UntagResource", "cloudwatch:ListTagsForResource"],
+    "AWS::CloudWatch::CompositeAlarm": ["cloudwatch:PutCompositeAlarm", "cloudwatch:DeleteAlarms", "cloudwatch:DescribeAlarms", "cloudwatch:TagResource", "cloudwatch:UntagResource", "cloudwatch:ListTagsForResource"],
+    "AWS::SSM::Parameter": ["ssm:PutParameter", "ssm:DeleteParameter", "ssm:GetParameters", "ssm:AddTagsToResource", "ssm:RemoveTagsFromResource", "ssm:ListTagsForResource"],
+}
+
+
+def _service_role_actions():
+    pipeline = sd.parse_template(PIPELINE_TEMPLATE.read_text())
+    granted = set()
+    for name in ("ComputeAndIdentityPolicy", "DataAndMailPolicy"):
+        for statement in pipeline["Resources"][name]["Properties"]["PolicyDocument"]["Statement"]:
+            actions = statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
+            granted |= set(actions)
+    return granted
+
+
+def _glob_allows(granted, action):
+    return any(re.fullmatch(re.escape(g).replace(r"\*", ".*"), action) for g in granted)
+
+
+def test_the_service_role_may_make_every_call_the_resource_handlers_make_for_the_types_the_stacks_use():
+    granted = _service_role_actions()
+    used = set()
+    for stack in json.loads((PIPELINE / "stacks.json").read_text())["stacks"]:
+        used |= {r["Type"] for r in sd.parse_template((ROOT / stack["template"]).read_text())["Resources"].values()}
+    missing = {kind: [a for a in actions if not _glob_allows(granted, a)] for kind, actions in HANDLER_ACTIONS.items() if kind in used}
+    assert not any(missing.values()), {k: v for k, v in missing.items() if v}
+    assert used & set(HANDLER_ACTIONS) == set(HANDLER_ACTIONS), "a resource type listed here is no longer used, or the other way round"
+
+
+def test_event_source_mapping_calls_with_no_mapping_id_are_allowed_and_nothing_else_is_granted_on_every_resource_for_mappings():
+    # A mapping whose creation was cancelled has no id when its rollback runs; Lambda then checks Get and Delete against resource "*".
+    pipeline = sd.parse_template(PIPELINE_TEMPLATE.read_text())
+    statements = pipeline["Resources"]["ComputeAndIdentityPolicy"]["Properties"]["PolicyDocument"]["Statement"]
+    on_everything = [s for s in statements if s.get("Resource") == "*" and any("EventSourceMapping" in a for a in ([s["Action"]] if isinstance(s["Action"], str) else s["Action"]))]
+    by_action = {}
+    for statement in on_everything:
+        for action in ([statement["Action"]] if isinstance(statement["Action"], str) else statement["Action"]):
+            by_action[action] = statement.get("Condition")
+    assert by_action.pop("lambda:CreateEventSourceMapping")["StringLike"]["lambda:FunctionArn"]   # create stays tied to our own functions
+    assert set(by_action) == {"lambda:GetEventSourceMapping", "lambda:DeleteEventSourceMapping"} and all(c is None for c in by_action.values())
+
+
+def test_the_service_role_may_start_the_function_behind_every_custom_resource():
+    # CloudFormation invokes a custom resource's function with the service role. Without this the create fails and rolls back.
+    template = sd.parse_template((ROOT / "infra" / "monitoring" / "papyrus-monitoring.yaml").read_text())
+    pipeline = sd.parse_template(PIPELINE_TEMPLATE.read_text())
+    statement = next(s for s in pipeline["Resources"]["ComputeAndIdentityPolicy"]["Properties"]["PolicyDocument"]["Statement"] if s.get("Action") == "lambda:InvokeFunction")
+    patterns = [r["Fn::Sub"].rsplit("function:", 1)[1] for r in statement["Resource"]]
+    custom = {name: r for name, r in template["Resources"].items() if r["Type"].startswith("Custom::")}
+    assert custom
+    for name, resource in custom.items():
+        function = resource["Properties"]["ServiceToken"]["Fn::GetAtt"][0]
+        assert any(re.fullmatch(re.escape(p).replace(r"\*", ".*"), f"papyrus-monitoring-{function}-AbCdEf123456") for p in patterns), f"{name}: no invoke permission for {function}"

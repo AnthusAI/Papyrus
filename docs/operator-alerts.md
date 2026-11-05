@@ -58,7 +58,7 @@ No KMS grants (SecureString parameters use the AWS-managed key; the table uses t
 
 - **The alarms already in ALARM** (seven on 2026-11-04) do not send on their own: a state change is what sends. The hourly reconcile opens them, grouped by site, so expect those emails within the hour of the first run, including the Amplify site alarms that nobody has ever heard (that is the point). To get them now: `aws lambda invoke --function-name papyrus-operator-reconcile /dev/stdout`. Because the event id comes from each alarm's last state change, a later live event for the same change is a duplicate and does not send twice.
 - The five existing monitoring alarms keep sending their SNS email as before.
-- The heartbeat starts at once; the dead-man alarm needs 45 minutes of data, and treats missing data as breaching, so a fresh deploy that never completes a heartbeat alarms after about 45 minutes. That is the check working.
+- The heartbeat starts at once. The dead-man alarm treats missing data as breaching, so a brand-new alarm would fire at once; the stack writes one `HeartbeatDelivered` datapoint when it is first created (`OperatorDeadmanSeed`), so the alarm stays quiet for its first 30 to 45 minutes. If the heartbeat never starts, the alarm fires about 30 to 45 minutes after the deploy. That is the check working.
 
 ## Triage notes and links
 
