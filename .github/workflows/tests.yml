@@ -102,8 +102,8 @@ jobs:
         run: poetry run pytest -vv procedures/newsroom/tests/test_reference_intake.py
       - name: MCP private services and domain behavior
         run: |
-          poetry run pytest -q --import-mode=importlib amplify/functions/mcp-oauth/test_handler.py amplify/functions/mcp-oauth/test_store.py amplify/functions/mcp-oauth/test_concurrency.py amplify/functions/mcp-tools/test_handler.py
-          poetry run behave features_backend/mcp-domain-tools.feature features_backend/mcp-oauth.feature features_backend/mcp-oauth-hosting.feature
+          poetry run pytest -q --import-mode=importlib amplify/functions/mcp-oauth/test_handler.py amplify/functions/mcp-oauth/test_store.py amplify/functions/mcp-oauth/test_concurrency.py amplify/functions/mcp-tools/test_handler.py src/papyrus_content/mcp_story_atomic_test.py src/papyrus_content/mcp_story_transaction_test.py src/papyrus_content/mcp_publish_request_test.py
+          poetry run behave features_backend/mcp-domain-tools.feature features_backend/mcp-story-version-safety.feature features_backend/mcp-publish-request.feature features_backend/mcp-oauth.feature features_backend/mcp-oauth-hosting.feature
       - name: Python unit tests
         run: |
           poetry run pytest -q \
