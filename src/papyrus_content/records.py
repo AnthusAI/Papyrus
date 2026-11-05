@@ -120,7 +120,7 @@ def _feed_keys_for_new_version(next_reference: dict[str, Any], current: dict[str
     # The capture state carries too (the curation card and the captured text belong to the old version's id, but the newsroom reads a Reference's
     # attachments by lineage), and with it the settled reason and the content-needed key that derive from it. A new version whose own batch writes
     # extracted text has that state re-derived afterwards by apply_record_changes.
-    capture = {key: current[key] for key in ("captureState", "captureReason") if current.get(key) and not next_reference.get(key)}
+    capture = {key: current[key] for key in ("captureState", "captureReason", "thumbnailPath") if current.get(key) and not next_reference.get(key)}
     keys = feed_keys({**next_reference, **carried, **capture})
     if carried.get("feedArrivalAt"):
         keys["feedArrivalAt"] = carried["feedArrivalAt"]

@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "99397d68-a3d7-4bbf-a100-97748f7b5cf4",
+      "author": "home",
+      "text": "Identity gate now drops every tracking parameter from one list (AnthusAI/Papyrus#1208, on develop, not released). Found from a ?trk= copy of the same page on Machines on Machines. Existing copies stay until PPY-6a4b18 builds reversible same-document relations; identical-URL cases need no agent judgement.",
+      "created_at": "2026-11-05T03:53:30.403387Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-03T17:06:55.594613Z",
-  "updated_at": "2026-11-03T17:06:55.595401Z",
+  "updated_at": "2026-11-05T03:53:44.414747Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

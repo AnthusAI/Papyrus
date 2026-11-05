@@ -135,10 +135,11 @@ Feature: A page lists the site's public Message threads with ::include{kind="thr
     Then threads.json lists no thread
     And "threads-empty/index.html" shows the text "No conversations yet."
 
-  Scenario: The Markdown twin keeps the threads include line as written
+  Scenario: The Markdown twin lists the conversations the page shows, as titles with their message counts, and keeps no include line
     Given the home-page threads fixture site is projected
     When the home-page-snapshot task runs against the threads fixture
-    Then "threads-list/index.md" contains the line '::include{kind="threads" select="recent" count="3" layout="list" heading="Recent conversations" empty="No conversations yet."}'
+    Then "threads-list/index.md" contains the line '## Recent conversations'
+    And "threads-list/index.md" does not contain "::include"
     And "threads-list/index.md" does not contain "home-page-thread"
 
   Scenario: A threads include on a site without homePage configured fails the build naming the file

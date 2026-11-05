@@ -11,6 +11,7 @@ from ..markus_renderer.build import slugify
 from ..markus_renderer.derive import compose_source
 from ..publishing import published_item_id_for
 from .model import ItemSummary, ProjectedItem, SiteIndex
+from .story_stars import known_stars, stars_of_lineage
 from .stored import PROJECTION_METADATA_KEY, projection_metadata
 
 
@@ -63,6 +64,7 @@ def summary_from_row(row: dict, *, item_id: str | None = None) -> ItemSummary:
         front_matter=dict(stored.get("frontMatter") or {}),
         aliases=tuple(row.get("aliases") or ()),
         published_at=row.get("publishedAt"),
+        lineage_id=row.get("itemLineageId") or None,
     )
 
 
@@ -85,7 +87,7 @@ def replace_item(site: SiteIndex, item_id: str, summary: ItemSummary | None) -> 
     if summary is not None:
         remaining.append(summary)
     ordered = tuple(sorted(remaining, key=lambda existing: existing.output_path))
-    return SiteIndex(items=ordered, load_item=site.load_item)
+    return SiteIndex(items=ordered, load_item=site.load_item, story_stars=site.story_stars)
 
 
 class PublishedContentSource:
@@ -96,6 +98,8 @@ class PublishedContentSource:
         self._loaded_rows: dict[str, dict] = {}
         #: Item types beyond ``article`` and ``page`` that are projected. The projection context fills it from the projector's settings.
         self.extra_types: tuple[str, ...] = ()
+        #: Where the editors' private Story ratings are kept (``story_stars.py``). Without one, listings keep their newest-first order.
+        self.star_store: Any = None
 
     def published_row(self, item_id: str) -> dict | None:
         item = self._client.get_record("Item", item_id)
@@ -140,7 +144,16 @@ class PublishedContentSource:
             if is_projectable(row, self.extra_types)
         ]
         ordered = tuple(sorted(summaries, key=lambda summary: summary.output_path))
-        return SiteIndex(items=ordered, load_item=self.load_item)
+        return SiteIndex(items=ordered, load_item=self.load_item, story_stars=self.story_stars(ordered))
+
+    def story_stars(self, summaries) -> dict[str, int]:
+        """``{lineage id: stars}`` of the rated Stories among ``summaries``: one request for the stored ratings, and one more for each Story not seen before.
+
+        Stars are private and are read here, at projection time. They go to the projector inside the :class:`SiteIndex` and nowhere else.
+        """
+        if self.star_store is None:
+            return {}
+        return known_stars(self.star_store, (summary.lineage_id for summary in summaries), lambda lineage: stars_of_lineage(self._client, lineage))
 
     def all_published_items(self) -> list[ProjectedItem]:
         rows = [row for row in self._client.list_records("PublishedItem") if is_projectable(row, self.extra_types)]

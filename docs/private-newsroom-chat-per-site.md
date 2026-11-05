@@ -74,7 +74,7 @@ comes last. Use the AWS profile of the site's account (`aws.profile`; all curren
    (or `papyrus-infra deploy`). Branch variables are replaced as a set, so the site's `infra/site.json` must be the
    one with the `chat` block before any app-shell deploy.
 4. **Frontend.** Merge the site repository's `infra/site.json` (the `chat` block and any `papyrusVersion` bump)
-   to `main`; the merge deploys the CMS. Open the newsroom, sign in, open Chat, send one clearly labelled test
+   to `develop`, then release it to `main`; the release deploys the CMS. Open the newsroom, sign in, open Chat, send one clearly labelled test
    message and confirm a reply and that it survives a reload.
 
 To turn chat off again set `chat.enabled` to `false` and redeploy the app shell. The data stack and its retained

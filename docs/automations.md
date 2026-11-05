@@ -299,7 +299,7 @@ through `automationOverview` and acts through `runAutomation`, both served by th
 
 Distinctive's record (`distinctive.ttab`) exists already. Releasing this change involves, in this order:
 
-1. **Release Papyrus and deploy the site backend** (the pipeline does this on a merge to main). The backend gains the
+1. **Release Papyrus and deploy the site backend** (the pipeline does this on a release to main). The backend gains the
    `usage` and `costUsd` fields on `ProcedureRun`, the `runAutomation` mutation and the wider function role.
 2. **Check `distinctive.ttab`'s limits** before the router starts reading the record. The record was created with
    `maxConcurrent: 1` (the slice 1 default). With this change that would run TTAB decisions one at a time, deferring the

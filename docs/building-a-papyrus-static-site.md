@@ -37,7 +37,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `sitemap` | `style`: `single` (`/sitemap.xml`) or `index` (`/sitemap-index.xml` + `/sitemap-0.xml`); `lastmod`; `tags`; `extra`: paths (starting with `/`) to list that core does not generate, such as `static.copy` routes |
 | `robots` | `extra`: extra lines |
 | `feeds` | `formats` (`rss`, `atom`), `count` (30), `rssPath`, `atomPath`, `title` |
-| `listings` | `pageSize` (10), `featuredCount`, `path` (the flat listing base, `archive`), `homeCount`, `tags`, `tagBase`, `types` (entry types that are listed, `["article"]`), `tagSelect`, `tagPageSize`, `draft`, `pageSuffix`, `tagTitle` (see "Collections and tag pages") |
+| `listings` | `pageSize` (10), `featuredCount`, `path` (the flat listing base, `archive`), `homeCount`, `tags`, `tagBase`, `types` (entry types that are listed, `["article"]`), `tagSelect`, `tagPageSize`, `draft`, `pageSuffix`, `tagTitle` (see "Collections and tag pages"), `bucket` (`week`, `day` or `none`: Stories rank by the editors' stars inside a rolling window counted back from the projection day, the last seven days by default, newest window first; [how](content-item-lifecycle.md#published-stories-rank-by-recency-bucket-then-stars-ppy-5966d7)) |
 | `collections` | listings selected by tag or section: `[{id, base, label, description, select, pageSize, featuredCount, sort, ties, drafts, sitemap, sitemapPages, listEmpty}]` (see "Collections and tag pages") |
 | `notFound` | the 404 page's head: `{title ("Page not found"), description, noindex (true)}` |
 | `fonts` | `stylesheet` (a font CSS URL; adds the `preconnect` links), `preconnect` |
@@ -50,7 +50,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
 | `agents` | agent-readable output, all on by default: `markdown` (a `.md` twin per page), `llmsTxt`, `llmsFull`, `llmsFullMaxItems` (200), `llmsFullMaxBytes` (1000000), `llmsMaxLinks` (200) |
 | `mermaid` | `{enabled}`: ` ```mermaid ` blocks render as diagrams (default on; see Mermaid diagrams) |
-| `pageActions` | copy / view / open-in actions on article pages: `{enabled, placement (header\|aside), actions (copy, view), ai (chatgpt, claude, perplexity), prompt}` |
+| `pageActions` | copy / view / open-in / post / share actions on article pages: `{enabled, placement (header\|aside), actions (copy, view, x, reddit, share), display (text\|icons), ai (chatgpt, claude, perplexity), prompt, types}` |
 | `wiki` | public wiki pages (see [public-wiki.md](public-wiki.md)): `{types (default ["wiki_page"]), suggestForm (the id of a forms entry), dataLink (default true)}` |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
 | `values` | `{ "name": "text or number" }`: the `{{name}}` tokens of page blocks (see "Page blocks") |
@@ -429,7 +429,7 @@ them is a build error that names it, except the `knowledge-` blocks, which an it
 
 | `::include` kind | Attributes | Output |
 |---|---|---|
-| `listing` | `collection` (borrows that collection's selection, `sort` and `ties`; the other attributes refine it), `sections`, `tags`, `allTags`, `notTags`, `types`, `notTypes` (comma lists; same meaning as `select`), `sort` (`date`, `order`, `title`), `ties`, `skip`, `count`, `card` (the variant passed to the `card` hook), `layout` (`grid` default, a `markus-card-grid`; `bare`: the cards alone) | the matching listed entries, newest first by default, `skip` dropped, then `count` kept; each is the `card` hook's markup (given `variant` and `index`) or the default card |
+| `listing` | `collection` (borrows that collection's selection, `sort` and `ties`; the other attributes refine it), `sections`, `tags`, `allTags`, `notTags`, `types`, `notTypes` (comma lists; same meaning as `select`), `sort` (`date`, `order`, `title`), `ties`, `bucket` (`week` default from `listings.bucket`, `day` or `none`), `skip`, `count`, `card` (the variant passed to the `card` hook), `layout` (`grid` default, a `markus-card-grid`; `bare`: the cards alone) | the matching listed entries, newest bucket first and, inside a bucket, ranked by the editors' private stars (unrated Stories keep newest-first order; `sort="order"` and `sort="title"` are not ranked; `bucket="none"` is plain newest first), `skip` dropped, then `count` kept; each is the `card` hook's markup (given `variant` and `index`) or the default card |
 | `showcase` | none | the logo wall of the `showcase` settings |
 | `form` | `id` | a `forms` entry |
 | `block` | `name` (required), `depends`, any other attributes | what the `block(name, attributes, page)` hook returns; `depends` lists the sections it reads (`@root`, or `*` for all). The names that start with `knowledge-` are built in and need no hook (see [Knowledge components](knowledge-components.md)) |
@@ -597,7 +597,7 @@ tactus.anth.us) and the four GitHub Pages docs sites (Markus, Biblicus, Kanbus, 
 
 ## Deploy triggers
 
-Every site is meant to deploy when a change merges to `main`, with no manual step. What starts the deploy:
+Every site is meant to deploy when `develop` is released to `main` (once or twice a day), with no manual step; merging to `develop` builds nothing. What starts the deploy:
 
 - Amplify apps with a GitHub webhook and auto build on `main` (Distinctive Mark, Pilobol.us, Anth.us, p.apyr.us, Threat
   Intelligence, read.p.apyr.us, Tactus). Proven 2026-10-21 for the first three with empty-commit merges.
@@ -704,6 +704,50 @@ Without JavaScript the markup is a list of links (View as Markdown, Open in ...)
 (`visibility: hidden`, so it also stays out of the accessibility tree and keeps its space: no layout shift). With
 JavaScript the links become a menu button following the ARIA menu pattern (Enter, Space, Arrow keys, Home, End, Escape,
 Tab). Styling uses the `--papyrus-*` tokens, so light and dark themes follow the site's.
+
+### Icons, post links and the share popup
+
+`pageActions.display` is `"text"` (the default: the buttons and links above, unchanged) or `"icons"`. The icon display shows
+compact buttons, each at least 2.75rem square, with flat tones and no borders: **View as Markdown** (a link), **Copy
+Markdown**, a **More page actions** menu button for the AI links, and the opt-in actions below. `actions` takes `x`,
+`reddit` and `share` in addition to `copy` and `view`, and these three need `"display": "icons"`.
+
+```json
+"pageActions": { "display": "icons", "actions": ["view", "copy", "x", "reddit", "share"], "ai": ["claude"] }
+```
+
+- **Post on X** and **Post on Reddit** are plain links that open in a new tab (`rel="noopener noreferrer"`). They carry the
+  page title and its canonical address and nothing else; the body is never in a URL. They need a known origin
+  (`site.productionUrl`), like the AI links.
+- **Share** is added by the script, so a page without JavaScript has no dead button. It is a menu button following the ARIA
+  menu pattern (the same as the AI menu) with **Share the web page** and **Share the Markdown**. It hands the device's share
+  sheet the title and the address; where there is no share sheet it copies the address and confirms "Link copied" in the
+  live region, or shows the address if the clipboard refuses.
+- Icons are Lucide (`file-text`, `copy`, `share`, `ellipsis`). Lucide has no brand marks, so the X and Reddit marks are the
+  simple single-colour logos from `page_actions.py` (`X_MARK`, `REDDIT_MARK`). Every icon has a text label (`aria-label` and
+  `title`); the open state of a menu is `aria-expanded` and the visible popup, not colour.
+- Reporting is unchanged: one `page_action` event through the site's `gtag`, with `action` set to `view`, `copy`, `x`,
+  `reddit`, `share_page`, `share_markdown` or an AI destination.
+
+A site that opts in changes only its own pages. A site that does not set `display` renders byte for byte as before.
+
+#### Placing the actions on a custom article template
+
+A `main` or `page_body` hook replaces the page core would have composed, and with it the actions core places. Call
+`page.article_actions()` where they belong; it returns the same markup core would have placed (empty when the page is not
+eligible: not a listed type, `noindex`, or no Markdown twin), and the script loads because the page has actions.
+
+```python
+def main(page):
+    if page.kind != "item":
+        return None
+    return f'<article>{page.article_actions()}{page.fragment}</article>'
+```
+
+If the site sets `site.componentsCss` to `false` it links no component stylesheet, so the actions would be unstyled. With
+`display: "icons"` core then publishes `_plugins/papyrus-page-actions.css` (just the page-actions rules of the component
+stylesheet) and links it on pages that carry the actions. Nothing is added when the site links the component stylesheet or
+uses the text display.
 
 ## Migration checklist
 

@@ -66,7 +66,18 @@ async function main() {
       create: async (input: Row) => { writes.push({ model: "PublishedItem", operation: "create", input: clone(input) }); return { data: input }; },
     },
   } };
+  // The asynchronous call that asks content-actions to refresh the listings: recorded, never made.
+  const invocations: Array<{ functionName: string; type: string; payload: unknown }> = [];
+  const environment = { env: {} as Record<string, string> };
+  class FakeInvokeCommand { constructor(readonly input: { FunctionName: string; InvocationType: string; Payload: Uint8Array }) {} }
+  class FakeLambdaClient {
+    async send(command: FakeInvokeCommand) {
+      invocations.push({ functionName: command.input.FunctionName, type: command.input.InvocationType, payload: JSON.parse(new TextDecoder().decode(command.input.Payload)) });
+      return {};
+    }
+  }
   const modules: Record<string, unknown> = {
+    "@aws-sdk/client-lambda": { LambdaClient: FakeLambdaClient, InvokeCommand: FakeInvokeCommand },
     "node:crypto": crypto,
     "@aws-amplify/backend/function/runtime": { getAmplifyDataClientConfig: async () => ({ resourceConfig: {}, libraryOptions: {} }) },
     "aws-amplify": { Amplify: { configure: () => undefined } },
@@ -75,12 +86,12 @@ async function main() {
   };
   const bundle = await build({
     absWorkingDir: root, entryPoints: ["amplify/functions/category-action/handler.ts"], bundle: true, write: false, platform: "node", format: "cjs", logLevel: "silent",
-    external: ["@aws-amplify/backend/function/runtime", "aws-amplify", "aws-amplify/data"],
+    external: ["@aws-amplify/backend/function/runtime", "aws-amplify", "aws-amplify/data", "@aws-sdk/client-lambda"],
     plugins: [{ name: "offline-payload-storage", setup(builder) { builder.onResolve({ filter: /\/shared\/model-payloads$/ }, () => ({ path: "fixture:model-payloads", external: true })); } }],
   });
   const fixtureModule = { exports: {} as { handler?: (event: Event) => Promise<Record<string, unknown>> } };
   runInNewContext(bundle.outputFiles[0].text, {
-    module: fixtureModule, exports: fixtureModule.exports, process: { env: {} }, console,
+    module: fixtureModule, exports: fixtureModule.exports, process: environment, console, TextEncoder,
     require: (name: string) => { assert.ok(Object.hasOwn(modules, name), `no unmocked cloud or network dependency: ${name}`); return modules[name]; },
   });
   const handler = fixtureModule.exports.handler!;
@@ -118,6 +129,17 @@ async function main() {
     assert.equal(rows.get("staged-v1")!.stage, stage, "rating never moves the Story to another stage");
   }
   assert.ok(writes.every((write) => write.model === "Item" && write.operation === "update"), "every write was a plain update of an Item row");
+  // A site that projects its pages is asked once per rating to refresh the listings; a site that does not is not, and the rating still saves.
+  assert.deepEqual(invocations, [], "no projection function is configured, so nobody is called");
+  environment.env.PAPYRUS_CONTENT_ACTIONS_FUNCTION = "site-content-actions";
+  await stars("story-v2", 5);
+  await stars("story-v2", null);
+  assert.deepEqual(invocations, [
+    { functionName: "site-content-actions", type: "Event", payload: { projectionTask: { task: "story-stars", itemId: "story-v2" } } },
+    { functionName: "site-content-actions", type: "Event", payload: { projectionTask: { task: "story-stars", itemId: "story-v2" } } },
+  ], "one asynchronous call per rating, naming only the Item version: no star value travels");
+  await assert.rejects(stars("story-v2", 9), /stars must be/);
+  assert.equal(invocations.length, 2, "a refused rating asks for nothing");
   // The board card carries the rating it was read with; a card read from a published-only row has none to show, which is not the same as unrated.
   const base = { lineageId: "s", versionNumber: 1, stage: "copywriting", type: "article", status: "draft", slug: "s" };
   const board = projectContentItemBoard({ contentItemVersions: [{ ...base, id: "rated-v1", lineageId: "rated", starRating: 4 }, { ...base, id: "unrated-v1", lineageId: "unrated", starRating: null }, { ...base, id: "unknown-v1", lineageId: "unknown" }] });

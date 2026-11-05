@@ -21,7 +21,7 @@ A Markus site publishes the same content in forms that software can read without
 
 ## Markdown twins
 
-Every published page has a `.md` twin next to it: `x.html` has `x.md`, `x/index.html` has `x/index.md`, and the home page has `index.md`. An article twin holds the title, summary, authors, dates and canonical URL, then the Markus source without front matter, every directive as written (`::image` with all its attributes, page blocks, and an island with its `summary` text). The twin is Markus; the `.md` extension and `text/markdown` type stay because Markus is a Markdown superset. An authored page (a `pages` entry with `source`) has the same kind of twin, is listed in `llms.txt` and `llms-full.txt`, and has the page actions. On a directory-style site `/x.md` is served from `x/index.md`. A listing, archive, tag or home twin is a Markdown list of links to the other twins. HTML pages advertise their twin with `<link rel="alternate" type="text/markdown">`.
+Every published page has a `.md` twin next to it: `x.html` has `x.md`, `x/index.html` has `x/index.md`, and the home page has `index.md`. An article twin holds the title, summary, authors, dates and canonical URL, then the Markus source without front matter, every directive as written (`::image` with all its attributes). The twin is Markus; the `.md` extension and `text/markdown` type stay because Markus is a Markdown superset. An authored page (a `pages` entry with `source`), the home page and a section front page are templates, not articles: their twin says what the page shows (see [Twins of authored pages](#twins-of-authored-pages)). An authored page is listed in `llms.txt` and `llms-full.txt`, and has the page actions. On a directory-style site `/x.md` is served from `x/index.md`. A listing, archive, tag or home twin is a Markdown list of links to the other twins. HTML pages advertise their twin with `<link rel="alternate" type="text/markdown">`.
 
 Which pages get no twin:
 
@@ -33,13 +33,13 @@ A page copied verbatim with `static.copy` has no generated twin. The site can sh
 
 ## Every Markdown output is Markus source
 
-Whatever serves Markdown to a reader or an agent serves the Markus source as written: `::image{src=… alt=… caption=…}` with all its attributes, page blocks (`::band`, `::column`, `::button`), and an `::island` with its `summary` text. Nothing flattens a directive into plain Markdown. Only `::include` and `::raw` regions are left out, because they place markup that has no source text. The audit (PPY-b2e95d), one test per row:
+Whatever serves the Markdown of an article to a reader or an agent serves the Markus source as written: `::image{src=… alt=… caption=…}` with all its attributes. Nothing flattens a directive into plain Markdown. In an article, `::include` and `::raw` regions are left out, because they place markup that has no source text, except the knowledge blocks and home-page components, which stay as written. A page file is different: its `::band`, `::column`, `::button`, `::island` and `::include` lines are a template for the HTML page, and the twin of such a page says what the page shows (PPY-0db38f, below). The audit (PPY-b2e95d), one test per row:
 
 | Path | File(s) | Before | After | Test |
 | --- | --- | --- | --- | --- |
 | Item twin (`x.md`) | `projection/standard/markdown.py` `item_markdown`, `blocks.twin` | Directives kept (5.19.0) | Same | `test_markus_everywhere.py::test_item_twin_keeps_the_image_directive_and_drops_only_the_front_matter` |
-| Authored page twin | `projector.py` `_authored_markdown` | Page blocks kept (5.19.0) | Same | `test_authored_page_twin_keeps_its_page_blocks`; `features_backend/markus-twins.feature` |
-| Home twin | `markdown.py` `home_markdown`, `projector.py` | Wrote a title and description of its own in front of the source, so a home written as page blocks showed a second `# Title` before `::band` | Source as written; title only when the source has none | `test_home_twin_keeps_the_page_blocks_without_a_second_title`, `test_home_twin_adds_the_title_only_when_the_source_has_none` |
+| Authored page twin | `projector.py` `_authored_markdown`, `page_twin.py` | Page blocks and includes kept as written (5.19.0), so a reader saw `::band{size="bare"}` and `::include{kind="references" ...}` | What the page shows: includes as lists of titles and links, a button as a link, an island as its summary, no band or column | `test_authored_page_twin_says_what_its_page_blocks_show`; `features_backend/markus-twins.feature`, `features_backend/page-twins.feature` |
+| Home twin | `markdown.py` `home_markdown`, `projector.py` | Wrote a title and description of its own in front of the source, so a home written as page blocks showed a second `# Title` before `::band` | What the source shows (as an authored page); title only when the source has none | `test_home_twin_says_what_its_page_blocks_show_without_a_second_title`, `test_home_twin_adds_the_title_only_when_the_source_has_none` |
 | Listing, archive, tag and tags twins | `markdown.py` `listing_markdown` | Link lists to the `.md` twins | Same (no body to carry; each link leads to a Markus twin) | `test_listing_and_tag_twins_are_link_lists_to_the_markus_twins`, `test_listing_twin_lines_link_to_the_twin_not_the_html` |
 | `Accept: text/markdown` | `amplify/publication/redirect-and-index.js` | A URI rewrite to the twin object | Same object, now checked against every twin of the golden sites | `scripts/test-redirect-rules.ts` "negotiated Markdown for every page…" |
 | `llms.txt` | `markdown.py` `llms_txt` | Links to the twins | Same | `test_llms_txt_links_to_the_twins` |
@@ -67,6 +67,26 @@ Out of scope, listed: the plain-text excerpts the editorial checks and the conso
 - Neither file is written on a non-production origin (see "robots.txt" below).
 - `llmsTxt` and `llmsFull` require `agents.markdown`; turning Markdown off while leaving them on is a configuration error.
 
+## Twins of authored pages
+
+The twin of an authored page, of the home page when it is an item written as page blocks, and of a section front page with a `source` is built by `projection/standard/page_twin.py` from the same text the page is rendered from:
+
+- `::band` and `::column` are layout and write nothing.
+- `::button{href label}` is a Markdown link, with a site path made absolute.
+- `::island` is its `summary` text, when it has one.
+- `::raw` regions write nothing.
+- `::include{kind="listing"}` is one list item per story, linking to the story's twin, from the same selection and order as the page.
+- `::include{kind="references"}` and `::include{kind="threads"}` are the References and conversations the page places, a title linked to its address (a conversation links to its page when the site has `homePage.forum`, with its message count), a heading when the include has one, its `empty` text when there is nothing, and its `more` link. A Reference no editor has accepted is followed by "Recommended by Cyclotron, not yet accepted". They are chosen by the same functions as the page (`home_page_blocks.select_references`, `select_threads`) with a ledger of their own, so the twin lists exactly what the page lists, in the same order, with no repeats across includes. Only the title, address and standing are written; authors, summaries, confidence and every other snapshot field stay out.
+- `::include{kind="showcase"}` is the list of the logo wall's sites; `kind="form"` writes nothing.
+- `::include{kind="block"}` (a site's own `block` hook, or a `knowledge-` block) is the block's markup reduced to its headings and one list item per distinct link. A block that links to nothing is its text. A hook needs no extra code to appear in the twin.
+- Everything else, including `::image` and `:::` containers, is kept as written.
+
+The twin is rewritten by the path that rewrites the page. Its input digest is the page's (includes' entries, the home-page snapshot, the knowledge snapshot), so an edit to a story an include shows, or a new snapshot, changes both. `home_page_reader_keys` names the twins and `llms-full.txt` with the pages, so `papyrus home-page snapshot` rewrites them too. Nothing scans a corpus to do it.
+
+## Markdown in a browser
+
+The twins are stored as `text/markdown; charset=utf-8`. Safari downloads that type, so a link to a twin ("View as Markdown", a shared link) saved a file instead of showing the text (PPY-40f96a). A CloudFront viewer-response function (`amplify/publication/markdown-content-type.js`) answers a browser, a request whose `Accept` lists `text/html` above `text/markdown`, with `text/plain; charset=utf-8`; a request that prefers or ties `text/markdown`, or names no type (`*/*`, none), still gets `text/markdown`. Only a response typed `text/markdown` is touched, there is no `Content-Disposition`, and the response adds `Vary: Accept`. The function runs after the cache, so the stored object, its cache key and every cached copy are unchanged and a browser cannot make an agent's cached response plain text or the reverse; the stored objects need no re-projection. The function is attached to distributions the site backend creates (`distribution.create`) and is in the hand-run edge templates (`infra/edge/s3-projection-cms.yaml`, `pilobol-us.yaml`, `threat-intelligence.yaml`, and the Anth.us viewer-response function in `anth-us-s3.yaml`); a template change reaches a site when its edge stack is next deployed. Test: `scripts/test-markdown-content-type-function.mjs`, `features/markdown-twin-display.feature`.
+
 ## Accept: text/markdown
 
 A request whose `Accept` header prefers `text/markdown` over `text/html` (by q-value) gets the page's `.md` twin from the same URL. The negotiation runs in the CloudFront viewer-request function (`amplify/publication/redirect-and-index.js`) and is switched on at deploy time for every standard front end site that does not set `agents.markdown: false`. Markdown and HTML are cached separately.
@@ -79,6 +99,7 @@ Article pages that have a twin get an actions group above the article (`placemen
 
 - **Copy Markdown** and **View as Markdown** are on by default.
 - **Open in ChatGPT**, **Open in Claude** and **Open in Perplexity** are off by default. Opt in with `pageActions.ai`, a list drawn from `chatgpt`, `claude`, `perplexity`. Each link opens the provider's new-chat URL with a short prompt that names the page URL. The page body is never put in a URL.
+- `pageActions.display: "icons"` switches to compact Lucide icon buttons and unlocks **Post on X**, **Post on Reddit** and a **Share** popup (`actions: ["view", "copy", "x", "reddit", "share"]`). Post links carry only the title and address. A site with its own article template places the group with `page.article_actions()`.
 - The links need an absolute page URL, so they do not appear on a site with no known origin.
 
 Details are in [building-a-papyrus-static-site.md](building-a-papyrus-static-site.md#page-actions).
@@ -112,6 +133,7 @@ Defaults shown. You only write what you change.
     "enabled": true,
     "placement": "header",
     "actions": ["copy", "view"],
+    "display": "text",
     "ai": [],
     "prompt": "Read {url} and help me with it.",
     "types": []

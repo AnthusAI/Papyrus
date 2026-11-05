@@ -1,3 +1,4 @@
+import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import { createHash, randomUUID } from "node:crypto";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
 import { Amplify } from "aws-amplify";
@@ -564,7 +565,32 @@ async function setItemStars(event: Parameters<ItemStarsHandler>[0]) {
     client.models.Item.update({ id: newest.id, ...referenceStarFields(stars, actor, now) }),
     "update Story stars",
   );
+  await requestStoryStarsProjection(newest.id);
   return { ok: true, itemId: newest.id, lineageId, stars };
+}
+
+const STORY_STARS_PROJECTION_TASK = "story-stars";
+
+/**
+ * Tells the site's content-actions function that a Story's rating changed (one asynchronous invocation per rating, the Item version as the
+ * only argument). It records the rating in the private rating store and re-renders the listing pages whose order the rating changed
+ * (`src/papyrus_content/projection/story_stars_task.py`). Best effort: the rating is already saved, and a site with no projection (the
+ * variable is unset) has no pages to refresh. A failed invocation is logged and the pages catch up the next time the Story is rated.
+ */
+async function requestStoryStarsProjection(itemId: string) {
+  const functionName = (process.env.PAPYRUS_CONTENT_ACTIONS_FUNCTION ?? "").trim();
+  if (!functionName) return;
+  try {
+    await new LambdaClient({}).send(
+      new InvokeCommand({
+        FunctionName: functionName,
+        InvocationType: "Event",
+        Payload: new TextEncoder().encode(JSON.stringify({ projectionTask: { task: STORY_STARS_PROJECTION_TASK, itemId } })),
+      }),
+    );
+  } catch (error) {
+    console.error("Could not ask the site to refresh its listings after a Story rating", error);
+  }
 }
 
 function normalizeReferenceStars(value: unknown): number | null {
@@ -1009,6 +1035,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       ...(current.starRating ? { starRating: current.starRating, starRatedAt: current.starRatedAt, starRatedBy: current.starRatedBy, starFeedKey: starFeedKeyFor(targetCorpusId, current.starRating) } : {}),
       ...(current.captureState ? { captureState: current.captureState } : {}),
       ...(current.captureReason ? { captureReason: current.captureReason } : {}),
+      ...(current.thumbnailPath ? { thumbnailPath: current.thumbnailPath } : {}),
       ...(current.medium ? { medium: current.medium } : {}),
       ...(current.evidenceLevel ? { evidenceLevel: current.evidenceLevel } : {}),
       ...(current.playlistUrl ? { playlistUrl: current.playlistUrl } : {}),

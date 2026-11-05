@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6db5e5c1-1278-40e9-af6f-0d5570c5425f",
+  "issue_id": "PPY-40f96af0-c722-44b2-bdeb-622f93e47efb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-04T23:56:35.082Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Markdown pages download in Safari instead of displaying",
+    "description": "Every site serves its Markdown twins (/x/index.md) as text/markdown. Safari downloads that type, so the View as Markdown link and shared Markdown links download a file instead of showing raw text in the browser (reported by Ryan on Machines on Machines, 2026-11-04). Expected: a person following the link sees raw Markdown in the browser, on any site. Suggested fix: send text/plain; charset=utf-8 to browsers, and keep text/markdown for a client whose Accept header prefers it, using the same qualityOf negotiation as amplify/publication/redirect-and-index.js, in a viewer-response function so the cached object and the content negotiation stay unchanged. No Content-Disposition attachment. Needs a real Safari check on iPad and Mac after deploy; a Gherkin scenario for both Accept cases.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

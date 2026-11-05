@@ -42,14 +42,21 @@ Other code: `corpora/` (one-time doctrine and steering imports), `features_backe
 
 Git Flow. Agents commit, push and open pull requests as normal delivery.
 
+**Development policy (Ryan, 2026-11-04).** Develop and verify on a local dev server (`npm run dev:preview`, seeded, no AWS; `npm run dev:127` for the real backend). Do not deploy to see whether something works.
+
+- **Merge** means merging a pull request into `develop`; that is where things are reviewed. `develop` builds nothing in Amplify.
+- **Release** means merging `develop` into `main`, which deploys. Aim for once or twice a day, batching what is ready. An extra release needs Ryan's say-so.
+- A Papyrus version bump in a site goes to that site's `develop` and ships in that site's release. A Papyrus release can add a GSI and a deploy can add only one per table, so a site cannot skip a release that adds one.
+- Say "merged to develop" or "released" precisely; never plain "deployed" for a merge.
+
 - Branch from `origin/develop`, named after the Kanbus issue: `feature/PPY-xxxxxx-slug`, `fix/...`, `chore/...`, `docs/...`, `board/...` (a `cursor/` prefix when host tooling requires it).
-- Never commit to `develop` or `main` directly. Work lands on `develop` by pull request, merged with a **merge commit** once CI is green.
+- Never commit to `develop` or `main` directly. Work lands on `develop` by pull request, merged with a **merge commit** once CI is green (this is a merge; see the policy above).
 - Board-only changes (the `project/` directory) are small `board/<slug>` branches and pull requests, merged the same way; in practice that is what the history shows. If a board change belongs to an implementation, include it in that PR.
 - Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`, `ci:`. Only `feat:`, `fix:` and breaking changes release; `chore:` and `docs:` do not. Never amend or force-push a commit that may have reached `develop` or `main`.
 - Commits end with the attribution line your tool is configured to add; pull request bodies end with the tool's generated-with line.
-- **Promotion to `main`** is a pull request `develop` to `main` with a merge commit. Never promote, or merge to `main`, without an instruction in your task or from a human. Standing instruction (Ryan, 2026-10-18): once CI is green, agents may promote `develop` to `main`, let the release publish, and open and merge the version-bump pull requests on the Papyrus test sites without asking again. Never touch Anth.us. Never change this rule yourself.
+- **Release (promotion to `main`)** is a pull request `develop` to `main` with a merge commit, once CI is green, once or twice a day. For the engine a release publishes the packages and deploys nothing to a site. Never release, or merge to `main`, without an instruction in your task or from a human; an extra release needs Ryan's say-so. Never touch Anth.us. (This replaces the 2026-10-18 standing instruction that let agents promote `develop` and merge site version-bump pull requests whenever CI was green; changed by Ryan, 2026-11-04.)
 - Stage deliberately; trees are often dirty. Never `git add -A` while someone else's work is in flight.
-- Done means pushed, with the branch, PR link and verification recorded on the Kanbus issue. Report whether the change reached `develop` and whether a `develop` to `main` PR exists.
+- Done means pushed, with the branch, PR link and verification recorded on the Kanbus issue. Report whether the change is merged to `develop` and whether it has been released.
 - When finished, remove your worktree: `git worktree remove <path>` from the shared checkout.
 
 ```bash
@@ -102,24 +109,33 @@ npm run dev:127            # real backend via amplify_outputs.json: http://127.0
 
 If the user is already running the dev server on 3001, use it and do not restart it.
 
+**Review over the network.** The dev server runs on the M1 Mac, and Ryan usually reviews from an iPad or another computer, so it must be reachable from the local network. Bind all interfaces and give the Mac's LAN address, never `localhost`:
+
+```bash
+PAPYRUS_PREVIEW_HOSTNAME=0.0.0.0 npm run dev:preview   # then http://<LAN address>:3002/newsroom/work
+ipconfig getifaddr en0                                  # the LAN address
+```
+
+Do not write the actual address in the repository. Next 15.5 only warns about `allowedDevOrigins` for such requests; a future major version will require it, so add it then (no config change today).
+
 ### Bump the Papyrus pin in a site
 
-After a release is published (`npm view @anthusai/papyrus dist-tags`), edit the same exact version in four files of the site repository, in one pull request:
+After a release is published (`npm view @anthusai/papyrus dist-tags`), edit the same exact version in four files of the site repository, in one pull request to the site's `develop`:
 
 - `package.json` (`@anthusai/papyrus`)
 - `infra/package.json` (`@anthusai/papyrus`)
 - `infra/site.json` (`papyrusVersion`)
 - `requirements-publication.txt` (`papyrus-newsroom[markus]==X.Y.Z`)
 
-Run `npm install` in both places to refresh the lockfiles. A release that changes the schema or functions deploys the backend with the site, so read the release notes. Merging to the site's `main` deploys it (see README, "How a change reaches production"). Pin stable versions; the `next` tag is for trying a prerelease.
+Run `npm install` in both places to refresh the lockfiles. A release that changes the schema or functions deploys the backend with the site, so read the release notes. Merging the bump to the site's `develop` deploys nothing; it ships in the site's next release (`develop` into `main`, see README, "How a change reaches production"), and a site cannot skip a release that adds a GSI. Verify on the site's local dev server first. Pin stable versions; the `next` tag is for trying a prerelease.
 
 ### Deploy
 
-- **A site**: merge its pull request to `main`. Public repositories deploy through Actions OIDC, private ones in AWS. The deploy re-renders the site.
+- **A site**: the deploy is the release. Merge pull requests into the site's `develop` (no Amplify build), then release by merging `develop` into `main`; once or twice a day. Public repositories deploy through Actions OIDC, private ones in AWS. The deploy re-renders the site.
 - **App-shell stack**: `cd infra/amplify-app-shell && npm ci`, then `SITE=/abs/path/infra/site.json AWS_PROFILE=papyrus-production npm run diff`, then `npm run deploy` after a human has read the diff.
 - **Shared stacks `papyrus-monitoring` and `papyrus-newsletter-sending-operators`**: deployed by the release, not by hand (PPY-b8cc79). A push to `main` runs `.github/workflows/stack-deploy.yml`: tests pass, then each stack whose inputs changed is built, change-set, checked and executed through GitHub OIDC. A pull request touching their paths prints a read-only dry run as a job summary; a human reads it before merging. The run stops, executing nothing, on a Remove or Replace not listed in `infra/pipeline/allowed-changes.json` and on a stack in a failed state, and a failed update fails the run. Never create or execute a change set for these stacks yourself. [infra/pipeline/README.md](infra/pipeline/README.md) has the details and the one-time role bootstrap.
 - **Other shared stacks** (`papyrus-procedure-runner`, edge, per-site newsletter sending): still hand-run with a change set (`aws cloudformation create-change-set`, then `describe-change-set`, then execute). Each README says which parameters to pass.
-- **Engine**: promote `develop` to `main` (see Git workflow); the release publishes the packages. The engine itself deploys nothing to a site.
+- **Engine**: release `develop` to `main` (see Git workflow); the release publishes the packages. The engine itself deploys nothing to a site.
 
 ### Re-project safely
 
@@ -232,7 +248,7 @@ Module boundaries and solver flow: [docs/solver-and-data-contracts.md](docs/solv
 ### Deploys and AWS
 
 - Read `AGENTS.local.md` before any AWS, Amplify, sandbox or deploy command. Unenforced.
-- Production deploys go through the DevOps pipeline from `main`. Never run `ampx pipeline-deploy` or other production `ampx` deploys from a local agent unless the user names that exact override. Use `ampx` locally for sandbox only. Unenforced.
+- Production deploys go through the DevOps pipeline from `main` (a release); `develop` builds nothing in Amplify. Never run `ampx pipeline-deploy` or other production `ampx` deploys from a local agent unless the user names that exact override. Use `ampx` locally for sandbox only. Unenforced.
 - Root `amplify.yml` is SSR (`WEB_COMPUTE`) for p.apyr.us only; Markus sites follow [docs/site-hosting.md](docs/site-hosting.md). Unenforced.
 - Production content refreshes are targeted GraphQL upserts after a reviewed diff. No sandbox seed or `content delete all --yes` against production. Unenforced. See [docs/production-content-operations.md](docs/production-content-operations.md).
 

@@ -16,6 +16,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from ...home_page.ordering import BUCKETS
 from ...home_page.settings import HomePageSettings, home_page_settings_from_mapping
 from .grouping import valid_group_by
 from .redirects import RedirectRule, rule_from_mapping
@@ -27,6 +28,10 @@ STANDARD_KEYS = (
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
     "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes",
 )
+NO_BUCKET = "none"
+#: The buckets Stories rank inside (``story_order.py``): the References' two (``day``, ``week``), and ``none`` for plain newest first.
+STORY_BUCKETS = (*BUCKETS, NO_BUCKET)
+DEFAULT_STORY_BUCKET = "week"
 URL_STYLES = ("html", "directory", "clean")
 SITEMAP_STYLES = ("single", "index")
 FEED_FORMATS = ("rss", "atom")
@@ -272,6 +277,7 @@ class ListingSettings:
     tag_title: str = "Tagged {tag}"       # the title and heading of a tag page
     draft_field: str = ""             # a front matter field whose value (draft_values) marks an item as a draft
     draft_values: tuple[str, ...] = ("draft",)
+    bucket: str = DEFAULT_STORY_BUCKET   # Stories rank by stars inside this rolling window (last 7 days for "week", last day for "day"), newest first; "none" keeps newest first (story_order.py)
 
 
 @dataclass(frozen=True)
@@ -380,6 +386,7 @@ class PageActionSettings:
     ai: tuple[str, ...] = ()                  # subset of AI_DESTINATIONS; none by default
     prompt: str = "Read {url} and help me with it."
     types: tuple[str, ...] | None = None      # extra entry types that get actions (guides, docs); None = the listed types only
+    display: str = "text"                     # text (the original buttons and links) or icons (compact Lucide icon buttons; needed by x, reddit, share)
 
 
 #: The canonical-URL rules of a directory-style site; the TypeScript mirror is in amplify/publication/redirect-rules.ts.
@@ -737,7 +744,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         raise ValueError("feeds.count must be positive")
 
     listings = dict(raw.get("listings") or {})
-    _only(listings, {"pageSize", "featuredCount", "path", "homeCount", "tags", "tagBase", "types", "tagSelect", "tagPageSize", "draft", "pageSuffix", "tagTitle"}, "listings")
+    _only(listings, {"pageSize", "featuredCount", "path", "homeCount", "tags", "tagBase", "types", "tagSelect", "tagPageSize", "draft", "pageSuffix", "tagTitle", "bucket"}, "listings")
     draft_raw = dict(listings.get("draft") or {})
     _only(draft_raw, {"field", "values"}, "listings.draft")
     listing_defaults = ListingSettings()
@@ -755,7 +762,10 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         tag_title=str(listings.get("tagTitle", listing_defaults.tag_title)),
         draft_field=str(draft_raw.get("field", "")),
         draft_values=tuple(str(value) for value in draft_raw.get("values", listing_defaults.draft_values)),
+        bucket=str(listings.get("bucket", listing_defaults.bucket)),
     )
+    if listing_settings.bucket not in STORY_BUCKETS:
+        raise ValueError(f"listings.bucket must be one of {', '.join(STORY_BUCKETS)}, got {listing_settings.bucket!r}")
     if listing_settings.tag_page_size is not None and listing_settings.tag_page_size < 0:
         raise ValueError("listings.tagPageSize must not be negative (0 puts every entry of a tag on one page)")
     if listing_settings.page_size < 1 or listing_settings.featured_count < 0:
@@ -901,7 +911,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     if (agents.llms_txt or agents.llms_full) and not agents.markdown:
         raise ValueError("agents.llmsTxt and agents.llmsFull link to the Markdown twins; turn agents.markdown on")
     actions_raw = dict(raw.get("pageActions") or {})
-    _only(actions_raw, {"enabled", "placement", "actions", "ai", "prompt", "types"}, "pageActions")
+    _only(actions_raw, {"enabled", "placement", "actions", "ai", "prompt", "types", "display"}, "pageActions")
     action_defaults = PageActionSettings()
     page_actions = PageActionSettings(
         enabled=bool(actions_raw.get("enabled", True)),
@@ -910,13 +920,18 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         ai=tuple(actions_raw.get("ai", ())),
         prompt=str(actions_raw.get("prompt", action_defaults.prompt)),
         types=tuple(str(name) for name in actions_raw["types"]) if actions_raw.get("types") is not None else None,
+        display=str(actions_raw.get("display", action_defaults.display)),
     )
     if page_actions.types is not None and not all(page_actions.types):
         raise ValueError("pageActions.types lists entry type names")
     if page_actions.placement not in ("header", "aside"):
         raise ValueError("pageActions.placement must be 'header' or 'aside'")
-    if not set(page_actions.actions) <= {"copy", "view"}:
-        raise ValueError("pageActions.actions must be a subset of ['copy', 'view']")
+    if not set(page_actions.actions) <= {"copy", "view", "x", "reddit", "share"}:
+        raise ValueError("pageActions.actions must be a subset of ['copy', 'view', 'x', 'reddit', 'share']")
+    if page_actions.display not in ("text", "icons"):
+        raise ValueError("pageActions.display must be 'text' or 'icons'")
+    if page_actions.display == "text" and set(page_actions.actions) & {"x", "reddit", "share"}:
+        raise ValueError("pageActions.actions 'x', 'reddit' and 'share' need pageActions.display 'icons'")
     if not set(page_actions.ai) <= set(AI_DESTINATIONS):
         raise ValueError(f"pageActions.ai must be a subset of {sorted(AI_DESTINATIONS)}")
     if "{url}" not in page_actions.prompt or len(page_actions.prompt) > 200:

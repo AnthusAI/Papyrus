@@ -20,12 +20,13 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import datetime as dt
 import hashlib
 import itertools
 import json
 import math
 import re
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 
@@ -50,18 +51,20 @@ from ..public_data import clipped, entry_for, hidden_from_public_data, owns_publ
 from ..writers import request_paths_for_key
 import inspect
 
-from . import alexa_pages, blocks, components, forum_pages, home_page_blocks, includes, knowledge_blocks, newsletter_pages
+from . import alexa_pages, blocks, components, forum_pages, home_page_blocks, includes, knowledge_blocks, newsletter_pages, page_twin
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
+from .story_order import rank_entries
 from .head import HeadBuilder, PageHead
 from .home_page import HomePageSource
 from .knowledge import DATA_PREFIX, KnowledgeSource
 from .knowledge_lookup import KnowledgeLookup
-from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path, section_index_markdown, sections_home_markdown
+from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, entry_line, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path, section_index_markdown, sections_home_markdown
 from . import wiki
-from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, render_page_actions
+from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, STYLESHEET_PATH as PAGE_ACTIONS_STYLESHEET, render_page_actions, stylesheet_text as page_actions_stylesheet_text
+from .page_ledger import PageLedger
 from .forms import FORM_SCRIPT_PATH, render_form
 from .fragments import MARKUS_ARTICLE_CLOSE_PATTERN, first_image_of, lede_of, with_date_format, with_lede, with_listing
 from .family import family_footer
@@ -94,6 +97,7 @@ def copy_directories(static_directory: Path | None, names, files: dict[str, byte
 
 ARTICLE_OPEN_PATTERN = re.compile(r'^\s*<article class="markus-document"[^>]*>')
 COMPONENTS_CSS_PATH = "css/markus-components.css"
+
 KNOWLEDGE_CSS_PATH = "css/papyrus-knowledge.css"
 HOME_PAGE_CSS_PATH = "css/papyrus-home-page.css"
 SECTION_FRONTS_CSS_PATH = "css/papyrus-section-fronts.css"
@@ -103,6 +107,15 @@ MERMAID_SCRIPT_PATH = "_plugins/papyrus-mermaid-v1.js"
 MERMAID_LIBRARY_PATH = "_plugins/mermaid-11.17.2.min.js"   # the vendored library; the loader fetches it from the site's own origin
 MERMAID_BLOCK = '<pre><code class="language-mermaid">'
 ASSET_DIRECTORY = Path(__file__).parent / "assets"
+
+
+def own_page_actions_stylesheet(standard: StandardSettings) -> bool:
+    """The icon form of the page actions on a site that does not link the whole component stylesheet gets its own small one.
+    Every other site, and the text form, render exactly as before."""
+    settings = standard.page_actions
+    return settings.enabled and settings.display == "icons" and standard.agents.markdown and not standard.components_css
+
+
 class StandardMarkusProjector(MarkusSiteProjector):
     def __init__(
         self,
@@ -130,6 +143,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[NAV_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-nav.js").read_bytes()
         if standard.page_actions.enabled and standard.agents.markdown:
             files[PAGE_ACTIONS_SCRIPT] = (ASSET_DIRECTORY / "papyrus-page-actions.js").read_bytes()
+            if own_page_actions_stylesheet(standard):
+                files[PAGE_ACTIONS_STYLESHEET] = page_actions_stylesheet_text((ASSET_DIRECTORY / "markus-components.css").read_text(encoding="utf-8")).encode("utf-8")
         if standard.mermaid:
             files[MERMAID_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-mermaid.js").read_bytes()
             files[MERMAID_LIBRARY_PATH] = (ASSET_DIRECTORY / "mermaid.min.js").read_bytes()
@@ -220,8 +235,19 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """Read the home-page snapshot (``references.json``) from a local directory instead of the store."""
         self._home_page.use_directory(directory)
 
+    _story_stars: Mapping[str, int] = {}
+    #: The UTC day Story buckets are counted back from (``story_order.py``): today for a real run, set by a test to fix it.
+    clock: Callable[[], dt.date] = staticmethod(lambda: dt.datetime.now(dt.timezone.utc).date())
+    _as_of: dt.date = dt.date.min
+
+    def _ranked(self, entries, bucket: str | None = None) -> list[StandardEntry]:
+        """``entries`` (newest first) in the Story ranking of ``story_order.py``: the newest bucket first, the editors' stars inside it. Unchanged when nothing is rated."""
+        return rank_entries(entries, self._story_stars, bucket or self.standard.listings.bucket, self._as_of)
+
     def _use_site(self, site: SiteIndex) -> None:
-        """A new site index is a new projection run: the snapshot files are read again."""
+        """A new site index is a new projection run: the snapshot files are read again, and so are the editors' private Story ratings."""
+        self._story_stars = site.story_stars
+        self._as_of = self.clock()
         if site.items is not self._knowledge_items:
             self._knowledge.reset()
             self._home_page.reset()
@@ -317,6 +343,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
             for _page_key, thread, _reference in self._public_threads():
                 keys.update(self.thread_page_keys(thread["key"]))
             keys.update(self.policy.key(name) for name in (LLMS_KEY, *SITEMAP_KEYS))   # they list the thread pages
+        if self.standard.agents.markdown:
+            keys.update(twin for twin in (md_key(key) for key in list(keys)) if twin)   # a page's Markdown twin lists the same data, so it is rewritten with the page
+            if keys and self.standard.agents.llms_full:
+                keys.add(self.policy.key(LLMS_FULL_KEY))   # and llms-full.txt carries the twins of the authored pages
         return frozenset(keys)
 
     def _reads_home_page(self, source: str, owner: str) -> bool:
@@ -469,7 +499,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             page = self._page("home", head, site, entries=entries, fragment=fragment)
             pages = {key: self._render(page)}
             if len(paths) > 1:
-                pages[paths[1]] = self._home_markdown(title, head.description, self._twin(item.source_text, summary.output_path)).encode("utf-8")
+                pages[paths[1]] = self._home_markdown(title, head.description, item.source_text, page, summary.output_path).encode("utf-8")
             return pages
         entry = self._entry(summary)
         description = entry.summary_text or lede_of(fragment) or self.standard.identity.description
@@ -498,8 +528,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
             pages[paths[1]] = self._item_twin(entry, item.source_text, canonical).encode("utf-8")
         return pages
 
-    def _home_markdown(self, title: str, description: str, source_text: str) -> str:
-        return home_markdown(title, description, source_text)
+    def _home_markdown(self, title: str, description: str, source_text: str, page: StandardPage, source: str = "") -> str:
+        """The home twin: the home source with its page directives rendered as the page shows them (see :meth:`_page_twin`)."""
+        return home_markdown(title, description, self._page_twin(source_text, source, page))
 
     def _based_on(self, entry: StandardEntry) -> str:
         """The original this page is based on: the URL in ``seo.isBasedOnField``, only when it is an absolute http(s) URL."""
@@ -582,7 +613,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
         # home
         if not self._authored_home(site) and not any(custom.path == "" for custom in self.standard.pages):
-            home_entries = tuple(listed[: self.standard.listings.home_count])
+            home_entries = tuple(self._ranked(listed)[: self.standard.listings.home_count])
             home_blocks: tuple[HomeSectionBlock, ...] = ()
             home_digest: list = [self._fingerprints(home_entries), self._section_links()]
             if self.standard.sections_home:
@@ -627,6 +658,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         # collections: listings selected by tag or section, not by CMS section
         for collection in self.standard.collections:
             members = sorted_by(collection.select.select(entries), collection.sort, collection.ties)
+            if collection.sort == "date":
+                members = self._ranked(members)
             if not members and not collection.list_empty:
                 continue
             drafts = tuple(sorted_by(collection.select.select(entries, drafts=True), collection.sort, collection.ties)) if collection.drafts else ()
@@ -673,7 +706,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 slug = slugify_tag(tag)
                 if not slug:
                     continue
-                for view in self._paginate(self.policy.tag_base(slug), tag, found, None, tag=tag):
+                for view in self._paginate(self.policy.tag_base(slug), tag, self._ranked(found), None, tag=tag):
                     key = self.policy.listing_key(view.base, view.page)
                     add(key, "tag", [self._fingerprints(view.entries), view.page, view.pages], self._listing_builder("tag", view, site, listed))
 
@@ -699,7 +732,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             digest_input = [self._fingerprints(selected, full=True) if self.hooks.page_body else []]
             if authored is not None:
                 text, found = authored
-                digest_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)]
+                digest_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard, self._story_stars, self._as_of), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)]
             path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
             add(
                 self.policy.listing_key(custom.path),
@@ -727,7 +760,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         not_found_input: list = []
         if not_found.source:
             text, found = self._page_includes(not_found.source, "notFound")
-            not_found_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)]
+            not_found_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard, self._story_stars, self._as_of), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)]
         add(
             NOT_FOUND_KEY,
             "not_found",
@@ -810,11 +843,46 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """The ``pages`` entries written as a file (``source``) that have a Markdown twin: not ``noindex``."""
         return [custom for custom in self.standard.pages if custom.source and not custom.noindex]
 
-    def _authored_markdown(self, custom: CustomPage) -> str:
-        """The twin of an authored page: its title, description and canonical URL, then the page file's Markus source."""
+    def _authored_markdown(self, custom: CustomPage, page: StandardPage) -> str:
+        """The twin of an authored page: its title, description and canonical URL, then what the page file shows (see :meth:`_page_twin`)."""
         path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
         facts = SimpleNamespace(title=custom.title, authors=(), author_details=(), date="", updated="", summary_text=custom.description or "")
-        return item_markdown(facts, self._twin(self._page_text(custom.source, f"pages.{custom.id}"), custom.source), self.head.absolute(path))
+        return item_markdown(facts, self._page_twin(self._page_text(custom.source, f"pages.{custom.id}"), custom.source, page), self.head.absolute(path))
+
+    def _authored_twin_page(self, custom: CustomPage, site: SiteIndex, listed) -> StandardPage:
+        """The page an authored page's include data is read from when the twin is written without rendering the page (``llms-full.txt``)."""
+        path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
+        head = PageHead(title=custom.title, path=path, description=custom.description or self.standard.identity.description)
+        return self._page("custom", head, site, entries=tuple(listed), custom_id=custom.id)
+
+    def _twin_url(self, path: str) -> str:
+        return (self.environment.origin or "") + path
+
+    def _page_twin(self, text: str, source: str, page: StandardPage) -> str:
+        """The Markdown of a page file: ``::band`` and ``::column`` dropped, a button as a link, an island as its summary, and every ``::include``
+        as the list of titles and links it places. The includes read the same data, in the same order, as the page does."""
+        ledger = PageLedger()
+        return page_twin.render(text, dict(self.standard.values), source, lambda attributes: self._include_markdown(attributes, page, source, ledger), self._twin_url)
+
+    def _include_markdown(self, attributes: dict, page: StandardPage, source: str, ledger: PageLedger) -> str:
+        kind = includes.check(attributes, self.standard, source)
+        if kind == "listing":
+            return "\n".join(entry_line(entry, self.environment.origin) for entry in includes.listing_entries(attributes, list(page.entries), self.standard, self._story_stars, self._as_of))
+        if kind == "showcase":
+            wall = self.standard.showcase
+            sites = showcase_sites(page.summaries, wall) if wall is not None else []
+            return "\n".join(f"- [{site.name}]({site.url})" + (f": {site.description}" if site.description else "") for site in sites)
+        if kind == "form":
+            return ""
+        if kind == "references":
+            labels = {section.name: section.label for section in self.standard.sections}
+            return home_page_blocks.render_markdown(attributes, self._home_page.references(), ledger, self.standard.home_page, labels, self._twin_url)
+        if kind == "threads":
+            return home_page_blocks.render_threads_markdown(
+                attributes, self._home_page.threads(), ledger, self.standard.home_page,
+                (lambda key: self._twin_url(self._thread_href(key))) if self._forum() is not None else None,
+            )
+        return page_twin.markup_markdown(self._include(attributes, page, source), self._twin_url)
 
     def _static_twin_documents(self) -> list[tuple[str, str, str]]:
         """``(title, twin path, text)`` for each ``sitemap.extra`` route whose Markdown twin the site publishes by hand (``static.copy``)."""
@@ -839,8 +907,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
         origin = self.environment.origin
         full_entries = self._llms_full_entries(entries)
         static_documents = self._static_twin_documents()
-        authored = [self._authored_markdown(custom) for custom in self._authored_pages()]
-        full_enabled = agents.llms_full and 0 < len(full_entries) + len(authored) + len(static_documents) <= agents.llms_full_max_items
+        authored_pages = self._authored_pages()
+        full_enabled = agents.llms_full and 0 < len(full_entries) + len(authored_pages) + len(static_documents) <= agents.llms_full_max_items
+        authored = [self._authored_markdown(custom, self._authored_twin_page(custom, site, listed)) for custom in authored_pages] if full_enabled else []
         if agents.llms_txt:
             optional = []
             if self.standard.section_fronts:
@@ -900,7 +969,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return forum_pages.thread_markdown(page.thread, self.head.absolute(page.path), anchor_line)
         custom = next((c for c in self.standard.pages if c.id == page.custom_id and c.source), None) if page.kind == "custom" else None
         if custom is not None:
-            return self._authored_markdown(custom)
+            return self._authored_markdown(custom, page)
         return "\n".join([f"# {page.title}", "", *([f"> {description}", ""] if description else [])]).rstrip() + "\n"
 
     def _section_index_markdown(self, page: StandardPage) -> str:
@@ -909,13 +978,15 @@ class StandardMarkusProjector(MarkusSiteProjector):
         origin = self.environment.origin
         if section.index.source:
             facts = SimpleNamespace(title=page.title, authors=(), author_details=(), date="", updated="", summary_text=page.description or "")
-            return item_markdown(facts, self._twin(self._page_text(section.index.source, f"{section.where}.index"), section.index.source), self.head.absolute(page.path))
-        include_line = ""
+            return item_markdown(facts, self._page_twin(self._page_text(section.index.source, f"{section.where}.index"), section.index.source, page), self.head.absolute(page.path))
+        references = ""
         if section.index.references:
-            attributes = " ".join(f'{name}="{value}"' for name, value in self._reference_attributes(section).items())
-            include_line = f"::include{{{attributes}}}"
+            labels = {configured.name: configured.label for configured in self.standard.sections}
+            references = home_page_blocks.render_markdown(
+                {**self._reference_attributes(section), "heading": "References"}, self._home_page.references(), PageLedger(), self.standard.home_page, labels, self._twin_url,
+            )
         return section_index_markdown(
-            page.title, page.description or self.standard.identity.description, view.entries, origin, include_line=include_line,
+            page.title, page.description or self.standard.identity.description, view.entries, origin, references=references,
             page=view.page, pages=view.pages, page_md=lambda number: md_path(self.policy.listing_key(view.base, number)),
         )
 
@@ -936,14 +1007,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _listing_groups(self, listed: list[StandardEntry]):
         if not self.standard.sectioned:
             if listed:
-                yield self.standard.listings.flat_path, "Archive", None, listed
+                yield self.standard.listings.flat_path, "Archive", None, self._ranked(listed)
             return
         for section in self.standard.sections:
             if not section.listing or not section.listing_page:
                 continue
             members = [entry for entry in listed if entry.section and entry.section.name == section.name]
-            if section.sort == "order":
-                members = sorted(members, key=order_of)
+            members = sorted(members, key=order_of) if section.sort == "order" else self._ranked(members)
             if members or section.list_empty:
                 yield section.base, section.label, section.name, members
 
@@ -1078,7 +1148,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             inputs.append(self._home_page_stylesheet_token())
         if index.source:
             text, found = self._page_includes(index.source, f"{section.where}.index")
-            inputs.append([hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)])
+            inputs.append([hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard, self._story_stars, self._as_of), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)])
         return inputs
 
     def _reference_attributes(self, section: SectionConfig) -> dict:
@@ -1293,6 +1363,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             own_versions = ((HOME_PAGE_CSS_PATH, self._home_page_stylesheet_token()),)
         if self.standard.section_fronts and SECTION_FRONTS_CSS_PATH not in sheets:
             sheets.append(SECTION_FRONTS_CSS_PATH)
+        if page.page_actions and own_page_actions_stylesheet(self.standard) and PAGE_ACTIONS_STYLESHEET not in sheets:
+            sheets.append(PAGE_ACTIONS_STYLESHEET)  # a page that places the icon actions itself, on a site without the component stylesheet
         if self.standard.islands is not None and self.standard.islands.stylesheet:
             sheets.append(self.standard.islands.stylesheet)
         if self.environment.guarded and (base.ga_measurement_id is not None or base.consent_mode is not None):
@@ -1479,7 +1551,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _include(self, attributes: dict, page: StandardPage, source: str) -> str:
         kind = includes.check(attributes, self.standard, source)
         if kind == "listing":
-            return self._listing_markup(attributes, includes.listing_entries(attributes, list(page.entries), self.standard), page)
+            return self._listing_markup(attributes, includes.listing_entries(attributes, list(page.entries), self.standard, self._story_stars, self._as_of), page)
         if kind == "showcase":
             wall = self.standard.showcase
             if wall is None:
@@ -1489,7 +1561,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return render_form(next(spec for spec in self.standard.forms if spec.id == attributes["id"]))
         if kind == "references":
             labels = {section.name: section.label for section in self.standard.sections}
-            return home_page_blocks.render(attributes, self._home_page.references(), page.ledger, self.standard.home_page, labels)
+            return home_page_blocks.render(attributes, self._home_page.references(), page.ledger, self.standard.home_page, labels, self.policy.path)
         if kind == "threads":
             return home_page_blocks.render_threads(attributes, self._home_page.threads(), page.ledger, self.standard.home_page, self._thread_href if self._forum() is not None else None)
         if knowledge_blocks.is_knowledge_block(attributes):

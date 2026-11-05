@@ -9,7 +9,7 @@ release number. Publishing uses npm and PyPI trusted publishing (OIDC); there is
 
 - Commit with conventional commits (`feat:`, `fix:`, `feat!:` or `BREAKING CHANGE` for real breaks).
 - A push to `develop` publishes a prerelease `X.Y.Z-next.N` (npm dist-tag `next`; PyPI `X.Y.Z.devN`).
-- A push to `main` publishes the stable version. `main` only changes by a `develop` to `main` pull request with a merge commit. Under the standing instruction in `AGENTS.md` (Git workflow), agents may promote `develop` to `main` once CI is green and let the release publish; without that instruction, or a human asking, they do not.
+- A push to `main` publishes the stable version. `main` only changes by a release: a `develop` to `main` pull request with a merge commit, once or twice a day. Agents release only when told to, and an extra release needs Ryan's say-so (`AGENTS.md`, Git workflow, policy of 2026-11-04). Site bumps go to each site's `develop` and ship in that site's release.
 - Versions are stamped into the staged copies only; nothing is committed back.
 - Do not hand-tag. Semantic Release picks the first version (`1.0.0-next.1`).
 
@@ -27,9 +27,9 @@ after the registry setup below is done. Local check: `npm run release:dry-run` w
 ## Trying a prerelease in a publication
 
 Every merge to `develop` that carries a `feat:` or `fix:` publishes `X.Y.Z-next.N` (npm dist-tag `next`, PyPI `X.Y.Z.devN`),
-built from develop exactly as a release is built from main. To develop a site feature without promoting to `main` each time,
+built from develop exactly as a release is built from main. To develop a site feature without releasing to `main` each time,
 pin the site to that exact prerelease, the same way it pins a release (the site's `package.json`, `infra/package.json` and
-`infra/site.json` `papyrusVersion`), and put the site change in the same pull request so it deploys once. Go back to a stable
+`infra/site.json` `papyrusVersion`), and put the site change in the same pull request to the site's `develop`, so it ships in one release. Go back to a stable
 version once the feature is released.
 
 ```

@@ -269,13 +269,23 @@ def test_the_state_goes_with_the_file_that_was_written(site):
     assert store.state.entries[next(r["key"] for r in document(site)["references"] if r["title"] == "Reference number 1")].stars == 3
 
 
-def test_stars_stay_in_the_private_state_and_out_of_every_published_file(site):
+def test_a_star_only_change_reaches_the_page_in_an_incremental_run_and_who_rated_stays_private(site):
     client, store = CorpusClient(90), MemoryStateStore()
     run(site, client, store)
     accept(client, 1, stars=5)
-    run(site, client, store, DirtyBatch(ids=frozenset({"reference-1-v1"})))
-    assert any(standing.stars == 5 for standing in store.state.entries.values())
-    assert all(b"starRating" not in content and b'"stars"' not in content for content in site.tree.values())
+    first = run(site, client, store, DirtyBatch(ids=frozenset({"reference-1-v1"})))
+    assert first["mode"] == "incremental"
+    assert any(standing.stars == 5 for standing in store.state.entries.values()), "the private state keeps the count for the order"
+    def shown() -> int | None:
+        return next(record["stars"] for record in json.loads(site.writer.get(REFERENCES_KEY))["references"] if record["title"] == "Reference number 1")
+
+    assert shown() == 5, "the accepted Reference shows its count"
+    # Only the count changes on the row (nothing else, so the status is already accepted): the next incremental run republishes it.
+    client.rows["reference-1-v1"].update({"starRating": 3})
+    second = run(site, client, store, DirtyBatch(ids=frozenset({"reference-1-v1"})))
+    assert second["mode"] == "incremental" and second["written"] == [REFERENCES_KEY]
+    assert shown() == 3
+    assert all(b"starRating" not in content and b"starRatedBy" not in content and b"starRatedAt" not in content for content in site.tree.values())
 
 
 def test_a_dry_run_saves_no_state(site):

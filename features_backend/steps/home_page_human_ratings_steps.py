@@ -13,7 +13,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
     if str(entry) not in sys.path:
         sys.path.insert(0, str(entry))
 
-from features_backend.steps.home_page_snapshot_steps import FixtureClient, document, run_snapshot  # noqa: E402
+from features_backend.steps.home_page_snapshot_steps import FixtureClient, document, run_snapshot, titled  # noqa: E402
 from papyrus_content.home_page.export import EXCLUDED_REFERENCE_FIELDS  # noqa: E402
 from procedures.newsroom.tests.standard_frontend_support import FIXTURES, ProjectedSite, fixture_settings  # noqa: E402
 
@@ -25,7 +25,7 @@ PAGES = {
     "daily": '::band{size="bare"}\n::include{kind="references" select="recent" bucket="day" count="12"}\n',
     "confident-weekly": '::band{size="bare"}\n::include{kind="references" select="confident" bucket="week" count="12"}\n',
 }
-PRIVATE_SENTINELS = ("starRating", "starRatedAt", "starRatedBy", "editor-who-rated@example.test")
+PRIVATE_SENTINELS = ("starRating", "starRatedAt", "starRatedBy", "editor-who-rated@example.test", "2026-10-31T09:00:00.000Z")
 
 
 def build_site(context, pages: dict[str, str]) -> None:
@@ -86,15 +86,34 @@ def rate_and_run_again(context, title: str, stars: int) -> None:
     run_snapshot(context)
 
 
-@then("no record in the file has a star field and none names who rated")
-def no_stars_in_records(context) -> None:
+@then('the record titled "{title}" has {stars:d} stars')
+def record_has_stars(context, title: str, stars: int) -> None:
+    assert titled(context, title)["stars"] == stars, titled(context, title)
+
+
+@then('the record titled "{title}" has no stars')
+def record_has_no_stars(context, title: str) -> None:
+    assert titled(context, title)["stars"] is None, titled(context, title)
+
+
+@when('an editor clears the rating of "{title}" and the home-page-snapshot task runs again')
+def clear_and_run_again(context, title: str) -> None:
+    rows = [row for row in context.client.rows() if row["title"].startswith(title)]
+    assert len(rows) == 1
+    rows[0].update({"starRating": None, "starRatedAt": None, "starRatedBy": None})
+    context.site.writer.operations.clear()
+    run_snapshot(context)
+
+
+@then("no record in the file names who rated or when")
+def no_rater_in_records(context) -> None:
     for record in document(context)["references"]:
-        assert not [name for name in record if "star" in name.lower() or "rated" in name.lower()], record
+        assert not [name for name in record if name != "stars" and ("star" in name.lower() or "rated" in name.lower())], record
         assert not set(record) & set(EXCLUDED_REFERENCE_FIELDS), record
 
 
-@then("no file the site holds mentions a star rating or who gave one")
-def no_stars_anywhere(context) -> None:
+@then("no file the site holds mentions who rated or when")
+def no_rater_anywhere(context) -> None:
     for name, content in context.site.tree.items():
         for sentinel in PRIVATE_SENTINELS:
             assert sentinel.encode() not in content, f"{name} mentions {sentinel}"
@@ -106,14 +125,15 @@ def ranks_are_positions(context) -> None:
     assert sorted(record["rank"] for record in records) == list(range(1, len(records) + 1)), [record["rank"] for record in records]
 
 
-@then("the only difference in the file is the rank of the References that moved")
-def only_rank_differs(context) -> None:
-    def without_rank(snapshot: dict) -> list[dict]:
-        return [{key: value for key, value in record.items() if key != "rank"} for record in snapshot["references"]]
+@then('the only differences in the file are the ranks of the References that moved and the stars of "{title}"')
+def only_rank_and_stars_differ(context, title: str) -> None:
+    def comparable(snapshot: dict) -> list[dict]:
+        return [{key: value for key, value in record.items() if key != "rank" and not (key == "stars" and record["title"] == title)} for record in snapshot["references"]]
 
     after = document(context)
-    assert without_rank(after) == without_rank(context.before)
-    assert [record["rank"] for record in after["references"]] != [record["rank"] for record in context.before["references"]]
+    assert comparable(after) == comparable(context.before)
+    before_stars = next(record["stars"] for record in context.before["references"] if record["title"] == title)
+    assert titled(context, title)["stars"] != before_stars, "the rated record's count changed"
 
 
 @then('the build failed saying "{first}" and "{second}" and "{third}"')

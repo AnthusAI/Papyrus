@@ -357,7 +357,13 @@ def wait_for_execution(ctx: Context, stack: str, name: str, known: set[str]) -> 
     seen_progress = False
     while True:
         current = ctx.cloud.describe_stack(stack)
-        change = ctx.cloud.describe_change_set(stack, name)
+        try:
+            change = ctx.cloud.describe_change_set(stack, name)
+        except AwsError as error:
+            # CloudFormation removes the change set of a first create once it runs; it existed before the execute, so its absence is proof this execution ran.
+            if "ChangeSetNotFound" not in str(error):
+                raise
+            change, seen_progress = {}, True
         status, execution = (current or {}).get("StackStatus", "GONE"), change.get("ExecutionStatus", "")
         if status.endswith("_IN_PROGRESS") and status != "REVIEW_IN_PROGRESS" or execution == "EXECUTE_IN_PROGRESS":
             seen_progress = True
