@@ -372,6 +372,20 @@ const schema = a.schema({
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 
+  // Direct agent decision: conditions protect the exact card that was read.
+  agentReviewReferenceCuration: a
+    .mutation()
+    .arguments({
+      referenceId: a.id().required(),
+      lineageId: a.id().required(),
+      expectedRevision: a.string().required(),
+      action: a.string().required(),
+      note: a.string(),
+    })
+    .returns(a.ref("ReferenceCurationActionResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
   createCurationDelegation: a
     .mutation()
     .arguments({

@@ -31,7 +31,7 @@ LINEAGE = {"lineageId": S}
 VERSION = {**LINEAGE, "expectedCurrentVersionId": S}
 REVISION = {**VERSION, "expectedRevision": S}
 TOOLS = {
-    "reference_search": ("staff", _schema({"query": S}, {"limit": LIMIT})),
+    "reference_search": ("staff", _schema({"query": S}, {"limit": LIMIT, "nextToken": S})),
     "reference_get": ("staff", _schema(LINEAGE)),
     "concept_search": ("staff", _schema({"query": S}, {"limit": LIMIT})),
     "concept_get": ("staff", _schema({"id": S})),
@@ -43,7 +43,7 @@ TOOLS = {
     "assignments_list": ("staff", _schema({}, {"storyLineageId": S})),
     "assignment_get": ("staff", _schema({"id": S})),
     "story_save_draft": ("staff", _schema({**VERSION, "body": S, "reason": S}, {"frontMatter": {"type": "string"}})),
-    "reference_decide": ("staff", _schema({**REVISION, "decision": {"type": "string", "enum": ["accept", "reject"]}})),
+    "reference_decide": ("staff", _schema({**REVISION, "decision": {"type": "string", "enum": ["accept", "reject"]}}, {"note": S})),
     "reference_star": ("staff", _schema({**REVISION, "stars": STARS})),
     "story_star": ("staff", _schema({**REVISION, "stars": STARS})),
     "reviews_list": ("staff", _schema({}, {"state": S, "mode": S})),
@@ -130,17 +130,64 @@ def call_tool(principal: Principal, name: str, arguments: dict, *, staff: Any,
 class StaffReads:
     """Read through the same scoped GraphQL client used by the operator library."""
 
-    available_tools = frozenset({"story_get", "story_versions", "story_evidence"})
+    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "reference_get", "reference_search", "reference_decide"})
 
     def __init__(self, client: Any):
         self.client = client
 
+    def _reference_scope(self) -> None:
+        # Reference has no tenant key. A shared backend cannot establish ownership.
+        if getattr(self.client, "tenant_id", None):
+            raise PermissionError("References are unavailable without a tenant ownership key.")
+
     def reference_get(self, principal: Principal, *, lineageId: str) -> dict:
-        from .story_reporting import current_reference
-        row = current_reference(self.client, lineageId)
-        if row is None:
-            raise ValueError("Reference not found.")
-        return {"reference": row}
+        self._reference_scope()
+        query = """query CurrentReference($lineageId: ID!, $limit: Int!) {
+          listReferencesByLineageAndVersion(lineageId: $lineageId, limit: $limit) {
+            items { id lineageId versionNumber versionState title sourceUri curationStatus starRating updatedAt }
+            nextToken
+          }
+        }"""
+        result = self.client.graphql(query, {"lineageId": lineageId, "limit": 100})
+        page = result.get("listReferencesByLineageAndVersion") or {}
+        if page.get("nextToken"):
+            raise ValueError("Reference has too many versions to resolve safely.")
+        rows = [r for r in page.get("items", []) if r and r.get("lineageId") == lineageId and r.get("versionState") == "current"]
+        if len(rows) != 1 or not rows[0].get("updatedAt"):
+            raise ValueError("Reference has no unambiguous current version and revision.")
+        return {"reference": rows[0]}
+
+    def reference_search(self, principal: Principal, *, query: str, limit: int = 20, nextToken: str | None = None) -> dict:
+        self._reference_scope()
+        operation = """query SearchReferences($limit: Int!, $nextToken: String, $filter: ModelReferenceFilterInput) {
+          listReferences(limit: $limit, nextToken: $nextToken, filter: $filter) {
+            items { id lineageId versionNumber versionState title sourceUri curationStatus starRating updatedAt }
+            nextToken
+          }
+        }"""
+        result = self.client.graphql(operation, {"limit": limit, "nextToken": nextToken, "filter": {"and": [{"versionState": {"eq": "current"}}, {"title": {"contains": query}}]}})
+        page = result.get("listReferences") or {}
+        return {"references": [row for row in page.get("items", []) if row], "nextToken": page.get("nextToken")}
+
+    def reference_decide(self, principal: Principal, *, lineageId: str, expectedCurrentVersionId: str,
+                         expectedRevision: str, decision: str, note: str | None = None) -> dict:
+        self._reference_scope()
+        if decision == "reject" and not (note or "").strip():
+            raise ValueError("A rejection needs a reason.")
+        current = self.reference_get(principal, lineageId=lineageId)["reference"]
+        if current["id"] != expectedCurrentVersionId or current["updatedAt"] != expectedRevision:
+            raise ValueError("stale_revision: The Reference changed. Refresh the card and try again.")
+        mutation = """mutation AgentReviewReference($referenceId: ID!, $lineageId: ID!, $expectedRevision: String!, $action: String!, $note: String) {
+          agentReviewReferenceCuration(referenceId: $referenceId, lineageId: $lineageId, expectedRevision: $expectedRevision, action: $action, note: $note) {
+            ok action referenceId status reasonCode
+          }
+        }"""
+        result = self.client.graphql(mutation, {"referenceId": expectedCurrentVersionId, "lineageId": lineageId,
+            "expectedRevision": expectedRevision, "action": decision, "note": note})
+        answer = result.get("agentReviewReferenceCuration")
+        if not isinstance(answer, dict) or not answer.get("ok"):
+            raise RuntimeError("The site did not confirm the Reference decision.")
+        return {"decision": answer, **self.reference_get(principal, lineageId=lineageId)}
 
     def story_get(self, principal: Principal, *, lineageId: str) -> dict:
         from .story_reporting import current_story_version
@@ -187,11 +234,6 @@ class StaffReads:
         rows = self.client.list_records("SemanticNode")
         text = query.casefold()
         return {"concepts": [r for r in rows if r.get("versionState", "current") == "current" and text in str(r.get("displayName") or "").casefold()][:limit]}
-
-    def reference_search(self, principal: Principal, *, query: str, limit: int = 20) -> dict:
-        rows = self.client.list_records("Reference")
-        text = query.casefold()
-        return {"references": [r for r in rows if r.get("versionState", "current") == "current" and text in str(r.get("title") or "").casefold()][:limit]}
 
     def review_get(self, principal: Principal, *, id: str) -> dict:
         from .review_requests import get_review

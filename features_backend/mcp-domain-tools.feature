@@ -20,3 +20,23 @@ Feature: Site tools preserve editorial and reader authority
     Given a reader connected to a site with a verified site subject
     When the reader submits a link
     Then the site's reader policy receives the verified site subject
+
+  Scenario: A Reference card identifies its current version and revision
+    Given an editor connected to a site with a current Reference
+    When the editor opens the Reference by its lineage
+    Then the Reference card identifies the current version and revision
+
+  Scenario: A tenant cannot read a Reference without an ownership key
+    Given an editor connected to a shared site with a current Reference
+    When the editor opens the Reference by its lineage
+    Then the Reference read is refused
+
+  Scenario: An agent accepts the Reference shown on a current card
+    Given an editor connected to a site with a current Reference
+    When the agent accepts the Reference shown on the card
+    Then the site receives the current version and revision for an agent decision
+
+  Scenario: An outdated Reference card cannot be accepted
+    Given an editor connected to a site with a current Reference
+    When the agent accepts an outdated Reference card
+    Then the Reference decision is refused
