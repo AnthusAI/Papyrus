@@ -145,6 +145,7 @@
     "test:s3-projection-publication": "tsx scripts/test-s3-projection-publication.ts",
     "test:renditions-function": "tsx scripts/test-renditions-function.ts",
     "test:redirect-and-index-function": "node scripts/test-redirect-and-index-function.mjs",
+    "test:markdown-twin-display": "node scripts/test-markdown-content-type-function.mjs && cucumber-js --profile markdownTwinDisplay",
     "test:resolver-waves": "tsx scripts/test-resolver-waves.ts",
     "test:model-groups": "tsx scripts/test-model-groups.ts",
     "test:bootstrap-stage": "tsx scripts/test-model-groups.ts && cucumber-js --profile bootstrapFirstDeploy",

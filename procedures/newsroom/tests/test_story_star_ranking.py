@@ -216,6 +216,15 @@ def test_a_story_published_after_it_was_rated_is_ranked_without_a_rating_event(s
     assert store.writes == 1 and store.reads == reads + 1
 
 
+def test_the_markdown_twin_lists_stories_in_the_page_order_and_carries_no_star(site):
+    rate(site, "three", 5)
+    reproject(site)
+    twin = site.text("latest/index.md")
+    links = [line for line in twin.splitlines() if "/posts/" in line]
+    assert "/three" in links[0], twin
+    assert [name for name in ("starRating", "stars", "data-stars", "an editor") if name in twin] == []
+
+
 # ------------------------------------------------------------------ rolling windows
 
 

@@ -291,7 +291,9 @@ def file_written(context) -> None:
 def only_reading_pages(context) -> None:
     pages = [key for operation, key in context.site.writer.operations if operation == "put" and key != snapshot_key(context)]
     assert pages, "no page was re-rendered"
-    assert all("references" in context.site.text(key) for key in pages), pages
+    readers = context.site.projector.home_page_reader_keys()
+    assert all(key in readers for key in pages), pages                       # a page, its Markdown twin, or llms-full.txt, which carries the twins
+    assert all("references" in context.site.text(key) for key in pages if key.endswith(".html")), pages
 
 
 @then('the page "{key}" was re-rendered')

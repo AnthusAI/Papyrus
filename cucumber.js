@@ -140,6 +140,11 @@ module.exports = {
     require: ["features/step_definitions/reference-link-resolvers.steps.js"],
     format: ["summary"],
   },
+  markdownTwinDisplay: {
+    paths: ["features/markdown-twin-display.feature"],
+    require: ["features/step_definitions/markdown-twin-display.steps.js"],
+    format: ["summary"],
+  },
   messageAuthorEnforced: {
     paths: ["features/message-author-enforced.feature"],
     require: ["features/step_definitions/message-author-enforced.steps.js"],

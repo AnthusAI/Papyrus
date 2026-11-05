@@ -21,6 +21,7 @@ import { addInvalidationPathAlarm } from "./invalidation-alarm";
 import { distributionIdFromArn, s3ProjectionEnvironment, s3ProjectionPolicyStatements } from "./s3-projection-settings";
 
 const redirectFunctionSourcePath = resolve(dirname(fileURLToPath(import.meta.url)), "redirect-and-index.js");
+const markdownContentTypeSourcePath = resolve(dirname(fileURLToPath(import.meta.url)), "markdown-content-type.js");
 
 export type S3ProjectionPublicationProps = Omit<PapyrusPublicationConfig, "kind"> & { kind?: "s3-projection" };
 
@@ -34,6 +35,8 @@ export type S3ProjectionPublication = {
   bucket: s3.Bucket;
   keyValueStore: cloudfront.KeyValueStore;
   redirectFunction: cloudfront.Function;
+  /** On a distribution this construct creates: the viewer-response function that shows a Markdown twin in a browser (text/plain) and keeps text/markdown for a client that prefers it. A site with its own edge stack gets the same function from that stack's template. */
+  markdownContentTypeFunction?: cloudfront.Function;
   deadLetterQueue: sqs.Queue;
   distribution?: cloudfront.Distribution;
   distributionId?: string;
@@ -76,6 +79,7 @@ function createDistribution(
   props: S3ProjectionPublicationProps,
   bucket: s3.Bucket,
   redirectFunction: cloudfront.Function,
+  markdownContentTypeFunction: cloudfront.Function,
 ): cloudfront.Distribution {
   const aliases = props.distribution?.aliases ?? [];
   let certificate: acm.ICertificate | undefined;
@@ -94,7 +98,10 @@ function createDistribution(
       origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       compress: true,
-      functionAssociations: [{ function: redirectFunction, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
+      functionAssociations: [
+        { function: redirectFunction, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST },
+        { function: markdownContentTypeFunction, eventType: cloudfront.FunctionEventType.VIEWER_RESPONSE },
+      ],
     },
     errorResponses: [
       { httpStatus: 404, responseHttpStatus: 404, responsePagePath: "/404.html" },
@@ -130,7 +137,16 @@ export function addS3ProjectionPublication(
   });
 
   const createsDistribution = props.distribution?.create === true;
-  const distribution = createsDistribution ? createDistribution(scope, props, bucket, redirectFunction) : undefined;
+  const markdownContentTypeFunction = createsDistribution
+    ? new cloudfront.Function(scope, "MarkdownContentTypeFunction", {
+        runtime: cloudfront.FunctionRuntime.JS_2_0,
+        code: cloudfront.FunctionCode.fromInline(readFileSync(markdownContentTypeSourcePath, "utf8")),
+        comment: "Show a Markdown twin in a browser as text/plain; keep text/markdown for a client that prefers it",
+      })
+    : undefined;
+  const distribution = markdownContentTypeFunction !== undefined
+    ? createDistribution(scope, props, bucket, redirectFunction, markdownContentTypeFunction)
+    : undefined;
 
   let distributionArn: string | undefined;
   if (distribution !== undefined) {
@@ -176,6 +192,7 @@ export function addS3ProjectionPublication(
     bucket,
     keyValueStore,
     redirectFunction,
+    markdownContentTypeFunction,
     deadLetterQueue,
     distribution,
     distributionId: distribution?.distributionId,

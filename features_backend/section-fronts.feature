@@ -100,7 +100,8 @@ Feature: A site settings file turns each section into a front page and the home 
   Scenario: Section front pages and the home of sections have Markdown twins and appear in llms.txt
     Given the section-fronts fixture site is projected
     Then the standard page "essays/index.md" says "- [Fords and Crossings]"
-    And the standard page "essays/index.md" says "::include{kind="references" select="recent" count="2" section="essays"}"
+    And the standard page "essays/index.md" says "- [Hedge ledger](https://www.example.org/fronts/4)"
+    And the standard page "essays/index.md" does not say "::include"
     And the standard page "index.md" says "## Essays"
     And the standard page "index.md" says "[More Essays]"
     And the standard page "llms.txt" says "[Essays front page]"
