@@ -10,6 +10,7 @@ export type SiteBackendFeatureFlags = {
   cliRemoteLogin: boolean;
   /** The CLI signs in on the site's registered Prospectus federation client instead of the main web client. */
   cliOnFederationClient: boolean;
+  mcp: boolean;
 };
 
 export type SiteBackendFeatureInput = Partial<SiteBackendFeatureFlags> | undefined;
@@ -85,6 +86,7 @@ export function resolveSiteBackendFeatureFlags(
       features?.storageBackups ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_STORAGE_BACKUPS", legacyPipeline),
     // Off for every site, the legacy production pipeline included: it adds a public function URL and a Cognito callback.
     cliRemoteLogin: features?.cliRemoteLogin ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_CLI_REMOTE_LOGIN", false),
+    mcp: features?.mcp ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_MCP", false),
     cliOnFederationClient: features?.cliOnFederationClient ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT", false),
   };
 }

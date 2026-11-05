@@ -30,6 +30,7 @@ import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFr
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, trustClientOnIdentityPool } from "./auth/prospectus-google-client";
 import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
+import { addMcpOAuth, planMcpOAuth } from "./mcp-oauth/resource";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
@@ -191,6 +192,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       prospectusGoogleOnlyClient.ref,
     );
   }
+
+  const mcpPlan = planMcpOAuth(featureFlags.mcp, process.env);
+  const mcpOAuth = mcpPlan ? addMcpOAuth(backend.createStack("McpOAuth"), mcpPlan) : undefined;
 
   const cliEnrollmentPlan = cliRemoteLoginPlan
     ? planCliEnrollment(process.env.PAPYRUS_ENABLE_CLI_ENROLLMENT?.trim() === "true")
@@ -821,6 +825,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   backend.addOutput({
     custom: {
       publicForms: { endpoint: publicFormsEndpoint },
+      ...(mcpOAuth ? { mcpOAuth } : {}),
       // Lets the operator CLI re-project on publish without PAPYRUS_PUBLICATION_KIND / PAPYRUS_CONTENT_ACTIONS_FUNCTION (PPY-0c0b75).
       publication:
         s3ProjectionPublication !== undefined
