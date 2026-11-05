@@ -59,6 +59,7 @@ import { demoEditorialBackend } from "../lib/editorial-checks-demo";
 import type { FindingActions } from "./editorial-finding-card";
 import { EditorialFindingsPanel } from "./editorial-findings-panel";
 import { StarRating } from "./star-rating";
+import { StoryShareButton } from "./story-share-dialog";
 import { useStoryStars, type StoryStarsController } from "./use-story-stars";
 import { EditorialPreviewPopover, type PreviewPopoverTarget } from "./editorial-preview-popover";
 import { MarkusBodyEditor, type MarkusBodyEditorHandle } from "./markus-body-editor";
@@ -642,6 +643,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false, stars
             </Badge>
             {editor.dirty ? <Badge variant="outline">Unsaved changes</Badge> : null}
             <div className="ml-auto flex flex-wrap items-center gap-2">
+              {lineageId && editor.id !== null && (!previewMode || isLocalPreviewEnabled()) ? <StoryShareButton lineageId={lineageId} versionNumber={editor.versionNumber} /> : null}
               {stagingUrl ? (
                 <a
                   className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}

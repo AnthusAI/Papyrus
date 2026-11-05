@@ -840,6 +840,42 @@ const schema = a.schema({
     .authorization((allow) => [allow.groups(contentWriteGroups)])
     .handler(functionHandler("contentActions", contentActions)),
 
+  createStoryShare: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
+  listStoryShares: a
+    .query()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
+  revokeStoryShare: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
+  /** Open by design: the token in the input is the credential, and the function answers every unusable token alike (docs/story-share-links.md). */
+  viewStoryShare: a
+    .query()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.guest(), allow.authenticated()])
+    .handler(functionHandler("contentActions", contentActions)),
+
+  viewStoryShareMedia: a
+    .query()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.guest(), allow.authenticated()])
+    .handler(functionHandler("contentActions", contentActions)),
+
   knowledgeQuery: a
     .query()
     .arguments({
@@ -1514,6 +1550,33 @@ const schema = a.schema({
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups).to(["read", "create", "update"]),
+    ]),
+
+  /** A link that shows one Story, labelled DRAFT, in the public layout (docs/story-share-links.md). The id is the SHA-256 of the token; the token itself is never stored. Written only by the content-actions function. */
+  StoryShare: a
+    .model({
+      id: a.id().required(),
+      tokenHash: a.string().required(),
+      shareId: a.string().required(),
+      storyLineageId: a.id().required(),
+      viewers: a.string().required(),
+      versionNumber: a.integer(),
+      expiresAt: a.datetime().required(),
+      status: a.string().required(),
+      createdAt: a.datetime().required(),
+      createdBy: a.string(),
+      createdByLabel: a.string(),
+      endedAt: a.datetime(),
+      endedReason: a.string(),
+      revokedBy: a.string(),
+      openCount: a.integer(),
+      lastOpenedOn: a.string(),
+    })
+    .secondaryIndexes((index) => [
+      index("storyLineageId").sortKeys(["createdAt"]).queryField("listStorySharesByStoryAndCreatedAt"),
+    ])
+    .authorization((allow) => [
+      allow.groups(contentWriteGroups).to(["read"]),
     ]),
 
   /** Who is told about review requests: scope default, mode or automation. Changed by data, not code. */

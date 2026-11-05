@@ -1,4 +1,4 @@
-"""What a guest can reach, pinned: reads on six Published models and media/*, nothing else, no writes."""
+"""What a guest can reach, pinned: reads on six Published models and media/*, two named share-link queries (docs/story-share-links.md), nothing else, no writes."""
 
 from __future__ import annotations
 
@@ -21,6 +21,8 @@ GUEST_READABLE_MODELS = {
     "PublishedCategorySet",
     "PublishedCategory",
 }
+# The only custom operations a guest may call: a share link's own token is the credential, the function answers every unusable token the same way, and both are queries.
+GUEST_OPEN_OPERATIONS = {"viewStoryShare", "viewStoryShareMedia"}
 PUBLIC_METADATA_KEYS = {"frontMatterYaml", "source", "sourceContentHash", "projection"}
 MODEL_START = re.compile(r"^  ([A-Za-z]+): a$", re.MULTILINE)
 
@@ -35,11 +37,11 @@ def schema_blocks() -> dict[str, str]:
 
 class GuestSurfaceTests(unittest.TestCase):
     def test_guests_read_exactly_the_six_published_models(self) -> None:
-        with_guest = {name for name, block in schema_blocks().items() if "allow.guest" in block}
+        with_guest = {name for name, block in schema_blocks().items() if "allow.guest" in block and ".model(" in block}
         self.assertEqual(with_guest, GUEST_READABLE_MODELS)
 
     def test_guest_rules_only_ever_read(self) -> None:
-        rules = re.findall(r"allow\.guest\([^)]*\)([^,\n]*)", SCHEMA)
+        rules = [rule for name, block in schema_blocks().items() if ".model(" in block for rule in re.findall(r"allow\.guest\([^)]*\)([^,\n]*)", block)]
         self.assertEqual(len(rules), len(GUEST_READABLE_MODELS))
         self.assertTrue(all(rule == '.to(["read"])' for rule in rules), rules)
 
@@ -48,10 +50,15 @@ class GuestSurfaceTests(unittest.TestCase):
         self.assertNotIn("allow.custom", SCHEMA)
         self.assertNotIn("allow.public", SCHEMA)
 
-    def test_no_custom_operation_is_open_to_guests(self) -> None:
+    def test_no_custom_operation_is_open_to_guests_except_the_two_share_link_queries(self) -> None:
+        open_to_guests = set()
         for name, block in schema_blocks().items():
             if ".mutation(" in block or ".query(" in block:
-                self.assertNotIn("allow.guest", block, name)
+                if "allow.guest" in block:
+                    open_to_guests.add(name)
+                    self.assertIn(".query(", block, name)  # a guest never mutates
+                    self.assertIn('functionHandler("contentActions"', block, name)
+        self.assertEqual(open_to_guests, GUEST_OPEN_OPERATIONS)
 
     def test_storage_guests_read_media_only(self) -> None:
         guest_paths = re.findall(r'"([^"]+)": \[\s*allow\.guest\.to\(\["read"\]\)', STORAGE)

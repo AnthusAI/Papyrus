@@ -408,7 +408,18 @@ def publish_item(
     for sibling in client.list_by_index("itemsByLineageAndVersion", lineage_id):
         if sibling["id"] != item_id and sibling.get("versionState") == "current":
             client.update_record("Item", {"id": sibling["id"], "versionState": "superseded"})
+    _end_story_shares(client, lineage_id, "published", now)
     return PublishResult(True, item_id, published_id, version_number, deleted)
+
+
+def _end_story_shares(client, lineage_id: str, reason: str, now: str) -> None:
+    """Publishing or spiking a Story ends its share links (docs/story-share-links.md). Best effort: a failure here never fails the publish, and a link is also checked when it is opened."""
+    try:
+        from .story_shares import end_shares
+
+        end_shares(client, lineage_id, reason, now=now)
+    except Exception:  # noqa: BLE001 - the publish already happened; the view re-checks the Story's state
+        pass
 
 
 def unpublish_item(client, item_id: str, *, actor: str, now: str | None = None) -> PublishResult:

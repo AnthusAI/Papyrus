@@ -120,6 +120,9 @@ STORY_VARIATION_FIELDS = (
     "id storyLineageId variationNumber status point headline deck bodyMarkus section connections origin basedOnVariationIds requestMessageId "
     "pointCheck runId model createdBy decidedBySub decidedByLabel decidedAt decisionReason createdAt updatedAt"
 )
+STORY_SHARE_FIELDS = (
+    "id tokenHash shareId storyLineageId viewers versionNumber expiresAt status createdAt createdBy createdByLabel endedAt endedReason revokedBy openCount lastOpenedOn"
+)
 REVIEW_RECIPIENT_RULE_FIELDS = "id scope key roles emails updatedBy updatedAt"
 EDITORIAL_CHECK_SETTINGS_FIELDS = "id settings"
 USER_ROLE_ASSIGNMENT_FIELDS = (
@@ -204,6 +207,7 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "ReviewRequest": {"field": "listReviewRequests", "fields": REVIEW_REQUEST_FIELDS},
     "ReviewReadMark": {"field": "listReviewReadMarks", "fields": REVIEW_READ_MARK_FIELDS},
     "StoryVariation": {"field": "listStoryVariations", "fields": STORY_VARIATION_FIELDS},
+    "StoryShare": {"field": "listStoryShares", "fields": STORY_SHARE_FIELDS},
     "ReviewRecipientRule": {"field": "listReviewRecipientRules", "fields": REVIEW_RECIPIENT_RULE_FIELDS},
     "EditorialCheckSettings": {"field": "listEditorialCheckSettings", "fields": EDITORIAL_CHECK_SETTINGS_FIELDS},
     "UserRoleAssignment": {"field": "listUserRoleAssignments", "fields": USER_ROLE_ASSIGNMENT_FIELDS},
@@ -522,6 +526,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "field": "listSemanticRelationsByObjectState",
         "partitionKey": "objectStateKey",
         "fields": SEMANTIC_RELATION_FIELDS,
+    },
+    "storySharesByStoryAndCreatedAt": {
+        "field": "listStorySharesByStoryAndCreatedAt",
+        "partitionKey": "storyLineageId",
+        "partitionType": "ID",
+        "fields": STORY_SHARE_FIELDS,
     },
     "storyVariationsByStoryAndNumber": {
         "field": "listStoryVariationsByStoryAndNumber",

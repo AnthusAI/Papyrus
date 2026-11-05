@@ -478,6 +478,92 @@ def create_story_from_reference_action(arguments: dict, actor: str) -> dict:
     return {"ok": True, **result}
 
 
+def share_failure(error) -> dict:
+    return {"ok": False, "errors": [{"code": "share-refused", "message": str(error), "line": None}]}
+
+
+def create_story_share_action(arguments: dict, viewer) -> dict:
+    """A share link for one Story (docs/story-share-links.md). The token is in this response and nowhere else: it is not stored and not logged."""
+    from papyrus_content.projection.runtime import load_projector
+    from papyrus_content.story_share_view import check_shareable
+    from papyrus_content.story_shares import DEFAULT_EXPIRY_DAYS, ShareRefused, create_share
+
+    if not viewer.is_staff:
+        return share_failure(ShareRefused("Only editors and admins can share a draft."))
+    if not projection_configured():
+        return share_failure(ShareRefused("Sharing a draft needs the site's public pages, and this site does not build them here. It is not available on this site."))
+    client, _claims = create_authoring_client()
+    version = arguments.get("version")
+    version = int(version) if version not in (None, "") else None
+    try:
+        check_shareable(client, str(arguments.get("lineageId") or ""), version, projector=load_projector())
+        made = create_share(
+            client,
+            str(arguments["lineageId"]),
+            viewers=arguments.get("viewers") or "anyone",
+            version_number=version,
+            expires_in_days=arguments.get("expiresInDays", DEFAULT_EXPIRY_DAYS),
+            actor=viewer,
+        )
+    except (ShareRefused, KeyError, ValueError) as error:
+        return share_failure(error)
+    return {"ok": True, "path": f"/api/share/{made['token']}", "share": made["share"]}
+
+
+def list_story_shares_action(arguments: dict, viewer) -> dict:
+    from papyrus_content.story_shares import ShareRefused, list_shares
+
+    client, _claims = create_authoring_client()
+    try:
+        return {"ok": True, "shares": list_shares(client, str(arguments.get("lineageId") or ""), actor=viewer)}
+    except ShareRefused as error:
+        return share_failure(error)
+
+
+def revoke_story_share_action(arguments: dict, viewer) -> dict:
+    from papyrus_content.story_shares import ShareRefused, revoke_share
+
+    client, _claims = create_authoring_client()
+    try:
+        return {"ok": True, **revoke_share(client, str(arguments.get("lineageId") or ""), str(arguments.get("shareId") or ""), actor=viewer)}
+    except ShareRefused as error:
+        return share_failure(error)
+
+
+def view_story_share_action(arguments: dict, viewer) -> dict:
+    """What a share link shows. Anything that goes wrong is the same plain answer as a link that does not work, and the token is never logged."""
+    from papyrus_content.projection.runtime import load_projector
+    from papyrus_content.story_share_view import view_share
+
+    try:
+        client, _claims = create_authoring_client()
+        return view_share(client, arguments.get("token"), viewer, projector=load_projector())
+    except Exception as error:  # noqa: BLE001 - a stranger is told nothing about why
+        print(json.dumps({"storyShareViewFailed": type(error).__name__}))
+        return {"state": "unavailable"}
+
+
+def view_story_share_media_action(arguments: dict, viewer) -> dict:
+    from papyrus_content.projection.runtime import load_projector
+    from papyrus_content.story_share_view import view_media
+
+    try:
+        client, _claims = create_authoring_client()
+        return view_media(client, arguments.get("token"), viewer, arguments.get("reference"), projector=load_projector())
+    except Exception as error:  # noqa: BLE001
+        print(json.dumps({"storyShareMediaFailed": type(error).__name__}))
+        return {"state": "unavailable"}
+
+
+SHARE_FIELDS = {
+    "createStoryShare": create_story_share_action,
+    "listStoryShares": list_story_shares_action,
+    "revokeStoryShare": revoke_story_share_action,
+    "viewStoryShare": view_story_share_action,
+    "viewStoryShareMedia": view_story_share_media_action,
+}
+
+
 def handler(event, context):
     if PROJECTION_TASK_KEY in event:
         return run_projection_task(event[PROJECTION_TASK_KEY])
@@ -526,6 +612,11 @@ def handler(event, context):
             return suggest_reference_links_action(arguments)
         if field == "requestStagingBuild":
             return request_staging_build_action()
+        if field in SHARE_FIELDS:
+            from papyrus_content.story_shares import viewer_from_identity
+
+            viewer = viewer_from_identity(event.get("identity"))
+            return SHARE_FIELDS[field](arguments, viewer)
     except PublishError as error:
         return failure_response(error)
     raise ValueError(f"Unsupported field {field}")

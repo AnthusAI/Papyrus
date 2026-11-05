@@ -444,3 +444,5 @@ disabled section is refused before anything is written, and a section on a
 reject, reopen or archive is refused. The id is stored as `sectionId` in the
 `curationSectionId` on the Reference beside `curationActorKind`. Only an accept that the signed-in
 person made, or that the person delegated, counts as their section label.
+
+To show a Story in progress to people with no newsroom sign-in, `papyrus stories share` makes a link to it in the public layout, labelled DRAFT; see [story-share-links.md](story-share-links.md).

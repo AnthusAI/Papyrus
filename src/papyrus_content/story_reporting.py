@@ -320,6 +320,10 @@ def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason:
     moves.append({"at": now, "from": previous, "to": stage, "by": actor, "reason": reason})
     metadata[STAGE_MOVES_KEY] = moves[-MAX_STAGE_MOVES:]
     client.update_record("Item", {"id": latest["id"], "stage": stage, "updatedAt": now, "metadata": to_aws_json(metadata)})
+    if stage == "spiked":
+        from .publishing import _end_story_shares
+
+        _end_story_shares(client, lineage_id, "spiked", now)  # a spiked Story's share links end (docs/story-share-links.md)
     return {"changed": True, "stage": stage, "from": previous, "itemId": latest["id"]}
 
 
