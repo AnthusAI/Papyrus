@@ -36,6 +36,7 @@ FULL_KEY_PREFIX = "home-page-full#"
 DIRTY_LIMIT = 2000
 ACCEPTED = "accepted"
 NOT_RECOMMENDABLE = ("rejected", "archived")
+NO_THUMBNAIL = "none"
 HOUR_SECONDS = 3600
 CONDITION_FAILED = "ConditionalCheckFailedException"
 SCHEDULE_CONFLICT = "ConflictException"
@@ -71,7 +72,22 @@ def can_show(image: Mapping[str, Any]) -> bool:
     return has_prediction(image)
 
 
-def record_change(record: Mapping[str, Any]) -> dict[str, Any] | None:
+def thumbnail_stored(old_image: Mapping[str, Any], new_image: Mapping[str, Any]) -> bool:
+    """True when the change gives a Reference that is not rejected or archived a copy of its video's picture.
+
+    A pending video nobody has predicted is not a prediction-gated Reference in the snapshot: the full read lists every unrated pending Reference and
+    publishes it as recommended when the undecided probability reaches the threshold, so its card is on the page, without an image until its row is read
+    again. Only this one write is let through the gate (the capture worker writes it once per video); every other write to an unpredicted pending
+    Reference still schedules nothing. ``none`` (no picture could be fetched) leaves the card as it was.
+    """
+    status = (new_image.get("curationStatus") or {}).get("S")
+    if not status or status in NOT_RECOMMENDABLE:
+        return False
+    path = (new_image.get("thumbnailPath") or {}).get("S")
+    return bool(path) and path != NO_THUMBNAIL and (old_image.get("thumbnailPath") or {}).get("S") != path
+
+
+def record_change(record:Mapping[str, Any]) -> dict[str, Any] | None:
     """What the record changes for a public page: ``{"id": <Reference id>}`` or ``{"message": True}``; ``None`` when it changes nothing a page shows."""
     event_name = record.get("eventName")
     images = record.get("dynamodb") or {}
@@ -85,7 +101,7 @@ def record_change(record: Mapping[str, Any]) -> dict[str, Any] | None:
         return None
     if "messageKind" in new_image:
         return {"message": True} if message_changed(old_image, new_image) else None
-    if not (can_show(old_image) or can_show(new_image)):
+    if not (can_show(old_image) or can_show(new_image) or thumbnail_stored(old_image, new_image)):
         return None
     if event_name == "MODIFY" and not any(old_image.get(field) != new_image.get(field) for field in CHANGE_FIELDS):
         return None

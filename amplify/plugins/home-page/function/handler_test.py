@@ -171,6 +171,24 @@ def test_a_machine_field_written_on_a_reference_that_cannot_show_changes_no_page
     assert not handler_module.record_changed(record(old={**PENDING, "curationStatus": "rejected"}, new={**PENDING, "curationStatus": "archived"}))
 
 
+PICTURE = {"S": "assets/reference-thumbnails/a4645fd6b3de98f4-bb02a57c6adf.jpg"}
+
+
+def test_the_picture_of_a_video_stored_on_an_unpredicted_pending_reference_is_a_change():
+    """The full read publishes an unpredicted pending Reference as recommended (undecided is 0.5), so its picture has to reach the page."""
+    assert handler_module.record_changed(record(old=PENDING, new={**PENDING, "thumbnailPath": PICTURE}))
+    assert handler_module.record_changed(record("INSERT", new={**PENDING, "thumbnailPath": PICTURE}))
+    assert handler_module.record_change(record(old=PENDING, new={**PENDING, "thumbnailPath": PICTURE}, identifier="reference-video-v1")) == {"id": "reference-video-v1"}
+
+
+def test_a_thumbnail_that_is_none_unchanged_or_on_a_reference_that_cannot_show_changes_no_page():
+    assert not handler_module.record_changed(record(old=PENDING, new={**PENDING, "thumbnailPath": {"S": "none"}}))
+    assert not handler_module.record_changed(record(old={**PENDING, "thumbnailPath": PICTURE}, new={**PENDING, "thumbnailPath": PICTURE, "title": "B"}))
+    rejected = {"curationStatus": "rejected", "title": "A"}
+    assert not handler_module.record_changed(record(old=rejected, new={**rejected, "thumbnailPath": PICTURE}))
+    assert not handler_module.record_changed(record(old={"title": "A"}, new={"title": "A", "thumbnailPath": PICTURE}))
+
+
 def test_a_predicted_pending_reference_that_is_retitled_rated_or_rejected_is_a_change():
     assert handler_module.record_changed(record(old=PENDING_PREDICTED, new={**PENDING_PREDICTED, "title": "B"}))
     assert handler_module.record_changed(record(old=PENDING_PREDICTED, new={**PENDING_PREDICTED, "starRating": {"N": "4"}}))

@@ -116,6 +116,10 @@ def own_page_actions_stylesheet(standard: StandardSettings) -> bool:
     return settings.enabled and settings.display == "icons" and standard.agents.markdown and not standard.components_css
 
 
+#: The pages core generates that carry the page actions when ``pageActions.everywhere`` is on (items and authored pages always could).
+EVERYWHERE_KINDS = ("home", "listing", "tags", "tag", "archive", "showcase", "thread", "reference_list")
+
+
 class StandardMarkusProjector(MarkusSiteProjector):
     def __init__(
         self,
@@ -1456,7 +1460,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             site=self._hook_site(site),
             **extra,
         )
-        if kind not in ("item", "custom"):
+        if kind not in ("item", "custom") and not (kind in EVERYWHERE_KINDS and self.standard.page_actions.everywhere):
             return page
         page = dataclasses.replace(page, page_actions=self._page_actions(page))
         return dataclasses.replace(page, **self._wiki_parts(page)) if kind == "item" else page
@@ -1599,13 +1603,31 @@ class StandardMarkusProjector(MarkusSiteProjector):
         settings = self.standard.page_actions
         entry = page.entry
         if page.kind == "custom":
-            return self._authored_page_actions(page)
-        if not (settings.enabled and self.standard.agents.markdown) or entry is None or entry.noindex or not (entry.type in self.standard.listings.types or entry.type in (settings.types or ())):
+            return self._authored_page_actions(page) or (self._generated_page_actions(page) if settings.everywhere and not self._custom_has_source(page) else "")
+        if page.kind in EVERYWHERE_KINDS:
+            return self._generated_page_actions(page)
+        listed_type = entry is not None and (entry.type in self.standard.listings.types or entry.type in (settings.types or ()) or settings.everywhere)
+        if not (settings.enabled and self.standard.agents.markdown) or entry is None or entry.noindex or not listed_type:
             return ""
         twin = md_path(entry.key)
         if twin is None:
             return ""
         return render_page_actions(settings, markdown_path=twin, title=entry.title, canonical=entry.canonical or self.head.absolute(entry.url))
+
+    def _generated_page_actions(self, page: StandardPage) -> str:
+        """The actions of a page core generates (home, listing, section or collection front, tag, archive, paged list page), for a site that
+        sets ``pageActions.everywhere``: the page's own title and canonical address, and only where the page has a Markdown twin."""
+        settings = self.standard.page_actions
+        if not (settings.enabled and settings.everywhere and self.standard.agents.markdown) or page.head.noindex:
+            return ""
+        twin = md_path(self.policy.key_for_path(page.path))
+        if twin is None:
+            return ""
+        return render_page_actions(settings, markdown_path=twin, title=self._described(page).title, canonical=self.head.absolute(page.path))
+
+    def _custom_has_source(self, page: StandardPage) -> bool:
+        custom = next((c for c in self.standard.pages if c.id == page.custom_id), None)
+        return custom is not None and bool(custom.source)
 
     def _authored_page_actions(self, page: StandardPage) -> str:
         """The same actions for an authored page (``pages`` entry with ``source``), under the same eligibility: not ``noindex``."""
@@ -1714,11 +1736,18 @@ class StandardMarkusProjector(MarkusSiteProjector):
         return self.hooks.block(attributes["name"], passed, page)
 
     def _main_html(self, page: StandardPage) -> str:
-        identity = self.standard.identity
         if self.hooks.main is not None:
             custom = self.hooks.main(page)
             if custom is not None:
-                return custom
+                return custom   # a site that composes its own main places the actions with page.article_actions()
+        main = self._core_main_html(page)
+        if page.page_actions and (page.kind in EVERYWHERE_KINDS or (page.kind == "custom" and not page.fragment)):
+            before, after = (page.page_actions, "") if self.standard.page_actions.placement == "header" else ("", page.page_actions)
+            return before + main + after
+        return main
+
+    def _core_main_html(self, page: StandardPage) -> str:
+        identity = self.standard.identity
         if page.kind == "item":
             entry = page.entry
             extras = []
