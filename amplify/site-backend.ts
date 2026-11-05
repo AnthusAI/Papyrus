@@ -477,6 +477,10 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   grantNewsroomReadWrite(backend.newsroomSummary.resources.lambda as LambdaFunction);
   const contentActionsLambda = backend.contentActions.resources.lambda as LambdaFunction;
   grantNewsroomReadWriteDelete(contentActionsLambda);
+  // Agent drafts commit the new and prior Item in one conditional transaction.
+  const itemTable = backend.data.resources.tables.Item;
+  contentActionsLambda.addEnvironment("PAPYRUS_ITEM_TABLE", itemTable.tableName);
+  contentActionsLambda.addToRolePolicy(new PolicyStatement({ actions: ["dynamodb:PutItem", "dynamodb:UpdateItem"], resources: [itemTable.tableArn], conditions: { "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] } } }));
   // A backend whose editorial records (sections, doctrine, stories) carry a tenant (one copied with --stamp-tenant) is read and written as that tenant:
   // the editorial check refuses a record whose tenant differs from the Lambda's, so without this a story on such a backend cannot be created or edited.
   // Set PAPYRUS_TENANT_ID on the site's build (docs/multi-tenancy.md); a site with no tenant sets nothing and is unchanged.

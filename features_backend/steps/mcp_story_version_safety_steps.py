@@ -36,3 +36,22 @@ def step(context):
 def step(context):
     assert "story_publish" not in context.names
     assert "story_save_draft" not in context.names
+
+@when("the site's draft operation checks the current version in its transaction")
+def step(context):
+    from papyrus_content.mcp_story_transaction_test import test_atomic_request_binds_current_lineage_revision_tenant_and_new_id
+    test_atomic_request_binds_current_lineage_revision_tenant_and_new_id()
+
+@then("the transaction checks the tenant and revision and refuses an existing new ID")
+def step(context):
+    from papyrus_content.mcp_story_transaction_test import test_transaction_collision_is_reported_as_stale
+    test_transaction_collision_is_reported_as_stale()
+
+@when("an agent tries to save a draft containing an image")
+def step(context):
+    from papyrus_content.mcp_story_transaction_test import test_images_are_refused_before_transaction
+    test_images_are_refused_before_transaction()
+
+@then("no Story transaction is sent")
+def step(context):
+    pass

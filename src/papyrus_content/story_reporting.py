@@ -164,6 +164,7 @@ def save_story_version(
     item_type: str | None = None,
     expected_current_id: str | None = None,
     atomic_persist: Callable[[str, str, dict[str, Any]], None] | None = None,
+    skip_media: bool = False,
 ) -> dict[str, Any]:
     """Records the next draft version of a story and marks the previous latest version superseded.
 
@@ -237,9 +238,10 @@ def save_story_version(
         atomic_persist(lineage_id, expected_current_id, compact_dict(record))
     else:
         client.create_record("Item", compact_dict(record))
-    for row in (media_rows(record_id) if media_rows else []):
-        client.upsert("MediaAsset", row)
-    _carry_media_forward(client, record_id, envelope, versions)
+    if not skip_media:
+        for row in (media_rows(record_id) if media_rows else []):
+            client.upsert("MediaAsset", row)
+        _carry_media_forward(client, record_id, envelope, versions)
     if atomic_persist is None:
         for row in versions:
             if row.get("versionState") == "current" or row["id"] == latest["id"]:

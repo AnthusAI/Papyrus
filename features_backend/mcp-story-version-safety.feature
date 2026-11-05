@@ -16,3 +16,13 @@ Feature: Safe agent Story writes
     Given the site has no safe agent publishing operation
     When an agent discovers the site's Story tools
     Then the agent cannot call a Story write tool
+
+  Scenario: A signed-in editor's agent saves a draft without overwriting a competing version
+    Given a Story has a single current version
+    When the site's draft operation checks the current version in its transaction
+    Then the transaction checks the tenant and revision and refuses an existing new ID
+
+  Scenario: Image drafts wait for safe media carry-forward
+    Given a Story has a single current version
+    When an agent tries to save a draft containing an image
+    Then no Story transaction is sent
