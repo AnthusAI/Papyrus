@@ -177,7 +177,7 @@ The feed shows a Reference only if it has the keys, whatever its source. Every c
 | Moving a Reference to another corpus | `category-action` `moveReferenceCorpus` (TypeScript, `referenceFeedKeys`) |
 | An agent's accept, reject, reopen or archive from chat | `papyrus_newsroom/reference_actions.review_reference_curation` sets `feedStateKey` |
 
-The console's "Paste a URL" and "Import a file" create Cyclotron priming examples, not References.
+The console's "Paste a URL" calls `intakePendingReferences` and creates a pending Reference (it used to write a Cyclotron priming request, which created no Reference, so a pasted page never appeared in the list). "Import a file" still creates Cyclotron priming examples, not References.
 
 A re-import does not repair a Reference that has no keys: it reuses a current Reference with the same import run or content. Only the backfill below keys existing rows.
 

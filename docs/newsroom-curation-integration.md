@@ -47,8 +47,10 @@ labels again. Accepted examples cannot use the draft correction route.
 
 ## One entry point: Add a reference
 
-References has a single "Add a reference" area. "Paste a URL" is the live URL form
-and works as before. "Import a file" is the shared Cyclotron panel and renders only
+References has a single "Add a reference" area. "Paste a URL" is the live URL form:
+it registers the address as a pending Reference (`intakePendingReferences`) and, if the editor chose to, accepts it
+(`reviewReferenceCuration`) and rates it 1 to 5 stars (`setReferenceStars`) in the same dialog, from the Newsroom session
+(`lib/add-reference.ts`, `components/reference-add-url.tsx`). "Import a file" is the shared Cyclotron panel and renders only
 when a curation session supplies example support and the person may review
 (`useReferenceImport` in `components/reference-curation-controls.tsx`); with no
 provider, only "Paste a URL" renders. Editor-facing copy describes adding

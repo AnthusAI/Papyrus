@@ -95,6 +95,11 @@ module.exports = {
     require: ["features/step_definitions/reference-quality.steps.js"],
     format: ["summary"],
   },
+  addReference: {
+    paths: ["features/newsroom-add-reference.feature"],
+    require: ["features/step_definitions/add-reference.steps.js"],
+    format: ["summary"],
+  },
   referenceMedium: {
     paths: ["features/newsroom-reference-medium.feature"],
     require: ["features/step_definitions/reference-medium.steps.js"],
