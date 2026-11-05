@@ -24,10 +24,17 @@
       "text": "Re-parented 2026-10-21 from PPY-bcfd2d to the Markus-for-everything initiative PPY-23a743, beside the headless delivery epic PPY-29da48 (an epic cannot sit under an epic). MCP and WebMCP are not part of the standard-front-end goal and are not built; status unchanged (open, P3). The agent-readable layer it builds on is live: per-page Markdown twins, llms.txt, Accept negotiation.",
       "created_at": "2026-10-21T13:55:31.052158Z",
       "comment_type": "default"
+    },
+    {
+      "id": "6f66ed3d-9897-4f76-897f-6cf077732c5e",
+      "author": "home",
+      "text": "Draft PR #1244: https://github.com/AnthusAI/Papyrus/pull/1244. Local seeded protocol, OAuth, user/tenant authorization, schema and conditional write checks passed; local unconfigured routes return 404. Live provider and host checks pending.",
+      "created_at": "2026-11-05T20:38:12.458319Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T02:29:00.676541Z",
-  "updated_at": "2026-11-05T20:04:41.371747Z",
+  "updated_at": "2026-11-05T20:38:12.458544Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
