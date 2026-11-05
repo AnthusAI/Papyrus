@@ -55,6 +55,7 @@ type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functio
 type ReferenceStarsHandler = Schema["setReferenceStars"]["functionHandler"];
 type RecordDelegatedStarsHandler = Schema["recordDelegatedStars"]["functionHandler"];
 type ItemStarsHandler = Schema["setItemStars"]["functionHandler"];
+type AgentItemStarsHandler = Schema["agentSetItemStars"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
 type ReferenceNoteHandler = Schema["createReferenceNote"]["functionHandler"];
 type MoveReferenceCorpusHandler = Schema["moveReferenceCorpus"]["functionHandler"];
@@ -96,6 +97,7 @@ type CategoryActionEvent =
   | Parameters<RecordDelegatedStarsHandler>[0]
   | Parameters<ReferenceStarsHandler>[0]
   | Parameters<ItemStarsHandler>[0]
+  | Parameters<AgentItemStarsHandler>[0]
   | Parameters<ReferenceQualityHandler>[0]
   | Parameters<ReferenceNoteHandler>[0]
   | Parameters<MoveReferenceCorpusHandler>[0]
@@ -185,6 +187,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "recordDelegatedStars") return recordDelegatedStars(event as Parameters<RecordDelegatedStarsHandler>[0]);
   if (fieldName === "setReferenceStars") return setReferenceStars(event as Parameters<ReferenceStarsHandler>[0]);
   if (fieldName === "setItemStars") return setItemStars(event as Parameters<ItemStarsHandler>[0]);
+  if (fieldName === "agentSetItemStars") return agentSetItemStars(event as Parameters<AgentItemStarsHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
   if (fieldName === "createReferenceNote") return createReferenceNote(event as Parameters<ReferenceNoteHandler>[0]);
   if (fieldName === "moveReferenceCorpus") return moveReferenceCorpus(event as Parameters<MoveReferenceCorpusHandler>[0]);
@@ -687,11 +690,56 @@ async function setItemStars(event: Parameters<ItemStarsHandler>[0]) {
   const now = new Date().toISOString();
   const actor = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom";
   await requireDataResult(
-    client.models.Item.update({ id: newest.id, ...referenceStarFields(stars, actor, now) }),
+    client.models.Item.update({ id: newest.id, ...referenceStarFields(stars, actor, now), starRevision: randomUUID() }),
     "update Story stars",
   );
   await requestStoryStarsProjection(newest.id);
   return { ok: true, itemId: newest.id, lineageId, stars };
+}
+
+/** Agent rating with an atomic condition on the exact Story card, never an assertion of a person's judgement. */
+async function agentSetItemStars(event: Parameters<AgentItemStarsHandler>[0]) {
+  const caller = curationCaller(event);
+  if (isCliSession(caller) || caller.lane === "iam" || caller.lane === "unreadable-client-session")
+    throw new Error("This session cannot rate Stories through this action.");
+  const sub = normalizeRequiredString(getIdentitySub(event), "identity.sub");
+  const itemId = normalizeRequiredString(event.arguments.itemId, "itemId");
+  const lineageId = normalizeRequiredString(event.arguments.lineageId, "lineageId");
+  const updatedAt = normalizeRequiredString(event.arguments.expectedUpdatedAt, "expectedUpdatedAt");
+  const starRevision = normalizeOptionalString(event.arguments.expectedStarRevision);
+  const stars = normalizeReferenceStars(event.arguments.stars);
+  const client = await getDataClient();
+  const item = await getRequiredRecord(client.models.Item, itemId, "Item");
+  const tenant = (process.env.PAPYRUS_TENANT_ID ?? "").trim() || null;
+  if ((normalizeOptionalString(item.tenantId) ?? null) !== tenant) throw new Error("Story is outside this site's scope.");
+  if (!isStoryItemType(normalizeOptionalString(item.type) ?? "")) throw new Error("Only Stories can be rated.");
+  if (item.lineageId !== lineageId || item.versionState !== "current" || item.updatedAt !== updatedAt || (item.starRevision ?? null) !== starRevision)
+    throw new Error("stale_revision: The Story changed. Refresh the card and try again.");
+  const page = await client.models.Item.listItemsByLineageAndVersion({ lineageId }, { limit: 200 });
+  if (page.errors?.length) throw new Error("Could not read the Story's versions.");
+  const current = (page.data ?? []).filter((row) => row?.versionState === "current" && (normalizeOptionalString(row.tenantId) ?? null) === tenant);
+  if (page.nextToken || current.length !== 1 || current[0].id !== itemId)
+    throw new Error("stale_revision: The Story has moved or has ambiguous current versions.");
+  const now = new Date().toISOString();
+  const input = { id: itemId, ...referenceStarFields(stars, `agent:${sub}`, now), starRevision: randomUUID() };
+  const condition = { lineageId: { eq: lineageId }, versionState: { eq: "current" }, updatedAt: { eq: updatedAt },
+    starRevision: starRevision === null ? { attributeExists: false } : { eq: starRevision },
+    tenantId: tenant === null ? { attributeExists: false } : { eq: tenant } };
+  const query = `mutation AgentConditionalStoryStars($input: UpdateItemInput!, $condition: ModelItemConditionInput) {
+    updateItem(input: $input, condition: $condition) { id }
+  }`;
+  let result;
+  try { result = await client.graphql({ query, variables: { input, condition } }); }
+  catch (error) {
+    if (String(error).includes("ConditionalCheckFailed")) throw new Error("stale_revision: The Story changed. Refresh the card and try again.");
+    throw error;
+  }
+  const response = result as { data?: { updateItem?: { id: string } }; errors?: { message?: string }[] };
+  if (response.errors?.some((error) => error.message?.includes("ConditionalCheckFailed"))) throw new Error("stale_revision: The Story changed. Refresh the card and try again.");
+  assertNoDataErrors(response.errors, "rate Story");
+  if (!response.data?.updateItem) throw new Error("The site did not confirm the Story rating.");
+  await requestStoryStarsProjection(itemId);
+  return { ok: true, itemId, lineageId, stars };
 }
 
 const STORY_STARS_PROJECTION_TASK = "story-stars";

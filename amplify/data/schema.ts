@@ -552,6 +552,16 @@ const definitions = {
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 
+  agentSetItemStars: a
+    .mutation()
+    .arguments({
+      itemId: a.id().required(), lineageId: a.id().required(), stars: a.integer().required(),
+      expectedUpdatedAt: a.string().required(), expectedStarRevision: a.string(),
+    })
+    .returns(a.ref("ItemStarsActionResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
   setItemStars: a
     .mutation()
     .arguments({
@@ -2296,6 +2306,7 @@ const definitions = {
       editorial: a.json(),
       updatedAt: a.datetime(),
       starRating: a.integer(),
+      starRevision: a.string(),
       starRatedAt: a.datetime(),
       starRatedBy: a.string(),
       tags: a.hasMany("ItemTag", "itemId"),

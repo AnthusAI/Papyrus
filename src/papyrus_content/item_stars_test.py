@@ -30,3 +30,7 @@ def test_the_guard_refuses_any_star_field_in_published_output():
     for name in ITEM_STAR_FIELDS:
         with pytest.raises(AssertionError, match="private"):
             assert_no_item_stars({"id": "published-a", name: None})
+
+
+def test_a_cleared_rating_still_carries_its_revision_to_the_next_version():
+    assert carry_item_stars({"starRating": None, "starRevision": "rev-1"}, {"id": "a-v2"}) == {"id": "a-v2", "starRevision": "rev-1"}

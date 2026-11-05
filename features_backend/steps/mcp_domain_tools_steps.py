@@ -316,3 +316,53 @@ def concurrent_review(context):
     def conflict(query, variables):
         raise GraphQLRequestError("ConditionalCheckFailedException")
     context.staff.client.graphql = conflict
+
+
+@given('an editor connected to a site with a rateable Story')
+def rateable_story(context):
+    class StarSite(Site):
+        row = {"id": "story-v2", "lineageId": "story", "versionState": "current", "versionNumber": 2,
+               "updatedAt": "2026-11-01T10:00:00Z", "starRevision": None, "starRating": None, "type": "article"}
+        def graphql(self, query, variables):
+            if "AgentStoryStars" in query:
+                assert variables["expectedStarRevision"] is None
+                self.row.update(starRating=variables["stars"], starRevision="new")
+                return {"agentSetItemStars": {"ok": True}}
+            return {"listItemsByLineageAndVersion": {"items": [dict(self.row)], "nextToken": None}}
+    context.principal = Principal("staff", "editor")
+    context.staff = StaffReads(StarSite())
+
+
+@when('the agent gives that Story four stars')
+def rate_story(context):
+    card = context.staff.story_get(context.principal, lineageId="story")["story"]
+    context.result = call_tool(context.principal, "story_star", {"lineageId": "story", "expectedCurrentVersionId": card["id"], "expectedRevision": card["revision"], "stars": 4}, staff=context.staff)
+    context.previous_revision = card["revision"]
+
+
+@then('the Story card shows four stars and a new revision')
+def rated_story(context):
+    assert context.result["story"]["starRating"] == 4
+    assert context.result["story"]["revision"] != context.previous_revision
+
+
+@when('the agent rates the Story from an outdated card')
+def rate_old_story(context):
+    try:
+        call_tool(context.principal, "story_star", {"lineageId": "story", "expectedCurrentVersionId": "story-v1", "expectedRevision": '["2026-11-01T10:00:00Z",null]', "stars": 4}, staff=context.staff)
+    except ValueError as error:
+        context.error = error
+
+
+@then('the Story rating is refused as stale')
+def stale_story_rating(context):
+    assert "stale_revision" in str(context.error)
+    assert context.staff.client.row["starRating"] is None
+
+
+@when('the reader tries to rate a Story')
+def reader_rates_story(context):
+    try:
+        call_tool(context.principal, "story_star", {"lineageId": "story", "expectedCurrentVersionId": "story-v1", "expectedRevision": '["2026-11-01T10:00:00Z",null]', "stars": 4}, staff=context.staff)
+    except PermissionError as error:
+        context.error = error

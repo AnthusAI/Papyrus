@@ -72,8 +72,12 @@ DESCRIPTIONS = {
 
 
 def _story_fields(row: dict) -> dict:
-    allowed = {"id", "lineageId", "versionNumber", "versionState", "versionCreatedAt", "versionCreatedBy", "changeReason", "updatedAt", "title", "headline", "type", "section", "stage", "status", "bodyMarkus"}
-    return {key: value for key, value in row.items() if key in allowed}
+    import json
+    allowed = {"id", "lineageId", "versionNumber", "versionState", "versionCreatedAt", "versionCreatedBy", "changeReason", "updatedAt", "title", "headline", "type", "section", "stage", "status", "bodyMarkus", "starRating"}
+    result = {key: value for key, value in row.items() if key in allowed}
+    if row.get("updatedAt"):
+        result["revision"] = json.dumps([row["updatedAt"], row.get("starRevision")], separators=(",", ":"))
+    return result
 
 
 def list_tools(principal: Principal, *, staff: Any = None, reader: Callable[[dict], dict] | None = None) -> list[dict[str, Any]]:
@@ -130,7 +134,7 @@ def call_tool(principal: Principal, name: str, arguments: dict, *, staff: Any,
 class StaffReads:
     """Read through the same scoped GraphQL client used by the operator library."""
 
-    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list", "review_answer"})
+    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list", "review_answer", "story_star"})
 
     def __init__(self, client: Any):
         self.client = client
@@ -193,7 +197,7 @@ class StaffReads:
         from .editorial_context import _check_tenant
         operation = """query StoryVersions($lineageId: ID!, $limit: Int!) {
           listItemsByLineageAndVersion(lineageId: $lineageId, limit: $limit) {
-            items { id lineageId versionNumber versionState versionCreatedAt versionCreatedBy changeReason updatedAt tenantId title headline type section stage status bodyMarkus }
+            items { id lineageId versionNumber versionState versionCreatedAt versionCreatedBy changeReason updatedAt tenantId title headline type section stage status bodyMarkus starRating starRevision }
             nextToken
           }
         }"""
@@ -210,6 +214,29 @@ class StaffReads:
         if len(rows) != 1:
             raise ValueError("Story has no unambiguous current version.")
         return {"story": _story_fields(rows[0])}
+
+    def story_star(self, principal: Principal, *, lineageId: str, expectedCurrentVersionId: str,
+                   expectedRevision: str, stars: int) -> dict:
+        import json
+        try:
+            revision = json.loads(expectedRevision)
+            if not isinstance(revision, list) or len(revision) != 2 or not isinstance(revision[0], str) or (revision[1] is not None and not isinstance(revision[1], str)):
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise ValueError("Invalid Story revision.") from None
+        current = self.story_get(principal, lineageId=lineageId)["story"]
+        if current["id"] != expectedCurrentVersionId or current.get("revision") != expectedRevision:
+            raise ValueError("stale_revision: The Story changed.")
+        query = """mutation AgentStoryStars($itemId: ID!, $lineageId: ID!, $stars: Int!, $expectedUpdatedAt: String!, $expectedStarRevision: String) {
+          agentSetItemStars(itemId: $itemId, lineageId: $lineageId, stars: $stars, expectedUpdatedAt: $expectedUpdatedAt, expectedStarRevision: $expectedStarRevision) {
+            ok itemId lineageId stars
+          }
+        }"""
+        result = self.client.graphql(query, {"itemId": expectedCurrentVersionId, "lineageId": lineageId, "stars": stars,
+                                             "expectedUpdatedAt": revision[0], "expectedStarRevision": revision[1]})
+        if not (result.get("agentSetItemStars") or {}).get("ok"):
+            raise RuntimeError("The site did not confirm the Story rating.")
+        return self.story_get(principal, lineageId=lineageId)
 
     def story_versions(self, principal: Principal, *, lineageId: str) -> dict:
         rows = self._story_versions(lineageId)
@@ -245,7 +272,7 @@ class StaffReads:
             filters.append({"tenantId": {"eq": tenant}})
         operation = """query SearchStories($limit: Int!, $nextToken: String, $filter: ModelItemFilterInput) {
           listItems(limit: $limit, nextToken: $nextToken, filter: $filter) {
-            items { id lineageId versionNumber versionState updatedAt tenantId type title headline stage status }
+            items { id lineageId versionNumber versionState updatedAt tenantId type title headline stage status starRating starRevision }
             nextToken
           }
         }"""

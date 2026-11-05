@@ -81,3 +81,18 @@ Feature: Site tools preserve editorial and reader authority
     And another answer wins before the agent's update
     When the agent answers the current review with feedback
     Then the review answer is refused as stale
+
+  Scenario: An editor agent rates the Story shown on a current card
+    Given an editor connected to a site with a rateable Story
+    When the agent gives that Story four stars
+    Then the Story card shows four stars and a new revision
+
+  Scenario: A changed Story rating rejects an outdated card
+    Given an editor connected to a site with a rateable Story
+    When the agent rates the Story from an outdated card
+    Then the Story rating is refused as stale
+
+  Scenario: A reader cannot rate a Story through a staff tool
+    Given a reader connected to a site with a verified site subject
+    When the reader tries to rate a Story
+    Then the staff tool is refused

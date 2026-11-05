@@ -48,7 +48,15 @@ async function main() {
   // The handler, with an in-memory Item table.
   const rows = new Map<string, Row>();
   const writes: Array<{ model: string; operation: string; input: Row }> = [];
-  const client = { models: {
+  let conflict = false;
+  const client = { graphql: async ({ variables }: { variables: { input: Row; condition: Record<string, {eq?: unknown; attributeExists?: boolean}> } }) => {
+    const row = rows.get(variables.input.id)!;
+    if (conflict) row.starRevision = "other";
+    const valid = Object.entries(variables.condition).every(([key, rule]) => rule.attributeExists === false ? row[key] == null : row[key] === rule.eq);
+    if (!valid) return { errors: [{ message: "ConditionalCheckFailed" }] };
+    rows.set(row.id, { ...row, ...clone(variables.input) });
+    return { data: { updateItem: { id: row.id } } };
+  }, models: {
     Item: {
       get: async ({ id }: { id: string }) => ({ data: clone(rows.get(id) ?? null) }),
       listItemsByLineageAndVersion: async ({ lineageId }: { lineageId: string }) => ({ data: [...rows.values()].filter((row) => row.lineageId === lineageId).map(clone), nextToken: null }),
@@ -102,6 +110,22 @@ async function main() {
   rows.set("story-v2", { id: "story-v2", lineageId: "story", versionNumber: 2, versionState: "current", versionCreatedAt: "2026-11-01T10:00:00Z", type: "article", status: "published", stage: "published", updatedAt: "2026-11-01T10:00:00Z", publishedAt: "2026-11-01T10:00:00Z" });
   rows.set("page-v1", { id: "page-v1", lineageId: "page", versionNumber: 1, versionState: "current", type: "page", status: "draft" });
 
+  const agent = (expectedStarRevision: string | null, count = 4) => handler({ info: { fieldName: "agentSetItemStars" }, identity: editor,
+    arguments: { itemId: "story-v2", lineageId: "story", stars: count, expectedUpdatedAt: "2026-11-01T10:00:00Z", expectedStarRevision } });
+  await assert.rejects(handler({ info: { fieldName: "agentSetItemStars" }, identity: {},
+    arguments: { itemId: "story-v2", lineageId: "story", stars: 4, expectedUpdatedAt: "2026-11-01T10:00:00Z" } }), /cannot rate Stories/);
+  await agent(null);
+  assert.equal(rows.get("story-v2")!.starRatedBy, "agent:fixture-editor");
+  assert.ok(rows.get("story-v2")!.starRevision);
+  conflict = true;
+  await assert.rejects(agent(String(rows.get("story-v2")!.starRevision), 5), /stale_revision/);
+  assert.equal(rows.get("story-v2")!.starRating, 4);
+  conflict = false;
+  rows.get("story-v2")!.starRating = null;
+  rows.get("story-v2")!.starRatedAt = null;
+  rows.get("story-v2")!.starRatedBy = null;
+  rows.get("story-v2")!.starRevision = null;
+
   const first = await stars("story-v1", 4);
   assert.deepEqual([first.ok, first.itemId, first.lineageId, first.stars], [true, "story-v2", "story", 4], "the rating goes on the Story's working record, whichever version was named");
   const row = () => rows.get("story-v2")!;
@@ -110,7 +134,7 @@ async function main() {
   assert.ok(typeof row().starRatedAt === "string");
   assert.equal(rows.get("story-v1")!.starRating, undefined, "an older version is not rated");
   assert.deepEqual(writes.map((write) => [write.model, write.operation]), [["Item", "update"]], "a plain update of one row: no new version, no published write");
-  assert.deepEqual(Object.keys(writes[0].input).sort(), ["id", ...STAR_FIELDS].sort(), "only the star fields are written, never stage, status, updatedAt or the content");
+  assert.deepEqual(Object.keys(writes[0].input).sort(), ["id", ...STAR_FIELDS, "starRevision"].sort(), "only the star fields are written, never stage, status, updatedAt or the content");
   assert.equal(row().stage, "published");
   assert.equal(row().status, "published", "rating a published Story does not unpublish it");
   assert.equal(row().updatedAt, "2026-11-01T10:00:00Z", "rating does not reorder the board, which sorts by update time");
