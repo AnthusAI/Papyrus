@@ -77,7 +77,7 @@ def handler(event: dict, context: Any) -> dict:
             staff = StaffReads(UserPoolClient(endpoint, raw["idToken"], tenant))
             available = set(staff.available_tools)
             if tenant:
-                available -= {"reference_get", "reference_search", "reference_decide"}
+                available -= {"reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "story_evidence", "story_next", "assignments_list", "assignment_get", "reviews_list", "review_get"}
             elif os.environ.get("PAPYRUS_MCP_REFERENCE_SINGLE_TENANT") != "true":
                 available.discard("reference_decide")
             staff.available_tools = frozenset(available)

@@ -33,20 +33,20 @@ REVISION = {**VERSION, "expectedRevision": S}
 TOOLS = {
     "reference_search": ("staff", _schema({"query": S}, {"limit": LIMIT, "nextToken": S})),
     "reference_get": ("staff", _schema(LINEAGE)),
-    "concept_search": ("staff", _schema({"query": S}, {"limit": LIMIT})),
+    "concept_search": ("staff", _schema({"query": S}, {"limit": LIMIT, "nextToken": S})),
     "concept_get": ("staff", _schema({"id": S})),
-    "story_search": ("staff", _schema({"query": S}, {"limit": LIMIT})),
+    "story_search": ("staff", _schema({"query": S}, {"limit": LIMIT, "nextToken": S})),
     "story_get": ("staff", _schema(LINEAGE)),
     "story_versions": ("staff", _schema(LINEAGE)),
-    "story_evidence": ("staff", _schema(LINEAGE)),
+    "story_evidence": ("staff", _schema(LINEAGE, {"limit": LIMIT, "nextToken": S})),
     "story_next": ("staff", _schema(LINEAGE)),
-    "assignments_list": ("staff", _schema({}, {"storyLineageId": S})),
+    "assignments_list": ("staff", _schema({"storyLineageId": S}, {"limit": LIMIT, "nextToken": S})),
     "assignment_get": ("staff", _schema({"id": S})),
     "story_save_draft": ("staff", _schema({**VERSION, "body": S, "reason": S}, {"frontMatter": {"type": "string"}})),
     "reference_decide": ("staff", _schema({**REVISION, "decision": {"type": "string", "enum": ["accept", "reject"]}}, {"note": S})),
     "reference_star": ("staff", _schema({**REVISION, "stars": STARS})),
     "story_star": ("staff", _schema({**REVISION, "stars": STARS})),
-    "reviews_list": ("staff", _schema({}, {"state": S, "mode": S})),
+    "reviews_list": ("staff", _schema({"subjectType": S, "subjectId": S}, {"state": S, "mode": S, "limit": LIMIT, "nextToken": S})),
     "review_get": ("staff", _schema({"id": S})),
     "review_answer": ("staff", _schema({"id": S, "decision": S}, {"feedback": S, "steer": S})),
     "story_publish": ("staff", _schema(VERSION)),
@@ -130,7 +130,7 @@ def call_tool(principal: Principal, name: str, arguments: dict, *, staff: Any,
 class StaffReads:
     """Read through the same scoped GraphQL client used by the operator library."""
 
-    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "reference_get", "reference_search", "reference_decide"})
+    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list"})
 
     def __init__(self, client: Any):
         self.client = client
@@ -189,59 +189,171 @@ class StaffReads:
             raise RuntimeError("The site did not confirm the Reference decision.")
         return {"decision": answer, **self.reference_get(principal, lineageId=lineageId)}
 
-    def story_get(self, principal: Principal, *, lineageId: str) -> dict:
-        from .story_reporting import current_story_version
+    def _story_versions(self, lineage_id: str) -> list[dict]:
         from .editorial_context import _check_tenant
-        row = current_story_version(self.client, lineageId)
-        _check_tenant(self.client, row)
-        return {"story": _story_fields(row)}
-
-    def story_versions(self, principal: Principal, *, lineageId: str) -> dict:
-        from .story_reporting import story_versions
-        from .editorial_context import _check_tenant
-        rows = story_versions(self.client, lineageId)
+        operation = """query StoryVersions($lineageId: ID!, $limit: Int!) {
+          listItemsByLineageAndVersion(lineageId: $lineageId, limit: $limit) {
+            items { id lineageId versionNumber versionState versionCreatedAt versionCreatedBy changeReason updatedAt tenantId title headline type section stage status bodyMarkus }
+            nextToken
+          }
+        }"""
+        page = self.client.graphql(operation, {"lineageId": lineage_id, "limit": 100}).get("listItemsByLineageAndVersion") or {}
+        if page.get("nextToken"):
+            raise ValueError("Story has too many versions to resolve safely.")
+        rows = [row for row in page.get("items", []) if row and row.get("lineageId") == lineage_id]
         for row in rows:
             _check_tenant(self.client, row)
-        return {"versions": [_story_fields(row) for row in rows]}
+        return rows
 
-    def story_evidence(self, principal: Principal, *, lineageId: str) -> dict:
-        from .story_reporting import story_references
+    def story_get(self, principal: Principal, *, lineageId: str) -> dict:
+        rows = [row for row in self._story_versions(lineageId) if row.get("versionState") == "current"]
+        if len(rows) != 1:
+            raise ValueError("Story has no unambiguous current version.")
+        return {"story": _story_fields(rows[0])}
+
+    def story_versions(self, principal: Principal, *, lineageId: str) -> dict:
+        rows = self._story_versions(lineageId)
+        return {"versions": [_story_fields(row) for row in sorted(rows, key=lambda r: int(r.get("versionNumber") or 0), reverse=True)]}
+
+    def story_evidence(self, principal: Principal, *, lineageId: str, limit: int = 20, nextToken: str | None = None) -> dict:
         self.story_get(principal, lineageId=lineageId)
-        return {"evidence": story_references(self.client, lineageId)}
+        if getattr(self.client, "tenant_id", None):
+            raise PermissionError("Reference evidence has no tenant ownership key.")
+        operation = """query StoryEvidence($subjectStateKey: String!, $limit: Int!, $nextToken: String) {
+          listSemanticRelationsBySubjectState(subjectStateKey: $subjectStateKey, limit: $limit, nextToken: $nextToken) {
+            items { id predicate objectKind objectLineageId metadata }
+            nextToken
+          }
+        }"""
+        page = (self.client.graphql(operation, {"subjectStateKey": f"item#{lineageId}#current", "limit": limit, "nextToken": nextToken}).get("listSemanticRelationsBySubjectState") or {})
+        import json
+        evidence = []
+        for relation in page.get("items", []):
+            if not relation or relation.get("predicate") != "uses_evidence" or relation.get("objectKind") != "reference":
+                continue
+            metadata = relation.get("metadata") or {}
+            if isinstance(metadata, str):
+                metadata = json.loads(metadata)
+            evidence.append({"relationId": relation["id"], "referenceLineageId": relation.get("objectLineageId"),
+                             "role": metadata.get("role", "consulted"), "note": metadata.get("note"), "citationKey": metadata.get("citationKey")})
+        return {"evidence": evidence, "nextToken": page.get("nextToken")}
+
+    def story_search(self, principal: Principal, *, query: str, limit: int = 20, nextToken: str | None = None) -> dict:
+        filters: list[dict] = [{"title": {"contains": query}}, {"versionState": {"eq": "current"}}]
+        tenant = getattr(self.client, "tenant_id", None)
+        if tenant:
+            filters.append({"tenantId": {"eq": tenant}})
+        operation = """query SearchStories($limit: Int!, $nextToken: String, $filter: ModelItemFilterInput) {
+          listItems(limit: $limit, nextToken: $nextToken, filter: $filter) {
+            items { id lineageId versionNumber versionState updatedAt tenantId type title headline stage status }
+            nextToken
+          }
+        }"""
+        page = (self.client.graphql(operation, {"limit": limit, "nextToken": nextToken, "filter": {"and": filters}}).get("listItems") or {})
+        from .content_item_lifecycle import is_story_item_type
+        from .editorial_context import _check_tenant
+        rows = []
+        for row in page.get("items", []):
+            if row and is_story_item_type(row.get("type") or ""):
+                _check_tenant(self.client, row)
+                rows.append(_story_fields(row))
+        return {"stories": rows, "nextToken": page.get("nextToken")}
 
     def story_next(self, principal: Principal, *, lineageId: str) -> dict:
+        if getattr(self.client, "tenant_id", None):
+            raise PermissionError("Story procedure records lack a tenant ownership key.")
         from .newsroom_process import assess, story_facts
-        return {"procedure": assess(story_facts(self.client, lineageId))}
+        from .editorial_commands import read_item_check_run
+        self.story_get(principal, lineageId=lineageId)
+        return {"procedure": assess(story_facts(self.client, lineageId,
+            read_check_run=lambda item_id: read_item_check_run(item_id, execute=self.client.graphql)))}
+
+    def _assignment(self, row: dict) -> dict:
+        return {key: row[key] for key in ("id", "itemLineageId", "title", "status", "assignmentTypeKey", "priority", "summary", "createdAt", "updatedAt") if key in row}
 
     def assignment_get(self, principal: Principal, *, id: str) -> dict:
+        if getattr(self.client, "tenant_id", None):
+            raise PermissionError("Assignments lack a tenant ownership key.")
         row = self.client.get_record("Assignment", id)
-        if row is None:
-            raise ValueError("Assignment not found.")
-        return {"assignment": row}
+        if row is None or not row.get("itemLineageId"):
+            raise ValueError("Assignment has no scoped Story.")
+        self.story_get(principal, lineageId=row["itemLineageId"])
+        return {"assignment": self._assignment(row)}
 
-    def assignments_list(self, principal: Principal, *, storyLineageId: str | None = None) -> dict:
-        rows = self.client.list_records("Assignment")
-        return {"assignments": [r for r in rows if storyLineageId is None or r.get("itemLineageId") == storyLineageId]}
+    def assignments_list(self, principal: Principal, *, storyLineageId: str, limit: int = 20, nextToken: str | None = None) -> dict:
+        self.story_get(principal, lineageId=storyLineageId)
+        if getattr(self.client, "tenant_id", None):
+            raise PermissionError("Assignment indexes lack a tenant ownership key.")
+        operation = """query StoryAssignments($itemLineageId: ID!, $limit: Int!, $nextToken: String) {
+          listAssignmentsByItemLineageAndCreatedAt(itemLineageId: $itemLineageId, limit: $limit, nextToken: $nextToken) {
+            items { id itemLineageId title status assignmentTypeKey priority summary createdAt updatedAt }
+            nextToken
+          }
+        }"""
+        page = (self.client.graphql(operation, {"itemLineageId": storyLineageId, "limit": limit, "nextToken": nextToken}).get("listAssignmentsByItemLineageAndCreatedAt") or {})
+        return {"assignments": [self._assignment(row) for row in page.get("items", []) if row and row.get("itemLineageId") == storyLineageId], "nextToken": page.get("nextToken")}
 
     def concept_get(self, principal: Principal, *, id: str) -> dict:
-        rows = self.client.list_records("SemanticNode")
-        match = next((r for r in rows if (r.get("lineageId") == id or r.get("id") == id) and r.get("versionState", "current") == "current"), None)
-        if match is None:
-            raise ValueError("Concept not found.")
-        return {"concept": match}
+        self._reference_scope()  # SemanticNode, like Reference, has no tenant key.
+        page = self._concept_page({"and": [{"lineageId": {"eq": id}}, {"versionState": {"eq": "current"}}]}, 100, None)
+        if page.get("nextToken") or len(page.get("items", [])) != 1:
+            raise ValueError("Concept has no unambiguous current version.")
+        return {"concept": page["items"][0]}
 
-    def concept_search(self, principal: Principal, *, query: str, limit: int = 20) -> dict:
-        rows = self.client.list_records("SemanticNode")
-        text = query.casefold()
-        return {"concepts": [r for r in rows if r.get("versionState", "current") == "current" and text in str(r.get("displayName") or "").casefold()][:limit]}
+    def _concept_page(self, filter_: dict, limit: int, token: str | None) -> dict:
+        operation = """query Concepts($limit: Int!, $nextToken: String, $filter: ModelSemanticNodeFilterInput) {
+          listSemanticNodes(limit: $limit, nextToken: $nextToken, filter: $filter) {
+            items { id lineageId versionNumber versionState nodeKey nodeKind displayName status updatedAt }
+            nextToken
+          }
+        }"""
+        return self.client.graphql(operation, {"limit": limit, "nextToken": token, "filter": filter_}).get("listSemanticNodes") or {}
+
+    def concept_search(self, principal: Principal, *, query: str, limit: int = 20, nextToken: str | None = None) -> dict:
+        self._reference_scope()
+        page = self._concept_page({"and": [{"displayName": {"contains": query}}, {"versionState": {"eq": "current"}}]}, limit, nextToken)
+        return {"concepts": [row for row in page.get("items", []) if row], "nextToken": page.get("nextToken")}
+
+    def _scope_review(self, principal: Principal, row: dict) -> dict:
+        from .review_requests import read_review
+        review = read_review(row)
+        subject = review.get("subject") or {}
+        if not isinstance(subject, dict):
+            raise ValueError("Review subject is invalid.")
+        if getattr(self.client, "tenant_id", None):
+            if subject.get("type") != "story" or not subject.get("id"):
+                raise PermissionError("Review has no scoped Story.")
+            self.story_get(principal, lineageId=subject["id"])
+        return {key: review[key] for key in ("id", "subject", "mode", "reason", "ask", "raisedBy", "raisedAt", "deadline", "state", "answer", "updatedAt", "outcome")}
 
     def review_get(self, principal: Principal, *, id: str) -> dict:
-        from .review_requests import get_review
-        return {"review": get_review(self.client, id, sweep=False)}
+        if getattr(self.client, "tenant_id", None):
+            raise PermissionError("Reviews lack a tenant ownership key.")
+        row = self.client.get_record("ReviewRequest", id)
+        if not row:
+            raise ValueError("Review not found.")
+        return {"review": self._scope_review(principal, row)}
 
-    def reviews_list(self, principal: Principal, *, state: str | None = None, mode: str | None = None) -> dict:
-        from .review_requests import list_reviews
-        return {"reviews": list_reviews(self.client, state=state, mode=mode, sweep=False)}
+    def reviews_list(self, principal: Principal, *, subjectType: str, subjectId: str, state: str | None = None, mode: str | None = None, limit: int = 20, nextToken: str | None = None) -> dict:
+        if getattr(self.client, "tenant_id", None):
+            raise PermissionError("Reviews lack a tenant ownership key.")
+        filters = []
+        if state: filters.append({"state": {"eq": state}})
+        if mode: filters.append({"mode": {"eq": mode}})
+        operation = """query Reviews($limit: Int!, $nextToken: String, $filter: ModelReviewRequestFilterInput) {
+          listReviewRequests(limit: $limit, nextToken: $nextToken, filter: $filter) {
+            items { id subject mode reason ask raisedBy raisedAt deadline state answer updatedAt }
+            nextToken
+          }
+        }"""
+        page = (self.client.graphql(operation, {"limit": limit, "nextToken": nextToken, "filter": {"and": filters} if filters else None}).get("listReviewRequests") or {})
+        from .review_requests import read_review
+        rows = []
+        for row in page.get("items", []):
+            subject = (read_review(row).get("subject") if row else None) or {}
+            if isinstance(subject, dict) and subject.get("type") == subjectType and subject.get("id") == subjectId:
+                rows.append(row)
+        return {"reviews": [self._scope_review(principal, row) for row in rows], "nextToken": page.get("nextToken")}
 
 
 class ReaderSteeringInvoke:

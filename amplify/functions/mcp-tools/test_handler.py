@@ -66,3 +66,12 @@ def test_graphql_redirect_is_never_followed():
 def test_reader_identity_requires_verified_subject_format():
     result = module.handler({"operation": "list", "principal": {"kind": "reader", "siteSubject": "forged"}}, None)
     assert result["structuredContent"]["code"] == "unauthorized"
+
+
+def test_shared_backend_hides_unscoped_models(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_ENDPOINT", "https://example.org/graphql")
+    monkeypatch.setenv("PAPYRUS_TENANT_ID", "account-one")
+    result = module.handler({"operation": "list", "principal": {"kind": "staff", "subject": "editor", "idToken": "token"}}, None)
+    names = {tool["name"] for tool in result["tools"]}
+    assert "story_get" in names
+    assert not names.intersection({"reference_get", "story_evidence", "concept_get", "assignment_get", "review_get"})

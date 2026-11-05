@@ -3,6 +3,13 @@ from papyrus_content.mcp_tools import Principal, StaffReads, call_tool
 
 
 class Site:
+    def graphql(self, query, variables):
+        if "StoryVersions" in query:
+            return {"listItemsByLineageAndVersion": {"items": [{"id": "story-v2", "lineageId": variables["lineageId"], "versionNumber": 2, "versionState": "current"}], "nextToken": None}}
+        if "StoryEvidence" in query:
+            return {"listSemanticRelationsBySubjectState": {"items": [{"id": "relation", "predicate": "uses_evidence", "objectKind": "reference", "objectLineageId": "ref"}], "nextToken": None}}
+        return {}
+
     def get_record(self, model, id):
         return None
 
@@ -190,3 +197,50 @@ def list_reader_tools(context):
 @then('the reader sees no reader tools')
 def no_reader_tools(context):
     assert context.result == {"tools": []}
+
+
+@given("an editor connected to a shared site with an Assignment for another publication")
+def foreign_assignment(context):
+    class SharedSite(Site):
+        tenant_id = "account-one"
+        def get_record(self, model, id):
+            return {"id": id, "itemLineageId": "foreign"} if model == "Assignment" else None
+        def list_by_index(self, index, key, **kwargs):
+            return [{"id": "foreign-v1", "lineageId": key, "versionNumber": 1, "versionState": "current", "tenantId": "account-two"}]
+    context.principal = Principal("staff", "editor")
+    context.staff = StaffReads(SharedSite())
+
+
+@when('the editor opens that Assignment')
+def open_foreign_assignment(context):
+    try:
+        call_tool(context.principal, "assignment_get", {"id": "assignment"}, staff=context.staff)
+    except (ValueError, PermissionError) as error:
+        context.error = error
+
+
+@then('the Assignment read is refused')
+def assignment_refused(context):
+    assert context.error
+
+
+@given('an editor connected to a site with a searchable Story')
+def searchable_story(context):
+    class SearchSite(Site):
+        tenant_id = None
+        def graphql(self, query, variables):
+            assert variables["limit"] == 2
+            return {"listItems": {"items": [{"id": "story-v1", "lineageId": "story", "type": "article", "title": "Example"}], "nextToken": "more"}}
+    context.principal = Principal("staff", "editor")
+    context.staff = StaffReads(SearchSite())
+
+
+@when('the editor searches for the Story with a page size of two')
+def search_story(context):
+    context.result = call_tool(context.principal, "story_search", {"query": "Example", "limit": 2}, staff=context.staff)
+
+
+@then('the result contains the Story and a continuation token')
+def search_result(context):
+    assert context.result["stories"][0]["lineageId"] == "story"
+    assert context.result["nextToken"] == "more"

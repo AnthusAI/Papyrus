@@ -50,3 +50,13 @@ Feature: Site tools preserve editorial and reader authority
     Given a reader connected to the private site-tools service without a reader plugin
     When the reader lists the site's tools
     Then the reader sees no reader tools
+
+  Scenario: A tenant cannot read another publication's assignment
+    Given an editor connected to a shared site with an Assignment for another publication
+    When the editor opens that Assignment
+    Then the Assignment read is refused
+
+  Scenario: A Story search returns a bounded page of matching Stories
+    Given an editor connected to a site with a searchable Story
+    When the editor searches for the Story with a page size of two
+    Then the result contains the Story and a continuation token
