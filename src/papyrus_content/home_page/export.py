@@ -23,6 +23,7 @@ from ..knowledge_snapshot.parallel import map_with_clients
 from ..reference_medium import MEDIUM_VIDEO, medium_of
 from ..reference_thumbnails import EDITOR_IMAGE, public_image as thumbnail_image
 from ..reference_feed_keys import accept_probability as decision_probability
+from ..reference_titles import first_usable_title, needs_title, readable_name
 from .ordering import RANK_FIELD, rank_records, valid_stars
 
 if TYPE_CHECKING:
@@ -241,6 +242,22 @@ def preview_details(preview: Mapping[str, Any] | None, summary_characters: int) 
     }
 
 
+def displayed_title(row: Mapping[str, Any], address: str | None, preview: Mapping[str, Any] | None) -> str:
+    """The title a card shows. A Reference titled with its own address shows the title its page declared for link previews when the preview holds one,
+    else a readable name made from the site and the address's own words (reference_titles.readable_name); never the raw address. Display only: the
+    stored title is left to the repair (``papyrus references repair-titles``) and to capture."""
+    title = None if needs_title(row) else scrub(row.get("title"))
+    if title:
+        return title
+    metadata = preview_metadata(preview)
+    found = first_usable_title(scrub(metadata.get("title")))
+    if found:
+        return found
+    if address:
+        return readable_name(address, scrub(metadata.get("siteName")))
+    return host_of(address) or "Untitled"
+
+
 def public_reference(
     row: Mapping[str, Any],
     decision: Mapping[str, Any] | None,
@@ -255,7 +272,7 @@ def public_reference(
     full: dict[str, Any] = {
         "key": public_key(str(row["lineageId"])),
         "status": STATUS_ACCEPTED if accepted else STATUS_RECOMMENDED,
-        "title": scrub(row.get("title")) or host_of(address) or "Untitled",
+        "title": displayed_title(row, address, preview),
         "authors": authors_of(row.get("authors")),
         "url": address,
         "host": host_of(address),

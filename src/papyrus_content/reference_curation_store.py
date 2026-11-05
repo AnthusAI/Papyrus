@@ -359,11 +359,23 @@ def correct_reference_capture(client: Any, arguments: dict[str, Any], identity: 
     (``no_transcript``, ``unavailable`` or ``unsupported_platform``: the transcript worker found nothing to capture on this video). The editor recorded is the
     signed-in caller (never a field of the request).
     """
-    if set(arguments) - {"referenceId", "text", "grobid", "assessment", "note", "pdfAttachmentId", "captureReason", "thumbnail"}:
+    if set(arguments) - {"referenceId", "text", "grobid", "assessment", "note", "pdfAttachmentId", "captureReason", "thumbnail", "pageTitle"}:
         raise CurationError("Unsupported correction fields; the editor is taken from the signed-in session.")
     reference_id = arguments.get("referenceId")
     if not isinstance(reference_id, str) or not _REFERENCE_ID.match(reference_id):
         raise CurationError("referenceId must be a Reference id.")
+    if arguments.get("pageTitle") is not None:
+        # `papyrus references repair-titles` gives a Reference titled with its own address the title its page declares. Only that: a title that is
+        # not an address (an editor's, or the source's own) is kept, and the answer says so.
+        if set(arguments) - {"referenceId", "pageTitle"} or not isinstance(arguments["pageTitle"], str):
+            raise CurationError("A page title is sent alone, as text.")
+        from .reference_titles import record_page_title, usable_title
+
+        if usable_title(arguments["pageTitle"]) is None:
+            raise CurationError("That is not a page title: it is empty, an address or a stock error title.")
+        reference = find_reference(client, reference_id)
+        outcome = record_page_title(client, reference, arguments["pageTitle"])
+        return {"ok": True, "referenceId": reference_id, "title": reference.get("title"), "changed": outcome == "set"}
     if arguments.get("thumbnail") is not None:
         # The thumbnail worker (`papyrus references capture-thumbnails`) records a video's own picture, already copied to the media bucket, on the Reference.
         if set(arguments) - {"referenceId", "thumbnail"} or not isinstance(arguments["thumbnail"], dict):
