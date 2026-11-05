@@ -472,10 +472,18 @@ delegation for References.
 
 **This is honest labelling, not containment.** The gate stops the normal routes from labelling an
 agent's decision as the person's. It does not stop an editor-group session from writing some data
-directly through the model API: `Item` (including a Story's `starRating`) and `KnowledgeRawPayload`
-(the delegation index rows) are writable by the editor and admin groups, whereas `Reference` is
-read-only to them (its votes and ratings are written only by the Lambdas), so a Reference's
-curation and star fields are contained. Other category-action routes that record a person's
+directly through the model API: `Item` (including a Story's `starRating`) is writable by the editor
+and admin groups, whereas `Reference` is read-only to them (its votes and ratings are written only
+by the Lambdas), so a Reference's curation and star fields are contained.
+
+**Where delegations are stored matters.** They live in their own model, `CurationDelegationRecord`,
+which only the Newsroom's function can write (the admin group can read it; no group, identity-pool
+or public rule can create or change a row). They used to be a JSON attachment on a
+`KnowledgeRawPayload` row, and the editor groups can write that model and attach files to it, so an
+editor's session could have forged an approved delegation. Records in the old place are never read:
+every delegation made before this change is simply unknown, and the agent asks again (a pending
+request lasts only ten minutes, an approved one at most 72 hours). Do not move them back to a
+model the editor groups can write. Other category-action routes that record a person's
 decision under a name the caller supplies (`setReferenceQualityRating`, `decideReferenceLink`,
 `reviewReferenceTopicLabel`, `reviewSteeringProposal`, `createReferenceNote`, `moveReferenceCorpus`)
 are not gated against CLI sessions.

@@ -136,6 +136,11 @@ newsroom_step("a CLI session sets a Reference or Story rating directly, naming t
 newsroom_step("both are refused, the first pointing at set-stars, and nothing is written", "a_cli_session_cannot_file_a_rating_as_the_person", then)
 newsroom_step("a Newsroom session's own rating and a delegated rating still work", "a_cli_session_cannot_file_a_rating_as_the_person", then)
 
+newsroom_step("an editor's session makes a payload row and attaches an approved delegation record to it, or overwrites a pending request's old file", "a_delegation_forged_through_the_editor_writable_models_is_never_believed", when)
+newsroom_step("the agent's decision under it is refused as not recognized or not approved", "a_delegation_forged_through_the_editor_writable_models_is_never_believed", then)
+newsroom_step("a real delegation that the editor approved in the Newsroom still works", "a_delegation_forged_through_the_editor_writable_models_is_never_believed", then)
+newsroom_step("only the Newsroom's own function can write the delegation records", "no_session_can_write_the_delegation_records", then)
+
 newsroom_step("the deployed authorization of the delegation routes is read", "the_declared_authorization_has_no_broad_signed_in_rule", when)
 newsroom_step("the agent routes allow the operator lane and the editor and admin groups", "the_declared_authorization_has_no_broad_signed_in_rule", then)
 newsroom_step("the person routes allow the editor and admin groups only", "the_declared_authorization_has_no_broad_signed_in_rule", then)

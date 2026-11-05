@@ -6,8 +6,6 @@ import type { Schema } from "../../data/resource";
 import { putJsonModelPayload, putTextModelPayload, readJsonModelPayload } from "../shared/model-payloads";
 import { curationActorKind, referenceStarFields, referenceVoteFields, validatedCurationSectionId } from "../shared/reference-curation-metadata";
 import {
-  CURATION_DELEGATION_OWNER_TYPE,
-  CURATION_DELEGATION_PAYLOAD_KIND,
   delegationExpiry,
   delegationRefusalMessage,
   delegationVerdict,
@@ -339,33 +337,61 @@ function requireSignedInPerson(event: { identity?: unknown }, route: "approver" 
   };
 }
 
+/**
+ * Delegations live in `CurationDelegationRecord`, a model that no signed-in session, group or identity-pool role can read or write: only this
+ * Lambda (and the other `allow.resource` Lambdas) can. They used to be a JSON attachment on a `KnowledgeRawPayload`, which the editor groups
+ * can write directly and attach files to, so a session could forge an approved delegation. Records from that old place are never read, so
+ * every delegation made before this change is simply unknown and an agent asks again.
+ */
+function parseDelegationRow(row: { id?: string | null; grantorSub?: string | null; recordJson?: string | null } | null | undefined): CurationDelegation | null {
+  if (!row?.recordJson) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(row.recordJson);
+  } catch {
+    return null;
+  }
+  const record = parsed as Partial<CurationDelegation> | null;
+  // A row whose record names another id or grantor than the row itself is not one this Lambda wrote.
+  if (!record || typeof record !== "object" || record.delegationId !== row.id || record.grantorSub !== row.grantorSub) return null;
+  return record as CurationDelegation;
+}
+
 async function readCurationDelegation(client: DataClient, delegationId: string): Promise<CurationDelegation | null> {
-  const stored = await readJsonModelPayload(client as any, "knowledgeRawPayload", delegationId, "raw_payload", CURATION_DELEGATION_PAYLOAD_KIND);
-  return stored ? (stored as unknown as CurationDelegation) : null;
+  const result = await (client.models as any).CurationDelegationRecord.get({ id: delegationId });
+  assertNoDataErrors(result.errors, "get curation delegation");
+  return parseDelegationRow(result.data);
 }
 
 async function writeCurationDelegation(client: DataClient, delegation: CurationDelegation, now: string, created: boolean) {
   const input = {
     id: delegation.delegationId,
-    ownerType: CURATION_DELEGATION_OWNER_TYPE,
-    ownerId: delegation.grantorSub,
-    payloadKind: CURATION_DELEGATION_PAYLOAD_KIND,
+    grantorSub: delegation.grantorSub,
+    recordJson: JSON.stringify(delegation),
     createdAt: delegation.createdAt,
     updatedAt: now,
   };
+  const model = (client.models as any).CurationDelegationRecord;
   if (created) {
-    await requireDataResult(client.models.KnowledgeRawPayload.create(input), "create curation delegation");
+    await requireDataResult(model.create(input), "create curation delegation");
   } else {
-    await requireDataResult(client.models.KnowledgeRawPayload.update(input), "update curation delegation");
+    await requireDataResult(model.update(input), "update curation delegation");
   }
-  await putJsonModelPayload(
-    client as any,
-    { ownerKind: "knowledgeRawPayload", ownerId: delegation.delegationId },
-    "raw_payload",
-    CURATION_DELEGATION_PAYLOAD_KIND,
-    delegation as unknown as Record<string, unknown>,
-    { filename: "curation-delegation.json", now },
-  );
+}
+
+async function listDelegationsByGrantor(client: DataClient, grantorSub: string): Promise<CurationDelegation[]> {
+  const found: CurationDelegation[] = [];
+  let nextToken: string | null | undefined;
+  do {
+    const page: any = await (client.models as any).CurationDelegationRecord.listCurationDelegationRecordsByGrantor({ grantorSub }, { nextToken });
+    assertNoDataErrors(page.errors, "list curation delegations");
+    for (const row of page.data ?? []) {
+      const delegation = parseDelegationRow(row);
+      if (delegation) found.push(delegation);
+    }
+    nextToken = page.nextToken;
+  } while (nextToken);
+  return found;
 }
 
 function delegationResult(delegation: CurationDelegation, token: string | null) {
@@ -373,21 +399,7 @@ function delegationResult(delegation: CurationDelegation, token: string | null) 
 }
 
 async function listPendingCurationDelegations(client: DataClient): Promise<CurationDelegation[]> {
-  const pending: CurationDelegation[] = [];
-  let nextToken: string | null | undefined;
-  do {
-    const page: any = await (client.models.KnowledgeRawPayload as any).listKnowledgeRawPayloadsByOwnerAndKind(
-      { ownerId: PENDING_REQUEST_GRANTOR_SUB, payloadKind: { eq: CURATION_DELEGATION_PAYLOAD_KIND } },
-      { nextToken },
-    );
-    assertNoDataErrors(page.errors, "list pending curation delegations");
-    for (const payload of page.data ?? []) {
-      const delegation = await readCurationDelegation(client, payload.id);
-      if (delegation) pending.push(delegation);
-    }
-    nextToken = page.nextToken;
-  } while (nextToken);
-  return pending;
+  return listDelegationsByGrantor(client, PENDING_REQUEST_GRANTOR_SUB);
 }
 
 function curationDelegationStore(client: DataClient): DelegationStore {
@@ -470,20 +482,7 @@ async function revokeCurationDelegation(event: Parameters<RevokeCurationDelegati
 async function listCurationDelegations(event: Parameters<ListCurationDelegationsHandler>[0]) {
   const person = requireSignedInPerson(event);
   const client = await getDataClient();
-  const delegations: CurationDelegation[] = [];
-  let nextToken: string | null | undefined;
-  do {
-    const page: any = await (client.models.KnowledgeRawPayload as any).listKnowledgeRawPayloadsByOwnerAndKind(
-      { ownerId: person.sub, payloadKind: { eq: CURATION_DELEGATION_PAYLOAD_KIND } },
-      { nextToken },
-    );
-    assertNoDataErrors(page.errors, "list curation delegations");
-    for (const payload of page.data ?? []) {
-      const delegation = await readCurationDelegation(client, payload.id);
-      if (delegation) delegations.push(delegation);
-    }
-    nextToken = page.nextToken;
-  } while (nextToken);
+  const delegations = await listDelegationsByGrantor(client, person.sub);
   const now = new Date().toISOString();
   delegations.push(...(await livePendingRequests(curationDelegationStore(client), now)));
   return delegations

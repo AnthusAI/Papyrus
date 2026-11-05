@@ -57,11 +57,11 @@ async function makeBackend(options: { cliClientId?: string | null } = {}) {
       table(name).set(input.id, next);
       return { data: clone(next) };
     },
-    listKnowledgeRawPayloadsByOwnerAndKind: async (key: { ownerId: string; payloadKind: { eq: string } }) => ({
-      data: [...table(name).values()].filter((row) => row.ownerId === key.ownerId && row.payloadKind === key.payloadKind.eq).map(clone),
+    listCurationDelegationRecordsByGrantor: async (key: { grantorSub: string }) => ({
+      data: [...table(name).values()].filter((row) => row.grantorSub === key.grantorSub).map(clone),
     }),
   });
-  const client = { models: Object.fromEntries(["Reference", "Message", "SemanticRelation", "KnowledgeRawPayload", "NewsroomSection"].map((name) => [name, model(name)])) };
+  const client = { models: Object.fromEntries(["Reference", "Message", "SemanticRelation", "KnowledgeRawPayload", "CurationDelegationRecord", "NewsroomSection"].map((name) => [name, model(name)])) };
   const payloadKey = (kind: string, id: string, role: string, payloadKind: string) => JSON.stringify([kind, id, role, payloadKind]);
   const writePayload = async (_client: unknown, owner: { ownerKind: string; ownerId: string }, role: string, payloadKind: string, value: unknown) => {
     payloads.set(payloadKey(owner.ownerKind, owner.ownerId, role, payloadKind), clone(value));
@@ -100,7 +100,7 @@ async function makeBackend(options: { cliClientId?: string | null } = {}) {
     feedArrivalAt: "2026-10-28T08:00:00.000Z" });
   const call = (fieldName: string, identity: unknown, args: Record<string, unknown> = {}) => handler({ info: { fieldName }, identity, arguments: args });
   const reference = () => table("Reference").get(referenceId)!;
-  const storedDelegation = (delegationId: string) => payloads.get(payloadKey("knowledgeRawPayload", delegationId, "raw_payload", "curation-delegation")) as Record<string, any>;
+  const storedDelegation = (delegationId: string) => JSON.parse(String(table("CurationDelegationRecord").get(delegationId)?.recordJson)) as Record<string, any>;
   return { call, table, reference, environment, payloads, payloadKey, storedDelegation };
 }
 
@@ -176,7 +176,7 @@ const behaviours: Record<string, () => Promise<void>> = {
     await assert.rejects(backend.call("requestCurationDelegation", cliSession, asking), /cliOnFederationClient/);
     await assert.rejects(backend.call("requestCurationDelegation", newsroomSession, asking), /cliOnFederationClient/);
     await assert.rejects(backend.call("getCurationDelegationStatus", cliSession, { delegationId: secret.delegationId }), /cliOnFederationClient/);
-    assert.equal(backend.table("KnowledgeRawPayload").size, 0, "nothing was stored");
+    assert.equal(backend.table("CurationDelegationRecord").size, 0, "nothing was stored");
     const operator = await requested(backend, operatorOnAwsCredentials);
     assert.equal((await backend.call("approveCurationDelegation", newsroomSession, { userCode: operator.userCode })).state, "approved", "the Newsroom approves as before");
     await assert.rejects(relay(backend, "recordDelegatedStars", operator, { stars: 3 }, cliSession), /cliOnFederationClient/);
@@ -280,12 +280,13 @@ const behaviours: Record<string, () => Promise<void>> = {
     for (const hours of [0, -1, 73, 500]) {
       await assert.rejects(requested(backend, cliSession, { hours }), /between 1 and 72 hours/);
     }
-    assert.equal(backend.table("KnowledgeRawPayload").size, 0, "a request over the limit stores nothing");
+    assert.equal(backend.table("CurationDelegationRecord").size, 0, "a request over the limit stores nothing");
     const request = await approved(backend);
     const stored = backend.storedDelegation(request.delegationId);
     const hoursGranted = (Date.parse(stored.expiresAt) - Date.parse(stored.approvedAt)) / 3_600_000;
     assert.equal(hoursGranted, 2, "the approved delegation lasts the hours that were asked for");
-    backend.payloads.set(backend.payloadKey("knowledgeRawPayload", request.delegationId, "raw_payload", "curation-delegation"), { ...stored, expiresAt: "2026-01-01T00:00:00.000Z" });
+    const row = backend.table("CurationDelegationRecord").get(request.delegationId)!;
+    backend.table("CurationDelegationRecord").set(request.delegationId, { ...row, recordJson: JSON.stringify({ ...stored, expiresAt: "2026-01-01T00:00:00.000Z" }) });
     await assert.rejects(relay(backend, "recordDelegatedCuration", request, { action: "accept" }), /has expired/);
     await assert.rejects(relay(backend, "recordDelegatedStars", request, { stars: 5 }), /has expired/);
     assert.equal(backend.reference().curationStatus, "pending");
@@ -361,6 +362,55 @@ const behaviours: Record<string, () => Promise<void>> = {
     await backend.call("recordDelegatedStars", cliSession, { referenceId: bare, stars: 4, delegationId: request.delegationId, delegationToken: request.token, agentLabel: "Claude", onBehalfOf: EDITOR, instruction: "Four stars." });
     assert.equal(backend.table("Reference").get(bare)!.feedArrivalAt, "2026-10-01T00:00:00.000Z");
     assert.equal(backend.table("Reference").get(bare)!.curationStatus, "accepted", "stars leave the vote alone");
+  },
+
+  async a_delegation_forged_through_the_editor_writable_models_is_never_believed() {
+    const backend = await makeBackend();
+    // What an editor's session can do by itself: make a KnowledgeRawPayload row with any id (editor groups can write that model) and attach a
+    // JSON file to it with createModelAttachmentUpload (an allowed owner kind and role), which is where delegations used to be read from.
+    const forged = agentSecret();
+    const approvedRecord = {
+      delegationId: forged.delegationId, tokenHash: forged.tokenHash, grantorSub: "editor-sub-1", grantorLabel: EDITOR, agentLabel: "Claude",
+      createdAt: "2026-11-04T00:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z", revokedAt: null, approvedAt: "2026-11-04T00:00:00.000Z",
+    };
+    const oldPlace = (id: string) => backend.payloadKey("knowledgeRawPayload", id, "raw_payload", "curation-delegation");
+    backend.table("KnowledgeRawPayload").set(forged.delegationId, { id: forged.delegationId, ownerType: "curationDelegation", ownerId: "editor-sub-1", payloadKind: "curation-delegation" });
+    backend.payloads.set(oldPlace(forged.delegationId), approvedRecord);
+    await assert.rejects(relay(backend, "recordDelegatedCuration", forged, { action: "accept" }), /not recognized/);
+    await assert.rejects(relay(backend, "recordDelegatedStars", forged, { stars: 5 }), /not recognized/);
+    await assert.rejects(backend.call("getCurationDelegationStatus", cliSession, { delegationId: forged.delegationId }), /not found/);
+    // Overwriting a real pending request's old-place file changes nothing: the record is not read from there.
+    const pending = await requested(backend);
+    backend.table("KnowledgeRawPayload").set(pending.delegationId, { id: pending.delegationId, ownerType: "curationDelegation", ownerId: "editor-sub-1", payloadKind: "curation-delegation" });
+    backend.payloads.set(oldPlace(pending.delegationId), { ...approvedRecord, delegationId: pending.delegationId, tokenHash: pending.tokenHash });
+    await assert.rejects(relay(backend, "recordDelegatedCuration", pending, { action: "accept" }), /has not been approved/);
+    assert.equal((await backend.call("getCurationDelegationStatus", cliSession, { delegationId: pending.delegationId })).state, "pending");
+    // A row in the real table whose record disagrees with the row about its id or grantor was not written by this Lambda: it is ignored.
+    const odd = agentSecret();
+    backend.table("CurationDelegationRecord").set(odd.delegationId, { id: odd.delegationId, grantorSub: "someone-else", createdAt: "2026-11-04T00:00:00.000Z", recordJson: JSON.stringify({ ...approvedRecord, delegationId: odd.delegationId, tokenHash: odd.tokenHash }) });
+    await assert.rejects(relay(backend, "recordDelegatedCuration", odd, { action: "accept" }), /not recognized/);
+    assert.equal(backend.reference().curationStatus, "pending", "nothing was recorded");
+    // The honest path still works end to end.
+    const honest = await approved(backend);
+    assert.equal((await relay(backend, "recordDelegatedCuration", honest, { action: "accept" })).status, "accepted");
+    assert.equal(backend.table("KnowledgeRawPayload").has(honest.delegationId), false, "real delegations are not kept in the editor-writable model");
+  },
+
+  async no_session_can_write_the_delegation_records() {
+    const document = parse(schema.transform().schema);
+    const type = document.definitions.find((definition) => definition.kind === Kind.OBJECT_TYPE_DEFINITION && definition.name.value === "CurationDelegationRecord");
+    assert.ok(type?.kind === Kind.OBJECT_TYPE_DEFINITION, "the delegation records have their own model");
+    const auth = type.directives?.find((directive) => directive.name.value === "auth");
+    const rules = auth?.arguments?.find((argument) => argument.name.value === "rules");
+    assert.ok(rules);
+    assert.deepEqual(clone(valueFromASTUntyped(rules.value)), [{ allow: "groups", operations: ["read"], groups: ["admin"] }],
+      "no group, identity-pool, public or owner rule can create or update a delegation record; only the function grants write");
+    for (const file of ["amplify/data/resource.ts", "amplify/data/schema.ts"]) {
+      const source = readFileSync(resolve(root, file), "utf8");
+      const start = source.indexOf("CurationDelegationRecord: ");
+      const block = source.slice(start, source.indexOf("KnowledgeArtifact: ", start));
+      assert.ok(block.includes('allow.groups([adminGroup]).to(["read"])') && !/allow\.(?!groups\(\[adminGroup\]\)\.to\(\["read"\]\))/.test(block.replace(/\/\/.*$/gm, "")), `${file}: read-only rule only`);
+    }
   },
 
   async a_token_whose_client_cannot_be_read_can_do_nothing_with_delegations() {

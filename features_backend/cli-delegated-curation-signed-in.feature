@@ -115,6 +115,13 @@ Feature: An agent on the signed-in CLI records an editor's accept, reject and st
     Then both are refused, the first pointing at set-stars, and nothing is written
     And a Newsroom session's own rating and a delegated rating still work
 
+  Scenario: An editor's session cannot forge an approved delegation through the models it can write
+    Given a site that signs its CLI in on its own client
+    When an editor's session makes a payload row and attaches an approved delegation record to it, or overwrites a pending request's old file
+    Then the agent's decision under it is refused as not recognized or not approved
+    And a real delegation that the editor approved in the Newsroom still works
+    And only the Newsroom's own function can write the delegation records
+
   Scenario: Delegation routes grant no rule to a signed-in reader
     When the deployed authorization of the delegation routes is read
     Then the agent routes allow the operator lane and the editor and admin groups
