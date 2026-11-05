@@ -96,3 +96,17 @@ def test_save_result_preserves_post_save_check_status(monkeypatch):
                              "name": "story_save_draft", "arguments": {}}, None)
     assert result["structuredContent"]["editorialCheck"]["notChecked"] == "Check unavailable"
     assert result["structuredContent"]["item"]["id"] == "story-v2"
+
+
+def test_publish_request_needs_deployed_capability_and_unscoped_backend(monkeypatch):
+    monkeypatch.setenv("PAPYRUS_GRAPHQL_ENDPOINT", "https://example.org/graphql")
+    monkeypatch.delenv("PAPYRUS_TENANT_ID", raising=False)
+    monkeypatch.delenv("PAPYRUS_MCP_STORY_PUBLISH_REQUEST_ENABLED", raising=False)
+    event = {"operation": "list", "principal": {"kind": "staff", "subject": "editor", "idToken": "token"}}
+    names = lambda: {t["name"] for t in module.handler(event, None)["tools"]}
+    assert "story_request_publish" not in names()
+    monkeypatch.setenv("PAPYRUS_MCP_STORY_PUBLISH_REQUEST_ENABLED", "true")
+    assert "story_request_publish" in names()
+    assert "story_publish" not in names()
+    monkeypatch.setenv("PAPYRUS_TENANT_ID", "tenant-one")
+    assert "story_request_publish" not in names()

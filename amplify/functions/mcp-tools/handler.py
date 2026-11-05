@@ -76,6 +76,8 @@ def handler(event: dict, context: Any) -> dict:
             tenant = os.environ.get("PAPYRUS_TENANT_ID", "").strip() or None
             staff = StaffReads(UserPoolClient(endpoint, raw["idToken"], tenant))
             available = set(staff.available_tools)
+            if tenant or os.environ.get("PAPYRUS_MCP_STORY_PUBLISH_REQUEST_ENABLED") != "true":
+                available.discard("story_request_publish")
             if os.environ.get("PAPYRUS_MCP_STORY_DRAFT_ENABLED") != "true":
                 available.discard("story_save_draft")
             if tenant:

@@ -50,6 +50,7 @@ TOOLS = {
     "review_get": ("staff", _schema({"id": S})),
     "review_answer": ("staff", _schema({"id": S, "expectedRevision": S, "decision": S}, {"feedback": S, "steer": S})),
     "story_publish": ("staff", _schema(VERSION)),
+    "story_request_publish": ("staff", _schema(VERSION)),
     "reader_comment": ("reader", _schema({"subject": S, "body": S}, {"parent": S, "ratingContext": {"type": "object"}})),
     "reader_submit": ("reader", _schema({"url": S, "title": S}, {"kind": S, "note": S})),
 }
@@ -66,6 +67,7 @@ DESCRIPTIONS = {
     "story_star": "Rate a Story with stars.", "reviews_list": "List review requests.",
     "review_get": "Read a review request.", "review_answer": "Answer a review request.",
     "story_publish": "Publish a Story through its existing gates.",
+    "story_request_publish": "Request a person's approval to publish a Story.",
     "reader_comment": "Comment on a subject under the site's reader policy.",
     "reader_submit": "Submit a link under the site's reader policy.",
 }
@@ -137,7 +139,7 @@ from .mcp_story_writes import StaffStoryWrites
 class StaffReads(StaffStoryWrites):
     """Read through the same scoped GraphQL client used by the operator library."""
 
-    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "story_next", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list", "review_answer", "story_star", "story_save_draft"})
+    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "story_next", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list", "review_answer", "story_star", "story_save_draft", "story_request_publish"})
 
     def __init__(self, client: Any):
         self.client = client

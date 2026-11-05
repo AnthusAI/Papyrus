@@ -106,3 +106,8 @@ Feature: Site tools preserve editorial and reader authority
     Given an editor connected to a site with a rateable Story
     When the editor asks for the next Story procedure steps
     Then the direction and research steps are reported as unknown
+
+  Scenario: A publish request returns the person's approval state
+    Given an editor connected to a site with a publish request operation
+    When the agent requests publication for the current Story
+    Then the tool reports a pending human approval request

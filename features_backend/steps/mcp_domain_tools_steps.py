@@ -401,3 +401,24 @@ def unknown_story_steps(context):
     steps = {row["key"]: row["state"] for row in context.result["procedure"]["steps"]}
     assert steps["direction"] == "unknown"
     assert steps["research"] == "unknown"
+
+
+@given('an editor connected to a site with a publish request operation')
+def publish_request_site(context):
+    class PublishSite(Site):
+        def graphql(self, query, variables):
+            import json
+            assert json.loads(variables["input"]) == {"lineageId": "story", "expectedCurrentVersionId": "story-v1"}
+            return {"agentRequestStoryPublish": {"status": "pending", "requestId": "review", "versionId": "story-v1"}}
+    context.principal = Principal("staff", "editor", is_agent=True)
+    context.staff = StaffReads(PublishSite())
+
+
+@when('the agent requests publication for the current Story')
+def request_story_publish(context):
+    context.result = call_tool(context.principal, "story_request_publish", {"lineageId": "story", "expectedCurrentVersionId": "story-v1"}, staff=context.staff)
+
+
+@then('the tool reports a pending human approval request')
+def pending_publish_request(context):
+    assert context.result == {"status": "pending", "requestId": "review", "versionId": "story-v1"}
