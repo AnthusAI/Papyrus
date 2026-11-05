@@ -60,3 +60,24 @@ Feature: Site tools preserve editorial and reader authority
     Given an editor connected to a site with a searchable Story
     When the editor searches for the Story with a page size of two
     Then the result contains the Story and a continuation token
+
+  Scenario: An agent answers an open review with its own attribution
+    Given an editor connected to a site with an open review
+    When the agent answers the current review with feedback
+    Then the saved answer names the agent and returns the updated revision
+
+  Scenario: A review changed after it was opened
+    Given an editor connected to a site with an open review
+    When the agent answers an outdated review
+    Then the review answer is refused as stale
+
+  Scenario: A publish approval remains open for a person
+    Given an editor connected to a site with a publish approval request
+    When the agent tries to approve the publish request
+    Then the request remains open for a person
+
+  Scenario: A concurrent review answer wins the storage race
+    Given an editor connected to a site with an open review
+    And another answer wins before the agent's update
+    When the agent answers the current review with feedback
+    Then the review answer is refused as stale

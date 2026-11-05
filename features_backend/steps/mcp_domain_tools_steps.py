@@ -244,3 +244,75 @@ def search_story(context):
 def search_result(context):
     assert context.result["stories"][0]["lineageId"] == "story"
     assert context.result["nextToken"] == "more"
+
+
+@given('an editor connected to a site with an open review')
+def open_review(context):
+    class ReviewSite(Site):
+        tenant_id = None
+        row = {"id": "review", "subject": '{"type":"story","id":"story"}', "mode": "hard_gate", "reason": "Check",
+               "raisedBy": "procedure", "raisedAt": "2026-01-01T00:00:00Z", "state": "open", "updatedAt": "revision", "history": "[]"}
+        def get_record(self, model, id):
+            return dict(self.row) if model == "ReviewRequest" and id == "review" else None
+        def graphql(self, query, variables):
+            assert variables["condition"] == {"state": {"eq": "open"}, "updatedAt": {"eq": "revision"}}
+            self.row.update(variables["input"])
+            return {"updateReviewRequest": {"id": "review"}}
+    context.principal = Principal("staff", "editor", is_agent=True)
+    context.staff = StaffReads(ReviewSite())
+
+
+@when('the agent answers the current review with feedback')
+def answer_current_review(context):
+    try:
+        context.result = call_tool(context.principal, "review_answer", {"id": "review", "expectedRevision": "revision", "decision": "feedback", "feedback": "Revise the lead."}, staff=context.staff)
+    except ValueError as error:
+        context.error = error
+
+
+@then('the saved answer names the agent and returns the updated revision')
+def review_answer_result(context):
+    assert context.result["review"]["answer"]["by"] == "agent:editor"
+    assert context.result["review"]["updatedAt"] != "revision"
+
+
+@when('the agent answers an outdated review')
+def answer_old_review(context):
+    try:
+        call_tool(context.principal, "review_answer", {"id": "review", "expectedRevision": "old", "decision": "approve"}, staff=context.staff)
+    except ValueError as error:
+        context.error = error
+
+
+@then('the review answer is refused as stale')
+def stale_review_result(context):
+    assert "stale_revision" in str(context.error)
+    assert context.staff.client.row["state"] == "open"
+
+
+@given('an editor connected to a site with a publish approval request')
+def publish_review(context):
+    open_review(context)
+    context.staff.client.row["raisedBy"] = "publish-gate"
+
+
+@when('the agent tries to approve the publish request')
+def approve_publish_review(context):
+    try:
+        call_tool(context.principal, "review_answer", {"id": "review", "expectedRevision": "revision", "decision": "approve"}, staff=context.staff)
+    except PermissionError as error:
+        context.error = error
+
+
+@then('the request remains open for a person')
+def publish_review_still_open(context):
+    assert context.error
+    assert context.staff.client.row["state"] == "open"
+
+
+@given("another answer wins before the agent's update")
+def concurrent_review(context):
+    from papyrus_content.operator_errors import GraphQLRequestError
+    def conflict(query, variables):
+        raise GraphQLRequestError("ConditionalCheckFailedException")
+    context.staff.client.graphql = conflict

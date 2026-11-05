@@ -48,7 +48,7 @@ TOOLS = {
     "story_star": ("staff", _schema({**REVISION, "stars": STARS})),
     "reviews_list": ("staff", _schema({"subjectType": S, "subjectId": S}, {"state": S, "mode": S, "limit": LIMIT, "nextToken": S})),
     "review_get": ("staff", _schema({"id": S})),
-    "review_answer": ("staff", _schema({"id": S, "decision": S}, {"feedback": S, "steer": S})),
+    "review_answer": ("staff", _schema({"id": S, "expectedRevision": S, "decision": S}, {"feedback": S, "steer": S})),
     "story_publish": ("staff", _schema(VERSION)),
     "reader_comment": ("reader", _schema({"subject": S, "body": S}, {"parent": S, "ratingContext": {"type": "object"}})),
     "reader_submit": ("reader", _schema({"url": S, "title": S}, {"kind": S, "note": S})),
@@ -130,7 +130,7 @@ def call_tool(principal: Principal, name: str, arguments: dict, *, staff: Any,
 class StaffReads:
     """Read through the same scoped GraphQL client used by the operator library."""
 
-    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list"})
+    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list", "review_answer"})
 
     def __init__(self, client: Any):
         self.client = client
@@ -333,6 +333,44 @@ class StaffReads:
         if not row:
             raise ValueError("Review not found.")
         return {"review": self._scope_review(principal, row)}
+
+    def review_answer(self, principal: Principal, *, id: str, expectedRevision: str, decision: str,
+                      feedback: str | None = None, steer: str | None = None) -> dict:
+        if getattr(self.client, "tenant_id", None):
+            raise PermissionError("Reviews lack a tenant ownership key.")
+        from .review_requests import answer_review
+        from .operator_errors import GraphQLRequestError
+        client = self.client
+
+        class ConditionalReviewClient:
+            def get_record(self, model: str, record_id: str):
+                return client.get_record(model, record_id)
+
+            def update_record(self, model: str, payload: dict):
+                if model != "ReviewRequest" or payload.get("id") != id:
+                    raise ValueError("Unexpected review update.")
+                operation = """mutation ConditionalReview($input: UpdateReviewRequestInput!, $condition: ModelReviewRequestConditionInput) {
+                  updateReviewRequest(input: $input, condition: $condition) { id }
+                }"""
+                try:
+                    result = client.graphql(operation, {"input": payload, "condition": {
+                        "state": {"eq": "open"}, "updatedAt": {"eq": expectedRevision}}})
+                except GraphQLRequestError as error:
+                    if "ConditionalCheckFailed" in str(error):
+                        raise ValueError("stale_revision: The review changed.") from error
+                    raise
+                if not result.get("updateReviewRequest"):
+                    raise ValueError("stale_revision: The review changed.")
+
+        row = client.get_record("ReviewRequest", id)
+        if not row or row.get("state") != "open" or row.get("updatedAt") != expectedRevision:
+            raise ValueError("stale_revision: The review changed.")
+        self._scope_review(principal, row)
+        from .publish_gate import RAISED_BY as PUBLISH_GATE_RAISER
+        if row.get("raisedBy") == PUBLISH_GATE_RAISER:
+            raise PermissionError("Publish approval requires a person.")
+        result = answer_review(ConditionalReviewClient(), id, decision=decision, by=f"agent:{principal.subject}", feedback=feedback, steer=steer, roles=["editor"])
+        return {"review": {key: result[key] for key in ("id", "subject", "mode", "reason", "ask", "raisedBy", "raisedAt", "deadline", "state", "answer", "updatedAt", "outcome")}}
 
     def reviews_list(self, principal: Principal, *, subjectType: str, subjectId: str, state: str | None = None, mode: str | None = None, limit: int = 20, nextToken: str | None = None) -> dict:
         if getattr(self.client, "tenant_id", None):
