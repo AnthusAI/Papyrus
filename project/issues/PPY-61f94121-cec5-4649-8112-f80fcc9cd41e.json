@@ -1,0 +1,20 @@
+{
+  "id": "PPY-61f94121-cec5-4649-8112-f80fcc9cd41e",
+  "title": "Reference lists load more as the reader scrolls, with no fixed cap",
+  "description": "Ryan, 2026-11-04, relayed by the Machines on Machines session: 'I would like it to use the lazy-loading, infinite-scroll pattern rather than the UI using pagination. The API still needs to use pagination but the UX can be infinite-scrolling.' That site's Findings page renders 51 accepted and 500 suggested cards in one page through count=500, and 500 is a cap that may hide more. Shape: paged data files for lists, the first page in the HTML so it works without JavaScript and for crawlers, more loaded on scroll, the shared ranking order respected, the fixed cap removed. Open questions: how a site opts in, and how a site's own card drawing applies to items loaded later, since that site redraws stock tiles in a build-time hook and a browser-side renderer needs a way to use them. Screenshots at phone and desktop width before release. Ends with a p.apyr.us docs task.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T01:16:13.278520Z",
+  "updated_at": "2026-11-05T01:16:13.278899Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
