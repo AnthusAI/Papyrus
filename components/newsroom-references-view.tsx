@@ -96,9 +96,8 @@ export type ReferenceReviewOptions = {
 };
 type PredictionState = "loading" | "ready" | "error";
 import type { DelegatedCuration, ShadowAgreement } from "../lib/cyclotron-suggestions";
-import type { PrimingFormInput } from "./reference-cyclotron-priming";
+import type { AddReferenceInput, AddReferenceOutcome } from "../lib/add-reference";
 import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyclotron-status";
-import type { PrimingRequestView } from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
 import { awaitsEditorReview, type RelevanceCuration, type RelevanceDecisionView } from "../lib/relevance-decisions";
 
@@ -107,12 +106,8 @@ type NewsroomReferencesViewProps = {
   priming?: PrimingPanelProps;
   /** The relevance cyclotron's status snapshot, shown above the list. */
   cyclotronStatus?: CyclotronStatus | null;
-  /** Present for editors who may prime the running relevance cyclotron with a pasted URL. */
-  cyclotronPriming?: {
-    labels: readonly string[];
-    requests: PrimingRequestView[];
-    onRequest: (input: PrimingFormInput) => Promise<void> | void;
-  };
+  /** Present for editors who may add a Reference from a pasted address, optionally accepting and rating it there. */
+  onAddReference?: (input: AddReferenceInput) => Promise<AddReferenceOutcome>;
   /** Present for editors who may ask for a manual review rate. */
   onRequestReviewRate?: (choice: ReviewRateChoice) => Promise<void> | void;
   demo?: boolean;
@@ -430,7 +425,7 @@ function ReferenceDetailPanel({
 export function NewsroomReferencesView({
   priming,
   cyclotronStatus,
-  cyclotronPriming,
+  onAddReference,
   decisions: liveDecisions,
   humanCuratedReferenceLineageIds,
   delegatedCurations,
@@ -927,9 +922,7 @@ export function NewsroomReferencesView({
           importOptions={disabled ? null : priming ?? sessionImport?.panel}
           key={sessionImport?.sessionKey ?? "no-session"}
           onImported={() => setImportedCount((count) => count + 1)}
-          url={cyclotronPriming && !disabled
-            ? { labels: cyclotronPriming.labels, onRequest: cyclotronPriming.onRequest, requests: cyclotronPriming.requests }
-            : null}
+          url={onAddReference && !disabled ? { onAdd: onAddReference } : null}
         />
         <ReferenceCurationControls disabled={disabled} refreshSignal={importedCount} />
         {cyclotronStatus ? (

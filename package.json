@@ -75,6 +75,7 @@
     "test:relevance-status-ui": "tsx scripts/test-relevance-status-ui.ts",
     "test:reference-import-refresh": "tsx scripts/test-reference-import-refresh.ts",
     "test:reference-add-entry": "tsx scripts/test-reference-add-entry.ts",
+    "test:add-reference": "node --import tsx --test scripts/test-add-reference.ts && cucumber-js --profile addReference && poetry run behave features_backend/reference-intake.feature && poetry run pytest -q procedures/newsroom/tests/test_reference_intake.py",
     "test:relevance-priming-ui": "tsx scripts/test-relevance-priming-ui.ts",
     "test:reference-rating-buttons": "node --import tsx --test scripts/test-reference-rating-buttons.ts",
     "test:priming-proof-page": "tsx scripts/test-priming-proof-page.ts",
