@@ -1,9 +1,10 @@
-"""Every Markdown-serving path emits the Markus source as written (PPY-b2e95d).
+"""Every Markdown-serving path emits the Markus source as written (PPY-b2e95d), except the page templates (PPY-0db38f).
 
-One test per path of the audit table in docs/agent-readable-sites.md. The directives are the ones that a plain-Markdown
-conversion would lose: an ``::image{...}`` line with all its attributes, and the page blocks (``::band``, ``::column``,
-``::button``, ``::island`` with its ``summary``). The image pipeline needs renditions the fixtures do not have, so the
-image checks run on the twin builders; the page-block checks run through a whole projection.
+One test per path of the audit table in docs/agent-readable-sites.md. The directive an article twin must keep is the one a
+plain-Markdown conversion would lose: an ``::image{...}`` line with all its attributes. The image pipeline needs renditions
+the fixtures do not have, so the image checks run on the twin builders. The page blocks (``::band``, ``::column``,
+``::button``, ``::island`` with its ``summary``) are a template for a page file, not content: the twin of an authored page
+or of the home page says what they show, and the checks run through a whole projection.
 """
 
 from __future__ import annotations
@@ -27,11 +28,11 @@ BLOCKS = (
     '::column{panel="card"}\n'
     '::island{name="Chart" height="20rem" kind="bar" summary="A bar chart of accuracy by model: 2B leads."}\n'
 )
-ASSERTED_BLOCKS = (
-    '::band{id="top" tone="card"}',
-    '::button{href="/start/" label="Start" size="lg"}',
-    '::column{panel="card"}',
-    'summary="A bar chart of accuracy by model: 2B leads."',
+SHOWN_BY_BLOCKS = (
+    "# Decision models",
+    "A model *decides*.",
+    "[Start](https://example.org/start/)",
+    "A bar chart of accuracy by model: 2B leads.",
 )
 ENTRY = SimpleNamespace(title="Wide", authors=("Ada",), author_details=(Author("Ada"),), date="2026-10-01", updated="", summary_text="A summary.")
 
@@ -50,9 +51,11 @@ def projected():
     site.cleanup()
 
 
-def has_blocks(text: str) -> None:
-    for line in ASSERTED_BLOCKS:
+def shows_the_page(text: str) -> None:
+    """The twin says what the page shows and carries none of its page directives."""
+    for line in SHOWN_BY_BLOCKS:
         assert line in text, f"{line!r} missing from:\n{text}"
+    assert not re.search(r"^::(band|column|button|island|include)", text, re.M), text
 
 
 # 1. Standard front end .md twins: items, authored pages, listings, tags, home.
@@ -63,13 +66,13 @@ def test_item_twin_keeps_the_image_directive_and_drops_only_the_front_matter():
     assert IMAGE in twin and "![A wide chart]" not in twin and "title: Wide" not in twin
 
 
-def test_authored_page_twin_keeps_its_page_blocks(projected):
-    has_blocks(projected.text("topics/models/index.md"))
+def test_authored_page_twin_says_what_its_page_blocks_show(projected):
+    shows_the_page(projected.text("topics/models/index.md"))
 
 
-def test_home_twin_keeps_the_page_blocks_without_a_second_title(projected):
+def test_home_twin_says_what_its_page_blocks_show_without_a_second_title(projected):
     twin = projected.text("index.md")
-    has_blocks(twin)
+    shows_the_page(twin)
     assert twin.count("# Decision models") == 1 and "# Home" not in twin
 
 
@@ -101,8 +104,8 @@ def test_llms_txt_links_to_the_twins(projected):
     assert "(https://example.org/topics/models/index.md)" in llms and "(https://example.org/hello.md)" in llms
 
 
-def test_llms_full_carries_page_blocks_as_written(projected):
-    has_blocks(projected.text("llms-full.txt"))
+def test_llms_full_carries_what_the_page_blocks_show(projected):
+    shows_the_page(projected.text("llms-full.txt"))
 
 
 def test_llms_full_carries_the_image_directive():

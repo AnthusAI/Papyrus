@@ -63,11 +63,14 @@ Feature: A page places Reference cards from the home-page snapshot with ::includ
     Then "mixed/index.html" shows these in document order: "Fungi Underground", "A Closer Look at Moss", "Two recent", "Ferns in Winter", "Two confident"
     And the "confident" grid on "mixed/index.html" lists "Accepted two", "Accepted four"
 
-  Scenario: The Markdown twin keeps the references include line as written
+  Scenario: The Markdown twin lists the References the page shows, as titles and links, and keeps no include line
     Given the home-page fixture site is projected
-    Then "front/index.md" contains the line '::include{kind="references" select="recent" count="3" heading="Recently accepted" more="/tools/"}'
-    And "front/index.md" contains the line '::include{kind="references" select="confident" count="3" heading="Most confident"}'
-    And "front/index.md" contains the line '::include{kind="references" select="recommended" count="2" heading="Recommended by Cyclotron"}'
+    Then "front/index.md" contains the line '## Recently accepted'
+    And "front/index.md" contains the line '- [Accepted eight](https://www.example.org/posts/8)'
+    And "front/index.md" contains the line '## Most confident'
+    And "front/index.md" contains the line '## Recommended by Cyclotron'
+    And "front/index.md" does not contain "::include"
+    And "front/index.md" does not contain "::band"
     And "front/index.md" does not contain "home-page-tile"
 
   Scenario: A references include on a site without homePage configured fails the build naming the file
@@ -78,7 +81,8 @@ Feature: A page places Reference cards from the home-page snapshot with ::includ
     Given the home-page fixture site is projected with an empty snapshot
     Then "front/index.html" has no Reference grid
     And "tools/index.html" shows the text "Nothing here yet."
-    And "front/index.md" contains the line '::include{kind="references" select="recent" count="3" heading="Recently accepted" more="/tools/"}'
+    And "front/index.md" does not contain "::include"
+    And "tools/index.md" contains the line 'Nothing here yet.'
 
   Scenario: A site that has not written a snapshot yet renders no grid and the page still builds
     Given the home-page fixture site is projected with no snapshot file

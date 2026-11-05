@@ -247,9 +247,6 @@ PAGE = "\n".join([
     '::include{kind="block" name="knowledge-entity" key="acme-loom" part="related"}',
     "",
 ])
-BLOCK_NAMES = ("knowledge-topic-count", "knowledge-trending-strip", "knowledge-trending-list", "knowledge-clusters", "knowledge-concept-of-the-week", "knowledge-entity")
-
-
 class KnowledgeSite(DirectorySite):
     """A directory site whose output directory already holds the snapshot, as after ``papyrus knowledge snapshot``."""
 
@@ -288,13 +285,13 @@ def test_a_page_uses_every_block_from_fixture_data(site):
     assert "<script" not in re.search(r"<main.*?</main>", page, re.S).group(0).replace('<script src', '')
 
 
-def test_the_markdown_twin_keeps_the_knowledge_include_source(site):
+def test_the_markdown_twin_of_a_page_lists_what_its_knowledge_blocks_show(site):
     project_all(site.context())
     twin = site.text("knowledge/index.md")
-    for name in BLOCK_NAMES:
-        assert f'name="{name}"' in twin
-    assert '::include{kind="block" name="knowledge-trending-strip" limit=5}' in twin
-    assert "<svg" not in twin and "papyrus-knowledge" not in twin
+    assert "::include" not in twin and "<svg" not in twin and "papyrus-knowledge" not in twin and "(#" not in twin
+    assert "\n7\n" in twin                                                       # the topic count
+    assert "- [Acme Loom](https://example.org/wiki/acme-loom/)" in twin or "- [MakerAcme Loom](https://example.org/wiki/acme-loom/)" in twin
+    assert "- [Wearable looms](https://example.org/topics/wearable-looms/)" in twin
 
 
 def test_concept_directives_render_from_the_index_in_a_static_item_and_keep_their_source_in_the_twin(site):
