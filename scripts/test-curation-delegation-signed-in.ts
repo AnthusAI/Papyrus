@@ -67,6 +67,8 @@ async function makeBackend(options: { cliClientId?: string | null } = {}) {
     payloads.set(payloadKey(owner.ownerKind, owner.ownerId, role, payloadKind), clone(value));
   };
   const modules: Record<string, unknown> = {
+    // setItemStars asks content-actions to refresh listings; nothing here reads the answer.
+    "@aws-sdk/client-lambda": { LambdaClient: class { async send() { return {}; } }, InvokeCommand: class { constructor(readonly input: unknown) {} } },
     "node:crypto": crypto,
     "@aws-amplify/backend/function/runtime": { getAmplifyDataClientConfig: async () => ({ resourceConfig: {}, libraryOptions: {} }) },
     "aws-amplify": { Amplify: { configure: () => undefined } },
@@ -80,7 +82,7 @@ async function makeBackend(options: { cliClientId?: string | null } = {}) {
   const bundle = await build({
     absWorkingDir: root, entryPoints: ["amplify/functions/category-action/handler.ts"],
     bundle: true, write: false, platform: "node", format: "cjs", logLevel: "silent",
-    external: ["@aws-amplify/backend/function/runtime", "aws-amplify", "aws-amplify/data"],
+    external: ["@aws-amplify/backend/function/runtime", "aws-amplify", "aws-amplify/data", "@aws-sdk/client-lambda"],
     plugins: [{ name: "offline-payload-storage", setup(builder) {
       builder.onResolve({ filter: /\/shared\/model-payloads$/ }, () => ({ path: "fixture:model-payloads", external: true }));
     } }],
