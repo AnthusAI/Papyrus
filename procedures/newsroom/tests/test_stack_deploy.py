@@ -271,6 +271,27 @@ def test_a_first_create_uses_a_create_change_set_and_leaves_changes_sets_it_does
     assert cloud.deleted == ["papyrus-release-old-1-1"]  # ours, unexecuted; the other two are left alone
 
 
+def test_a_first_create_keeps_waiting_after_its_change_set_disappears(tmp_path):
+    """CloudFormation removed the change set of the operator stack's first create while it ran (the 2026-11-04 release)."""
+    class Vanishing(FakeCloud):
+        def describe_change_set(self, stack, name):
+            if self.executed:
+                if len(self.script) > 1:
+                    self.script.pop(0)
+                raise sd.AwsError(f"An error occurred (ChangeSetNotFound) when calling the DescribeChangeSet operation: ChangeSet [{name}] does not exist")
+            return super().describe_change_set(stack, name)
+
+    cloud = Vanishing(stack_status="REVIEW_IN_PROGRESS", params=CURRENT, changes=[change("Id", "Add")],
+                      script=[("CREATE_IN_PROGRESS", ""), ("CREATE_IN_PROGRESS", ""), ("CREATE_COMPLETE", "")])
+    assert sd.deploy_stack(make(tmp_path, cloud), CFG) == "deployed"
+    assert cloud.slept >= 2
+
+    failed = Vanishing(stack_status="REVIEW_IN_PROGRESS", params=CURRENT, changes=[change("Id", "Add")],
+                       script=[("CREATE_IN_PROGRESS", ""), ("ROLLBACK_COMPLETE", "")])
+    with pytest.raises(sd.Failed):
+        sd.deploy_stack(make(tmp_path, failed), CFG)
+
+
 # --- scope and the repo's wiring ----------------------------------------------------------------------------------------------------
 
 
