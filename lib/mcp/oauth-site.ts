@@ -7,16 +7,16 @@ import { resolveNewsroomChatIdentity } from "../newsroom-chat-identity";
 import { loadProspectusSessionSealingSecret, signedInProspectusSession } from "../prospectus-session";
 import { readerSubject } from "../reader-subject";
 import { mcpOAuthClients } from "./oauth-clients";
-import { createOAuthHttp } from "./oauth-http";
+import { createOAuthHttp, oauthMetadata } from "./oauth-http";
 import { invokeMcpOAuth, mcpOAuthConfig } from "./oauth-runtime";
 
 /** Configuration is operator-provided; never use Host or client parameters as the issuer. */
 export async function siteOAuth() {
   const config = mcpOAuthConfig();
-  const secret = await loadProspectusSessionSealingSecret();
-  if (!config || !secret) return null;
   const clients = mcpOAuthClients();
-  if (!clients) return null;
+  if (!config || !clients) return null;
+  const secret = await loadProspectusSessionSealingSecret();
+  if (!secret) throw new Error("Consent secret unavailable");
   return createOAuthHttp({
     origin: config.origin, secret, clients, readerSignInAvailable: process.env.PAPYRUS_SITE_ORIGIN === config.origin,
     invoke: request => invokeMcpOAuth(request),
@@ -53,7 +53,20 @@ export async function siteOAuth() {
 }
 
 type HandlerName = "resource" | "metadata" | "authorize" | "consent" | "token" | "revoke";
-export async function oauthRoute(name: HandlerName, request: Request) {
-  try { const service = await siteOAuth(); return service ? service[name](request) : new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } }); }
-  catch { return new Response(null, { status: 503, headers: { "Cache-Control": "no-store" } }); }
+export async function oauthRoute(name: HandlerName, request: Request, dependencies: {
+  config?: typeof mcpOAuthConfig;
+  clients?: typeof mcpOAuthClients;
+  service?: typeof siteOAuth;
+} = {}) {
+  try {
+    const config = (dependencies.config ?? mcpOAuthConfig)();
+    if (!config || !(dependencies.clients ?? mcpOAuthClients)()) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+    if (name === "metadata" || name === "resource") return oauthMetadata(config.origin, name);
+    const service = await (dependencies.service ?? siteOAuth)();
+    if (!service) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
+    return service[name](request);
+  } catch {
+    if (name === "consent" || name === "authorize") return new Response("<!doctype html><html><head><title>Authorization unavailable</title></head><body><main><h1>Authorization unavailable</h1><p>Try again later or contact the site administrator, then restart authorization from your client.</p></main></body></html>", { status: 503, headers: { "Cache-Control": "no-store", "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" } });
+    return new Response(null, { status: 503, headers: { "Cache-Control": "no-store" } });
+  }
 }

@@ -166,3 +166,27 @@ def step(context):
 def step(context):
     refused(lambda: issue(context))
     assert not context.store.rows
+
+
+@given("a client holds a grant backed by a one-hour browser session")
+def step(context):
+    setup(context)
+    context.deadline = context.now + 3600
+    context.tokens = exchange(context, issue(context, expiry=context.deadline))
+    context.initial_access = context.tokens["access_token"]
+
+@when("access expires and the client refreshes it until that session expires")
+def step(context):
+    context.now += 900
+    assert context.grants.verify(context.initial_access, resource=context.args["resource"]) is None
+    for now in (1900, 2800, 3700, 4599):
+        context.now = now
+        context.tokens = context.grants.refresh(context.tokens["refresh_token"], client=context.args["client"], resource=context.args["resource"])
+        assert context.grants.verify(context.tokens["access_token"], resource=context.args["resource"]) == context.person
+
+@then("access works after rotation but no refresh extends the original deadline")
+def step(context):
+    assert context.tokens["expires_in"] == 1
+    context.now = context.deadline
+    assert context.grants.verify(context.tokens["access_token"], resource=context.args["resource"]) is None
+    refused(lambda: context.grants.refresh(context.tokens["refresh_token"], client=context.args["client"], resource=context.args["resource"]))

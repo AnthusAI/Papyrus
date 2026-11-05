@@ -47,3 +47,8 @@ Feature: Site-bound authorization for hosted MCP
     Given an authenticated newsroom staff member
     When the member's ID credential is absent
     Then no staff grant is issued
+
+  Scenario: Access rotates only until the browser authorization expires
+    Given a client holds a grant backed by a one-hour browser session
+    When access expires and the client refreshes it until that session expires
+    Then access works after rotation but no refresh extends the original deadline

@@ -27,3 +27,13 @@ Feature: Authorize an MCP client
     Given an MCP site with a configured public client
     When a signed-out reader attempts to approve the client
     Then the reader can sign in and return to the pending consent
+
+  Scenario: Discovery survives a consent configuration outage
+    Given an MCP site with a configured public client
+    When the consent sealing secret is unavailable
+    Then metadata remains discoverable and consent reports how to recover
+
+  Scenario: Authorization responses identify their issuer
+    Given an MCP site with a configured public client
+    When a person approves or denies a client request with state
+    Then the redirect carries the configured issuer and the original state

@@ -30,14 +30,20 @@ const form = async (request: Request) => {
 const readCookie = (request: Request) => request.headers.get("cookie")?.split(";").map(x => x.trim()).find(x => x.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1);
 
 
+export function oauthMetadata(origin: string, name: "resource" | "metadata") {
+  const resource = `${origin}/api/mcp`;
+  return name === "resource"
+    ? json({ resource, authorization_servers: [origin], bearer_methods_supported: ["header"] })
+    : json({ issuer: origin, authorization_endpoint: `${origin}/api/mcp/oauth/authorize`, token_endpoint: `${origin}/api/mcp/oauth/token`, revocation_endpoint: `${origin}/api/mcp/oauth/revoke`, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], token_endpoint_auth_methods_supported: ["none"], code_challenge_methods_supported: ["S256"], authorization_response_iss_parameter_supported: true });
+}
+
 export function createOAuthHttp(options: Options) {
   const { origin, clients, secret, invoke, identity } = options;
   const resource = `${origin}/api/mcp`;
   const registered = (client: string, redirect: string) => Object.hasOwn(clients, client) && safeMcpRedirect(redirect) && clients[client].includes(redirect);
-  const authorization = `${origin}/api/mcp/oauth/authorize`;
   return {
-    resource: async () => json({ resource, authorization_servers: [origin], bearer_methods_supported: ["header"] }),
-    metadata: async () => json({ issuer: origin, authorization_endpoint: authorization, token_endpoint: `${origin}/api/mcp/oauth/token`, revocation_endpoint: `${origin}/api/mcp/oauth/revoke`, response_types_supported: ["code"], grant_types_supported: ["authorization_code", "refresh_token"], token_endpoint_auth_methods_supported: ["none"], code_challenge_methods_supported: ["S256"] }),
+    resource: async () => oauthMetadata(origin, "resource"),
+    metadata: async () => oauthMetadata(origin, "metadata"),
     authorize: async (request: Request) => {
       const params = new URL(request.url).searchParams;
       if ([...params.keys()].some(key => params.getAll(key).length !== 1)) return failure(400, "invalid_request");
@@ -50,7 +56,7 @@ export function createOAuthHttp(options: Options) {
     },
     consent: async (request: Request) => {
       const tx = openProspectusCookie<Transaction>(secret, cookieName, readCookie(request));
-      if (!tx || !registered(tx.client, tx.redirect) || tx.resource !== resource) return failure(400, "invalid_request");
+      if (!tx || !registered(tx.client, tx.redirect) || tx.resource !== resource) return new Response("<!doctype html><html><head><title>Authorization expired</title></head><body><main><h1>Authorization expired</h1><p>Return to your client and start authorization again.</p></main></body></html>", { status: 400, headers: { ...noStore, "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" } });
       if (request.method === "GET") {
         const html = `<!doctype html><html><head><meta charset="utf-8"><title>Authorize client</title></head><body><main><h1>Authorize client</h1><p>Allow ${escapeHtml(tx.client)} to access this publication as you?</p><p>Return address: ${escapeHtml(tx.redirect)}</p><form method="post"><input type="hidden" name="csrf" value="${escapeHtml(tx.csrf)}"><label><input type="radio" name="identity" value="staff" required> Staff</label><label><input type="radio" name="identity" value="reader" required> Reader</label><button name="decision" value="allow">Allow</button><button name="decision" value="deny">Deny</button></form></main></body></html>`;
         return new Response(html, { headers: { ...noStore, "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'", "Referrer-Policy": "no-referrer" } });
@@ -61,6 +67,8 @@ export function createOAuthHttp(options: Options) {
       const a = Buffer.from(csrf), b = Buffer.from(tx.csrf);
       if (a.length !== b.length || !timingSafeEqual(a, b) || !["allow", "deny"].includes(params?.get("decision") ?? "")) return failure(403, "invalid_request");
       const target = new URL(tx.redirect);
+      target.searchParams.delete("code"); target.searchParams.delete("error"); target.searchParams.delete("state");
+      target.searchParams.set("iss", origin);
       if (tx.state) target.searchParams.set("state", tx.state);
       if (params?.get("decision") === "deny") target.searchParams.set("error", "access_denied");
       else {

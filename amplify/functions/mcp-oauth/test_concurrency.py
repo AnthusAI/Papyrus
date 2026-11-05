@@ -75,3 +75,27 @@ def test_consent_transaction_is_single_use_and_retained():
     except g.InvalidGrant:
         return
     assert False, 'transaction replay issued another code'
+
+
+def test_access_rotates_until_original_upstream_expiry():
+    now = [1000]
+    grants = g.Grants(Store(), 'https://cms.example', clock=lambda: now[0])
+    args = dict(client='client', redirect='https://client.example/cb', resource='https://cms.example/api/mcp')
+    person = {'kind': 'staff', 'subject': 's', 'accessToken': 't', 'idToken': 'i'}
+    code = grants.issue_code(**args, challenge=g.pkce('v' * 43), principal=person, upstream_expiry=4600, transaction_id=g.token())
+    tokens = grants.exchange(code, **args, verifier='v' * 43)
+    first = tokens['access_token']
+    assert tokens['expires_in'] == 900
+    for moment in (1900, 2800, 3700, 4599):
+        now[0] = moment
+        if moment == 1900: assert grants.verify(first, resource=args['resource']) is None
+        tokens = grants.refresh(tokens['refresh_token'], client=args['client'], resource=args['resource'])
+        assert grants.verify(tokens['access_token'], resource=args['resource']) == person
+    assert tokens['expires_in'] == 1
+    now[0] = 4600
+    assert grants.verify(tokens['access_token'], resource=args['resource']) is None
+    try:
+        grants.refresh(tokens['refresh_token'], client=args['client'], resource=args['resource'])
+    except g.InvalidGrant:
+        return
+    assert False, 'refresh extended the upstream deadline'
