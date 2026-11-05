@@ -65,6 +65,7 @@ jobs:
           npx tsx scripts/test-mcp-oauth-runtime.ts
           npx cucumber-js --profile mcpCards
           npx cucumber-js --profile mcpTransport
+          npx cucumber-js --profile mcpOAuth
       - run: npm test
 
   python:

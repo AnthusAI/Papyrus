@@ -17,3 +17,9 @@ Feature: Optional MCP App cards
   Scenario: A client does not support apps
     Given a host that cannot display an app
     Then the tool retains its text and structured result
+
+  Scenario: A staff member answers an open review from a Story
+    Given a host with a Story and open reviews
+    When the staff member answers a review that has changed
+    Then the card refreshes the review before allowing another answer
+    And publish gates and reviews without a revision have no answer controls

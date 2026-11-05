@@ -50,6 +50,50 @@ async function main() {
     assert.deepEqual(decision.params.arguments,{lineageId:'r1',expectedCurrentVersionId:'v1',expectedRevision:'3',decision:'accept'});
     assert.ok(calls.some((x: any) => x.params?.name === 'reference_get'));
     assert.doesNotMatch(JSON.stringify(calls), /Bearer|authorization/i);
+    const storyHtml = readMcpAppResource(listMcpAppResources()[1].uri).contents[0].text;
+    const reviewPage = await browser.newPage();
+    reviewPage.setDefaultTimeout(5000);
+    reviewPage.on("pageerror", error => console.error(error));
+    await reviewPage.setContent('<iframe title="review card"></iframe>');
+    await reviewPage.evaluate(() => { (window as any).__name = (value: unknown) => value; });
+    await reviewPage.evaluate((source) => {
+      const frame = document.querySelector('iframe')!; let revision = 'r1'; let answers = 0;
+      (window as any).calls = [];
+      window.addEventListener('message', event => {
+        const msg = event.data; (window as any).calls.push(msg);
+        const reply = (result: unknown) => frame.contentWindow!.postMessage({ jsonrpc:'2.0', id:msg.id, result }, '*');
+        if (msg.method === 'ui/initialize') reply({ protocolVersion:'2026-01-26', hostCapabilities:{}, hostInfo:{name:'fixture',version:'1'} });
+        if (msg.method === 'ui/notifications/initialized') {
+          frame.contentWindow!.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-input',params:{arguments:{lineageId:'s1'}}},'*');
+          frame.contentWindow!.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{structuredContent:{story:{id:'v1',lineageId:'s1',title:'Story'}},_meta:{papyrus:{availableTools:['reviews_list','review_answer']}}}},'*');
+        }
+        if (msg.method === 'tools/call' && msg.params.name === 'reviews_list') reply({structuredContent:{reviews: [
+          {id:'review-1',state:'open',raisedBy:'editor',mode:'soft_review',updatedAt:revision,reason:'Check'},
+          {id:'publish',state:'open',raisedBy:'publish-gate',mode:'hard_gate',updatedAt:'g1',reason:'Publish gate'},
+          {id:'missing',state:'open',raisedBy:'editor',mode:'soft_review',reason:'Missing revision'},
+        ]}});
+        if (msg.method === 'tools/call' && msg.params.name === 'review_answer') {
+          if (++answers === 1) { revision = 'r2'; reply({isError:true,structuredContent:{code:'stale_revision',message:'Changed'}}); }
+          else reply({structuredContent:{review:{id:'review-1',state:'answered'}}});
+        }
+      }); frame.srcdoc = source;
+    }, storyHtml);
+    const reviewFrame = reviewPage.frameLocator('iframe');
+    await reviewFrame.getByRole('button',{name:'Reviews'}).click();
+    await reviewFrame.getByRole('heading',{name:'Reviews'}).waitFor();
+    assert.equal(await reviewFrame.getByRole('button',{name:'Accept'}).count(), 1);
+    await reviewFrame.getByRole('button',{name:'Accept'}).click();
+    await reviewFrame.getByText(/This review changed/).waitFor();
+    await reviewFrame.getByLabel('Feedback (optional)').fill('Looks good');
+    await reviewFrame.getByRole('button',{name:'Accept'}).click();
+    await reviewFrame.getByText('Saved.').waitFor();
+    const reviewCalls = await reviewPage.evaluate(() => (window as any).calls);
+    const answers = reviewCalls.filter((x: any) => x.params?.name === 'review_answer');
+    assert.deepEqual(answers.map((x: any) => x.params.arguments), [
+      {id:'review-1',expectedRevision:'r1',decision:'approve'},
+      {id:'review-1',expectedRevision:'r2',decision:'approve',feedback:'Looks good'},
+    ]);
+    await reviewPage.close();
   } finally { await browser.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

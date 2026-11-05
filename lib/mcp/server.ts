@@ -1,6 +1,6 @@
 import { mcpOAuthClients } from './oauth-clients';
 import { createMcpHandler, type McpTool, type McpToolResult } from './transport';
-import { invokeMcpOAuth, mcpOAuthConfig, type McpPrincipal } from './oauth-runtime';
+import { invokeMcpOAuth, mcpOAuthConfig } from './oauth-runtime';
 import { listMcpAppResources, readMcpAppResource, withMcpAppMetadata, withMcpAppResult } from './cards';
 import { readAmplifyOutputsFile } from '../amplify-outputs-path';
 
@@ -43,9 +43,8 @@ export function createSiteMcpHandler(options: Options = {}) {
       const principal = result.principal;
       if (principal === null) return null;
       if (principal.kind === 'reader') return { kind: 'reader', siteSubject: principal.siteSubject };
-      const raw = principal as unknown as Record<string, unknown>;
-      if (typeof raw.idToken !== 'string' || !raw.idToken) throw new Error('Invalid staff identity');
-      return { kind: 'staff', subject: principal.subject, idToken: raw.idToken };
+      if (!principal.idToken) throw new Error('Invalid staff identity');
+      return { kind: 'staff', subject: principal.subject, idToken: principal.idToken };
     },
     allowedOrigins: domain?.allowedOrigins,
     listTools: list,
