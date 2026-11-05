@@ -19,6 +19,18 @@ DEFAULT_THREAD_BASE = "conversations"
 DEFAULT_INDEX_PAGE_SIZE = 50
 
 
+DEFAULT_PAGE_SIZE = 48
+
+
+@dataclass(frozen=True)
+class PagingSettings:
+    """``homePage.references.paging``: a site opts in to Reference lists that load more as the reader scrolls (``::include{kind="references" paged="true"}``).
+
+    ``page_size`` is the typical number of Reference cards in one data file after the first page, which is the include's own ``count``."""
+
+    page_size: int = DEFAULT_PAGE_SIZE
+
+
 @dataclass(frozen=True)
 class ReferencesSettings:
     corpus: str | None = None
@@ -26,6 +38,7 @@ class ReferencesSettings:
     default_count: int = 6
     recommended_threshold: float = 0.5
     summary_characters: int = DEFAULT_SUMMARY_CHARACTERS
+    paging: PagingSettings | None = None
 
 
 @dataclass(frozen=True)
@@ -104,6 +117,17 @@ def _fields(value: Any) -> tuple[str, ...]:
     return tuple(name for name in PUBLIC_REFERENCE_FIELDS if name in value or name in ALWAYS_PUBLISHED_FIELDS)
 
 
+def _paging(value: Any) -> PagingSettings | None:
+    if value is None or value is False:
+        return None
+    if value is True:
+        return PagingSettings()
+    if not isinstance(value, Mapping):
+        raise ValueError("homePage.references.paging must be true, false or an object")
+    _only(value, ("pageSize",), "homePage.references.paging")
+    return PagingSettings(page_size=_whole_number(value.get("pageSize", DEFAULT_PAGE_SIZE), "homePage.references.paging.pageSize", 4))
+
+
 def _section_names(value: Any) -> tuple[str, ...] | None:
     if value is None:
         return None
@@ -142,7 +166,7 @@ def home_page_settings_from_mapping(raw: Any) -> HomePageSettings:
     if layout not in LAYOUTS:
         raise ValueError(f"homePage.layout must be one of {', '.join(LAYOUTS)}")
     references_raw = _section(raw, "references", "homePage")
-    _only(references_raw, ("corpus", "fields", "defaultCount", "recommendedThreshold"), "homePage.references")
+    _only(references_raw, ("corpus", "fields", "defaultCount", "recommendedThreshold", "paging"), "homePage.references")
     threads_raw = _section(raw, "threads", "homePage")
     _only(threads_raw, ("enabled", "authors", "anonymousLabel"), "homePage.threads")
     freshness_raw = _section(raw, "freshness", "homePage")
@@ -172,6 +196,7 @@ def home_page_settings_from_mapping(raw: Any) -> HomePageSettings:
             fields=_fields(references_raw.get("fields", "all")),
             default_count=_whole_number(references_raw.get("defaultCount", defaults.references.default_count), "homePage.references.defaultCount", 1),
             recommended_threshold=float(threshold),
+            paging=_paging(references_raw.get("paging")),
         ),
         threads=ThreadsSettings(
             enabled=_flag(threads_raw.get("enabled", defaults.threads.enabled), "homePage.threads.enabled"),

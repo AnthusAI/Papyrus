@@ -57,7 +57,7 @@ export async function livePendingRequests(store: DelegationStore, now: string): 
 
 export async function requestDelegation(
   store: DelegationStore,
-  input: { delegationId: string; tokenHash: string; agentLabel: string; hours: number | null | undefined },
+  input: { delegationId: string; tokenHash: string; agentLabel: string; hours: number | null | undefined; requestedBySub?: string | null },
   now: string,
 ) {
   if (!DELEGATION_ID_PATTERN.test(input.delegationId)) {
@@ -95,6 +95,8 @@ export async function requestDelegation(
     pendingExpiresAt,
     approvedAt: null,
     deniedAt: null,
+    // Which editor's CLI session asked, kept for the audit trail. The request itself grants nothing; a person approves it in the Newsroom.
+    requestedBySub: input.requestedBySub ?? null,
   }
   await store.write(delegation, now, true)
   return {

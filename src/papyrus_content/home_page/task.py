@@ -170,7 +170,10 @@ def run_home_page_snapshot(
         if readers is not None:
             from ..projection.engine import check_rewrite_selection
 
-            check_rewrite_selection(context, readers)  # the guard: abort before anything is written
+            # the guard: abort before anything is written. It renders what it checks, so the chunk files of paged lists (a render each, and as many as the
+            # list is long) are left out: they are rendered only when their own digest is stale, below.
+            list_keys = getattr(context.projector, "reference_list_keys", None)
+            check_rewrite_selection(context, readers - (list_keys() if list_keys is not None else frozenset()))
         with context.leased():
             current = previous_body if incremental else context.writer.get(key)
             pending = {name: content for name, content in {key: body, **thread_files}.items() if changed_without_generated_at(context.writer.get(name) if name != key else current, content)}
@@ -199,6 +202,9 @@ def run_home_page_snapshot(
             projected = _project_listings(context, readers)
             report["rewritten"] = list(projected.written)
             report["pagesRewritten"] = len(projected.written)
+            for name in _stale_list_files(context):   # the chunk files of a paged list that the cuts no longer make
+                context.writer.delete(name)
+                report["deleted"].append(name)
             if settings.freshness.purge and context.invalidate is not None:
                 report["purged"] = context.invalidate([*report["written"], *report["deleted"]])
             if projected.errors:
@@ -234,6 +240,17 @@ def _stale_thread_pages(context: Any, stale_files: list[str]) -> list[str]:
         thread_key = name.rsplit("/", 1)[-1].removesuffix(".json")
         found.extend(key for key in page_keys(thread_key) if context.writer.get(key) is not None)
     return sorted(found)
+
+
+def _stale_list_files(context: Any) -> list[str]:
+    """The stored files of paged Reference lists (``reference-lists/``) that the snapshot, as it is now, no longer has a chunk for. A projector without
+    paged lists owns none; with listing in the store it is one list request for the prefix, in proportion to the files and not to the Reference rows."""
+    expected_keys = getattr(context.projector, "reference_list_keys", None)
+    prefix = getattr(context.projector, "reference_list_prefix", None)
+    if expected_keys is None or prefix is None:
+        return []
+    expected = expected_keys()
+    return sorted(stored.key for stored in context.writer.list(prefix()) if stored.key not in expected)
 
 
 class ProjectorRefused(ValueError):

@@ -19,6 +19,8 @@ export type CurationDelegation = {
   pendingExpiresAt?: string | null
   approvedAt?: string | null
   deniedAt?: string | null
+  /** The editor whose signed-in CLI session asked for this delegation (null when an operator on AWS credentials did). */
+  requestedBySub?: string | null
 }
 
 export type DelegationState = "pending" | "approved" | "denied" | "expired" | "revoked"

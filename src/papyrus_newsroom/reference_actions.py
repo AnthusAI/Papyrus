@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from papyrus_content.reference_feed_keys import feed_state_key, medium_key_patch
+from papyrus_content.reference_stars import validated_stars
 from papyrus_content.reference_vote import AGENT, vote_fields
 
 
@@ -147,6 +148,24 @@ mutation RecordDelegatedCuration(
     reasonCode
     messageId
     relationId
+  }
+}
+"""
+
+
+RECORD_DELEGATED_STARS_MUTATION = """
+mutation RecordDelegatedStars(
+  $referenceId: ID!, $stars: Int, $delegationId: ID!, $delegationToken: String!, $agentLabel: String!,
+  $onBehalfOf: String!, $instruction: String!
+) {
+  recordDelegatedStars(
+    referenceId: $referenceId, stars: $stars, delegationId: $delegationId, delegationToken: $delegationToken,
+    agentLabel: $agentLabel, onBehalfOf: $onBehalfOf, instruction: $instruction
+  ) {
+    ok
+    referenceId
+    stars
+    status
   }
 }
 """
@@ -295,6 +314,37 @@ def record_delegated_curation(
             "note": _optional(note) or None,
             "reasonCode": _optional(reason_code) or None,
             "sectionId": _optional(section_id) or None,
+        },
+    )
+
+
+def record_delegated_stars(
+    graphql: GraphqlInvoker,
+    *,
+    reference_id: str,
+    stars: int | None,
+    delegation_token: str,
+    agent_label: str,
+    on_behalf_of: str,
+    instruction: str,
+) -> dict[str, Any]:
+    """Record a person's star rating (1 to 5, or None to clear it), relayed by an agent with the delegation the person granted.
+
+    The rules are ``setReferenceStars`` (``reference_stars``). The Reference's rating is filed as the person's rating relayed by the agent
+    under that delegation, never as the person's own direct one.
+    """
+    return _call(
+        graphql,
+        RECORD_DELEGATED_STARS_MUTATION,
+        "recordDelegatedStars",
+        {
+            "referenceId": _required(reference_id, "reference_id"),
+            "stars": validated_stars(stars),
+            "delegationId": delegation_id_from_token(_required(delegation_token, "delegation_token")),
+            "delegationToken": delegation_token,
+            "agentLabel": _required(agent_label, "agent_label"),
+            "onBehalfOf": _required(on_behalf_of, "on_behalf_of"),
+            "instruction": _required(instruction, "instruction"),
         },
     )
 

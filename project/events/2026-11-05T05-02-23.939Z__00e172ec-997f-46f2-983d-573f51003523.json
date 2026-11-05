@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "00e172ec-997f-46f2-983d-573f51003523",
+  "issue_id": "PPY-22095a57-7e66-4b96-a8a3-c893ae9e1fb4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T05:02:23.939Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document paged Reference lists on p.apyr.us",
+    "description": "Docs task for PPY-61f941 (Reference lists load more as the reader scrolls). The board does not allow a child under a story, so this is linked by id. Add the p.apyr.us docs page: how a site opts in (homePage.references.paging plus paged=\"true\" on the include), what count means, the data files, the no-script fallback, how a site's page_finish hook applies, freshness, and the twin. Content source: docs/home-page.md, section Paged Reference lists, in the PR for PPY-61f941. Write it after that PR merges.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
