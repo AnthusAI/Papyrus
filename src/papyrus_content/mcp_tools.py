@@ -137,7 +137,7 @@ from .mcp_story_writes import StaffStoryWrites
 class StaffReads(StaffStoryWrites):
     """Read through the same scoped GraphQL client used by the operator library."""
 
-    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list", "review_answer", "story_star", "story_save_draft"})
+    available_tools = frozenset({"story_get", "story_versions", "story_evidence", "story_search", "story_next", "reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "assignment_get", "assignments_list", "review_get", "reviews_list", "review_answer", "story_star", "story_save_draft"})
 
     def __init__(self, client: Any):
         self.client = client
@@ -200,7 +200,7 @@ class StaffReads(StaffStoryWrites):
         from .editorial_context import _check_tenant
         operation = """query StoryVersions($lineageId: ID!, $limit: Int!) {
           listItemsByLineageAndVersion(lineageId: $lineageId, limit: $limit) {
-            items { id lineageId versionNumber versionState versionCreatedAt versionCreatedBy changeReason updatedAt tenantId title headline type section stage status bodyMarkus starRating starRevision }
+            items { id lineageId versionNumber versionState versionCreatedAt versionCreatedBy changeReason updatedAt tenantId title headline type section stage status bodyMarkus metadata starRating starRevision }
             nextToken
           }
         }"""
@@ -290,13 +290,16 @@ class StaffReads(StaffStoryWrites):
         return {"stories": rows, "nextToken": page.get("nextToken")}
 
     def story_next(self, principal: Principal, *, lineageId: str) -> dict:
-        if getattr(self.client, "tenant_id", None):
-            raise PermissionError("Story procedure records lack a tenant ownership key.")
-        from .newsroom_process import assess, story_facts
-        from .editorial_commands import read_item_check_run
-        self.story_get(principal, lineageId=lineageId)
-        return {"procedure": assess(story_facts(self.client, lineageId,
-            read_check_run=lambda item_id: read_item_check_run(item_id, execute=self.client.graphql)))}
+        from .newsroom_process import _metadata_of, assess
+        rows = [row for row in self._story_versions(lineageId) if row.get("versionState") == "current"]
+        if len(rows) != 1:
+            raise ValueError("Story has no unambiguous current version.")
+        current = rows[0]
+        facts = {"lineage": lineageId, "stage": current.get("stage") or "idea", "versionId": current["id"],
+                 "versionNumber": int(current.get("versionNumber") or 1), "body": current.get("bodyMarkus") or "",
+                 "metadata": _metadata_of(current), "assignments": [], "assignmentsUnknown": True,
+                 "checkRun": None, "checkRunError": True}
+        return {"procedure": assess(facts)}
 
     def _assignment(self, row: dict) -> dict:
         return {key: row[key] for key in ("id", "itemLineageId", "title", "status", "assignmentTypeKey", "priority", "summary", "createdAt", "updatedAt") if key in row}

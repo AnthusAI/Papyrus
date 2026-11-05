@@ -389,3 +389,15 @@ def saved_draft_and_check(context):
     assert context.result["ok"] is True
     assert context.result["item"]["id"] == "story-v2"
     assert context.result["editorialCheck"]["notChecked"] == "Check unavailable"
+
+
+@when('the editor asks for the next Story procedure steps')
+def next_story_steps(context):
+    context.result = call_tool(context.principal, "story_next", {"lineageId": "story"}, staff=context.staff)
+
+
+@then('the direction and research steps are reported as unknown')
+def unknown_story_steps(context):
+    steps = {row["key"]: row["state"] for row in context.result["procedure"]["steps"]}
+    assert steps["direction"] == "unknown"
+    assert steps["research"] == "unknown"

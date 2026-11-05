@@ -101,3 +101,8 @@ Feature: Site tools preserve editorial and reader authority
     Given an editor connected to a site with the agent draft operation
     When the agent saves a new draft and its check is unavailable
     Then the tool reports both the saved draft and the check status
+
+  Scenario: A Story procedure does not mistake inaccessible assignments for missing work
+    Given an editor connected to a site with a rateable Story
+    When the editor asks for the next Story procedure steps
+    Then the direction and research steps are reported as unknown

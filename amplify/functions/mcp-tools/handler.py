@@ -79,7 +79,7 @@ def handler(event: dict, context: Any) -> dict:
             if os.environ.get("PAPYRUS_MCP_STORY_DRAFT_ENABLED") != "true":
                 available.discard("story_save_draft")
             if tenant:
-                available -= {"reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "story_evidence", "story_next", "assignments_list", "assignment_get", "reviews_list", "review_get", "review_answer"}
+                available -= {"reference_get", "reference_search", "reference_decide", "concept_get", "concept_search", "story_evidence", "assignments_list", "assignment_get", "reviews_list", "review_get", "review_answer"}
             elif os.environ.get("PAPYRUS_MCP_REFERENCE_SINGLE_TENANT") != "true":
                 available.discard("reference_decide")
             staff.available_tools = frozenset(available)
