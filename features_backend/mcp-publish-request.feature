@@ -30,3 +30,8 @@ Feature: Request human approval to publish a Story
     Given a site requires human publication approval
     When the current draft cannot be published at its placeholder address
     Then no approval request is created
+
+  Scenario: Bootstrap sites can omit the review models
+    Given a site excludes its review and editorial model groups
+    When the site configures Story publication requests
+    Then it omits the operation from discovery and direct requests fail closed

@@ -32,6 +32,7 @@ import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
 import { addMcpOAuth, planMcpOAuth } from "./mcp-oauth/resource";
 import { addMcpTools, mcpBrowserOptions, readerPublication } from "./mcp-tools/resource";
+import { storyPublicationRequestsAvailable, wireMcpStoryTables } from "./mcp-tools/story-availability";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
@@ -203,6 +204,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     publication: readerPublication((process.env.PAPYRUS_SITE_ORIGIN ?? "").trim()),
     reader: readerResource?.resources.lambda,
     referenceSingleTenant: (process.env.PAPYRUS_MCP_REFERENCE_SINGLE_TENANT ?? "").trim() === "true",
+    storyPublishRequests: storyPublicationRequestsAvailable(backend.data.resources.tables),
+    storyDrafts: Boolean(backend.data.resources.tables.Item),
   }) : undefined;
 
   const cliEnrollmentPlan = cliRemoteLoginPlan
@@ -477,14 +480,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   grantNewsroomReadWrite(backend.newsroomSummary.resources.lambda as LambdaFunction);
   const contentActionsLambda = backend.contentActions.resources.lambda as LambdaFunction;
   grantNewsroomReadWriteDelete(contentActionsLambda);
-  // Agent drafts commit the new and prior Item in one conditional transaction.
-  const itemTable = backend.data.resources.tables.Item;
-  contentActionsLambda.addEnvironment("PAPYRUS_ITEM_TABLE", itemTable.tableName);
-  const reviewTable = backend.data.resources.tables.ReviewRequest;
-  contentActionsLambda.addEnvironment("PAPYRUS_REVIEW_REQUEST_TABLE", reviewTable.tableName);
-  contentActionsLambda.addToRolePolicy(new PolicyStatement({ actions: ["dynamodb:ConditionCheckItem"], resources: [itemTable.tableArn], conditions: { "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] } } }));
-  contentActionsLambda.addToRolePolicy(new PolicyStatement({ actions: ["dynamodb:PutItem"], resources: [reviewTable.tableArn], conditions: { "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] } } }));
-  contentActionsLambda.addToRolePolicy(new PolicyStatement({ actions: ["dynamodb:PutItem", "dynamodb:UpdateItem"], resources: [itemTable.tableArn], conditions: { "ForAnyValue:StringEquals": { "dynamodb:EnclosingOperation": ["TransactWriteItems"] } } }));
+  // Missing optional model groups leave no corresponding DynamoDB table.
+  wireMcpStoryTables(contentActionsLambda, backend.data.resources.tables);
   // A backend whose editorial records (sections, doctrine, stories) carry a tenant (one copied with --stamp-tenant) is read and written as that tenant:
   // the editorial check refuses a record whose tenant differs from the Lambda's, so without this a story on such a backend cannot be created or edited.
   // Set PAPYRUS_TENANT_ID on the site's build (docs/multi-tenancy.md); a site with no tenant sets nothing and is unchanged.

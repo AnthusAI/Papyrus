@@ -116,3 +116,17 @@ def test_user_scoped_adapter_invokes_publish_request_mutation():
             return {"agentRequestStoryPublish": json.dumps({"status": "pending", "requestId": "rr-example", "versionId": "story-v1"})}
     adapter = StaffStoryWrites(); adapter.client = Graph()
     assert adapter.story_request_publish(object(), lineageId="story", expectedCurrentVersionId="story-v1")["requestId"] == "rr-example"
+
+
+def test_action_fails_closed_when_review_models_are_excluded(monkeypatch):
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[2] / "amplify/functions/content-actions/handler.py"
+    spec = importlib.util.spec_from_file_location("publish_excluded_handler", path)
+    handler = importlib.util.module_from_spec(spec); spec.loader.exec_module(handler)
+    monkeypatch.setenv("PAPYRUS_USER_POOL_ISSUER", "https://issuer.test")
+    monkeypatch.delenv("PAPYRUS_MCP_STORY_PUBLISH_REQUEST_ENABLED", raising=False)
+    client = setup(); db = Dynamo(client)
+    with pytest.raises(ValueError, match="unavailable"):
+        handler.agent_request_story_publish_action({"lineageId": "story", "expectedCurrentVersionId": "story-v1"}, {"issuer": "https://issuer.test", "sub": "user", "claims": {"cognito:groups": ["editor"]}}, client=client, dynamodb=db)
+    assert not db.calls

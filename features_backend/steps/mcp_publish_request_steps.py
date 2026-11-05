@@ -37,3 +37,26 @@ def step(context): pass
 
 @then("no approval request is created")
 def step(context): checks.test_invalid_publish_preflight_does_not_open_approval()
+
+@given("a site excludes its review and editorial model groups")
+def step(context): pass
+
+@when("the site configures Story publication requests")
+def step(context):
+    import subprocess
+    subprocess.run(["npx", "tsx", "scripts/test-mcp-story-availability.ts"], check=True, capture_output=True, text=True)
+
+@then("it omits the operation from discovery and direct requests fail closed")
+def step(context):
+    from unittest.mock import patch
+    from papyrus_content import mcp_publish_request_test as suite
+    class EnvPatch:
+        def setenv(self, key, value):
+            self.stack.enter_context(patch.dict("os.environ", {key: value}))
+        def delenv(self, key, raising=False):
+            import os
+            self.stack.enter_context(patch.dict("os.environ", {k: v for k, v in os.environ.items() if k != key}, clear=True))
+    from contextlib import ExitStack
+    with ExitStack() as stack:
+        helper = EnvPatch(); helper.stack = stack
+        suite.test_action_fails_closed_when_review_models_are_excluded(helper)

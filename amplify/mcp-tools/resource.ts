@@ -25,7 +25,7 @@ export function mcpBrowserOptions(env: Record<string, string | undefined>) {
 }
 
 /** Only the site's compute role can hand a verified principal to this function. */
-export function addMcpTools(stack: Stack, plan: McpOAuthPlan, options: { endpoint: string; tenant: string; publication: string; reader?: LambdaFunction; referenceSingleTenant?: boolean }, bundledCode?: Code) {
+export function addMcpTools(stack: Stack, plan: McpOAuthPlan, options: { endpoint: string; tenant: string; publication: string; reader?: LambdaFunction; referenceSingleTenant?: boolean; storyPublishRequests?: boolean; storyDrafts?: boolean }, bundledCode?: Code) {
   const code = bundledCode ?? pythonLambdaCode({ functionDir: 'mcp-tools', modules: ['papyrus_content'], checkoutExtras: outputDir => {
     const extra = (process.env.PAPYRUS_PIP_EXTRA_ARGS ?? '').trim().split(/\s+/).filter(Boolean);
     // Install the local project's declared runtime dependencies, preserving checkout source.
@@ -43,6 +43,8 @@ export function addMcpTools(stack: Stack, plan: McpOAuthPlan, options: { endpoin
       ...(options.tenant ? { PAPYRUS_TENANT_ID: options.tenant } : {}),
       ...(options.reader && options.publication ? { PAPYRUS_READER_STEERING_FUNCTION: options.reader.functionName, PAPYRUS_PUBLICATION_ID: options.publication } : {}),
       ...(options.referenceSingleTenant && !options.tenant ? { PAPYRUS_MCP_REFERENCE_SINGLE_TENANT: 'true' } : {}),
+      ...(options.storyPublishRequests && !options.tenant ? { PAPYRUS_MCP_STORY_PUBLISH_REQUEST_ENABLED: 'true' } : {}),
+      ...(options.storyDrafts ? { PAPYRUS_MCP_STORY_DRAFT_ENABLED: 'true' } : {}),
     },
   });
   fn.addPermission('SiteComputeInvoke', { principal: new ArnPrincipal(plan.invokerRoleArn), action: 'lambda:InvokeFunction' });

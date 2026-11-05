@@ -489,6 +489,8 @@ def _require_agent_staff(identity: dict) -> None:
 def agent_request_story_publish_action(arguments: dict, identity: dict, *, client=None, dynamodb=None) -> dict:
     from papyrus_content.mcp_publish_request import request_publish
     _require_agent_staff(identity)
+    if os.environ.get("PAPYRUS_MCP_STORY_PUBLISH_REQUEST_ENABLED") != "true":
+        raise ValueError("Publish requests are unavailable on this site.")
     lineage, expected = arguments.get("lineageId"), arguments.get("expectedCurrentVersionId")
     if not all(isinstance(value, str) and value.strip() for value in (lineage, expected)):
         raise ValueError("A Story and its expected current version are required.")
