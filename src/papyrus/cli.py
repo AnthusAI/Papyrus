@@ -145,6 +145,9 @@ def _map_references(command: str, flags: list[str]) -> int:
     if command == "capture-transcripts":
         from papyrus_content.references_transcripts import command as transcripts_command
         return transcripts_command(flags)
+    if command == "repair-titles":
+        from papyrus_content.references_titles import command as titles_command
+        return titles_command(flags)
     if command == "capture-thumbnails":
         from papyrus_content.references_thumbnails import command as thumbnails_command
         return thumbnails_command(flags)
