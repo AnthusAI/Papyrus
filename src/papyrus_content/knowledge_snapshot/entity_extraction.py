@@ -11,7 +11,7 @@
    pays only for what is new.
 3. ``build_output`` writes the file ``publish-run --entities`` reads: every mention of a real name is a ``proposed`` entity whose
    ``score`` is Jev's confidence that it is real, with the page answer beside it (``page_score``, ``page_answer``), and every mention
-   of a name the registry already holds is a ``resolved`` entity with its ``entity_key``. A name with a single mention outside the
+   of a name the registry already holds is a ``resolved`` entity with its ``entity_key``. A name in only one document outside the
    reference lists has page score 0 whatever Jev said: that is decided here in code, not asked in the prompt. Jev does not propose
    relations, so ``relations`` is empty.
 
@@ -384,7 +384,7 @@ def build_output(
 ) -> dict:
     """The file ``publish-run --entities`` reads. Mentions of names Jev has not answered for are left out, and so are names it does not
     call real. Each proposed entity carries the page answer: Jev's probability that the name deserves a page of its own and whether
-    that is a yes, both 0 for a name with a single mention outside the reference lists (decided here, not asked in the prompt)."""
+    that is a yes, both 0 for a name in only one document outside the reference lists (decided here, not asked in the prompt)."""
     by_item: dict[str, list[tuple[int, int, str, str, float, str | None, float | None]]] = defaultdict(list)
     for item_id, text in documents.items():
         for start, end, written, key, kind in matcher.find(text):
@@ -393,7 +393,7 @@ def build_output(
     for key, decision in decisions.items():
         if decision["real"] < FILED_AT or matcher.knows(candidates[key]["name"]):
             continue
-        page = 0.0 if len(candidates[key]["mentions"]) == 1 else decision["page"]
+        page = 0.0 if len({mention[0] for mention in candidates[key]["mentions"]}) < 2 else decision["page"]
         for item_id, start, end, written in candidates[key]["mentions"]:
             if any(a <= start and end <= b for a, b in resolved_spans.get(item_id, ())):  # inside the mention of an accepted entity
                 continue
