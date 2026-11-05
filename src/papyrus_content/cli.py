@@ -273,6 +273,7 @@ PORTED_COMMANDS = frozenset(
         "references:approve",
         "references:reject",
         "references:request-delegation",
+        "references:set-stars",
         "references:list-predictions",
         "references:audit",
         "references:auto-accept",
@@ -610,6 +611,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:request-delegation":
         from .references_commands import references_request_delegation
         references_request_delegation(flags)
+    elif route == "references:set-stars":
+        from .references_commands import references_set_stars_on_behalf_of
+        references_set_stars_on_behalf_of(flags)
     elif route == "references:review-curation":
         references_review_curation(flags)
     elif route == "references:list-predictions":

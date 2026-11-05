@@ -18,6 +18,15 @@ MAXIMUM_STARS = 5
 MIDPOINT_STARS = 3
 
 
+def validated_stars(stars: Any) -> int | None:
+    """A rating as the ``setReferenceStars`` mutation takes it: a whole number from 1 to 5, or ``None`` to clear it. Anything else raises."""
+    if stars is None:
+        return None
+    if isinstance(stars, bool) or not isinstance(stars, int) or not MINIMUM_STARS <= stars <= MAXIMUM_STARS:
+        raise ValueError(f"Stars are a whole number from {MINIMUM_STARS} to {MAXIMUM_STARS}, not {stars!r}.")
+    return stars
+
+
 def star_fields(stars: int | None, *, corpus_id: str | None, rated_by: str | None = None, rated_at: str | None = None) -> dict[str, Any]:
     """The Reference fields a rating sets. Every field is always present, so clearing the rating (``None``) clears who and when too.
 
