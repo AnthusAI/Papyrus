@@ -19,6 +19,8 @@ from .urls import UrlPolicy
 
 SUMMARY_FIELDS = SUMMARY_FIELD_NAMES
 IMAGE_FIELDS = ("image", "cover", "ogImage", "thumbnail")
+#: The Night counterpart of the card image: a story whose figure has a Day and Night pair names the Night file here.
+DARK_IMAGE_FIELDS = ("imageDark", "coverDark", "thumbnailDark")
 UPDATED_FIELDS = ("updated", "modified", "lastmod", "dateModified")
 FALSE_VALUES = {"false", "0", "no", "off"}
 TRUE_VALUES = {"true", "1", "yes", "on"}
@@ -85,6 +87,7 @@ class StandardEntry:
     link: str | None         # external target of a link-only item
     derived: dict            # fields a site's ``derive`` hook computed from the item (a tier, a week); open for new shapes
     draft: bool = False      # served and noindexed, but never selected by a listing, a tag page or a feed
+    image_dark: str | None = None   # the Night version of ``image`` when the item has one; cards only, never og:image, feeds or public data
     author_details: tuple[Author, ...] = ()   # the same authors with their optional urls; renderers read this
 
     @property
@@ -120,6 +123,8 @@ class StandardEntry:
     def fingerprint(self, *, full: bool = False) -> list:
         """What a listing card renders from. ``full`` is for pages a hook composes: every field, plus the raw front matter."""
         card = [self.key, self.title, self.summary_text, self.date, self.image, [[author.name, author.url] for author in self.author_details], self.link, self.derived]
+        if self.image_dark:
+            card = card + [self.image_dark]
         if not full:
             return card
         return card + [
@@ -183,6 +188,7 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
     date = calendar_date(front_matter.get("date")) or calendar_date(summary.published_at)
     updated = calendar_date(first_text(front_matter, UPDATED_FIELDS)) or calendar_date(summary.published_at) or date
     details = authors_of(front_matter)
+    image = first_text(front_matter, IMAGE_FIELDS) or None
     return StandardEntry(
         summary=summary,
         section=section,
@@ -192,7 +198,7 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
         summary_text=clipped(first_text(front_matter, settings.summary_fields or SUMMARY_FIELDS), 300),
         date=date,
         updated=updated,
-        image=first_text(front_matter, IMAGE_FIELDS) or None,
+        image=image,
         authors=tuple(author.name for author in details),
         author_details=details,
         type=summary.type,
@@ -204,6 +210,7 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
         link=link,
         derived=dict(derive(summary) or {}) if derive is not None else {},
         draft=draft,
+        image_dark=(first_text(front_matter, DARK_IMAGE_FIELDS) or None) if image else None,
     )
 
 

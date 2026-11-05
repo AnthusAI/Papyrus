@@ -9,6 +9,16 @@
 .markus-pager { display: flex; justify-content: space-between; gap: 1rem; margin: 2rem 0; }
 .markus-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); gap: 1.5rem; }
 .markus-card-image { max-width: 100%; height: auto; }
+/* A card whose figure has a Night version carries both pictures; one shows by theme. No script: the reader's system setting decides
+   unless a theme was picked by hand, which sets dark/light classes (or data-theme) on the root. The hidden one is display:none, so it is not fetched. */
+.markus-card-image-day, .markus-card-image-night { display: contents; }
+.markus-card-image-night { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]):not(.light):not(.light-theme) .markus-card-image-day { display: none; }
+  :root:not([data-theme=light]):not(.light):not(.light-theme) .markus-card-image-night { display: contents; }
+}
+:root[data-theme=dark] .markus-card-image-day, :root.dark .markus-card-image-day, :root.dark-theme .markus-card-image-day { display: none; }
+:root[data-theme=dark] .markus-card-image-night, :root.dark .markus-card-image-night, :root.dark-theme .markus-card-image-night { display: contents; }
 .markus-tags { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; padding: 0; }
 .markus-nav-toggle { display: none; }
 .markus-nav-js .markus-nav-toggle { display: inline-block; }
