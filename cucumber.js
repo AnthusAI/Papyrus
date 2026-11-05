@@ -130,6 +130,11 @@ module.exports = {
     require: ["features/step_definitions/data-table-point-in-time-recovery.steps.js"],
     format: ["summary"],
   },
+  coverImagePicker: {
+    paths: ["features/cover-image-picker.feature"],
+    require: ["features/step_definitions/cover-image-picker.steps.js"],
+    format: ["summary"],
+  },
   messageHashtags: {
     paths: ["features/message-hashtags.feature"],
     require: ["features/step_definitions/message-hashtags.steps.js"],

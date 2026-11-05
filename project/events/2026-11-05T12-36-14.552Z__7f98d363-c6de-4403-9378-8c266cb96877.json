@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7f98d363-c6de-4403-9378-8c266cb96877",
+  "issue_id": "PPY-21dd7b67-321c-498d-bf5e-897e9200d862",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:36:14.552Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us docs page: the cover image picker (stock images from Wikimedia Commons)",
+    "description": "Document for editors on p.apyr.us: the Cover image button on a saved Story, four options, Accept, reload, search words, Give up; where the credit shows (under the picture on the article page only, never on cards or index pages); which licences are offered and which are not; that the picture is copied into the site's own storage; that saving makes the new Story version. Not written yet; per the rule that every feature epic ends with a docs task. Built in the PR for PPY-a36ac3 and PPY-956dff first step.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-956dff77-886f-4c7a-acfd-3c5d06988b15",
+    "labels": []
+  }
+}
