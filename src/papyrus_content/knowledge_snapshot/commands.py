@@ -84,7 +84,7 @@ from .monitor_records import (
 )
 from .parallel import DEFAULT_WORKERS, map_with_clients, worker_count
 from .publish_run import STATUS_ACCEPTED, PublishPlan, is_extractor_mention, plan_publish_run
-from .entity_extraction import ExtractionError, JevClient, RegistryMatcher, build_output, criteria_of, decide, find_candidates
+from .entity_extraction import ExtractionError, JevClient, RegistryMatcher, build_output, criteria_of, decide, describe_publication, find_candidates
 from .registry import build_registry, read_vocabulary_kinds
 from .topic_config import english_stop_words, read_extra_stop_words, render, topic_modeling_configuration
 from .relation_review import (
@@ -868,7 +868,7 @@ def knowledge_entities_registry(flags: list[str]) -> None:
 
 
 def knowledge_extract_entities(flags: list[str]) -> None:
-    """Find the entities in the extracted texts of a corpus: a text pass for candidate names, one Jev choice per name (``entity_extraction.py``)."""
+    """Find the entities in the extracted texts of a corpus: a text pass for candidate names, three Jev questions per name (``entity_extraction.py``)."""
     options = parse_options(flags)
     corpus, out, vocabulary_file = _path_option(options, "corpus"), _path_option(options, "out"), _path_option(options, "vocabulary")
     snapshot = normalize_string(options.get("extraction-snapshot"))
@@ -887,8 +887,8 @@ def knowledge_extract_entities(flags: list[str]) -> None:
         documents = {path.stem: path.read_text(encoding="utf-8") for path in sorted(texts.glob("*.txt"))}
         matcher = RegistryMatcher(json.loads(registry_file.read_text(encoding="utf-8")) if registry_file else [])
         candidates = {key: found for key, found in find_candidates(documents, english_stop_words()).items() if not matcher.knows(found["name"])}
-        publication = str(vocabulary.get("publication") or "knowledge")
-        decisions, usage, undecided = decide(candidates, criteria, lambda name, passages: client.ask(name, passages, criteria, publication), model=client.model, cache_path=cache)
+        publication = describe_publication(vocabulary)
+        decisions, usage, undecided = decide(candidates, criteria, lambda name, passages: client.ask(name, passages, criteria, publication), publication=publication, model=client.model, cache_path=cache)
     except ExtractionError as error:
         raise ValueError(str(error)) from error
     usage_out = _path_option(options, "usage-out")
