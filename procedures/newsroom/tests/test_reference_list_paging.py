@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date, timedelta
 from html import unescape
 
 import pytest
@@ -159,6 +160,7 @@ def test_the_twin_is_the_first_page_and_a_link_and_the_chunk_twins_chain_on(site
 
 HOOKS = '''
 import re
+from datetime import date, timedelta
 
 STOCK = re.compile(r'<article class="home-page-tile" data-status="([^"]*)">(.*?)</article>', re.S)
 
@@ -282,3 +284,69 @@ def test_a_chunk_that_no_longer_exists_is_found_stale_and_nothing_else_is():
         assert stray in stale and any(key.endswith(".json") for key in stale if key != stray)
     finally:
         built.cleanup()
+
+
+# ------------------------------------------------------------------ rolling windows
+
+WEEKLY = b'::band{size="bare"}\n::include{kind="references" select="recent" bucket="week" count="6" paged="true"}\n'
+ROLLING_DAY = date(2027, 1, 15)
+PICK = 30   # the editors' top pick, rank 1, 252 days old: the first day of its window (36 whole weeks)
+CROSSER = 375   # 250 days old: two days from joining the pick's window, where the top pick will come before it
+
+
+def rolling_snapshot() -> dict:
+    """400 accepted References ten days apart (the higher the number the newer) ranked newest first, and one top pick that sits first inside its window."""
+    document = snapshot(400, 0)
+    for found in document["references"]:
+        number = int(found["key"], 16)
+        age = 252 if number == PICK else 10 * (400 - number)
+        day = (ROLLING_DAY - timedelta(days=age)).isoformat()
+        found.update(acceptedAt=day + "T09:00:00.000Z", arrivedAt=day + "T09:00:00.000Z", sourceDate=day)
+    rows = document["references"]
+    top = next(found for found in rows if int(found["key"], 16) == PICK)
+    rows.remove(top)
+    rows.insert(0, top)
+    for position, found in enumerate(rows, start=1):
+        found["rank"] = position
+    return document
+
+
+def move_to(site, day: date):
+    site.projector.clock = lambda: day
+    site.projector._as_of = date.min   # a new process: the readers' keys are asked for before any run has started
+    site.projector._plan_cache = None
+    site.writer.operations.clear()
+    report = project_stale_listings(site.context, site.projector.home_page_reader_keys())
+    assert report.ok, report.errors
+    return report
+
+
+def whole_list(site) -> list[str]:
+    return keys_in(section_of(site.text("wire/index.html"), "recent")) + [key for item in chain(site, "recent") for key in keys_in(item["html"])]
+
+
+@pytest.fixture
+def rolling():
+    built = project(rolling_snapshot(), first=6, page_size=12, extra_files={"pages/wire.md": WEEKLY}, clock=lambda: ROLLING_DAY)
+    yield built
+    built.cleanup()
+
+
+def test_a_day_that_moves_no_window_order_rewrites_nothing(rolling):
+    assert len(list_files(rolling)) > 60
+    report = move_to(rolling, ROLLING_DAY + timedelta(days=1))
+    assert report.written == [], "most References change window with the day, but the order is the same, so no page and no chunk is rewritten"
+
+
+def test_a_reference_crossing_into_an_older_window_rewrites_only_where_it_left_and_where_it_arrived(rolling):
+    before, order = list_files(rolling), whole_list(rolling)
+    pick, crosser = f"{PICK:012x}", f"{CROSSER:012x}"
+    assert order.index(crosser) + 1 == order.index(pick), "the top pick follows the Reference that is a window newer than it"
+    report = move_to(rolling, ROLLING_DAY + timedelta(days=2))   # the Reference joins the top pick's window, and the top pick goes first inside it
+    written = [key for key in report.written if key.startswith("reference-lists/")]
+    assert 0 < len(written) <= 6, written
+    after = list_files(rolling)
+    assert len([key for key in before if before[key] == after.get(key)]) >= len(before) - 6, "every other chunk is byte for byte what it was"
+    now = whole_list(rolling)
+    assert now.index(pick) + 1 == now.index(crosser) and sorted(now) == sorted(order), "the order changed by that one step and nothing was dropped"
+    assert "wire/index.html" not in report.written, "the first page did not change"

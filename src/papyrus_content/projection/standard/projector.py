@@ -251,6 +251,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """``entries`` (newest first) in the Story ranking of ``story_order.py``: the newest bucket first, the editors' stars inside it. Unchanged when nothing is rated."""
         return rank_entries(entries, self._story_stars, bucket or self.standard.listings.bucket, self._as_of)
 
+    def _day(self) -> dt.date:
+        """The UTC day rolling buckets count back from: the day of this projection run, or today when a caller asks before any run has started (the keys of a paged
+        list's files, which the snapshot task needs before it projects anything)."""
+        return self._as_of if self._as_of != dt.date.min else self.clock()
+
     def _use_site(self, site: SiteIndex) -> None:
         """A new site index is a new projection run: the snapshot files are read again, and so are the editors' private Story ratings."""
         self._story_stars = site.story_stars
@@ -286,10 +291,28 @@ class StandardMarkusProjector(MarkusSiteProjector):
         used = [attributes for attributes in found if knowledge_blocks.is_knowledge_block(attributes)]
         return [self._knowledge.digest(knowledge_blocks.entity_keys(used))] if used else []
 
+    def _bucket_orders(self, found: list[dict]) -> list:
+        """For each references include with a ``bucket``, a digest of the order its rolling windows give today (``as_of``). The snapshot is the same bytes on
+        a day when a Reference crosses into an older window, so the page's digest needs the order itself; it changes only when the order does, so a day that
+        moves nothing rewrites nothing. A paged list's page shows its first ``count`` and the link to the first chunk, so only that much of the order counts
+        (the chunks digest their own records)."""
+        document = self._home_page.references()
+        labels = {section.name: section.label for section in self.standard.sections}
+        orders = []
+        for attributes in found:
+            if not (home_page_blocks.is_home_page_include(attributes) and attributes.get("bucket")):
+                continue
+            keys = [record["key"] for record in home_page_blocks.candidates_of(document, attributes, labels, self._day())]
+            if home_page_blocks.is_paged(attributes):
+                keys = keys[: home_page_blocks.count_of(attributes, self.standard.home_page) + 1]
+            orders.append(["bucketOrder", hashlib.sha256("\n".join(keys).encode("utf-8")).hexdigest()[:16]])
+        return orders
+
     def _home_page_inputs(self, found: list[dict]) -> list:
         inputs = []
         if any(home_page_blocks.is_home_page_include(attributes) for attributes in found):
             inputs.append(self._home_page.digest())
+            inputs.extend(self._bucket_orders(found))
         if any(home_page_blocks.is_threads_include(attributes) for attributes in found):
             inputs.append(["threads", self._home_page.threads_digest()])
             if self._forum() is not None:
@@ -365,11 +388,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if self._paged_cache[0] is not document:
             self._paged_cache = (document, {})
         memo = self._paged_cache[1]
-        key = (custom.id, json.dumps(attributes, sort_keys=True))
+        key = (custom.id, json.dumps(attributes, sort_keys=True), self._day())   # a rolling bucket orders by the day, so the layout is per day
         if key not in memo:
             settings = self.standard.home_page
             labels = {section.name: section.label for section in self.standard.sections}
-            candidates = home_page_blocks.candidates_of(document, attributes, labels)
+            candidates = home_page_blocks.candidates_of(document, attributes, labels, self._day())
             memo[key] = home_page_lists.build(
                 candidates, attributes, page_path=f"/{custom.path}/" if custom.path else "/", page_title=custom.title,
                 count=home_page_blocks.count_of(attributes, settings), page_size=settings.references.paging.page_size, path=self.policy.path,
@@ -987,7 +1010,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             labels = {section.name: section.label for section in self.standard.sections}
             return home_page_blocks.render_markdown(
                 attributes, self._home_page.references(), ledger, self.standard.home_page, labels, self._twin_url,
-                paged_list=self._paged_list_for_include(attributes, page, source),
+                paged_list=self._paged_list_for_include(attributes, page, source), as_of=self._as_of,
             )
         if kind == "threads":
             return home_page_blocks.render_threads_markdown(
@@ -1679,7 +1702,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             labels = {section.name: section.label for section in self.standard.sections}
             return home_page_blocks.render(
                 attributes, self._home_page.references(), page.ledger, self.standard.home_page, labels, self.policy.path,
-                paged_list=self._paged_list_for_include(attributes, page, source),
+                paged_list=self._paged_list_for_include(attributes, page, source), as_of=self._as_of,
             )
         if kind == "threads":
             return home_page_blocks.render_threads(attributes, self._home_page.threads(), page.ledger, self.standard.home_page, self._thread_href if self._forum() is not None else None)

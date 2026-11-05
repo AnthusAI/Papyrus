@@ -3,7 +3,7 @@
 ``select`` names one of three orderings of the snapshot's References (``recent`` and ``confident`` take accepted ones, ``recommended``
 takes the ones not yet accepted). ``confident`` and ``recommended`` use the shared order, an editor's rating and then the Cyclotron's confidence
 (``home_page/ordering.py``); ``recent`` is newest accepted first. ``bucket="day"`` or ``bucket="week"`` puts the newest bucket first and the shared
-order inside each bucket, on any selection. Several includes on one page share a :class:`~.page_ledger.PageLedger`: the first component to
+order inside each bucket, on any selection. A bucket is a ROLLING window counted back from the UTC day of the render (``as_of``), as for Stories. Several includes on one page share a :class:`~.page_ledger.PageLedger`: the first component to
 place a Reference keeps it, and a later one refills up to its ``count`` from its own ordering. ``count`` defaults to
 ``homePage.references.defaultCount``. A missing or empty snapshot draws the ``empty`` text, or nothing when there is none.
 
@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Mapping
+from datetime import date
 from typing import Any
 
 from ...home_page.export import clip_summary
@@ -91,13 +92,13 @@ def _text(record: Mapping, name: str) -> str:
     return value if isinstance(value, str) else ""
 
 
-def ordered(records: list[Mapping], selection: str, bucket: str | None = None) -> list[Mapping]:
+def ordered(records: list[Mapping], selection: str, bucket: str | None = None, as_of: date | None = None) -> list[Mapping]:
     """The records of one selection in its order. ``recent`` is newest accepted first (then newest arrival, then key); ``confident`` and ``recommended``
     are the shared order of ``home_page/ordering.py``. With a ``bucket`` the newest bucket comes first and the shared order applies inside each."""
     wanted = "recommended" if selection == "recommended" else "accepted"
     chosen = [record for record in records if isinstance(record, Mapping) and record.get("status") == wanted and record.get("key")]
     if bucket:
-        return order_in_buckets(chosen, bucket)
+        return order_in_buckets(chosen, bucket, as_of)
     if selection == "recent":
         chosen.sort(key=lambda record: _text(record, "key"))
         chosen.sort(key=lambda record: _text(record, "arrivedAt"), reverse=True)
@@ -111,10 +112,10 @@ def _in_section(record: Mapping, section: str, labels: Mapping[str, str]) -> boo
     return _text(record, "section").casefold() in wanted
 
 
-def candidates_of(document: Mapping | None, attributes: Mapping, section_labels: Mapping[str, str] | None = None) -> list[Mapping[str, Any]]:
+def candidates_of(document: Mapping | None, attributes: Mapping, section_labels: Mapping[str, str] | None = None, as_of: date | None = None) -> list[Mapping[str, Any]]:
     """Every Reference an include's selection could place, in the order it places them: no ledger, no count."""
     records = (document or {}).get("references") or []
-    candidates = ordered(records, attributes["select"], attributes.get("bucket"))
+    candidates = ordered(records, attributes["select"], attributes.get("bucket"), as_of)
     if attributes.get("medium"):   # only the References whose address certainly says this medium; a record with no `medium` field never matches
         candidates = [record for record in candidates if record.get("medium") == attributes["medium"]]
     if attributes.get("section"):
@@ -128,9 +129,10 @@ def select_references(
     ledger: PageLedger,
     default_count: int = DEFAULT_COUNT,
     section_labels: Mapping[str, str] | None = None,
+    as_of: date | None = None,
 ) -> list[Mapping[str, Any]]:
     """The References one include places: its ordering, minus what the page already shows, up to ``count``; each one is claimed in the ledger."""
-    candidates = candidates_of(document, attributes, section_labels)
+    candidates = candidates_of(document, attributes, section_labels, as_of)
     count = int(attributes["count"]) if "count" in attributes else default_count
     chosen: list[Mapping[str, Any]] = []
     for record in candidates:
@@ -149,11 +151,12 @@ def render(
     section_labels: Mapping[str, str] | None = None,
     asset_href: Callable[[str], str] | None = None,
     paged_list: lists.PagedList | None = None,
+    as_of: date | None = None,
 ) -> str:
     ledger.home_page_used = True
     if paged_list is not None:
         return render_paged(attributes, ledger, paged_list, asset_href)
-    chosen = select_references(source_doc, attributes, ledger, count_of({}, settings), section_labels)
+    chosen = select_references(source_doc, attributes, ledger, count_of({}, settings), section_labels, as_of)
     if asset_href is not None:   # an image of ours is a site path ("/assets/..."); under urls.basePath it lives below the base path
         chosen = [{**record, "image": asset_href(record["image"])} if _text(record, "image").startswith("/") else record for record in chosen]
     empty = attributes.get("empty", "")
@@ -229,6 +232,7 @@ def render_markdown(
     section_labels: Mapping[str, str] | None = None,
     absolute: Callable[[str], str] = lambda path: path,
     paged_list: lists.PagedList | None = None,
+    as_of: date | None = None,
 ) -> str:
     """What :func:`render` places, for the Markdown twin: an optional heading and one list item per Reference, a title linked to its source.
 
@@ -239,7 +243,7 @@ def render_markdown(
         for reference in chosen:
             ledger.claim(LEDGER_PREFIX + reference["key"])
     else:
-        chosen = select_references(source_doc, attributes, ledger, count_of({}, settings), section_labels)
+        chosen = select_references(source_doc, attributes, ledger, count_of({}, settings), section_labels, as_of)
     if not chosen:
         return attributes.get("empty", "")
     lines = [f"## {attributes['heading']}", ""] if attributes.get("heading") else []

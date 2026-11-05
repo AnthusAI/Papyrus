@@ -255,8 +255,7 @@ two and one stars; equal Stories keep their newest-first order. The order of rat
 `src/papyrus_content/home_page/ordering.py`; the Story side is `projection/standard/story_order.py`). **A Story bucket is a rolling window** (Ryan, 2026-11-04:
 "rolling last seven days for the week"): counted back from the UTC day of the projection, `week` (the default of `listings.bucket`) is the last seven days, the
 seven before that, and so on; `day` is the last day, the day before, and so on; `none` is the old newest-first list. An include can say `bucket="day|week|none"`.
-A Reference's bucket stays the calendar UTC day or Monday week, because its page order is computed from a stored snapshot, not at the render: only Stories roll
-(see [Home page](home-page.md#time-buckets)). The feeds, the sitemap and `llms.txt` stay in date order.
+A Reference's bucket rolls the same way (Ryan, 2026-11-05; see [Home page](home-page.md#time-buckets)). The feeds, the sitemap and `llms.txt` stay in date order.
 
 **Time moves Stories between buckets with no write.** The order depends on the UTC day (never the time of day), so a listing can change at most once a day. There is
 no schedule and no pass over a corpus for it. A page holds the order of its last render and is corrected whenever something that already re-renders it runs: a publish
