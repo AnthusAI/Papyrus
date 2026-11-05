@@ -517,6 +517,76 @@ def step_unfinished_lane(context, number):
     ]
 
 
+@given('a "{key}" policy for "{phrase}" is added to the publication')
+def step_policy_added(context, key, phrase):
+    context.store.create_policy(_phrase_policy(key, "publication", "warn", True, phrase))
+
+
+@given('the "{key}" policy is edited in place to flag "{phrase}"')
+def step_policy_edited_in_place(context, key, phrase):
+    for record in context.store.policies.values():
+        if record["policyKey"] == key:
+            record["detectors"] = json.dumps([{"id": f"{key}-phrase", "lane": "rules", "kind": "phrase", "phrases": [phrase]}])
+
+
+@given("the editorial check settings turn the judgment lane off")
+def step_judgment_off(context):
+    context.store.settings = {"id": "settings", "settings": json.dumps({"lanes": {"rules": True, "classifier": False}})}
+
+
+@given("another story's version {number:d} is saved with \"{body}\" and checked")
+def step_other_story_checked(context, number, body):
+    item_id = f"other-v{number}"
+    context.store.items[item_id] = {"id": item_id, "lineageId": "other", "versionNumber": number, "section": "engineering",
+                                    "bodyMarkus": body, "contentHash": f"hash-of:engineering:{body}"}
+    _check_saved(context, item_id)
+    context.other_run_before = dict(context.store.get_check_run(item_id))
+
+
+@then("the other story's stored check is still the one made before the policy was added")
+def step_other_untouched(context):
+    assert context.store.get_check_run("other-v1") == context.other_run_before
+
+
+@given("the stored check of version {number:d} was made under the old pack version")
+def step_old_pack_version(context, number):
+    context.store.check_runs = [{**run, "packVersion": "engineering-0123456789ab-oldcontext"} if run["id"] == f"story-v{number}" else run for run in context.store.check_runs]
+
+
+@then("the check says it was reused from the check made at the stored time")
+def step_says_reused(context):
+    stored = context.store.get_check_run("story-v1")
+    assert context.version_result.get("reused") is True, context.version_result
+    assert context.version_result.get("checkedAt") == stored["checkedAt"], (context.version_result, stored)
+
+
+@then("the check summary line says it was not checked again")
+def step_line_reused(context):
+    from papyrus_content.editorial_commands import check_summary_line
+    line = check_summary_line(context.version_result)
+    stored = context.store.get_check_run("story-v1")
+    assert "reused: not checked again" in line and stored["checkedAt"] in line, line
+
+
+@then("the stored check run records the classifier lane as unavailable")
+def step_run_unavailable(context):
+    run = context.store.get_check_run("story-v1")
+    assert run["lanes"]["classifier"]["status"] == "unavailable", run["lanes"]
+
+
+@then("the check summary line says the judgment questions did not run")
+def step_line_not_run(context):
+    from papyrus_content.editorial_commands import check_summary_line
+    line = check_summary_line(context.version_result)
+    assert "judgment questions did not run (unavailable" in line and "checked now" in line, line
+
+
+@then("the stored check is not reused on the next check")
+def step_not_reused_next(context):
+    _check_saved(context, "story-v1")
+    assert context.services.last_check_request is not None, "an unavailable judgment lane was reused"
+
+
 @then("version {number:d} has a stored check with {count:d} finding for policy \"{policy}\"")
 def step_stored_findings(context, number, count, policy):
     run = context.store.get_check_run(f"story-v{number}")
