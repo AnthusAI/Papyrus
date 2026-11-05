@@ -105,6 +105,11 @@ module.exports = {
     require: ["features/step_definitions/reference-medium.steps.js"],
     format: ["summary"],
   },
+  referenceMediumFilter: {
+    paths: ["features/newsroom-reference-medium-filter.feature"],
+    require: ["features/step_definitions/reference-medium-filter.steps.js"],
+    format: ["summary"],
+  },
   referenceCaptureNeeded: {
     paths: ["features/newsroom-reference-capture-needed.feature"],
     require: ["features/step_definitions/reference-capture-needed.steps.js"],

@@ -43,6 +43,7 @@ import { scoreFeedItem, feedLeadId } from "./lib/reference-feed-ranking";
 import { predictionSortKeyFor } from "./lib/reference-feed-keys";
 import { compareFeedRecords, feedReaderFromRecords, starReaderFromRecords } from "./lib/reference-feed-pages";
 import { useFeedControls } from "./components/use-feed-controls";
+import { mediumReaderFromRecords } from "./lib/reference-medium-feed";
 
 const params = new URLSearchParams(location.search);
 const NOW = Date.parse("2026-10-27T12:00:00Z");
@@ -293,12 +294,25 @@ function SearchHarness() {
 function buildQualitySite() {
   const day = (days) => new Date(NOW - days * DAY).toISOString();
   const row = (id, stars, state, days, extra = {}) => ({ ...make(id, { title: "Quality topic " + id, curationStatus: state === "unrated" ? "pending" : state, createdAt: day(days), sourcePublishedAt: day(days), ...(stars ? { starRating: stars } : {}), ...extra }) });
-  const rows = [
+  let rows = [
     row("five-new", 5, "accepted", 1, { captureState: "none" }), row("five-old", 5, "unrated", 6, { captureState: "full" }), row("four-new", 4, "rejected", 2, { corpusId: "d", captureState: "thin" }), row("four-old", 4, "unrated", 7),
     row("three", 3, "accepted", 3, { captureState: "full" }), row("two", 2, "accepted", 4, { corpusId: "d", captureState: "running" }), row("one", 1, "unrated", 5, { captureState: "none" }),
     row("plain-new", 0, "unrated", 0.5, { captureState: "full" }), row("plain-old", 0, "unrated", 8, { captureState: "none" }),
     row("archived-five", 5, "archived", 0.2), row("superseded-four", 4, "unrated", 0.3, { versionState: "superseded" }),
-  ].filter((reference) => !(params.has("noFive") && reference.starRating === 5 && reference.curationStatus !== "archived"));
+  ];
+  if (params.has("videos")) {
+    // Videos among the rest: two waiting, one accepted, one rejected, one in another corpus, a starred one, and an article with no medium (not in the medium index).
+    rows.push(
+      row("video-new", 0, "unrated", 0.2, { medium: "video", sourceUri: "https://www.youtube.com/watch?v=aaaaaaaaaaa" }),
+      row("video-old", 0, "unrated", 9, { medium: "video" }),
+      row("video-accepted", 0, "accepted", 1.5, { medium: "video" }),
+      row("video-rejected", 0, "rejected", 2.5, { medium: "video" }),
+      row("video-other-corpus", 0, "unrated", 0.6, { medium: "video", corpusId: "d" }),
+      row("video-starred", 4, "accepted", 3.5, { medium: "video" }),
+      row("video-archived", 0, "archived", 0.1, { medium: "video" }),
+    );
+  }
+  rows = rows.filter((reference) => !(params.has("noFive") && reference.starRating === 5 && reference.curationStatus !== "archived"));
   if (params.has("filtered")) {
     // Sixty newer References we hold in full, ahead of three we could not collect: Captured No filters whole pages away before the first match.
     for (let index = 0; index < 60; index += 1) rows.push(row("held-" + index, 0, "unrated", 0.001 * (index + 1), { captureState: "full" }));
@@ -312,10 +326,12 @@ function buildQualitySite() {
 const QUALITY_SITE = buildQualitySite();
 const qualityFeedRead = feedReaderFromRecords(QUALITY_SITE);
 const qualityStarRead = starReaderFromRecords(QUALITY_SITE);
+const qualityMediumRead = mediumReaderFromRecords(QUALITY_SITE);
 const qualitySource = {
   loadCorpusIds: async () => ["c", "d"],
   readStream: async (query) => { window.requests.push({ kind: "index", key: query.feedStateKey, sort: query.sort, limit: query.limit }); return qualityFeedRead(query); },
   readStarStream: async (query) => { window.requests.push({ kind: "stars", key: query.feedStateKey, sort: query.sort, limit: query.limit }); return qualityStarRead(query); },
+  readMediumStream: async (query) => { window.requests.push({ kind: "medium", key: query.feedStateKey, sort: query.sort, limit: query.limit }); return qualityMediumRead(query); },
 };
 const qualitySearch = async (input) => {
   window.searches.push({ query: input.query, show: input.show, limit: input.limit, cursor: input.cursor, sort: input.sort, minStars: input.minStars, captured: input.captured });
@@ -324,7 +340,7 @@ const qualitySearch = async (input) => {
 function QualityHarness() {
   const controls = useFeedControls({ searchRead: qualitySearch });
   const { search, minStars, captured } = controls;
-  const feed = useIndexedReferenceFeed({ enabled: !search.searching, source: qualitySource, sort: controls.saved.sort, show: controls.saved.show, minStars, captured });
+  const feed = useIndexedReferenceFeed({ enabled: !search.searching, source: qualitySource, sort: controls.saved.sort, show: controls.saved.show, minStars, captured, medium: controls.medium });
   const active = search.searching ? search.feed : feed;
   const items = useMemo(() => active.records.map((record) => scoreFeedItem(record, undefined)), [active.records]);
   return <ReferenceFeed
@@ -335,8 +351,10 @@ function QualityHarness() {
     loading={active.status === "loading" || active.status === "idle"}
     loadingMore={active.loadingMore}
     captured={captured}
+    medium={controls.medium}
     minStars={minStars}
     now={NOW}
+    onMediumChange={controls.setMedium}
     onCapturedChange={controls.setCaptured}
     onLoadMore={() => { void active.loadMore(); }}
     onMinStarsChange={controls.setMinStars}
@@ -1406,6 +1424,118 @@ const scenarios: Record<string, () => Promise<void>> = {
       const ids = await order(page);
       assert.ok(ids.includes("tail-0") && ids.includes("tail-2"), "the cards behind sixty filtered rows were reached");
       assert.ok(!ids.some((id) => id?.startsWith("held-")), "none of the captured ones is shown");
+    });
+  },
+
+  /**
+   * Medium (All, Videos): the words, the buttons, the reads (only the medium partitions, never the feed-state index), the combination with Reviewed,
+   * stars and Captured, the address, and the empty state.
+   */
+  async medium() {
+    const shotDir = process.env.MEDIUM_SHOTS;
+    if (shotDir) fs.mkdirSync(shotDir, { recursive: true });
+    const button = (page: Page, kind: string, key: string) => page.locator(`[data-feed-${kind}-button="${key}"]`);
+    const pressed = async (page: Page, kind: string, key: string) => (await button(page, kind, key).getAttribute("aria-pressed")) === "true";
+    const waitOrder = async (page: Page, expected: string[]) => {
+      await page.waitForFunction((ids) => JSON.stringify(Array.from(document.querySelectorAll("[data-feed-card]")).map((element) => element.getAttribute("data-feed-card"))) === JSON.stringify(ids), expected, { timeout: 8000 });
+      assert.deepEqual(await order(page), expected);
+    };
+    const requests = (page: Page) => page.evaluate(() => window.requests.slice());
+    const search = (page: Page) => page.evaluate(() => location.search);
+    const noSideScroll = async (page: Page) => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal scroll");
+
+    // The words and the controls: a labelled row of two buttons with an icon each, no drop-down, no border; All is pressed by default.
+    await run("?quality=1&videos=1", [375, 1440], async (page, width) => {
+      await cards(page).first().waitFor();
+      assert.ok((await page.locator("[data-feed-control=medium]").innerText()).startsWith("Medium"));
+      assert.deepEqual(await page.locator("[data-feed-medium-button]").evaluateAll((buttons) => buttons.map((b) => (b.textContent ?? "").trim())), ["All", "Videos"]);
+      assert.deepEqual(await page.locator("[data-feed-medium-button]").evaluateAll((buttons) => buttons.map((b) => b.getAttribute("data-feed-medium-button"))), ["any", "video"]);
+      for (const each of await page.locator("[data-feed-medium-button]").all()) assert.ok((await each.locator("svg").count()) >= 1, "a Lucide icon beside the words");
+      assert.equal(await page.locator("select").count(), 0, "no drop-downs");
+      assert.equal(await pressed(page, "medium", "any"), true, "All is pressed by default");
+      const borders = await page.locator("[data-feed-control=medium], [data-feed-control=medium] *").evaluateAll((elements) => elements.filter((element) => {
+        const style = getComputedStyle(element);
+        return ["Top", "Right", "Bottom", "Left"].some((side) => parseFloat((style as unknown as Record<string, string>)[`border${side}Width`]) > 0 && (style as unknown as Record<string, string>)[`border${side}Style`] !== "none");
+      }).length);
+      assert.equal(borders, 0, "no borders on the Medium buttons");
+      await noSideScroll(page);
+      // The fixture has no publication theme: give the feed tones values like a light theme's, so a screenshot shows the chosen button.
+      if (shotDir) await page.addStyleTag({ content: "[data-feed-surface]{--feed-card:#f3f1e6;--feed-footer:#ebe8d8;--feed-control:#dcd9c4;--foreground:#1c1b14;--muted-foreground:#6b6a5c}" });
+      if (shotDir) { await page.waitForTimeout(500); await page.screenshot({ path: `${shotDir}/medium-all-${width}.png` }); }
+
+      // Videos: two clicks to the pending videos (Reviewed is No by default), read from the medium partitions alone.
+      await page.evaluate(() => { window.requests.length = 0; });
+      await button(page, "medium", "video").click();
+      assert.equal(await pressed(page, "medium", "video"), true);
+      await waitOrder(page, ["video-new", "video-other-corpus", "video-old"]);
+      assert.equal(await search(page), "?quality=1&videos=1&medium=video", "the choice is in the address, the rest of it kept");
+      const reads = await requests(page);
+      assert.deepEqual([...new Set(reads.map((request) => request.kind))], ["medium"], "no feed-state or star partition was read");
+      assert.deepEqual([...new Set(reads.map((request) => request.key))].sort(), ["c#video#pending", "d#video#pending"]);
+      assert.equal(await pressed(page, "sort", "newest"), true, "the medium index is by arrival, so Newest shows pressed");
+      assert.equal(await page.evaluate(() => localStorage.getItem("papyrus:reference-feed:sort")), null, "the saved Sort was not changed");
+      assert.equal(await page.locator("[data-feed-card='plain-new']").count(), 0, "an article with no medium is not listed");
+      if (shotDir) { await page.waitForTimeout(500); await page.screenshot({ path: `${shotDir}/medium-videos-${width}.png` }); }
+
+      // Reviewed picks the vote partitions.
+      await button(page, "show", "all").click();
+      await waitOrder(page, ["video-new", "video-other-corpus", "video-accepted", "video-rejected", "video-starred", "video-old"]);
+      await button(page, "show", "accepted").click();
+      await waitOrder(page, ["video-accepted", "video-starred"]);
+      await button(page, "show", "rated").click();
+      await waitOrder(page, ["video-accepted", "video-rejected", "video-starred"]);
+      assert.deepEqual([...new Set((await requests(page)).map((request) => request.key))].sort(), [
+        "c#video#accepted", "c#video#pending", "c#video#rejected", "d#video#accepted", "d#video#pending", "d#video#rejected",
+      ]);
+      assert.ok((await requests(page)).every((request) => request.kind === "medium"), "every read was a medium partition");
+
+      // Stars read the small star partitions and keep the videos in them.
+      await button(page, "min-stars", "3").click();
+      await waitOrder(page, ["video-starred"]);
+      await button(page, "min-stars", "0").click();
+
+      // Captured applies on top; an empty answer says so in words, with a way out.
+      await button(page, "show", "all").click();
+      await button(page, "captured", "yes").click();
+      await page.locator("[data-feed-medium-empty]").waitFor();
+      assert.equal((await page.locator("[data-feed-medium-empty]").innerText()).replace(/\n+/g, " / "), "No videos with Reviewed Any and Captured Yes. / Show all media");
+      if (shotDir) { await page.waitForTimeout(500); await page.screenshot({ path: `${shotDir}/medium-empty-${width}.png` }); }
+      await button(page, "captured", "any").click();
+      await waitOrder(page, ["video-new", "video-other-corpus", "video-accepted", "video-rejected", "video-starred", "video-old"]);
+
+      // All takes it off the address and lists everything again; the video buttons are not saved anywhere.
+      await button(page, "medium", "any").click();
+      assert.equal(await search(page), "?quality=1&videos=1");
+      await page.locator("[data-feed-card='plain-new']").waitFor();
+      assert.equal(await page.evaluate(() => Object.keys(localStorage).some((key) => key.includes("medium"))), false);
+    });
+
+    // Predictions cannot order a medium: choosing it goes back to All.
+    await run("?quality=1&videos=1&medium=video", [375], async (page) => {
+      await cards(page).first().waitFor();
+      assert.equal(await pressed(page, "medium", "video"), true, "the address opens on Videos");
+      await waitOrder(page, ["video-new", "video-other-corpus", "video-old"]);
+      await page.locator("[data-feed-sort-button=quality]").click();
+      await waitOrder(page, ["video-starred"]);   // Quality: Reviewed moved to Any, only starred videos
+      assert.equal(await pressed(page, "medium", "video"), true);
+      await page.locator("[data-feed-sort-button=best]").click();
+      assert.equal(await pressed(page, "medium", "any"), true, "Predictions took the medium off");
+      assert.equal(await search(page), "?quality=1&videos=1");
+    });
+
+    // A search does not use the medium: the row is out of the way while one is open.
+    await run("?quality=1&videos=1&medium=video", [375], async (page) => {
+      await cards(page).first().waitFor();
+      await page.locator("[data-feed-search-input]").fill("Quality topic");
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(() => window.searches.length > 0);
+      assert.equal(await page.locator("[data-feed-control=medium]").count(), 0);
+    });
+
+    // A value the page does not know is All.
+    await run("?quality=1&videos=1&medium=podcast", [375], async (page) => {
+      await cards(page).first().waitFor();
+      assert.equal(await pressed(page, "medium", "any"), true);
     });
   },
 
