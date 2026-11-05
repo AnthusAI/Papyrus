@@ -1,0 +1,24 @@
+Feature: Authorize an MCP client
+  A person can grant a known client access using their verified site session.
+
+  Scenario: A client discovers the authorization server
+    Given an MCP site with a configured public client
+    When the client reads OAuth metadata
+    Then the metadata names the configured site and its endpoints
+
+  Scenario: Consent binds a public client to an exact redirect
+    Given an MCP site with a configured public client
+    When a request has an unregistered redirect or does not use S256
+    Then authorization is refused without issuing a code
+    When a valid request is approved by a signed-in person
+    Then the client receives a code at its registered redirect
+
+  Scenario: A forged consent request cannot issue a code
+    Given an MCP site with a configured public client
+    When a consent submission has an invalid transaction or origin
+    Then authorization is refused without issuing a code
+
+  Scenario: Staff and reader identities come from verified sessions
+    Given signed-in staff and reader sessions
+    When each approves a valid client
+    Then the server sends its verified identity and expiry to the token service

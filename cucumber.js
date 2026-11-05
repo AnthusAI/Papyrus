@@ -17,6 +17,11 @@ const defaultProfile = {
 
 module.exports = {
   default: defaultProfile,
+  mcpOAuth: {
+    paths: ["features/mcp/oauth.feature"],
+    require: ["features/step_definitions/mcp-oauth.steps.js"],
+    format: ["summary"],
+  },
   mcpTransport: {
     paths: ["features/mcp/streamable-http.feature"],
     require: ["features/step_definitions/mcp-transport.steps.js"],
