@@ -65,8 +65,10 @@ async function main() {
         if (msg.method === 'ui/initialize') reply({ protocolVersion:'2026-01-26', hostCapabilities:{}, hostInfo:{name:'fixture',version:'1'} });
         if (msg.method === 'ui/notifications/initialized') {
           frame.contentWindow!.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-input',params:{arguments:{lineageId:'s1'}}},'*');
-          frame.contentWindow!.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{structuredContent:{story:{id:'v1',lineageId:'s1',title:'Story'}},_meta:{papyrus:{availableTools:['reviews_list','review_answer']}}}},'*');
+          frame.contentWindow!.postMessage({jsonrpc:'2.0',method:'ui/notifications/tool-result',params:{structuredContent:{story:{id:'v1',lineageId:'s1',title:'Story',updatedAt:'date-1',revision:'opaque-revision'}},_meta:{papyrus:{availableTools:['reviews_list','review_answer','story_star']}}}},'*');
         }
+        if (msg.method === 'tools/call' && msg.params.name === 'story_star') reply({structuredContent:{story:{id:'v1',lineageId:'s1',title:'Story',revision:'opaque-revision'}}});
+        if (msg.method === 'tools/call' && msg.params.name === 'story_get') reply({structuredContent:{story:{id:'v1',lineageId:'s1',title:'Story',revision:'next-revision'}},_meta:{papyrus:{availableTools:['reviews_list','review_answer','story_star']}}});
         if (msg.method === 'tools/call' && msg.params.name === 'reviews_list') reply({structuredContent:{reviews: [
           {id:'review-1',state:'open',raisedBy:'editor',mode:'soft_review',updatedAt:revision,reason:'Check'},
           {id:'publish',state:'open',raisedBy:'publish-gate',mode:'hard_gate',updatedAt:'g1',reason:'Publish gate'},
@@ -79,6 +81,9 @@ async function main() {
       }); frame.srcdoc = source;
     }, storyHtml);
     const reviewFrame = reviewPage.frameLocator('iframe');
+    await reviewFrame.getByLabel('Stars (1–5)').fill('4');
+    await reviewFrame.getByRole('button',{name:'Save stars'}).click();
+    await reviewFrame.getByText('Saved.').waitFor();
     await reviewFrame.getByRole('button',{name:'Reviews'}).click();
     await reviewFrame.getByRole('heading',{name:'Reviews'}).waitFor();
     assert.equal(await reviewFrame.getByRole('button',{name:'Accept'}).count(), 1);
@@ -88,6 +93,7 @@ async function main() {
     await reviewFrame.getByRole('button',{name:'Accept'}).click();
     await reviewFrame.getByText('Saved.').waitFor();
     const reviewCalls = await reviewPage.evaluate(() => (window as any).calls);
+    assert.deepEqual(reviewCalls.find((x: any) => x.params?.name === 'story_star').params.arguments, {lineageId:'s1',expectedCurrentVersionId:'v1',expectedRevision:'opaque-revision',stars:4});
     const answers = reviewCalls.filter((x: any) => x.params?.name === 'review_answer');
     assert.deepEqual(answers.map((x: any) => x.params.arguments), [
       {id:'review-1',expectedRevision:'r1',decision:'approve'},
