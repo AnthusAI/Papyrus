@@ -30,6 +30,7 @@
     "test:message-hashtags": "tsx --test scripts/test-message-hashtags.ts && cucumber-js --profile messageHashtags",
     "test:section-core-concepts": "tsx --test scripts/test-section-concepts.ts && cucumber-js --profile sectionCoreConcepts",
     "test:concept-hashtags": "tsx scripts/test-concept-hashtags.ts",
+    "test:concept-management": "tsx --test scripts/test-concept-management.ts && poetry run behave features_backend/cli-concepts-signed-in.feature && poetry run pytest -q src/papyrus_content/signed_in_concepts_test.py src/papyrus_content/concept_link_readers_test.py procedures/newsroom/tests/test_wiki_concept_addresses.py",
     "test:idea-decision": "tsx scripts/test-idea-decision.ts",
     "test:connect-cli": "tsx scripts/test-cli-login-discovery.ts && tsx scripts/test-connect-cli.ts && cucumber-js --profile connectCli",
     "test:reference-medium": "tsx scripts/test-reference-feed-keys.ts && tsx scripts/test-reference-medium-card.ts && cucumber-js --profile referenceMedium && poetry run behave features_backend/reference-medium.feature features_backend/reference-outbound-links.feature && poetry run pytest -q src/papyrus_content/reference_medium_test.py src/papyrus_content/reference_medium_backfill_test.py src/papyrus_content/reference_creation_paths_test.py procedures/newsroom/tests/test_reference_outbound_links.py procedures/newsroom/tests/test_reference_medium_iam.py",

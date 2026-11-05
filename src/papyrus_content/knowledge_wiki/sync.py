@@ -16,8 +16,8 @@ from typing import Any
 
 import yaml
 
-from ..knowledge_snapshot.builder import _aliases, _public_keys
-from ..knowledge_snapshot.keys import contains_email, slug
+from ..knowledge_snapshot.builder import PLAIN_KEY_KINDS, _aliases, _public_keys
+from ..knowledge_snapshot.keys import contains_email, entity_key, kind_key, slug
 from ..knowledge_snapshot.model import LINK_MONITOR, Beat, KnowledgeData
 from ..knowledge_snapshot.publish_run import json_object
 from ..machine_writes import RETIRED_STAGE, machine_write
@@ -35,6 +35,7 @@ REVISE = "revise"
 UNCHANGED = "unchanged"
 RETIRE = "retire"
 RETIRED_KEY = "retired"
+CLASH_NOTE = "address taken by another page; nothing written"
 DEFAULT_MINIMUM_SUBTOPIC_ITEMS = 30
 DEFAULT_ITEMS_PER_TOPIC = 20
 KEY_FIELDS = {KIND_ENTITY: "entityKey", KIND_BEAT: "topicKey", KIND_SUBTOPIC: "topicKey"}
@@ -134,6 +135,10 @@ def _plan_page(
     text = front_matter_yaml(spec.front_matter)
     if not rows:
         return PagePlan(CREATE, section, spec, lineage_id, None, text)
+    if spec.key not in lineage_for_key and front_matter_of(working_version(rows)).get(KEY_FIELDS[spec.kind]) != spec.key:
+        # The address is taken by a page this subject does not own (written by hand, or generated for another subject). Plain addresses make this
+        # possible, so the sync leaves that page alone and writes nothing for this subject until one of the two is renamed.
+        return PagePlan(UNCHANGED, section, spec, lineage_id, working_version(rows)["id"], text, CLASH_NOTE)
     working = working_version(rows)
     if working.get("stage") == RETIRED_STAGE:  # an undo (or a person) retired it: the sync does not bring it back
         return PagePlan(UNCHANGED, section, spec, lineage_id, working["id"], text, "retired; left down")
@@ -200,6 +205,12 @@ def entity_specs(data: KnowledgeData, lineages: Mapping[str, list[dict[str, Any]
         )
         if draft:
             spec = replace(spec, notes=(f"{key}: the description is a draft nobody has accepted; the page uses the factual line until it is reviewed",))
+        legacy = entity_key(node.kind, node.name) if kind_key(node.kind) in PLAIN_KEY_KINDS else ""
+        if legacy and legacy != key and legacy in lineage_for_key:
+            spec = replace(spec, notes=(*spec.notes, (
+                f"{key}: an older page for this concept sits at {slug(legacy)} (kind in its address). The new page is written beside it. "
+                f"If the old page was ever published, add its old address to the new page's aliases so readers are sent on, then retire it."
+            )))
         specs.append(spec)
     return specs
 
@@ -293,6 +304,12 @@ def plan_sync(
             lineage_for_key = _lineage_by_key(lineages, spec.kind)
             plan = _plan_page(spec, section, lineages, lineage_for_key, published_sources)
             pages.append(plan)
+            if plan.note == CLASH_NOTE:
+                warnings.append(
+                    f"{section}/{spec.slug}: {spec.key} was not written because a page that is not {spec.key}'s already has this address; "
+                    "that page was left as it is. Move or rename one of the two pages, then run the sync again."
+                )
+                continue
             seen[section].add(plan.lineage_id)
         wanted_fields = {KEY_FIELDS[kind] for kind, name in section_of.items() if name == section}
         for lineage_id, lineage_rows in sorted(lineages.items()):

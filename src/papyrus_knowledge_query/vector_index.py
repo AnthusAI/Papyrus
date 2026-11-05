@@ -28,7 +28,7 @@ CONCEPT_CARD_KEY_PREFIX = "concept_card-"
 LINK_EXPLANATION_KEY_PREFIX = "link_explanation-"
 LINK_EXPLANATION_VECTOR_KIND = "link_explanation"
 LINK_EXPLANATION_FEED_KEY = "reference-links"   # papyrus_content.reference_links.REFERENCE_LINK_FEED_KEY, the feed every Reference link and concept tag row carries
-LINK_EXPLANATION_EDGE_KINDS = ("reference.link", "reference.concept")
+LINK_EXPLANATION_EDGE_KINDS = ("reference.link", "reference.concept", "concept.link")   # concept.link: an editor's link between two concepts (amplify/functions/category-action/reference-links.ts)
 LINK_EXPLANATION_AUDIENCE = "editor"
 LINK_EXPLANATION_WITHDRAWN = "withdrawn"
 

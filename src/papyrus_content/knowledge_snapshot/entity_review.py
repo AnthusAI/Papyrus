@@ -161,3 +161,20 @@ def describe_patches(node: Mapping[str, Any], text: str, *, actor: Actor, now: s
         raise EntityReviewError("A description must not hold an email address.")
     marks = decode_review(node.get("changeReason")).replace(description_edited_by=actor)
     return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "description": description, "changeReason": marks.encode(), "updatedAt": now}}]
+
+
+def accept_description_patches(node: Mapping[str, Any], *, actor: Actor, now: str) -> list[dict]:
+    """A person accepts the description the node already has, as it stands: the same words, now marked as edited by ``actor`` (so the wiki
+    publishes them, ``loaders.description_state``). Only a person can: an AI agent's acceptance would publish words a model wrote on its own say-so.
+    Nothing changes when this actor already accepted these words."""
+    if not actor.is_human:
+        raise EntityReviewError("Only a person accepts a description: pass --actor human.")
+    if not str(node.get("description") or "").strip():
+        raise EntityReviewError(f"{node['nodeKey']} has no description to accept; write one with `knowledge entities describe --text`.")
+    if contains_email(str(node.get("description"))):
+        raise EntityReviewError("A description must not hold an email address.")
+    marks = decode_review(node.get("changeReason"))
+    recorded = marks.description_edited_by
+    if recorded is not None and recorded.is_human and (recorded.actor, recorded.name) == (actor.actor, actor.name):
+        return []
+    return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "changeReason": marks.replace(description_edited_by=actor).encode(), "updatedAt": now}}]

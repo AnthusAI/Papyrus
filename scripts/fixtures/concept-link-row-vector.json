@@ -1,0 +1,81 @@
+{
+  "input": {
+    "subjectLineageId": "semantic-node-editor_concept--containment",
+    "objectLineageId": "semantic-node-editor_concept--confinement-problem",
+    "note": "Two sides of one fence: containment keeps the system in, confinement asks what it can still signal.",
+    "callerSub": "editor-sub-1",
+    "now": "2026-11-05T12:00:00Z",
+    "origin": "cli"
+  },
+  "nodes": [
+    {
+      "id": "semantic-node-editor_concept--containment-v1",
+      "lineageId": "semantic-node-editor_concept--containment",
+      "versionNumber": 1,
+      "nodeKey": "editor_concept--containment",
+      "nodeKind": "editor_concept",
+      "status": "accepted"
+    },
+    {
+      "id": "semantic-node-editor_concept--confinement-problem-v1",
+      "lineageId": "semantic-node-editor_concept--confinement-problem",
+      "versionNumber": 1,
+      "nodeKey": "editor_concept--confinement-problem",
+      "nodeKind": "editor_concept",
+      "status": "accepted"
+    }
+  ],
+  "result": {
+    "ok": true,
+    "relationId": "reference-link-related_to-c9f73623754ec5b0",
+    "relationState": "current",
+    "outcome": "created",
+    "decision": null
+  },
+  "row": {
+    "id": "reference-link-related_to-c9f73623754ec5b0",
+    "relationState": "current",
+    "predicate": "related_to",
+    "relationTypeId": "semantic-relation-type-related-to",
+    "relationTypeKey": "related_to",
+    "relationDomain": "generic",
+    "subjectKind": "semanticNode",
+    "subjectId": "semantic-node-editor_concept--confinement-problem-v1",
+    "subjectLineageId": "semantic-node-editor_concept--confinement-problem",
+    "subjectVersionNumber": 1,
+    "objectKind": "semanticNode",
+    "objectId": "semantic-node-editor_concept--containment-v1",
+    "objectLineageId": "semantic-node-editor_concept--containment",
+    "objectVersionNumber": 1,
+    "subjectStateKey": "semanticNode#semantic-node-editor_concept--confinement-problem#current",
+    "objectStateKey": "semanticNode#semantic-node-editor_concept--containment#current",
+    "objectSubjectStateKey": "semanticNode#semantic-node-editor_concept--containment#current#semanticNode",
+    "predicateObjectStateKey": "related_to#semanticNode#semantic-node-editor_concept--containment#current",
+    "subjectVersionKey": "semanticNode#semantic-node-editor_concept--confinement-problem-v1",
+    "objectVersionKey": "semanticNode#semantic-node-editor_concept--containment-v1",
+    "score": null,
+    "confidence": null,
+    "rank": 1,
+    "classifierId": null,
+    "modelVersion": null,
+    "reviewRecommended": false,
+    "importedAt": "2026-11-05T12:00:00Z",
+    "updatedAt": "2026-11-05T12:00:00Z",
+    "newsroomFeedKey": "reference-links",
+    "metadata": {
+      "kind": "concept.link",
+      "provenance": "human",
+      "suggestedBy": null,
+      "addedBy": "editor-sub-1",
+      "addedAt": "2026-11-05T12:00:00Z",
+      "decidedBy": "editor-sub-1",
+      "decidedAt": "2026-11-05T12:00:00Z",
+      "decision": "accepted",
+      "reasonCode": null,
+      "note": "Two sides of one fence: containment keeps the system in, confinement asks what it can still signal.",
+      "addedVia": "cli",
+      "decidedVia": "cli",
+      "confirmed": true
+    }
+  }
+}

@@ -8,13 +8,14 @@ accepted an entity or a cluster, and who edited a description, is public: ``{"ac
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 
 from ..knowledge_wiki.kinds import INTERNAL_KINDS, is_public_kind
 from .cluster_history import history_file, identity_of, valid_weeks, week_entry
 from .monitor_records import provenance_of
-from .keys import contains_email, entity_key, is_public_key, kind_label, kind_key, normalize_name, slug
+from .keys import bounded_slug, concept_name_part, contains_email, entity_key, is_public_key, kind_label, kind_key, normalize_name, slug
 from .model import (
     DESCRIPTION_AI_EDITED,
     DESCRIPTION_REVIEWED,
@@ -94,12 +95,30 @@ def _dated_items(items: tuple[PublishedItem, ...], as_of_week: int) -> dict[str,
     return dated
 
 
+PLAIN_KEY_KINDS = frozenset({kind_key("editor_concept")})
+PLAIN_KEY = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def plain_key(node: EntityNode) -> str:
+    """The key of a concept an editor invented, without its kind: ``containment``, not ``editor-concept--containment``. The key is also the page's
+    address (``slugify(key)``), and a reader should not see the kind in it. It is the name part of the stored node key (the name the editor typed,
+    as a slug), else the slug of the display name. A name another node's key already holds gets a ``-2`` after it (``_public_keys``)."""
+    named = concept_name_part(node.node_key)
+    if named and PLAIN_KEY.match(named):
+        return named
+    return bounded_slug(node.name)
+
+
 def _public_keys(nodes: list[EntityNode]) -> dict[str, str]:
-    """A public key per node lineage: the stored key when it has the public shape, else the slug of kind and name."""
+    """A public key per node lineage: a plain name for a concept an editor invented, else the stored key when it has the public shape, else the
+    slug of kind and name."""
     taken: set[str] = set()
     keys: dict[str, str] = {}
     for node in sorted(nodes, key=lambda candidate: candidate.lineage_id):
-        base = node.node_key if is_public_key(node.node_key) else entity_key(node.kind or "entity", node.name)
+        if kind_key(node.kind) in PLAIN_KEY_KINDS:
+            base = plain_key(node)
+        else:
+            base = node.node_key if is_public_key(node.node_key) else entity_key(node.kind or "entity", node.name)
         if not base:
             continue
         key, suffix = base, 1
@@ -263,7 +282,8 @@ EDITED_STATES = (DESCRIPTION_REVIEWED, DESCRIPTION_AI_EDITED)
 
 
 def _actor(actor) -> dict | None:
-    return actor.to_dict() if actor is not None else None
+    # The public snapshot names who and when; where a decision was made (``via``) stays on the record.
+    return {name: value for name, value in actor.to_dict().items() if name != "via"} if actor is not None else None
 
 
 def _description(node: EntityNode) -> dict:

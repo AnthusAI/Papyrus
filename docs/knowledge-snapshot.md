@@ -74,6 +74,8 @@ papyrus knowledge entities reject --key task--voice-cloning --actor ai
 papyrus knowledge entities rename --key task--voice-cloning --name "Voice cloning" --actor ai
 papyrus knowledge entities describe --key task--voice-cloning --text "..." --actor human --actor-name Ada
 papyrus knowledge entities alias --key maker--mistral-ai --add Mistral --actor ai    # another name for an accepted entity; the extractor resolves it next run
+papyrus knowledge entities accept-description --key editor_concept--containment --actor human --actor-name Ada   # a person accepts the description that is there; refuses --actor ai
+papyrus knowledge entities link --key editor_concept--containment --to editor_concept--confinement-problem --note "Two sides of one fence"   # an editor's related_to link between two concepts, with its words
 papyrus knowledge entities retype --key platform--swe-bench --kind benchmark --actor ai    # fixes a wrong kind; --dry-run shows the plan
 papyrus knowledge entities registry --out registry.json --vocabulary vocabulary.yml   # the entity step's registry: every accepted entity with all its names
 
