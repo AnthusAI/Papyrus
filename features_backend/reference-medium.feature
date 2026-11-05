@@ -122,7 +122,7 @@ Feature: A Reference's medium is read from its address by rule, kept in a sparse
     When the home-page-snapshot task runs
     Then the videos page lists "Newest video", "Older video" and "Loom walkthrough" in that order
     And no video card repeats a "Video" label, because every card in the block is a video
-    And every video card shows the page's own preview image and links out to its source
+    And every video card shows the video's own thumbnail from the site's storage, loads no picture from another host, and links out to its source
     And the videos page embeds nothing and loads no third-party script
     And the videos page does not list "Pending video", "Rejected video", "A playlist" or "An article"
 

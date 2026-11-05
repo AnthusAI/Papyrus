@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import io
 import json
 import re
@@ -223,6 +224,9 @@ def entry(title: str, address: str, status: str, accepted_at: str, *, image: str
            "curationStatusUpdatedBy": "editor@example.test", "predictedAcceptProbability": 0.9}
     if medium:
         row["medium"] = medium
+    if image and re.search(r"youtube|youtu\.be|vimeo|loom", address):
+        digest = hashlib.sha256(slug.encode()).hexdigest()   # the copy the thumbnail worker made; the preview below is the page's own picture on another host
+        row["thumbnailPath"] = f"assets/reference-thumbnails/{digest[:16]}-{digest[16:28]}.jpg"
     if stars:
         row.update(starRating=stars, starRatedAt=accepted_at, starRatedBy="star-rater@example.test")
     attachments = [] if not image else [{"id": f"att-{slug}", "role": "preview", "sortKey": "002-preview", "referenceLineageId": row["lineageId"], "sourceUri": image,
@@ -364,10 +368,11 @@ def card_plain(context, title: str) -> None:
     assert 'data-kind="medium"' not in card and "home-page-confidence" not in card, card
 
 
-@then("every video card shows the page's own preview image and links out to its source")
+@then("every video card shows the video's own thumbnail from the site's storage, loads no picture from another host, and links out to its source")
 def cards_image_and_link(context) -> None:
     for card in video_cards(context):
-        assert re.search(r'<img class="home-page-image" src="https://img\.example\.org/[a-z]+\.jpg"', card), card
+        assert re.search(r'<img class="home-page-image" src="/assets/reference-thumbnails/[0-9a-f]{16}-[0-9a-f]{12}\.jpg"', card), card
+        assert "img.example.org" not in card, card
         assert re.search(r'<a href="https://(?:www\.youtube\.com/watch\?v=|vimeo\.com/|www\.loom\.com/share/)[^"]+" rel="noopener">', card), card
 
 
