@@ -156,6 +156,6 @@ def step_described(context):
     assert all(kind.get("what") and kind.get("not_for") for kind in document["entity_kinds"])
 
 
-@then("Shipped's vocabulary has no description, because none has been written")
+@then("Shipped's vocabulary has a description")
 def step_shipped(context):
-    assert "description" not in committed("shipped")
+    assert committed("shipped")["description"]

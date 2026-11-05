@@ -10,9 +10,22 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2aa0bd95-f9ad-4751-aab8-e5c5fd5517b7",
+      "author": "home",
+      "text": "Design for Ryan to read, PR (not merged): https://github.com/AnthusAI/Papyrus/pull/1235 - docs/plans/public-blocks-from-indexes.md. Nothing built.",
+      "created_at": "2026-11-05T17:31:45.068834Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Claude Opus 5.5",
+        "name": "Claude"
+      }
+    }
+  ],
   "created_at": "2026-11-05T17:18:48.078981Z",
-  "updated_at": "2026-11-05T17:18:48.079029Z",
+  "updated_at": "2026-11-05T17:31:58.103540Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
