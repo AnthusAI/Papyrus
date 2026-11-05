@@ -112,7 +112,7 @@ test("plain text strips tags, decodes entities and never returns markup", () => 
   assert.equal(plainText('<a href="x">A &amp; B</a> &#169; &#x41; &lt;b&gt;'), "A & B © A <b>");
   assert.equal(cleanTarget('solar "panels" {x} | insource:evil'), "solar panels x insource evil");
   assert.ok(cleanTarget("x".repeat(500)).length <= 120);
-  assert.match(userAgent(), /^PapyrusNewsroomImagePicker\/1\.0 \(https:\/\/p\.apyr\.us\/\) /);
+  assert.match(userAgent(), /^PapyrusNewsroomImagePicker\/1\.0 \(https:\/\/github\.com\/AnthusAI\/Papyrus\) /);
 });
 
 // ---- the source: paging, exclusion, etiquette -----------------------------------------------------------------------------------------
