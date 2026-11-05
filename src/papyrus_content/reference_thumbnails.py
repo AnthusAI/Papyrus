@@ -196,10 +196,14 @@ def source_path(reference: Mapping[str, Any], thumbnail: Thumbnail) -> str:
 
 
 def media_key(path: str) -> str:
-    """The object key in the media bucket (``media/<path>``), the same key rule story pictures follow."""
-    from .renditions import media_key_for_source   # imported here: the content-actions function records thumbnails and never needs the image pipeline
+    """The object key in the media bucket: ``media/<path>``, the rule ``renditions.media_key_for_source`` states for story pictures.
 
-    return media_key_for_source(path)
+    Written out here so the router and content-actions packages, which import this module, do not pull in the image pipeline. The path is checked
+    against ``SOURCE_PATH`` first, so it can hold no ``..``.
+    """
+    if not SOURCE_PATH.match(path):
+        raise ValueError(f"not a thumbnail path: {path!r}")
+    return "media/" + path
 
 
 def stored_request(reference: Mapping[str, Any], thumbnail: Thumbnail) -> dict[str, Any]:
