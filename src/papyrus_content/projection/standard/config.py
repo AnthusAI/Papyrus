@@ -380,6 +380,7 @@ class PageActionSettings:
     ai: tuple[str, ...] = ()                  # subset of AI_DESTINATIONS; none by default
     prompt: str = "Read {url} and help me with it."
     types: tuple[str, ...] | None = None      # extra entry types that get actions (guides, docs); None = the listed types only
+    display: str = "text"                     # text (the original buttons and links) or icons (compact Lucide icon buttons; needed by x, reddit, share)
 
 
 #: The canonical-URL rules of a directory-style site; the TypeScript mirror is in amplify/publication/redirect-rules.ts.
@@ -901,7 +902,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     if (agents.llms_txt or agents.llms_full) and not agents.markdown:
         raise ValueError("agents.llmsTxt and agents.llmsFull link to the Markdown twins; turn agents.markdown on")
     actions_raw = dict(raw.get("pageActions") or {})
-    _only(actions_raw, {"enabled", "placement", "actions", "ai", "prompt", "types"}, "pageActions")
+    _only(actions_raw, {"enabled", "placement", "actions", "ai", "prompt", "types", "display"}, "pageActions")
     action_defaults = PageActionSettings()
     page_actions = PageActionSettings(
         enabled=bool(actions_raw.get("enabled", True)),
@@ -910,13 +911,18 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         ai=tuple(actions_raw.get("ai", ())),
         prompt=str(actions_raw.get("prompt", action_defaults.prompt)),
         types=tuple(str(name) for name in actions_raw["types"]) if actions_raw.get("types") is not None else None,
+        display=str(actions_raw.get("display", action_defaults.display)),
     )
     if page_actions.types is not None and not all(page_actions.types):
         raise ValueError("pageActions.types lists entry type names")
     if page_actions.placement not in ("header", "aside"):
         raise ValueError("pageActions.placement must be 'header' or 'aside'")
-    if not set(page_actions.actions) <= {"copy", "view"}:
-        raise ValueError("pageActions.actions must be a subset of ['copy', 'view']")
+    if not set(page_actions.actions) <= {"copy", "view", "x", "reddit", "share"}:
+        raise ValueError("pageActions.actions must be a subset of ['copy', 'view', 'x', 'reddit', 'share']")
+    if page_actions.display not in ("text", "icons"):
+        raise ValueError("pageActions.display must be 'text' or 'icons'")
+    if page_actions.display == "text" and set(page_actions.actions) & {"x", "reddit", "share"}:
+        raise ValueError("pageActions.actions 'x', 'reddit' and 'share' need pageActions.display 'icons'")
     if not set(page_actions.ai) <= set(AI_DESTINATIONS):
         raise ValueError(f"pageActions.ai must be a subset of {sorted(AI_DESTINATIONS)}")
     if "{url}" not in page_actions.prompt or len(page_actions.prompt) > 200:

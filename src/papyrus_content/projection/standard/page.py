@@ -111,6 +111,12 @@ class StandardPage:
     def skip_link(self) -> str:
         return components.skip_link()
 
+    def article_actions(self) -> str:
+        """The shared page actions for this page (View as Markdown, Copy, Open in ..., and with ``pageActions.display: "icons"``
+        X, Reddit and Share), exactly as core would place them; empty when the page is not eligible. A hook that returns its own
+        ``main`` or ``page_body`` calls this where the actions belong; the script and stylesheet load because the page has actions."""
+        return self.page_actions
+
     def form(self, form_id: str) -> str:
         """The markup of a ``forms`` entry, for a hook composing its own page."""
         from .forms import render_form
