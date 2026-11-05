@@ -387,6 +387,7 @@ class PageActionSettings:
     prompt: str = "Read {url} and help me with it."
     types: tuple[str, ...] | None = None      # extra entry types that get actions (guides, docs); None = the listed types only
     display: str = "text"                     # text (the original buttons and links) or icons (compact Lucide icon buttons; needed by x, reddit, share)
+    everywhere: bool = False                  # opt in: the home page, listings, section and collection fronts, tag, archive and paged list pages carry the actions too
 
 
 #: The canonical-URL rules of a directory-style site; the TypeScript mirror is in amplify/publication/redirect-rules.ts.
@@ -911,7 +912,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     if (agents.llms_txt or agents.llms_full) and not agents.markdown:
         raise ValueError("agents.llmsTxt and agents.llmsFull link to the Markdown twins; turn agents.markdown on")
     actions_raw = dict(raw.get("pageActions") or {})
-    _only(actions_raw, {"enabled", "placement", "actions", "ai", "prompt", "types", "display"}, "pageActions")
+    _only(actions_raw, {"enabled", "placement", "actions", "ai", "prompt", "types", "display", "everywhere"}, "pageActions")
     action_defaults = PageActionSettings()
     page_actions = PageActionSettings(
         enabled=bool(actions_raw.get("enabled", True)),
@@ -921,6 +922,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         prompt=str(actions_raw.get("prompt", action_defaults.prompt)),
         types=tuple(str(name) for name in actions_raw["types"]) if actions_raw.get("types") is not None else None,
         display=str(actions_raw.get("display", action_defaults.display)),
+        everywhere=bool(actions_raw.get("everywhere", action_defaults.everywhere)),
     )
     if page_actions.types is not None and not all(page_actions.types):
         raise ValueError("pageActions.types lists entry type names")
