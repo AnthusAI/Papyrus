@@ -1,3 +1,5 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { resolveAwsAccountId, type AmplifyAppShellSiteConfig } from "../../amplify-app-shell/lib/site-config";
 
 /** The pipeline stages, in execution order. `projection` must stay last: it publishes to the live site. */
@@ -13,6 +15,9 @@ export const KNOWLEDGE_STAGE_NAMES = [
   "wiki-sync",
   "projection",
 ] as const;
+
+/** The files a site may commit in its `settingsDirectory`; the task refuses any other name (src/papyrus_content/knowledge_cloud/settings.py). */
+export const KNOWLEDGE_SETTINGS_FILES = ["vocabulary.yml", "stop-words.txt", "review-guidance.md"] as const;
 
 export const DEFAULT_SCHEDULE = "cron(0 5 ? * MON *)";
 export const DEFAULT_VCPU = 4;
@@ -63,6 +68,12 @@ export type KnowledgeRunSettings = {
    * (p-apyr-us keeps its References in `ai-ml-research`). Unset means the `siteId`. State, ledger, alarms and SSM names stay keyed by `siteId`.
    */
   corpusKey?: string;
+  /**
+   * The directory, relative to this site file, that holds the site's committed run settings: any of `vocabulary.yml`, `stop-words.txt` and
+   * `review-guidance.md` (docs/knowledge-cloud-run.md "Committed settings"). The stack ships it with the deploy and the run reads it from there,
+   * never from the run state. Unset: the run uses the generic vocabulary and no stop words or review guidance.
+   */
+  settingsDirectory?: string;
   /** True on every site's stack but the first: the account's one `papyrus-scheduled-jobs/knowledge-run` ECR repository already exists (Shipped's stack created it). */
   reuseImageRepository?: boolean;
   siteBucket: string;
@@ -114,6 +125,8 @@ export type KnowledgeRunConfig = {
   publication: string;
   /** Set only when the site names a corpus of its own; the tasks then get `KNOWLEDGE_CORPUS_KEY`. */
   corpusKey?: string;
+  /** Absolute path of the committed settings directory; set only when the site names one. */
+  settingsDirectory?: string;
   reuseImageRepository: boolean;
   account: string;
   region: string;
@@ -243,7 +256,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   const record = raw as Record<string, unknown>;
   // trendWindowDays and trendCooldownDays are retired (the command chooses the window and the repeat rule from the data): still accepted, ignored.
   rejectUnknownKeys(record, [
-    "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "corpusKey", "reuseImageRepository", "siteBucket", "edgeDistributionId",
+    "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "corpusKey", "settingsDirectory", "reuseImageRepository", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
     "monitorSources", "monitorWeeks", "monitorSuggestions", "monitorStories", "referenceDocuments", "excludedSourceHosts", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "decisionKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
@@ -302,6 +315,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     memoryMiB: optionalInteger(record.memoryMiB, "memoryMiB", 2048, 122880),
     ephemeralStorageGiB: optionalInteger(record.ephemeralStorageGiB, "ephemeralStorageGiB", 21, 200),
     corpusKey: optionalString(record.corpusKey, "corpusKey", CORPUS_KEY_PATTERN, "lowercase letters, digits and hyphens, as in knowledge-corpus-<key>"),
+    settingsDirectory: optionalString(record.settingsDirectory, "settingsDirectory", REPO_PATH_PATTERN, "relative path from the site file to the directory of committed settings"),
     ...(record.reuseImageRepository !== undefined
       ? { reuseImageRepository: typeof record.reuseImageRepository === "boolean" ? record.reuseImageRepository : fail("reuseImageRepository", "must be true or false") }
       : {}),
@@ -333,10 +347,30 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   };
 }
 
-/** Applies the defaults. The site must say where it deploys (`PAPYRUS_AWS_ACCOUNT_ID` or `aws.accountId`, and `aws.region`) and carry a `knowledgeRun` block. */
+/** The committed settings directory, resolved against the site file's directory; it must exist, hold only known files and hold at least one. */
+function resolveSettingsDirectory(relative: string, siteFileDirectory: string | undefined): string {
+  if (siteFileDirectory === undefined) fail("settingsDirectory", "needs the directory of the site file to resolve against");
+  if (relative.split("/").includes("..") || path.isAbsolute(relative)) fail("settingsDirectory", `must stay inside the site file's directory, got ${JSON.stringify(relative)}`);
+  const directory = path.resolve(siteFileDirectory as string, relative);
+  if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) fail("settingsDirectory", `names a directory that does not exist: ${directory}`);
+  const names = fs.readdirSync(directory);
+  const known = KNOWLEDGE_SETTINGS_FILES as readonly string[];
+  for (const name of names) {
+    if (!known.includes(name)) fail("settingsDirectory", `holds ${JSON.stringify(name)}, which is not a settings file (known: ${known.join(", ")})`);
+    if (!fs.statSync(path.join(directory, name)).isFile()) fail("settingsDirectory", `holds ${JSON.stringify(name)}, which is not a file`);
+  }
+  if (names.length === 0) fail("settingsDirectory", "is empty: name a directory with at least one settings file, or leave settingsDirectory out");
+  return directory;
+}
+
+/**
+ * Applies the defaults. The site must say where it deploys (`PAPYRUS_AWS_ACCOUNT_ID` or `aws.accountId`, and `aws.region`) and carry a `knowledgeRun` block.
+ * `siteFileDirectory` is where the site file lives: the `settingsDirectory` is relative to it.
+ */
 export function resolveKnowledgeRunConfig(
   site: Pick<AmplifyAppShellSiteConfig, "siteId" | "repository" | "aws" | "knowledgeRun">,
   environment: Record<string, string | undefined> = process.env,
+  siteFileDirectory?: string,
 ): KnowledgeRunConfig {
   if (site.knowledgeRun === undefined) throw new Error(`site.json: site "${site.siteId}" has no knowledgeRun block`);
   const account = resolveAwsAccountId(site.aws, environment);
@@ -350,6 +384,7 @@ export function resolveKnowledgeRunConfig(
   return {
     publication,
     ...(settings.corpusKey !== undefined ? { corpusKey: settings.corpusKey } : {}),
+    ...(settings.settingsDirectory !== undefined ? { settingsDirectory: resolveSettingsDirectory(settings.settingsDirectory, siteFileDirectory) } : {}),
     reuseImageRepository: settings.reuseImageRepository ?? false,
     account,
     region,

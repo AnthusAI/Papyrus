@@ -88,16 +88,17 @@ def test_a_corpus_key_of_its_own_changes_nothing_else(tmp_path):
 
 
 # -- a new site needs none of the operator's files ------------------------------------------------------------------------
-def test_a_new_site_without_a_vocabulary_gets_the_generic_one_and_keeps_it_in_its_state(tmp_path):
+def test_a_new_site_without_a_vocabulary_gets_the_generic_one_and_writes_nothing_to_its_state(tmp_path):
     run, shell = make_run(tmp_path, NEW_SITE, seeded=False)
-    assert run.state.read_text("config/vocabulary.yml") is None
+    assert run.state.names("config/") == []
     assert run_stage("corpus-sync", run) == 0 and run_stage("topic-model", run) == 0 and run_stage("typed-extraction", run) == 0
     registry = commands(shell, ["papyrus", "knowledge", "entities", "registry"])[0]
     assert Path(value_of(registry, "--vocabulary")).read_text().count("- {key: ") >= 4
-    seeded = run.state.read_text("config/vocabulary.yml")
-    assert seeded is not None and "publication: newsite" in seeded
+    generic = (run.config_dir / "vocabulary.yml").read_text()
+    assert "publication: newsite" in generic
     for kind in ("organization", "product", "person", "topic"):
-        assert f"key: {kind}," in seeded
+        assert f"key: {kind}," in generic
+    assert run.state.names("config/") == []
     from ..knowledge_snapshot.registry import read_vocabulary_kinds
 
     assert read_vocabulary_kinds(run.config_dir / "vocabulary.yml") == ["organization", "product", "person", "topic"]
@@ -105,17 +106,18 @@ def test_a_new_site_without_a_vocabulary_gets_the_generic_one_and_keeps_it_in_it
     assert value_of(typed, "--vocabulary") == str(run.config_dir / "vocabulary.yml")
 
 
-def test_a_vocabulary_the_operator_wrote_is_never_replaced(tmp_path):
+def test_a_vocabulary_the_site_committed_is_used_instead_of_the_default(tmp_path):
     run, shell = make_run(tmp_path, NEW_SITE)
     run_stage("corpus-sync", run)
-    assert "key: maker" in run.state.read_text("config/vocabulary.yml")
+    assert "key: maker" in (run.config_dir / "vocabulary.yml").read_text()
     assert "organization" not in (run.config_dir / "vocabulary.yml").read_text()
 
 
-def test_the_endpoint_file_holds_the_address_appsync_reports_for_the_api_id_when_the_state_has_none(tmp_path):
+def test_the_endpoint_file_holds_the_address_appsync_reports_for_the_api_id(tmp_path):
     run, shell = make_run(tmp_path, NEW_SITE, seeded=False)
     assert run_stage("corpus-sync", run) == 0
-    outputs = json.loads(run.state.read_text("config/amplify_outputs.json"))
+    outputs = json.loads((run.config_dir / "amplify_outputs.json").read_text())
+    assert run.state.names("config/") == []
     assert outputs == {"data": {"url": APPSYNC_ENDPOINT}}
     assert run.command_env()["PAPYRUS_GRAPHQL_ENDPOINT"] == outputs["data"]["url"]
 
@@ -123,7 +125,7 @@ def test_the_endpoint_file_holds_the_address_appsync_reports_for_the_api_id_when
 def test_without_an_api_id_nothing_is_invented_for_the_endpoint(tmp_path):
     run, shell = make_run(tmp_path, {**NEW_SITE, "KNOWLEDGE_APPSYNC_API_ID": ""}, seeded=False)
     run_stage("corpus-sync", run)
-    assert run.state.read_text("config/amplify_outputs.json") is None
+    assert not (run.config_dir / "amplify_outputs.json").exists()
 
 
 def test_a_new_site_without_beats_or_concept_kinds_snapshots_with_neither(tmp_path):

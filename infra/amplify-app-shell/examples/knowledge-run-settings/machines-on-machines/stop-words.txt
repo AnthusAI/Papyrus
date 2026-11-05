@@ -1,0 +1,4 @@
+# words every research abstract repeats
+paper papers abstract arxiv propose proposed novel approach results show shows shown demonstrate demonstrates
+# fragments that read as terms
+et al fig figure table
