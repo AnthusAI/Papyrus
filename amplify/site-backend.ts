@@ -31,6 +31,7 @@ import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY
 import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
 import { addMcpOAuth, planMcpOAuth } from "./mcp-oauth/resource";
+import { addMcpTools, readerPublication } from "./mcp-tools/resource";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
@@ -195,6 +196,14 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
 
   const mcpPlan = planMcpOAuth(featureFlags.mcp, process.env);
   const mcpOAuth = mcpPlan ? addMcpOAuth(backend.createStack("McpOAuth"), mcpPlan) : undefined;
+  const readerResource = (backend as unknown as { readerActions?: { resources: { lambda: LambdaFunction } } }).readerActions;
+  const mcpTools = mcpPlan ? addMcpTools(backend.createStack("McpTools"), mcpPlan, {
+    endpoint: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
+    tenant: (process.env.PAPYRUS_TENANT_ID ?? "").trim(),
+    publication: readerPublication((process.env.PAPYRUS_SITE_ORIGIN ?? "").trim()),
+    reader: readerResource?.resources.lambda,
+    referenceSingleTenant: (process.env.PAPYRUS_MCP_REFERENCE_SINGLE_TENANT ?? "").trim() === "true",
+  }) : undefined;
 
   const cliEnrollmentPlan = cliRemoteLoginPlan
     ? planCliEnrollment(process.env.PAPYRUS_ENABLE_CLI_ENROLLMENT?.trim() === "true")
@@ -831,6 +840,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     custom: {
       publicForms: { endpoint: publicFormsEndpoint },
       ...(mcpOAuth ? { mcpOAuth } : {}),
+      ...(mcpTools ? { mcpTools } : {}),
       // Lets the operator CLI re-project on publish without PAPYRUS_PUBLICATION_KIND / PAPYRUS_CONTENT_ACTIONS_FUNCTION (PPY-0c0b75).
       publication:
         s3ProjectionPublication !== undefined
