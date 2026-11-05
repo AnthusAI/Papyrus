@@ -216,6 +216,7 @@ export const homePagePlugin: PapyrusPlugin<HomePageConfig, { homePageTrigger: ty
     trigger.addEnvironment("PAPYRUS_HOME_PAGE_SCHEDULER_ROLE_ARN", schedulerRole.roleArn);
     trigger.addEnvironment("PAPYRUS_HOME_PAGE_DEBOUNCE_SECONDS", String(config.debounceSeconds));
     trigger.addEnvironment("PAPYRUS_PROJECTION_LOCK_TABLE", PROJECTION_LOCK_TABLE_NAME);
+    if (config.indexed) trigger.addEnvironment("PAPYRUS_HOME_PAGE_COORDINATES", "1");   // a site served from the public index: the trigger records coordinates (docs/plans/public-blocks-from-indexes.md)
 
     if (config.intervalHours !== null) {
       new Rule(context.createStack("home-page-schedule"), "HomePageSnapshotSchedule", {

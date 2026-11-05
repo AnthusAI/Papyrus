@@ -34,7 +34,7 @@ The `homePage` key of `projection.json`; a site without it has no home-page beha
 
 ```json
 {"homePage": {"layout": "latest", "perSection": 4,
-  "references": {"corpus": "knowledge-corpus-example", "fields": "all", "defaultCount": 6, "recommendedThreshold": 0.5, "paging": {"pageSize": 48}},
+  "references": {"corpus": "knowledge-corpus-example", "fields": "all", "defaultCount": 6, "recommendedThreshold": 0.5, "source": "snapshot", "paging": {"pageSize": 48}},
   "threads": {"enabled": false, "authors": "handle", "anonymousLabel": "Editor"},
   "forum": {"threadBase": "conversations", "index": {"pageSize": 50}},
   "freshness": {"debounceSeconds": 300, "intervalHours": null, "purge": false}}}
@@ -46,6 +46,30 @@ The `homePage` key of `projection.json`; a site without it has no home-page beha
 
 `references.corpus` defaults to the corpus of the site's publication key (`PAPYRUS_PUBLICATION_CORPUS_KEY` in the Lambda, `--site KEY` on the CLI).
 
+## Serving the blocks from the public index
+
+`references.source` is `"snapshot"` (the default: every block picks from `_data/home-page/references.json`) or `"index"`: each block asks the public index ([the design](plans/public-blocks-from-indexes.md), PPY-7f1e54; [the attributes and the index](reference-feed-indexes.md#the-public-blocks-attributes)) for the rows it shows, in the order it shows them, and each row already carries its card (`cardImage`, `cardSummary`, `cardSiteName`, `cardPageTitle`), so no decision and no preview is read. **A site stays on the snapshot until it opts in**, and an opted-in site writes no `references.json`. A `recommendedThreshold` below 0.5 is a build error on the index path (the index holds only pending rows predicted at 0.5 or more), and `references.paging` is refused for now (paged lists follow in their own change).
+
+| Block | What it reads |
+| --- | --- |
+| `recent` | the accepted list, newest accepted first (`curationStatusKey`) |
+| `confident` | the accepted partition of the public index, by stored prediction |
+| `recommended` | the pending partition of the prediction index, down to the threshold |
+| `bucket` (rolling windows) | accepted rows newest first until the windows read hold enough; recommended rows one day partition of the public index at a time (a `week` is seven queries, newest window first) |
+| `medium="video"` | the video partitions, ordered in memory |
+| `section` | the same list, read on until it has enough matches |
+| stars | the five star partitions, once per run: 3 to 5 stars first, 1 and 2 last, wherever the row arrived |
+
+A block asks for `count + placed` rows (`placed` is what the page already shows) and reads whole tie groups, so the order at the cut is the file's. The unchanged block code chooses from the records it is given, so the markup, the Markdown twins, `llms.txt` and a site's card hook (Machines on Machines rewrites `<article class="home-page-tile">`) see the same HTML. A row is ordered by its stored original prediction at full precision, and shows it; the snapshot ranks on the prediction rounded to two places, so the two differ only inside one rounding tier. A card's title is `displayed_title` over the row's own title and `cardPageTitle`.
+
+**How a change reaches the pages.** A site whose setting is `index` gets `PAPYRUS_HOME_PAGE_COORDINATES=1` on its stream trigger (the plugin reads the setting). The trigger then lists, for each change, a coordinate (`routing.Coordinate`: the old and new public keys, accepted time, stars, medium, section and a hash of the card) beside the id, and drops a change to a row that is in no public partition before or after: a new Reference at 0.3 schedules nothing. The render task (`home_page/render.py`, same `home-page-snapshot` task name) reads the coordinates and the small record of what each block remembered (`home-page-blocks#<scope>` in the lock table: the ids it pulled, the coordinates of its last row, whether it came up short) and asks only the blocks a change can touch: the row was one the block pulled, or it can be public in the block's partition and sorts ahead of the block's last row, or the block is short. A page with a touched block is rendered again (all of its blocks run their queries) and written only when its digest, taken over the records it places, changed. A record that is missing, from another build or for another day is not repaired: its blocks are asked again. A mass import, a thread change or a run with no batch asks every block once, which is a few dozen requests and not a read of the corpus. Rolling windows move with the day: a window crossing changes a page's order the next time anything renders it (the lag accepted on 2026-11-05).
+
+The design estimates a whole render from nothing at about 21 and 29 requests on the two live sites where the file path read about 8,200 and 6,100 (not yet measured on a live site: the parity command and a first render are how to find out). A counting fake holds the code to its own counts: a recent block is one page of the accepted list, a confident or recommended block one page and the five star partitions once, a weekly recommended block seven day queries and one to find where to stop, and the fixture site renders from nothing in 24 requests (`indexed_test.py`, `render_test.py`).
+
+**Before a site flips**, run `papyrus home-page parity --site KEY --static-dir SITE/web`: it renders every page that places a Reference from the file and from the index into two scratch directories (the backend is only read), lists any page that differs with its first differing card, and calls a page `rounding tier` when its cards differ only in order between cards that show the same confidence percentage. Exit status 1 for any other difference. The flip is one line in `projection.json`; after it `references.json` is no longer written.
+
+**Not yet:** paged lists (`paging`), the anchor card on a thread page (the thread files themselves are written, and a thread about a Reference is public when its row is in the public index), and the removal of the snapshot code (a later change, when every site has flipped).
+
 ## The task
 
 `home-page-snapshot` runs in the content-actions function (`{"projectionTask": {"task": "home-page-snapshot"}}`). It runs in one of two modes, reported as `mode`, and a change costs requests in proportion to the change in the first and to the corpus in the second (see [Cost](#cost-a-change-is-read-not-the-corpus)). Under the projection lease it builds the document, writes the file only when its content changed (the `generatedAt` stamp alone is not a change), then re-renders only the listing pages whose inputs changed and, with `freshness.purge`, purges the file on the edge. A site without a `homePage` setting ignores the task. The report is `{written, unchanged, references, pagesRewritten, purged}`.
@@ -56,6 +80,7 @@ The `homePage` key of `projection.json`; a site without it has no home-page beha
 papyrus home-page snapshot --site KEY --site-bucket BUCKET --static-dir SITE/web --auth iam --amplify-outputs FILE
 papyrus home-page snapshot --site KEY --out DIR          # a local directory
 papyrus home-page snapshot --site KEY --dry-run          # counts and file size; writes nothing
+papyrus home-page parity --site KEY --static-dir SITE/web # before a site flips to the index: the same pages from the file and from the index
 ```
 
 Mutation commands write by default; `--dry-run` prints the report and the size of the file only. `--static-dir` points at the site checkout so its `projection.json` (including `urls.basePath`) applies; without it the defaults are used.

@@ -438,6 +438,7 @@ PORTED_COMMANDS = frozenset(
         "ontology:doctor",
         "reader:feedback",
         "home-page:snapshot",
+        "home-page:parity",
         "cyclotron:export-priming",
         "cyclotron:export-examples",
         "cyclotron:evaluate-promotion",

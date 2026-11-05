@@ -89,3 +89,18 @@ def test_paging_is_off_unless_the_site_opts_in():
 def test_a_wrong_paging_setting_is_a_build_error_that_names_it(paging, message):
     with pytest.raises(ValueError, match=message):
         home_page_settings_from_mapping({"references": {"paging": paging}})
+
+
+def test_the_source_of_the_references_is_the_file_unless_a_site_opts_in_to_the_index():
+    assert home_page_settings_from_mapping({}).references.source == "snapshot" and not home_page_settings_from_mapping({}).references.indexed
+    assert home_page_settings_from_mapping({"references": {"source": "index"}}).references.indexed is True
+    with pytest.raises(ValueError, match="source must be one of snapshot, index"):
+        home_page_settings_from_mapping({"references": {"source": "files"}})
+
+
+def test_a_threshold_below_one_half_is_refused_for_the_index_and_still_works_for_the_file():
+    with pytest.raises(ValueError, match="recommendedThreshold is 0.4"):
+        home_page_settings_from_mapping({"references": {"source": "index", "recommendedThreshold": 0.4}})
+    assert home_page_settings_from_mapping({"references": {"recommendedThreshold": 0.4}}).references.recommended_threshold == 0.4
+    assert home_page_settings_from_mapping({"references": {"source": "index", "recommendedThreshold": 0.5}}).references.indexed
+    assert home_page_settings_from_mapping({"references": {"source": "index", "recommendedThreshold": 0.8}}).references.recommended_threshold == 0.8

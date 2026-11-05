@@ -117,3 +117,64 @@ def test_a_counter_that_is_not_the_one_read_is_left_alone():
 
 def test_the_header_key_names_one_site():
     assert state_key("a") != state_key("b") and shard_key("a", "0") != shard_key("a", "1")
+
+
+# --- the coordinates and the block record of a site served from the public index (PPY-7f1e54) ---------------------------------------------------------
+
+
+class FakeItemTable:
+    """The lock table as the stores use it: items by ``publication``, with ``get_item`` / ``put_item`` / ``update_item`` for the few expressions they send."""
+
+    def __init__(self):
+        self.items: dict[str, dict] = {}
+
+    def get_item(self, Key, ConsistentRead=True):
+        item = self.items.get(Key["publication"])
+        return {"Item": dict(item)} if item is not None else {}
+
+    def put_item(self, Item):
+        self.items[Item["publication"]] = dict(Item)
+
+    def update_item(self, Key, UpdateExpression, ExpressionAttributeValues, **ignored):
+        item = self.items.setdefault(Key["publication"], {"publication": Key["publication"]})
+        name = UpdateExpression.split(" ")[1]
+        item[name] = set(item.get(name) or ()) - set(ExpressionAttributeValues[":read"])
+
+
+def test_the_dirty_store_reads_the_coordinates_and_takes_out_exactly_what_it_read():
+    from papyrus_content.home_page.state_store import DirtyStore
+
+    table = FakeItemTable()
+    table.items["home-page-dirty#abc"] = {"publication": "home-page-dirty#abc", "ids": {"r-v1"}, "coords": {'{"i":"r-v1"}', '{"i":"later"}'}}
+    store = DirtyStore(table, "abc")
+    batch = store.read()
+    assert batch.ids == {"r-v1"} and batch.coords == {'{"i":"r-v1"}', '{"i":"later"}'}
+    table.items["home-page-dirty#abc"]["coords"].add('{"i":"arrived while the task ran"}')
+    store.acknowledge(batch)
+    assert table.items["home-page-dirty#abc"]["coords"] == {'{"i":"arrived while the task ran"}'}, "a change that landed meanwhile stays for the next run"
+
+
+def test_a_site_without_coordinates_reads_an_empty_set():
+    from papyrus_content.home_page.state_store import DirtyStore
+
+    table = FakeItemTable()
+    table.items["home-page-dirty#abc"] = {"publication": "home-page-dirty#abc", "ids": {"r-v1"}}
+    assert DirtyStore(table, "abc").read().coords == frozenset()
+
+
+def test_the_block_record_is_saved_compressed_once_and_an_unreadable_one_is_no_record():
+    import zlib
+
+    from papyrus_content.home_page.state_store import DynamoBlockStore
+
+    table = FakeItemTable()
+    store = DynamoBlockStore(table, "abc")
+    assert store.load() is None
+    record = {"format": 1, "fingerprint": "f", "blocks": {"k": {"ids": ["a"], "short": False}}}
+    store.save(record)
+    first = dict(table.items["home-page-blocks#abc"])
+    store.save(record)
+    assert table.items["home-page-blocks#abc"] == first, "unchanged: not written again"
+    assert DynamoBlockStore(table, "abc").load() == record
+    table.items["home-page-blocks#abc"]["body"] = zlib.compress(b"not json")
+    assert DynamoBlockStore(table, "abc").load() is None

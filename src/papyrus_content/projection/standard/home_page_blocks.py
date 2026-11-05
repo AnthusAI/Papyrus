@@ -20,7 +20,8 @@ from datetime import date
 from typing import Any
 
 from ...home_page.export import clip_summary
-from ...home_page.ordering import BUCKETS, order_in_buckets, order_public_records
+from ...home_page.indexed import IndexDocument
+from ...home_page.ordering import BUCKETS, order_in_buckets, order_public_records, utc_today
 from ...home_page.settings import HomePageSettings
 from ...reference_medium import MEDIUMS
 from . import home_page_components as parts
@@ -114,6 +115,8 @@ def _in_section(record: Mapping, section: str, labels: Mapping[str, str]) -> boo
 
 def candidates_of(document: Mapping | None, attributes: Mapping, section_labels: Mapping[str, str] | None = None, as_of: date | None = None) -> list[Mapping[str, Any]]:
     """Every Reference an include's selection could place, in the order it places them: no ledger, no count."""
+    if isinstance(document, IndexDocument):   # asked outside a page (a digest): the rows its own count needs
+        document = document.for_block(attributes, int(attributes["count"]) if "count" in attributes else document.reader.settings.references.default_count, as_of or utc_today(), section_labels)
     records = (document or {}).get("references") or []
     candidates = ordered(records, attributes["select"], attributes.get("bucket"), as_of)
     if attributes.get("medium"):   # only the References whose address certainly says this medium; a record with no `medium` field never matches
@@ -132,8 +135,10 @@ def select_references(
     as_of: date | None = None,
 ) -> list[Mapping[str, Any]]:
     """The References one include places: its ordering, minus what the page already shows, up to ``count``; each one is claimed in the ledger."""
-    candidates = candidates_of(document, attributes, section_labels, as_of)
     count = int(attributes["count"]) if "count" in attributes else default_count
+    if isinstance(document, IndexDocument):   # the index answers per block: count rows, and the ones the page already shows are skipped
+        document = document.for_block(attributes, count + len(ledger.seen), as_of or utc_today(), section_labels)
+    candidates = candidates_of(document, attributes, section_labels, as_of)
     chosen: list[Mapping[str, Any]] = []
     for record in candidates:
         if len(chosen) >= count:

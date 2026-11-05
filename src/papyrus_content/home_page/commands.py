@@ -1,4 +1,4 @@
-"""CLI: ``papyrus home-page snapshot``."""
+"""CLI: ``papyrus home-page snapshot`` and ``papyrus home-page parity``."""
 
 from __future__ import annotations
 
@@ -130,4 +130,42 @@ def home_page_snapshot(flags: list[str]) -> None:
         raise SystemExit(1)
 
 
-HOME_PAGE_COMMANDS = {"snapshot": home_page_snapshot}
+def home_page_parity(flags: list[str]) -> None:
+    """``papyrus home-page parity [--site KEY] --static-dir DIR [--json]``.
+
+    Before a site flips to ``homePage.references.source: "index"``: renders every page that places a Reference twice, from the file (the snapshot path) and from the public
+    index, each into its own scratch directory, and compares them. The backend is only read; nothing is written to the site. A page that differs is listed with its first
+    differing card; a page whose cards differ only in order, between cards that show the same confidence percentage, is reported as ``rounding tier`` (the snapshot ranks on the
+    prediction rounded to two places, the index on the stored prediction) and does not fail the check. Exit status 1 when any other page differs or is missing.
+    """
+    import tempfile
+
+    from ..knowledge_snapshot.commands import authoring_client
+    from ..project_commands import _context_for
+    from .parity import parity_report
+
+    options = parse_options(flags)
+    site = normalize_string(options.get("site"))
+    require_standard_site(options)
+    client = authoring_client(options)
+    with tempfile.TemporaryDirectory(prefix="home-page-parity-") as scratch:
+        def build(variant: str) -> tuple[Any, Path]:
+            directory = Path(scratch) / variant
+            directory.mkdir()
+            return _context_for(client, {**options, "out": str(directory)}), directory
+
+        report = parity_report(client, build, site=site, workers=CLI_WORKERS)
+    if options.get("json"):
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(f"home-page\tparity\t{report['pages']} pages\t{report['identical']} identical\t{len(report['differing'])} differing\t{len(report['missing'])} missing")
+        for item in report["differing"]:
+            print(f"home-page\tparity\t{item['kind']}\t{item['page']}\t{item['first']}")
+        for key in report["missing"]:
+            print(f"home-page\tparity\tmissing\t{key}")
+        print(f"home-page\tparity\t{'ok: the site can flip' if report['ok'] else 'NOT ok: look at the pages above before the flip'}")
+    if not report["ok"]:
+        raise SystemExit(1)
+
+
+HOME_PAGE_COMMANDS = {"snapshot": home_page_snapshot, "parity": home_page_parity}

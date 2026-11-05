@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from ..projection.lease import lock_table_from_environment
-from .state_store import DirtyBatch, DirtyStore, DynamoStateStore
+from .state_store import DirtyBatch, DirtyStore, DynamoBlockStore, DynamoStateStore
 
 INCREMENTAL_FIELD = "incremental"
 SCOPE_FIELD = "scope"
@@ -36,3 +36,11 @@ def stores_for(task: Mapping[str, Any], environ: Mapping[str, str] | None = None
         return DynamoStateStore(found, scope), None, None
     dirty = DirtyStore(found, scope)
     return DynamoStateStore(found, scope), dirty, dirty.read()
+
+
+def block_store_for(task: Mapping[str, Any], environ: Mapping[str, str] | None = None, *, table: Any = None) -> DynamoBlockStore | None:
+    """The record of what each block remembers, for a site served from the public index; ``None`` without a lock table (every block is asked, every run)."""
+    environment = os.environ if environ is None else environ
+    scope = str(task.get(SCOPE_FIELD) or "") or (scope_of(environment[FUNCTION_NAME_ENVIRONMENT]) if environment.get(FUNCTION_NAME_ENVIRONMENT) else "")
+    found = table if table is not None else lock_table_from_environment(environment)
+    return DynamoBlockStore(found, scope) if scope and found is not None else None

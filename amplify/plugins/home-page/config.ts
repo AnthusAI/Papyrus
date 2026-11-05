@@ -18,9 +18,11 @@ export type HomePageConfig = {
   purge: boolean;
   /** Mirrors `homePage.threads.enabled`: the Message table stream feeds the same trigger, so a new or changed Message refreshes the threads. */
   threads: boolean;
+  /** Mirrors `homePage.references.source === "index"`: the stream trigger records a coordinate for each change so the render task can ask only the blocks it touches. */
+  indexed: boolean;
 };
 
-type ProjectionFreshness = { debounceSeconds?: unknown; intervalHours?: unknown; purge?: unknown; threads?: boolean };
+type ProjectionFreshness = { debounceSeconds?: unknown; intervalHours?: unknown; purge?: unknown; threads?: boolean; indexed?: boolean };
 
 function wholeSeconds(value: unknown, where: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1) throw new Error(`${where} must be a whole number of seconds, at least 1`);
@@ -42,7 +44,7 @@ export function readProjectionFreshness(options: PluginResolveOptions): Projecti
   if (options.staticDir === undefined) return undefined;
   const settingsPath = resolve(options.baseDirectory ?? process.cwd(), options.staticDir, "projection.json");
   if (!existsSync(settingsPath)) return undefined;
-  const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as { homePage?: { freshness?: ProjectionFreshness; threads?: { enabled?: unknown } } };
+  const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as { homePage?: { freshness?: ProjectionFreshness; threads?: { enabled?: unknown }; references?: { source?: unknown } } };
   if (settings.homePage === undefined || settings.homePage === null) {
     throw new Error(`The home-page plugin needs a "homePage" setting in ${settingsPath}; without it the snapshot task does nothing.`);
   }
@@ -53,7 +55,9 @@ export function readProjectionFreshness(options: PluginResolveOptions): Projecti
   const unknownThreads = Object.keys(threads).filter((key) => !THREADS_KEYS.includes(key));
   if (unknownThreads.length > 0) throw new Error(`Unknown homePage.threads settings: ${unknownThreads.join(", ")}`);
   if (threads.enabled !== undefined && typeof threads.enabled !== "boolean") throw new Error("homePage.threads.enabled must be true or false");
-  return { ...freshness, threads: threads.enabled === true };
+  const source = settings.homePage.references?.source;
+  if (source !== undefined && source !== "snapshot" && source !== "index") throw new Error('homePage.references.source must be "snapshot" or "index"');
+  return { ...freshness, threads: threads.enabled === true, indexed: source === "index" };
 }
 
 /** Request values win over the site's projection.json; both fall back to the defaults. */
@@ -71,5 +75,6 @@ export function resolveHomePageConfig(request: PluginRequest, options: PluginRes
     intervalHours: intervalHours(interval, "home-page intervalHours"),
     purge,
     threads: projected.threads === true,
+    indexed: projected.indexed === true,
   };
 }
