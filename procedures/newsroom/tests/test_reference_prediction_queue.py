@@ -325,7 +325,7 @@ def test_a_refusal_or_a_failure_is_the_result_not_an_exception_and_names_what_to
 def test_the_created_references_of_a_plan_are_the_only_ones_requested():
     changes = [{"modelName": "Reference", "action": "create", "expected": reference_row("reference-new-v1")},
                {"modelName": "Reference", "action": "update", "expected": reference_row("reference-old-v1")},
-               {"modelName": "Reference", "action": "create", "expected": reference_row("reference-done-v1", predictionDecidedAt="2026-11-05T09:00:00.000Z")},
+               {"modelName": "Reference", "action": "create", "expected": reference_row("reference-done-v1", predictionDecidedAt="2026-11-05T09:00:00.000Z", predictedAcceptProbability=0.6)},
                {"modelName": "Reference", "action": "create", "expected": reference_row("reference-voted-v1", curationStatus="accepted")},
                {"modelName": "Assignment", "action": "create", "expected": {"id": "assignment-1"}}]
     assert [item["referenceId"] for item in queue.references_created_by(changes)] == ["reference-new-v1"]
