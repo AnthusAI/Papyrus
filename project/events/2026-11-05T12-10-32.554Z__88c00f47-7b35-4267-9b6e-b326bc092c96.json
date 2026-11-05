@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "88c00f47-7b35-4267-9b6e-b326bc092c96",
+  "issue_id": "PPY-a96f7898-c837-4339-b631-8587185da8b5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:32.554Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Build the four-option picker on a Story",
+    "description": "Show four candidates with what each is and its source. Choosing one sets it as the Story's cover, reversibly. Loading, empty and failure states say so in words. Works on phone and tablet, in light and dark. Reviewed by Ryan with screenshots, per the UX rule.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

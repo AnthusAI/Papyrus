@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7cfa39dc-a687-48a6-8692-adb40ee76724",
+  "issue_id": "PPY-19295633-bd56-4a24-8964-df28d01fff3d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:32.448Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Specs and docs for stock images",
+    "description": "Gherkin specs for search, licence filtering and copying in. p.apyr.us docs page, per the rule that every feature epic ends with one.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

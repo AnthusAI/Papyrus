@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "55e27665-321e-4ccd-95ed-797db686ba95",
+  "issue_id": "PPY-b2b0750b-eb3b-4b5c-b656-dc6835513152",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:33.265Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Specs and docs for generated images",
+    "description": "Gherkin specs using a fake model, including that generation isn't offered before stock. p.apyr.us docs page.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

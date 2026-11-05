@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c3d418e9-5bda-4ea5-858b-e779508fa658",
+  "title": "Copy a chosen stock image into the site's own storage",
+  "description": "When an editor picks an image, copy it into the publication's media with renditions, so public pages don't load it from the provider and readers' browsers don't contact a third party before answering the cookie banner. Skip this for a source whose terms require hotlinking, and raise that with Ryan. The Story's card and body use it through the existing image path.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T12:10:32.250122Z",
+  "updated_at": "2026-11-05T12:10:32.250146Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

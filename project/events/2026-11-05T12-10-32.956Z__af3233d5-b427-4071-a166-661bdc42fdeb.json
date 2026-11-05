@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "af3233d5-b427-4071-a166-661bdc42fdeb",
+  "issue_id": "PPY-63bdbdd7-e498-4b6a-bc17-f3405b9c3849",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:32.956Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Specs and docs for the picker",
+    "description": "Gherkin specs for pick, reload, search target and moving on. p.apyr.us docs page.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

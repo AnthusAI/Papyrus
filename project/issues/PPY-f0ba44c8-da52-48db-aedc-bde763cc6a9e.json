@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f0ba44c8-da52-48db-aedc-bde763cc6a9e",
+  "title": "Add Wikimedia Commons as an image source",
+  "description": "Search Commons through its API and read each file's licence per image, because licences differ by file. Only allowed licences are returned. Depends on the source interface. Done when a real search returns four candidates with licence data, tested against recorded responses.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T12:10:32.050088Z",
+  "updated_at": "2026-11-05T12:10:32.050113Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

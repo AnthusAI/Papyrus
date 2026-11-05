@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cb0fb01d-3f81-4e81-9d35-dc12788e5397",
+  "issue_id": "PPY-91d6b19b-748f-4e98-a54e-cdd429dd31b0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T12:10:32.855Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Let agents request options and record what the editor chose",
+    "description": "CLI or agent route to fetch four options for a Story and suggest one, so newsroom agents can prepare covers. A person's choice decides. Choices are recorded as signal for later, without training anything yet.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
