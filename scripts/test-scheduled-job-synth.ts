@@ -686,7 +686,7 @@ for (const siteId of Object.keys(siteExpectations)) {
   const machines = fs.readFileSync(path.join(exampleDirectory, "knowledge-run-settings", "machines-on-machines", "vocabulary.yml"), "utf8");
   const shipped = fs.readFileSync(path.join(exampleDirectory, "knowledge-run-settings", "shipped", "vocabulary.yml"), "utf8");
   assert.match(machines, /^description: a publication about artificial intelligence$/m, "Machines on Machines carries the evaluated description");
-  assert.ok(!/^description:/m.test(shipped), "Shipped has no description yet: it is not invented");
+  assert.match(shipped, /^description: /m, "Shipped carries its described vocabulary");
 }
 
 // Settings directory validation names the field; the directory must exist, stay beside the site file and hold only settings files.
