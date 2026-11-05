@@ -590,14 +590,22 @@ esac
 exit 0
 """)
     (bin_dir / "gh").write_text(f"#!/bin/sh\necho \"gh $*\" >> {log}\n")
-    for tool in ("aws", "gh"):
+    (bin_dir / "git").write_text(f"""#!/bin/sh
+echo "git $*" >> {log}
+case "$*" in
+  *" show origin/develop:"*) [ -n "$FAKE_DEVELOP" ] && cat "$FAKE_DEVELOP" ;;
+  *" show origin/main:"*) [ -n "$FAKE_MAIN" ] && cat "$FAKE_MAIN" ;;
+esac
+exit 0
+""")
+    for tool in ("aws", "gh", "git"):
         (bin_dir / tool).chmod(0o755)
     return bin_dir, log
 
 
-def _bootstrap(tmp_path, actual, *args, **tools):
+def _bootstrap(tmp_path, actual, *args, develop=str(PIPELINE_TEMPLATE), main="", **tools):
     bin_dir, log = _fake_tools(tmp_path, actual, **tools)
-    env = {"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path)}
+    env = {"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path), "FAKE_DEVELOP": develop, "FAKE_MAIN": main}
     done = subprocess.run(["bash", str(PIPELINE / "bootstrap.sh"), *args], capture_output=True, text=True, env=env, input="no\n")
     return done, (log.read_text() if log.exists() else "")
 
@@ -637,3 +645,32 @@ def test_bootstrap_refuses_to_create_a_second_provider(tmp_path):
 def test_the_bootstrap_script_and_docs_hold_no_real_account_id():
     for path in [PIPELINE / "bootstrap.sh", PIPELINE / "README.md", PIPELINE_TEMPLATE]:
         assert not re.search(r"(?<![\d<-])\d{12}(?![\d>])", path.read_text()), path
+
+
+def test_bootstrap_applies_only_a_template_that_is_merged_to_develop_or_main(tmp_path):
+    other = tmp_path / "other.yaml"
+    other.write_text("Resources: {}\n")
+    done, calls = _bootstrap(tmp_path, ACCOUNT, "--account", ACCOUNT, develop=str(other))
+    assert done.returncode == 2 and "matches neither origin/develop nor origin/main" in done.stderr
+    assert "fetch" in calls and "aws " not in calls  # refused before any AWS call
+    again = tmp_path / "again"
+    again.mkdir()
+    done, calls = _bootstrap(again, ACCOUNT, "--account", ACCOUNT, "--plan-only", develop=str(other), main=str(PIPELINE_TEMPLATE))
+    assert "matches origin/main" in done.stdout and "create-change-set" in calls
+
+
+def test_bootstrap_names_develop_when_the_template_matches_it(tmp_path):
+    done, _ = _bootstrap(tmp_path, ACCOUNT, "--account", ACCOUNT, "--plan-only")
+    assert done.returncode == 0 and "matches origin/develop" in done.stdout
+
+
+def test_bootstrap_plan_only_warns_about_an_unmerged_template_instead_of_refusing(tmp_path):
+    other = tmp_path / "other.yaml"
+    other.write_text("Resources: {}\n")
+    done, calls = _bootstrap(tmp_path, ACCOUNT, "--account", ACCOUNT, "--plan-only", develop=str(other))
+    assert done.returncode == 0 and "WARNING" in done.stdout and "create-change-set" in calls and "execute-change-set" not in calls
+
+
+def test_bootstrap_has_no_flag_to_skip_the_merged_check():
+    text = (PIPELINE / "bootstrap.sh").read_text()
+    assert "--force" not in text and "--skip" not in text and "--unmerged" not in text

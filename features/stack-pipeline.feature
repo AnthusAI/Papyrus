@@ -126,3 +126,11 @@ Feature: Shared stacks deploy from the release, never by hand
     Given the role template
     Then no policy in it has two statements with the same Sid
     And every AWS service a shared stack template creates resources in is granted to the service role
+
+  Scenario: Only a merged template is applied
+    Given the template in the checkout differs from origin/develop and from origin/main
+    When a person runs the bootstrap to apply it
+    Then it refuses before any AWS call and says to merge the change to develop first
+    And there is no flag to override that
+    But with --plan-only it warns and shows the change set, so a pull request can be previewed
+    And a template equal to origin/develop or origin/main is applied, and the output says which it matched

@@ -7,6 +7,8 @@
 #   infra/pipeline/bootstrap.sh --account <12-digit account id> [--create-oidc-provider] [--repo OWNER/REPO] [--plan-only] [--yes]
 #
 # What it does, in order, saying each step:
+#   0. fetches, and refuses unless papyrus-stack-pipeline.yaml in this checkout equals the one on origin/develop or origin/main (no
+#      override: an urgent change goes through a merge to develop first). With --plan-only it warns instead, to preview a pull request.
 #   1. checks the AWS credentials belong to --account (the id is never stored in Git; you type it, so you mean it)
 #   2. checks the account's GitHub OIDC provider: exists, or is created by this stack when you pass --create-oidc-provider
 #   3. creates a change set for the papyrus-stack-pipeline stack and shows it; asks before executing (--yes skips the question)
@@ -51,6 +53,23 @@ case "$REPO" in
   */*) ;;
   *) refuse "--repo must be OWNER/REPO" ;;
 esac
+
+say "0. Template source"
+TEMPLATE_PATH="infra/pipeline/papyrus-stack-pipeline.yaml"
+git -C "$HERE" fetch -q origin develop main || fail "could not fetch origin develop and main (needed to check the template is merged)"
+MATCHED=""
+for BRANCH in develop main; do
+  if [ -z "$MATCHED" ] && git -C "$HERE" show "origin/$BRANCH:$TEMPLATE_PATH" 2>/dev/null | cmp -s - "$TEMPLATE"; then
+    MATCHED="origin/$BRANCH"
+  fi
+done
+if [ -n "$MATCHED" ]; then
+  say "   the template matches $MATCHED"
+elif [ -n "$PLAN_ONLY" ]; then
+  say "   WARNING: the template differs from origin/develop and origin/main (an unmerged change). --plan-only shows it; applying would be refused."
+else
+  refuse "$TEMPLATE_PATH in this checkout matches neither origin/develop nor origin/main, so it is not merged. Roles are applied only from merged templates. Merge the change to develop, check out an up-to-date develop, and run this again. To preview an unmerged change, add --plan-only."
+fi
 
 export AWS_REGION="$REGION"
 export AWS_DEFAULT_REGION="$REGION"
