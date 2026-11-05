@@ -7,8 +7,10 @@
 | `stacks.json` | The stacks, in deploy order: template, the paths that are their inputs, parameters, zone lookups, which `build.py` zips feed which code-key parameter, capabilities. |
 | `allowed-changes.json` | The Removes and Replaces a release may make on purpose, each with its reason. Empty it again once they have deployed. |
 | `stack_deploy.py` | The whole deploy, with its safety checks. Tested by `procedures/newsroom/tests/test_stack_deploy.py`. |
-| `papyrus-stack-pipeline.yaml` | The three IAM roles (and, only when asked, the account's GitHub OIDC provider). The only hand-applied stack. |
-| `bootstrap.sh` | The one command that applies it: [Required: the role bootstrap](#required-the-role-bootstrap-a-person-runs-it). |
+| `papyrus-stack-pipeline.yaml` | The three IAM roles the release deploys with. Applied only by the approval-gated `role-stack-deploy` workflow. |
+| `papyrus-pipeline-approver.yaml` | The small stack with the roles that workflow runs as (and, on request, the account's GitHub OIDC provider). Applied once per account by a person. |
+| `role_stack.py`, `.github/workflows/role-stack-deploy.yml` | The plan and the approval-gated apply for the pipeline roles. |
+| `bootstrap.sh`, `create-environment.sh` | The one-time setup per account (and the emergency path), and the GitHub approval environment. |
 
 ## How a release deploys
 
@@ -34,34 +36,63 @@
 - Edge stacks and per-site newsletter stacks are not in scope. The same file could carry them.
 - `papyrus-monitoring`'s `CodeBucket` is read from the live stack, and the template bucket for every stack comes from there. On a new account, before that stack exists, the CDK bootstrap bucket name is used (see "A new account, in order").
 
-## Required: the role bootstrap (a person runs it)
+## Changing the pipeline roles: merge, then approve in GitHub
 
-The release deploys through three IAM roles. They are created by one CloudFormation stack, `papyrus-stack-pipeline` (`papyrus-stack-pipeline.yaml`), which a **person** applies, on purpose. A pipeline must not be able to raise its own permissions, so the release never touches this stack. Without it, `stack-deploy` cannot find a role to assume and nothing deploys.
+The release deploys through IAM roles defined in `papyrus-stack-pipeline.yaml` (the `papyrus-stack-pipeline` stack). A pipeline must not be able to raise its own permissions, so the release never touches that stack. A **separate workflow** does, and only after a person approves.
 
-**Run it when:** (1) you set up a new AWS account, and (2) after **any** change to `infra/pipeline/papyrus-stack-pipeline.yaml`, including a merged pull request that adds a permission. A release that needs a permission the account's roles lack fails with a "not authorized" error; the job summary then names this command.
+**The normal path. Nobody runs a command.** After any change to `infra/pipeline/papyrus-stack-pipeline.yaml`, this is the whole process:
 
-**Who:** a person with credentials that can create IAM roles in the account (an administrator login). Agents do not run it unless the person tells them to; an agent that needs it asks, with the command below.
+1. Merge a change to `infra/pipeline/papyrus-stack-pipeline.yaml` into `develop` (or `main`). Develop is enough: roles often must change before the release that needs them, and only merged code ever runs the workflow.
+2. `.github/workflows/role-stack-deploy.yml` starts. Its `plan` job (no approval) makes a CloudFormation change set and prints all of it in the job summary, including an IAM view of every statement added or removed (role, policy, actions, resources, conditions). Anything failed stops there. If the deployed roles already match, it ends quietly and nobody is asked for anything.
+3. If something would change, the `apply` job waits in the protected GitHub environment `pipeline-roles`. The reviewer opens the run, reads the summary, and clicks **Approve**. That one click is the control.
+4. `apply` refuses if the template or the stack changed since the plan, executes that exact change set by name, polls it, and verifies the deployed template equals the repository. On a failure it prints the first failed resource and leaves the stack clean (an update rolls back; a first create that rolled back is deleted so the next run starts fresh).
+
+**What an agent does:** after merging a role change, or when a release says "The pipeline roles are out of date" or fails "not authorized" on a role, it finds the latest `role-stack-deploy` run on `develop` or `main` and gives the reviewer the link ([workflow runs](https://github.com/AnthusAI/Papyrus/actions/workflows/role-stack-deploy.yml)) saying a pipeline-roles change awaits approval. Agents never approve it, never apply the stack another way, and never work around a refusal.
+
+**How the release tells you the roles are out of date.** The pull-request dry run and the release's deploy compare the template in the repository with the deployed `papyrus-stack-pipeline` stack. If they differ, the job summary has a heading "The pipeline roles are out of date" and a warning annotation linking the workflow. It is a notice, never a failure. A deployed role that cannot yet read that stack (roles from before this check) gets the same notice. A "not authorized" failure adds a hint naming the workflow.
+
+### The approval roles, and what they can do
+
+They live in a **separate small stack**, `papyrus-pipeline-approver` (`papyrus-pipeline-approver.yaml`), so that the workflow can never change its own permissions.
+
+| Role | Trusted for | Can do |
+| --- | --- | --- |
+| `papyrus-pipeline-roles-plan-github` | pushes to `develop` and `main` of this repository (OIDC `sub` and `aud` checked) | read the `papyrus-stack-pipeline` stack; create and delete change sets on it, only through the service role; pass that one role to CloudFormation. It cannot execute a change set. |
+| `papyrus-pipeline-roles-apply-github` | the GitHub environment `pipeline-roles` only: `sub` is exactly `repo:AnthusAI/Papyrus:environment:pipeline-roles` | execute, read and delete change sets on the `papyrus-stack-pipeline` stack, and delete that stack when a first create has rolled back. No IAM rights of its own. |
+| `papyrus-pipeline-roles-cloudformation` | CloudFormation, passable only from the plan role | IAM rights on the three pipeline roles and the stack's managed policies by name, and nothing else. It cannot create any other role, attach an AWS-managed policy, or touch the approver roles or stack. |
+
+**Residual risk, plainly.** Whoever can approve can, through this stack, change what the pipeline roles may do, and so (one step removed) what the release may deploy. The approval click is the control: read the IAM view in the summary before approving. Branch limits (`develop`, `main`) on the environment and the reviewer requirement are GitHub settings, and an administrator of the repository can change them. The approver stack itself is changed only by a person (below), never by the workflow.
+
+### One-time setup for a new AWS account (a person, once)
+
+This is the single step the workflow cannot do for itself: create the small approver stack, and the GitHub environment with its reviewer.
 
 ```bash
+# 1. In AWS: the three roles above (and, with --create-oidc-provider, the account's GitHub OIDC provider if it has none).
 export AWS_PROFILE=<profile for the account>      # log in first, for example aws sso login
-infra/pipeline/bootstrap.sh --account <12-digit account id>
+infra/pipeline/bootstrap.sh --account <12-digit account id> --approver-only
+
+# 2. In GitHub: the environment `pipeline-roles` with the reviewer and the develop/main branch limit.
+infra/pipeline/create-environment.sh --reviewer <github login>
 ```
 
-On an account with no GitHub OIDC provider yet, add `--create-oidc-provider`. Run it from an up-to-date checkout of `develop` or `main`. Other flags: `--plan-only` (show the change set, apply nothing), `--yes` (do not ask before applying), `--repo OWNER/REPO` (default `AnthusAI/Papyrus`).
+`bootstrap.sh` checks the account you named, shows a change set, asks you to type `yes`, applies it, sets the `AWS_ACCOUNT_ID` repository variable and verifies the roles. Re-run it only when `papyrus-pipeline-approver.yaml` changes. `create-environment.sh` needs the `gh` CLI signed in as a repository administrator; it is safe to run again. After these two commands, the first run of `role-stack-deploy` creates the `papyrus-stack-pipeline` stack the same way as any later change: plan, approve.
 
-What it does, and says as it goes: fetches and refuses unless the template in your checkout equals the one on `origin/develop` or `origin/main` (only merged templates are applied; it says which one matched; there is no override, an urgent change goes through a merge to `develop` first; `--plan-only` warns instead, so you can preview a pull request's change); checks the credentials belong to the account you named (the id is never stored in Git); checks the OIDC provider; creates a change set for `papyrus-stack-pipeline` and shows it; asks you to type `yes`; applies it; sets the `AWS_ACCOUNT_ID` repository variable (the roles' account, kept out of Git); then verifies the three roles exist and the deployed template equals the file in the repository. Run it again whenever you like: with nothing to change it says "no changes" and touches nothing.
+**Alternative in the AWS console, no local tools:** open CloudShell in the account and paste `git clone --depth 1 https://github.com/AnthusAI/Papyrus && Papyrus/infra/pipeline/bootstrap.sh --account <12-digit account id> --approver-only`. (A CloudFormation quick-create link needs the template in S3, which this repository deliberately has no bucket for; uploading `papyrus-pipeline-approver.yaml` in the console's "Create stack" page also works, with the three parameters left at their defaults.) CloudShell has no `gh`, so set the `AWS_ACCOUNT_ID` repository variable by hand when the script says so. The environment still needs `create-environment.sh` (or the same settings made by hand in the repository's Settings, Environments).
 
-**How the release tells you it is out of date.** The pull-request dry run and the release's deploy both compare the template in the repository with the deployed `papyrus-stack-pipeline` stack. If they differ, the job summary has a heading "The pipeline roles are out of date" and a warning annotation, with the command above. This is a notice, never a failure of the release. If the deployed plan or deploy role cannot yet read that stack (roles from before this check), the notice says so; that also means the roles need this one run. A change to the template puts both stacks in scope on purpose, so the release runs this check.
+**What the setup creates:** AWS: stack `papyrus-pipeline-approver` with the three roles above and, only with `--create-oidc-provider`, the GitHub OIDC provider. GitHub: the environment `pipeline-roles` with one required reviewer and two allowed branches, and the `AWS_ACCOUNT_ID` repository variable. Nothing else.
+
+**The emergency path.** If the workflow itself is unavailable, `infra/pipeline/bootstrap.sh --account <12-digit account id>` (without `--approver-only`) also applies the `papyrus-stack-pipeline` stack, with the same change set shown and confirmed. Like all of `bootstrap.sh`, it refuses unless the templates in your checkout equal `origin/develop` or `origin/main` (`--plan-only` warns instead, to preview a pull request), and there is no override: an urgent change goes through a merge to `develop` first.
 
 ### A new account, in order
 
 1. **CDK bootstrap** (`cdk bootstrap`) creates the assets bucket `cdk-hnb659fds-assets-<account>-<region>`. The pipeline uploads templates and zips there. The first `papyrus-monitoring` is created with that bucket by name when the stack does not exist yet; afterwards the live stack's `CodeBucket` is used.
-2. **This role bootstrap**, above. It also creates the GitHub OIDC provider with `--create-oidc-provider` if the account has none (`aws iam list-open-id-connect-providers` shows it). Provider facts, checked against the AWS CloudFormation reference and GitHub's guide to OIDC with AWS: URL `https://token.actions.githubusercontent.com`, audience `sts.amazonaws.com`, and no thumbprint (optional for this property; IAM verifies GitHub's certificate against its own trusted CAs).
+2. **The one-time approver setup**, above (`bootstrap.sh --approver-only`, then `create-environment.sh`). It also creates the GitHub OIDC provider with `--create-oidc-provider` if the account has none (`aws iam list-open-id-connect-providers` shows it). Provider facts, checked against the AWS CloudFormation reference and GitHub's guide to OIDC with AWS: URL `https://token.actions.githubusercontent.com`, audience `sts.amazonaws.com`, and no thumbprint (optional for this property; IAM verifies GitHub's certificate against its own trusted CAs).
 3. **A public hosted zone** for each `hostedZone` lookup in `stacks.json` (today `anth.us` for the operators stack's sending domain). Without it the operators stack stops with "expected exactly one public hosted zone". A different account needs its own domain in `stacks.json` (a pull request).
 4. **SES.** The operators stack creates the sending identity; an account new to SES starts in the sandbox, and moving out is a request to AWS that a person makes.
-5. **Merge and release.** The release creates `papyrus-newsletter-sending-operators`, then `papyrus-monitoring`. Every parameter without a default is supplied by `stacks.json` or the build. This first-create path (bucket by name, `CREATE` change set) is covered by unit tests against a fake CloudFormation; it has not been rehearsed on a real empty account.
+5. **Plan and approve, then merge and release.** The first `role-stack-deploy` run (after merging, or `workflow_dispatch` from `develop`) creates the pipeline roles once a person approves. The release then creates `papyrus-newsletter-sending-operators`, then `papyrus-monitoring`. Every parameter without a default is supplied by `stacks.json` or the build. This first-create path (bucket by name, `CREATE` change set) is covered by unit tests against a fake CloudFormation; it has not been rehearsed on a real empty account.
 
-Not solved: nothing in `stacks.json` creates the CDK bootstrap or the hosted zone; both are account facts a person provides. Also, `papyrus-procedure-runner`, edge and per-site newsletter stacks are still outside the pipeline (see above).
+Not solved: nothing creates the CDK bootstrap or the hosted zone; both are account facts a person provides. The approver setup is also a person's step by design: the workflow cannot create the roles it runs as. Also, `papyrus-procedure-runner`, edge and per-site newsletter stacks are still outside the pipeline (see above).
 
 ## The roles, in plain words
 

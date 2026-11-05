@@ -80,23 +80,62 @@ Feature: Shared stacks deploy from the release, never by hand
     And the dry-run role trusts only this repository's pull requests and holds only read permissions
     And no account id and no stored key appears in the repository
 
-  # The role bootstrap (PPY-9d1b3e). Ryan, 2026-11-05: a command that sets up a role the deployment needs must be repeatable as code and
-  # written down for people and agents, because a release failed on an out-of-date role and only a person running a command from chat fixed it.
-  # Checked by the same test file.
+  # The pipeline roles are changed by an approval-gated workflow (PPY-9d1b3e). Ryan, 2026-11-05: a role the deployment needs must be code,
+  # written down for people and agents, and he will not deploy a stack by hand: he approves in GitHub. Checked by the same test file.
 
-  Scenario: One command sets up or updates the pipeline roles
-    Given a person with administrator credentials for an AWS account
-    When they run infra/pipeline/bootstrap.sh and name the account
-    Then it refuses if the credentials belong to another account, before changing anything
-    And it shows a change set and applies it only after the person types yes
-    And it sets the AWS_ACCOUNT_ID repository variable and verifies the roles and the deployed template
-    And running it again with nothing to change says so and touches nothing
+  Scenario: A merged role change is planned without anyone asking for it
+    Given a change to infra/pipeline/papyrus-stack-pipeline.yaml is merged to develop or main
+    When the role-stack-deploy workflow runs
+    Then its plan job creates a change set and prints every change, with an IAM view of the statements added and removed, in the job summary
+    And it stops on anything failed
+    And a plan with nothing to change ends quietly and no approval is requested
 
-  Scenario: An account with no GitHub OIDC provider gets one only when asked
-    Given an account whose GitHub OIDC provider does not exist
-    When the person runs the bootstrap without asking for the provider
-    Then it stops and tells them to pass --create-oidc-provider
-    And an account that already has a provider is never given a second one, and the default template change leaves it untouched
+  Scenario: Only a reviewer's approval applies the change
+    Given a plan with changes
+    When the apply job starts in the protected pipeline-roles environment
+    Then it waits for the required reviewer to approve
+    And it runs as a role that trusts exactly that environment's OIDC subject with the audience checked
+    And it refuses to execute if the template or the stack changed since the plan, or the change set is not the one planned
+    And it executes that change set by name, polls it, and verifies the deployed template equals the repository
+
+  Scenario: A failed apply says what failed and leaves the stack clean
+    Given an approved apply that fails
+    Then the summary names the first failed resource
+    And an update is rolled back by CloudFormation
+    And a first create that rolled back is deleted so the next run starts fresh
+
+  Scenario: The approval roles cannot raise their own permissions
+    Given the separate approver stack
+    Then no policy in it can change the approver stack or its roles
+    And its service role can write only the three pipeline roles and the stack's own managed policies
+    And it cannot create any other role or attach an AWS-managed policy
+    And the apply role has no IAM rights at all
+
+  Scenario: The one-time setup for a new account is a person's step, written down
+    Given a new AWS account
+    When a person runs bootstrap.sh with --approver-only and then create-environment.sh with a reviewer
+    Then the approver stack, the repository variable and the GitHub environment exist
+    And the GitHub OIDC provider is created only when asked, and never a second one
+    And the reviewer is a parameter, so no login is committed
+
+  Scenario: Only a merged template is applied by hand
+    Given the template in the checkout differs from origin/develop and from origin/main
+    When a person runs the bootstrap to apply it
+    Then it refuses before any AWS call and says to merge the change to develop first
+    And there is no flag to override that
+    But with --plan-only it warns and shows the change set, so a pull request can be previewed
+
+  Scenario: The release says when the deployed roles are older than the template
+    Given the template in the repository differs from the deployed papyrus-stack-pipeline stack
+    When a pull request dry run or a release deploy starts
+    Then the job summary says the pipeline roles are out of date and links the role-stack-deploy workflow
+    And the release carries on, because this is a notice and not a failure
+    And a deployed role that cannot read the pipeline stack yet gets the same notice
+
+  Scenario: A permission refusal names the fix
+    Given a deploy fails because the service role is not authorized to perform an action
+    When the job summary is written
+    Then it says roles change only through the role-stack-deploy workflow after a person approves, and links it
 
   Scenario: The first papyrus-monitoring on a new account has a bucket to upload to
     Given the papyrus-monitoring stack does not exist yet
@@ -104,33 +143,12 @@ Feature: Shared stacks deploy from the release, never by hand
     Then the templates and zips go to the CDK bootstrap bucket named from the account and region
     And that bucket name is passed as the stack's CodeBucket, which later releases read back from the live stack
 
-  Scenario: The release says when the deployed roles are older than the template
-    Given the template in the repository differs from the deployed papyrus-stack-pipeline stack
-    When a pull request dry run or a release deploy starts
-    Then the job summary says the pipeline roles are out of date and names the bootstrap command
-    And the release carries on, because this is a notice and not a failure
-    And a deployed role that cannot read the pipeline stack yet gets the same notice
-
-  Scenario: A permission refusal names the fix
-    Given a deploy fails because the service role is not authorized to perform an action
-    When the job summary is written
-    Then it says roles are changed only by a person and names infra/pipeline/bootstrap.sh
-
   Scenario: The requirement is written down where people and agents look
     Given the top-level README, AGENTS.md, the pipeline README and the account-setup docs
-    Then each names infra/pipeline/bootstrap.sh
-    And the README, AGENTS.md and the pipeline README say it is required, that a person runs it, and that any change to the role template needs it again
-    And AGENTS.md tells an agent never to run it unless told to, and what to say to ask for it
+    Then each names the role-stack-deploy workflow and the one-time setup command
+    And AGENTS.md tells an agent to link the reviewer to the approval and never to approve, apply by hand or work around a refusal
 
-  Scenario: The role template cannot repeat a statement id
-    Given the role template
-    Then no policy in it has two statements with the same Sid
+  Scenario: The role templates cannot repeat a statement id
+    Given the pipeline and approver templates
+    Then no policy in either has two statements with the same Sid
     And every AWS service a shared stack template creates resources in is granted to the service role
-
-  Scenario: Only a merged template is applied
-    Given the template in the checkout differs from origin/develop and from origin/main
-    When a person runs the bootstrap to apply it
-    Then it refuses before any AWS call and says to merge the change to develop first
-    And there is no flag to override that
-    But with --plan-only it warns and shows the change set, so a pull request can be previewed
-    And a template equal to origin/develop or origin/main is applied, and the output says which it matched

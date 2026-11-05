@@ -31,7 +31,7 @@ When the old SNS email is removed later (PPY-f66e91), exactly these two stay. Th
 
 ## What deploys, in what order
 
-**Required first on a new AWS account:** a person runs `infra/pipeline/bootstrap.sh --account <12-digit account id>` so the release has roles to deploy with, and again after any change to `infra/pipeline/papyrus-stack-pipeline.yaml` ([why and how](../infra/pipeline/README.md#required-the-role-bootstrap-a-person-runs-it)).
+**Required first on a new AWS account:** a person runs the one-time approver setup (`infra/pipeline/bootstrap.sh --account <12-digit account id> --approver-only`, then `infra/pipeline/create-environment.sh --reviewer <github login>`) so the release has roles to deploy with. After any change to `infra/pipeline/papyrus-stack-pipeline.yaml` the `role-stack-deploy` workflow plans it and the reviewer approves in GitHub; nobody applies it by hand ([why and how](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github)).
 
 Nothing is deployed by the pull request, and nobody runs these by hand (PPY-b8cc79). The pull request's `stack-deploy` dry run prints what each stack would change; a person reads that before merging. The release to `main` then builds the zips, deploys the operator sending stack first and `papyrus-monitoring` second, in one run, through GitHub OIDC (`infra/pipeline/README.md`). The run stops without executing if anything would be Removed or Replaced that `infra/pipeline/allowed-changes.json` does not list, or if a stack is in a failed state. Steps 1 to 3 below are what that run does; read them as the description of its work, and as the manual fallback only if the pipeline is unavailable and Ryan says so.
 

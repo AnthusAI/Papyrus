@@ -297,7 +297,7 @@ The uv cache is kept under `.uv-cache/` and listed in the spec's cache paths.
 GitHub Actions in a publication repo reaches AWS with GitHub OIDC: no AWS
 access keys or tokens are stored anywhere. Two pieces:
 
-0. **Shared-stack pipeline roles, once per AWS account and after any change to their template** (a person runs `infra/pipeline/bootstrap.sh`; it can also create the account's GitHub OIDC provider with `--create-oidc-provider`). Required before any shared stack deploys: [infra/pipeline/README.md](../infra/pipeline/README.md#required-the-role-bootstrap-a-person-runs-it). If you use that, the provider below is already handled for the account.
+0. **Shared-stack pipeline roles, once per AWS account** (a person runs the one-time setup, `infra/pipeline/bootstrap.sh --approver-only`, which can also create the account's GitHub OIDC provider with `--create-oidc-provider`; later changes to the roles are merged, planned and approved in GitHub by the `role-stack-deploy` workflow, never run by hand). Required before any shared stack deploys: [infra/pipeline/README.md](../infra/pipeline/README.md#changing-the-pipeline-roles-merge-then-approve-in-github). If you use that, the provider below is already handled for the account.
 1. **Account-level provider, once per AWS account** (`GithubOidcProviderStack`
    in `@anthusai/papyrus/infra`). Run `aws iam list-open-id-connect-providers`
    first. If `token.actions.githubusercontent.com` is listed (account
