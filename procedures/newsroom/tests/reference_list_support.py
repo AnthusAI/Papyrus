@@ -56,9 +56,9 @@ def settings(*, page_size: int = 12, paging: bool = True, hooks: str | None = No
     return found
 
 
-def project(document: dict, *, first: int = 6, page_size: int = 12, paging: bool = True, extra_files: dict | None = None, hooks: str | None = None) -> ProjectedSite:
+def project(document: dict, *, first: int = 6, page_size: int = 12, paging: bool = True, extra_files: dict | None = None, hooks: str | None = None, clock=None) -> ProjectedSite:
     files = {"pages/wire.md": (PAGE % {"first": first}).encode("utf-8"), **(extra_files or {})}
-    return ProjectedSite(settings=settings(page_size=page_size, paging=paging, hooks=hooks), content=SITE_DIRECTORY / "content", extra_files=files, seed={SNAPSHOT_KEY: snapshot_bytes(document)})
+    return ProjectedSite(settings=settings(page_size=page_size, paging=paging, hooks=hooks), content=SITE_DIRECTORY / "content", extra_files=files, seed={SNAPSHOT_KEY: snapshot_bytes(document)}, clock=clock)
 
 
 def list_files(site: ProjectedSite) -> dict[str, bytes]:

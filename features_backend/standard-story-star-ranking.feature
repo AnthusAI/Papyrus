@@ -8,7 +8,7 @@ Feature: Published Stories rank by recency bucket and then by the editors' priva
   (/posts/) and a tag page. Newest bucket first; inside a bucket five, four and three stars first, then Stories nobody rated, then two and one stars; equal
   Stories keep their newest-first order. A bucket is a ROLLING window counted back from the UTC day of the projection (Ryan: "rolling last seven days for
   the week"): the last seven days, the seven before that, and so on. The site (listings.bucket) or the include (bucket="day|week|none") can choose a day
-  instead; "none" is the plain newest-first list. References keep their calendar buckets (home-page-human-ratings.feature); only Stories roll.
+  instead; "none" is the plain newest-first list. References roll the same way (home-page-human-ratings.feature).
 
   A Story moves to an older window with time alone, and no write triggers anything. The order depends on the day, never the time, so a listing can change
   at most once a day, and nothing is scheduled to walk the corpus. A page holds the order of its last render until something that already re-renders it

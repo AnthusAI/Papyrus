@@ -8,9 +8,14 @@ Feature: Human ratings shape what the public home page features, and an accepted
   orders the page without reading anyone's rating. A rating that reorders the page, or only changes a count, changes the file and re-renders the pages that
   read it, through the same debounce as any other change. The "recent" selection with no bucket keeps its newest-accepted order.
   The references include can also sort by time bucket: bucket="day" or bucket="week" puts the newest bucket first and the shared order inside each bucket.
-  A bucket is the UTC day, or the UTC week that starts on Monday, of the date the selection already orders by: the accepted time, and for a Reference that
-  has none (a recommended one) its arrival. A rating never moves a Reference to another bucket. A bucket other than day or week is a build error naming
-  the page. The ledger rules are unchanged.
+  A bucket is a ROLLING window counted back from the UTC day of the render, the same as for Stories (Ryan, 2026-11-05): "week" is the last seven days, the seven
+  before that, and so on, and "day" is the last day, the day before, and so on. It is not a calendar day or a Monday week. The date is the one the selection
+  already orders by: the accepted time, and for a Reference that has none (a recommended one) its arrival. A rating never moves a Reference to another
+  bucket. With time alone a Reference moves to the next older window on the day it turns seven days old (one day for "day"): it then follows every Reference of the
+  newer window and is ranked inside the older one. Nothing is dropped. The order depends on the day and never on the time, so a page or a chunk of a paged
+  list is written again only when the order it shows changed; a day that moves no Reference across a window rewrites nothing, and nothing is scheduled to
+  walk the lists, so a quiet page catches up the next time something re-renders it. A bucket other than day or week is a build error naming the page.
+  The ledger rules are unchanged.
 
   Background:
     Given a home-page site whose pages place confident, recommended, recent, weekly, daily and weekly confident grids
@@ -40,10 +45,16 @@ Feature: Human ratings shape what the public home page features, and an accepted
     When the home-page-snapshot task runs
     Then the "recent" grid on "newest/index.html" lists "Accepted eight", "Accepted seven", "Accepted six", "Accepted five", "Accepted four", "Accepted three, contact", "Accepted two", "Accepted one"
 
-  Scenario: A week bucket puts the newest week first and ranks by rating inside each week
+  Scenario: A week bucket is the last seven days, then the seven before, and ranks by rating inside each window
     Given editors rated these References: "Accepted one" 5, "Accepted eight" 1
     When the home-page-snapshot task runs
-    Then the "recent" grid on "weekly/index.html" lists "Accepted seven", "Accepted eight", "Accepted one", "Accepted two", "Accepted four", "Accepted five", "Accepted six", "Accepted three, contact"
+    Then the "recent" grid on "weekly/index.html" lists "Accepted seven", "Accepted six", "Accepted eight", "Accepted one", "Accepted two", "Accepted four", "Accepted five", "Accepted three, contact"
+
+  Scenario: Two days later a Reference has moved to the older window with time alone, and none is dropped
+    Given editors rated these References: "Accepted one" 5, "Accepted eight" 1
+    And the day of the render is 2026-11-02
+    When the home-page-snapshot task runs
+    Then the "recent" grid on "weekly/index.html" lists "Accepted eight", "Accepted one", "Accepted two", "Accepted four", "Accepted seven", "Accepted five", "Accepted six", "Accepted three, contact"
 
   Scenario: A day bucket keeps every Reference in its own day, so a rating never moves it to another bucket
     Given editors rated these References: "Accepted one" 5, "Accepted eight" 1
@@ -53,7 +64,7 @@ Feature: Human ratings shape what the public home page features, and an accepted
   Scenario: A bucket works with the confident selection too
     Given editors rated these References: "Accepted one" 5, "Accepted eight" 1
     When the home-page-snapshot task runs
-    Then the "confident" grid on "confident-weekly/index.html" lists "Accepted seven", "Accepted eight", "Accepted one", "Accepted two", "Accepted four", "Accepted five", "Accepted six", "Accepted three, contact"
+    Then the "confident" grid on "confident-weekly/index.html" lists "Accepted seven", "Accepted six", "Accepted eight", "Accepted one", "Accepted two", "Accepted four", "Accepted five", "Accepted three, contact"
 
   Scenario: An accepted Reference carries its stars, a pending one does not, and nobody's name or time is published
     Given editors rated these References: "Accepted one" 5, "Accepted three" 4, "Pending mid" 2
