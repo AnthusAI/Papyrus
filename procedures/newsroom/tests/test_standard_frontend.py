@@ -1152,6 +1152,137 @@ def test_page_actions_can_be_turned_off_or_trimmed():
         trimmed.cleanup()
 
 
+ICON_ACTIONS = {"display": "icons", "actions": ["view", "copy", "x", "reddit", "share"]}
+
+
+def test_the_text_display_is_the_default_and_has_none_of_the_new_parts(flat):
+    page = flat.text("orchids.html")
+    for absent in ("markus-page-actions-icons", "x.com/intent", "reddit.com/submit", "data-share", "markus-icon-action", "<svg"):
+        assert absent not in page, absent
+    assert "papyrus-page-actions.css" not in page and "_plugins/papyrus-page-actions.css" not in flat.tree
+
+
+def test_the_icon_display_has_lucide_icons_and_plain_links_that_carry_only_title_and_address():
+    site = with_actions(**ICON_ACTIONS)
+    try:
+        page = site.text("orchids.html")
+        dom = Dom(page)
+        group = dom.find("div", **{"data-papyrus-page-actions": None})[0]
+        assert "markus-page-actions-icons" in group["class"] and "data-share" in group
+        view = dom.find("a", **{"data-action": "view"})[0]
+        assert view["href"] == "/orchids.md" and view["aria-label"] == "View as Markdown" and view["title"] == "View as Markdown"
+        address = "https%3A%2F%2Falmanac.example.org%2Forchids.html"
+        x = dom.find("a", **{"data-action": "x"})[0]
+        reddit = dom.find("a", **{"data-action": "reddit"})[0]
+        assert x["href"] == f"https://x.com/intent/post?text=Orchids%20of%20the%20Marsh&url={address}"
+        assert reddit["href"] == f"https://www.reddit.com/submit?url={address}&title=Orchids%20of%20the%20Marsh"
+        for link in (x, reddit):
+            assert link["target"] == "_blank" and link["rel"] == "noopener noreferrer"
+            assert "Marsh orchids flower" not in link["href"]
+        assert dom.find("button", **{"data-action": "copy", "aria-label": "Copy Markdown"})
+        for icon in ("file-text", "copy", "x", "reddit"):
+            assert f'data-icon="{icon}"' in page
+        assert page.count('aria-hidden="true" focusable="false"') >= 4          # decorative marks; the links carry the names
+        assert "<button" in page and 'aria-haspopup' not in page              # the share popup is built by the script, so nothing dead without it
+    finally:
+        site.cleanup()
+
+
+def test_the_icon_display_keeps_the_ai_links_in_the_more_menu_list():
+    site = with_actions(**ICON_ACTIONS, ai=["claude"])
+    try:
+        dom = Dom(site.text("orchids.html"))
+        assert dom.find("ul", **{"class": "markus-actions-links"}) and dom.find("a", **{"data-action": "claude"})
+        assert dom.find("ul", **{"class": "markus-actions-icons"})
+    finally:
+        site.cleanup()
+
+
+def test_x_reddit_and_share_need_the_icon_display_and_the_display_is_checked():
+    for bad, message in (
+        ({"actions": ["x"]}, "need pageActions.display 'icons'"),
+        ({"actions": ["share"]}, "need pageActions.display 'icons'"),
+        ({"display": "buttons"}, "pageActions.display"),
+        ({"display": "icons", "actions": ["tweet"]}, "actions"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            standard_settings_from_mapping({"site": {"name": "X"}, "pageActions": bad})
+    ok = standard_settings_from_mapping({"site": {"name": "X"}, "pageActions": ICON_ACTIONS})
+    assert ok.page_actions.display == "icons" and ok.page_actions.actions == ("view", "copy", "x", "reddit", "share")
+
+
+def test_a_site_without_a_production_address_gets_no_post_or_share_links():
+    settings = {**fixture_settings("flat"), "pageActions": ICON_ACTIONS}
+    settings["site"] = {k: v for k, v in settings["site"].items() if k != "productionUrl"}
+    site = ProjectedSite("flat", settings=settings)
+    try:
+        page = site.text("orchids.html")
+        assert "x.com/intent" not in page and "data-share" not in page and 'data-action="view"' in page
+    finally:
+        site.cleanup()
+
+
+ACTIONS_MAIN_HOOK = "def main(page):\n    if page.kind != 'item':\n        return None\n    return '<article id=\"own\">' + page.article_actions() + page.fragment + '</article>'\n"
+
+
+def hooked_site(*, components_css: bool, actions: dict):
+    settings = {**fixture_settings("flat"), "hooks": "hooks.py", "pageActions": actions}
+    settings["site"] = {**settings["site"], "componentsCss": components_css}
+    return ProjectedSite(settings=settings, content=FIXTURES / "flat" / "content", extra_files={"hooks.py": ACTIONS_MAIN_HOOK})
+
+
+def test_a_main_hook_places_the_actions_with_article_actions_and_a_site_without_the_component_stylesheet_gets_its_own():
+    site = hooked_site(components_css=False, actions=ICON_ACTIONS)
+    try:
+        page = site.text("orchids.html")
+        assert page.index('id="own"') < page.index("markus-page-actions") < page.index("Marsh orchids flower")
+        assert page.count("data-papyrus-page-actions") == 1                      # placed once, by the hook
+        assert "papyrus-page-actions-v1.js" in page and '/_plugins/papyrus-page-actions.css?v=' in page
+        assert "markus-components.css" not in page
+        sheet = site.text("_plugins/papyrus-page-actions.css")
+        assert ".markus-page-actions-icons" in sheet and ".markus-action-icon" in sheet and ".markus-copy-md" in sheet
+        assert all(any(marker in line for marker in ("markus-page-actions", "markus-actions-", "markus-copy-md", "markus-icon-action", "markus-action-icon")) for line in sheet.splitlines() if line)
+        assert "_plugins/papyrus-page-actions.css" not in site.text("about.html")   # only pages that render the actions link it
+    finally:
+        site.cleanup()
+
+
+def test_without_the_icon_display_a_site_without_the_component_stylesheet_gets_no_new_file():
+    site = hooked_site(components_css=False, actions={})
+    try:
+        assert "_plugins/papyrus-page-actions.css" not in site.tree
+        assert "papyrus-page-actions.css" not in site.text("orchids.html") and "markus-page-actions" in site.text("orchids.html")
+    finally:
+        site.cleanup()
+
+
+def test_the_icon_display_uses_the_component_stylesheet_when_the_site_links_it():
+    site = hooked_site(components_css=True, actions=ICON_ACTIONS)
+    try:
+        assert "_plugins/papyrus-page-actions.css" not in site.tree and "papyrus-page-actions.css" not in site.text("orchids.html")
+        assert ".markus-page-actions-icons" in site.text("css/markus-components.css")
+    finally:
+        site.cleanup()
+
+
+def test_the_icon_styles_are_flat_tones_without_borders_and_state_does_not_rest_on_colour(flat):
+    rules = [line for line in flat.text("css/markus-components.css").splitlines() if "markus-page-actions-icons" in line or "markus-icon-action" in line]
+    assert rules
+    for line in rules:
+        assert "border: 1px" not in line and "box-shadow" not in line, line
+    assert any("border: 0" in line for line in rules)
+    assert any('[aria-expanded="true"]' in line for line in rules)
+    assert any("width: 2.75rem" in line and "height: 2.75rem" in line for line in rules)       # a large enough touch target
+    assert any("width: min(18rem, 100%)" in line for line in rules)                              # the popup never overflows a phone
+
+
+def test_the_script_builds_the_share_popup_as_an_aria_menu_and_reports_only_through_gtag(flat):
+    script = flat.text("_plugins/papyrus-page-actions-v1.js")
+    for needle in ('hasAttribute("data-share")', "Share the web page", "Share the Markdown", "navigator.share", '"share_" + kind', 'label: "Share"', "markus-actions-icons"):
+        assert needle in script, needle
+    assert script.count("gtag") == 2 and "fetch(" in script and "XMLHttpRequest" not in script and "sendBeacon" not in script
+
+
 def test_no_actions_without_markdown_twins():
     site = ProjectedSite("flat", settings={**fixture_settings("flat"), "agents": {"markdown": False, "llmsTxt": False, "llmsFull": False}})
     try:
