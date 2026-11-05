@@ -12,7 +12,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-ITEM_STAR_FIELDS = ("starRating", "starRatedAt", "starRatedBy", "starRevision")
+ITEM_STAR_FIELDS = ("starRating", "starRatedAt", "starRatedBy")
+ITEM_PRIVATE_STAR_FIELDS = (*ITEM_STAR_FIELDS, "starRevision")
 
 
 def carry_item_stars(current: Mapping[str, Any] | None, next_version: dict[str, Any]) -> dict[str, Any]:
@@ -38,6 +39,6 @@ def item_stars(item: Mapping[str, Any] | None) -> int | None:
 
 def assert_no_item_stars(record: Mapping[str, Any]) -> None:
     """Raises when a row bound for public output carries a rating: stars change order in the newsroom and are never published."""
-    leaked = [name for name in ITEM_STAR_FIELDS if name in record]
+    leaked = [name for name in ITEM_PRIVATE_STAR_FIELDS if name in record]
     if leaked:
         raise AssertionError(f"Story stars are private and cannot reach published output: {', '.join(leaked)}")

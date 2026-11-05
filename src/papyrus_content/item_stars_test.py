@@ -27,7 +27,7 @@ def test_item_stars_reads_only_a_whole_number_from_one_to_five(value, expected):
 
 def test_the_guard_refuses_any_star_field_in_published_output():
     assert_no_item_stars({"id": "published-a", "title": "A"})
-    for name in ITEM_STAR_FIELDS:
+    for name in (*ITEM_STAR_FIELDS, "starRevision"):
         with pytest.raises(AssertionError, match="private"):
             assert_no_item_stars({"id": "published-a", name: None})
 
