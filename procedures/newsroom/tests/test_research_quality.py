@@ -113,6 +113,14 @@ def test_session_junk_is_dropped_by_both_normalisers_and_the_identity_key_agrees
     assert exploration_url("https://x.org/p?error=none&code=7") == "https://x.org/p?error=none&code=7"
 
 
+def test_every_tracking_parameter_is_dropped_by_both_normalisers_and_the_identity_key_agrees():
+    tracked = "https://www.anthropic.com/research/how-we-contain-claude?trk=public_post_comment-text"
+    clean = "https://www.anthropic.com/research/how-we-contain-claude"
+    assert exploration_url(tracked) == monitoring_url(tracked) == clean
+    assert identity_keys({"sourceUri": tracked}) == identity_keys({"sourceUri": clean})
+    assert monitoring_url("https://x.org/p?id=7&mc_eid=1&sort=new") == "https://x.org/p?id=7&sort=new"
+
+
 def test_the_note_on_a_reference_is_labelled_for_what_it_is():
     found = "Found by perplexity (undecidability proof): Rice's theorem"
     assert pack.reason_line({"curationStatus": "pending", "curationStatusReason": found}) == ("How it was found", found)

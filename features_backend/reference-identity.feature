@@ -17,6 +17,8 @@ Feature: One identity gate for References
       | http://example.org/a/b                                 |
       | https://www.example.org/a/b/                           |
       | https://example.org:443/a/b?utm_source=feed&fbclid=1   |
+      | https://example.org/a/b?trk=public_post_comment-text   |
+      | https://example.org/a/b?mc_cid=1&_hsenc=2&ref_src=3     |
 
   Scenario: A different path or query is a different page
     Given a Reference for the address "https://example.org/a/b"
