@@ -1,7 +1,7 @@
 {
   "id": "PPY-a36ac382-561e-4237-b0b6-5a22965e4ec9",
   "title": "Stock images: find royalty-free images from several sources",
-  "description": "Find usable stock images for a Story and bring one in. Royalty-free is required. Wikimedia Commons is the first source; others sit behind the same source interface.\n\nOpen decision for Ryan: credits. Licence terms vary per image: Commons images can require attribution or share-alike. Ryan's standing rule is no image credits except Source and Illustrative. Either search only licences that need no credit, or show a credit where the licence demands one.\n\nSource licence terms must be read from each provider's own documents before any adapter ships.",
+  "description": "Find usable stock images for a Story and bring one in. Royalty-free is required. Wikimedia Commons is the first source; others sit behind the same source interface.\n\nDecision (Ryan 2026-11-05): every third-party image shows a credit, whether or not its licence requires attribution. Licences that also impose terms, such as share-alike, still have to be checked per image.\n\nSource licence terms must be read from each provider's own documents before any adapter ships.",
   "type": "epic",
   "status": "open",
   "priority": 1,
@@ -12,7 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-11-05T12:10:53.603229Z",
-  "updated_at": "2026-11-05T12:11:33.566224Z",
+  "updated_at": "2026-11-05T12:13:23.737419Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c3f1e018-83b6-4f2e-a8fe-8ebf465df8bb",
+  "title": "Credit every third-party image wherever it appears",
+  "description": "Ryan 2026-11-05: third-party images always get a credit, whether or not the licence requires attribution. Show the creator, the source and the licence, linked to the source page, on the article and wherever else the image appears at reading size; decide with Ryan how a small card shows it. The record comes from PPY-0ad0d0. The older rule of no credits except Source and Illustrative still applies to our own drawn figures. A stock image with no known creator or licence can't be chosen. Gherkin specs included.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a36ac382-561e-4237-b0b6-5a22965e4ec9",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T12:13:23.850041Z",
+  "updated_at": "2026-11-05T12:13:23.850065Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
