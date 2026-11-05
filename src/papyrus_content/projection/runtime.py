@@ -15,6 +15,7 @@ from .plugins import plugin_names_from_environment
 from .projector import MarkusSiteProjector, SiteProjector
 from ..renditions import S3RenditionStore
 from .source import PublishedContentSource
+from .story_stars import star_store_from_environment
 from .writers import (
     DEFAULT_HTML_S_MAXAGE_SECONDS,
     FALLBACK_HTML_S_MAXAGE_SECONDS,
@@ -152,8 +153,10 @@ def context_from_environment(
         if distribution_id and invalidation_enabled(environment)
         else None
     )
+    source = PublishedContentSource(client)
+    source.star_store = star_store_from_environment(environment)
     return ProjectionContext(
-        source=PublishedContentSource(client),
+        source=source,
         projector=load_projector(environment),
         writer=S3PageWriter(bucket, s3_client, html_s_maxage_seconds(environment)),
         invalidate=invalidator.invalidate if invalidator else None,

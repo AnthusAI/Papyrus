@@ -1,11 +1,12 @@
-Feature: Human ratings shape what the public home page features, and are never published
+Feature: Human ratings shape what the public home page features, and an accepted Reference shows its stars
   An editor's star rating is a stronger signal than the Cyclotron's confidence, so on the automated home pages it overrides it where it exists. One order
   is shared by every selection that ranks References: three, four and five stars first (the most stars first), then the References nobody rated by the
   Cyclotron's confidence, then one and two stars, so a low rating is a real downgrade and sinks a Reference even when the Cyclotron is sure of it. Equal
-  References go to the newest arrival, then to the key. The Cyclotron's confidence stays public as it was; the stars never are. The snapshot of References
-  is readable by anyone, so the stars are not in it: each record carries a rank, its position in the shared order, which says nothing about how many
-  stars anyone gave. A rating that reorders the page changes the file and re-renders the pages that read it, through the same debounce as any other change;
-  a rating that moves nothing changes nothing. The "recent" selection with no bucket keeps its newest-accepted order.
+  References go to the newest arrival, then to the key. The Cyclotron's confidence stays public as it was. Since 2026-11-04 the stars of an ACCEPTED
+  Reference are public too, as the count (1 to 5) on its record in the snapshot; a pending Reference shows its confidence instead, and a Reference nobody
+  rated shows no stars. Who rated it and when are never published. Each record also carries a rank, its position in the shared order, which is how the build
+  orders the page without reading anyone's rating. A rating that reorders the page, or only changes a count, changes the file and re-renders the pages that
+  read it, through the same debounce as any other change. The "recent" selection with no bucket keeps its newest-accepted order.
   The references include can also sort by time bucket: bucket="day" or bucket="week" puts the newest bucket first and the shared order inside each bucket.
   A bucket is the UTC day, or the UTC week that starts on Monday, of the date the selection already orders by: the accepted time, and for a Reference that
   has none (a recommended one) its arrival. A rating never moves a Reference to another bucket. A bucket other than day or week is a build error naming
@@ -54,28 +55,39 @@ Feature: Human ratings shape what the public home page features, and are never p
     When the home-page-snapshot task runs
     Then the "confident" grid on "confident-weekly/index.html" lists "Accepted seven", "Accepted eight", "Accepted one", "Accepted two", "Accepted four", "Accepted five", "Accepted six", "Accepted three, contact"
 
-  Scenario: The stars are never in a published file
+  Scenario: An accepted Reference carries its stars, a pending one does not, and nobody's name or time is published
     Given editors rated these References: "Accepted one" 5, "Accepted three" 4, "Pending mid" 2
     When the home-page-snapshot task runs
-    Then no record in the file has a star field and none names who rated
-    And no file the site holds mentions a star rating or who gave one
+    Then the record titled "Accepted one" has 5 stars
+    And the record titled "Accepted three, contact" has 4 stars
+    And the record titled "Accepted two" has no stars
+    And the record titled "Pending mid" has no stars
+    And no record in the file names who rated or when
+    And no file the site holds mentions who rated or when
     And every record has a rank that is a position in the shared order, from 1 to the number of records
 
-  Scenario: A rating that reorders the page changes only the ranks and re-renders the pages that read the file
+  Scenario: A rating that reorders the page changes the ranks and that record's stars, and re-renders the pages that read the file
     Given the home-page-snapshot task has run
     When an editor rates "Accepted one" 5 stars and the home-page-snapshot task runs again
     Then the file is written
-    And the only difference in the file is the rank of the References that moved
+    And the only differences in the file are the ranks of the References that moved and the stars of "Accepted one"
     And the page "by-confidence/index.html" was re-rendered
     And the page "weekly/index.html" was re-rendered
-    And no file the site holds mentions a star rating or who gave one
+    And no file the site holds mentions who rated or when
 
-  Scenario: A rating that moves nothing changes nothing
+  Scenario: A rating that moves nothing still reaches the page, because the page prints the count
     Given the home-page-snapshot task has run
     When an editor rates "Accepted eight" 4 stars and the home-page-snapshot task runs again
-    Then the file is not written again
-    And no page is re-rendered
+    Then the file is written
+    And the only differences in the file are the ranks of the References that moved and the stars of "Accepted eight"
     And the file keeps "Accepted eight" at rank 1
+    And the record titled "Accepted eight" has 4 stars
+
+  Scenario: Clearing a rating removes the stars from the record
+    Given editors rated these References: "Accepted one" 5
+    And the home-page-snapshot task has run
+    When an editor clears the rating of "Accepted one" and the home-page-snapshot task runs again
+    Then the record titled "Accepted one" has no stars
 
   Scenario: A bucket that is not day or week is a build error naming the page
     Given a home-page site with a page whose references include has the bucket "month"

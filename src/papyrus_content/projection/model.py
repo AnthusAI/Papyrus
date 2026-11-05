@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 
@@ -21,6 +21,8 @@ class ItemSummary:
     front_matter: dict
     aliases: tuple[str, ...]
     published_at: str | None
+    #: The Story's lineage, which its private star rating is keyed by (``item_stars.py``). Never printed and not part of any fingerprint.
+    lineage_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -40,6 +42,8 @@ class SiteIndex:
 
     items: tuple[ItemSummary, ...]
     load_item: Callable[[str], ProjectedItem]
+    #: ``{lineage id: stars (1 to 5)}`` of the rated Stories, read when the index was. Private: listings order by it and nothing prints it.
+    story_stars: Mapping[str, int] = field(default_factory=dict)
 
 
 @dataclass

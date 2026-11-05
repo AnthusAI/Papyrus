@@ -137,7 +137,7 @@ def rate(client, title, stars):
     row.update({"starRating": stars, "starRatedAt": "2026-10-31T09:00:00.000Z", "starRatedBy": "editor-who-rated@example.test"})
 
 
-def test_every_record_carries_a_rank_that_is_a_position_and_no_star():
+def test_every_record_carries_a_rank_and_only_an_accepted_one_carries_its_stars():
     client = FixtureClient()
     for title, stars in (("Accepted one", 5), ("Accepted eight", 2), ("Pending mid", 4)):
         rate(client, title, stars)
@@ -145,11 +145,14 @@ def test_every_record_carries_a_rank_that_is_a_position_and_no_star():
     assert sorted(record["rank"] for record in records) == list(range(1, len(records) + 1))
     by_title = {record["title"]: record["rank"] for record in records}
     assert by_title["Accepted one"] < by_title["Pending mid"] < by_title["Accepted two"] < by_title["Accepted eight"], "5 stars, 4 stars, unrated and a 2 star Reference the Cyclotron is sure of"
+    stars_of = {record["title"]: record["stars"] for record in records}
+    assert stars_of["Accepted one"] == 5 and stars_of["Accepted eight"] == 2, "an accepted Reference shows the count an editor gave it"
+    assert stars_of["Pending mid"] is None, "a pending Reference is rated too, but a list of recommended ones shows its confidence instead"
+    assert stars_of["Accepted two"] is None, "nobody rated it, so there is nothing to show"
     text = json.dumps(records)
     for private in ("starRating", "starRatedAt", "starRatedBy", "editor-who-rated@example.test"):
-        assert private not in text
-    for record in records:
-        assert not [name for name in record if "star" in name.lower()]
+        assert private not in text, "the count is published as stars; who rated it and when are not published"
+    assert sorted({name for record in records for name in record if "star" in name.lower()}) == ["stars"]
 
 
 def test_unrated_records_are_ranked_by_confidence_then_newest_arrival_then_key():
@@ -168,11 +171,28 @@ def test_a_fields_list_that_leaves_out_what_the_order_reads_does_not_change_the_
     assert list(narrow[0]) == ["key", "status", "title", "rank"], "rank is in every record whatever the list says"
 
 
-def test_a_rating_that_moves_nothing_leaves_the_records_exactly_as_they_were():
+def test_a_rating_that_moves_nothing_changes_only_the_stars_of_its_own_record():
     client = FixtureClient()
     before = collect_references(client, client.corpus_id, HomePageSettings())
     rate(client, "Accepted eight", 4)   # already first
-    assert collect_references(client, client.corpus_id, HomePageSettings()) == before
+    after = collect_references(client, client.corpus_id, HomePageSettings())
+    assert [{**record, "stars": None} for record in after] == [{**record, "stars": None} for record in before]
+    assert {record["title"]: record["stars"] for record in after if record["stars"]} == {"Accepted eight": 4}
+
+
+def test_a_pending_reference_never_publishes_its_stars_even_when_it_is_rated():
+    client = FixtureClient()
+    rate(client, "Pending high", 5)
+    records = {record["title"]: record for record in collect_references(client, client.corpus_id, HomePageSettings())}
+    assert records["Pending high"]["stars"] is None and records["Pending high"]["confidence"] is not None
+
+
+def test_stars_are_a_count_from_one_to_five_and_anything_else_is_nothing():
+    client = FixtureClient()
+    for bad in (0, 6, 2.5, "4", True):
+        rate(client, "Accepted one", bad)
+        records = {record["title"]: record for record in collect_references(client, client.corpus_id, HomePageSettings())}
+        assert records["Accepted one"]["stars"] is None, bad
 
 
 def test_the_recommended_threshold_is_the_setting():

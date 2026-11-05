@@ -93,6 +93,10 @@ class DirectoryContentSource:
         row = self._load().get(item_id)
         return projected_item_from_row(row) if row is not None else None
 
+    def story_stars(self, summaries) -> dict[str, int]:
+        """Files carry no editors' ratings."""
+        return {}
+
     def site_index(self) -> SiteIndex:
         summaries = [summary_from_row(row) for row in self._load().values()]
         return SiteIndex(items=tuple(sorted(summaries, key=lambda summary: summary.output_path)), load_item=self.load_item)

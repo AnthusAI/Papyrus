@@ -16,6 +16,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from ...home_page.ordering import BUCKETS
 from ...home_page.settings import HomePageSettings, home_page_settings_from_mapping
 from .grouping import valid_group_by
 from .redirects import RedirectRule, rule_from_mapping
@@ -27,6 +28,10 @@ STANDARD_KEYS = (
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
     "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes",
 )
+NO_BUCKET = "none"
+#: The buckets Stories rank inside (``story_order.py``): the References' two (``day``, ``week``), and ``none`` for plain newest first.
+STORY_BUCKETS = (*BUCKETS, NO_BUCKET)
+DEFAULT_STORY_BUCKET = "week"
 URL_STYLES = ("html", "directory", "clean")
 SITEMAP_STYLES = ("single", "index")
 FEED_FORMATS = ("rss", "atom")
@@ -272,6 +277,7 @@ class ListingSettings:
     tag_title: str = "Tagged {tag}"       # the title and heading of a tag page
     draft_field: str = ""             # a front matter field whose value (draft_values) marks an item as a draft
     draft_values: tuple[str, ...] = ("draft",)
+    bucket: str = DEFAULT_STORY_BUCKET   # Stories rank by stars inside this bucket, newest bucket first; "none" keeps newest first (story_order.py)
 
 
 @dataclass(frozen=True)
@@ -737,7 +743,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         raise ValueError("feeds.count must be positive")
 
     listings = dict(raw.get("listings") or {})
-    _only(listings, {"pageSize", "featuredCount", "path", "homeCount", "tags", "tagBase", "types", "tagSelect", "tagPageSize", "draft", "pageSuffix", "tagTitle"}, "listings")
+    _only(listings, {"pageSize", "featuredCount", "path", "homeCount", "tags", "tagBase", "types", "tagSelect", "tagPageSize", "draft", "pageSuffix", "tagTitle", "bucket"}, "listings")
     draft_raw = dict(listings.get("draft") or {})
     _only(draft_raw, {"field", "values"}, "listings.draft")
     listing_defaults = ListingSettings()
@@ -755,7 +761,10 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         tag_title=str(listings.get("tagTitle", listing_defaults.tag_title)),
         draft_field=str(draft_raw.get("field", "")),
         draft_values=tuple(str(value) for value in draft_raw.get("values", listing_defaults.draft_values)),
+        bucket=str(listings.get("bucket", listing_defaults.bucket)),
     )
+    if listing_settings.bucket not in STORY_BUCKETS:
+        raise ValueError(f"listings.bucket must be one of {', '.join(STORY_BUCKETS)}, got {listing_settings.bucket!r}")
     if listing_settings.tag_page_size is not None and listing_settings.tag_page_size < 0:
         raise ValueError("listings.tagPageSize must not be negative (0 puts every entry of a tag on one page)")
     if listing_settings.page_size < 1 or listing_settings.featured_count < 0:

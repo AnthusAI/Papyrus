@@ -37,7 +37,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `sitemap` | `style`: `single` (`/sitemap.xml`) or `index` (`/sitemap-index.xml` + `/sitemap-0.xml`); `lastmod`; `tags`; `extra`: paths (starting with `/`) to list that core does not generate, such as `static.copy` routes |
 | `robots` | `extra`: extra lines |
 | `feeds` | `formats` (`rss`, `atom`), `count` (30), `rssPath`, `atomPath`, `title` |
-| `listings` | `pageSize` (10), `featuredCount`, `path` (the flat listing base, `archive`), `homeCount`, `tags`, `tagBase`, `types` (entry types that are listed, `["article"]`), `tagSelect`, `tagPageSize`, `draft`, `pageSuffix`, `tagTitle` (see "Collections and tag pages") |
+| `listings` | `pageSize` (10), `featuredCount`, `path` (the flat listing base, `archive`), `homeCount`, `tags`, `tagBase`, `types` (entry types that are listed, `["article"]`), `tagSelect`, `tagPageSize`, `draft`, `pageSuffix`, `tagTitle` (see "Collections and tag pages"), `bucket` (`week`, `day` or `none`: Stories rank by the editors' stars inside a UTC bucket, newest bucket first; [how](content-item-lifecycle.md#published-stories-rank-by-recency-bucket-then-stars-ppy-5966d7)) |
 | `collections` | listings selected by tag or section: `[{id, base, label, description, select, pageSize, featuredCount, sort, ties, drafts, sitemap, sitemapPages, listEmpty}]` (see "Collections and tag pages") |
 | `notFound` | the 404 page's head: `{title ("Page not found"), description, noindex (true)}` |
 | `fonts` | `stylesheet` (a font CSS URL; adds the `preconnect` links), `preconnect` |
@@ -429,7 +429,7 @@ them is a build error that names it, except the `knowledge-` blocks, which an it
 
 | `::include` kind | Attributes | Output |
 |---|---|---|
-| `listing` | `collection` (borrows that collection's selection, `sort` and `ties`; the other attributes refine it), `sections`, `tags`, `allTags`, `notTags`, `types`, `notTypes` (comma lists; same meaning as `select`), `sort` (`date`, `order`, `title`), `ties`, `skip`, `count`, `card` (the variant passed to the `card` hook), `layout` (`grid` default, a `markus-card-grid`; `bare`: the cards alone) | the matching listed entries, newest first by default, `skip` dropped, then `count` kept; each is the `card` hook's markup (given `variant` and `index`) or the default card |
+| `listing` | `collection` (borrows that collection's selection, `sort` and `ties`; the other attributes refine it), `sections`, `tags`, `allTags`, `notTags`, `types`, `notTypes` (comma lists; same meaning as `select`), `sort` (`date`, `order`, `title`), `ties`, `bucket` (`week` default from `listings.bucket`, `day` or `none`), `skip`, `count`, `card` (the variant passed to the `card` hook), `layout` (`grid` default, a `markus-card-grid`; `bare`: the cards alone) | the matching listed entries, newest bucket first and, inside a bucket, ranked by the editors' private stars (unrated Stories keep newest-first order; `sort="order"` and `sort="title"` are not ranked; `bucket="none"` is plain newest first), `skip` dropped, then `count` kept; each is the `card` hook's markup (given `variant` and `index`) or the default card |
 | `showcase` | none | the logo wall of the `showcase` settings |
 | `form` | `id` | a `forms` entry |
 | `block` | `name` (required), `depends`, any other attributes | what the `block(name, attributes, page)` hook returns; `depends` lists the sections it reads (`@root`, or `*` for all). The names that start with `knowledge-` are built in and need no hook (see [Knowledge components](knowledge-components.md)) |

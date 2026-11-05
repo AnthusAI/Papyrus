@@ -13,6 +13,7 @@ from papyrus_content.projection.lease import ProjectionLeaseHeld
 from papyrus_content.projection.engine import project, project_all, project_item_pages
 from papyrus_content.home_page.runtime import stores_for as home_page_stores_for
 from papyrus_content.home_page.task import TASK_NAME as HOME_PAGE_SNAPSHOT_TASK, home_page_settings_of, run_home_page_snapshot
+from papyrus_content.projection.story_stars_task import TASK_NAME as STORY_STARS_TASK, run_story_stars_task
 from papyrus_content.reader_steering.task import TASK_NAME as READER_SNAPSHOT_TASK, run_reader_snapshot
 from papyrus_content.projection.runtime import (
     DEAD_LETTER_QUEUE_ENV,
@@ -256,6 +257,11 @@ def _run_projection_task(task: dict) -> dict:
         return run_reader_snapshot(projection_context(client), client, poll_retirements=task.get("retirementPoll") is True).to_dict()
     elif task.get("task") == HOME_PAGE_SNAPSHOT_TASK:
         return run_home_page_snapshot_task(client, task)
+    elif task.get("task") == STORY_STARS_TASK:
+        result = run_story_stars_task(projection_context(client), client, task)
+        if result.get("errors"):
+            raise ProjectionTaskFailed("; ".join(result["errors"]))
+        return result
     elif task.get("task") == "invalidate":
         invalidate = projection_context(client).invalidate
         if invalidate is None:
