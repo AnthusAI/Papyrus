@@ -20,6 +20,7 @@ goes to the dead letter queue) and ratings stop reaching the pages; they never r
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
@@ -63,6 +64,10 @@ class MemoryStarStore:
             self.stars.update(entries)
 
 
+LOGGER = logging.getLogger("papyrus.projection")
+RECORD_CHUNK = 50
+
+
 class DynamoStarStore:
     """The ratings in the projection lock table: one consistent read to load them, two updates to record entries."""
 
@@ -78,10 +83,14 @@ class DynamoStarStore:
             return
         key = {"publication": state_key(self.scope)}
         self.table.update_item(Key=key, UpdateExpression="SET stars = if_not_exists(stars, :empty)", ExpressionAttributeValues={":empty": {}})
-        names = {f"#l{position}": lineage for position, lineage in enumerate(entries)}
-        values = {f":v{position}": int(value) for position, value in enumerate(entries.values())}
-        assignments = ", ".join(f"stars.#l{position} = :v{position}" for position in range(len(entries)))
-        self.table.update_item(Key=key, UpdateExpression=f"SET {assignments}", ExpressionAttributeNames=names, ExpressionAttributeValues=values)
+        # One request holds only so much: DynamoDB refuses an update expression over 4 KB, and a site's first render records every Story at once.
+        pairs = list(entries.items())
+        for start in range(0, len(pairs), RECORD_CHUNK):
+            chunk = pairs[start:start + RECORD_CHUNK]
+            names = {f"#l{position}": lineage for position, (lineage, _) in enumerate(chunk)}
+            values = {f":v{position}": int(value) for position, (_, value) in enumerate(chunk)}
+            assignments = ", ".join(f"stars.#l{position} = :v{position}" for position in range(len(chunk)))
+            self.table.update_item(Key=key, UpdateExpression=f"SET {assignments}", ExpressionAttributeNames=names, ExpressionAttributeValues=values)
 
 
 def content_actions_function_name(environment: Mapping[str, str]) -> str:
@@ -120,6 +129,9 @@ def known_stars(store: Any, lineages: Iterable[str], read: Callable[[str], int])
     stored = store.load()
     fresh = {lineage: read(lineage) for lineage in wanted if lineage not in stored}
     if fresh:
-        store.record(fresh)
+        try:
+            store.record(fresh)
+        except Exception:  # noqa: BLE001 - remembering is a saving: the ratings were read, this render uses them, and the next one reads them again
+            LOGGER.warning("could not remember %d Story ratings; they will be read again next time", len(fresh), exc_info=True)
         stored = {**stored, **fresh}
     return {lineage: stored[lineage] for lineage in wanted if stored.get(lineage, UNRATED) > UNRATED}

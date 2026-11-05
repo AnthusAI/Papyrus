@@ -120,3 +120,13 @@ Feature: Published Stories rank by recency bucket and then by the editors' priva
     When the site is projected again
     Then the "latest" listing starts with three
     And the store holds the rating once and a second projection reads it without reading the Items again
+
+  Scenario: A large site's first render remembers its ratings in several small writes
+    Given a rating store that refuses an update over DynamoDB's size limit
+    When a thousand Stories nobody has seen before are remembered at once
+    Then every rating is remembered and no single write went over the limit
+
+  Scenario: A rating store that cannot write does not stop a site from rendering
+    Given a rating store that refuses every write
+    When a Story rated four stars is looked up for the first time
+    Then the listing still has its four stars, and the next render reads it again
