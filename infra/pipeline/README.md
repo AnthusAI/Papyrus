@@ -5,7 +5,7 @@
 | File | What it is |
 | --- | --- |
 | `stacks.json` | The stacks, in deploy order: template, the paths that are their inputs, parameters, zone lookups, which `build.py` zips feed which code-key parameter, capabilities. |
-| `allowed-changes.json` | The Removes and Replaces a release may make on purpose. Empty. |
+| `allowed-changes.json` | The Removes and Replaces a release may make on purpose, each with its reason. Empty it again once they have deployed. |
 | `stack_deploy.py` | The whole deploy, with its safety checks. Tested by `procedures/newsroom/tests/test_stack_deploy.py`. |
 | `papyrus-stack-pipeline.yaml` | The three IAM roles. The only hand-deployed stack. |
 
