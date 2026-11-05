@@ -2,7 +2,7 @@
 
 A person's edits in the wiki (name, description, aliases, anything else) must survive every run. So an automated writer
 either creates a node with ``create_only_record``, or, for a node that exists, writes a partial update of
-``DERIVED_FIELDS`` only (``derived_fields_patch``). Two exceptions are kept: a ``generated`` node becomes ``accepted``
+``DERIVED_FIELDS`` only (``derived_fields_patch``; ``pageAnswer`` is the extractor's answer whether the concept has a page, which an editor's own decision, kept in ``changeReason``, outranks). Two exceptions are kept: a ``generated`` node becomes ``accepted``
 when a published Story's front matter names it (``acceptance_patch``), and the acceptance mark in ``changeReason`` of a
 node that same path created (``acceptance_mark_patch``).
 """
@@ -20,6 +20,7 @@ DERIVED_FIELDS = frozenset(
         "acceptedReferenceMentionCount",
         "distinctSourceKindCount",
         "relationCount",
+        "pageAnswer",
         "updatedAt",
     }
 )
@@ -49,6 +50,12 @@ def derived_fields_patch(existing: Mapping[str, Any], wanted: Mapping[str, Any],
     if not changed:
         return None
     return {"id": existing["id"], **changed, "updatedAt": now}
+
+
+def derived_node_patch(existing: Mapping[str, Any], wanted: Mapping[str, Any], *, now: str) -> dict[str, Any] | None:
+    """``derived_fields_patch`` as a planned patch of a publish plan (model name and expected row), or ``None`` when nothing differs."""
+    patch = derived_fields_patch(existing, wanted, now=now)
+    return None if patch is None else {"modelName": SEMANTIC_NODE_MODEL, "expected": patch}
 
 
 def derived_fields_patch_change(existing: Mapping[str, Any], wanted: Mapping[str, Any], *, now: str) -> dict[str, Any] | None:

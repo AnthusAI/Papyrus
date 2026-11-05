@@ -163,11 +163,13 @@ def data_only_lineages(data: KnowledgeData) -> set[str]:
 
 
 def eligible_nodes(data: KnowledgeData, public_kinds: Collection[str] | None = None) -> list:
-    """The accepted entities that may have a public page: a public name and a kind the wiki publishes (see ``kinds``)."""
+    """The accepted entities that may have a public page: a public name, a kind the wiki publishes (see ``kinds``), and a page answer that is not
+    no. The answer is an editor's decision, else the extractor's (``knowledge_snapshot/page_answer.py``); a concept it has not answered for keeps its page.
+    A concept with no page stays accepted, filed and linkable; a page it already has is retired by ``--retire``."""
     return [
         node
         for node in data.nodes
-        if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name) and is_public_kind(node.kind, public_kinds)
+        if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name) and is_public_kind(node.kind, public_kinds) and node.has_page
     ]
 
 

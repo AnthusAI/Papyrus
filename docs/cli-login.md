@@ -240,7 +240,7 @@ An editor's token can read the concepts and links of a site and write none of th
 | Command | Route |
 | --- | --- |
 | `papyrus sections concepts add --section S --concept NAME --create [--display-name TEXT]` | `createEditorConcept(name, displayName)` |
-| `papyrus knowledge entities accept\|reject\|rename\|alias\|describe\|accept-description --key K --actor ai\|human ...` | `applyKnowledgeReview(patches)` |
+| `papyrus knowledge entities accept\|reject\|rename\|alias\|describe\|accept-description\|page --key K --actor ai\|human ...` | `applyKnowledgeReview(patches)` |
 | `papyrus knowledge entities link --key A --to B --note TEXT` | `createConceptLink` (the words are required) |
 | `papyrus references link --reference R (--to-reference R2 \| --concept NAME [--create]) [--predicate P] [--note TEXT]` | `createReferenceLink` |
 

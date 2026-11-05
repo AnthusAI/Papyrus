@@ -7,7 +7,8 @@ Three sources feed the plan:
 * extractor entities: a ``proposed`` mention makes a generated node, a ``resolved`` one links to the node its
   ``entity_key`` names; links start unconfirmed (``--confirm-resolved`` confirms a resolved mention of an accepted
   node). Typed relations between two accepted nodes become ``proposed`` relations until someone accepts them. All are
-  created once and never changed by a later run;
+  created once and never changed by a later run. The one thing a later run does update on an existing node is the extractor's
+  page answer (``pageAnswer``, see ``page_answer.py``), unless the node is rejected;
 * clusters: one ``topic_cluster`` proposal per cluster uid.
 
 A name resolves to an existing node of the same kind by case and white space insensitive name or alias. A rejected
@@ -25,12 +26,13 @@ from ..categories_commands import with_version_fields
 from ..categories_steering import semantic_relation_record
 from ..ids import safe_id
 from ..relation_types import normalize_relation_type_key
-from ..semantic_node_writes import acceptance_mark_patch, acceptance_patch, create_only_record
+from ..semantic_node_writes import acceptance_mark_patch, acceptance_patch, create_only_record, derived_node_patch
 from .actors import ACTOR_AI, Actor, ReviewMarks, decode_review
 from .candidate_filter import CandidateFilter, Dropped
 from .cluster_records import CLUSTER_KIND, cluster_proposal_id, proposal_record
 from .keys import contains_email, entity_key, kind_key, name_identity
 from .model import KIND_REFERENCE_DOCUMENT, LINK_EXTRACTOR, LINK_FRONT_MATTER, PublishedItem
+from .page_answer import PAGE_FIELD, PageAnswer, decode_page_answer
 from .run_input import ClusterRun, TypedItem
 
 ACTOR = "Papyrus knowledge publish-run"
@@ -124,11 +126,12 @@ def node_lineage_id(node_key: str) -> str:
     return f"semantic-node-{node_key}"
 
 
-def new_node_row(kind: str, name: str, status: str, *, import_run_id: str, corpus_id: str | None, now: str, reason: str) -> dict:
+def new_node_row(kind: str, name: str, status: str, *, import_run_id: str, corpus_id: str | None, now: str, reason: str, page_answer: PageAnswer | None = None) -> dict:
     key = entity_key(kind, name)
     lineage_id = node_lineage_id(key)
     return with_version_fields(
         {
+            **({PAGE_FIELD: page_answer.encode()} if page_answer else {}),
             "id": f"{lineage_id}-v1",
             "lineageId": lineage_id,
             "nodeKey": key,
@@ -304,6 +307,13 @@ def relation_record(subject: Mapping[str, Any], predicate: str, target: Mapping[
     )
 
 
+def page_answer_of(entity: Any, run_id: str) -> PageAnswer | None:
+    """The extractor's page answer of a proposed entity, when it gave a whole one (a resolved entity, or an older output file, has none)."""
+    if entity.state != "proposed" or entity.page_score is None or entity.page_answer is None or entity.page_documents is None:
+        return None
+    return PageAnswer(entity.page_score, entity.page_answer, entity.page_documents, run_id)
+
+
 def plan_extractor(
     typed: list[TypedItem],
     items: list[PublishedItem],
@@ -322,6 +332,7 @@ def plan_extractor(
     planned: set[tuple[str, str]] = set()
     planned_relations: set[str] = set()
     resolution = Actor(actor=ACTOR_AI, name=RESOLUTION_ACTOR_NAME, on=now[:10]).to_dict()
+    answered: set[str] = set()  # nodes whose page answer this run has written or planned
     unpublished = 0
     for typed_item in typed:
         item = by_id.get(typed_item.item_id)
@@ -347,16 +358,25 @@ def plan_extractor(
                 existing = node is not None
             if node is None and candidate_filter is not None and not candidate_filter.check(entity.kind, entity.text):
                 continue  # a candidate that would be a new node and is a common word, a stop word or of an undeclared kind: no node, no link
+            answer = page_answer_of(entity, run_id)
             if node is None:
                 node = new_node_row(
-                    entity.kind, entity.text, STATUS_GENERATED, import_run_id=import_run_id, corpus_id=corpus_id, now=now, reason=f"typed-entities:{run_id}"
+                    entity.kind, entity.text, STATUS_GENERATED, import_run_id=import_run_id, corpus_id=corpus_id, now=now, reason=f"typed-entities:{run_id}", page_answer=answer
                 )
                 plan.records.append(create_only_record(node))
                 plan.count("nodesGenerated")
                 index.add(node)
+                answered.add(node["lineageId"])
             elif node.get("status") == STATUS_REJECTED:
                 plan.count("linksSkippedRejected")
                 continue
+            elif answer is not None and node["lineageId"] not in answered:
+                answered.add(node["lineageId"])
+                patch = None if answer.same_as(decode_page_answer(node.get(PAGE_FIELD))) else derived_node_patch(node, {PAGE_FIELD: answer.encode()}, now=now)
+                if patch:  # a later run updates the extractor's answer; an editor's own decision is in changeReason and is never touched
+                    plan.patches.append(patch)
+                    node[PAGE_FIELD] = answer.encode()
+                    plan.count("pageAnswersUpdated")
             nodes_by_mention[entity.id] = node
             pair = (item.key, node["lineageId"])
             if pair in confirmed or pair in planned:
