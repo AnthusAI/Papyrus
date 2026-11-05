@@ -16,9 +16,10 @@ async function main() {
   const params = new URLSearchParams({ response_type: "code", client_id: "client", redirect_uri: "http://127.0.0.1:4444/callback", resource: "https://example.test/api/mcp", code_challenge_method: "S256", code_challenge: "A".repeat(43), state: "abc" });
   response = await app.authorize(new Request(`https://example.test/api/mcp/oauth/authorize?${params}`)); assert.equal(response.status, 303);
   const cookie = response.headers.get("set-cookie")!.split(";")[0];
-  response = await app.consent(new Request("https://example.test/mcp/authorize", { headers: { cookie } })); const html = await response.text(); const csrf = html.match(/name="csrf" value="([^"]+)"/)![1];
+  response = await app.consent(new Request("https://example.test/mcp/authorize", { headers: { cookie } })); assert.equal(response.headers.get("referrer-policy"), "same-origin"); const html = await response.text(); assert.match(html, /<form method="post">/); const csrf = html.match(/name="csrf" value="([^"]+)"/)![1];
+  response = await app.consent(new Request("https://example.test/mcp/authorize", { method: "POST", headers: { cookie, origin: "null", "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ csrf, decision: "allow", identity: "reader" }) })); assert.equal(response.status, 403); assert.equal(operations.length, 0);
   response = await app.consent(new Request("https://example.test/mcp/authorize", { method: "POST", headers: { cookie, origin: "https://example.test", "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ csrf, decision: "allow", identity: "reader" }) }));
-  assert.equal(response.status, 303); assert.equal(new URL(response.headers.get("location")!).searchParams.get("code"), "test-code"); assert.equal(new URL(response.headers.get("location")!).searchParams.get("iss"), "https://example.test"); assert.equal(new URL(response.headers.get("location")!).searchParams.get("state"), "abc"); assert.equal(operations[0].operation, "issue");
+  assert.equal(response.status, 303); assert.equal(response.headers.get("referrer-policy"), "no-referrer"); assert.equal(new URL(response.headers.get("location")!).searchParams.get("code"), "test-code"); assert.equal(new URL(response.headers.get("location")!).searchParams.get("iss"), "https://example.test"); assert.equal(new URL(response.headers.get("location")!).searchParams.get("state"), "abc"); assert.equal(operations[0].operation, "issue");
   response = await app.consent(new Request("https://example.test/mcp/authorize", { method: "POST", headers: { cookie, origin: "https://example.test", "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ csrf, decision: "deny" }) }));
   assert.equal(new URL(response.headers.get("location")!).searchParams.get("iss"), "https://example.test"); assert.equal(new URL(response.headers.get("location")!).searchParams.get("state"), "abc"); assert.equal(new URL(response.headers.get("location")!).searchParams.get("error"), "access_denied");
   const count = operations.length;
@@ -38,7 +39,7 @@ async function main() {
   response = await returning.authorize(new Request(`https://example.test/api/mcp/oauth/authorize?${params}`)); const returnCookie = response.headers.get("set-cookie")!.split(";")[0];
   response = await returning.consent(new Request("https://example.test/mcp/authorize", { headers: { cookie: returnCookie } })); const returnCsrf = (await response.text()).match(/name="csrf" value="([^"]+)"/)![1];
   const submit = () => new Request("https://example.test/mcp/authorize", { method: "POST", headers: { cookie: returnCookie, origin: "https://example.test", "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ csrf: returnCsrf, decision: "allow", identity: "reader" }) });
-  response = await returning.consent(submit()); assert.equal(response.status, 401); assert.match(await response.text(), /Sign in as a reader/);
+  response = await returning.consent(submit()); assert.equal(response.status, 401); assert.equal(response.headers.get("referrer-policy"), "same-origin"); assert.match(await response.text(), /Sign in as a reader/);
   signedIn = true; response = await returning.consent(submit()); assert.equal(response.status, 303);
   console.log("MCP OAuth HTTP checks passed");
 }

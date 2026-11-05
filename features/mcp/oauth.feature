@@ -37,3 +37,9 @@ Feature: Authorize an MCP client
     Given an MCP site with a configured public client
     When a person approves or denies a client request with state
     Then the redirect carries the configured issuer and the original state
+
+  Scenario: A same-origin browser form can submit consent
+    Given a valid authorization request and a signed-in person
+    When the consent form is submitted from the configured origin
+    Then the form permits the browser to send its origin without exposing cross-origin referrers
+    And a null or foreign origin cannot issue a code
