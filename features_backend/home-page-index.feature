@@ -56,3 +56,18 @@ Feature: A site can serve its public blocks from the indexes they show instead o
     When the fixture site is rendered from the file and from the public index
     Then the report says the pages differ only inside a rounding tier
     And the check does not fail
+
+  Scenario: A paged list served from the index is cut into the chunks the file makes
+    The whole list is read, one request for every hundred rows, so a paged list is the one block whose render still grows with the table; the files of every chunk are
+    named from the list, so they are written together or not at all.
+    Given a corpus of References with accepted, recommended, starred and video rows
+    When the paged fixture site is rendered from the file and from the public index
+    Then every page and every chunk file of every paged list is identical in both
+
+  Scenario: A row that cannot be in a paged list asks nothing, and one that can asks the list again
+    Given a corpus of References with accepted, recommended, starred and video rows
+    And the paged fixture site rendered from the public index
+    When a batch arrives that holds no change a block can show
+    Then no block was asked and no request was made and no page was rewritten
+    When a new recommended Reference is recorded as a change
+    Then the paged list shows it

@@ -48,6 +48,7 @@ from .ordering import BUCKET_DAYS, RANK_FIELD, bucket_moment, ordered, rolling_a
 from .settings import HomePageSettings
 
 PAGE_SIZE = 100
+WHOLE = 2**62   # a paged list is the whole selection: the block reads to the end of it
 NOT_PENDING = ("accepted", "rejected", "archived")
 
 
@@ -159,14 +160,30 @@ class IndexReader:
         self._starred: dict[str, Any] | None = None
         self._earliest: date | None | bool = False
         self._blocks: dict[str, Block] = {}
+        self._partitions: dict[tuple[str, str, bool], dict[str, Any]] = {}
         self._days: dict[str, DayRows] = {}
 
     # ------------------------------------------------------------------ reads
 
     def pages(self, kind: str, index: str, partition: str, *, descending: bool = True) -> Iterator[list[dict[str, Any]]]:
-        for page in self.client.iterate_pages(index, partition, page_size=PAGE_SIZE, descending=descending):
+        """The pages of an index partition, read as far as a caller goes and remembered, so two blocks that read the same partition share the pages they both need."""
+        entry = self._partitions.setdefault((index, partition, descending), {"source": None, "pages": [], "done": False})
+        position = 0
+        while True:
+            if position < len(entry["pages"]):
+                yield entry["pages"][position]
+                position += 1
+                continue
+            if entry["done"]:
+                return
+            if entry["source"] is None:
+                entry["source"] = iter(self.client.iterate_pages(index, partition, page_size=PAGE_SIZE, descending=descending))
+            page = next(entry["source"], None)
+            if page is None:
+                entry["done"] = True
+                return
             self.requests[kind] += 1
-            yield page
+            entry["pages"].append(page)
 
     def labels(self) -> Mapping[str, str]:
         if self._labels is None:
@@ -301,7 +318,7 @@ class DayRows:
 
 def block_key(attributes: Mapping[str, Any], as_of: date) -> str:
     """The identity of a block's question: its attributes that change the answer, and the day when it is windowed (a rolling window moves with the day)."""
-    relevant = {name: attributes[name] for name in ("select", "section", "bucket", "medium") if attributes.get(name)}
+    relevant = {name: attributes[name] for name in ("select", "section", "bucket", "medium", "paged") if attributes.get(name)}
     if relevant.get("bucket"):
         relevant["asOf"] = as_of.isoformat()
     return hashlib.sha256(json.dumps(relevant, sort_keys=True).encode("utf-8")).hexdigest()[:16]
@@ -316,6 +333,7 @@ class Block:
         self.bucket = attributes.get("bucket")
         self.medium = attributes.get("medium")
         self.section = attributes.get("section")
+        self.whole = attributes.get("paged") == "true"
         self.items: list[Item] = []
         self.exhausted = False
         self.wanted = 0
@@ -435,6 +453,9 @@ class Block:
 
     def state(self) -> dict[str, Any]:
         """What the stream router needs to say whether a changed row can touch this block (``routing.py``)."""
+        if self.whole:   # the whole list: the router cannot tell where a row would fall without it, so any row that can be public in its partition touches the block
+            return {"attributes": {name: self.attributes[name] for name in ("select", "section", "bucket", "medium", "paged") if self.attributes.get(name)},
+                    "whole": True, "sectionIds": self._section_ids() if self.section else None, "asOf": self.as_of.isoformat() if self.bucket else None}
         placed = self._placement_order()
         last = placed[min(self.wanted, len(placed)) - 1] if placed else None   # the last row a page could show: the router asks whether a change sorts ahead of it
         return {

@@ -38,7 +38,10 @@ class HomePageSource:
 
     def attach_index(self, reader) -> None:
         """Answer ``references()`` from an :class:`~...home_page.indexed.IndexReader`, block by block, instead of from ``references.json``."""
+        from ...home_page.indexed import IndexDocument
+
         self._index = reader
+        self._index_document = IndexDocument(reader)
 
     def attach_store(self, reader: Reader) -> None:
         """Read from a site store (``writer.get``). A directory chosen with :meth:`use_directory` keeps winning, in any call order."""
@@ -79,9 +82,7 @@ class HomePageSource:
 
     def references(self) -> dict | None:
         if self._index is not None:
-            from ...home_page.indexed import IndexDocument
-
-            return IndexDocument(self._index)
+            return self._index_document
         return self._load(REFERENCES_FILE, REFERENCES_NAME, "references")[1]
 
     def threads(self) -> dict | None:

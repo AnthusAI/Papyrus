@@ -117,7 +117,13 @@ def block_touched(state: Mapping[str, Any] | None, coordinate: Coordinate, *, as
         return True
     selection, bucket, medium = str(attributes.get("select")), attributes.get("bucket"), attributes.get("medium")
     wants_accepted = selection != "recommended"
-    relevant = _accepts(coordinate.feed1) if wants_accepted else _recommends(coordinate.feed1)
+    partition = _accepts if wants_accepted else _recommends
+    if state.get("whole"):   # a paged list: a row that is, or was, in the block's partition changes the list
+        relevant = partition(coordinate.feed1) or partition(coordinate.feed0)
+        if not relevant or (medium and coordinate.medium1 != medium and coordinate.medium0 != medium):
+            return False
+        return not attributes.get("section") or bool({coordinate.section0, coordinate.section1} & set(state.get("sectionIds") or ()))
+    relevant = partition(coordinate.feed1)
     if not relevant or (medium and coordinate.medium1 != medium):
         return False
     if attributes.get("section") and coordinate.section1 not in set(state.get("sectionIds") or ()):

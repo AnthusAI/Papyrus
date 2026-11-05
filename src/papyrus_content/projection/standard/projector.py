@@ -352,8 +352,6 @@ class StandardMarkusProjector(MarkusSiteProjector):
         for attributes in found:
             if not home_page_blocks.is_home_page_include(attributes):
                 continue
-            if home_page_blocks.is_paged(attributes):
-                raise ValueError("::include references paged=\"true\" is not served from the public index yet: set homePage.references.source to \"snapshot\" for this site")
             chosen = home_page_blocks.select_references(document, attributes, ledger, home_page_blocks.count_of({}, self.standard.home_page), labels, self._day())
             placed.append([dict(record) for record in chosen])
         return ["indexedBlocks", hashlib.sha256(json.dumps(placed, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]]
@@ -437,8 +435,6 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def _paged_list(self, custom: CustomPage, attributes: dict) -> home_page_lists.PagedList:
         """The layout of one paged list of an authored page, from the snapshot as it is now (memoised until the snapshot is read again)."""
-        if self._home_page.indexed:
-            raise ValueError("paged Reference lists are not served from the public index yet: set homePage.references.source to \"snapshot\" for a site that has them")
         document = self._home_page.references()
         if self._paged_cache[0] is not document:
             self._paged_cache = (document, {})
