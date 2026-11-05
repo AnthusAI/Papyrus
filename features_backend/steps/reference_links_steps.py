@@ -71,6 +71,11 @@ def step_one(context):
     only_row(context)
 
 
+@then("the link has a score, because the indexes that sort by it refuse a null")
+def step_score(context):
+    assert only_row(context)["score"] == 1
+
+
 @then("the link is current")
 def step_current(context):
     assert only_row(context)["relationState"] == "current"

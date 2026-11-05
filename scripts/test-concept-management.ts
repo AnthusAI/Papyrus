@@ -82,6 +82,7 @@ test("two concepts are linked with related_to, one row with the lower lineage id
   });
   assert.deepEqual([made.ok, made.outcome, made.relationState], [true, "created", "current"]);
   const row = relations.get(made.relationId)!;
+  assert.equal(row.score, 1, "score sorts two indexes, so a null is refused by DynamoDB");
   assert.equal(row.predicate, "related_to");
   assert.equal(row.subjectKind, "semanticNode");
   assert.equal(row.objectKind, "semanticNode");

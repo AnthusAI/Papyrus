@@ -53,7 +53,7 @@
     "predicateObjectStateKey": "related_to#semanticNode#semantic-node-editor_concept--containment#current",
     "subjectVersionKey": "semanticNode#semantic-node-editor_concept--confinement-problem-v1",
     "objectVersionKey": "semanticNode#semantic-node-editor_concept--containment-v1",
-    "score": null,
+    "score": 1,
     "confidence": null,
     "rank": 1,
     "classifierId": null,
