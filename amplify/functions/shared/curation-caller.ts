@@ -1,7 +1,9 @@
 import { claimGroups, hasEditorRights } from "../../../lib/staff-groups"
 
 /**
- * Who is calling a curation-delegation mutation, and which of them may do what.
+ * Who is calling, and which delegation routes they may use. Delegation is optional: an agent normally accepts, rejects and rates directly through
+ * the signed-in editor's session as that person, and the lane here is only a plain note of where the action came from (`edit-origin.ts`), never
+ * a gate on those direct decisions. The rules below apply to the optional delegation routes only.
  *
  * A delegation is the editor's permission for an agent to relay their accept, reject and star decisions. The approval of the request must come
  * from a person in the Newsroom, never from the agent that asked. On the signed-in CLI lane the agent works inside the editor's own session,
@@ -28,14 +30,6 @@ export type CurationCaller =
   | { lane: "unreadable-client-session"; sub: string; groups: string[] }
 
 const UNREADABLE_CLIENT_MESSAGE = "This session's sign-in client could not be read, so it cannot be used for curation delegations. Sign in again."
-
-/**
- * Direct ratings and votes: a session on the CLI client is a script or agent working in an editor's account, so it may not file a decision as
- * the person. Returns whether the caller is that kind of session; the Lambda refuses or relabels it.
- */
-export function isCliSession(caller: CurationCaller): boolean {
-  return caller.lane === "cli-session"
-}
 
 export function cliClientIdFromEnvironment(environment: Record<string, string | undefined> = process.env): string | null {
   const value = (environment[CURATION_CLI_CLIENT_ID_VARIABLE] ?? "").trim()
