@@ -168,7 +168,8 @@ export function buildHumanEdgeRow(input: { relationId: string; kind: string; pre
     ...referenceLinkStateKeys(input.subject, input.object, input.predicate, "current"),
     subjectVersionKey: `${input.subject.kind}#${input.subject.id}`,
     objectVersionKey: `${input.object.kind}#${input.object.id}`,
-    score: null,
+    // score sorts two indexes on this model, and DynamoDB refuses a null index key. A person's link is certain, so it is the top of the scale.
+    score: 1,
     confidence: null,
     rank: 1,
     classifierId: null,
