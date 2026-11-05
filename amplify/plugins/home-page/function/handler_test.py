@@ -113,7 +113,7 @@ def test_a_status_change_is_a_change():
 
 @pytest.mark.parametrize("field", handler_module.CHANGE_FIELDS)
 def test_each_public_field_is_a_change(field):
-    old, new = ("pending", "accepted") if field == "curationStatus" else ("a", "b")
+    old, new = ("pending", "accepted") if field == "curationStatus" else ({"N": "0.7"}, {"N": "0.8"}) if field == "predictedAcceptProbability" else ("a", "b")
     assert handler_module.record_changed(record(old={**PENDING_PREDICTED, field: old}, new={**PENDING_PREDICTED, field: new}))
 
 
@@ -142,6 +142,25 @@ def test_a_new_pending_reference_changes_no_page():
     assert not handler_module.record_changed(record("INSERT", new={**PENDING, "predictionDecidedAt": {"NULL": True}}))
 
 
+def test_only_a_stored_probability_is_a_prediction_not_a_decision_time_nor_a_sort_key():
+    """Ryan, 2026-11-05: an unpredicted Reference is not 50% and shows nothing. Every Reference has a ``predictionSortKey`` from creation (``0.500000#...``)."""
+    sort_key_only = {**PENDING, "predictionSortKey": {"S": "0.500000#2026-11-04T18:49:50.761Z#reference-a-v1"}}
+    assert not handler_module.can_show(typed(sort_key_only))
+    assert not handler_module.can_show(typed({**sort_key_only, "predictionDecidedAt": {"S": "2026-11-04T10:00:00.000Z"}}))
+    assert not handler_module.can_show(typed({**PENDING, "predictedAcceptProbability": {"NULL": True}}))
+    assert not handler_module.can_show(typed({**PENDING, "predictedAcceptProbability": {"S": "0.9"}}))
+    assert handler_module.can_show(typed({**PENDING, "predictedAcceptProbability": {"N": "0.5"}})), "a prediction of exactly 0.5 is still a prediction"
+    assert handler_module.can_show(typed({**PENDING, "predictedAcceptProbability": {"N": "0"}})), "so is a certain reject"
+    assert not handler_module.record_changed(record(old=PENDING, new={**sort_key_only, "predictionDecidedAt": {"S": "t"}}))
+
+
+def test_the_picture_of_a_video_on_an_unpredicted_pending_reference_changes_no_page_until_the_first_prediction():
+    """It is on no page, so its picture has nothing to update; when the first prediction arrives the run reads the row, picture included."""
+    picture = {"thumbnailPath": {"S": "assets/reference-thumbnails/a.jpg"}}
+    assert not handler_module.record_changed(record(old=PENDING, new={**PENDING, **picture}))
+    assert handler_module.record_changed(record(old={**PENDING, **picture}, new={**PENDING, **picture, **PREDICTED}))
+
+
 def test_the_first_prediction_of_a_pending_reference_is_a_change_because_it_may_be_recommended():
     assert handler_module.record_changed(record(old=PENDING, new={**PENDING, **PREDICTED, "predictionSortKey": "0.900000#a#b"}))
 
@@ -150,24 +169,6 @@ def test_a_machine_field_written_on_a_reference_that_cannot_show_changes_no_page
     assert not handler_module.record_changed(record(old=PENDING, new={**PENDING, "title": "Retitled by the intake"}))
     assert not handler_module.record_changed(record(old=PENDING, new={**PENDING, "starRating": {"N": "5"}})), "an unpredicted pending Reference is not on any page, rated or not"
     assert not handler_module.record_changed(record(old={**PENDING, "curationStatus": "rejected"}, new={**PENDING, "curationStatus": "archived"}))
-
-
-PICTURE = {"S": "assets/reference-thumbnails/a4645fd6b3de98f4-bb02a57c6adf.jpg"}
-
-
-def test_the_picture_of_a_video_stored_on_an_unpredicted_pending_reference_is_a_change():
-    """The full read publishes an unpredicted pending Reference as recommended (undecided is 0.5), so its picture has to reach the page."""
-    assert handler_module.record_changed(record(old=PENDING, new={**PENDING, "thumbnailPath": PICTURE}))
-    assert handler_module.record_changed(record("INSERT", new={**PENDING, "thumbnailPath": PICTURE}))
-    assert handler_module.record_change(record(old=PENDING, new={**PENDING, "thumbnailPath": PICTURE}, identifier="reference-video-v1")) == {"id": "reference-video-v1"}
-
-
-def test_a_thumbnail_that_is_none_unchanged_or_on_a_reference_that_cannot_show_changes_no_page():
-    assert not handler_module.record_changed(record(old=PENDING, new={**PENDING, "thumbnailPath": {"S": "none"}}))
-    assert not handler_module.record_changed(record(old={**PENDING, "thumbnailPath": PICTURE}, new={**PENDING, "thumbnailPath": PICTURE, "title": "B"}))
-    rejected = {"curationStatus": "rejected", "title": "A"}
-    assert not handler_module.record_changed(record(old=rejected, new={**rejected, "thumbnailPath": PICTURE}))
-    assert not handler_module.record_changed(record(old={"title": "A"}, new={"title": "A", "thumbnailPath": PICTURE}))
 
 
 def test_a_predicted_pending_reference_that_is_retitled_rated_or_rejected_is_a_change():

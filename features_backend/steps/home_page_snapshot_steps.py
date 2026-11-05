@@ -239,6 +239,39 @@ def has_no_confidence(context, title: str) -> None:
     assert record["actor"] == "human" and record["confidence"] is None, record
 
 
+@then('the record titled "{title}" has actor "{actor}" and no confidence')
+def has_actor_and_no_confidence(context, title: str, actor: str) -> None:
+    record = titled(context, title)
+    assert (record["actor"], record["confidence"]) == (actor, None), record
+
+
+@then('the record titled "{title}" has status "{status}"')
+def has_status(context, title: str, status: str) -> None:
+    assert titled(context, title)["status"] == status, titled(context, title)
+
+
+def predict(context, title: str, probability: float) -> None:
+    row = next(row for row in context.client.rows() if row["title"] == title)
+    row.update({"predictedAcceptProbability": probability, "predictionDecidedAt": "2026-10-31T08:00:00.000Z"})
+    entry = next(entry for entry in context.client.fixture["references"] if entry["row"] is row)
+    entry["relations"] = [{**relation, "confidence": probability} for relation in entry["relations"]] or [
+        {"predicate": "relevance_decision_is", "relationState": "current", "objectLineageId": "semantic-node-relevance-include-v1", "confidence": probability, "createdAt": "2026-10-31T08:00:00.000Z"}
+    ]
+
+
+@when('the Cyclotron predicts {probability:f} for "{title}" and the home-page-snapshot task runs again')
+def predicted_and_run_again(context, probability: float, title: str) -> None:
+    predict(context, title, probability)
+    context.site.writer.operations.clear()
+    run_snapshot(context)
+
+
+@when('the Cyclotron predicts {probability:f} for "{title}" and the home-page-snapshot task runs')
+def predicted_and_run(context, probability: float, title: str) -> None:
+    predict(context, title, probability)
+    run_snapshot(context)
+
+
 @then('the record titled "{title}" has actor "{actor}" and confidence {confidence:f}')
 def has_actor_and_confidence(context, title: str, actor: str, confidence: float) -> None:
     record = titled(context, title)
@@ -337,7 +370,7 @@ def directory_empty(context) -> None:
 
 @then("the CLI printed the number of References and the size of the file")
 def cli_printed(context) -> None:
-    assert "12 references" in context.cli_output and "bytes" in context.cli_output, context.cli_output
+    assert "11 references" in context.cli_output and "bytes" in context.cli_output, context.cli_output
 
 
 def site_with_edge(context, purge: bool) -> None:
