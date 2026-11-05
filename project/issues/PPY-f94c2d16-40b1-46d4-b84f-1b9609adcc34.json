@@ -1,0 +1,20 @@
+{
+  "id": "PPY-f94c2d16-40b1-46d4-b84f-1b9609adcc34",
+  "title": "A person's Reference link fails: score is null on an index key",
+  "description": "Machines on Machines, 2026-11-05: createReferenceLink fails with Type mismatch for Index Key score Expected N Actual NULL on semanticRelationsByObjectSubjectStateKeyAndScore. buildHumanEdgeRow and reference_links._write_edge wrote score null, though catalog.semantic_relation_record defaults it to 1. The fake stores in tests accepted null, so no test caught it. Fixed by writing 1, keeping the row in both score-sorted indexes that readers use.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T13:20:39.281216Z",
+  "updated_at": "2026-11-05T13:20:39.281285Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
