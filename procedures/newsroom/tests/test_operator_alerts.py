@@ -271,6 +271,24 @@ def test_the_dead_mans_switch_fires_after_three_missed_fifteen_minute_periods(re
         assert limit in alarm["AlarmDescription"]   # says what it cannot see
 
 
+def test_a_new_dead_mans_switch_does_not_fire_before_the_first_heartbeat_but_still_fires_if_none_ever_comes(resources):
+    # 2026-11-05 16:45 UTC: the first create of the stack made papyrus-operator-deadman, which treats missing data as breaching, so it went to ALARM and
+    # emailed on the spot, before any heartbeat could have run. The stack now writes one HeartbeatDelivered datapoint when it is created.
+    alarm = resources["OperatorDeadmanAlarm"]
+    assert alarm["Properties"]["TreatMissingData"] == "breaching"   # still a real dead-man: no data after the seed ages out means ALARM
+    assert alarm["DependsOn"] == "OperatorDeadmanSeed"               # the seed is written before the alarm exists
+    seed = resources["OperatorDeadmanSeed"]
+    assert seed["Type"] == "Custom::DeadmanStart" and seed["Properties"]["ServiceToken"] == {"Fn::GetAtt": ["OperatorDeadmanSeedFunction", "Arn"]}
+    code = resources["OperatorDeadmanSeedFunction"]["Properties"]["Code"]["ZipFile"]
+    assert 'RequestType"] == "Create"' in code                       # on create only, never on an update or a delete
+    assert 'MetricName": "HeartbeatDelivered"' in code and 'Namespace="Papyrus/Operator"' in code and '"Value": 1' in code
+    assert "cfnresponse.SUCCESS" in code and "FAILED" not in code      # best effort: a failed write must not fail (and roll back) the deploy
+    policy = resources["OperatorDeadmanSeedRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"][0]
+    assert policy["Action"] == "cloudwatch:PutMetricData" and policy["Condition"]["StringEquals"]["cloudwatch:namespace"] == "Papyrus/Operator"
+    # one datapoint of 1 is not below the threshold of 1, so the seeded period counts as a delivered beat, and it leaves the 3 x 15 minute window after 30 to 45 minutes
+    assert alarm["Properties"]["Threshold"] == 1 and alarm["Properties"]["ComparisonOperator"] == "LessThanThreshold"
+
+
 def test_ses_at_risk_is_one_alarm_over_the_recommended_lines_and_a_refused_send(resources):
     composite = resources["OperatorSesAtRiskAlarm"]["Properties"]
     assert composite["AlarmName"] == "papyrus-operator-ses-at-risk"
