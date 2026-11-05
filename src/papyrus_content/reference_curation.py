@@ -33,6 +33,7 @@ from .options import normalize_string, parse_options, resolve_mutation_apply
 from .publication_dates import normalize_html_date, publication_date_resolution_record
 from .reference_capture import SHORT_BODY_CHARACTERS, Capture, capture_source
 from .reference_outbound_links import links_document, summarize_links
+from .reference_titles import needs_title, record_page_title
 from .reference_curation_store import (
     GROBID_SORT_KEY,
     GROBID_TEI_SORT_KEY,
@@ -315,6 +316,7 @@ def curate_reference(client: Any, reference: dict[str, Any], *, services: Servic
         if plan["capture"] and captured is not None:
             _record_capture(card, captured, reference, store, services.now())
             _publication_date_stage(client, reference, card, captured, services.now())
+            _title_stage(client, reference, captured)
         if plan["summary"]:
             _summary_stage(client, card, reference, store, services, captured, force)
         if plan["grobid"]:
@@ -327,6 +329,13 @@ def curate_reference(client: Any, reference: dict[str, Any], *, services: Servic
     result.update(outcome="curated", status=card["status"], bodyCharacters=(card.get("signals") or {}).get("characterCount"), stages={name: (card.get(name) or {}).get("status")
                                                                     for name in ("capture", "summary", "grobid")})
     return result
+
+
+def _title_stage(client: Any, reference: dict[str, Any], captured: Capture) -> None:
+    """A Reference titled with its own address takes the title the page declares, once, here (reference_titles.py). A title that is not an address is
+    never replaced, and a page with no usable title leaves the Reference as it was."""
+    if needs_title(reference):
+        record_page_title(client, reference, (captured.page or {}).get("title"))
 
 
 def _publication_date_stage(client: Any, reference: dict[str, Any], card: dict[str, Any], captured: Capture, now: datetime) -> None:
