@@ -26,7 +26,14 @@ import {
 } from "../shared/curation-delegation-flow";
 import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
 import { referenceContentNeededKey, referenceFeedArrivalAt, referenceFeedKeys, referenceFeedStateKey, referenceMediumFeedKey, referenceMediumKeyPatch, starFeedKeyFor } from "../../../lib/reference-feed-keys";
-import { claimGroups } from "../../../lib/staff-groups";
+import {
+  classifyCurationCaller,
+  cliClientIdFromEnvironment,
+  requireDelegationAgent,
+  requireDelegationApprover,
+  requireDelegationWithdrawer,
+  type CurationCaller,
+} from "../shared/curation-caller";
 import { isStoryItemType } from "../../../lib/content-item-lifecycle";
 import { linkMessageHashtags, type MessageHashtagStore } from "./message-hashtags";
 import { createReferenceLink, decideReferenceLink, describeEditorConcept, ensureEditorConcept, type ReferenceLinkStore } from "./reference-links";
@@ -42,6 +49,7 @@ type DenyCurationDelegationHandler = Schema["denyCurationDelegation"]["functionH
 type GetCurationDelegationStatusHandler = Schema["getCurationDelegationStatus"]["functionHandler"];
 type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functionHandler"];
 type ReferenceStarsHandler = Schema["setReferenceStars"]["functionHandler"];
+type RecordDelegatedStarsHandler = Schema["recordDelegatedStars"]["functionHandler"];
 type ItemStarsHandler = Schema["setItemStars"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
 type ReferenceNoteHandler = Schema["createReferenceNote"]["functionHandler"];
@@ -76,6 +84,7 @@ type CategoryActionEvent =
   | Parameters<DenyCurationDelegationHandler>[0]
   | Parameters<GetCurationDelegationStatusHandler>[0]
   | Parameters<RecordDelegatedCurationHandler>[0]
+  | Parameters<RecordDelegatedStarsHandler>[0]
   | Parameters<ReferenceStarsHandler>[0]
   | Parameters<ItemStarsHandler>[0]
   | Parameters<ReferenceQualityHandler>[0]
@@ -156,6 +165,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "denyCurationDelegation") return denyCurationDelegationAction(event as Parameters<DenyCurationDelegationHandler>[0]);
   if (fieldName === "getCurationDelegationStatus") return getCurationDelegationStatusAction(event as Parameters<GetCurationDelegationStatusHandler>[0]);
   if (fieldName === "recordDelegatedCuration") return recordDelegatedCuration(event as Parameters<RecordDelegatedCurationHandler>[0]);
+  if (fieldName === "recordDelegatedStars") return recordDelegatedStars(event as Parameters<RecordDelegatedStarsHandler>[0]);
   if (fieldName === "setReferenceStars") return setReferenceStars(event as Parameters<ReferenceStarsHandler>[0]);
   if (fieldName === "setItemStars") return setItemStars(event as Parameters<ItemStarsHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
@@ -273,7 +283,9 @@ async function reviewReferenceCuration(
       curationStatusUpdatedBy: actor,
       curationStatusReason: note,
       ...referenceVoteFields({
-        actorKind: delegation ? "human" : curationActorKind(event.identity),
+        // A delegated vote is the person's. A session on the CLI client is a script or an agent working in an editor's account, so its own
+        // direct vote is the agent's, never a human label for the Cyclotron; only the Newsroom's sessions vote as a person.
+        actorKind: delegation ? "human" : curationCaller(event).lane === "cli-session" ? "agent" : curationActorKind(event.identity),
         reasonCode,
         sectionId,
         shareable: event.arguments.shareable ?? null,
@@ -306,17 +318,23 @@ async function reviewReferenceCuration(
   };
 }
 
-function requireSignedInPerson(event: { identity?: unknown }): { sub: string; label: string; isAdmin: boolean } {
-  if (curationActorKind(event.identity) !== "human") {
-    throw new Error("Only a person signed in to the Newsroom can manage curation delegations.");
-  }
-  const identity = event.identity as { sub?: unknown; claims?: Record<string, unknown> };
-  const claims = identity.claims ?? {};
-  const groups = claimGroups(claims["cognito:groups"]);
+function curationCaller(event: { identity?: unknown }): CurationCaller {
+  return classifyCurationCaller(event.identity, cliClientIdFromEnvironment());
+}
+
+/**
+ * The person behind a delegation route that belongs to the Newsroom. Approving, creating and listing refuse the CLI client's sessions, so an
+ * agent working in an editor's own session cannot approve its own request; denying and revoking only reduce what an agent may do, so the
+ * session that asked may do them. Both check the editor and admin groups here as well as in the schema.
+ */
+function requireSignedInPerson(event: { identity?: unknown }, route: "approver" | "withdrawer" = "approver"): { sub: string; label: string; isAdmin: boolean } {
+  const caller = curationCaller(event);
+  const person = route === "approver" ? requireDelegationApprover(caller) : requireDelegationWithdrawer(caller);
+  const claims = (event.identity as { claims?: Record<string, unknown> }).claims ?? {};
   return {
-    sub: normalizeRequiredString(claims.sub ?? identity.sub, "identity.sub"),
+    sub: normalizeRequiredString(person.sub, "identity.sub"),
     label: normalizeOptionalString(claims.email) ?? normalizeOptionalString(claims.name) ?? "Newsroom editor",
-    isAdmin: groups.includes("admin"),
+    isAdmin: person.groups.includes("admin"),
   };
 }
 
@@ -380,6 +398,8 @@ function curationDelegationStore(client: DataClient): DelegationStore {
 }
 
 async function requestCurationDelegationAction(event: Parameters<RequestCurationDelegationHandler>[0]) {
+  const caller = curationCaller(event);
+  requireDelegationAgent(caller);
   const client = await getDataClient();
   return requestDelegation(
     curationDelegationStore(client),
@@ -388,6 +408,7 @@ async function requestCurationDelegationAction(event: Parameters<RequestCuration
       tokenHash: normalizeRequiredString(event.arguments.tokenHash, "tokenHash"),
       agentLabel: normalizeRequiredString(event.arguments.agentLabel, "agentLabel"),
       hours: event.arguments.hours,
+      requestedBySub: caller.lane === "cli-session" ? caller.sub : null,
     },
     new Date().toISOString(),
   );
@@ -401,13 +422,14 @@ async function approveCurationDelegationAction(event: Parameters<ApproveCuration
 }
 
 async function denyCurationDelegationAction(event: Parameters<DenyCurationDelegationHandler>[0]) {
-  const person = requireSignedInPerson(event);
+  const person = requireSignedInPerson(event, "withdrawer");
   const client = await getDataClient();
   const now = new Date().toISOString();
   return { ...(await denyDelegation(curationDelegationStore(client), person, normalizeRequiredString(event.arguments.userCode, "userCode"), now)), token: null };
 }
 
 async function getCurationDelegationStatusAction(event: Parameters<GetCurationDelegationStatusHandler>[0]) {
+  requireDelegationAgent(curationCaller(event));
   const client = await getDataClient();
   return delegationStatus(curationDelegationStore(client), normalizeRequiredString(event.arguments.delegationId, "delegationId"), new Date().toISOString());
 }
@@ -433,7 +455,7 @@ async function createCurationDelegation(event: Parameters<CreateCurationDelegati
 }
 
 async function revokeCurationDelegation(event: Parameters<RevokeCurationDelegationHandler>[0]) {
-  const person = requireSignedInPerson(event);
+  const person = requireSignedInPerson(event, "withdrawer");
   const client = await getDataClient();
   const delegation = await readCurationDelegation(client, normalizeRequiredString(event.arguments.delegationId, "delegationId"));
   if (!delegation) throw new Error("That delegation was not found.");
@@ -468,9 +490,17 @@ async function listCurationDelegations(event: Parameters<ListCurationDelegations
     .map((delegation) => delegationResult(delegation, null));
 }
 
-async function recordDelegatedCuration(event: Parameters<RecordDelegatedCurationHandler>[0]) {
-  const client = await getDataClient();
-  const now = new Date().toISOString();
+/**
+ * The checks every relayed decision passes before anything is written, whatever it records: the caller is on an agent route (the CLI client's
+ * editor session, or an operator on AWS credentials), and the token belongs to an approved, unexpired, unrevoked delegation granted to this agent
+ * by the person named. A delegation lives in this site's backend only, so another site's token is unknown here.
+ */
+async function verifiedDelegation(
+  event: { identity?: unknown; arguments: { delegationId: string; delegationToken: string; agentLabel: string; onBehalfOf: string; instruction: string } },
+  client: DataClient,
+  now: string,
+) {
+  requireDelegationAgent(curationCaller(event));
   const delegationId = normalizeRequiredString(event.arguments.delegationId, "delegationId");
   const agentLabel = normalizeRequiredString(event.arguments.agentLabel, "agentLabel");
   const delegation = await readCurationDelegation(client, delegationId);
@@ -487,6 +517,30 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
   if (namedPerson.toLowerCase() !== delegation.grantorLabel.toLowerCase()) {
     throw new Error(`That delegation was granted by ${delegation.grantorLabel}, not ${namedPerson}.`);
   }
+  return { delegation, delegationId, agentLabel, instruction };
+}
+
+/**
+ * A star rating the person gave, relayed by an agent under the delegation they approved. The rules are `setReferenceStars` (a whole number from
+ * 1 to 5, or none to clear; the star partition and the arrival time are kept with it). Like a relayed vote it is the person's decision carried by
+ * an agent, so it is filed as "<person> via <agent> (delegation <id>)", never as the person's own direct rating.
+ */
+async function recordDelegatedStars(event: Parameters<RecordDelegatedStarsHandler>[0]) {
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  const { delegation, delegationId, agentLabel } = await verifiedDelegation(event, client, now);
+  return writeReferenceStars(client, {
+    referenceId: normalizeRequiredString(event.arguments.referenceId, "referenceId"),
+    stars: normalizeReferenceStars(event.arguments.stars),
+    actor: `${delegation.grantorLabel} via ${agentLabel} (delegation ${delegationId})`,
+    now,
+  });
+}
+
+async function recordDelegatedCuration(event: Parameters<RecordDelegatedCurationHandler>[0]) {
+  const client = await getDataClient();
+  const now = new Date().toISOString();
+  const { delegation, delegationId, agentLabel, instruction } = await verifiedDelegation(event, client, now);
   const onBehalfOfPerson = {
     ...event,
     arguments: {
@@ -512,11 +566,18 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
  */
 async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
   const client = await getDataClient();
-  const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
-  const stars = normalizeReferenceStars(event.arguments.stars);
-  const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
-  const now = new Date().toISOString();
   const actor = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom";
+  return writeReferenceStars(client, {
+    referenceId: normalizeRequiredString(event.arguments.referenceId, "referenceId"),
+    stars: normalizeReferenceStars(event.arguments.stars),
+    actor,
+    now: new Date().toISOString(),
+  });
+}
+
+async function writeReferenceStars(client: DataClient, input: { referenceId: string; stars: number | null; actor: string; now: string }) {
+  const { referenceId, stars, actor, now } = input;
+  const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
   await requireDataResult(
     client.models.Reference.update({
       id: referenceId,

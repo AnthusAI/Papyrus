@@ -414,6 +414,7 @@ const schema = a.schema({
     .returns(a.ref("CurationDelegationRequestResult"))
     .authorization((allow) => [
       allow.authenticated("identityPool"),
+      allow.groups(categoryWriteGroups),
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 
@@ -447,6 +448,7 @@ const schema = a.schema({
     .returns(a.ref("CurationDelegationStatusResult"))
     .authorization((allow) => [
       allow.authenticated("identityPool"),
+      allow.groups(categoryWriteGroups),
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 
@@ -469,6 +471,26 @@ const schema = a.schema({
     .returns(a.ref("ReferenceCurationActionResult"))
     .authorization((allow) => [
       allow.authenticated("identityPool"),
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  // A star rating the person gave, relayed by an agent under a delegation they approved. Same agent routes as recordDelegatedCuration.
+  recordDelegatedStars: a
+    .mutation()
+    .arguments({
+      referenceId: a.id().required(),
+      stars: a.integer(),
+      delegationId: a.id().required(),
+      delegationToken: a.string().required(),
+      agentLabel: a.string().required(),
+      onBehalfOf: a.string().required(),
+      instruction: a.string().required(),
+    })
+    .returns(a.ref("ReferenceStarsActionResult"))
+    .authorization((allow) => [
+      allow.authenticated("identityPool"),
+      allow.groups(categoryWriteGroups),
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 

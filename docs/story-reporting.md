@@ -411,11 +411,64 @@ All of these need a signed-in Newsroom editor, except the two the agent calls.
   `CurationDelegationResult` with `state: denied`.
 - `revokeCurationDelegation(delegationId: ID!)` still revokes an approved
   delegation (and also works on a pending one).
-- Agent only (IAM): `requestCurationDelegation(delegationId, tokenHash,
+- The agent's routes (an operator on AWS credentials, or an editor's CLI session
+  on the CLI's own sign-in client, see below): `requestCurationDelegation(delegationId, tokenHash,
   agentLabel, hours)` returns `{ ok, delegationId, userCode, pendingExpiresAt,
   requestedHours }`; `getCurationDelegationStatus(delegationId)` returns
   `{ delegationId, state, expiresAt, grantorLabel }`. Neither returns a secret
   or hash.
+
+### An agent on the signed-in CLI (no AWS login)
+
+The routes above first worked only for an operator on AWS credentials. An agent that works in an
+editor's own `papyrus login` session asks the same way, with no AWS login:
+
+```bash
+papyrus references request-delegation --agent Claude --hours 2 --wait
+papyrus references approve --reference <record id> --on-behalf-of <person's sign-in email> \
+  --agent Claude --instruction "<the person's exact words>" --delegation-file <path>
+papyrus references set-stars --reference <record id> --stars 4 --on-behalf-of <person's sign-in email> \
+  --agent Claude --instruction "<the person's exact words>" --delegation-file <path>
+```
+
+`references set-stars` records a star rating the person gave, with the rules of the Newsroom's own
+rating (`setReferenceStars`, `reference_stars`): a whole number from 1 to 5, or `--stars clear` to
+remove it, the newest rating wins, and it never changes the accept or reject. Like the other
+mutation commands it writes unless you pass `--dry-run`; `--dry-run` and `--help` check the
+arguments and send nothing. A relayed rating is filed as `<person> via <agent> (delegation <id>)`,
+never as the person's own rating (`starRatedBy`).
+
+**The person's approval stays the gate.** In this lane the agent's session is the editor's own, so
+"who is signed in" cannot tell a request from an approval. What tells them apart is the Cognito
+app client the session's token was issued to, which Cognito signs and a session cannot change:
+
+| Caller | Ask, check status, relay | Approve, create, list | Deny, revoke |
+| --- | --- | --- | --- |
+| Operator on AWS credentials | yes | no | no |
+| Editor or admin, token for the CLI's own client | yes | **no** | yes |
+| Editor or admin, token for any other client (the Newsroom) | no | yes | yes |
+| Anyone not an editor or admin | no | no | no |
+
+Approving, creating and listing (which shows pending codes) refuse the CLI client's sessions, so
+an agent cannot approve its own request, create an already approved delegation, or read someone
+else's pending code. Denying and revoking only reduce what an agent may do, so they stay open to
+the session that asked. The groups are checked in the schema rules and again in the handler.
+
+The backend learns the CLI's client from `CURATION_CLI_CLIENT_ID`, which the site backend sets
+only when the site signs the CLI in on its own client (`cliOnFederationClient`, see
+[CLI login](cli-login.md#which-client)). **A site that has not done that refuses every
+signed-in request** with a message naming the setting, because there the CLI and the Newsroom
+share a client and a session could approve its own request. Operators on AWS credentials ask as
+before. Turning the lane on is therefore a site setting plus the backend deploy that carries this
+change; nothing about the Newsroom's own approval changes. The federation client is also the one
+the site's server uses for Prospectus sign-in; a token from it is treated as a CLI session
+(it can ask, not approve), which is the safe direction.
+
+Expiry (72 hours at most, eight by default), the audit record (agent name, the approver, the
+editor whose session asked), revocation and the checks of agent name, named person and token are
+the same on both lanes. A delegation is stored in the site's own backend, so another site's
+backend does not know it. A direct vote from a CLI session without a delegation is recorded as an
+agent's vote (`curationActorKind: agent`), never as a person's label.
 
 Only relay what the person actually said. If you are unsure, quote their words in
 `--note` and ask. A delegation lets you record a human decision; it does not let

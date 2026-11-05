@@ -46,6 +46,7 @@ import { wirePlugins } from "./plugins/wire";
 import { assignmentAction } from "./functions/assignment-action/resource";
 import { scopeAssignmentDataAccess } from "./functions/assignment-action/data-access";
 import { categoryAction } from "./functions/category-action/resource";
+import { CURATION_CLI_CLIENT_ID_VARIABLE } from "./functions/shared/curation-caller";
 import { ConsoleChatResponderStack } from "./functions/console-chat-responder/resource";
 import { contentActions, setSiteFilesForContentActionsBundle } from "./functions/content-actions/resource";
 import { knowledgeQuery } from "./functions/knowledge-query/resource";
@@ -474,6 +475,12 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda]) {
       (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
     }
+  }
+  // The CLI's own sign-in client, so the curation delegation routes can tell a CLI session from the Newsroom's: a token's client is signed by
+  // Cognito, so an agent working in an editor's CLI session can ask for a delegation but cannot approve it. Without this variable (the CLI is on the
+  // web client with the Newsroom) a signed-in session can do neither, and only an operator on AWS credentials can ask (docs/story-reporting.md).
+  if (prospectusGoogleOnlyClient && featureFlags.cliOnFederationClient) {
+    (backend.categoryAction.resources.lambda as LambdaFunction).addEnvironment(CURATION_CLI_CLIENT_ID_VARIABLE, prospectusGoogleOnlyClient.ref);
   }
   // A backend that carries a tenant but serves one publication says so (exactly "true"), which lets an editor add References
   // (docs/multi-tenancy.md). Only content-actions runs Reference intake with the tenant set; the monitoring-view Lambda never gets the tenant.
