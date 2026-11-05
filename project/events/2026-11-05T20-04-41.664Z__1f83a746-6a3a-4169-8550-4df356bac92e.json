@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1f83a746-6a3a-4169-8550-4df356bac92e",
+  "issue_id": "PPY-c36fac9a-c104-4f61-a4f2-059e866a64d0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T20:04:41.664Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Typed staff and reader tools",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
+    "labels": []
+  }
+}

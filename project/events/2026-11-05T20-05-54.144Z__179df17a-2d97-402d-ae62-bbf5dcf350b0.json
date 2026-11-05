@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "179df17a-2d97-402d-ae62-bbf5dcf350b0",
+  "issue_id": "PPY-b49881c3-71ee-43b8-ad2d-c0e18e558a24",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T20:05:54.144Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Staff and readers use their existing site permissions through MCP",
+    "description": "Feature: Work through Papyrus MCP\nScenario: An editor directs a reference decision\n  Given an editor is connected to the publication\n  When their agent accepts a reference\n  Then the recorded decision follows the publication permissions and attribution rules\nScenario: A reader submits a link\n  Given a signed-in reader and enabled Reader Steering\n  When their agent submits a link\n  Then the link is submitted under that reader identity\n  And the connection cannot read newsroom records",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
+    "labels": []
+  }
+}
