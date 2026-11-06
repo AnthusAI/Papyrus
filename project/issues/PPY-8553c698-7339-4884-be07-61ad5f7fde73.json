@@ -1,0 +1,25 @@
+{
+  "id": "PPY-8553c698-7339-4884-be07-61ad5f7fde73",
+  "title": "Search and select editorial images through a shared service",
+  "description": "As an editor or agent, I want to search image sources and choose a candidate so that I can illustrate a Story or Reference using the same Papyrus behavior from any client.\n\nFeature: Shared image search and selection\n  Scenario: Search a source in rounds of four\n    Given an editor is preparing a Story or Reference\n    When they search Wikimedia Commons with a topic or use a topic derived from the item\n    Then Papyrus returns up to four candidates with stable identifiers, previews and available source and credit information\n    And a later round can offer different candidates\n  Scenario: Apply a selected candidate\n    Given an authorized editor has selected an image candidate\n    When they apply it to the item as a cover\n    Then Papyrus saves the image and its provenance through the supported media workflow\n    And the result can be replaced later without losing the item content\n  Scenario: No suitable candidate\n    Given no candidate is suitable\n    When the editor declines the results\n    Then no cover is applied and the existing placeholder remains available\n\nUse a source adapter so other providers can be added. Honor site policy and existing UI behavior. Avoid a blanket assumption that one publication's fair-use policy applies to all publications.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-a36ac382-561e-4237-b0b6-5a22965e4ec9",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-06T14:42:18.621457Z",
+  "updated_at": "2026-11-06T14:42:39.370699Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

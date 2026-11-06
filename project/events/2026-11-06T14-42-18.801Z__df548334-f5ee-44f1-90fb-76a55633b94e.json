@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "df548334-f5ee-44f1-90fb-76a55633b94e",
+  "issue_id": "PPY-c101a6f9-2fcb-4103-afd0-900faf1e8e1d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T14:42:18.801Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Generate and manage image candidates through a shared provider interface",
+    "description": "As an editor or agent, I want Papyrus to generate and select editorial image candidates so that I can use the same process across clients.\n\nFeature: Generated image candidates\n  Scenario: Generate candidate images\n    Given an authorized editor has an image brief and a configured generation provider\n    When they request a round of images\n    Then Papyrus returns up to four distinguishable candidates\n    And records the provider, actual model, prompt and generation time where available\n  Scenario: Apply a generated image\n    Given a generated candidate is available\n    When the editor applies it to a Story or Reference\n    Then Papyrus stores it using the supported media workflow with accessible description and generation provenance\n  Scenario: No provider configured\n    Given no image generation provider is configured\n    When image generation is requested\n    Then Papyrus explains how to configure it and does not silently invoke a paid provider\n\nModel/provider selection is tracked by PPY-f0af42 and requires the previously recorded owner decision; support explicit provider configuration and honest provenance. User selection, an agent's draft choice, and replacing an image should work without pretending a person approved it.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+    "labels": []
+  }
+}

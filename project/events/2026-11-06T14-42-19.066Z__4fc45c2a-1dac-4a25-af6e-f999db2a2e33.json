@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4fc45c2a-1dac-4a25-af6e-f999db2a2e33",
+  "issue_id": "PPY-8ea0f15a-7052-4fff-9291-d6f39d1386fe",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T14:42:19.066Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Expose the shared image workflow through Papyrus MCP",
+    "description": "As an editor working with an agent, I want the MCP server to offer the same image operations as the CLI so that I can review or delegate image choices in a conversation.\n\nFeature: Image curation through MCP\n  Scenario: Discover and select image candidates\n    Given an authorized MCP client connected to a site\n    When it requests image candidates and applies one to an item\n    Then it receives the same candidate identity, metadata and saved result as the shared service and CLI\n  Scenario: A site permission is missing\n    Given an MCP client without permission to update the item\n    When it attempts to apply an image\n    Then the operation is denied and the item remains unchanged\n  Scenario: Generation is unavailable\n    Given the publication has no generation provider configured\n    When an MCP client requests generation\n    Then the tool returns an actionable error without invoking a provider\n\nIntegrate with the in-progress authenticated MCP implementation and its site-bound permissions. Do not create a second image workflow or bypass existing authentication.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+    "labels": []
+  }
+}
