@@ -95,7 +95,7 @@ Feature: An agent on the signed-in CLI records an editor's accept, reject and st
     When the agent relays ratings from zero to six, a half star, a four, a five and a clear
     Then ratings outside one to five are refused and write nothing
     And the newest rating wins and a clear removes who and when
-    And a rating never changes the accept or reject
+    And rating a pending Reference accepts it as the editor's decision relayed by the agent, and a rating never changes an accept or reject already made
 
   Scenario: The command refuses a bad rating and a dry run sends nothing
     Given the CLI is signed in to a site and has no AWS credentials
