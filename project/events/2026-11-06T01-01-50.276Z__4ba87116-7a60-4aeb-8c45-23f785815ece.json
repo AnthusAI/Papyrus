@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4ba87116-7a60-4aeb-8c45-23f785815ece",
+  "issue_id": "PPY-ebbd549f-3f2f-4158-8dce-35877b42da36",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T01:01:50.276Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "References include can ask for cards with or without a picture",
+    "description": "Ryan, 2026-11-05, for the new Machines on Machines layout: a grid of highly rated accepted References with no picture, as text-only cards, and the mirror for picture grids. Add image=\"none|any\" to ::include{kind=\"references\" ...}. On the index engine (PPY-7f1e54, PR #1241) each row carries cardImage, and accepted and star partitions are small (tens of rows), so filtering by cardImage after the partition query needs no new index and no scan. On the snapshot path, filter the file. Gherkin; docs in home-page.md.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
