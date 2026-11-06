@@ -173,3 +173,10 @@ def print_group_help(group: str) -> None:
     print("Local rows are Kanbus pod stories (kind: pod-story).")
     print("Use kbs for board columns, transitions, and workflow state.")
   parser.print_help()
+  # The parser describes some of the group's commands; the rest are routed elsewhere, so list them too.
+  from papyrus.operator.help_dispatch import route_tree
+
+  described = {name for action in parser._actions for name in (getattr(action, "choices", None) or {})}
+  others = [name for name in route_tree().get(group, {}) if name not in described]
+  if others:
+    print("\nOther commands: " + ", ".join(others))
