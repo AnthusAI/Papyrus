@@ -1,7 +1,7 @@
 {
   "id": "PPY-9bf332ad-6651-4358-883c-dcd601e22d9b",
   "title": "OAuth and identity",
-  "description": "",
+  "description": "Implement PPY-fdf150 on the authenticated hosted MCP server in draft PR #1244. DataParade's normal login, automatic return and single consent are the interaction model. Papyrus keeps its own publication identity, permissions and agent attribution.\n\nOrdered steps\n1. PPY-c898ac makes the human/agent audience distinction explicit and provisions the opt-in, dedicated Google/Cognito client contract.\n2. PPY-cf2ab5 builds same-tab automatic return with one consent; PPY-ca57a5 implements fixed expiry and atomic opaque grant rotation. Both can begin locally in parallel with a stub provider; real staff wiring is gated by PPY-c898ac.\n3. PPY-cc5b44 proves server-owned renewable staff credentials, current permissions and failure-safe two-level rotation. Existing same-origin Prospectus reader sessions remain capped by their original expiry.\n4. PPY-a45a7f provides owner-controlled disconnect; browser logout is independent.\n5. PPY-17c201 gates real ChatGPT on the stable URL and rehearsals. Use preregistered public client first; PPY-735a45 adds compatible metadata-document onboarding after the first host verification.\n\nNo AWS credentials or permanent manually provisioned keys on hosts. Reuse the CLI provider patterns and reviewed downstream permissions, with server-owned per-connection credentials. Public discovery stays on HTTP. Use the current newsroom and reader gates. Do not broaden the existing tool scope. Do not mark week-long renewal or real host support complete from synthetic tests.",
   "type": "task",
   "status": "in_progress",
   "priority": 2,
@@ -12,7 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-11-05T20:04:41.562241Z",
-  "updated_at": "2026-11-05T20:05:53.756589Z",
+  "updated_at": "2026-11-06T11:35:23.026287Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
