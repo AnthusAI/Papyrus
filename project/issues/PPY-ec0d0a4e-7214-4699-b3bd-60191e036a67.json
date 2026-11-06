@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e67bc48c-482a-4968-860c-de4a01582c5b",
+      "author": "home",
+      "text": "Medium filter (All, Videos) built on branch feat/references-medium-filter; docs task PPY-4bb7b7.",
+      "created_at": "2026-11-05T23:27:59.553280Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-05T19:19:50.649030Z",
-  "updated_at": "2026-11-05T19:19:50.649159Z",
+  "updated_at": "2026-11-05T23:27:59.553570Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -96,9 +96,8 @@ export type ReferenceReviewOptions = {
 };
 type PredictionState = "loading" | "ready" | "error";
 import type { DelegatedCuration, ShadowAgreement } from "../lib/cyclotron-suggestions";
-import type { PrimingFormInput } from "./reference-cyclotron-priming";
+import type { AddReferenceInput, AddReferenceOutcome } from "../lib/add-reference";
 import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyclotron-status";
-import type { PrimingRequestView } from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
 import { awaitsEditorReview, type RelevanceCuration, type RelevanceDecisionView } from "../lib/relevance-decisions";
 
@@ -107,12 +106,8 @@ type NewsroomReferencesViewProps = {
   priming?: PrimingPanelProps;
   /** The relevance cyclotron's status snapshot, shown above the list. */
   cyclotronStatus?: CyclotronStatus | null;
-  /** Present for editors who may prime the running relevance cyclotron with a pasted URL. */
-  cyclotronPriming?: {
-    labels: readonly string[];
-    requests: PrimingRequestView[];
-    onRequest: (input: PrimingFormInput) => Promise<void> | void;
-  };
+  /** Present for editors who may add a Reference from a pasted address, optionally accepting and rating it there. */
+  onAddReference?: (input: AddReferenceInput) => Promise<AddReferenceOutcome>;
   /** Present for editors who may ask for a manual review rate. */
   onRequestReviewRate?: (choice: ReviewRateChoice) => Promise<void> | void;
   demo?: boolean;
@@ -430,7 +425,7 @@ function ReferenceDetailPanel({
 export function NewsroomReferencesView({
   priming,
   cyclotronStatus,
-  cyclotronPriming,
+  onAddReference,
   decisions: liveDecisions,
   humanCuratedReferenceLineageIds,
   delegatedCurations,
@@ -487,8 +482,8 @@ export function NewsroomReferencesView({
   const { searching, query: searchQuery } = search;
   const searchFeed = search.feed;
   const { sort: feedSort, show: feedShow } = controls.saved;
-  const { captured } = controls;
-  const indexedFeed = useIndexedReferenceFeed({ enabled: serverMode && !searching, source: feedSource, sort: feedSort, show: feedShow, minStars, captured });
+  const { captured, medium } = controls;
+  const indexedFeed = useIndexedReferenceFeed({ enabled: serverMode && !searching, source: feedSource, sort: feedSort, show: feedShow, minStars, captured, medium });
   const indexed = searching ? searchFeed : indexedFeed;
   // The cards come from the pages of a reader (the indexes, or a search) rather than from the page's own list.
   const resultsMode = serverMode || searching;
@@ -559,18 +554,18 @@ export function NewsroomReferencesView({
   });
   // Server mode: the feed is the index's own order, page by page. A Reference an editor rates stays where it is for the visit.
   const [revealed, setRevealed] = useState<string[]>([]);
-  useEffect(() => { setRevealed([]); }, [feedSort, feedShow, minStars, captured, searchQuery, search.show, search.sort]);
+  useEffect(() => { setRevealed([]); }, [feedSort, feedShow, minStars, captured, medium, searchQuery, search.show, search.sort]);
   const indexedLineages = useMemo(() => new Set(indexed.records.map(referenceLineageId)), [indexed.records]);
   const arrivals = useMemo(() => {
     // A new Reference has no stars, so it cannot belong in the Quality sort or under a minimum of stars, and it has no capture yet, so it is not Captured Yes.
-    if (!serverMode || searching || indexed.status !== "ready" || feedSort === "quality" || minStars > 0 || captured === "yes") return [] as ReferenceRecord[];
+    if (!serverMode || searching || indexed.status !== "ready" || feedSort === "quality" || minStars > 0 || captured === "yes" || medium !== "any") return [] as ReferenceRecord[];
     const shown = new Set(revealed);
     return canonicalReferences.filter((reference) => {
       const lineage = referenceLineageId(reference);
       return normalizeReferenceCurationStatus(reference.curationStatus) === "pending" && !indexedLineages.has(lineage) && !shown.has(lineage)
         && (referenceArrivalTime(reference) ?? 0) > indexed.readAt;
     }).sort((left, right) => (referenceArrivalTime(right) ?? 0) - (referenceArrivalTime(left) ?? 0));
-  }, [canonicalReferences, captured, feedSort, indexed.readAt, indexed.status, indexedLineages, minStars, revealed, searching, serverMode]);
+  }, [canonicalReferences, captured, feedSort, indexed.readAt, indexed.status, indexedLineages, medium, minStars, revealed, searching, serverMode]);
   const serverItems = useMemo(() => {
     if (!resultsMode) return NO_FEED_ITEMS;
     const current = new Map(canonicalReferences.map((reference) => [referenceLineageId(reference), reference] as const));
@@ -927,9 +922,7 @@ export function NewsroomReferencesView({
           importOptions={disabled ? null : priming ?? sessionImport?.panel}
           key={sessionImport?.sessionKey ?? "no-session"}
           onImported={() => setImportedCount((count) => count + 1)}
-          url={cyclotronPriming && !disabled
-            ? { labels: cyclotronPriming.labels, onRequest: cyclotronPriming.onRequest, requests: cyclotronPriming.requests }
-            : null}
+          url={onAddReference && !disabled ? { onAdd: onAddReference } : null}
         />
         <ReferenceCurationControls disabled={disabled} refreshSignal={importedCount} />
         {cyclotronStatus ? (
@@ -972,6 +965,8 @@ export function NewsroomReferencesView({
                 minStars={minStars}
                 onCapturedChange={(next) => { controls.setCaptured(next); setCaughtUp(false); }}
                 captured={captured}
+                onMediumChange={serverMode && feedSource?.readMediumStream ? (next) => { controls.setMedium(next); setCaughtUp(false); } : undefined}
+                medium={medium}
                 onVisitRated={markVisitRated}
                 items={feedItems}
                 ratedCount={ratedCount}

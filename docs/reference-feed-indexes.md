@@ -56,7 +56,7 @@ The key writers: `setReferenceStars` (`amplify/functions/category-action/handler
 
 The Python twin of the key is `medium_feed_key` (`reference_feed_keys.py`; it reads the medium off the address when none is stored yet, so a vote written before the backfill still lands in the right partition) and the TypeScript one `referenceMediumFeedKey` (`lib/reference-feed-keys.ts`, stored medium only; the backfill repairs a Reference voted in the browser before its medium was stored). Both are tested against `scripts/fixtures/reference-feed-key-vectors.json`. Read it from Python with `iterate_references_by_medium(client, corpus_id)` (`reference_medium.py`), which pages newest first and stops when you stop.
 
-The newsroom does not read this index yet. The public videos block reads the home-page snapshot, which the snapshot task builds from the accepted References it already reads (it does not use this index either); the index is for a reader that needs the videos alone, quickly, such as a future videos feed, an Alexa skill or a count. It is **one** new global secondary index on `Reference`: DynamoDB allows one index change per deploy per table, so deploy it on its own. Until the backfill runs, the index holds only the References created or voted on since the writers shipped.
+The newsroom References page reads this index for its **Medium** row (All, Videos): see [the Medium filter](#the-medium-filter). The public videos block reads the home-page snapshot, which the snapshot task builds from the accepted References it already reads (it does not use this index either); the index is for a reader that needs the videos alone, quickly, such as a future videos feed, an Alexa skill or a count. It is **one** new global secondary index on `Reference`: DynamoDB allows one index change per deploy per table, so deploy it on its own. Until the backfill runs, the index holds only the References created or voted on since the writers shipped.
 
 ```bash
 papyrus references backfill-medium --site KEY                      # preview, writes nothing
@@ -64,6 +64,23 @@ papyrus references backfill-medium --site KEY --write              # writes medi
 ```
 
 Rollout order, with the other Reference fields: data API first (schema and index), then the engine, then the backfill, then a videos page. See [the curation pipeline](reference-curation-pipeline.md#4b-referencemedium-what-kind-of-thing-the-address-is-2026-11-04).
+
+## The medium filter
+
+The References page has a Medium row beside Reviewed: **All** and **Videos** (the mediums the rule can name; `lib/reference-medium-feed.ts`). Videos reads `listReferencesByMediumFeedAndArrival` newest first, one partition per vote state and corpus, merged by arrival (`MergedFeedReader`), so a page of 24 is one read per partition and nothing is read that is not shown. The vote state is in the key, so Reviewed picks the partitions and nothing is filtered in the browser:
+
+| Reviewed | Partitions read, per corpus |
+| --- | --- |
+| No (default) | `<corpusId>#video#pending` |
+| Accepted | `<corpusId>#video#accepted` |
+| Yes | `<corpusId>#video#accepted`, `<corpusId>#video#rejected` |
+| Any | `pending`, `accepted` and `rejected` |
+
+- **The address holds the choice**: `/newsroom/references?medium=video` (any other value is All). It is not saved in the browser, so a link opens the same list and the next visit starts on All.
+- **Sort**: the index is by arrival, so a medium reads Newest. While the saved Sort is Predictions the page shows Newest and leaves the saved choice alone; choosing Predictions takes the medium off the address. Quality and Minimum stars work with a medium: they read the star partitions and keep that medium's rows (the star partitions are small).
+- **Captured** applies on top as for any list. A search ignores the medium and hides the row while one is open.
+- **References with no medium are in no medium partition.** The rule names a medium only where the address is certain (a video on a known platform), so an ordinary article has none and is listed under All only. There is no Articles, Papers or Podcasts button because no such medium exists; one is added by teaching the rule a new medium (a `MEDIUMS` entry in `reference_medium.py`, then `FEED_MEDIUMS` here). A video written before the key writers shipped, or voted in the browser before its medium was stored, has no key until `papyrus references backfill-medium --site KEY --write` runs; that command covers exactly those, and it leaves the articles unset on purpose.
+- **Who reads**: `readReferenceMediumStream` (`components/news-desk-taxonomy-client.ts`) is the page's reader; the local preview and the test mock serve the same keys from memory (`mediumReaderFromRecords`).
 
 ## The content-needed index
 
@@ -177,7 +194,7 @@ The feed shows a Reference only if it has the keys, whatever its source. Every c
 | Moving a Reference to another corpus | `category-action` `moveReferenceCorpus` (TypeScript, `referenceFeedKeys`) |
 | An agent's accept, reject, reopen or archive from chat | `papyrus_newsroom/reference_actions.review_reference_curation` sets `feedStateKey` |
 
-The console's "Paste a URL" and "Import a file" create Cyclotron priming examples, not References.
+The console's "Paste a URL" calls `intakePendingReferences` and creates a pending Reference (it used to write a Cyclotron priming request, which created no Reference, so a pasted page never appeared in the list). "Import a file" still creates Cyclotron priming examples, not References.
 
 A re-import does not repair a Reference that has no keys: it reuses a current Reference with the same import run or content. Only the backfill below keys existing rows.
 

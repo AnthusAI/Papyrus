@@ -17,6 +17,7 @@ import {
   type ReferenceSearchSort,
 } from "../lib/reference-search";
 import type { FeedCaptured, FeedMinStars } from "../lib/reference-feed-ranking";
+import { mediumFeedKeys, mediumRows, type FeedMedium } from "../lib/reference-medium-feed";
 import {
   FEED_READ_PAGE_SIZE,
   MergedFeedReader,
@@ -37,6 +38,8 @@ export type IndexedFeedSource = {
   readStream: FeedStreamReader;
   /** One page of one star partition (`<corpusId>#stars#<n>`), newest arrival first. Without it the Quality sort and a minimum of stars cannot be read. */
   readStarStream?: FeedStreamReader;
+  /** One page of one medium partition (`<corpusId>#<medium>#<pending|accepted|rejected>`), newest arrival first. Without it a medium cannot be chosen. */
+  readMediumStream?: FeedStreamReader;
   /** The search box's query. Without it the page has no search box. */
   search?: ReferenceSearchReader;
 };
@@ -58,6 +61,7 @@ export function useIndexedReferenceFeed({
   show,
   minStars = 0,
   captured = "any",
+  medium = "any",
   pageSize = FEED_READ_PAGE_SIZE,
 }: {
   enabled: boolean;
@@ -68,6 +72,8 @@ export function useIndexedReferenceFeed({
   minStars?: FeedMinStars;
   /** Captured: pages are filtered as they are read (`capturedRows`); Any reads them as they are. */
   captured?: FeedCaptured;
+  /** Medium: a medium reads the medium partitions (newest first); with stars it keeps that medium's rows of the star partitions. Any reads as before. */
+  medium?: FeedMedium;
   pageSize?: number;
 }) {
   const [records, setRecords] = useState<ReferenceRecord[]>([]);
@@ -102,9 +108,13 @@ export function useIndexedReferenceFeed({
       if (mine !== generation.current) return;
       const byStars = sort === "quality" || minStars > 0;
       if (byStars && !current.readStarStream) throw new Error("This site cannot read References by stars.");
+      if (medium !== "any" && !byStars && !current.readMediumStream) throw new Error("This site cannot read References by medium.");
       const next = byStars
-        ? new MergedFeedReader({ keys: starFeedKeys(corpusIds, minStars), sort, read: capturedRows(liveStarRows(current.readStarStream!, show), captured), pageSize })
-        : new MergedFeedReader({ keys: feedStateKeys(corpusIds, show), sort, read: capturedRows(acceptedRows(current.readStream, show), captured), pageSize });
+        ? new MergedFeedReader({ keys: starFeedKeys(corpusIds, minStars), sort, read: capturedRows(mediumRows(liveStarRows(current.readStarStream!, show), medium), captured), pageSize })
+        : medium !== "any"
+          // The medium index is by arrival: Predictions is never asked for here (the controls move it to Newest).
+          ? new MergedFeedReader({ keys: mediumFeedKeys(corpusIds, medium, show), sort: "newest", read: capturedRows(current.readMediumStream!, captured), pageSize })
+          : new MergedFeedReader({ keys: feedStateKeys(corpusIds, show), sort, read: capturedRows(acceptedRows(current.readStream, show), captured), pageSize });
       reader.current = next;
       const first = await next.more(pageSize);
       if (mine !== generation.current) return;
@@ -118,7 +128,7 @@ export function useIndexedReferenceFeed({
     } finally {
       if (mine === generation.current) busy.current = false;
     }
-  }, [captured, minStars, pageSize, show, sort]);
+  }, [captured, medium, minStars, pageSize, show, sort]);
 
   useEffect(() => {
     if (!active) {

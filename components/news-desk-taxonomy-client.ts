@@ -3,6 +3,7 @@
 import { loadReferenceReviewDetails } from "../lib/reference-review-details";
 import { loadAllPages } from "../lib/newsroom-all-pages";
 import { feedReaderFromRecords, starReaderFromRecords, type FeedStreamReader } from "../lib/reference-feed-pages";
+import { mediumReaderFromRecords } from "../lib/reference-medium-feed";
 import { PREVIEW_SEARCH_MEANING, parseSearchPage, previewSearch, type ReferenceSearchReader } from "../lib/reference-search";
 import { hasEditorRights } from "../lib/staff-groups";
 
@@ -2108,6 +2109,34 @@ export const readReferenceStarStream: FeedStreamReader = async ({ feedStateKey, 
   );
   const connection = data.listReferencesByStarFeedAndArrival;
   if (!connection) throw new Error("Missing GraphQL connection payload for listReferencesByStarFeedAndArrival.");
+  return { items: (connection.items ?? []).filter(Boolean) as ReferenceRecord[], nextToken: connection.nextToken ?? null };
+};
+
+const LIST_REFERENCES_BY_MEDIUM_FEED_AND_ARRIVAL_QUERY = `
+  query ListReferencesByMediumFeedAndArrival($mediumFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
+    listReferencesByMediumFeedAndArrival(mediumFeedKey: $mediumFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+      items { ${REFERENCE_RECORD_GRAPHQL_FIELDS} }
+      nextToken
+    }
+  }
+`;
+
+/**
+ * One page of one medium partition (`<corpusId>#<medium>#<pending|accepted|rejected>`), newest arrival first, for the Medium filter. The query's key is
+ * passed as `feedStateKey` like the feed's own. A Reference is in the index only while it is current, not archived and has a medium, so no row needs
+ * dropping (docs/reference-feed-indexes.md, "The medium index").
+ */
+export const readReferenceMediumStream: FeedStreamReader = async ({ feedStateKey, limit, nextToken }) => {
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) return mediumReaderFromRecords(testMock.references)({ feedStateKey, sort: "newest", limit, nextToken });
+  if (isLocalPreviewEnabled()) return mediumReaderFromRecords(createLocalPreviewReferences())({ feedStateKey, sort: "newest", limit, nextToken });
+  const data = await runGraphql<Record<string, { items?: Array<ReferenceRecord | null> | null; nextToken?: string | null } | null>>(
+    LIST_REFERENCES_BY_MEDIUM_FEED_AND_ARRIVAL_QUERY,
+    { mediumFeedKey: feedStateKey, sortDirection: "DESC", limit, nextToken },
+  );
+  const connection = data.listReferencesByMediumFeedAndArrival;
+  if (!connection) throw new Error("Missing GraphQL connection payload for listReferencesByMediumFeedAndArrival.");
   return { items: (connection.items ?? []).filter(Boolean) as ReferenceRecord[], nextToken: connection.nextToken ?? null };
 };
 

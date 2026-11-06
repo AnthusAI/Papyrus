@@ -25,7 +25,7 @@ ARRIVED = "2026-11-02T12:00:00.000Z"
 
 NOT_RUNNABLE_OFFLINE = {
     "amplify/functions/category-action/handler.ts moveReferenceCorpus": "TypeScript Lambda; sets referenceFeedKeys (lib/reference-feed-keys.ts), whose vectors scripts/test-reference-feed-keys.ts shares with this module",
-    "console 'Paste a URL' (priming request)": "creates a Cyclotron priming example, never a Reference (src/papyrus_content/relevance_sweep.py _apply_priming_requests)",
+    "console 'Paste a URL' (Add dialog)": "calls intakePendingReferences, the console intake mutation run below; its accept and stars are the Newsroom's reviewReferenceCuration and setReferenceStars (scripts/test-add-reference.ts)",
     "console 'Import a file' (priming curation)": "builds a candidate with catalog.reference_record for the Cyclotron; nothing is persisted as a Reference (src/papyrus_content/priming_curation.py)",
     "email submission end to end": "needs the inbound mailbox and an enrichment run; its Reference comes from catalog.build_reference_catalog_registration_records, run below with the email options",
 }
