@@ -230,7 +230,9 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
 def child_environment(request: dict, openai_api_key: str | None) -> dict:
     environment = {key: value for key, value in os.environ.items() if not key.startswith("PAPYRUS_GRAPHQL_")}
     environment.update(PAPYRUS_GRAPHQL_ENDPOINT=request["appsyncEndpoint"], PAPYRUS_GRAPHQL_AUTH="iam", HOME="/tmp",
-                       PYTHONUNBUFFERED="1", **{request_meter.ENV_CALLER: f"stage:{request['procedureKey']}"})   # the stage's own requests are attributed to it
+                       PYTHONUNBUFFERED="1")
+    if request.get("procedureKey"):
+        environment[request_meter.ENV_CALLER] = f"stage:{request['procedureKey']}"   # the stage's own requests are attributed to it
     if openai_api_key:
         environment["OPENAI_API_KEY"] = openai_api_key
     return environment

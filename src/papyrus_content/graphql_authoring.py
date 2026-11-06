@@ -671,7 +671,7 @@ ALIAS_BATCH_SIZE = 25
 def _aliased_get_query(field: str, fields: str, count: int) -> str:
     variables = ", ".join(f"$k{index}: ID!" for index in range(count))
     selections = "\n  ".join(f"r{index}: {field}(id: $k{index}) {{ {fields} }}" for index in range(count))
-    return f"query BatchGet{field[0].upper() + field[1:]}({variables}) {{\n  {selections}\n}}"
+    return f"query BatchGet{field.removeprefix('get')}({variables}) {{\n  {selections}\n}}"
 
 
 def _aliased_index_query(field: str, partition_key: str, partition_type: str, fields: str, count: int, limit: int) -> str:
