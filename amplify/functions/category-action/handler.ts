@@ -557,6 +557,10 @@ async function recordDelegatedStars(event: Parameters<RecordDelegatedStarsHandle
     stars: normalizeReferenceStars(event.arguments.stars),
     actor: `${delegation.grantorLabel} via ${agentLabel} (delegation ${delegationId})`,
     now,
+    acceptOnRating: (referenceId, stars) => reviewReferenceCuration({
+      ...event,
+      arguments: { referenceId, action: "accept", note: starsAcceptNote(stars), actorSub: delegation.grantorSub, actorLabel: delegation.grantorLabel },
+    } as unknown as Parameters<ReferenceCurationHandler>[0], { delegationId, relayedBy: agentLabel, instruction: normalizeRequiredString(event.arguments.instruction, "instruction").slice(0, 2000) }),
   });
 }
 
@@ -600,10 +604,25 @@ async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
     stars: normalizeReferenceStars(event.arguments.stars),
     actor,
     now: new Date().toISOString(),
+    // Rating a pending Reference is also accepting it, by the same person and session, through the ordinary accept path.
+    acceptOnRating: (referenceId, stars) => reviewReferenceCuration({
+      ...event,
+      arguments: { referenceId, action: "accept", note: starsAcceptNote(stars), actorSub: event.arguments.actorSub, actorLabel: event.arguments.actorLabel },
+    } as unknown as Parameters<ReferenceCurationHandler>[0]),
   });
 }
 
-async function writeReferenceStars(client: DataClient, input: { referenceId: string; stars: number | null; actor: string; now: string }) {
+function starsAcceptNote(stars: number): string {
+  return `Accepted by rating it ${stars} of 5 stars.`;
+}
+
+async function writeReferenceStars(
+  client: DataClient,
+  input: {
+    referenceId: string; stars: number | null; actor: string; now: string;
+    acceptOnRating: (referenceId: string, stars: number) => Promise<{ status: string }>;
+  },
+) {
   const { referenceId, stars, actor, now } = input;
   const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
   await requireDataResult(
@@ -615,7 +634,13 @@ async function writeReferenceStars(client: DataClient, input: { referenceId: str
     }),
     "update Reference stars",
   );
-  return { ok: true, referenceId, stars, status: normalizeOptionalString(reference.curationStatus) ?? "pending" };
+  const status = normalizeOptionalString(reference.curationStatus) ?? "pending";
+  // Any star on a pending Reference accepts it. An accepted or rejected one keeps its status, and clearing stars never changes it.
+  if (stars !== null && status === "pending") {
+    const accepted = await input.acceptOnRating(referenceId, stars);
+    return { ok: true, referenceId, stars, status: accepted.status };
+  }
+  return { ok: true, referenceId, stars, status };
 }
 
 /**

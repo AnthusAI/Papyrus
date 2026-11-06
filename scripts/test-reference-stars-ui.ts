@@ -58,7 +58,9 @@ function Fixture() {
   async function setStars(reference, stars) {
     window.fixtureStars.push({ referenceId: reference.id, stars });
     if (window.fixtureFailStars) throw new Error('The rating could not be saved.');
-    setReferences((current) => current.map((row) => row.lineageId === reference.lineageId ? { ...row, starRating: stars, starRatedBy: stars === null ? null : 'editor@example.test' } : row));
+    setReferences((current) => current.map((row) => row.lineageId === reference.lineageId ? { ...row, starRating: stars, starRatedBy: stars === null ? null : 'editor@example.test',
+      // The server accepts a pending Reference that is rated, as the same person; an accepted or rejected one keeps its status.
+      ...(stars !== null && row.curationStatus === 'pending' ? { curationStatus: 'accepted', curationActorKind: 'human', curationStatusUpdatedBy: 'editor@example.test' } : {}) } : row));
   }
   return <NewsroomReferencesView references={references} onReview={review} onSetStars={setStars} />;
 }
@@ -124,18 +126,32 @@ const scenarios: Record<string, () => Promise<void>> = {
       await card(page, "r0").waitFor();
       await card(page, "r0").locator('[data-star="5"]').click();
       await page.waitForFunction(() => document.querySelector('[data-feed-card="r0"] [data-star-rating]')?.getAttribute("data-stars") === "5");
-      assert.deepEqual(await voteLog(page), [], "rating first records no vote");
-      assert.equal(await card(page, "r0").getAttribute("data-feed-rated"), null, "the Reference is still undecided");
-      await card(page, "r0").locator('[data-review-choice="accept"]').click();
+      // Rating a pending Reference accepts it in the same action: no separate vote is sent from the page.
       await page.waitForFunction(() => document.querySelector('[data-feed-card="r0"]')?.getAttribute("data-feed-rated") === "accept");
-      assert.deepEqual(await voteLog(page), [{ referenceId: "r0-v1", action: "accept" }]);
-      assert.equal(await filled(page, "r0"), 5, "the vote leaves the stars as they were");
+      assert.deepEqual(await voteLog(page), [], "the acceptance rides on the rating; the page sends no separate vote");
+      assert.equal(await filled(page, "r0"), 5, "the accepted card keeps its stars");
       // The other order: vote first, then stars, with no reason typed.
       await card(page, "r1").locator('[data-review-choice="accept"]').click();
       await page.waitForFunction(() => document.querySelector('[data-feed-card="r1"]')?.getAttribute("data-feed-rated") === "accept");
       await card(page, "r1").locator('[data-star="3"]').click();
       await page.waitForFunction(() => document.querySelector('[data-feed-card="r1"] [data-star-rating]')?.getAttribute("data-stars") === "3");
       assert.equal(await card(page, "r1").getAttribute("data-feed-rated"), "accept");
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+
+  /** A tap lights that star and every star to its left, in every position, by shape and by the written count. */
+  async stars_fill_to_the_left() {
+    const { browser, page, errors } = await setup();
+    try {
+      await card(page, "r0").waitFor();
+      for (const tapped of [2, 5, 3]) {
+        await card(page, "r0").locator(`[data-star="${tapped}"]`).click();
+        await page.waitForFunction((n) => document.querySelector('[data-feed-card="r0"] [data-star-rating]')?.getAttribute("data-stars") === String(n), tapped);
+        const shapes = await card(page, "r0").locator("[data-star] svg").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("fill")));
+        assert.deepEqual(shapes, [1, 2, 3, 4, 5].map((n) => (n <= tapped ? "currentColor" : "none")), `star ${tapped} lights itself and every star to its left`);
+        assert.match(await card(page, "r0").locator("[data-star-rating-words]").innerText(), new RegExp(`${tapped} of 5 stars`, "i"));
+      }
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },

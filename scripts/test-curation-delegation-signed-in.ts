@@ -355,7 +355,10 @@ const behaviours: Record<string, () => Promise<void>> = {
     }
     assert.equal(backend.reference().starRating, undefined, "a bad rating writes nothing");
     const rated = await relay(backend, "recordDelegatedStars", request, { stars: 4 });
-    assert.deepEqual([rated.ok, rated.stars, rated.status], [true, 4, "pending"]);
+    // Rating a pending Reference accepts it, relayed under the same delegation; later ratings leave that status alone.
+    assert.deepEqual([rated.ok, rated.stars, rated.status], [true, 4, "accepted"]);
+    assert.equal(backend.reference().curationStatus, "accepted");
+    assert.equal((JSON.parse(backend.reference().curationDelegation as string) as { relayedBy: string }).relayedBy, "Claude", "the acceptance is the editor's, relayed by the agent");
     assert.equal(backend.reference().starFeedKey, "corpus-fixture#stars#4");
     assert.ok(backend.reference().starRatedAt);
     await relay(backend, "recordDelegatedStars", request, { stars: 5 });

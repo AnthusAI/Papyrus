@@ -83,10 +83,14 @@ export function ReferenceAddUrl({ onAdd }: { onAdd: (input: AddReferenceInput) =
                   <button
                     aria-label={`${value} ${value === 1 ? "star" : "stars"}`}
                     aria-pressed={stars === value}
-                    className={`inline-flex size-11 items-center justify-center rounded-full ${stars === value ? "bg-[var(--feed-control)]" : ""}`}
+                    className={`inline-flex size-11 items-center justify-center rounded-full ${filled ? "bg-[var(--feed-control)]" : ""}`}
                     data-add-star={value}
                     key={value}
-                    onClick={() => setStars((current) => (current === value ? null : value))}
+                    onClick={() => {
+                      // A star lights itself and every star to its left; the top star again clears. A rating is also an acceptance, so Accept follows it.
+                      setStars((current) => (current === value ? null : value));
+                      if (stars !== value) setAccept(true);
+                    }}
                     title={stars === value ? "Tap again to clear the rating" : `${value} of 5 stars`}
                     type="button"
                   >

@@ -126,7 +126,7 @@ newsroom_step("both are recorded as the person's vote, and the CLI's carries a n
 newsroom_step("the agent relays ratings from zero to six, a half star, a four, a five and a clear", "stars_follow_the_set_reference_stars_rules", when)
 newsroom_step("ratings outside one to five are refused and write nothing", "stars_follow_the_set_reference_stars_rules", then)
 newsroom_step("the newest rating wins and a clear removes who and when", "stars_follow_the_set_reference_stars_rules", then)
-newsroom_step("a rating never changes the accept or reject", "stars_follow_the_set_reference_stars_rules", then)
+newsroom_step("rating a pending Reference accepts it as the editor's decision relayed by the agent, and a rating never changes an accept or reject already made", "stars_follow_the_set_reference_stars_rules", then)
 
 newsroom_step("an editor's token that names no sign-in client tries to approve, create, list, deny, revoke, ask or check a delegation", "a_token_whose_client_cannot_be_read_can_do_nothing_with_delegations", when)
 newsroom_step("each attempt is refused because the client could not be read", "a_token_whose_client_cannot_be_read_can_do_nothing_with_delegations", then)
