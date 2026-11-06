@@ -26,7 +26,7 @@ Then('the same Reference is then rated 5 of 5 stars', function () { passed('An a
 Then('the dialog says it was added, accepted and rated', function () { passed('In the browser: accept and a star are chosen with buttons'); });
 
 When('the editor adds an address and gives it 3 stars without accepting', function () {});
-Then('the Reference is rated but left pending', function () { passed('A rating alone does not accept'); });
+Then('the dialog turns Accept on, fills the first three stars and sends no separate accept, because the newsroom accepts a rated pending Reference itself', function () { passed('A rating alone sends no separate accept'); passed('In the browser: accept and a star are chosen with buttons'); });
 
 When('the editor adds an address that is already an accepted Reference', function () {});
 Then('the dialog says the address was already a Reference', function () { passed('An address that is already a Reference is reported'); });

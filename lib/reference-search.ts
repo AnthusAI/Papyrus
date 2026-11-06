@@ -7,6 +7,8 @@ import { referenceFeedKeys } from "./reference-feed-keys";
 import { matchesCaptured, normalizeReferenceCurationStatus, starsOf, type CapturedChoice } from "./reference-policy";
 
 export type ReferenceSearchShow = "unrated" | "rated" | "all" | "accepted";
+/** What the query itself accepts: the References page asks for the four above; the Search page also asks for `rejected` alone. */
+export type ReferenceSearchQueryShow = ReferenceSearchShow | "rejected";
 export type ReferenceSearchLane = { status: "ok" | "failed"; message?: string };
 export type ReferenceSearchMatch = { reference: ReferenceRecord; matchedBy: Array<"keyword" | "meaning">; matchedFields: string[] };
 export type ReferenceSearchPage = {
@@ -20,7 +22,7 @@ export type ReferenceSearchSort = "relevance" | "newest" | "quality";
 export type ReferenceSearchMinStars = 3 | 4 | 5 | null;
 export type ReferenceSearchInput = {
   query: string;
-  show: ReferenceSearchShow;
+  show: ReferenceSearchQueryShow;
   limit: number;
   cursor: string | null;
   sort?: ReferenceSearchSort;
@@ -94,6 +96,60 @@ export function parseSearchPage(value: unknown): ReferenceSearchPage {
 /** Local preview only: a word stands for a few titles it shares no letters with, so the preview can show "Matched: meaning" without a vector index. */
 export const PREVIEW_SEARCH_MEANING: Readonly<Record<string, readonly string[]>> = { memory: ["recall", "remember", "notebook"] };
 
+// --- the results page: kinds, statuses and groups ----------------------------------------------------------------------------------------------
+
+/** The status buttons on the results page. `any` is every Reference the editor may see; the others narrow to one status. */
+export type SearchStatusChoice = "any" | "pending" | "accepted" | "rejected";
+export const SEARCH_STATUS_CHOICES: readonly SearchStatusChoice[] = ["any", "pending", "accepted", "rejected"];
+const SHOW_FOR_STATUS: Record<SearchStatusChoice, ReferenceSearchQueryShow> = { any: "all", pending: "unrated", accepted: "accepted", rejected: "rejected" };
+
+export function showForStatus(status: SearchStatusChoice): ReferenceSearchQueryShow {
+  return SHOW_FOR_STATUS[status];
+}
+
+/** `?status=` from a location's search string; anything else is Any. */
+export function statusFromLocation(search: string): SearchStatusChoice {
+  const value = new URLSearchParams(search).get("status");
+  return (SEARCH_STATUS_CHOICES as readonly string[]).includes(value ?? "") ? (value as SearchStatusChoice) : "any";
+}
+
+/**
+ * Which kind of result this is, in words:
+ *  - `title`: the typed words were found in the Reference's title (an exact word hit);
+ *  - `word`: found in its authors, link or id, not its title;
+ *  - `related`: no typed word was found; it is close in meaning only.
+ */
+export type SearchResultKind = "title" | "word" | "related";
+
+export function searchResultKind(match: Pick<ReferenceSearchMatch, "matchedBy" | "matchedFields">): SearchResultKind {
+  if (!match.matchedBy.includes("keyword")) return "related";
+  return match.matchedFields.includes("title") ? "title" : "word";
+}
+
+export const SEARCH_KIND_LABEL: Record<SearchResultKind, string> = { title: "Title match", word: "Word match", related: "Related" };
+
+/** The sentence under a result saying why it is there. */
+export function searchKindExplanation(match: Pick<ReferenceSearchMatch, "matchedBy" | "matchedFields">): string {
+  const kind = searchResultKind(match);
+  if (kind === "related") return "Close in meaning to your search; the words are not in it.";
+  const where = match.matchedFields.map((field) => FIELD_LABELS[field] ?? field).join(" and ");
+  return `Your words are in the ${where}${match.matchedBy.includes("meaning") ? ", and it is close in meaning too" : ""}.`;
+}
+
+/** The status in words (a Reference with no answer yet is Pending). */
+export function searchStatusWord(reference: Pick<ReferenceRecord, "curationStatus">): "Pending" | "Accepted" | "Rejected" {
+  const status = normalizeReferenceCurationStatus(reference.curationStatus);
+  return status === "accepted" ? "Accepted" : status === "rejected" ? "Rejected" : "Pending";
+}
+
+/** Word hits first, then the related ones, each keeping the server's order. The server already ranks word hits above related ones; this only splits them. */
+export function splitSearchResults(items: readonly ReferenceSearchMatch[]): { wordHits: ReferenceSearchMatch[]; related: ReferenceSearchMatch[] } {
+  return {
+    wordHits: items.filter((item) => searchResultKind(item) !== "related"),
+    related: items.filter((item) => searchResultKind(item) === "related"),
+  };
+}
+
 // --- the matcher for local preview and fixtures ------------------------------------------------------------------------------------------------
 
 const fold = (text: string) => text.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -117,6 +173,7 @@ export function previewSearch(
     if (input.show === "unrated" && !state.endsWith("#unrated")) continue;
     if (input.show === "rated" && !state.endsWith("#rated")) continue;
     if (input.show === "accepted" && !(state.endsWith("#rated") && normalizeReferenceCurationStatus(record.curationStatus) === "accepted")) continue;
+    if (input.show === "rejected" && !(state.endsWith("#rated") && normalizeReferenceCurationStatus(record.curationStatus) === "rejected")) continue;
     const fields: Record<string, string[]> = {
       title: words(record.title ?? ""), authors: words((record.authors ?? []).join(" ")), sourceUri: words(record.sourceUri ?? ""), externalItemId: words(record.externalItemId ?? ""),
     };

@@ -1,6 +1,6 @@
 """A Reference keeps an editor's star rating on itself, beside its latest vote.
 
-Stars are the editors' interest, from 1 to 5, and nothing else: they do not change the curation status, they are not relevance and they are never sent to
+Stars are the editors' interest, from 1 to 5. Rating a PENDING Reference also accepts it, server-side in the mutation (an accepted or rejected one keeps its status); they are not relevance and they are never sent to
 the Cyclotron as a label (``reference_vote.vote_fields`` carries no stars, and ``relevance_decisions`` reads only the vote). The newest rating wins; clearing
 it removes who and when too. The fields are ``starRating``, ``starRatedAt`` and ``starRatedBy``; a Reference nobody rated has none.
 

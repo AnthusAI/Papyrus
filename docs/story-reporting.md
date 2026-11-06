@@ -323,6 +323,27 @@ The corpus key is `--corpus-key`, else the assignment's `corpusKey`, else the ba
 
 A cited-only run then curates the References it took in: it reads each source with the existing capture stage and writes the Reference's summary with the Assignment's title and the editor's direction, and the titles, decks and sections of the Stories the Reference is linked to, as the reason the newsroom is reading it ([directed summaries](reference-curation-pipeline.md#directed-summaries-why-the-newsroom-is-reading-this-source)). That context is a hint about what to bring forward and where the source does not answer the question; it is never evidence, and the summary still says only what the source says. The summary is shared by every reader of the Reference, so a link made later does not rewrite it (`--force` does). A summary or capture failure is recorded on that Reference's curation card and in the run's `curation.failed`; the run still completes.
 
+## Acting as the signed-in person (the normal path)
+
+Ryan, 2026-11-05: agents just do things on his behalf. An agent working in a signed-in `papyrus login`
+session accepts, rejects and rates References and Stories **as that person**: the decision is recorded
+as theirs (a human vote the Cyclotron learns from), with no delegation, code or approval step. Only the
+editor and admin groups may do it (checked in the schema and again in the handler).
+
+```bash
+papyrus references approve --reference <record id> --agent Claude
+papyrus references reject --reference <record id> --agent Claude --note "<why, in the person's words>"
+papyrus references set-stars --reference <record id> --stars 1-5|clear --agent Claude
+```
+
+Each writes unless you pass `--dry-run`. A rejection needs a reason: `--note` or `--reason-code`.
+`--agent` is optional. Where the action came from is kept as a plain note, never a gate: the person's
+name gets ` via cli (Claude)` (or ` via signed-in` when the site has not named a separate CLI client or the
+token's client cannot be read) in `curationStatusUpdatedBy` and `starRatedBy`. Newsroom actions carry no note.
+
+Delegation (below) is optional and not the normal path. It still works for anyone who uses it, and the
+commands take it only when you pass `--delegation-file`, `--delegation-token` or `--on-behalf-of`.
+
 ## Approving a Reference on a person's behalf
 
 Until a deployment includes the delegation mutations, an agent that runs
@@ -464,14 +485,11 @@ change; nothing about the Newsroom's own approval changes. The federation client
 the site's server uses for Prospectus sign-in; a token from it is treated as a CLI session
 (it can ask, not approve), which is the safe direction.
 
-A token whose client cannot be read (no `aud` or `client_id`) is refused on every delegation
-route. A CLI-client session also cannot call `setReferenceStars` or `setItemStars` directly: those
-would file the rating as the person, under a name the caller chooses (`actorLabel`). No CLI command
-rates Stories, so nothing a person relies on is removed; use `references set-stars` with a
-delegation for References.
+A token whose client cannot be read (no `aud` or `client_id`) is refused on the delegation routes. Direct
+accepts, rejects and ratings are not affected: any editor or admin session may make them, whichever client
+it came from (see the section above).
 
-**This is honest labelling, not containment.** The gate stops the normal routes from labelling an
-agent's decision as the person's. It does not stop an editor-group session from writing some data
+**About containment.** Delegation approval stops one session from approving its own request. It does not stop an editor-group session from writing some data
 directly through the model API: `Item` (including a Story's `starRating`) is writable by the editor
 and admin groups, whereas `Reference` is read-only to them (its votes and ratings are written only
 by the Lambdas), so a Reference's curation and star fields are contained.

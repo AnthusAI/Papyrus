@@ -106,7 +106,8 @@ import { useReferencePredictions } from "../lib/use-reference-predictions";
 import { buildFeedItems, feedWindow } from "../lib/reference-feed-ranking";
 import { loadFeedSnapshot, saveFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
 import { referencePreviewsByLineage } from "../lib/reference-preview";
-import { PREVIEW_SEARCH_MEANING, previewSearch, type ReferenceSearchReader } from "../lib/reference-search";
+import { PREVIEW_SEARCH_MEANING, normalizeSearchQuery, previewSearch, statusFromLocation, type ReferenceSearchReader } from "../lib/reference-search";
+import { NewsroomSearchResults } from "./newsroom-search-results";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
@@ -420,6 +421,8 @@ export type NewsDeskSelection = {
   item?: string | null;
   panel?: string | null;
   searchQuery?: string | null;
+  /** `?status=` on the search page: pending, accepted or rejected; absent is Any. */
+  searchStatus?: string | null;
   searchAnchorKind?: string | null;
   searchAnchorId?: string | null;
   searchAnchorLineageId?: string | null;
@@ -1817,17 +1820,24 @@ function NewsDeskDashboard({
     return outcome;
   }
 
-  /** An editor's star rating (null clears it). It sits on the Reference beside the vote, never changes the status, and is not a Cyclotron label. */
+  /**
+   * An editor's star rating (null clears it). It sits on the Reference beside the vote and is not a Cyclotron label. Rating a pending Reference also
+   * accepts it, on the server and by the same person; an accepted or rejected one keeps its status, and clearing a rating never changes it.
+   */
   async function runReferenceStars(reference: ReferenceRecord, stars: number | null): Promise<void> {
     if (!canEdit) throw new Error("Your session does not have permission to rate references.");
-    const record = (now: string): ReferenceRecord => ({
+    const record = (now: string, accepted = false): ReferenceRecord => ({
       ...(referencesRef.current.find((entry) => entry.id === reference.id) ?? reference),
+      ...(accepted ? { curationStatus: "accepted", curationStatusUpdatedAt: now, curationStatusUpdatedBy: authState.label } : {}),
       starRating: stars,
       starRatedAt: stars === null ? null : now,
       starRatedBy: stars === null ? null : authState.label,
     });
+    const wasPending = (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === undefined
+      || (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === null
+      || (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === "pending";
     if (dashboard.isDemo) {
-      applyReferenceRecord(record(new Date().toISOString()));
+      applyReferenceRecord(record(new Date().toISOString(), wasPending && stars !== null));
       return;
     }
     const response = await dataClient.mutations.setReferenceStars(
@@ -1836,7 +1846,8 @@ function NewsDeskDashboard({
     );
     const errors = (response as { errors?: Array<{ message?: string }> }).errors;
     if (errors?.length) throw new Error(errors[0]?.message ?? "Your rating could not be saved.");
-    applyReferenceRecord(record(new Date().toISOString()));
+    const answered = (response as { data?: { status?: string | null } | null }).data?.status;
+    applyReferenceRecord(record(new Date().toISOString(), wasPending && stars !== null && answered === "accepted"));
   }
 
   function runReferenceQualityRating(reference: ReferenceRecord, rating: number) {
@@ -3228,7 +3239,15 @@ function NewsDeskDashboard({
             savedCopy={savedFeedCopy}
           />
         ) : null}
-        {activeTab === "search" ? (
+        {activeTab === "search" && !initialSearchRequest?.anchor ? (
+          <NewsroomSearchResults
+            hrefFor={(lineageId) => getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, Boolean(dashboard.isDemo))}
+            initialQuery={normalizeSearchQuery(initialSelection.searchQuery)}
+            initialStatus={statusFromLocation(`status=${encodeURIComponent(initialSelection.searchStatus ?? "")}`)}
+            search={dashboard.isDemo ? (input) => Promise.resolve(previewSearch(references, input, { meaning: PREVIEW_SEARCH_MEANING })) : searchReferences}
+          />
+        ) : null}
+        {activeTab === "search" && initialSearchRequest?.anchor ? (
           <SearchDeskView
             assignments={assignments}
             categories={mergeCategoryRecords(categorys, activeCategoryTreeNodes)}

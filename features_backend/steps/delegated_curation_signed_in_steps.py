@@ -120,21 +120,21 @@ newsroom_step("the vote records the delegation, the agent and the editor's words
 newsroom_step("the rating is filed as the editor's rating relayed by the agent under that delegation", "relayed_decisions_name_the_agent_and_the_delegation", then)
 newsroom_step("the audit record keeps the agent's name, the approver and the editor whose session asked", "relayed_decisions_name_the_agent_and_the_delegation", then)
 
-newsroom_step("a CLI session votes without a delegation and a Newsroom session votes", "a_direct_vote_from_a_cli_session_is_the_agents_and_not_a_person_label", when)
-newsroom_step("the first is recorded as an agent's vote and the second as a person's", "a_direct_vote_from_a_cli_session_is_the_agents_and_not_a_person_label", then)
+newsroom_step("a CLI session votes without a delegation and a Newsroom session votes", "a_direct_vote_from_a_cli_session_is_the_signed_in_persons_with_a_via_note", when)
+newsroom_step("both are recorded as the person's vote, and the CLI's carries a note that it came through the CLI and the agent's name", "a_direct_vote_from_a_cli_session_is_the_signed_in_persons_with_a_via_note", then)
 
 newsroom_step("the agent relays ratings from zero to six, a half star, a four, a five and a clear", "stars_follow_the_set_reference_stars_rules", when)
 newsroom_step("ratings outside one to five are refused and write nothing", "stars_follow_the_set_reference_stars_rules", then)
 newsroom_step("the newest rating wins and a clear removes who and when", "stars_follow_the_set_reference_stars_rules", then)
-newsroom_step("a rating never changes the accept or reject", "stars_follow_the_set_reference_stars_rules", then)
+newsroom_step("rating a pending Reference accepts it as the editor's decision relayed by the agent, and a rating never changes an accept or reject already made", "stars_follow_the_set_reference_stars_rules", then)
 
 newsroom_step("an editor's token that names no sign-in client tries to approve, create, list, deny, revoke, ask or check a delegation", "a_token_whose_client_cannot_be_read_can_do_nothing_with_delegations", when)
 newsroom_step("each attempt is refused because the client could not be read", "a_token_whose_client_cannot_be_read_can_do_nothing_with_delegations", then)
 newsroom_step("the request is still waiting for the Newsroom", "a_token_whose_client_cannot_be_read_can_do_nothing_with_delegations", then)
 
-newsroom_step("a CLI session sets a Reference or Story rating directly, naming the editor as the rater", "a_cli_session_cannot_file_a_rating_as_the_person", when)
-newsroom_step("both are refused, the first pointing at set-stars, and nothing is written", "a_cli_session_cannot_file_a_rating_as_the_person", then)
-newsroom_step("a Newsroom session's own rating and a delegated rating still work", "a_cli_session_cannot_file_a_rating_as_the_person", then)
+newsroom_step("a CLI session sets a Reference or Story rating directly, naming the editor as the rater", "a_cli_session_rates_as_the_person_with_a_via_note", when)
+newsroom_step("both ratings are saved as the editor's, with a note that they came through the CLI", "a_cli_session_rates_as_the_person_with_a_via_note", then)
+newsroom_step("a Newsroom session's own rating and a delegated rating still work", "a_cli_session_rates_as_the_person_with_a_via_note", then)
 
 newsroom_step("an editor's session makes a payload row and attaches an approved delegation record to it, or overwrites a pending request's old file", "a_delegation_forged_through_the_editor_writable_models_is_never_believed", when)
 newsroom_step("the agent's decision under it is refused as not recognized or not approved", "a_delegation_forged_through_the_editor_writable_models_is_never_believed", then)
@@ -159,6 +159,10 @@ def _signed_in(context):
         if "requestCurationDelegation" in query:
             return {"requestCurationDelegation": {"ok": True, "delegationId": variables["delegationId"], "userCode": "ABCD-2345",
                                                   "pendingExpiresAt": "2026-11-04T12:10:00.000Z", "requestedHours": variables["hours"]}}
+        if "reviewReferenceCuration" in query:
+            return {"reviewReferenceCuration": {"ok": True, "action": variables["action"], "referenceId": variables["referenceId"], "status": "accepted"}}
+        if "setReferenceStars" in query:
+            return {"setReferenceStars": {"ok": True, "referenceId": variables["referenceId"], "stars": variables["stars"], "status": "accepted"}}
         if "recordDelegatedStars" in query:
             return {"recordDelegatedStars": {"ok": True, "referenceId": variables["referenceId"], "stars": variables["stars"], "status": "accepted"}}
         return {"recordDelegatedCuration": {"ok": True, "referenceId": variables["referenceId"], "status": "accepted"}}
@@ -261,6 +265,24 @@ def _set_stars_refusals(context):
             context.refused.append(str(error))
     _run(context, lambda: references_commands.references_set_stars_on_behalf_of([*arguments, "--stars", "4", "--dry-run"]))
     _run(context, lambda: references_commands.references_set_stars_on_behalf_of(["--help"]))
+
+
+@when("the agent approves a Reference and rates another with the plain commands")
+def _plain_commands(context):
+    _run(context, lambda: references_commands.references_record_on_behalf_of(
+        ["--reference", "reference-1", "--agent", "Claude"], action="approve"))
+    _run(context, lambda: references_commands.references_set_stars_on_behalf_of(
+        ["--reference", "reference-2", "--stars", "4", "--agent", "Claude"], graphql=context.cli_client.graphql))
+
+
+@then("the session's token carries an accept and a rating that name the agent, with no delegation anywhere")
+def _plain_sent(context):
+    first, second = context.requests
+    assert first["headers"]["Authorization"] == SESSION_TOKEN == second["headers"]["Authorization"]
+    assert "reviewReferenceCuration" in first["body"]["query"] and first["body"]["variables"]["action"] == "accept"
+    assert "setReferenceStars" in second["body"]["query"] and second["body"]["variables"]["stars"] == 4
+    assert all(request["body"]["variables"]["agentLabel"] == "Claude" for request in context.requests)
+    assert not any("elegation" in request["body"]["query"] for request in context.requests)
 
 
 @then("no request is sent for any of them")

@@ -209,6 +209,21 @@ async function main() {
   assert.deepEqual([fresh.starFeedKey, fresh.feedArrivalAt], ["corpus-fixture#stars#5", "2026-10-01T00:00:00.000Z"], "a Reference with no feedArrivalAt gets one, or it would not be in the index");
   assert.equal(current().curationStatus, "accepted", "stars never change the vote");
 
+  // Rating a pending Reference accepts it, by the same person, through the ordinary accept path. Accepted and rejected ones keep their status; clearing changes nothing.
+  assert.equal(fresh.curationStatus, "accepted", "any star on a pending Reference accepts it");
+  assert.equal(fresh.curationStatusUpdatedBy, "Fixture editor via signed-in", "the acceptance is by the person who rated, with the via note");
+  assert.equal(fresh.curationStatusKey, "corpus-fixture#accepted");
+  assert.equal(fresh.starRating, 5, "the accept does not drop the rating");
+  const rateStatus = async (id: string, status: string, count: number | null) => {
+    table("Reference").set(id, { id, lineageId: id, versionNumber: 1, versionState: "current", corpusId: "corpus-fixture", curationStatus: status, createdAt: "2026-10-01T00:00:00Z" });
+    const answer = await handler({ info: { fieldName: "setReferenceStars" }, identity: editor, arguments: { referenceId: id, stars: count } }) as { status: string };
+    return [answer.status, table("Reference").get(id)!.curationStatus];
+  };
+  assert.deepEqual(await rateStatus("reference-star-pending-v1", "pending", 1), ["accepted", "accepted"], "even one star accepts");
+  assert.deepEqual(await rateStatus("reference-star-rejected-v1", "rejected", 5), ["rejected", "rejected"], "rating a rejected Reference does not flip it");
+  assert.deepEqual(await rateStatus("reference-star-accepted-v1", "accepted", 2), ["accepted", "accepted"]);
+  assert.deepEqual(await rateStatus("reference-star-clear-v1", "pending", null), ["pending", "pending"], "clearing stars leaves a pending Reference pending");
+
   // A video moves between the medium lists with its vote; an ordinary page names no medium field at all.
   const videoId = "reference-video-v1";
   table("Reference").set(videoId, { id: videoId, lineageId: "reference-video", versionNumber: 1, versionState: "current", corpusId: "corpus-fixture", curationStatus: "pending",

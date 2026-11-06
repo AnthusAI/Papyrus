@@ -43,7 +43,7 @@ test("With no decision the Reference is only registered and stays pending", asyn
   assert.equal(addedMessage(outcome), "Added to References. It is pending review.");
 });
 
-test("A rating alone does not accept", async () => {
+test("A rating alone sends no separate accept, because the newsroom accepts a rated pending Reference itself", async () => {
   const { calls, deps } = recorder();
   await addReference({ url: "https://example.org/a", accept: false, stars: 3, note: "" }, deps);
   assert.deepEqual(calls, ["register https://example.org/a", "rate ref-1 3"]);
@@ -154,7 +154,14 @@ createRoot(document.getElementById("root")!).render(
     assert.equal(await page.getByLabel("Reference URL").inputValue(), "", "the form is ready for the next address");
     assert.equal(await page.locator("[data-add-star-summary]").textContent(), "Not rated");
 
+    // A press lights that star and every star to its left, by shape and by the written count; Accept follows the rating.
+    await page.getByRole("button", { name: "3 stars" }).click();
+    assert.deepEqual(await page.locator("[data-add-star] svg").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("fill"))),
+      ["currentColor", "currentColor", "currentColor", "none", "none"]);
+    assert.equal(await page.locator("[data-add-star-summary]").textContent(), "3 of 5 stars");
+    assert.equal(await page.getByRole("button", { name: "Accepted" }).getAttribute("aria-pressed"), "true", "rating a reference also accepts it");
     await page.getByRole("button", { name: "2 stars" }).click();
+    assert.equal(await page.locator("[data-add-star] [fill=currentColor]").count(), 2, "choosing a lower star empties those to its right");
     await page.getByRole("button", { name: "2 stars" }).click();
     assert.equal(await page.locator("[data-add-star-summary]").textContent(), "Not rated", "pressing the chosen star again clears it");
 

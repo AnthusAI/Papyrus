@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .operator_errors import run_with_operator_error_handling
+from .command_help import HELP_FLAGS, content_command_help, wants_help
 from .accession import (
     build_reference_accession_assignment_records,
     execute_reference_accession_assignment,
@@ -519,8 +520,11 @@ def is_ported_command(group: str, command: str) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    load_dotenv()
     args = list(argv if argv is not None else sys.argv[1:])
+    if wants_help(args):
+        # Before .env, sign-in, site selection or any command: help never reads or writes anything.
+        return run_with_operator_error_handling(lambda: content_command_help(args))
+    load_dotenv()
     if len(args) < 2:
         print_usage()
         return 1
@@ -539,6 +543,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def dispatch(group: str, command: str, flags: list[str]) -> None:
+    if command in HELP_FLAGS or wants_help(flags):
+        # The one place every delegated command passes through: none of them sees `--help`, and mutations write by default.
+        content_command_help([group] if command in HELP_FLAGS else [group, command])
+        return
     route = f"{group}:{command}"
     if not is_ported_command(group, command):
         raise unsupported_command(f"command: {group} {command}")

@@ -302,11 +302,13 @@ def test_a_match_on_both_lanes_ranks_first_and_says_so_and_strong_word_matches_b
     assert [item["matchedBy"] for item in result["items"]] == [["keyword", "meaning"], ["keyword"], ["meaning"]]
 
 
-def test_a_partial_word_match_does_not_outrank_a_better_meaning_rank_but_a_strong_one_always_does():
+def test_any_word_match_outranks_a_match_found_only_by_meaning_and_a_strong_one_leads_the_partial_ones():
     words = [rs.WordHit("some", rs.SOME_TERMS, 1, 4, 1), rs.WordHit("all", rs.ALL_TERMS_ACROSS_FIELDS, 2, 4, 1)]
     fused = rs.fuse(words, [("m1", 0.9), ("m2", 0.8), ("some", 0.7)])
     assert [entry.lineage_id for entry in fused] == ["all", "some", "m1", "m2"]
     assert fused[0].strong and not fused[1].strong
+    alone = rs.fuse([rs.WordHit("some", rs.SOME_TERMS, 1, 4, 1)], [("m1", 0.9)])
+    assert [entry.lineage_id for entry in alone] == ["some", "m1"]   # words alone still above a better meaning rank
     assert fused[1].score == pytest.approx(1 / 61 + 1 / 63)   # 'some' is words rank 1 and meaning rank 3: reciprocal rank fusion, k = 60
 
 
@@ -433,7 +435,19 @@ def test_limit_show_and_empty_queries():
     assert search(site, None, "   ")["items"] == []
     assert search(site, None, "the of")["items"] == []   # only stop words: they are searched as they are, and nothing holds them
     with pytest.raises(rs.SearchError):
-        search(site, None, "alpha", show="rejected")
+        search(site, None, "alpha", show="archived")
+
+
+def test_each_status_can_be_asked_for_on_its_own():
+    site = FakeSite([row("p", "Shared pending", state="unrated"), row("a", "Shared accepted", state="rated", curationStatus="accepted"),
+                     row("r", "Shared rejected", state="rated", curationStatus="rejected")])
+    assert titles(search(site, None, "shared", show="unrated")) == ["Shared pending"]
+    assert titles(search(site, None, "shared", show="accepted")) == ["Shared accepted"]
+    assert titles(search(site, None, "shared", show="rejected")) == ["Shared rejected"]
+    assert sorted(titles(search(site, None, "shared", show="all"))) == ["Shared accepted", "Shared pending", "Shared rejected"]
+    vectors = FakeVectors([("r", 0.1)])
+    search(site, vectors, "shared", show="rejected")
+    assert vectors.filters[0]["$and"][1] == {"curationStatus": {"$in": ["rejected"]}}
 
 
 # --- sort and minimum stars --------------------------------------------------------------------------------------------------------------------
