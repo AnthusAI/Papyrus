@@ -210,6 +210,11 @@ Parameters:
     Default: ""
     AllowedPattern: "^$|^[a-z0-9][a-z0-9-]{0,62}$"
     Description: Optional existing email partition whose editor-selected References need cloud predictions.
+  ReferencePredictionMonitorId:
+    Type: String
+    Default: hn
+    AllowedPattern: "^$|^[a-z0-9][a-z0-9-]{0,62}$"
+    Description: The partition the site backends queue Cyclotron prediction requests into (their monitoring.emailMonitorId, which defaults to hn). Its email-references task drains them. Empty turns the drain off.
   EnrichmentOpenAiKeyParameter:
     Type: String
     Default: ""
@@ -283,6 +288,9 @@ Parameters:
 
 Conditions:
   HasEmailReferenceMonitor: !Not [!Equals [!Ref EmailReferenceMonitorId, ""]]
+  HasReferencePredictionMonitor: !And
+    - !Not [!Equals [!Ref ReferencePredictionMonitorId, ""]]
+    - !Not [!Equals [!Ref ReferencePredictionMonitorId, !Ref EmailReferenceMonitorId]]
   ReserveConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
   ReserveRouterConcurrency: !Not [!Equals [!Ref RouterReservedConcurrency, 0]]
   HasProcedureRunner: !Not [!Equals [!Ref ProcedureRunnerFunctionName, ""]]
@@ -1626,6 +1634,25 @@ Resources:
         Arn: !GetAtt RouterFunction.Arn
         RoleArn: !GetAtt RouterScheduleRole.Arn
         Input: !Sub '{"monitorId":"${EmailReferenceMonitorId}","task":"email-references"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  ReferencePredictionSchedule:
+    Condition: HasReferencePredictionMonitor
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-reference-predictions
+      Description: Drain the prediction requests the site backends queue when a Reference is created without one (src/papyrus_content/reference_prediction_queue.py). One indexed query when the lane is empty.
+      ScheduleExpression: rate(5 minutes)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: !Sub '{"monitorId":"${ReferencePredictionMonitorId}","task":"email-references"}'
         RetryPolicy:
           MaximumEventAgeInSeconds: 600
           MaximumRetryAttempts: 1

@@ -218,3 +218,26 @@ def step_waiting(context):
     held = world(context)
     assert held.cyclotron.posts() == [] and len(tp.lane_rows(held.table)) == 1 and held.result["counts"]["predictionsWaiting"] == 1
     assert mr.PREDICTION_LANE == queue.LANE
+
+
+@given("the partition every site backend queues prediction requests into by default")
+def step_default_partition(context):
+    from papyrus_content import prediction_lane_drain_test as drain_test
+    context.default_partition = drain_test.site_default_partition()
+
+
+@then("the monitoring stack has a five minute schedule that runs the email-references task for that same partition")
+def step_drained(context):
+    from papyrus_content import prediction_lane_drain_test as drain_test
+    assert drain_test.parameter_default("ReferencePredictionMonitorId") == context.default_partition
+    drain_test.test_the_partition_sites_queue_into_by_default_is_drained_by_a_schedule()
+
+
+@given("a Reference that an import created already accepted and that has no prediction")
+def step_accepted(context):
+    context.accepted = tp.reference_row("reference-accepted-v1", curationStatus="accepted")
+
+
+@then("it is one of the References a prediction is requested for")
+def step_accepted_requested(context):
+    assert [item["referenceId"] for item in queue.references_for_prediction([context.accepted])] == ["reference-accepted-v1"]
