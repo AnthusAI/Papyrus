@@ -46,6 +46,10 @@ class Memory:
             return [{"id": self.corpus_id, "role": "canonical", "name": "Publication"}]
         return [copy.deepcopy(row) for (name, _), row in self.rows.items() if name == model]
 
+    def list_by_index(self, index_name: str, key_value: str, *, limit: int = 100, sort_eq: str | None = None) -> list[dict[str, Any]]:
+        from papyrus_content.reference_reads_testing import list_by_index_from_records
+        return list_by_index_from_records(self.list_records, index_name, key_value, sort_eq)
+
     def get_record(self, model: str, record_id: str) -> dict[str, Any] | None:
         row = self.rows.get((model, record_id))
         return copy.deepcopy(row) if row else None
