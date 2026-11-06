@@ -30,17 +30,33 @@ export type ReferenceWordIndex = {
   consumer: LambdaFunction;
 };
 
-export function wireReferenceWordIndex(backend: any, knowledgeQueryLambda: LambdaFunction): ReferenceWordIndex {
-  const cfnTables = backend.data.resources.cfnResources.cfnTables;
-  const referenceTable = backend.data.resources.tables.Reference;
-  const referenceCfnTable = cfnTables.Reference ?? cfnTables.ReferenceTable;
-  if (!referenceTable || !referenceCfnTable) {
-    throw new Error(`The word index needs the Reference table. cfnTables=${Object.keys(cfnTables).join(",")}`);
+/**
+ * The Reference table's stream, with both images (the consumer writes only the difference between them, so a vote or a star writes nothing).
+ * The Amplify table manager's tables (the default here) are a custom resource wrapped in an `AmplifyDynamoDbTableWrapper`; a plain CloudFormation
+ * table is found the way the home-page plugin finds it. Both switch the stream on with the same view type the home-page plugin uses, so enabling
+ * both features sets one stream, once.
+ */
+function referenceReadStream(backend: any): string {
+  const cfnResources = backend.data.resources.cfnResources;
+  const wrapper = cfnResources.amplifyDynamoDbTables?.Reference;
+  if (wrapper !== undefined) {
+    wrapper.streamSpecification = { streamViewType: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES };
+    return wrapper.resource.getAtt("TableStreamArn").toString();
   }
-  // Old and new image: the consumer writes only the difference between them, so a vote or a star (no word changes) writes nothing.
-  referenceCfnTable.streamSpecification = { streamViewType: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES };
-  const streamArn = referenceTable.tableStreamArn ?? referenceCfnTable.attrStreamArn;
-  if (!streamArn) throw new Error("The word index needs the Reference table's stream ARN.");
+  const cfnTables = cfnResources.cfnTables ?? {};
+  const found =
+    cfnTables.Reference ??
+    cfnTables.ReferenceTable ??
+    Object.entries(cfnTables).find(([key]) => key.toLowerCase().replace(/table$/, "") === "reference")?.[1];
+  if (!found) throw new Error(`The word index needs the Reference table. cfnTables=${Object.keys(cfnTables).join(",")}`);
+  found.streamSpecification = { streamViewType: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES };
+  return found.attrStreamArn;
+}
+
+export function wireReferenceWordIndex(backend: any, knowledgeQueryLambda: LambdaFunction): ReferenceWordIndex {
+  const referenceTable = backend.data.resources.tables.Reference;
+  if (!referenceTable) throw new Error("The word index needs the Reference table.");
+  const streamArn = referenceReadStream(backend);
 
   const tableStack = backend.createStack("reference-word-table");
   const wordTable = new dynamodb.Table(tableStack, "ReferenceWordTable", {

@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
 from .cuts import search_cut_count
-from .reference_words import DynamoWordSource, _normalize, field_texts as _field_texts, tokenize
+from .reference_words import REFERENCE_ATTRIBUTES, DynamoWordSource, _normalize, field_texts as _field_texts, tokenize
 
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
@@ -61,6 +61,15 @@ MEANING_CACHE_SECONDS = 300
 MEANING_CACHE_ENTRIES = 32
 MEANING_TIMEOUT_SECONDS = 20
 EDITOR_GROUPS = ("editor", "admin")
+
+# Same fields the newsroom feed reads (components/news-desk-taxonomy-client.ts, REFERENCE_RECORD_GRAPHQL_FIELDS), so a row goes straight to a card. The
+# change feed of the router's vector pass (monitoring_vectors) reads the same list through this query; the word index reads the same attributes by key.
+REFERENCE_FIELDS = " ".join(REFERENCE_ATTRIBUTES)
+LIST_CURRENT_REFERENCES_QUERY = (
+    "query ReferencesForSearch($versionState: String!, $updatedAt: ModelStringKeyConditionInput, $sortDirection: ModelSortDirection, "
+    "$limit: Int, $nextToken: String) { listReferencesByVersionStateAndUpdatedAt(versionState: $versionState, updatedAt: $updatedAt, "
+    "sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) { items { " + REFERENCE_FIELDS + " } nextToken } }"
+)
 
 FIELDS = ("title", "authors", "sourceUri", "externalItemId")   # the bit of each field in a match mask is 1 << position
 FIELD_WEIGHT = {"title": 4, "authors": 4, "sourceUri": 1, "externalItemId": 2}
