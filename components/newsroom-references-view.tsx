@@ -482,8 +482,8 @@ export function NewsroomReferencesView({
   const { searching, query: searchQuery } = search;
   const searchFeed = search.feed;
   const { sort: feedSort, show: feedShow } = controls.saved;
-  const { captured } = controls;
-  const indexedFeed = useIndexedReferenceFeed({ enabled: serverMode && !searching, source: feedSource, sort: feedSort, show: feedShow, minStars, captured });
+  const { captured, medium } = controls;
+  const indexedFeed = useIndexedReferenceFeed({ enabled: serverMode && !searching, source: feedSource, sort: feedSort, show: feedShow, minStars, captured, medium });
   const indexed = searching ? searchFeed : indexedFeed;
   // The cards come from the pages of a reader (the indexes, or a search) rather than from the page's own list.
   const resultsMode = serverMode || searching;
@@ -554,18 +554,18 @@ export function NewsroomReferencesView({
   });
   // Server mode: the feed is the index's own order, page by page. A Reference an editor rates stays where it is for the visit.
   const [revealed, setRevealed] = useState<string[]>([]);
-  useEffect(() => { setRevealed([]); }, [feedSort, feedShow, minStars, captured, searchQuery, search.show, search.sort]);
+  useEffect(() => { setRevealed([]); }, [feedSort, feedShow, minStars, captured, medium, searchQuery, search.show, search.sort]);
   const indexedLineages = useMemo(() => new Set(indexed.records.map(referenceLineageId)), [indexed.records]);
   const arrivals = useMemo(() => {
     // A new Reference has no stars, so it cannot belong in the Quality sort or under a minimum of stars, and it has no capture yet, so it is not Captured Yes.
-    if (!serverMode || searching || indexed.status !== "ready" || feedSort === "quality" || minStars > 0 || captured === "yes") return [] as ReferenceRecord[];
+    if (!serverMode || searching || indexed.status !== "ready" || feedSort === "quality" || minStars > 0 || captured === "yes" || medium !== "any") return [] as ReferenceRecord[];
     const shown = new Set(revealed);
     return canonicalReferences.filter((reference) => {
       const lineage = referenceLineageId(reference);
       return normalizeReferenceCurationStatus(reference.curationStatus) === "pending" && !indexedLineages.has(lineage) && !shown.has(lineage)
         && (referenceArrivalTime(reference) ?? 0) > indexed.readAt;
     }).sort((left, right) => (referenceArrivalTime(right) ?? 0) - (referenceArrivalTime(left) ?? 0));
-  }, [canonicalReferences, captured, feedSort, indexed.readAt, indexed.status, indexedLineages, minStars, revealed, searching, serverMode]);
+  }, [canonicalReferences, captured, feedSort, indexed.readAt, indexed.status, indexedLineages, medium, minStars, revealed, searching, serverMode]);
   const serverItems = useMemo(() => {
     if (!resultsMode) return NO_FEED_ITEMS;
     const current = new Map(canonicalReferences.map((reference) => [referenceLineageId(reference), reference] as const));
@@ -965,6 +965,8 @@ export function NewsroomReferencesView({
                 minStars={minStars}
                 onCapturedChange={(next) => { controls.setCaptured(next); setCaughtUp(false); }}
                 captured={captured}
+                onMediumChange={serverMode && feedSource?.readMediumStream ? (next) => { controls.setMedium(next); setCaughtUp(false); } : undefined}
+                medium={medium}
                 onVisitRated={markVisitRated}
                 items={feedItems}
                 ratedCount={ratedCount}
