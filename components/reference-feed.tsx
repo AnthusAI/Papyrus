@@ -27,6 +27,7 @@ import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import { displayedCaptureStatus, normalizeCaptureState, type CaptureStatus } from "../lib/reference-capture";
 import { messageCountLabel } from "../lib/conversation";
 import { referenceDatesText } from "../lib/reference-links";
+import { FEED_MEDIUMS, MEDIUM_LABELS, MEDIUM_NOUNS, type FeedMedium } from "../lib/reference-medium-feed";
 
 /**
  * Flat surfaces, no borders: the page tone, a card tone one step away from it, a footer tone, and a control tone for chips and
@@ -100,7 +101,10 @@ const CAPTUREDS: Array<{ key: FeedCaptured; label: string; Icon: typeof Sparkles
   { key: "no", label: CAPTURED_LABELS.no, Icon: FileXIcon },
 ];
 
-export const PILL = "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
+/** Medium: what kind of thing the address is. The icon and the word say it, not colour. */
+const MEDIUM_ICONS: Record<FeedMedium, typeof SparklesIcon> = { any: FilesIcon, video: VideoIcon };
+
+export const PILL ="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
 
 export type ReferenceFeedProps = {
   /** Read-only reason shown in words when answering is not possible yet (for example while the session is confirmed). */
@@ -125,6 +129,9 @@ export type ReferenceFeedProps = {
   /** The Captured row. Without `onCapturedChange` the feed has no such row. */
   captured?: FeedCaptured;
   onCapturedChange?: (captured: FeedCaptured) => void;
+  /** The Medium row (All, Videos). Without `onMediumChange` the feed has no such row (a page whose source cannot read the medium index). It is hidden while a search is open. */
+  medium?: FeedMedium;
+  onMediumChange?: (medium: FeedMedium) => void;
   /** The visible list, already ordered by the chosen sort and filtered by the chosen Show. */
   items: FeedItem[];
   /** How many References already have an answer, for the empty text. */
@@ -549,6 +556,7 @@ function RankingPopover() {
             <li><strong>Newest</strong> puts the items that arrived most recently first.</li>
             <li><strong>Quality</strong> puts the items you gave the most stars first, newest first within each number of stars. Only items with stars are in it. <strong>Minimum stars</strong> keeps the items with at least 3, 4 or 5 stars in whichever sort you chose. Stars are your own interest: the Cyclotron never sees them.</li>
             <li><strong>Reviewed</strong> is whether someone has accepted or rejected an item. <strong>No</strong> shows items nobody has answered yet. <strong>Any</strong> adds the ones you have already accepted or rejected to the same list, showing your answer, in the same sort. <strong>Accepted</strong> lists just the ones you accepted, never a rejected one. <strong>Yes</strong> lists just those answered ones, in the same sort, so you can find one again; Predictions there still goes by the Cyclotron&apos;s original confidence, not by your answer. Nothing is hidden because it is old.</li>
+            <li><strong>Medium</strong> is what kind of thing the address is. <strong>Videos</strong> lists only the videos, newest first, in whichever Reviewed you chose (Videos with Reviewed No are the videos waiting for an answer). It is in the page address, so a link to it opens the same list. Predictions cannot order a medium, so the list is Newest; choosing Predictions goes back to All. Quality and Minimum stars work with it.</li>
             <li><strong>Captured</strong> is whether we hold the item&apos;s content. <strong>Yes</strong> keeps the ones we collected in full. <strong>No</strong> keeps the ones we could not: a page that blocked us, a capture that came back cut off, or one still being collected. Choose Reviewed Accepted and Captured No to find the items you accepted that someone should paste or upload. It works in any sort, and it does not change the order.</li>
             <li><strong>Search</strong> looks for your words in titles, authors, links and ids, and for meaning in the summaries, at the same time, over every Reference whether or not it has been answered. Results are ordered by how well they match (Relevance) unless you choose Newest or Quality, and each says how it matched. Reviewed starts on Any for a search; clearing the search brings back your own Sort and Reviewed. Captured and Minimum stars apply to a search too.</li>
             <li><strong>Your answers stay put.</strong> A card you rate stays where it is for this visit, and new items wait behind a button until you ask for them.</li>
@@ -655,6 +663,8 @@ export function ReferenceFeed({
   minStars = 0,
   captured = "any",
   onCapturedChange,
+  medium = "any",
+  onMediumChange,
   onVisitRated,
   items,
   ratedCount,
@@ -682,6 +692,8 @@ export function ReferenceFeed({
   const minStarsLabelId = useId();
   const reviewedLabelId = useId();
   const capturedLabelId = useId();
+  const mediumLabelId = useId();
+  const mediumRow = Boolean(onMediumChange) && !searching;
 
   const renderCard = (item: FeedItem, lead: boolean) => (
     <FeedCard
@@ -732,7 +744,7 @@ export function ReferenceFeed({
 
 
   return (
-    <div className="@container space-y-5" data-reference-feed data-feed-sort={sort} data-feed-show={show} data-feed-min-stars={minStars} data-feed-captured={captured} data-feed-searching={searching || undefined} {...FEED_SURFACE_PROPS}>
+    <div className="@container space-y-5" data-reference-feed data-feed-sort={sort} data-feed-show={show} data-feed-min-stars={minStars} data-feed-captured={captured} data-feed-medium={medium} data-feed-searching={searching || undefined} {...FEED_SURFACE_PROPS}>
       {search ? <FeedSearchBox onClear={search.onClear} onSubmit={search.onSubmit} query={search.query} /> : null}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -751,6 +763,28 @@ export function ReferenceFeed({
               </button>
             ))}
           </div>
+          {mediumRow ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1" data-feed-control="medium">
+              <span className="whitespace-nowrap text-sm text-muted-foreground" id={mediumLabelId}>Medium</span>
+              <div aria-labelledby={mediumLabelId} className="inline-flex rounded-full bg-[var(--feed-card)] p-1" role="group">
+                {FEED_MEDIUMS.map((key) => {
+                  const Icon = MEDIUM_ICONS[key];
+                  return (
+                    <button
+                      aria-pressed={medium === key}
+                      className={cn(PILL, "px-3.5", medium === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground")}
+                      data-feed-medium-button={key}
+                      key={key}
+                      onClick={() => onMediumChange!(key)}
+                      type="button"
+                    >
+                      <Icon aria-hidden="true" className="size-4" />{MEDIUM_LABELS[key]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1" data-feed-control="show">
             <span className="whitespace-nowrap text-sm text-muted-foreground" id={reviewedLabelId}>Reviewed</span>
             <div aria-labelledby={reviewedLabelId} className="inline-flex rounded-full bg-[var(--feed-card)] p-1" role="group">
@@ -838,6 +872,13 @@ export function ReferenceFeed({
           </>
         ) : hasMore || loadingMore ? (
           <FeedMoreSentinel hasMore={hasMore} itemCount={0} loadingMore={loadingMore} onLoadMore={onLoadMore} />
+        ) : mediumRow && medium !== "any" ? (
+          <div className="flex flex-col items-center gap-3 rounded-[20px] bg-[var(--feed-card)] p-10 text-center text-sm text-muted-foreground" data-feed-empty data-feed-medium-empty>
+            <p>{`No ${MEDIUM_NOUNS[medium]} with Reviewed ${REVIEWED_LABELS[show]}${minStars > 0 ? ` and ${minStarsPhrase(minStars)}` : ""}${captured !== "any" ? ` and Captured ${CAPTURED_LABELS[captured]}` : ""}.${minStars === 0 && captured === "any" ? " Older ones are listed here after the medium backfill has run." : ""}`}</p>
+            <button className={cn(PILL, "bg-[var(--feed-control)] text-foreground")} data-feed-medium-clear onClick={() => onMediumChange!("any")} type="button">
+              <FilesIcon aria-hidden="true" className="size-4" />Show all media
+            </button>
+          </div>
         ) : (minStars > 0 && onMinStarsChange) || (captured !== "any" && onCapturedChange) ? (
           // A filter is the likeliest reason for an empty list, so each one in force is named, with a way to take it off.
           <div className="flex flex-col items-center gap-3 rounded-[20px] bg-[var(--feed-card)] p-10 text-center text-sm text-muted-foreground" data-feed-empty data-feed-filter-empty {...(minStars > 0 ? { "data-feed-min-stars-empty": true } : {})} {...(captured !== "any" ? { "data-feed-captured-empty": true } : {})}>

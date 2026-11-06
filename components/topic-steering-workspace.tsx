@@ -45,6 +45,7 @@ import {
   loadReferenceFeedCorpusIds,
   readReferenceFeedStream,
   readReferenceStarStream,
+  readReferenceMediumStream,
   searchReferences,
   discardFeedCorpusIds,
   loadReferenceAttachmentsForLineages,
@@ -73,8 +74,6 @@ import {
   loadAutoAcceptedReferencePage,
   loadCyclotronShadowAgreement,
   loadSiteSectionAgreement,
-  requestCyclotronPriming,
-  loadCyclotronPrimingRequests,
   requestCyclotronReviewRate,
 } from "./news-desk-taxonomy-client";
 import {
@@ -194,12 +193,10 @@ import { delegatedCurationsByReference, referencesWithHumanLatestCuration, type 
 import { createLocalPreviewCyclotronFixtures } from "../lib/local-preview-seed";
 import { createLocalPreviewSectionFixtures } from "../lib/local-preview-section-fixtures";
 import { currentSectionSuggestions, siteCyclotronIdOf, type SiteSectionAgreement } from "../lib/site-section-suggestions";
+import { addReference, parseIntakeAnswer, type AddReferenceInput, type AddReferenceOutcome } from "../lib/add-reference";
 import {
-  buildPrimingRequest,
   buildReviewRateRequest,
-  DEFAULT_RELEVANCE_CYCLOTRON,
   DEMO_CYCLOTRON_STATUS,
-  type PrimingRequestView,
 } from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
 import {
@@ -804,23 +801,6 @@ function NewsDeskDashboard({
     () => [...relevanceDecisions.values()].find((decision) => decision.cyclotronId)?.cyclotronId ?? null,
     [relevanceDecisions],
   );
-  const primingCyclotronId = relevanceCyclotronId ?? DEFAULT_RELEVANCE_CYCLOTRON.id;
-  const primingLabels = useMemo(
-    () => [...relevanceDecisions.values()].find((decision) => decision.classes.length)?.classes
-      ?? DEFAULT_RELEVANCE_CYCLOTRON.labels,
-    [relevanceDecisions],
-  );
-  const [primingRequests, setPrimingRequests] = useState<PrimingRequestView[]>([]);
-  useEffect(() => {
-    if (dashboard.isDemo) return;
-    let cancelled = false;
-    const refresh = () => loadCyclotronPrimingRequests(primingCyclotronId)
-      .then((views) => { if (!cancelled) setPrimingRequests(views); })
-      .catch(() => { if (!cancelled) setPrimingRequests([]); });
-    void refresh();
-    const timer = window.setInterval(() => { void refresh(); }, 30_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [dashboard.isDemo, primingCyclotronId]);
   const [cyclotronStatus, setCyclotronStatus] = useState<CyclotronStatus | null>(null);
   useEffect(() => {
     if (!relevanceCyclotronId) return;
@@ -923,6 +903,7 @@ function NewsDeskDashboard({
     loadCorpusIds: () => loadReferenceFeedCorpusIds(Object.keys(summary?.facets?.references?.byCorpus ?? {})),
     readStream: readReferenceFeedStream,
     readStarStream: readReferenceStarStream,
+    readMediumStream: readReferenceMediumStream,
     search: searchReferences,
   }), [summary?.facets?.references?.byCorpus]);
   const [referencesRealtimeStatus, setReferencesRealtimeStatus] = useState<RealtimeSubscriptionStatus>("idle");
@@ -1791,6 +1772,49 @@ function NewsDeskDashboard({
         throw error;
       }
     });
+  }
+
+  /**
+   * The Add dialog: the address becomes a pending Reference (`intakePendingReferences`), then the editor's optional accept and star rating are
+   * recorded through the same mutations the review buttons use, from this Newsroom session. The list reloads afterwards.
+   */
+  async function runAddReference(input: AddReferenceInput): Promise<AddReferenceOutcome> {
+    if (!canEdit) throw new Error("Your session does not have permission to add references.");
+    if (dashboard.isDemo) {
+      return addReference(input, {
+        register: async (url) => ({ id: `demo-${url}`, curationStatus: "pending", reusedExisting: false }),
+        accept: async () => undefined,
+        rate: async () => undefined,
+      });
+    }
+    const outcome = await addReference(input, {
+      register: async (url) => {
+        const response = await dataClient.mutations.intakePendingReferences(
+          { input: JSON.stringify({ items: [{ source_uri: url }] }) },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+        if (errors?.length) throw new Error(errors[0]?.message ?? "The newsroom did not accept this address.");
+        return parseIntakeAnswer(response.data);
+      },
+      accept: async (referenceId, note) => {
+        const response = await dataClient.mutations.reviewReferenceCuration(
+          { referenceId, action: "accept", actorLabel: authState.label, note: note || undefined },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        assertReferenceReviewMutationSucceeded(response, referenceId);
+      },
+      rate: async (referenceId, stars) => {
+        const response = await dataClient.mutations.setReferenceStars(
+          { referenceId, stars, actorLabel: authState.label },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+        if (errors?.length) throw new Error(errors[0]?.message ?? "Your rating could not be saved.");
+      },
+    });
+    retryReferenceReviewData();
+    return outcome;
   }
 
   /** An editor's star rating (null clears it). It sits on the Reference beside the vote, never changes the status, and is not a Cyclotron label. */
@@ -3264,15 +3288,7 @@ function NewsDeskDashboard({
             disabled={controlsDisabled}
             initialReferenceLineageId={selectedReviewLineageId}
             cyclotronStatus={cyclotronStatus}
-            cyclotronPriming={{
-              labels: primingLabels,
-              requests: primingRequests,
-              onRequest: async (input) => {
-                const request = buildPrimingRequest(input, authState.label, primingLabels);
-                if (!dashboard.isDemo) await requestCyclotronPriming(primingCyclotronId, request);
-                setPrimingRequests((current) => [{ request, outcome: null }, ...current]);
-              },
-            }}
+            onAddReference={runAddReference}
             decisions={relevanceDecisions}
             humanCuratedReferenceLineageIds={selectedReviewIsCurrent && predictionState !== "ready" ? undefined : humanCuratedReferenceLineageIds}
             delegatedCurations={selectedReviewIsCurrent && predictionState !== "ready" ? undefined : delegatedCurations}

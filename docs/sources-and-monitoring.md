@@ -27,7 +27,7 @@ Details: [monitoring-cloud.md](monitoring-cloud.md) (stack, table layout, router
 
 ## Adding a reference by hand (Live)
 
-- **From the newsroom.** The References tab has an "Add a reference" area with "Paste a URL" and, when the host supplies it, "Import a file". A pasted URL takes a label and an optional explanation; the page is read in the background by a worker. It is used to prime the relevance Cyclotron, described in [cyclotron-priming.md](cyclotron-priming.md).
+- **From the newsroom.** The References tab has an "Add a reference" area with "Paste a URL" and, when the host supplies it, "Import a file". A pasted URL becomes a pending Reference at once (the address is its title until the page is captured) and a prediction is requested for it. The editor can accept it and give it 1 to 5 stars in the same dialog; those are their own decisions and train the site's Cyclotron like any other. "Import a file" primes the relevance Cyclotron, described in [cyclotron-priming.md](cyclotron-priming.md).
 - **From the CLI.** `papyrus references create-from-catalog --status pending` creates pending References from a catalog file. With an editor session it goes through the `intakePendingReferences` action; an operator can use IAM credentials. See [reference-intake/user-session-intake.md](reference-intake/user-session-intake.md).
 
 ## Inbound email (Live)
