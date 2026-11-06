@@ -12,7 +12,22 @@ def handler(event, _context):
     store = DynamoGrantStore(boto3.client("dynamodb"), boto3.client("kms"), os.environ["MCP_GRANT_TABLE"],
                              os.environ["MCP_KMS_KEY"], origin)
     grants = Grants(store, origin)
+    if not isinstance(event, dict):
+        return {"error": "invalid_request"}
     operation = event.get("operation")
+    fields = {
+        "verify": ("token", "resource"),
+        "exchange": ("code", "client", "redirect", "resource", "verifier"),
+        "refresh": ("token", "client", "resource"),
+        "revoke": ("token", "client"),
+        "issue": ("client", "redirect", "resource", "challenge", "principal", "upstream_expiry", "transaction_id"),
+    }
+    if not isinstance(operation, str) or operation not in fields or any(key not in event for key in fields[operation]):
+        return {"error": "invalid_request"}
+    for key in fields[operation]:
+        expected = dict if key == "principal" else int if key == "upstream_expiry" else str
+        if not isinstance(event[key], expected):
+            return {"error": "invalid_request"}
     try:
         if operation == "verify":
             return {"principal": grants.verify(event["token"], resource=event["resource"])}
@@ -32,6 +47,4 @@ def handler(event, _context):
                     upstream_expiry=event["upstream_expiry"], transaction_id=event["transaction_id"])}
     except InvalidGrant:
         return {"error": "invalid_grant"}
-    except (KeyError, TypeError):
-        return {"error": "invalid_request"}
     return {"error": "invalid_request"}

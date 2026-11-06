@@ -66,3 +66,30 @@ class DynamoGrantStore:
             if self._conditional_failure(error):
                 return False
             raise
+
+    @staticmethod
+    def _spent_key(key, spent):
+        return f"spent#{key}#{spent}"
+
+    def is_spent(self, key, spent):
+        return "Item" in self.dynamodb.get_item(TableName=self.table,
+            Key={"pk": {"S": self._spent_key(key, spent)}}, ConsistentRead=True)
+
+    def rotate(self, key, version, value, spent):
+        grant = {"TableName": self.table, "Item": self._item(key, value),
+                 "ConditionExpression": "#v = :v", "ExpressionAttributeNames": {"#v": "version"},
+                 "ExpressionAttributeValues": {":v": {"N": str(version)}}}
+        tombstone = {"TableName": self.table,
+                     "Item": {"pk": {"S": self._spent_key(key, spent)}, "expiresAt": {"N": str(value["expires"])}},
+                     "ConditionExpression": "attribute_not_exists(pk)"}
+        try:
+            self.dynamodb.transact_write_items(TransactItems=[{"Put": grant}, {"Put": tombstone}])
+            return True
+        except Exception as error:
+            response = getattr(error, "response", {})
+            if response.get("Error", {}).get("Code") == "TransactionCanceledException":
+                reasons = response.get("CancellationReasons", [])
+                codes = [reason.get("Code") for reason in reasons]
+                if codes and all(code in ("None", "ConditionalCheckFailed", "TransactionConflict") for code in codes) and any(code in ("ConditionalCheckFailed", "TransactionConflict") for code in codes):
+                    return False
+            raise

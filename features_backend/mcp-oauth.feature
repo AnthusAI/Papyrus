@@ -38,10 +38,16 @@ Feature: Site-bound authorization for hosted MCP
     When malformed tokens are presented
     Then they are refused without looking them up
 
-  Scenario: Too many refreshes require a new authorization
-    Given a client holds a grant for one publication
-    When its refresh limit is reached
-    Then the grant is revoked and its stored identity is removed
+  Scenario: A client refreshes throughout the fixed seven-day grant
+    Given a client holds a grant with a seven-day deadline
+    When it refreshes every fifteen minutes until the deadline
+    Then each previous access token fails immediately after rotation
+    And the deadline never moves and the grant fails at the deadline
+
+  Scenario: A spent refresh cannot be replayed by an unrelated client or publication
+    Given a client holds a valid refresh token
+    When the token is rotated and an unrelated client or publication replays it
+    Then the successor remains usable until a real replay revokes it
 
   Scenario: A staff grant needs both credentials from the verified session
     Given an authenticated newsroom staff member

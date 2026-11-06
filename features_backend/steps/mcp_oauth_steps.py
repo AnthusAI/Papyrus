@@ -11,12 +11,18 @@ spec.loader.exec_module(g)
 
 
 class MemoryStore:
-    def __init__(self): self.rows = {}
+    def __init__(self): self.rows, self.spent = {}, set()
     def create(self, key, value):
         if key in self.rows: return False
         self.rows[key] = copy.deepcopy(value)
         return True
     def get(self, key): return copy.deepcopy(self.rows.get(key))
+    def is_spent(self, key, spent): return (key, spent) in self.spent
+    def rotate(self, key, version, value, spent):
+        if self.rows[key]["version"] != version or (key, spent) in self.spent: return False
+        self.rows[key] = copy.deepcopy(value)
+        self.spent.add((key, spent))
+        return True
     def replace(self, key, version, value):
         if self.rows[key]["version"] != version: return False
         self.rows[key] = copy.deepcopy(value)
@@ -144,19 +150,44 @@ def step(context):
 @then('they are refused without looking them up')
 def step(context): assert not context.lookups
 
-@when('its refresh limit is reached')
+@given('a client holds a grant with a seven-day deadline')
 def step(context):
-    context.key = context.tokens['refresh_token'].split('.')[0]
-    context.store.rows[context.key]['used_refresh'] = ['x'] * g.MAX_REFRESHES
+    setup(context)
+    context.deadline = context.now + 7 * 86400
+    context.tokens = exchange(context, issue(context, expiry=context.deadline))
+    context.old_access_invalid = True
+
+@when('it refreshes every fifteen minutes until the deadline')
+def step(context):
+    while context.now + 900 < context.deadline:
+        context.now += 900
+        previous = context.tokens['access_token']
+        context.tokens = context.grants.refresh(context.tokens['refresh_token'], client='client', resource=context.args['resource'])
+        context.old_access_invalid &= context.grants.verify(previous, resource=context.args['resource']) is None
+        assert context.store.get(context.tokens['access_token'].split('.')[0])['expires'] == context.deadline
+
+@then('each previous access token fails immediately after rotation')
+def step(context): assert context.old_access_invalid
+
+@then('the deadline never moves and the grant fails at the deadline')
+def step(context):
+    context.now = context.deadline
+    assert context.grants.verify(context.tokens['access_token'], resource=context.args['resource']) is None
     refused(lambda: context.grants.refresh(context.tokens['refresh_token'], client='client', resource=context.args['resource']))
 
-@then('the grant is revoked and its stored identity is removed')
+@when('the token is rotated and an unrelated client or publication replays it')
 def step(context):
-    row = context.store.get(context.key)
-    assert row['state'] == 'revoked' and row['principal'] is None
-    version = row['version']
-    context.grants.revoke(context.tokens['refresh_token'], client='client')
-    assert context.store.get(context.key)['version'] == version
+    old = context.tokens['refresh_token']
+    context.new = context.grants.refresh(old, client='client', resource=context.args['resource'])
+    refused(lambda: context.grants.refresh(old, client='other', resource=context.args['resource']))
+    refused(lambda: context.grants.refresh(old, client='client', resource='https://other.example/api/mcp'))
+    context.old = old
+
+@then('the successor remains usable until a real replay revokes it')
+def step(context):
+    assert context.grants.verify(context.new['access_token'], resource=context.args['resource']) == context.person
+    refused(lambda: context.grants.refresh(context.old, client='client', resource=context.args['resource']))
+    assert context.grants.verify(context.new['access_token'], resource=context.args['resource']) is None
 
 @when("the member's ID credential is absent")
 def step(context):

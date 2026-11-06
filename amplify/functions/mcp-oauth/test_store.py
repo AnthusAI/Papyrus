@@ -37,3 +37,41 @@ def test_large_credentials_round_trip_and_are_bound_to_site():
     other = module.DynamoGrantStore(dynamo, kms, "table", "key", "https://two.example")
     with pytest.raises(ValueError, match="context mismatch"):
         other.get("grant")
+
+
+def test_rotation_transaction_contract_and_consistent_tombstone_read():
+    from unittest.mock import Mock
+    dynamo, kms = Mock(), Kms()
+    store = module.DynamoGrantStore(dynamo, kms, 'table', 'key', 'https://site.example')
+    value = {'version': 4, 'expires': 6000, 'storage_expiry': 7000, 'principal': {'idToken': 'secret'}}
+    assert store.rotate('grant', 3, value, 'digest')
+    request = dynamo.transact_write_items.call_args.kwargs
+    grant, spent = [action['Put'] for action in request['TransactItems']]
+    assert grant['TableName'] == spent['TableName'] == 'table'
+    assert grant['ConditionExpression'] == '#v = :v'
+    assert grant['ExpressionAttributeValues'] == {':v': {'N': '3'}}
+    assert grant['Item']['version'] == {'N': '4'}
+    assert spent['ConditionExpression'] == 'attribute_not_exists(pk)'
+    assert spent['Item'] == {'pk': {'S': 'spent#grant#digest'}, 'expiresAt': {'N': '6000'}}
+    assert 'secret' not in str(request)
+    dynamo.get_item.return_value = {'Item': spent['Item']}
+    assert store.is_spent('grant', 'digest')
+    dynamo.get_item.assert_called_once_with(TableName='table', Key={'pk': {'S': 'spent#grant#digest'}}, ConsistentRead=True)
+
+
+def test_transaction_retries_only_contention():
+    from unittest.mock import Mock
+    class Failure(Exception):
+        def __init__(self, code, reasons=None):
+            self.response = {'Error': {'Code': code}}
+            if reasons is not None: self.response['CancellationReasons'] = [{'Code': value} for value in reasons]
+    dynamo = Mock()
+    store = module.DynamoGrantStore(dynamo, Kms(), 'table', 'key', 'site')
+    value = {'version': 2, 'expires': 100}
+    dynamo.transact_write_items.side_effect = Failure('TransactionCanceledException', ['ConditionalCheckFailed', 'None'])
+    assert not store.rotate('grant', 1, value, 'digest')
+    dynamo.transact_write_items.side_effect = Failure('TransactionCanceledException', ['TransactionConflict', 'None'])
+    assert not store.rotate('grant', 1, value, 'digest')
+    for error in (Failure('TransactionCanceledException', ['ProvisionedThroughputExceeded', 'None']), Failure('TransactionCanceledException'), Failure('InternalServerError')):
+        dynamo.transact_write_items.side_effect = error
+        with pytest.raises(Failure): store.rotate('grant', 1, value, 'digest')

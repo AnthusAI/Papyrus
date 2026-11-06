@@ -25,3 +25,16 @@ def test_invalid_token_and_storage_failure_are_distinct(monkeypatch):
     request['token'] = 'a' * 43 + '.' + 'b' * 43
     with pytest.raises(RuntimeError, match='storage unavailable'):
         handler.handler(request, None)
+
+
+def test_valid_request_does_not_mask_storage_type_or_key_errors(monkeypatch):
+    for key, value in {'MCP_ORIGIN': 'https://cms.example', 'MCP_GRANT_TABLE': 'table', 'MCP_KMS_KEY': 'key'}.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(handler.boto3, 'client', lambda service: Mock())
+    store = Mock()
+    monkeypatch.setattr(handler, 'DynamoGrantStore', lambda *args: store)
+    request = {'operation': 'refresh', 'token': 'a' * 43 + '.' + 'b' * 43, 'resource': 'https://cms.example/api/mcp', 'client': 'client'}
+    for error in (TypeError('corrupt'), KeyError('corrupt')):
+        store.get.side_effect = error
+        with pytest.raises(type(error)): handler.handler(request, None)
+    assert handler.handler({'operation': 'refresh'}, None) == {'error': 'invalid_request'}
