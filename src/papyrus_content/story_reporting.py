@@ -362,12 +362,17 @@ def link_reference_to_story(
     citation_key: str | None = None,
     now: str | None = None,
     assignment_id: str | None = None,
+    story: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Attaches a reference to a story, or changes its role (consulted to cited) when already attached. ``assignment_id`` records the research Assignment that found it."""
+    """Attaches a reference to a story, or changes its role (consulted to cited) when already attached. ``assignment_id`` records the research Assignment that found it.
+
+    ``story`` is the story's record when the caller has just read or written it by id. Without it the record is found through the ``itemsByLineageAndVersion`` index,
+    which is eventually consistent: asked for in the moment after the story was created, it can answer with nothing and raise ``No story found for lineage ...``
+    (the idea pipeline hit exactly that when it filed an idea and linked its References in the same breath)."""
     if role not in STORY_REFERENCE_ROLES:
         raise ValueError(f"role must be one of {', '.join(STORY_REFERENCE_ROLES)}.")
     now = now or utc_now_iso()
-    story = latest_story_version(client, lineage_id)
+    story = story or latest_story_version(client, lineage_id)
     reference = current_reference(client, reference_id)
     if reference is None:
         raise ValueError(f"Reference not found: {reference_id}")
