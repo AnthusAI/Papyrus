@@ -6,6 +6,7 @@ import type { ReferenceSearchReader, ReferenceSearchShow, ReferenceSearchSort } 
 import { choose, useFeedPreferences, type FeedChoices } from "./use-feed-preferences";
 import { feedChoicesFromSearch } from "../lib/reference-feed-view";
 import { useFeedSearch } from "./use-indexed-reference-feed";
+import { DEFAULT_FEED_MEDIUM, feedMediumFromSearch, searchWithMedium, type FeedMedium } from "../lib/reference-medium-feed";
 
 /**
  * The feed's Sort, Reviewed (`show`), Minimum stars and Captured controls, with and without a search open. Without one they are the saved choices. While a search is open
@@ -34,7 +35,6 @@ export function useFeedControls({ searchRead, onChange }: { searchRead: Referenc
   const search = useFeedSearch({ enabled: Boolean(searchRead), read: searchRead, onChange, minStars: effective.minStars, captured: effective.captured });
   const { searching } = search;
   const { setSort: setSearchSort, setShow: setSearchShow, show: searchShow } = search;
-  const sort: FeedSort | ReferenceSearchSort = searching ? search.sort : effective.sort;
   const show: FeedShow | ReferenceSearchShow = searching ? searchShow : effective.show;
   const setSort = useCallback((next: FeedSort | ReferenceSearchSort) => {
     if (!searching) { if (next !== "relevance") change({ sort: next }); return; }
@@ -48,5 +48,29 @@ export function useFeedControls({ searchRead, onChange }: { searchRead: Referenc
     if (searching && next !== 0 && searchShow === "unrated") setSearchShow("all");
   }, [change, searching, searchShow, setSearchShow]);
   const setCaptured = useCallback((next: FeedCaptured) => change({ captured: next }), [change]);
-  return { sort, setSort, show, setShow, minStars: effective.minStars, setMinStars, captured: effective.captured, setCaptured, saved: effective, search };
+
+  // Medium lives in the address (`?medium=video`) and nowhere else: a link to "pending videos" works, and a saved choice never hides the rest by surprise.
+  // The medium index is by arrival and cannot order by prediction, so a medium reads Newest while the saved Sort is Predictions (the saved Sort is not
+  // changed), and choosing Predictions takes the medium off. A search ignores the medium (the search page has its own choices).
+  const [medium, setMediumState] = useState<FeedMedium>(DEFAULT_FEED_MEDIUM);
+  useEffect(() => {
+    const fromUrl = () => setMediumState(feedMediumFromSearch(window.location.search));
+    fromUrl();
+    window.addEventListener("popstate", fromUrl);
+    return () => window.removeEventListener("popstate", fromUrl);
+  }, []);
+  const setMedium = useCallback((next: FeedMedium) => {
+    setMediumState(next);
+    const target = `${window.location.pathname}${searchWithMedium(window.location.search, next)}${window.location.hash}`;
+    if (target !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, "", target);
+  }, []);
+  const viewSort: FeedSort = medium !== "any" && effective.sort === "best" ? "newest" : effective.sort;
+  const setSortKeepingMedium = useCallback((next: FeedSort | ReferenceSearchSort) => {
+    if (next === "best" && !searching) setMedium("any");
+    setSort(next);
+  }, [searching, setMedium, setSort]);
+  return {
+    sort: searching ? search.sort : viewSort, setSort: setSortKeepingMedium, show, setShow, minStars: effective.minStars, setMinStars, captured: effective.captured, setCaptured,
+    medium, setMedium, saved: { ...effective, sort: viewSort }, search,
+  };
 }

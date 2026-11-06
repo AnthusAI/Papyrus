@@ -28,6 +28,7 @@ from papyrus_content.operator_errors import (  # noqa: E402
 )
 from papyrus_newsroom import cli as newsroom_cli  # noqa: E402
 from papyrus.operator.group_commands import REPORTING_COMMANDS, RESEARCH_COMMANDS, SECTIONS_COMMANDS  # noqa: E402
+from papyrus.operator.help_dispatch import answer_help  # noqa: E402
 from papyrus.operator.help_text import TOP_LEVEL_HELP, print_group_help  # noqa: E402
 from papyrus.operator.runtime import (  # noqa: E402
     dispatch_operator_command,
@@ -315,6 +316,10 @@ def _run_with_arguments(argv: list[str] | None) -> int:
     if not args or args == ["--help"] or (len(args) == 1 and args[0] in {"--help", "-h"}):
         _usage()
         return 0
+    # Help for any command or group, ahead of sign-in, the root guard and every command (mutations write by default).
+    help_status = answer_help(args)
+    if help_status is not None:
+        return help_status
     if args[0] == "--version":
         from papyrus import __version__
 

@@ -29,7 +29,6 @@ import { claimGroups, hasEditorRights } from "../../../lib/staff-groups";
 import {
   classifyCurationCaller,
   cliClientIdFromEnvironment,
-  isCliSession,
   requireDelegationAgent,
   requireDelegationApprover,
   requireDelegationWithdrawer,
@@ -267,6 +266,7 @@ async function reviewReferenceCuration(
   delegation: { delegationId: string; relayedBy: string; instruction: string } | null = null,
   agentCondition: { lineageId: string; expectedRevision: string } | null = null,
 ) {
+  if (!delegation && getIdentitySub(event)) requireEditorGroups(event, "accept, reject or rate");   // a person's session, CLI or Newsroom; operators on AWS credentials have no sub
   const client = await getDataClient();
   const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
   const action = normalizeReferenceCurationAction(event.arguments.action);
@@ -297,7 +297,9 @@ async function reviewReferenceCuration(
   const now = nextReferenceRevision(reference.updatedAt);
   const actorSub = normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event);
   const actorLabel = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event);
-  const actor = actorLabel ?? actorSub ?? "Papyrus newsroom";
+  const person = actorLabel ?? actorSub ?? "Papyrus newsroom";
+  // A delegated vote already names the agent and the delegation; a direct one gets the plain `via` note.
+  const actor = delegation ? person : withViaNote(person, event, normalizeOptionalString((event.arguments as { agentLabel?: string | null }).agentLabel));
   const note = writtenReason;
   const decisionRelationId = normalizeOptionalString(event.arguments.decisionRelationId);
 
@@ -312,9 +314,8 @@ async function reviewReferenceCuration(
       curationStatusUpdatedBy: actor,
       curationStatusReason: note,
       ...referenceVoteFields({
-        // A delegated vote is the person's. A session on the CLI client is a script or an agent working in an editor's account, so its own
-        // direct vote is the agent's, never a human label for the Cyclotron; only the Newsroom's sessions vote as a person.
-        actorKind: delegation ? "human" : agentCondition || curationCaller(event).lane === "cli-session" ? "agent" : curationActorKind(event.identity),
+        // MCP decisions are agent decisions; a signed-in CLI or Newsroom session votes as its editor, unless relayed under delegation.
+        actorKind: delegation ? "human" : agentCondition ? "agent" : curationActorKind(event.identity),
         reasonCode,
         sectionId,
         shareable: event.arguments.shareable ?? null,
@@ -378,6 +379,17 @@ async function updateReferenceCuration(client: DataClient, input: Record<string,
 
 function curationCaller(event: { identity?: unknown }): CurationCaller {
   return classifyCurationCaller(event.identity, cliClientIdFromEnvironment());
+}
+
+/**
+ * Where a direct decision came from, as a plain note after the person's name ("Ryan via cli (Claude)"). It never gates anything: a signed-in
+ * editor or admin session decides as that person whichever client it came from. The Newsroom and operator sessions get no note.
+ */
+function withViaNote(actor: string, event: { identity?: unknown }, agentLabel: string | null | undefined): string {
+  const lane = curationCaller(event).lane;
+  const via = lane === "cli-session" ? "cli" : lane === "unseparated-session" || lane === "unreadable-client-session" ? "signed-in" : null;
+  if (!via) return actor;
+  return `${actor} via ${via}${agentLabel ? ` (${agentLabel})` : ""}`;
 }
 
 /**
@@ -593,6 +605,10 @@ async function recordDelegatedStars(event: Parameters<RecordDelegatedStarsHandle
     stars: normalizeReferenceStars(event.arguments.stars),
     actor: `${delegation.grantorLabel} via ${agentLabel} (delegation ${delegationId})`,
     now,
+    acceptOnRating: (referenceId, stars) => reviewReferenceCuration({
+      ...event,
+      arguments: { referenceId, action: "accept", note: starsAcceptNote(stars), actorSub: delegation.grantorSub, actorLabel: delegation.grantorLabel },
+    } as unknown as Parameters<ReferenceCurationHandler>[0], { delegationId, relayedBy: agentLabel, instruction: normalizeRequiredString(event.arguments.instruction, "instruction").slice(0, 2000) }),
   });
 }
 
@@ -624,20 +640,37 @@ async function recordDelegatedCuration(event: Parameters<RecordDelegatedCuration
  * no `feedArrivalAt` gets one, because the star index sorts by it and a row without it is not in the index.
  */
 async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
-  if (isCliSession(curationCaller(event))) {
-    throw new Error("A CLI session cannot file a rating as the person. Use `papyrus references set-stars` with a delegation the person approved.");
-  }
+  if (getIdentitySub(event)) requireEditorGroups(event, "accept, reject or rate");
   const client = await getDataClient();
-  const actor = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom";
+  const actor = withViaNote(
+    normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom",
+    event,
+    normalizeOptionalString((event.arguments as { agentLabel?: string | null }).agentLabel),
+  );
   return writeReferenceStars(client, {
     referenceId: normalizeRequiredString(event.arguments.referenceId, "referenceId"),
     stars: normalizeReferenceStars(event.arguments.stars),
     actor,
     now: new Date().toISOString(),
+    // Rating a pending Reference is also accepting it, by the same person and session, through the ordinary accept path.
+    acceptOnRating: (referenceId, stars) => reviewReferenceCuration({
+      ...event,
+      arguments: { referenceId, action: "accept", note: starsAcceptNote(stars), actorSub: event.arguments.actorSub, actorLabel: event.arguments.actorLabel },
+    } as unknown as Parameters<ReferenceCurationHandler>[0]),
   });
 }
 
-async function writeReferenceStars(client: DataClient, input: { referenceId: string; stars: number | null; actor: string; now: string }) {
+function starsAcceptNote(stars: number): string {
+  return `Accepted by rating it ${stars} of 5 stars.`;
+}
+
+async function writeReferenceStars(
+  client: DataClient,
+  input: {
+    referenceId: string; stars: number | null; actor: string; now: string;
+    acceptOnRating: (referenceId: string, stars: number) => Promise<{ status: string }>;
+  },
+) {
   const { referenceId, stars, actor } = input;
   const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
   const now = nextReferenceRevision(reference.updatedAt, input.now);
@@ -651,7 +684,13 @@ async function writeReferenceStars(client: DataClient, input: { referenceId: str
     }),
     "update Reference stars",
   );
-  return { ok: true, referenceId, stars, status: normalizeOptionalString(reference.curationStatus) ?? "pending" };
+  const status = normalizeOptionalString(reference.curationStatus) ?? "pending";
+  // Any star on a pending Reference accepts it. An accepted or rejected one keeps its status, and clearing stars never changes it.
+  if (stars !== null && status === "pending") {
+    const accepted = await input.acceptOnRating(referenceId, stars);
+    return { ok: true, referenceId, stars, status: accepted.status };
+  }
+  return { ok: true, referenceId, stars, status };
 }
 
 /**
@@ -663,10 +702,7 @@ async function writeReferenceStars(client: DataClient, input: { referenceId: str
  * does not republish it. Stars are private editorial signals and are never copied to `PublishedItem` or any projection.
  */
 async function setItemStars(event: Parameters<ItemStarsHandler>[0]) {
-  // No CLI command rates Stories, and a CLI-client session may not file a rating as the person (it also chooses `actorLabel`).
-  if (isCliSession(curationCaller(event))) {
-    throw new Error("A CLI session cannot file a Story rating as the person. Rate Stories in the Newsroom.");
-  }
+  if (getIdentitySub(event)) requireEditorGroups(event, "accept, reject or rate");
   const client = await getDataClient();
   const itemId = normalizeRequiredString(event.arguments.itemId, "itemId");
   const stars = normalizeReferenceStars(event.arguments.stars);
@@ -688,7 +724,11 @@ async function setItemStars(event: Parameters<ItemStarsHandler>[0]) {
     ? pool.reduce((best, row) => (`${row.versionCreatedAt ?? ""}|${String(row.versionNumber ?? 0).padStart(9, "0")}` > `${best.versionCreatedAt ?? ""}|${String(best.versionNumber ?? 0).padStart(9, "0")}` ? row : best))
     : { id: itemId };
   const now = new Date().toISOString();
-  const actor = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom";
+  const actor = withViaNote(
+    normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event) ?? normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event) ?? "Papyrus newsroom",
+    event,
+    normalizeOptionalString((event.arguments as { agentLabel?: string | null }).agentLabel),
+  );
   await requireDataResult(
     client.models.Item.update({ id: newest.id, ...referenceStarFields(stars, actor, now), starRevision: randomUUID() }),
     "update Story stars",
@@ -700,7 +740,7 @@ async function setItemStars(event: Parameters<ItemStarsHandler>[0]) {
 /** Agent rating with an atomic condition on the exact Story card, never an assertion of a person's judgement. */
 async function agentSetItemStars(event: Parameters<AgentItemStarsHandler>[0]) {
   const caller = curationCaller(event);
-  if (isCliSession(caller) || caller.lane === "iam" || caller.lane === "unreadable-client-session")
+  if (caller.lane === "cli-session" || caller.lane === "iam" || caller.lane === "unreadable-client-session")
     throw new Error("This session cannot rate Stories through this action.");
   const sub = normalizeRequiredString(getIdentitySub(event), "identity.sub");
   const itemId = normalizeRequiredString(event.arguments.itemId, "itemId");

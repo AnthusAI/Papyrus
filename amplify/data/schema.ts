@@ -390,6 +390,7 @@ const definitions = {
       action: a.string().required(),
       actorSub: a.string(),
       actorLabel: a.string(),
+      agentLabel: a.string(),
       note: a.string(),
       reasonCode: a.string(),
       decisionRelationId: a.id(),
@@ -545,6 +546,7 @@ const definitions = {
       stars: a.integer(),
       actorSub: a.string(),
       actorLabel: a.string(),
+      agentLabel: a.string(),
     })
     .returns(a.ref("ReferenceStarsActionResult"))
     .authorization((allow) => [
@@ -569,6 +571,7 @@ const definitions = {
       stars: a.integer(),
       actorSub: a.string(),
       actorLabel: a.string(),
+      agentLabel: a.string(),
     })
     .returns(a.ref("ItemStarsActionResult"))
     .authorization((allow) => [

@@ -1002,7 +1002,7 @@ def test_the_router_zip_closure_carries_the_vector_pass_and_the_knowledge_query_
     needed = ["monitoring_vectors", "reference_suggest_once", "reference_suggestions", "suggestion_calibration", "reference_links", "knowledge_snapshot/keys", "knowledge_wiki/pages", "corpus_storage_paths"]
     assert set(needed) <= set(modules), sorted(set(needed) - set(modules))
     files = build.knowledge_query_files()
-    assert set(files) == {f"papyrus_knowledge_query/{name}.py" for name in ("__init__", "concept_kinds", "cuts", "engine", "ranking", "reference_search", "services", "tokens", "uris", "vector_index")}
+    assert set(files) == {f"papyrus_knowledge_query/{name}.py" for name in ("__init__", "concept_kinds", "cuts", "engine", "ranking", "reference_search", "reference_words", "services", "tokens", "uris", "vector_index")}
     assert sum(len(data) for data in files.values()) < 1_000_000   # source only: far below the zip's bound
     task = tmp_path / "task"
     for name in ["__init__", *modules]:

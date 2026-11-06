@@ -1,17 +1,13 @@
-Feature: An agent on the signed-in CLI records an editor's accept, reject and star rating under a delegation the editor approves in the Newsroom
-  An editor can ask an agent to help them curate References: "accept that one with four stars". The agent may only do that under a
-  delegation, which is the editor's permission, approved by the editor in the Newsroom with a short code, lasting a limited number of hours,
-  naming the agent, and revocable at any time. Until now the agent had to be on an AWS login to ask for one. This feature is about the lane
-  where the agent works in the editor's own signed-in `papyrus` session and has no AWS login at all.
-  The danger of that lane is that the agent's session is the editor's own session. If the same session could ask for a delegation and then
-  approve it, the editor's approval would mean nothing. So the Newsroom tells the two apart by the sign-in client the session's token was
-  issued to, which Cognito signs and an agent cannot change: a site that signs the CLI in on its own client (cliOnFederationClient) lets
-  that client's sessions ask for a delegation and relay decisions under one, and lets only the Newsroom's sessions approve, deny with a
-  code, create or list delegations. A site that has not separated them refuses signed-in requests altogether, so nothing is weakened by
-  turning the lane on.
-  A relayed decision is the editor's, carried by an agent: it names the agent and the delegation, and never reads as the editor's own
-  direct action. Nothing here touches a real site, login, network or AWS; the Newsroom's backend function runs against an in-memory data
-  client.
+Feature: An agent on the signed-in CLI accepts, rejects and rates as the signed-in editor, with no delegation; delegations stay optional
+  An editor or administrator can ask an agent to help them curate References: "accept that one with four stars". The agent works in the
+  editor's own signed-in `papyrus` session and acts directly as that person: its accepts, rejects and star ratings are recorded as the
+  editor's own decisions, with a plain note of where they came from (`via cli`, and the agent's name if it gives one). Nothing requires a
+  delegation, a code or an approval step, and the note is never a gate. Only the editor and administrator groups may do it.
+  A delegation is still available, optionally, for anyone who wants it: the editor's permission for an agent to relay decisions, approved by
+  the editor in the Newsroom with a short code, lasting a limited number of hours, naming the agent, and revocable at any time. Because an
+  agent's session is the editor's own, the Newsroom tells the sessions apart by the sign-in client the token was issued to (cliOnFederationClient),
+  so a session cannot approve its own delegation request. A relayed decision names the agent and the delegation. Nothing here touches a real
+  site, login, network or AWS; the Newsroom's backend function runs against an in-memory data client.
 
   Scenario: An agent asks for a delegation from a signed-in session with no AWS login
     Given the CLI is signed in to a site and has no AWS credentials
@@ -85,17 +81,22 @@ Feature: An agent on the signed-in CLI records an editor's accept, reject and st
     And the rating is filed as the editor's rating relayed by the agent under that delegation
     And the audit record keeps the agent's name, the approver and the editor whose session asked
 
-  Scenario: A direct vote from a CLI session is the agent's, not a human label
+  Scenario: A direct vote from a signed-in CLI session is the editor's own, with a plain note of where it came from
     Given a site that signs its CLI in on its own client
     When a CLI session votes without a delegation and a Newsroom session votes
-    Then the first is recorded as an agent's vote and the second as a person's
+    Then both are recorded as the person's vote, and the CLI's carries a note that it came through the CLI and the agent's name
 
   Scenario: A relayed rating follows the rules of the Newsroom's own rating
     Given a site that signs its CLI in on its own client
     When the agent relays ratings from zero to six, a half star, a four, a five and a clear
     Then ratings outside one to five are refused and write nothing
     And the newest rating wins and a clear removes who and when
-    And a rating never changes the accept or reject
+    And rating a pending Reference accepts it as the editor's decision relayed by the agent, and a rating never changes an accept or reject already made
+
+  Scenario: An agent accepts and rates as the signed-in editor with no delegation at all
+    Given the CLI is signed in to a site and has no AWS credentials
+    When the agent approves a Reference and rates another with the plain commands
+    Then the session's token carries an accept and a rating that name the agent, with no delegation anywhere
 
   Scenario: The command refuses a bad rating and a dry run sends nothing
     Given the CLI is signed in to a site and has no AWS credentials
@@ -109,10 +110,10 @@ Feature: An agent on the signed-in CLI records an editor's accept, reject and st
     Then each attempt is refused because the client could not be read
     And the request is still waiting for the Newsroom
 
-  Scenario: A CLI session cannot file a rating as the editor without a delegation
+  Scenario: A signed-in CLI session rates as the editor without a delegation
     Given a site that signs its CLI in on its own client
     When a CLI session sets a Reference or Story rating directly, naming the editor as the rater
-    Then both are refused, the first pointing at set-stars, and nothing is written
+    Then both ratings are saved as the editor's, with a note that they came through the CLI
     And a Newsroom session's own rating and a delegated rating still work
 
   Scenario: An editor's session cannot forge an approved delegation through the models it can write

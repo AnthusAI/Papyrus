@@ -16,7 +16,7 @@ from . import signed_in_lane as lane
 from .signed_in_lane import Refusal
 
 SEARCH_QUERY = "query SearchReferences($input: AWSJSON!) { searchReferences(input: $input) }"
-SHOW_CHOICES = ("unrated", "rated", "all")
+SHOW_CHOICES = ("unrated", "rated", "accepted", "rejected", "all")
 FIELD_LABELS = {"title": "title", "authors": "author", "sourceUri": "link", "externalItemId": "id"}
 
 
@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
                                      description="Read-only: find References by words and by meaning through your `papyrus login` session (no AWS credentials)")
     parser.add_argument("query", nargs="+", help="What to look for, such as: agent memory")
     parser.add_argument("--site", help="Which signed-in site, such as shipped.anth.us (needed when several are signed in)")
-    parser.add_argument("--show", choices=SHOW_CHOICES, default="all", help="unrated, rated (accepted or rejected) or all (default)")
+    parser.add_argument("--show", choices=SHOW_CHOICES, default="all", help="unrated (pending), rated (accepted or rejected), accepted, rejected or all (default)")
     parser.add_argument("--limit", type=int, default=24, help="How many References per page (1 to 100, default 24)")
     parser.add_argument("--cursor", help="Continue after this cursor (the `nextCursor` of the previous page)")
     parser.add_argument("--json", action="store_true", help="Print the raw response")

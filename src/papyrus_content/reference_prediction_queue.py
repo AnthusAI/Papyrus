@@ -160,15 +160,32 @@ def request_predictions(client, references: list[dict[str, Any]], *, env=None) -
 
 
 def references_for_prediction(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The request items for created or matched Reference rows: pending, current, with an address, and not already predicted."""
+    """The request items for created or matched Reference rows: current, with an address, and not already predicted.
+
+    Pending or already voted: a Reference an import created accepted, or one an editor accepted before its prediction arrived, still needs one, because the
+    site's Cyclotron learns from votes only on a Reference it has predicted (the feedback pass reads the decision's delivery row)."""
     out = []
     for row in rows:
-        if not row or row.get("versionState", "current") != "current" or row.get("curationStatus", "pending") != "pending":
+        if not row or row.get("versionState", "current") != "current":
             continue
         if row.get("reusedExisting") or has_prediction(row) or not row.get("sourceUri") or not row.get("id"):
             continue
         out.append({"referenceId": row["id"], "sourceUri": row["sourceUri"], "title": row.get("title") or row["sourceUri"]})
     return out
+
+
+#: An unpredicted Reference sorts at exactly this score on the prediction index (reference_feed_keys), so reading highest first can stop below it.
+UNPREDICTED_SORT_KEY = "0.500000"
+
+
+def unpredicted_rows(client, corpus_id: str):
+    """For the by-hand backfill: the rows of a corpus's prediction index (``<corpus>#unrated`` and ``<corpus>#rated``) from the highest score down to 0.5,
+    which is where an unpredicted row sorts. Nothing below 0.5 is read and no other partition is touched; the caller keeps the rows with no number."""
+    for partition in ("unrated", "rated"):
+        for row in client.iterate_newest_first("referencesByFeedStateAndPrediction", f"{corpus_id}#{partition}"):
+            if str(row.get("predictionSortKey") or "") < UNPREDICTED_SORT_KEY:
+                break
+            yield row
 
 
 def references_created_by(changes: list[dict[str, Any]]) -> list[dict[str, Any]]:

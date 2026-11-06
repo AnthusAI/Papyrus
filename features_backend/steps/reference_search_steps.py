@@ -19,11 +19,10 @@ def _site(context, rows, page=100, vectors=None):
     rs.clear_meaning_cache()
     context.site = FakeSite(rows, page=page)
     context.vectors = vectors
-    context.index = rs.ReferenceWordIndex()
 
 
 def _search(context, query, show="all", **extra):
-    context.result = rs.search_references({"query": query, "show": show, **extra}, graphql=context.site.graphql, vectors=context.vectors, index=context.index)
+    context.result = rs.search_references({"query": query, "show": show, **extra}, words=context.site.source if context.site else None, vectors=context.vectors)
     return context.result
 
 
@@ -204,18 +203,10 @@ def lanes_say(context):
     assert "connection reset" not in str(lanes)
 
 
-class _DownSite:
-    calls = []
-
-    @staticmethod
-    def graphql(query, variables):
-        raise RuntimeError("AppSync is unreachable")
-
-
 @given("a site where neither the References nor the vector index can be reached")
 def all_down(context):
     rs.clear_meaning_cache()
-    context.site, context.vectors, context.index = _DownSite(), FakeVectors(error=RuntimeError("down")), rs.ReferenceWordIndex()
+    context.site, context.vectors = None, FakeVectors(error=RuntimeError("down"))
 
 
 @then("no cards are returned and both searches are reported as failed")
@@ -251,22 +242,20 @@ def exactly_once(context):
 def foreign_cursor(context):
     for query, show in (("another phrase", "all"), ("shared phrase", "rated")):
         with pytest.raises(rs.SearchError):
-            rs.search_references({"query": query, "show": show, "cursor": context.cursor}, graphql=context.site.graphql, vectors=None, index=context.index)
+            rs.search_references({"query": query, "show": show, "cursor": context.cursor}, words=context.site.source if context.site else None, vectors=None)
 
 
-@given("a site whose search has already read its References once")
-def read_once(context):
-    _site(context, [row("z", "Settled", updated="2026-11-01T09:00:00.000Z"), row("a", "Old title", updated="2026-11-01T10:00:00.000Z"),
-                    row("b", "Another", updated="2026-11-01T10:30:00.000Z")], page=100)
-    _search(context, "another")
-    context.site.calls.clear()
+@given("a site whose word table follows its References")
+def follows(context):
+    _site(context, [row("z", "Settled", updated="2026-11-01T09:00:00.000Z"), row("a", "Old title", updated="2026-11-01T10:00:00.000Z")], page=100)
 
 
 @when("a Reference's title changes and an editor searches for its new title")
 def title_changes(context):
-    context.site.rows[0] = row("a", "Fresh title", updated="2026-11-01T10:30:05.000Z", version=2)
+    old = context.site.rows["a"]
+    context.site.change(old, row("a", "Fresh title", updated="2026-11-01T10:30:05.000Z", version=2))   # the stream record: a new version of the same lineage
+    context.site.change(old, {**old, "versionState": "superseded"})
     context.fresh = _search(context, "fresh")
-    context.rows_read = context.index.rows_read
 
 
 @then("it is found under the new title and not the old one")
@@ -274,26 +263,39 @@ def new_title(context):
     assert _ids(context.fresh) == ["a"] and _search(context, "old")["items"] == []
 
 
-@then("only References changed since the last read were read, with a short overlap")
-def only_changed(context):
-    assert context.site.calls[0]["updatedAt"] == {"ge": "2026-11-01T10:28:00.000Z"}
-    assert context.rows_read == 3 + 2   # the first read took all three; this one took the changed Reference and the one inside the overlap, not the settled one
+@given("a site with 300 References, six of which share one word")
+def three_hundred(context):
+    _site(context, [row(f"r{n}", f"Story number {n} about {'sound' if n % 50 == 0 else 'filler'}") for n in range(300)])
 
 
-@given("a site with 5 current References, one of them archived, read two at a time")
-def five(context):
-    _site(context, [row("a", "Alpha"), row("b", "Beta"), row("c", "Gamma", state=None), row("d", "Delta"), row("e", "Epsilon")], page=2)
+@when("an editor searches for that word")
+def search_that_word(context):
+    _search(context, "sound")
 
 
-@when("an editor searches for the first time")
-def first_search(context):
-    _search(context, "alpha")
+@then("six cards are returned")
+def six_cards(context):
+    assert len(context.result["items"]) == 6
 
 
-@then("every page was read, the archived Reference is left out, and the time it took is logged")
-def cold_build(context):
-    assert len(context.site.calls) == 3 and len(context.index) == 4 and context.index.built_in_ms is not None
-    assert context.index.search("gamma", "all") == []
+@then("the search read six word rows and the six Reference rows they pointed at, and nothing else")
+def only_matched(context):
+    assert context.site.dynamo.items_read == 12 and {operation for operation, _table in context.site.dynamo.requests} <= {"query", "batch_get_item"}
+
+
+@given('a site where a video\'s title holds the word "sound" among many other results the meaning search prefers')
+def sound_site(context):
+    from procedures.newsroom.tests.test_reference_search import smooth_tail
+
+    others = [row(f"other{n}", f"Another story about location tracking {n}", state="rated", curationStatus="accepted") for n in range(40)]
+    _site(context, others + [row("sound", "I discovered a sound that leaks your exact location", state="unrated")],
+          vectors=FakeVectors([(f"other{n}", 0.1 + n / 1000) for n in range(40)] + smooth_tail()), page=5)
+
+
+@then("the video is the first result, found by words in its title")
+def video_first(context):
+    first = context.result["items"][0]
+    assert first["reference"]["lineageId"] == "sound" and first["matchedBy"] == ["keyword"] and "title" in first["matchedFields"]
 
 
 @given("the search is asked for through an Amplify resolver by an editor")
@@ -373,7 +375,7 @@ def forgetting_site(context, query):
 
     context.question = query
     site = build()
-    _site(context, site.rows, vectors=FakeVectors([("interference", 0.30), ("replay", 0.32), ("wide", 0.33)] + smooth_tail()))
+    _site(context, list(site.rows.values()), vectors=FakeVectors([("interference", 0.30), ("replay", 0.32), ("wide", 0.33)] + smooth_tail()))
 
 
 @given("the vector index cannot be reached")
@@ -405,7 +407,7 @@ def hinton_site(context):
     rows = [row(f"hinton{n}", f"Paper {n}", authors=["Geoffrey Hinton"], updated=f"2026-11-01T10:0{n}:00.000Z") for n in range(7)]
     rows += [row("other", "Boltzmann machines"), row("sem", "Learning representations")]
     _site(context, rows, vectors=FakeVectors([("sem", 0.2), ("other", 0.21)] + smooth_tail()))
-    context.words_only = rs.search_references({"query": "Hinton", "show": "all"}, graphql=context.site.graphql, vectors=None, index=rs.ReferenceWordIndex())
+    context.words_only = rs.search_references({"query": "Hinton", "show": "all"}, words=context.site.source if context.site else None, vectors=None)
 
 
 @then("the 7 author matches come first in the same order as with the word search alone")

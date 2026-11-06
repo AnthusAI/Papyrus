@@ -130,7 +130,7 @@ async function main() {
   assert.deepEqual([first.ok, first.itemId, first.lineageId, first.stars], [true, "story-v2", "story", 4], "the rating goes on the Story's working record, whichever version was named");
   const row = () => rows.get("story-v2")!;
   assert.equal(row().starRating, 4);
-  assert.equal(row().starRatedBy, "fixture@example.test");
+  assert.equal(row().starRatedBy, "fixture@example.test via signed-in", "a signed-in session rates as the person; where it came from is a plain note (no CLI client is named here)");
   assert.ok(typeof row().starRatedAt === "string");
   assert.equal(rows.get("story-v1")!.starRating, undefined, "an older version is not rated");
   assert.deepEqual(writes.map((write) => [write.model, write.operation]), [["Item", "update"]], "a plain update of one row: no new version, no published write");

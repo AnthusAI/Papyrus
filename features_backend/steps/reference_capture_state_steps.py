@@ -194,12 +194,11 @@ def _(context):
 # --- search ---------------------------------------------------------------------------------------------------------------------------------
 
 
-class Site:
-    def __init__(self, rows):
-        self.rows = rows
+def Site(rows):
+    """The shared in-memory site: the Reference rows and the word table written from them."""
+    from procedures.newsroom.tests.test_reference_search import FakeSite
 
-    def graphql(self, query, variables):
-        return {"listReferencesByVersionStateAndUpdatedAt": {"items": self.rows, "nextToken": None}}
+    return FakeSite(rows)
 
 
 def _row(lineage, state):
@@ -210,7 +209,7 @@ def _row(lineage, state):
 
 
 def _search(context, **extra):
-    return rs.search_references({"query": "topic", "show": "all", **extra}, graphql=context.site.graphql, vectors=None, index=rs.ReferenceWordIndex())
+    return rs.search_references({"query": "topic", "show": "all", **extra}, words=context.site.source, vectors=None)
 
 
 @given("searchable References where two are full, one is thin, one is running and one has no capture state")

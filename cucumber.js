@@ -110,14 +110,29 @@ module.exports = {
     require: ["features/step_definitions/reference-search.steps.js"],
     format: ["summary"],
   },
+  searchResults: {
+    paths: ["features/newsroom-search-results.feature"],
+    require: ["features/step_definitions/search-results.steps.js"],
+    format: ["summary"],
+  },
   referenceQuality: {
     paths: ["features/newsroom-reference-quality.feature"],
     require: ["features/step_definitions/reference-quality.steps.js"],
     format: ["summary"],
   },
+  addReference: {
+    paths: ["features/newsroom-add-reference.feature"],
+    require: ["features/step_definitions/add-reference.steps.js"],
+    format: ["summary"],
+  },
   referenceMedium: {
     paths: ["features/newsroom-reference-medium.feature"],
     require: ["features/step_definitions/reference-medium.steps.js"],
+    format: ["summary"],
+  },
+  referenceMediumFilter: {
+    paths: ["features/newsroom-reference-medium-filter.feature"],
+    require: ["features/step_definitions/reference-medium-filter.steps.js"],
     format: ["summary"],
   },
   referenceCaptureNeeded: {

@@ -25,13 +25,16 @@ def _field_name(event: dict[str, Any]) -> str:
 
 
 def _search_references(event: dict[str, Any], input_payload: dict[str, Any], services: Any) -> dict[str, Any]:
-    from . import reference_search
+    from . import reference_search, reference_words
 
     reference_search.require_editor(event)
-    graph = getattr(services, "graph", None)
+    try:
+        words = reference_words.DynamoWordSource.from_environment()
+    except RuntimeError:
+        words = None   # not deployed here: the lane reports it and the meaning lane still answers
     return reference_search.search_references(
         input_payload,
-        graphql=graph.graphql if graph is not None else None,
+        words=words,
         vectors=services.semantic if hasattr(services.semantic, "query_by_vector") and hasattr(services.semantic, "embed_text") else None,
     )
 

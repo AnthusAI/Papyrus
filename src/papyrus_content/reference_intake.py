@@ -78,15 +78,34 @@ def _provenance(client, ref: dict, publication: str) -> None:
     upload_attachment_body(client, entry["attachment"], entry["body"])
 
 
+ADDED_FROM_NEWSROOM = "Added by an editor from the Newsroom."
+
+
 def intake_references(client, arguments: dict, identity: dict) -> dict:
+    """Register pending References for an editor-session caller.
+
+    ``publicationEndpoint`` and ``corpusId`` are optional: the Newsroom's Add dialog sends only the address. Left out, the endpoint is the
+    Lambda's own and the corpus is the backend's single canonical corpus; when given they must still match. An item that names only its
+    ``source_uri`` takes the address as its title (capture replaces it) and a fixed rationale, so an editor never has to invent either.
+    """
     actor = _actor(identity)
     if set(arguments) - {"publicationEndpoint", "corpusId", "items"}:
         raise IntakeError("Unsupported intake fields; status, actor and tenant cannot be supplied.")
     publication = os.environ.get("PAPYRUS_GRAPHQL_ENDPOINT", "").rstrip("/")
-    requested_publication = _text(arguments.get("publicationEndpoint"), "publicationEndpoint", 4096)
-    if not publication or requested_publication.rstrip("/") != publication:
+    if not publication:
         raise IntakeError("Intake is bound to this publication endpoint.")
-    corpus_id = _text(arguments.get("corpusId"), "corpusId", 200)
+    if arguments.get("publicationEndpoint") is not None:
+        requested_publication = _text(arguments.get("publicationEndpoint"), "publicationEndpoint", 4096)
+        if requested_publication.rstrip("/") != publication:
+            raise IntakeError("Intake is bound to this publication endpoint.")
+    if arguments.get("corpusId") is not None:
+        corpus_id = _text(arguments.get("corpusId"), "corpusId", 200)
+    else:
+        from .editorial_context import hosted_publication
+        try:
+            corpus_id = hosted_publication(client)["corpusId"]
+        except ValueError as error:
+            raise IntakeError(str(error)) from None
     if not client.get_record("KnowledgeCorpus", corpus_id):
         raise IntakeError("The corpus does not belong to this publication.")
     raw_items = arguments.get("items")
@@ -96,10 +115,11 @@ def intake_references(client, arguments: dict, identity: dict) -> dict:
     for item in raw_items:
         if not isinstance(item, dict) or set(item) - {"source_uri", "item_id", "title", "media_type", "ingestion_rationale"}:
             raise IntakeError("Unsupported source fields.")
-        items.append({"source_uri": canonical_source_url(item.get("source_uri")),
-                      "title": _text(item.get("title"), "title", 1000),
+        source = canonical_source_url(item.get("source_uri"))
+        items.append({"source_uri": source,
+                      "title": _text(item.get("title", source), "title", 1000),
                       "media_type": _text(item.get("media_type", "text/html"), "media_type", 150),
-                      "ingestion_rationale": _text(item.get("ingestion_rationale"), "ingestion_rationale", 4000)})
+                      "ingestion_rationale": _text(item.get("ingestion_rationale", ADDED_FROM_NEWSROOM), "ingestion_rationale", 4000)})
     # Full batch validation precedes all writes. Existing legacy rows participate
     # in URL deduplication without recuration or replacement.
     existing = client.list_records("Reference")

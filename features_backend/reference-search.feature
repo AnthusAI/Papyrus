@@ -2,8 +2,9 @@
 Feature: The References page search finds a Reference again by its words and by its meaning, whatever its state
   An editor types into the one search box on the newsroom References page and gets ordinary Reference cards back, whether the Reference is
   unrated, accepted or rejected. The site's searchReferences query runs two searches together and merges them. The word search looks at each
-  Reference's title, authors, link and id; it keeps its own index in memory, reads every current Reference once when it starts, and afterwards
-  reads only the References changed since, so a Reference changed a moment ago is found. The meaning search embeds the query and asks the vector
+  Reference's title, authors, link and id. It looks each typed word up in a small word table that is written when a Reference is created or
+  changes, so a Reference changed a moment ago is found within seconds; it reads the matching Reference rows and nothing else, never the whole
+  table, whether or not the server has just started. The meaning search embeds the query and asks the vector
   index for the nearest Reference summaries in the states the editor chose, cutting the list at the bend of the whole similarity curve, not at its largest single drop, so a question keeps more than its one nearest hit. The
   two are merged in a fixed order, one entry per Reference: an exact title phrase, then every word in the title or authors, then every word anywhere,
   then meaning matches (a Reference found both ways sits first among them and says so), then partial word matches. Question words such as "why"
@@ -95,16 +96,21 @@ Feature: The References page search finds a Reference again by its words and by 
     Then the next page continues that ordering
     And the same cursor is refused for another ordering or minimum
 
-  Scenario: A Reference updated a moment ago is found without reading the others again
-    Given a site whose search has already read its References once
+  Scenario: A Reference updated a moment ago is found under its new words
+    Given a site whose word table follows its References
     When a Reference's title changes and an editor searches for its new title
     Then it is found under the new title and not the old one
-    And only References changed since the last read were read, with a short overlap
 
-  Scenario: The first search after a start reads every current Reference once and times it
-    Given a site with 5 current References, one of them archived, read two at a time
-    When an editor searches for the first time
-    Then every page was read, the archived Reference is left out, and the time it took is logged
+  Scenario: A search reads only the rows its words matched
+    Given a site with 300 References, six of which share one word
+    When an editor searches for that word
+    Then six cards are returned
+    And the search read six word rows and the six Reference rows they pointed at, and nothing else
+
+  Scenario: An exact word in a title is never missing
+    Given a site where a video's title holds the word "sound" among many other results the meaning search prefers
+    When an editor searches all References for "sound"
+    Then the video is the first result, found by words in its title
 
   Scenario: The search answers when the resolver names its field at the top of the event
     Given the search is asked for through an Amplify resolver by an editor

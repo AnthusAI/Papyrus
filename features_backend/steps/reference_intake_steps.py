@@ -1,7 +1,7 @@
 import copy
 import json
 from behave import given, when, then
-from procedures.newsroom.tests.test_reference_intake import IntakeClient, submit, payload, IDENTITY
+from procedures.newsroom.tests.test_reference_intake import IntakeClient, submit, payload, IDENTITY, address_only
 from papyrus_content.reference_intake import IntakeError
 from papyrus_content.story_reporting import link_reference_to_story, story_references
 from procedures.newsroom.tests.test_story_reporting import LINEAGE
@@ -231,3 +231,49 @@ def same_ids(context):
     first, second = ([line.split("\t")[5] for line in lines if "\trecorded\t" in line] for lines, _ in context.catalog_runs)
     assert first == second == ["ref-paper-1", "ref-paper-2", "ref-paper-3"], (first, second)
 
+
+
+@given('an isolated publication intake backend with one canonical corpus')
+def with_canonical_corpus(context):
+    isolated(context)
+    context.intake_client.tables['KnowledgeCorpus'] = {
+        'knowledge-corpus-pub': {'id': 'knowledge-corpus-pub', 'role': 'canonical', 'name': 'Publication'}}
+    context.intake_before = copy.deepcopy(context.intake_client.tables)
+
+
+@when('its editor registers an address with nothing else')
+def register_address_only(context):
+    try:
+        context.intake_result = submit(context.intake_client, address_only())
+        context.intake_refused = False
+    except IntakeError:
+        context.intake_refused = True
+
+
+@then('the address is a pending Reference in the publication\'s own corpus')
+def address_is_pending(context):
+    ref = context.intake_client.tables['Reference'][context.intake_result['references'][0]['id']]
+    assert ref['curationStatus'] == 'pending'
+    assert ref['corpusId'] == 'knowledge-corpus-pub'
+    context.address_reference = ref
+
+
+@then('its title is the address and its rationale says an editor added it from the Newsroom')
+def address_title(context):
+    assert context.address_reference['title'] == 'https://example.test/well-architected-agent'
+    provenance = json.loads(next(iter(context.intake_client.uploads.values())))
+    assert provenance['rationale'] == 'Added by an editor from the Newsroom.'
+
+
+@then('adding the same address again returns the same Reference')
+def address_again(context):
+    again = submit(context.intake_client, address_only())
+    assert again['references'][0]['id'] == context.intake_result['references'][0]['id']
+    assert len(context.intake_client.tables['Reference']) == 1
+
+
+@then('the registration is refused and nothing is written')
+def address_refused(context):
+    assert context.intake_refused
+    assert not context.intake_client.tables['Reference']
+    assert not context.intake_client.uploads

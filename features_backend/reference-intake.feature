@@ -14,6 +14,20 @@ Feature: Publication-scoped pending Reference intake
     When its editor repeats intake using a canonical equivalent URL
     Then the same immutable source and provenance are returned
 
+  # The Newsroom's Add dialog sends only the web address. The server fills in the rest, so an editor never has to invent a title,
+  # a rationale or a corpus, and the address becomes a real pending Reference that the References page lists at once.
+  Scenario: The Add dialog sends only an address
+    Given an isolated publication intake backend with one canonical corpus
+    When its editor registers an address with nothing else
+    Then the address is a pending Reference in the publication's own corpus
+    And its title is the address and its rationale says an editor added it from the Newsroom
+    And adding the same address again returns the same Reference
+
+  Scenario: An address alone is refused when the publication cannot be told from the backend
+    Given an isolated publication intake backend
+    When its editor registers an address with nothing else
+    Then the registration is refused and nothing is written
+
   Scenario Outline: Intake rejects unauthorized publication access
     Given an isolated publication intake backend
     When intake is requested with <violation>

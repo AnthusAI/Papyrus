@@ -409,6 +409,79 @@ def review_reference_curation(
     }
 
 
+REVIEW_REFERENCE_CURATION_MUTATION = """
+mutation ReviewReferenceCuration($referenceId: ID!, $action: String!, $note: String, $reasonCode: String, $sectionId: ID, $agentLabel: String) {
+  reviewReferenceCuration(referenceId: $referenceId, action: $action, note: $note, reasonCode: $reasonCode, sectionId: $sectionId, agentLabel: $agentLabel) {
+    ok
+    action
+    referenceId
+    status
+    reasonCode
+  }
+}
+"""
+
+SET_REFERENCE_STARS_MUTATION = """
+mutation SetReferenceStars($referenceId: ID!, $stars: Int, $agentLabel: String) {
+  setReferenceStars(referenceId: $referenceId, stars: $stars, agentLabel: $agentLabel) {
+    ok
+    referenceId
+    stars
+    status
+  }
+}
+"""
+
+
+def review_reference_curation_as_signed_in_person(
+    graphql: GraphqlInvoker,
+    *,
+    reference_id: str,
+    action: str,
+    note: str = "",
+    reason_code: str = "",
+    section_id: str = "",
+    agent_label: str = "",
+) -> dict[str, Any]:
+    """Accept or reject as the signed-in editor or admin (an agent acts through their session). No delegation: the decision is the person's.
+
+    The site's own function records who signed in, and notes that it came through the CLI and ``agent_label``, if given.
+    """
+    return _call(
+        graphql,
+        REVIEW_REFERENCE_CURATION_MUTATION,
+        "reviewReferenceCuration",
+        {
+            "referenceId": _required(reference_id, "reference_id"),
+            "action": _normalize_curation_action(action),
+            "note": _optional(note) or None,
+            "reasonCode": _optional(reason_code) or None,
+            "sectionId": _optional(section_id) or None,
+            "agentLabel": _optional(agent_label) or None,
+        },
+    )
+
+
+def set_reference_stars_as_signed_in_person(
+    graphql: GraphqlInvoker,
+    *,
+    reference_id: str,
+    stars: int | None,
+    agent_label: str = "",
+) -> dict[str, Any]:
+    """Rate (1 to 5, or None to clear) as the signed-in editor or admin. No delegation: the rating is the person's."""
+    return _call(
+        graphql,
+        SET_REFERENCE_STARS_MUTATION,
+        "setReferenceStars",
+        {
+            "referenceId": _required(reference_id, "reference_id"),
+            "stars": validated_stars(stars),
+            "agentLabel": _optional(agent_label) or None,
+        },
+    )
+
+
 def _validated_section_id(graphql: GraphqlInvoker, section_id: str, action: str) -> str | None:
     requested_section_id = _optional(section_id)
     if not requested_section_id:
