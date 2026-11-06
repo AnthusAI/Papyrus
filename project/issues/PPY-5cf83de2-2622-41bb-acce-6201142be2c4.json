@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5cf83de2-2622-41bb-acce-6201142be2c4",
+  "title": "Review articles for agents reading on a person’s behalf",
+  "description": "Investigate what makes complete article text, headings, citations, evidence, context and attribution discoverable and understandable to authorized reader agents. Assess source fidelity and when an agent may lack access. Avoid asserting that all agents read the whole page; preserve editorial substance for human readers.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a88bd4a5-4dff-4e0a-8b16-f3bd6e0fe132",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-06T20:14:15.109287Z",
+  "updated_at": "2026-11-06T20:14:15.109316Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

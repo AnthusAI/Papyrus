@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c7c96406-6548-48b7-b77e-252b7fbfd83b",
+  "issue_id": "PPY-5cf83de2-2622-41bb-acce-6201142be2c4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T20:14:15.109Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Review articles for agents reading on a person’s behalf",
+    "description": "Investigate what makes complete article text, headings, citations, evidence, context and attribution discoverable and understandable to authorized reader agents. Assess source fidelity and when an agent may lack access. Avoid asserting that all agents read the whole page; preserve editorial substance for human readers.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a88bd4a5-4dff-4e0a-8b16-f3bd6e0fe132",
+    "labels": []
+  }
+}
