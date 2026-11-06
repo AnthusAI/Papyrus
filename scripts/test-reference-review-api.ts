@@ -211,7 +211,7 @@ async function main() {
 
   // Rating a pending Reference accepts it, by the same person, through the ordinary accept path. Accepted and rejected ones keep their status; clearing changes nothing.
   assert.equal(fresh.curationStatus, "accepted", "any star on a pending Reference accepts it");
-  assert.equal(fresh.curationStatusUpdatedBy, "Fixture editor", "the acceptance is by the person who rated");
+  assert.equal(fresh.curationStatusUpdatedBy, "Fixture editor via signed-in", "the acceptance is by the person who rated, with the via note");
   assert.equal(fresh.curationStatusKey, "corpus-fixture#accepted");
   assert.equal(fresh.starRating, 5, "the accept does not drop the rating");
   const rateStatus = async (id: string, status: string, count: number | null) => {
