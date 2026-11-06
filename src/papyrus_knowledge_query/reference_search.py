@@ -14,7 +14,7 @@ Two lanes run together and are fused:
   Rejected References have no vectors today, so only the words lane can find those.
 
 Fusion is Reciprocal Rank Fusion, ``1 / (60 + rank)`` summed over the lanes a Reference appears in, one entry per lineage. A Reference whose terms
-all appear in its title, authors, URL or id ("strong" word matches) sits above every meaning match, and a meaning match above a partial word match. If one
+all appear in its title, authors, URL or id ("strong" word matches) sits above every other match, a partial word match (some of the terms, past the coverage floor) above every match found only by meaning. If one
 lane fails the other's results are returned with that lane's status.
 
 After fusing, the page can be narrowed to a minimum of stars (``minStars``: 3, 4 or 5) and ordered by ``sort``: ``relevance`` keeps the fused order,
@@ -46,7 +46,7 @@ from .reference_words import REFERENCE_ATTRIBUTES, DynamoWordSource, _normalize,
 LOGGER = logging.getLogger(__name__)
 LOGGER.setLevel(logging.INFO)
 
-SHOW_CHOICES = ("unrated", "rated", "accepted", "all")
+SHOW_CHOICES = ("unrated", "rated", "accepted", "rejected", "all")
 SORT_CHOICES = ("relevance", "newest", "quality")
 CAPTURED_CHOICES = ("any", "yes", "no")
 MIN_STARS_CHOICES = (3, 4, 5)   # never "only 3" or "only 2": a minimum is a floor, and the lowest floor worth asking for is 3
@@ -56,7 +56,7 @@ MAX_QUERY_LENGTH = 500
 RRF_K = 60
 MEANING_TOP_K = 100   # S3 Vectors' real limit for one QueryVectors call
 REFERENCE_SUMMARY_VECTOR_KIND = "reference_summary"
-MEANING_STATUSES = {"unrated": ["pending"], "rated": ["accepted", "rejected"], "accepted": ["accepted"], "all": ["pending", "accepted", "rejected"]}
+MEANING_STATUSES = {"unrated": ["pending"], "rated": ["accepted", "rejected"], "accepted": ["accepted"], "rejected": ["rejected"], "all": ["pending", "accepted", "rejected"]}
 MEANING_CACHE_SECONDS = 300
 MEANING_CACHE_ENTRIES = 32
 MEANING_TIMEOUT_SECONDS = 20
@@ -274,6 +274,8 @@ def _shown(row: dict[str, Any], show: str) -> bool:
     if show == "accepted":
         # The feed-state suffix cannot tell accepted from rejected, so the status decides.
         return key.endswith("#rated") and str(row.get("curationStatus") or "") == "accepted"
+    if show == "rejected":
+        return key.endswith("#rated") and str(row.get("curationStatus") or "") == "rejected"
     return bool(key)
 
 
@@ -330,16 +332,17 @@ class Fused:
     by_words: bool
     by_meaning: bool
     word_fields: list[str]
-    tier: int = 0   # the word class for a strong match, then MEANING_TIER, then PARTIAL_TIER
+    tier: int = 0   # the word class for a strong match, then PARTIAL_TIER (found by words), then MEANING_TIER (found only by meaning)
 
 
-MEANING_TIER = ALL_TERMS_CLASS + 1
-PARTIAL_TIER = MEANING_TIER + 1
+PARTIAL_TIER = ALL_TERMS_CLASS + 1
+MEANING_TIER = PARTIAL_TIER + 1
 
 
 def fuse(word_hits: list[WordHit], meaning: list[tuple[str, float]]) -> list[Fused]:
     """Reciprocal Rank Fusion over the lanes, one entry per lineage. Order: exact title phrase, every term in title or author, every term anywhere,
-    then anything the meaning lane found (alone or with some of the words), then partial word matches alone; within each, the fused score, then the id."""
+    then every other word match (some of the typed words, past the coverage floor; with or without the meaning lane), then the Related ones, found only by
+    meaning; within each, the fused score, then the id. A Reference the words found is never below one only the meaning found."""
     by_lineage: dict[str, Fused] = {}
     for rank, hit in enumerate(word_hits, start=1):
         by_lineage[hit.lineage_id] = Fused(
@@ -354,7 +357,7 @@ def fuse(word_hits: list[WordHit], meaning: list[tuple[str, float]]) -> list[Fus
             entry.by_meaning = True
     for entry in by_lineage.values():
         if not entry.strong:
-            entry.tier = MEANING_TIER if entry.by_meaning else PARTIAL_TIER
+            entry.tier = PARTIAL_TIER if entry.by_words else MEANING_TIER
     return sorted(by_lineage.values(), key=lambda entry: (entry.tier, -entry.score, entry.lineage_id))
 
 

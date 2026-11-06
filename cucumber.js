@@ -90,6 +90,11 @@ module.exports = {
     require: ["features/step_definitions/reference-search.steps.js"],
     format: ["summary"],
   },
+  searchResults: {
+    paths: ["features/newsroom-search-results.feature"],
+    require: ["features/step_definitions/search-results.steps.js"],
+    format: ["summary"],
+  },
   referenceQuality: {
     paths: ["features/newsroom-reference-quality.feature"],
     require: ["features/step_definitions/reference-quality.steps.js"],
