@@ -10,9 +10,17 @@
   "parent": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "68b801cf-3151-49d1-9432-06c37883a0b0",
+      "author": "home",
+      "text": "PR #1244 on feature/PPY-2bc3e8-authenticated-mcp fixes the consent browser redirect at d0b2381f. Terminal-only Chromium rehearsal over the existing HTTPS pilot reached the exact ChatGPT callback (intercepted in the test), exchanged the code with PKCE, discovered tools, rendered and approved a synthetic Reference card through MCP, rejected a stale write, and rotated refresh credentials. The OAuth HTTP/runtime tests, 10 Gherkin scenarios, and TypeScript typecheck passed. Actual ChatGPT authorization and card rendering remain to be confirmed on the existing connection.",
+      "created_at": "2026-11-06T01:47:11.590479Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-05T20:45:43.174636Z",
-  "updated_at": "2026-11-05T21:44:41.633153Z",
+  "updated_at": "2026-11-06T01:47:11.591219Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
