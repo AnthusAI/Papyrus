@@ -18,11 +18,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
+from ..public_text import PRIVATE_SHAPES, WithheldReference, contains_private_shape, public_url, scrub  # noqa: F401 - re-exported: the scrub rule moved to public_text.py
+from ..reference_public_fields import chosen_preview, preview_metadata
 from ..ideas.digest import RELEVANCE_PREDICATE, relations_of, relevance_of
 from ..knowledge_snapshot.parallel import map_with_clients
 from ..reference_medium import MEDIUM_VIDEO, medium_of
 from ..reference_thumbnails import EDITOR_IMAGE, public_image as thumbnail_image
 from ..reference_feed_keys import accept_probability as decision_probability
+from ..reference_titles import first_usable_title, needs_title, readable_name
 from .ordering import RANK_FIELD, rank_records, valid_stars
 
 if TYPE_CHECKING:
@@ -86,6 +89,12 @@ EXCLUDED_REFERENCE_FIELDS = {
     "captureState": PLUMBING,
     "mediumFeedKey": PLUMBING,
     "contentNeededKey": PLUMBING,
+    "publicFeedKey": PLUMBING + " (the public-blocks index partition, PPY-7f1e54)",
+    "publicOrderKey": PLUMBING + " (the public-blocks index sort key, PPY-7f1e54)",
+    "cardImage": "card copy: the picture address a card shows, stored on the row so a block needs no attachment read; published as image, never under this name",
+    "cardSummary": "card copy: the preview description, scrubbed and not clipped; published (clipped) as summary, never under this name",
+    "cardSiteName": "card copy: the preview site name, scrubbed; published as siteName, never under this name",
+    "cardPageTitle": "card copy: the title the page declared for link previews, scrubbed; a card that still has only an address for a title shows it (displayed_title), never under this name",
     "captureReason": PLUMBING,
     "evidenceLevel": "editorial classification: not shown to readers yet (the decision model will write it, PPY-f8ff49)",
     "playlistUrl": "plumbing: the playlist a video address also names, kept for following it later (PPY-566e82)",
@@ -95,15 +104,7 @@ EXCLUDED_REFERENCE_FIELDS = {
     "updatedAt": PLUMBING,
 }
 
-EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]*[A-Za-z][A-Za-z0-9-]*\.)+[A-Za-z]{2,}")
-UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
-SITE_SUBJECT = re.compile(r"ss(?:1|dev)_[A-Za-z0-9_-]{8,}")
-PRIVATE_SHAPES = (EMAIL, UUID, SITE_SUBJECT)
 SENTENCE_END = re.compile(r"[.!?](?=\s|$)")
-
-
-class WithheldReference(ValueError):
-    """A Reference whose address cannot be made public without identity in it."""
 
 
 def public_key(lineage_id: str) -> str:
@@ -145,20 +146,6 @@ def live_probability(row: Mapping[str, Any], decision: Mapping[str, Any] | None)
     return live if live is not None else stored_prediction(row)
 
 
-def contains_private_shape(text: str) -> bool:
-    return any(pattern.search(text) for pattern in PRIVATE_SHAPES)
-
-
-def scrub(text: Any) -> str | None:
-    if text is None:
-        return None
-    cleaned = str(text)
-    for pattern in PRIVATE_SHAPES:
-        cleaned = pattern.sub("", cleaned)
-    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
-    return cleaned or None
-
-
 def clip_summary(text: Any, characters: int) -> str | None:
     cleaned = scrub(text)
     if cleaned is None:
@@ -171,20 +158,6 @@ def clip_summary(text: Any, characters: int) -> str | None:
         return window[: ends[-1]].strip()
     boundary = window.rfind(" ")
     return (window[:boundary] if boundary > 0 else window).rstrip(" ,;:") + "…"
-
-
-def public_url(address: Any) -> str | None:
-    """The address as it is public: a query or fragment that carries identity is dropped, and a path that does is withheld."""
-    if not address:
-        return None
-    text = str(address).strip()
-    if not contains_private_shape(text):
-        return text
-    parts = urlsplit(text)
-    bare = parts._replace(query="", fragment="").geturl()
-    if contains_private_shape(bare):
-        raise WithheldReference("address carries identity")
-    return bare
 
 
 def host_of(address: str | None) -> str | None:
@@ -215,16 +188,6 @@ def decimal(value: Any) -> float | None:
         return None
 
 
-def preview_metadata(preview: Mapping[str, Any] | None) -> Mapping[str, Any]:
-    metadata = (preview or {}).get("metadata")
-    if isinstance(metadata, str):
-        try:
-            metadata = json.loads(metadata)
-        except ValueError:
-            metadata = {}
-    return metadata if isinstance(metadata, Mapping) else {}
-
-
 def preview_details(preview: Mapping[str, Any] | None, summary_characters: int) -> dict[str, str | None]:
     if not preview:
         return {"image": None, "summary": None, "siteName": None}
@@ -241,6 +204,22 @@ def preview_details(preview: Mapping[str, Any] | None, summary_characters: int) 
     }
 
 
+def displayed_title(row: Mapping[str, Any], address: str | None, preview: Mapping[str, Any] | None) -> str:
+    """The title a card shows. A Reference titled with its own address shows the title its page declared for link previews when the preview holds one,
+    else a readable name made from the site and the address's own words (reference_titles.readable_name); never the raw address. Display only: the
+    stored title is left to the repair (``papyrus references repair-titles``) and to capture."""
+    title = None if needs_title(row) else scrub(row.get("title"))
+    if title:
+        return title
+    metadata = preview_metadata(preview)
+    found = first_usable_title(scrub(metadata.get("title")))
+    if found:
+        return found
+    if address:
+        return readable_name(address, scrub(metadata.get("siteName")))
+    return host_of(address) or "Untitled"
+
+
 def public_reference(
     row: Mapping[str, Any],
     decision: Mapping[str, Any] | None,
@@ -255,7 +234,7 @@ def public_reference(
     full: dict[str, Any] = {
         "key": public_key(str(row["lineageId"])),
         "status": STATUS_ACCEPTED if accepted else STATUS_RECOMMENDED,
-        "title": scrub(row.get("title")) or host_of(address) or "Untitled",
+        "title": displayed_title(row, address, preview),
         "authors": authors_of(row.get("authors")),
         "url": address,
         "host": host_of(address),
@@ -307,10 +286,7 @@ def decision_of(client: Any, row: Mapping[str, Any]) -> dict[str, Any] | None:
 
 
 def preview_of(client: Any, row: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    attachments = [item for item in client.list_reference_attachments_by_lineage(str(row["lineageId"])) if item and item.get("role") == PREVIEW_ROLE]
-    imaged = [item for item in attachments if item.get("sourceUri")]
-    chosen = imaged or attachments
-    return max(chosen, key=lambda item: str(item.get("importedAt") or "")) if chosen else None
+    return chosen_preview(client.list_reference_attachments_by_lineage(str(row["lineageId"])))   # the rule the card copies on the row share
 
 
 def section_labels_of(client: Any) -> dict[str, str]:

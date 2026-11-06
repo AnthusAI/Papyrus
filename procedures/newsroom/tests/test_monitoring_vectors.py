@@ -873,8 +873,10 @@ def idea_policy_text():
 
 
 def test_the_idea_policy_grants_the_s3_vectors_actions_on_the_eight_indexes_and_reads_the_eight_buckets_and_no_policy_was_added():
-    text, policy = idea_policy_text()
-    block = policy[policy.index("Sid: SiteVectorIndexes"):policy.index("Sid: ReadEditorialJudgmentKey")]
+    text = template_text()
+    policy = block_of(text, "RouterEnrichmentStoragePolicy")   # moved out of RouterIdeaPolicy, which hit IAM's policy-size limit
+    assert "Sid: SiteVectorIndexes" not in block_of(text, "RouterIdeaPolicy")
+    block = policy[policy.index("Sid: SiteVectorIndexes"):]
     for action in ("s3vectors:GetVectors", "s3vectors:QueryVectors", "s3vectors:PutVectors", "s3vectors:ListVectors"):
         assert action in block
     assert "s3vectors:DeleteVectors" not in block and "s3vectors:*" not in block
@@ -1000,7 +1002,7 @@ def test_the_router_zip_closure_carries_the_vector_pass_and_the_knowledge_query_
     needed = ["monitoring_vectors", "reference_suggest_once", "reference_suggestions", "suggestion_calibration", "reference_links", "knowledge_snapshot/keys", "knowledge_wiki/pages", "corpus_storage_paths"]
     assert set(needed) <= set(modules), sorted(set(needed) - set(modules))
     files = build.knowledge_query_files()
-    assert set(files) == {f"papyrus_knowledge_query/{name}.py" for name in ("__init__", "concept_kinds", "cuts", "engine", "ranking", "reference_search", "services", "tokens", "uris", "vector_index")}
+    assert set(files) == {f"papyrus_knowledge_query/{name}.py" for name in ("__init__", "concept_kinds", "cuts", "engine", "ranking", "reference_search", "reference_words", "services", "tokens", "uris", "vector_index")}
     assert sum(len(data) for data in files.values()) < 1_000_000   # source only: far below the zip's bound
     task = tmp_path / "task"
     for name in ["__init__", *modules]:

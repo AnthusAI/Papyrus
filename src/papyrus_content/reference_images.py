@@ -25,6 +25,7 @@ from typing import Any, Callable
 from .ids import hash_short
 from .link_exploration import Exploration, PageMetadata, explore
 from .options import normalize_string, parse_options, resolve_mutation_apply
+from .reference_titles import needs_title, record_page_title
 
 PREVIEW_ROLE = "preview"
 PREVIEW_SORT_KEY = "002-preview"
@@ -103,8 +104,16 @@ def attach_preview(
             raise RuntimeError(f"page not readable: {found.failure or 'unknown'}")
         row = preview_attachment(reference, found, now())
         client.upsert("ReferenceAttachment", row)
+        # The card copies (picture, description, site name) go onto the Reference at the moment the preview is known, so a public block draws its card
+        # from the one row an index returns. One mutation per new Reference; none when the row already holds the same values.
+        from .reference_public_fields import card_update
+        try:
+            card_update(client, reference, row)
+        except Exception as error:  # noqa: BLE001 - the preview is saved; a card copy that failed is filled in by `papyrus references backfill-public-fields`
+            log(json.dumps({"referenceCardFields": "failed", "referenceId": reference_id, "reason": f"{type(error).__name__}: {str(error)[:200]}"}, sort_keys=True))
         log(json.dumps({"referencePreview": "written", "referenceId": reference_id, "withImage": bool(row["sourceUri"]),
                         "reused": exploration is not None}, sort_keys=True))
+        _title_from_preview(client, reference, found, log)
         return "written"
     except Exception as error:  # noqa: BLE001 - a preview is decoration; it must never block or fail the Reference
         try:
@@ -113,6 +122,16 @@ def attach_preview(
         except Exception:  # noqa: BLE001
             pass
         return "failed"
+
+
+def _title_from_preview(client: Any, reference: dict[str, Any], found: Exploration, log: Callable[[str], None]) -> None:
+    """A Reference titled with its own address takes the title this same page read declares (reference_titles.py). Never raises, never replaces a real title."""
+    try:
+        if needs_title(reference) and found.metadata and found.metadata.title:
+            outcome = record_page_title(client, reference, found.metadata.title)
+            log(json.dumps({"referenceTitle": outcome, "referenceId": reference.get("id")}, sort_keys=True))
+    except Exception as error:  # noqa: BLE001 - the title is a repair on top of a delivered Reference
+        log(json.dumps({"referenceTitle": "failed", "referenceId": reference.get("id"), "reason": f"{type(error).__name__}: {str(error)[:200]}"}, sort_keys=True))
 
 
 def enrich_reference_previews(
@@ -149,7 +168,10 @@ def enrich_reference_previews(
         counts["withImage" if row["sourceUri"] else "withoutImage"] += 1
         if not dry_run:
             client.upsert("ReferenceAttachment", row)
+            from .reference_public_fields import card_update
+            card_update(client, reference, row)
             counts["written"] += 1
+            _title_from_preview(client, reference, found, lambda line: None)
     return counts
 
 

@@ -75,7 +75,7 @@ the backend carries a tenant and has not been declared single-publication.
 
 ## Sources, deduplication and provenance
 
-The request has `publicationEndpoint`, `corpusId` and 1–20 `items`. The CLI sends one source per request: a source takes 6 to 12 seconds, so a whole batch could outlast the client's read timeout and leave the outcome unknown. Each source
+The request has 1–20 `items`, and optionally `publicationEndpoint` and `corpusId`. The Newsroom's Add dialog sends only `{"items": [{"source_uri": ...}]}`: the endpoint is then the Lambda's own, the corpus is the backend's single canonical corpus, the title is the address and the rationale is a fixed "Added by an editor from the Newsroom." When given, the endpoint and corpus must still match. The CLI sends one source per request: a source takes 6 to 12 seconds, so a whole batch could outlast the client's read timeout and leave the outcome unknown. Each source
 accepts `source_uri`, `title`, `media_type`, `ingestion_rationale` and the catalog's
 optional `item_id`. Identity is derived from a SHA-256 of deployment endpoint,
 corpus and canonical source URL; a supplied item id cannot control record ids.

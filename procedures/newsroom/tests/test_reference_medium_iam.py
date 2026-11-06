@@ -74,3 +74,13 @@ def test_no_worker_role_reads_the_content_needed_index_or_calls_the_capture_acti
     need no grant (they ride on ``createReference`` / ``updateReference``, which the router already holds)."""
     template = TEMPLATE.read_text()
     assert "listReferencesByContentNeededAndArrival" not in template and "correctReferenceCapture" not in template
+
+
+def test_the_public_blocks_attributes_need_no_grant_and_no_worker_role_reads_their_index():
+    """``publicFeedKey``, ``publicOrderKey``, ``cardImage``, ``cardSummary``, ``cardSiteName`` and ``cardPageTitle`` (PPY-7f1e54) are plain attributes with no resolver, so they
+    ride on ``createReference`` / ``updateReference``, which the router and the research worker already hold in every publication (``NEEDED`` above). The
+    preview writer (``reference_images.attach_preview``) also needs the attachment operations it already has. The index that reads them is read by the site's
+    own projection task, not by a monitoring role, so the template names none of them and no new grant is needed."""
+    template = TEMPLATE.read_text()
+    for name in ("publicFeedKey", "publicOrderKey", "cardImage", "cardSummary", "cardSiteName", "cardPageTitle", "listReferencesByPublicFeed"):
+        assert name not in template, name

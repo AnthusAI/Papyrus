@@ -49,6 +49,7 @@ import { categoryAction } from "./functions/category-action/resource";
 import { ConsoleChatResponderStack } from "./functions/console-chat-responder/resource";
 import { contentActions, setSiteFilesForContentActionsBundle } from "./functions/content-actions/resource";
 import { knowledgeQuery } from "./functions/knowledge-query/resource";
+import { wireReferenceWordIndex } from "./functions/reference-word-index/wire";
 import { manageUserRole } from "./functions/manage-user-role/resource";
 import { modelAttachmentUpload } from "./functions/model-attachment-upload/resource";
 import { newsroomSummary } from "./functions/newsroom-summary/resource";
@@ -782,6 +783,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       resources: [knowledgeVectorIndex.attrIndexArn],
     }),
   );
+  // The References search reads a word table kept current by a stream consumer on the Reference table (docs/reference-search.md#word-index).
+  const referenceWordIndex = wireReferenceWordIndex(backend, knowledgeQueryLambda);
+
   // suggestReferenceLinks runs in content-actions and reads the Reference's stored summary vector, so it needs the index and no OpenAI key.
   contentActionsLambda.addEnvironment("PAPYRUS_S3_VECTOR_INDEX_ARN", knowledgeVectorIndex.attrIndexArn);
   contentActionsLambda.addToRolePolicy(
@@ -842,6 +846,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
             corpusKey: inboundEmailCorpusKey,
           }
         : null,
+      referenceWordIndex: { tableName: referenceWordIndex.tableName },
       knowledgeQuery: {
         s3VectorBucketArn: knowledgeVectorBucket.attrVectorBucketArn,
         s3VectorIndexArn: knowledgeVectorIndex.attrIndexArn,

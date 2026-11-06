@@ -304,3 +304,13 @@ def test_a_posted_message_schedules_one_snapshot_for_the_end_of_the_window(monke
     second, _, _ = run([message_record("INSERT", None, COMMENT)], dynamo, scheduler, NOW + 100, monkeypatch)
     assert first["scheduled"] is True and second["scheduled"] is False
     assert len(scheduler.calls) == 1 and scheduler.calls[0]["Name"].endswith(f"-{NOW + 300}")
+
+
+def test_writing_the_public_blocks_attributes_alone_changes_no_page():
+    """The five attributes of the public index (PPY-7f1e54) are copies of facts this function already watches, or of the preview. The backfill writes them to every
+    public row, so a write of them alone must not schedule a snapshot (it would be one run per backfill, for nothing)."""
+    written = {"publicFeedKey": "c#accepted", "publicOrderKey": "p0.800000#2026-11-02T12:00:00.000Z#r", "cardImage": "https://img.example.org/a.jpg",
+               "cardSummary": "A summary.", "cardSiteName": "Example", "cardPageTitle": "A title"}
+    assert not handler_module.record_changed(record(old=ACCEPTED, new={**ACCEPTED, **written}))
+    assert not handler_module.record_changed(record(old=PENDING_PREDICTED, new={**PENDING_PREDICTED, **written}))
+    assert not set(written) & set(handler_module.CHANGE_FIELDS)

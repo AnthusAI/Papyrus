@@ -14,6 +14,9 @@ The page asks two indexes on ``Reference`` for a page at a time instead of loadi
   ``corpus#video#needs_content#accepted``), sort ``feedArrivalAt``. Sparse: a current, not archived Reference with a medium whose content the newsroom
   does not hold yet and that nothing else will capture. The transcript worker (``papyrus references capture-transcripts``) reads it; nothing is filtered after reading.
 
+* ``publicFeedKey`` / ``publicOrderKey`` (``public_feed_keys``): the attributes of the index a public block will read (docs/plans/public-blocks-from-indexes.md).
+  Plain attributes only for now: the index itself is a later, separate deploy. Sparse: a row that cannot be public carries neither.
+
 ``feedStateKey`` is ``<corpusId>#unrated`` for a pending Reference and ``<corpusId>#rated`` for an accepted or rejected one. A Reference
 that is not the current version, or is archived, has no key and is in neither feed. The prediction is a value on the Reference, written
 once when the Cyclotron first decides it and never rewritten: a vote moves the Reference between feeds and leaves the prediction alone.
@@ -44,6 +47,13 @@ NEEDS_CONTENT = "needs_content"
 # the worker's partition so that it is not read and skipped on every run.
 SETTLED_CAPTURE_REASONS = ("no_transcript", "unavailable", "unsupported_platform")
 PREDICTION_FIELDS = ("predictedAcceptProbability", "predictionDecidedAt")
+PUBLIC_FEED_KEY_FIELD = "publicFeedKey"
+PUBLIC_ORDER_KEY_FIELD = "publicOrderKey"
+PUBLIC_KEY_FIELDS = (PUBLIC_FEED_KEY_FIELD, PUBLIC_ORDER_KEY_FIELD)
+CARD_FIELDS = ("cardImage", "cardSummary", "cardSiteName", "cardPageTitle")   # what a card shows besides the row's own fields (reference_public_fields.py)
+PUBLIC_ACCEPTED = "accepted"
+PUBLIC_RECOMMENDED = "recommended"
+RECOMMENDED_FLOOR = 0.5   # a pending row is in the public index only with a stored prediction at or above this; the index cannot serve a lower threshold
 
 
 def accept_probability(label: str | None, positive_label: str | None, confidence: Any) -> float:
@@ -135,6 +145,60 @@ def medium_key_patch(reference: Mapping[str, Any], **changes: Any) -> dict[str, 
     return patch
 
 
+def stored_probability(value: Any) -> float | None:
+    """The stored original prediction as a number in 0..1, or None when the row has none. Only a finite number counts: a missing prediction is never a number
+    (the rule ``home_page/export.stored_prediction`` publishes by, which cannot be imported here)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return None
+    return min(1.0, max(0.0, float(value)))
+
+
+def public_arrival(reference: Mapping[str, Any]) -> str:
+    """The arrival a public key sorts by: the stored ``feedArrivalAt`` (fixed when the row first arrived, and carried to later versions), else the derived one."""
+    return _instant(reference.get("feedArrivalAt")) or arrival_at(reference)
+
+
+def public_feed_keys(reference: Mapping[str, Any], *, probability: float | None = None) -> dict[str, str | None]:
+    """``{"publicFeedKey", "publicOrderKey"}``: the sparse index a public block reads (docs/plans/public-blocks-from-indexes.md). Both None when the row cannot be public.
+
+    * not the current version, no corpus, rejected or archived: no keys.
+    * accepted: partition ``<corpusId>#accepted``, sort ``p<P to six places>#<arrival>#<id>`` (``n#...`` when it was never scored, so the scored sort first).
+    * pending with a stored prediction of at least 0.5: partition ``<corpusId>#recommended#<UTC day of arrival>``, sort ``p<P>#<arrival>#<id>``.
+    * pending with no prediction or a prediction below 0.5: no keys. An unpredicted row is never treated as 0.5.
+
+    The sort uses the Cyclotron's ORIGINAL prediction (``probability`` overrides the stored one), which a vote and a re-delivery never rewrite, so a pending
+    row's keys are written once. Star ratings are private and change often: they are in no key.
+    """
+    empty: dict[str, str | None] = {PUBLIC_FEED_KEY_FIELD: None, PUBLIC_ORDER_KEY_FIELD: None}
+    if reference.get("versionState") not in (None, "current") or not reference.get("corpusId"):
+        return empty
+    status = normalize_reference_curation_status(reference.get("curationStatus"))
+    stored = stored_probability(probability if probability is not None else reference.get("predictedAcceptProbability"))
+    arrival = public_arrival(reference)
+    identifier = str(reference["id"])
+    corpus_id = str(reference["corpusId"])
+    if status == "accepted":
+        order = f"n#{arrival}#{identifier}" if stored is None else f"p{stored:.6f}#{arrival}#{identifier}"
+        return {PUBLIC_FEED_KEY_FIELD: f"{corpus_id}#{PUBLIC_ACCEPTED}", PUBLIC_ORDER_KEY_FIELD: order}
+    if status == "pending" and stored is not None and stored >= RECOMMENDED_FLOOR:
+        return {PUBLIC_FEED_KEY_FIELD: f"{corpus_id}#{PUBLIC_RECOMMENDED}#{arrival[:10]}", PUBLIC_ORDER_KEY_FIELD: f"p{stored:.6f}#{arrival}#{identifier}"}
+    return empty
+
+
+def public_key_patch(reference: Mapping[str, Any], **changes: Any) -> dict[str, Any]:
+    """The public keys for a vote or an archive written as a patch (``changes`` overrides the Reference's fields, for example the next ``curationStatus``).
+
+    {} for a row that neither has keys nor will have them, so a patch for an ordinary row names no new field and works on a backend that does not have the
+    attributes yet. The Reference must be read whole enough to carry its prediction and arrival: a vote that moves a row into or out of the index needs
+    them, and a writer that read only part of a row would write the wrong key (the chat tool's query selects them for that reason).
+    """
+    merged = {**reference, **changes}
+    wanted = public_feed_keys(merged)
+    if not (wanted[PUBLIC_FEED_KEY_FIELD] or reference.get(PUBLIC_FEED_KEY_FIELD)):
+        return {}
+    return wanted
+
+
 def star_feed_key(corpus_id: Any, stars: Any) -> str | None:
     """The star partition a Reference is in: ``<corpusId>#stars#<n>`` for a whole star rating of 1 to 5, None when it has none or no corpus.
 
@@ -166,6 +230,10 @@ def feed_keys(reference: Mapping[str, Any], *, probability: float | None = None)
     needed = content_needed_key(reference)
     if needed or reference.get(CONTENT_NEEDED_KEY_FIELD):
         keys[CONTENT_NEEDED_KEY_FIELD] = needed
+    # The public keys are sparse too: set when the row can be public, cleared only when it currently holds them, never a null on a row that has none.
+    public = public_feed_keys({**reference, "feedArrivalAt": reference.get("feedArrivalAt") or arrival}, probability=probability)
+    if public[PUBLIC_FEED_KEY_FIELD] or reference.get(PUBLIC_FEED_KEY_FIELD):
+        keys.update(public)
     return keys
 
 
@@ -190,4 +258,6 @@ def stale_feed_keys(reference: Mapping[str, Any]) -> dict[str, Any]:
     wanted = feed_keys(reference)
     wanted.pop(MEDIUM_FEED_KEY_FIELD, None)   # the medium key belongs to `papyrus references backfill-medium`, which writes medium and key together
     wanted.pop(CONTENT_NEEDED_KEY_FIELD, None)   # so does the content-needed key
+    for field in PUBLIC_KEY_FIELDS:   # and the public keys belong to `papyrus references backfill-public-fields`, which writes them with the card fields
+        wanted.pop(field, None)
     return {key: value for key, value in wanted.items() if reference.get(key) != value}

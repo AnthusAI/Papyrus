@@ -254,7 +254,8 @@ def test_template_inventory(template):
         "AWS::Events::Rule", "AWS::Lambda::Permission", "AWS::SQS::QueuePolicy", "AWS::S3::Bucket",
         "AWS::Logs::MetricFilter", "AWS::SNS::Topic", "AWS::SNS::Subscription",
         # the operator alert listener (PPY-e92c8e, PPY-dd8c18); see test_operator_alerts.py
-        "AWS::Lambda::EventSourceMapping", "AWS::CloudWatch::CompositeAlarm", "Custom::SecureStringParameter"}
+        "AWS::Lambda::EventSourceMapping", "AWS::CloudWatch::CompositeAlarm", "Custom::SecureStringParameter",
+            "Custom::DeadmanStart"}
 
 
 def test_template_runs_the_ttab_monitor_daily_and_routes_it_hourly(template):

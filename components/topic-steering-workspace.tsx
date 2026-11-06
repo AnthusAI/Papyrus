@@ -45,6 +45,7 @@ import {
   loadReferenceFeedCorpusIds,
   readReferenceFeedStream,
   readReferenceStarStream,
+  readReferenceMediumStream,
   searchReferences,
   discardFeedCorpusIds,
   loadReferenceAttachmentsForLineages,
@@ -73,8 +74,6 @@ import {
   loadAutoAcceptedReferencePage,
   loadCyclotronShadowAgreement,
   loadSiteSectionAgreement,
-  requestCyclotronPriming,
-  loadCyclotronPrimingRequests,
   requestCyclotronReviewRate,
 } from "./news-desk-taxonomy-client";
 import {
@@ -107,7 +106,8 @@ import { useReferencePredictions } from "../lib/use-reference-predictions";
 import { buildFeedItems, feedWindow } from "../lib/reference-feed-ranking";
 import { loadFeedSnapshot, saveFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
 import { referencePreviewsByLineage } from "../lib/reference-preview";
-import { PREVIEW_SEARCH_MEANING, previewSearch, type ReferenceSearchReader } from "../lib/reference-search";
+import { PREVIEW_SEARCH_MEANING, normalizeSearchQuery, previewSearch, statusFromLocation, type ReferenceSearchReader } from "../lib/reference-search";
+import { NewsroomSearchResults } from "./newsroom-search-results";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
@@ -194,12 +194,10 @@ import { delegatedCurationsByReference, referencesWithHumanLatestCuration, type 
 import { createLocalPreviewCyclotronFixtures } from "../lib/local-preview-seed";
 import { createLocalPreviewSectionFixtures } from "../lib/local-preview-section-fixtures";
 import { currentSectionSuggestions, siteCyclotronIdOf, type SiteSectionAgreement } from "../lib/site-section-suggestions";
+import { addReference, parseIntakeAnswer, type AddReferenceInput, type AddReferenceOutcome } from "../lib/add-reference";
 import {
-  buildPrimingRequest,
   buildReviewRateRequest,
-  DEFAULT_RELEVANCE_CYCLOTRON,
   DEMO_CYCLOTRON_STATUS,
-  type PrimingRequestView,
 } from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
 import {
@@ -423,6 +421,8 @@ export type NewsDeskSelection = {
   item?: string | null;
   panel?: string | null;
   searchQuery?: string | null;
+  /** `?status=` on the search page: pending, accepted or rejected; absent is Any. */
+  searchStatus?: string | null;
   searchAnchorKind?: string | null;
   searchAnchorId?: string | null;
   searchAnchorLineageId?: string | null;
@@ -804,23 +804,6 @@ function NewsDeskDashboard({
     () => [...relevanceDecisions.values()].find((decision) => decision.cyclotronId)?.cyclotronId ?? null,
     [relevanceDecisions],
   );
-  const primingCyclotronId = relevanceCyclotronId ?? DEFAULT_RELEVANCE_CYCLOTRON.id;
-  const primingLabels = useMemo(
-    () => [...relevanceDecisions.values()].find((decision) => decision.classes.length)?.classes
-      ?? DEFAULT_RELEVANCE_CYCLOTRON.labels,
-    [relevanceDecisions],
-  );
-  const [primingRequests, setPrimingRequests] = useState<PrimingRequestView[]>([]);
-  useEffect(() => {
-    if (dashboard.isDemo) return;
-    let cancelled = false;
-    const refresh = () => loadCyclotronPrimingRequests(primingCyclotronId)
-      .then((views) => { if (!cancelled) setPrimingRequests(views); })
-      .catch(() => { if (!cancelled) setPrimingRequests([]); });
-    void refresh();
-    const timer = window.setInterval(() => { void refresh(); }, 30_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [dashboard.isDemo, primingCyclotronId]);
   const [cyclotronStatus, setCyclotronStatus] = useState<CyclotronStatus | null>(null);
   useEffect(() => {
     if (!relevanceCyclotronId) return;
@@ -923,6 +906,7 @@ function NewsDeskDashboard({
     loadCorpusIds: () => loadReferenceFeedCorpusIds(Object.keys(summary?.facets?.references?.byCorpus ?? {})),
     readStream: readReferenceFeedStream,
     readStarStream: readReferenceStarStream,
+    readMediumStream: readReferenceMediumStream,
     search: searchReferences,
   }), [summary?.facets?.references?.byCorpus]);
   const [referencesRealtimeStatus, setReferencesRealtimeStatus] = useState<RealtimeSubscriptionStatus>("idle");
@@ -1793,17 +1777,67 @@ function NewsDeskDashboard({
     });
   }
 
-  /** An editor's star rating (null clears it). It sits on the Reference beside the vote, never changes the status, and is not a Cyclotron label. */
+  /**
+   * The Add dialog: the address becomes a pending Reference (`intakePendingReferences`), then the editor's optional accept and star rating are
+   * recorded through the same mutations the review buttons use, from this Newsroom session. The list reloads afterwards.
+   */
+  async function runAddReference(input: AddReferenceInput): Promise<AddReferenceOutcome> {
+    if (!canEdit) throw new Error("Your session does not have permission to add references.");
+    if (dashboard.isDemo) {
+      return addReference(input, {
+        register: async (url) => ({ id: `demo-${url}`, curationStatus: "pending", reusedExisting: false }),
+        accept: async () => undefined,
+        rate: async () => undefined,
+      });
+    }
+    const outcome = await addReference(input, {
+      register: async (url) => {
+        const response = await dataClient.mutations.intakePendingReferences(
+          { input: JSON.stringify({ items: [{ source_uri: url }] }) },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+        if (errors?.length) throw new Error(errors[0]?.message ?? "The newsroom did not accept this address.");
+        return parseIntakeAnswer(response.data);
+      },
+      accept: async (referenceId, note) => {
+        const response = await dataClient.mutations.reviewReferenceCuration(
+          { referenceId, action: "accept", actorLabel: authState.label, note: note || undefined },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        assertReferenceReviewMutationSucceeded(response, referenceId);
+      },
+      rate: async (referenceId, stars) => {
+        const response = await dataClient.mutations.setReferenceStars(
+          { referenceId, stars, actorLabel: authState.label },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        const errors = (response as { errors?: Array<{ message?: string }> }).errors;
+        if (errors?.length) throw new Error(errors[0]?.message ?? "Your rating could not be saved.");
+      },
+    });
+    retryReferenceReviewData();
+    return outcome;
+  }
+
+  /**
+   * An editor's star rating (null clears it). It sits on the Reference beside the vote and is not a Cyclotron label. Rating a pending Reference also
+   * accepts it, on the server and by the same person; an accepted or rejected one keeps its status, and clearing a rating never changes it.
+   */
   async function runReferenceStars(reference: ReferenceRecord, stars: number | null): Promise<void> {
     if (!canEdit) throw new Error("Your session does not have permission to rate references.");
-    const record = (now: string): ReferenceRecord => ({
+    const record = (now: string, accepted = false): ReferenceRecord => ({
       ...(referencesRef.current.find((entry) => entry.id === reference.id) ?? reference),
+      ...(accepted ? { curationStatus: "accepted", curationStatusUpdatedAt: now, curationStatusUpdatedBy: authState.label } : {}),
       starRating: stars,
       starRatedAt: stars === null ? null : now,
       starRatedBy: stars === null ? null : authState.label,
     });
+    const wasPending = (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === undefined
+      || (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === null
+      || (referencesRef.current.find((entry) => entry.id === reference.id) ?? reference).curationStatus === "pending";
     if (dashboard.isDemo) {
-      applyReferenceRecord(record(new Date().toISOString()));
+      applyReferenceRecord(record(new Date().toISOString(), wasPending && stars !== null));
       return;
     }
     const response = await dataClient.mutations.setReferenceStars(
@@ -1812,7 +1846,8 @@ function NewsDeskDashboard({
     );
     const errors = (response as { errors?: Array<{ message?: string }> }).errors;
     if (errors?.length) throw new Error(errors[0]?.message ?? "Your rating could not be saved.");
-    applyReferenceRecord(record(new Date().toISOString()));
+    const answered = (response as { data?: { status?: string | null } | null }).data?.status;
+    applyReferenceRecord(record(new Date().toISOString(), wasPending && stars !== null && answered === "accepted"));
   }
 
   function runReferenceQualityRating(reference: ReferenceRecord, rating: number) {
@@ -3204,7 +3239,15 @@ function NewsDeskDashboard({
             savedCopy={savedFeedCopy}
           />
         ) : null}
-        {activeTab === "search" ? (
+        {activeTab === "search" && !initialSearchRequest?.anchor ? (
+          <NewsroomSearchResults
+            hrefFor={(lineageId) => getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, Boolean(dashboard.isDemo))}
+            initialQuery={normalizeSearchQuery(initialSelection.searchQuery)}
+            initialStatus={statusFromLocation(`status=${encodeURIComponent(initialSelection.searchStatus ?? "")}`)}
+            search={dashboard.isDemo ? (input) => Promise.resolve(previewSearch(references, input, { meaning: PREVIEW_SEARCH_MEANING })) : searchReferences}
+          />
+        ) : null}
+        {activeTab === "search" && initialSearchRequest?.anchor ? (
           <SearchDeskView
             assignments={assignments}
             categories={mergeCategoryRecords(categorys, activeCategoryTreeNodes)}
@@ -3264,15 +3307,7 @@ function NewsDeskDashboard({
             disabled={controlsDisabled}
             initialReferenceLineageId={selectedReviewLineageId}
             cyclotronStatus={cyclotronStatus}
-            cyclotronPriming={{
-              labels: primingLabels,
-              requests: primingRequests,
-              onRequest: async (input) => {
-                const request = buildPrimingRequest(input, authState.label, primingLabels);
-                if (!dashboard.isDemo) await requestCyclotronPriming(primingCyclotronId, request);
-                setPrimingRequests((current) => [{ request, outcome: null }, ...current]);
-              },
-            }}
+            onAddReference={runAddReference}
             decisions={relevanceDecisions}
             humanCuratedReferenceLineageIds={selectedReviewIsCurrent && predictionState !== "ready" ? undefined : humanCuratedReferenceLineageIds}
             delegatedCurations={selectedReviewIsCurrent && predictionState !== "ready" ? undefined : delegatedCurations}

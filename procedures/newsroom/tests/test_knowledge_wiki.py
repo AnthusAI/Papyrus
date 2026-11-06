@@ -781,3 +781,50 @@ def test_the_snapshot_links_only_public_kinds_and_leaves_bookkeeping_kinds_out(m
     entities = {entity["key"]: entity for entity in index["entities"]}
     assert COMMENT not in entities and entities[ACME]["href"] == f"/wiki/{ACME_SLUG}/"
     assert entities[AUTHOR]["href"] is None
+
+
+# ------------------------------------------------------------------ publish check and projection report
+
+PROJECTION_ENV = {"PAPYRUS_PUBLICATION_KIND": "s3-projection"}
+
+
+def run_preflight(client, page_id, tmp_path):
+    from unittest import mock
+
+    from papyrus_content.projection import runtime
+
+    projector = StandardMarkusProjector.from_static_directory(static_directory(tmp_path, SETTINGS), environ={"PAPYRUS_SITE_PUBLIC_URL": ""})
+    with mock.patch.object(runtime, "load_projector", lambda environ=None, **kw: projector):
+        runtime.render_preflight(client, page_id, PROJECTION_ENV)
+
+
+def test_a_wiki_page_that_places_knowledge_blocks_passes_the_publish_check(client, tmp_path):
+    describe(client, ACME, "Acme Loom makes small looms.")
+    sync(client, "--apply")
+    page = pages(client)[ACME_SLUG]
+    assert "::include" in page["bodyMarkus"]
+    run_preflight(client, page["id"], tmp_path)
+
+
+def test_a_page_that_places_an_unknown_include_is_refused_by_name_not_crashed(client, tmp_path):
+    describe(client, ACME, "Acme Loom makes small looms.")
+    sync(client, "--apply")
+    page = pages(client)[ACME_SLUG]
+    page["bodyMarkus"] += '\n::include{kind="nonsense" name="nothing"}\n'
+    with pytest.raises(PublishError) as refusal:
+        run_preflight(client, page["id"], tmp_path)
+    assert refusal.value.code == "page-not-renderable" and ACME_SLUG in refusal.value.message and "Nothing was published" in refusal.value.message
+
+
+def test_the_wiki_publish_command_reports_a_projection_that_failed(client, capsys, monkeypatch):
+    describe(client, ACME, "Acme Loom makes small looms.")
+    sync(client, "--apply")
+    page_id = pages(client)[ACME_SLUG]["id"]
+    failed = {"projection": {"ok": False, "error": "ValueError: boom", "retry": f"papyrus ops content publish --id {page_id}"}}
+    monkeypatch.setattr(wiki_commands, "run_site_triggers", lambda *args, **kwargs: failed)
+    capsys.readouterr()
+    with pytest.raises(SystemExit):
+        run(wiki_commands.knowledge_wiki_publish, page_id, "--actor", "ai", "--apply", "--on", DAY)
+    out = capsys.readouterr().out
+    assert f"item {page_id} is published but its page was not projected: ValueError: boom" in out and f"retry: papyrus ops content publish --id {page_id}" in out
+    assert client.get_record("PublishedItem", published_item_id_for(pages(client)[ACME_SLUG]["lineageId"])) is not None

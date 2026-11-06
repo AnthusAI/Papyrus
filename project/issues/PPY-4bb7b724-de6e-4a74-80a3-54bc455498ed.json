@@ -1,0 +1,25 @@
+{
+  "id": "PPY-4bb7b724-de6e-4a74-80a3-54bc455498ed",
+  "title": "Document the Medium filter on p.apyr.us (follow-up of PPY-ec0d0a)",
+  "description": "Document the References page Medium row (All, Videos) on the Papyrus product site p.apyr.us: the buttons beside Reviewed, pending videos in two clicks, the link that opens it (medium=video), that it reads the medium index without scanning, that Predictions cannot order a medium, and that References whose medium is unknown are listed under All only. Source: docs/reference-feed-indexes.md, The medium filter. Standing task from PPY-ec0d0a; publish through the Papyrus-web content flow, then close.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-05T23:27:55.361255Z",
+  "updated_at": "2026-11-05T23:27:59.455528Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "medium-filter"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

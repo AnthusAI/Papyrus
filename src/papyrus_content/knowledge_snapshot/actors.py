@@ -2,7 +2,8 @@
 
 An actor is ``{"actor": "ai" | "human", "name": str | None, "on": "YYYY-MM-DD"}``. The schema has no field for it, so
 it rides in strings the rows already have: a node's ``changeReason`` holds one JSON object behind ``REVIEW_MARKER``
-(``acceptedBy``, ``rejectedBy``, ``descriptionEditedBy`` ``retypedBy`` once a node has been retyped and ``aliasedBy`` once an alias was added to it), and a topic cluster's proposal ``summary`` object holds
+(``acceptedBy``, ``rejectedBy``, ``descriptionEditedBy`` ``retypedBy`` once a node has been retyped, ``aliasedBy`` once an alias was added to it, and
+``pageGivenBy`` or ``pageTakenBy`` once an editor decided against the machine's page answer whether it has a public page), and a topic cluster's proposal ``summary`` object holds
 ``acceptedBy``. Nothing here reads a clock: callers pass the day.
 """
 
@@ -79,6 +80,9 @@ class ReviewMarks:
     description_edited_by: Actor | None = None
     retyped_by: Actor | None = None
     aliased_by: Actor | None = None
+    #: An editor's own decision whether the concept has a public page, against the extractor's answer (``page_answer.py``). At most one is set.
+    page_given_by: Actor | None = None
+    page_taken_by: Actor | None = None
 
     def encode(self) -> str:
         body = {
@@ -90,6 +94,10 @@ class ReviewMarks:
             body["retypedBy"] = self.retyped_by.to_dict()
         if self.aliased_by:
             body["aliasedBy"] = self.aliased_by.to_dict()
+        if self.page_given_by:
+            body["pageGivenBy"] = self.page_given_by.to_dict()
+        if self.page_taken_by:
+            body["pageTakenBy"] = self.page_taken_by.to_dict()
         return REVIEW_MARKER + json.dumps(body, sort_keys=True, separators=(",", ":"))
 
     def replace(self, **changes: Actor | None) -> "ReviewMarks":
@@ -111,6 +119,8 @@ def decode_review(change_reason: Any) -> ReviewMarks:
         description_edited_by=actor_from_dict(body.get("descriptionEditedBy")),
         retyped_by=actor_from_dict(body.get("retypedBy")),
         aliased_by=actor_from_dict(body.get("aliasedBy")),
+        page_given_by=actor_from_dict(body.get("pageGivenBy")),
+        page_taken_by=actor_from_dict(body.get("pageTakenBy")),
     )
 
 

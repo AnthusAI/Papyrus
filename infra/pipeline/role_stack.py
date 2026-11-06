@@ -123,6 +123,17 @@ def plan(ctx: sd.Context, template_path: Path, tag: str, outputs) -> int:
             return 0
         raise sd.Failed(f"the change set could not be created: {reason}")
 
+    if not described.get("Changes"):
+        # CloudFormation makes a change set whenever the template text differs, even when only a comment or a blank line moved. That change set is
+        # CREATE_COMPLETE with no changes, not the "didn't contain changes" failure, so it used to reach a reviewer as an empty table (run 42066386724).
+        # Nothing would be applied, so nobody is asked, and the unexecuted change set is removed.
+        cloud.delete_change_set(STACK, name)
+        ctx.write_summary("## Pipeline roles: nothing to do\n"
+                          f"The template on this commit (fingerprint `{sha}`) differs from the deployed text, but CloudFormation found no resource or permission change "
+                          "(a comment or formatting edit). No approval is needed and nothing was applied.")
+        outputs("needed", "false")
+        return 0
+
     _, lines = sd.review_changes(STACK, described.get("Changes", []), [])
     table = "| Action | Logical id | Type | Replacement |\n| --- | --- | --- | --- |\n" + "\n".join(lines)
     live = sd.parse_template(cloud.get_template(STACK)) if stack is not None else {}

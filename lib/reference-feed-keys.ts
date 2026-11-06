@@ -116,6 +116,48 @@ export function referenceMediumKeyPatch(
   return patch;
 }
 
+/** A pending row is in the public index only with a stored prediction at or above this. */
+export const RECOMMENDED_FLOOR = 0.5;
+
+export type ReferencePublicKeyInput = ReferenceFeedKeyInput & { feedArrivalAt?: string | null; publicFeedKey?: string | null };
+export type ReferencePublicKeys = { publicFeedKey: string | null; publicOrderKey: string | null };
+
+/** The stored prediction as a number in 0..1, or null: only a finite number counts, and a missing prediction is never a number. */
+function storedProbability(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null;
+}
+
+/**
+ * The sparse keys a public block reads (docs/plans/public-blocks-from-indexes.md). Python twin: `public_feed_keys`; scripts/fixtures/public-feed-key-vectors.json
+ * holds the vectors both test. Accepted: "<corpusId>#accepted" sorted "p<P>#<arrival>#<id>" ("n#..." when never scored). Pending with a stored prediction of
+ * at least 0.5: "<corpusId>#recommended#<UTC day>". Anything else (rejected, archived, superseded, no corpus, no prediction, a prediction below 0.5): both null.
+ * The stored `feedArrivalAt` wins over the derived arrival, as in Python.
+ */
+export function referencePublicFeedKeys(reference: ReferencePublicKeyInput, probability?: number | null): ReferencePublicKeys {
+  const none: ReferencePublicKeys = { publicFeedKey: null, publicOrderKey: null };
+  if (reference.versionState && reference.versionState !== "current") return none;
+  if (!reference.corpusId) return none;
+  const status = normalizeReferenceCurationStatus(reference.curationStatus);
+  const stored = storedProbability(probability ?? reference.predictedAcceptProbability);
+  const arrival = instant(reference.feedArrivalAt) ?? referenceFeedArrivalAt(reference);
+  if (status === "accepted") {
+    return { publicFeedKey: `${reference.corpusId}#accepted`, publicOrderKey: stored === null ? `n#${arrival}#${reference.id}` : `p${stored.toFixed(6)}#${arrival}#${reference.id}` };
+  }
+  if (status === "pending" && stored !== null && stored >= RECOMMENDED_FLOOR) {
+    return { publicFeedKey: `${reference.corpusId}#recommended#${arrival.slice(0, 10)}`, publicOrderKey: `p${stored.toFixed(6)}#${arrival}#${reference.id}` };
+  }
+  return none;
+}
+
+/**
+ * The public keys for a vote or an archive written as a patch. `{}` for a row that neither has keys nor will have them, so a patch for an ordinary row
+ * names no new field. `changes` overrides the Reference's own values (the next `curationStatus`, the target `corpusId`). Python twin: `public_key_patch`.
+ */
+export function referencePublicKeyPatch(reference: ReferencePublicKeyInput, changes: Partial<ReferenceFeedKeyInput> = {}): Partial<ReferencePublicKeys> {
+  const wanted = referencePublicFeedKeys({ ...reference, ...changes });
+  return wanted.publicFeedKey || reference.publicFeedKey ? wanted : {};
+}
+
 export function predictionSortKeyFor(probability: number | null | undefined, arrival: string, referenceId: string): string {
   const chosen = probability === null || probability === undefined ? UNDECIDED_PROBABILITY : Math.min(1, Math.max(0, probability));
   return `${chosen.toFixed(6)}#${arrival}#${referenceId}`;

@@ -30,6 +30,12 @@
 - One run at a time (workflow concurrency group `stack-deploy`, and the script refuses a stack that is `*_IN_PROGRESS`).
 - Change sets the pipeline does not own (for example `operators-first`) are left alone; only unexecuted `papyrus-release-*` change sets from earlier runs are deleted. A stack in `REVIEW_IN_PROGRESS` is created with a CREATE change set; the other change sets then show as obsolete.
 
+## When a release fails
+
+- **A change set that cannot be created** (for example `AWS::EarlyValidation::ResourceExistenceCheck`): the job reads the change set's events before deleting it, and the job summary names the resource, the check and the reason. The usual cause is a resource with a fixed name that already exists outside the stack. `OperatorTable` uses `DeletionPolicy: RetainExceptOnCreate`, so a first create that rolls back removes its own empty table; any other leftover is deleted by a person (the pipeline never deletes data) or imported, then the release is re-run.
+- **A rollback that is refused for a permission**: the service role is changed only through `role-stack-deploy`. The release deploys the templates on `main`, so a template fix reaches AWS only with a release; a re-run of a failed run deploys the commit that run was for.
+- **Order after a fix to both**: merge the fix, approve the `role-stack-deploy` run if it asks, remove any leftover resource the summary names, then release (or re-run the release on `main`).
+
 ## What does not fit
 
 - `papyrus-procedure-runner` takes `ImageUri`, a container image built and pushed elsewhere. The shape (zip builds that feed content-hash keys) does not apply, so it is not in `stacks.json`. It would fit once the image build is a pipeline step.

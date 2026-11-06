@@ -1,6 +1,6 @@
 /**
  * An editor's review of knowledge nodes from the signed-in CLI: `papyrus knowledge entities accept | reject | rename | alias | describe |
- * accept-description`.
+ * accept-description | page`.
  *
  * Those commands work out the change as small patches (src/papyrus_content/knowledge_snapshot/entity_review.py) and used to write them to the `SemanticNode`
  * and `SemanticRelation` models directly. An editor's token may read those models and nothing more (the write rules are AWS credentials only), so the
@@ -8,13 +8,13 @@
  * review may change and writes it, for editors only. It adds no way to create, retire or move a node or a relation.
  *
  * A review keeps who decided in the node's `changeReason` (a marker, then one JSON object: `acceptedBy`, `rejectedBy`, `descriptionEditedBy`, `retypedBy`,
- * `aliasedBy`, each an `{actor, name, on}`). The CLI lets the person say `--actor ai|human`, and a script in an editor's session can say anything, so
+ * `aliasedBy`, and `pageGivenBy` or `pageTakenBy` when an editor decides against the extractor's page answer, each an `{actor, name, on}`). The CLI lets the person say `--actor ai|human`, and a script in an editor's session can say anything, so
  * every actor written or changed by a call is stamped `via` with the origin the token proves (`edit-origin.ts`: cli, newsroom, signed-in); an actor the
  * call did not change keeps the `via` it already had. A reader can tell a decision made in the Newsroom from one made through the CLI.
  */
 
 export const REVIEW_MARKER = "papyrus-knowledge-review@1:";
-export const REVIEW_ACTOR_KEYS = ["acceptedBy", "rejectedBy", "descriptionEditedBy", "retypedBy", "aliasedBy"] as const;
+export const REVIEW_ACTOR_KEYS = ["acceptedBy", "rejectedBy", "descriptionEditedBy", "retypedBy", "aliasedBy", "pageGivenBy", "pageTakenBy"] as const;
 const ACTORS = ["ai", "human"] as const;
 const REVIEW_STATUSES = ["accepted", "rejected", "generated"] as const;
 const MAXIMUM_PATCHES = 200;

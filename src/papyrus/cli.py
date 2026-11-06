@@ -28,6 +28,7 @@ from papyrus_content.operator_errors import (  # noqa: E402
 )
 from papyrus_newsroom import cli as newsroom_cli  # noqa: E402
 from papyrus.operator.group_commands import REPORTING_COMMANDS, RESEARCH_COMMANDS, SECTIONS_COMMANDS  # noqa: E402
+from papyrus.operator.help_dispatch import answer_help  # noqa: E402
 from papyrus.operator.help_text import TOP_LEVEL_HELP, print_group_help  # noqa: E402
 from papyrus.operator.runtime import (  # noqa: E402
     dispatch_operator_command,
@@ -145,6 +146,9 @@ def _map_references(command: str, flags: list[str]) -> int:
     if command == "capture-transcripts":
         from papyrus_content.references_transcripts import command as transcripts_command
         return transcripts_command(flags)
+    if command == "repair-titles":
+        from papyrus_content.references_titles import command as titles_command
+        return titles_command(flags)
     if command == "capture-thumbnails":
         from papyrus_content.references_thumbnails import command as thumbnails_command
         return thumbnails_command(flags)
@@ -197,7 +201,7 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
         return 0
     if command in {"entities", "clusters", "relations"}:
         allowed = {
-            "entities": "list, accept, reject, rename, alias, describe, accept-description, link, retype or registry",
+            "entities": "list, accept, reject, rename, alias, describe, accept-description, page, link, retype or registry",
             "clusters": "list, accept, name or reject",
             "relations": "list, accept or reject",
         }[command]
@@ -312,6 +316,10 @@ def _run_with_arguments(argv: list[str] | None) -> int:
     if not args or args == ["--help"] or (len(args) == 1 and args[0] in {"--help", "-h"}):
         _usage()
         return 0
+    # Help for any command or group, ahead of sign-in, the root guard and every command (mutations write by default).
+    help_status = answer_help(args)
+    if help_status is not None:
+        return help_status
     if args[0] == "--version":
         from papyrus import __version__
 

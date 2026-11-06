@@ -2,15 +2,16 @@ import json
 from pathlib import Path
 
 from .reference_feed_keys import (accept_probability, content_needed_key, feed_keys, medium_feed_key, medium_key_patch, moved_content_key,
-                                  original_prediction_fields, stale_feed_keys, stale_star_feed_key, star_feed_key)
+                                  original_prediction_fields, public_feed_keys, public_key_patch, stale_feed_keys, stale_star_feed_key, star_feed_key)
 
+PUBLIC_VECTORS = json.loads((Path(__file__).resolve().parents[2] / "scripts" / "fixtures" / "public-feed-key-vectors.json").read_text())
 VECTORS = json.loads((Path(__file__).resolve().parents[2] / "scripts" / "fixtures" / "reference-feed-key-vectors.json").read_text())
 
 
 def test_the_keys_match_the_vectors_the_typescript_twin_is_tested_against():
     for vector in VECTORS:
         # never carries the star key: callers spread it on partial patches; the medium key is checked on its own below
-        assert {key: value for key, value in feed_keys(vector["reference"]).items() if key not in ("mediumFeedKey", "contentNeededKey")} == vector["keys"], vector["name"]
+        assert {key: value for key, value in feed_keys(vector["reference"]).items() if key not in ("mediumFeedKey", "contentNeededKey", "publicFeedKey", "publicOrderKey")} == vector["keys"], vector["name"]
         if "contentNeededKey" in vector:
             assert content_needed_key(vector["reference"]) == vector["contentNeededKey"], vector["name"]
         if "mediumFeedKey" in vector:
@@ -115,3 +116,68 @@ def test_the_stale_feed_key_check_leaves_the_content_key_to_the_backfill_and_the
     assert "contentNeededKey" not in stale_feed_keys(video)
     assert feed_keys(video)["contentNeededKey"] == "c#video#needs_content#accepted"
     assert "contentNeededKey" not in feed_keys({**video, "medium": None, "sourceUri": "https://example.org/a"})
+
+
+def test_the_public_keys_match_the_vectors_the_typescript_twin_is_tested_against():
+    for vector in PUBLIC_VECTORS:
+        assert public_feed_keys(vector["reference"]) == vector["publicKeys"], vector["name"]
+
+
+def test_a_prediction_that_is_not_a_finite_number_is_never_a_number():
+    base = {"id": "r", "corpusId": "c", "curationStatus": "pending", "createdAt": "2026-10-28T12:00:00Z"}
+    for bad in (None, float("nan"), float("inf"), True, "0.9", "nan"):
+        assert public_feed_keys({**base, "predictedAcceptProbability": bad}) == {"publicFeedKey": None, "publicOrderKey": None}, repr(bad)
+    # accepted rows are public with or without a score; the unscored sort after every scored one
+    scored = public_feed_keys({**base, "curationStatus": "accepted", "predictedAcceptProbability": 0.01})["publicOrderKey"]
+    unscored = public_feed_keys({**base, "curationStatus": "accepted"})["publicOrderKey"]
+    assert unscored.startswith("n#") and scored.startswith("p") and scored > unscored
+
+
+def test_a_prediction_outside_zero_to_one_is_clamped_like_the_prediction_key():
+    base = {"id": "r", "corpusId": "c", "curationStatus": "pending", "createdAt": "2026-10-28T12:00:00Z"}
+    assert public_feed_keys({**base, "predictedAcceptProbability": 7})["publicOrderKey"].startswith("p1.000000#")
+    assert public_feed_keys({**base, "predictedAcceptProbability": -3})["publicFeedKey"] is None
+
+
+def test_a_pending_rows_keys_are_written_once_and_a_vote_keeps_its_place_in_the_order():
+    pending = {"id": "r", "corpusId": "c", "curationStatus": "pending", "createdAt": "2026-10-28T12:00:00Z", "predictedAcceptProbability": 0.7}
+    before = public_feed_keys(pending)
+    accepted = public_feed_keys({**pending, "curationStatus": "accepted"})
+    assert before["publicFeedKey"] == "c#recommended#2026-10-28" and accepted["publicFeedKey"] == "c#accepted"
+    assert before["publicOrderKey"] == accepted["publicOrderKey"], "the sort key does not change with a vote; only the partition does"
+
+
+def test_feed_keys_name_the_public_keys_only_when_the_row_can_be_public_or_holds_them():
+    pending = {"id": "r", "corpusId": "c", "curationStatus": "pending", "createdAt": "2026-10-28T12:00:00Z"}
+    assert "publicFeedKey" not in feed_keys(pending), "no explicit null on a row that has none: a null on an index key of a new row is not a missing attribute"
+    assert feed_keys({**pending, "curationStatus": "accepted"})["publicFeedKey"] == "c#accepted"
+    assert feed_keys({**pending, "predictedAcceptProbability": 0.9})["publicFeedKey"] == "c#recommended#2026-10-28"
+    held = {**pending, "predictedAcceptProbability": 0.2, "publicFeedKey": "c#recommended#2026-10-28", "publicOrderKey": "stale"}
+    assert feed_keys(held)["publicFeedKey"] is None and feed_keys(held)["publicOrderKey"] is None, "a held key is cleared when the row stops qualifying"
+
+
+def test_the_original_prediction_brings_a_pending_row_into_the_public_index_only_at_half_or_more():
+    reference = {"id": "r-v1", "corpusId": "c", "curationStatus": "pending", "createdAt": "2026-10-28T12:00:00Z"}
+    high = original_prediction_fields(reference, label="include", positive_label="include", confidence=0.9, decided_at="2026-10-28T12:01:00Z")
+    assert high["publicFeedKey"] == "c#recommended#2026-10-28" and high["publicOrderKey"] == "p0.900000#2026-10-28T12:00:00.000Z#r-v1"
+    low = original_prediction_fields(reference, label="exclude", positive_label="include", confidence=0.9, decided_at="2026-10-28T12:01:00Z")
+    assert "publicFeedKey" not in low and low["predictedAcceptProbability"] < 0.5
+
+
+def test_the_public_key_patch_follows_the_vote_and_names_nothing_for_an_ordinary_row():
+    pending = {"id": "r", "corpusId": "c", "curationStatus": "pending", "createdAt": "2026-10-28T12:00:00Z", "predictedAcceptProbability": 0.7,
+               "publicFeedKey": "c#recommended#2026-10-28", "publicOrderKey": "p0.700000#2026-10-28T12:00:00.000Z#r"}
+    assert public_key_patch(pending, curationStatus="accepted") == {"publicFeedKey": "c#accepted", "publicOrderKey": "p0.700000#2026-10-28T12:00:00.000Z#r"}
+    assert public_key_patch(pending, curationStatus="rejected") == {"publicFeedKey": None, "publicOrderKey": None}
+    assert public_key_patch(pending, curationStatus="archived") == {"publicFeedKey": None, "publicOrderKey": None}
+    # an unkeyed pending row below the floor, voted accepted, enters the index with its own low score
+    low = {"id": "s", "corpusId": "c", "curationStatus": "pending", "createdAt": "2026-10-28T12:00:00Z", "predictedAcceptProbability": 0.3}
+    assert public_key_patch(low, curationStatus="accepted") == {"publicFeedKey": "c#accepted", "publicOrderKey": "p0.300000#2026-10-28T12:00:00.000Z#s"}
+    # an ordinary row stays out of the index and the patch names no new field (it works on a backend that does not have the attributes yet)
+    assert public_key_patch(low, curationStatus="rejected") == {}
+    assert public_key_patch({"id": "t", "corpusId": "c", "curationStatus": "pending"}, curationStatus="accepted")["publicFeedKey"] == "c#accepted"
+
+
+def test_the_feed_key_backfill_leaves_the_public_keys_to_their_own_backfill():
+    reference = {"id": "r", "corpusId": "c", "curationStatus": "accepted", "createdAt": "2026-10-28T12:00:00Z"}
+    assert "publicFeedKey" not in stale_feed_keys(reference)

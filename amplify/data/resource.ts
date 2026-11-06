@@ -360,6 +360,7 @@ const schema = a.schema({
       action: a.string().required(),
       actorSub: a.string(),
       actorLabel: a.string(),
+      agentLabel: a.string(),
       note: a.string(),
       reasonCode: a.string(),
       decisionRelationId: a.id(),
@@ -501,6 +502,7 @@ const schema = a.schema({
       stars: a.integer(),
       actorSub: a.string(),
       actorLabel: a.string(),
+      agentLabel: a.string(),
     })
     .returns(a.ref("ReferenceStarsActionResult"))
     .authorization((allow) => [
@@ -515,6 +517,7 @@ const schema = a.schema({
       stars: a.integer(),
       actorSub: a.string(),
       actorLabel: a.string(),
+      agentLabel: a.string(),
     })
     .returns(a.ref("ItemStarsActionResult"))
     .authorization((allow) => [
@@ -1981,6 +1984,13 @@ const schema = a.schema({
       // The video's own thumbnail, copied into the media bucket by `papyrus references capture-thumbnails`: the site path of the copy
       // ("assets/reference-thumbnails/<hash>.jpg"), or "none" when the platform has no thumbnail (recorded so it is not asked again). Else empty.
       thumbnailPath: a.string(),
+      // The public blocks of a site's pages (docs/plans/public-blocks-from-indexes.md, PPY-7f1e54): the index keys and the card copies. See schema.ts.
+      publicFeedKey: a.string(),
+      publicOrderKey: a.string(),
+      cardImage: a.string(),
+      cardSummary: a.string(),
+      cardSiteName: a.string(),
+      cardPageTitle: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [
@@ -2059,6 +2069,8 @@ const schema = a.schema({
       acceptedReferenceMentionCount: a.integer(),
       distinctSourceKindCount: a.integer(),
       relationCount: a.integer(),
+      // The extractor's answer whether the concept deserves a page of its own: JSON {score, answer, documents, runId}. An editor's own decision is in changeReason.
+      pageAnswer: a.string(),
       status: a.string().required(),
       importRunId: a.id(),
       createdAt: a.datetime(),

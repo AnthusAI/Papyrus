@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "21ea18ec-a3ff-448f-8967-aaf1ebe747bb",
+  "issue_id": "PPY-4bb7b724-de6e-4a74-80a3-54bc455498ed",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T23:27:55.361Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document the Medium filter on p.apyr.us (follow-up of PPY-ec0d0a)",
+    "description": "Document the References page Medium row (All, Videos) on the Papyrus product site p.apyr.us: the buttons beside Reviewed, pending videos in two clicks, the link that opens it (medium=video), that it reads the medium index without scanning, that Predictions cannot order a medium, and that References whose medium is unknown are listed under All only. Source: docs/reference-feed-indexes.md, The medium filter. Standing task from PPY-ec0d0a; publish through the Papyrus-web content flow, then close.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

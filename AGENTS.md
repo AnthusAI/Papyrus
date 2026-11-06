@@ -159,6 +159,10 @@ papyrus procedures register --file procedures/<name>.tac --key <site>.<monitor>.
 
 It validates the procedure with Tactus, derives the parameter schema from its `input` block, bundles the skills its agents name, and stores a new published version (an unchanged digest changes nothing). To start it from a monitor, add `procedureTriggers` and `openaiKeyParameter` to the site's router publication ([procedure runner](docs/procedure-runner.md)).
 
+### Accept, reject and rate References as the signed-in person
+
+Ryan, 2026-11-05: agents act directly on his behalf. In a signed-in `papyrus login` session (editor or admin) run `papyrus references approve|reject --reference <id> [--agent <name>] [--note ...]` and `papyrus references set-stars --reference <id> --stars 1-5|clear [--agent <name>]`; add `--dry-run` to preview. The decision is recorded as the person's own, with a plain `via cli` note. No delegation or approval is needed; delegations are optional and not the normal path ([story reporting](docs/story-reporting.md#acting-as-the-signed-in-person-the-normal-path)).
+
 ### Create or change an automation
 
 ```bash

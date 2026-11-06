@@ -64,11 +64,16 @@ Mutation commands write by default; `--dry-run` prints the report and the size o
 
 A home page that interleaves Stories with the Reference grids uses the ordinary `listing` include. It can show a single Story type with `types` (any of) and `notTypes` (none of), for example `::include{kind="listing" sections="articles" types="article" count="1" card="text" layout="bare"}` for the newest article even when newer posts exist. A type is only selectable if `listings.types` lists it. Pages that do not use the attributes render exactly as before.
 
+Story listings also take `type` and `section` (short forms of `types` and `sections`), `sections="N" per="M"` (one group per section, best first), `fallback="post"`, `unique="true"` (never repeat a Story on a page) and `counts="true"`. See [Home page groups](home-page-groups.md).
+
 ## The references include
 
 `::include{kind="references" select="recent|confident|recommended" count="6" [bucket="day|week"] [section="Tools"] [medium="video"] [card="tile|row"] [heading="..."] [more="/path/"] [empty="..."] [paged="true" [id="name"]]}` places Reference cards on an authored page, rendered at projection time from `_data/home-page/references.json`. A site needs the `homePage` setting; without it the include is a build error that names the page file.
 
 - `medium="video"` keeps only the References whose `medium` is `video` (a videos block, [Videos on a public page](standard-site.md#videos-on-a-public-page)); any other value is a build error. A card with a medium shows it as a small label with a Lucide icon and the word ("Video"), except in a block that is itself filtered by `medium` (every card is that medium, so the label would only repeat); a block that mixes media keeps it.
+- `image="none"` keeps only References with no picture (text-only cards) and `image="any"` only those with one (PPY-ebbd54). On the snapshot path it filters the file's `image` field; the index engine would filter `cardImage` after the partition query.
+- `explainer="How It Works" [explainerKicker="..."] [explainerBody="..."]` draws an explainer card as the first item of the grid (`<li class="home-page-explainer">`). It is plain text from the include, not a Reference, and never counts toward `count`; an empty selection draws nothing. Not for paged lists.
+- `counts="true"` writes `data-count` (the number of References, the explainer not counted) on the section and the grid and the class `home-page-has-lead` on the grid, so a site's CSS can fill its rows: the first card is the best, so the largest. Not for paged lists.
 - `recent`: accepted, newest accepted first. `confident`: accepted, in the shared order of an editor's rating and then the Cyclotron's confidence (below). `recommended`: not yet accepted, in the same shared order. Without a `bucket`, `recent` ignores ratings.
 - `bucket="day"` or `bucket="week"` (any selection): the newest bucket first and the shared order inside each bucket. See [Time buckets](#time-buckets).
 - `count` defaults to `homePage.references.defaultCount` (6). `section` keeps References whose section label (or a configured section name's label) matches.

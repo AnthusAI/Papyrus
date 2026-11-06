@@ -15,6 +15,7 @@ from ..knowledge_snapshot.commands import announce_backend, load_knowledge_data,
 from ..knowledge_snapshot.keys import slug
 from ..knowledge_snapshot.loaders import CURRENT, beats_from_categories
 from ..options import normalize_string, parse_comma_list, parse_options
+from ..projection_trigger import retry_command
 from ..publish_commands import DEFAULT_ACTOR, run_site_triggers
 from ..publishing import ItemFields, PublishError, _parse_json_object, publish_item, published_item_id_for, save_item
 from ..wiki_stamp import ACTORS, REVIEW_KEY, UPDATED_KEY, WIKI_PAGE_ITEM_TYPE, review_mapping, stamp_problems
@@ -267,6 +268,11 @@ def knowledge_wiki_publish(flags: list[str]) -> None:
         outcomes[state] += 1
         report.append({"item": working["id"], "page": label, "result": state, "version": result.version_number, **({"triggers": triggers} if triggers else {})})
         print(f"knowledge\twiki-publish\t{state}\t{label}\tversion {result.version_number}")
+        projection = triggers.get("projection") or {}
+        if projection.get("ok") is False:
+            # The records are written, but the site has not projected the page: say so and how to repeat only the projection.
+            print(f"knowledge\twiki-publish\tprojection-failed\t{label}\titem {working['id']} is published but its page was not projected: {projection.get('error')}; retry: {projection.get('retry') or retry_command(working['id'], unpublished=False)}")
+            failed = True
     if options.get("json"):
         print(json.dumps({"mode": "apply" if apply else "dry-run", "review": review, "pages": report, "counts": dict(outcomes)}, indent=2, sort_keys=True))
     else:

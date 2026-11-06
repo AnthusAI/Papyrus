@@ -152,3 +152,40 @@ Feature: Shared stacks deploy from the release, never by hand
     Given the pipeline and approver templates
     Then no policy in either has two statements with the same Sid
     And every AWS service a shared stack template creates resources in is granted to the service role
+
+  Scenario: No managed policy in a shared stack can reach IAM's size limit unnoticed
+    Given the first full deploy of papyrus-monitoring failed because RouterIdeaPolicy was over IAM's 6,144-character limit and the stack rolled back
+    When the tests compute the size of every managed policy in both stack templates and in the pipeline roles
+    Then each substitution is counted at its longest, a policy at ninety percent of the limit fails the pull request, and so does a role whose inline policies approach their own limit
+    And the vector pass's statements sit in RouterEnrichmentStoragePolicy, a policy attached to the same role, so the router's access is the same and no new managed policy is attached
+
+  Scenario: The service role can make every call CloudFormation makes, including while it rolls back
+    Given the service role lacked lambda:GetEventSourceMapping and lambda:DeleteEventSourceMapping, which Lambda checks against resource "*" when a cancelled create has no mapping id yet
+    When the tests list, for each resource type the two templates use, the calls its create, update and delete handlers make
+    Then the service role is allowed every one of them, and a custom resource's function can be started by the role
+    And creating a mapping stays tied to this account's own functions, and only Get and Delete are allowed on resource "*"
+
+  Scenario: A failed first create does not leave a table that blocks the next one
+    Given OperatorTable keeps its data when the stack is deleted
+    When the create that makes it rolls back
+    Then the empty table is deleted with the rollback, because its deletion policy retains it except on create
+    And a later create is not refused by the early existence check
+
+  Scenario: A refused change set names the resource that refused it
+    Given a change set fails early validation, for example because a table with a fixed name already exists outside the stack
+    When the release reads the change set's events before deleting the change set
+    Then the job summary and the error annotation name the resource, the check and the reason
+    And say that a person deletes an empty leftover or imports one that holds data, because the pipeline never deletes data
+    And if the events cannot be read the original reason is still shown
+
+  Scenario: A change set with no changes asks nobody for approval
+    Given the pipeline role template differs from the deployed text only in a comment or a blank line
+    When role-stack-deploy plans it
+    Then CloudFormation reports a change set with no changes, which is not the "no changes" failure
+    And the plan deletes it, says nothing needs approval, and the apply job does not start
+
+  Scenario: The dead-man alarm stays quiet until the first heartbeat could have arrived
+    Given the dead-man alarm treats missing data as breaching, which fired it and emailed the moment it was first created
+    When the stack is created, a custom resource writes one HeartbeatDelivered datapoint before the alarm exists
+    Then the alarm does not fire during its first thirty to forty-five minutes
+    And if heartbeats never start, the datapoint ages out of the three-period window and the alarm fires, which is the check working

@@ -56,7 +56,7 @@ The key writers: `setReferenceStars` (`amplify/functions/category-action/handler
 
 The Python twin of the key is `medium_feed_key` (`reference_feed_keys.py`; it reads the medium off the address when none is stored yet, so a vote written before the backfill still lands in the right partition) and the TypeScript one `referenceMediumFeedKey` (`lib/reference-feed-keys.ts`, stored medium only; the backfill repairs a Reference voted in the browser before its medium was stored). Both are tested against `scripts/fixtures/reference-feed-key-vectors.json`. Read it from Python with `iterate_references_by_medium(client, corpus_id)` (`reference_medium.py`), which pages newest first and stops when you stop.
 
-The newsroom does not read this index yet. The public videos block reads the home-page snapshot, which the snapshot task builds from the accepted References it already reads (it does not use this index either); the index is for a reader that needs the videos alone, quickly, such as a future videos feed, an Alexa skill or a count. It is **one** new global secondary index on `Reference`: DynamoDB allows one index change per deploy per table, so deploy it on its own. Until the backfill runs, the index holds only the References created or voted on since the writers shipped.
+The newsroom References page reads this index for its **Medium** row (All, Videos): see [the Medium filter](#the-medium-filter). The public videos block reads the home-page snapshot, which the snapshot task builds from the accepted References it already reads (it does not use this index either); the index is for a reader that needs the videos alone, quickly, such as a future videos feed, an Alexa skill or a count. It is **one** new global secondary index on `Reference`: DynamoDB allows one index change per deploy per table, so deploy it on its own. Until the backfill runs, the index holds only the References created or voted on since the writers shipped.
 
 ```bash
 papyrus references backfill-medium --site KEY                      # preview, writes nothing
@@ -64,6 +64,23 @@ papyrus references backfill-medium --site KEY --write              # writes medi
 ```
 
 Rollout order, with the other Reference fields: data API first (schema and index), then the engine, then the backfill, then a videos page. See [the curation pipeline](reference-curation-pipeline.md#4b-referencemedium-what-kind-of-thing-the-address-is-2026-11-04).
+
+## The medium filter
+
+The References page has a Medium row beside Reviewed: **All** and **Videos** (the mediums the rule can name; `lib/reference-medium-feed.ts`). Videos reads `listReferencesByMediumFeedAndArrival` newest first, one partition per vote state and corpus, merged by arrival (`MergedFeedReader`), so a page of 24 is one read per partition and nothing is read that is not shown. The vote state is in the key, so Reviewed picks the partitions and nothing is filtered in the browser:
+
+| Reviewed | Partitions read, per corpus |
+| --- | --- |
+| No (default) | `<corpusId>#video#pending` |
+| Accepted | `<corpusId>#video#accepted` |
+| Yes | `<corpusId>#video#accepted`, `<corpusId>#video#rejected` |
+| Any | `pending`, `accepted` and `rejected` |
+
+- **The address holds the choice**: `/newsroom/references?medium=video` (any other value is All). It is not saved in the browser, so a link opens the same list and the next visit starts on All.
+- **Sort**: the index is by arrival, so a medium reads Newest. While the saved Sort is Predictions the page shows Newest and leaves the saved choice alone; choosing Predictions takes the medium off the address. Quality and Minimum stars work with a medium: they read the star partitions and keep that medium's rows (the star partitions are small).
+- **Captured** applies on top as for any list. A search ignores the medium and hides the row while one is open.
+- **References with no medium are in no medium partition.** The rule names a medium only where the address is certain (a video on a known platform), so an ordinary article has none and is listed under All only. There is no Articles, Papers or Podcasts button because no such medium exists; one is added by teaching the rule a new medium (a `MEDIUMS` entry in `reference_medium.py`, then `FEED_MEDIUMS` here). A video written before the key writers shipped, or voted in the browser before its medium was stored, has no key until `papyrus references backfill-medium --site KEY --write` runs; that command covers exactly those, and it leaves the articles unset on purpose.
+- **Who reads**: `readReferenceMediumStream` (`components/news-desk-taxonomy-client.ts`) is the page's reader; the local preview and the test mock serve the same keys from memory (`mediumReaderFromRecords`).
 
 ## The content-needed index
 
@@ -89,6 +106,49 @@ Rollout order, with the other Reference fields: data API first (schema and index
 The key functions are `content_needed_key` and `moved_content_key` (`reference_feed_keys.py`) and `referenceContentNeededKey` and `referenceMediumKeyPatch` (`lib/reference-feed-keys.ts`), tested against the shared vectors; `reference_creation_paths_test.py` covers every creating path, a vote, a supersede and a retire.
 
 **Rollout.** This is **one** new global secondary index on `Reference`, and DynamoDB allows one index change per deploy per table. The medium index ships in the release before this one, so this index must go out in a later, separate deploy: do not release the two together (the two index lines in `amplify/data/schema.ts` and `amplify/data/resource.ts` are the last commit of the pull request that added them, so they can be held back). The fields (`captureReason`, `contentNeededKey`) are plain attributes and can ship with anything; the engine tolerates a site whose data API does not have them yet (the client drops them and retries). Order, per site: (1) the deploy with the fields (no index), (2) the deploy with the index alone, (3) `papyrus references backfill-feed-keys --site KEY` if the site's capture states were never stored, then `papyrus references backfill-medium --site KEY` to preview and `--write` to set `contentNeededKey` (it reports `contentKeysSet`), (4) `papyrus references capture-transcripts` from a non-cloud connection. Until step 3 the index is empty for existing videos, and until step 2 the command says the index is not there yet.
+
+## The public-blocks attributes
+
+A public block (the three newest accepted References, the six most confident recommended ones) will ask an index for exactly the rows it shows and draw each card from the row it gets back, instead of reading the whole table ([the design](plans/public-blocks-from-indexes.md), PPY-7f1e54). This page covers the first stage: six plain attributes on `Reference`, the writers that keep them right, and the backfill. **There is no index yet** (it is the next, separate deploy), and no page reads these attributes yet: a site renders exactly as before.
+
+| Field | Meaning |
+| --- | --- |
+| `publicFeedKey` | The partition: `<corpusId>#accepted` for an accepted Reference, `<corpusId>#recommended#<UTC day of arrival>` for a pending one with a stored prediction of at least 0.5. Absent (null) otherwise, so the row is in no partition. |
+| `publicOrderKey` | The sort key: `p<P to six places>#<arrival>#<id>`, where P is the Cyclotron's original `predictedAcceptProbability`; `n#<arrival>#<id>` for an accepted Reference nobody scored, which sorts after every scored one (`p` sorts above `n`). A pending row's key is written once: its prediction and arrival never change. Star ratings are in neither key. |
+| `cardImage` | The address of the card picture. The preview's image address with anything that carries identity removed; for a video, our own thumbnail copy (`/assets/reference-thumbnails/...`), never an address on the platform, and empty until the thumbnail is recorded; for a picture an editor chose (`via: editor` on the preview), that picture. |
+| `cardSummary` | The preview's description, scrubbed and **not clipped**: the clip to `publicData.summaryCharacters` happens when the card is drawn, so a site that changes its length changes nothing in the table. |
+| `cardSiteName` | The preview's site name, scrubbed. |
+| `cardPageTitle` | The title the page declared for link previews, scrubbed. A Reference titled with its own address shows this, or a readable name made from the site name and the address, never the address ([PR #1236](https://github.com/AnthusAI/Papyrus/pull/1236) adds the rule, `displayed_title`). It is the page's title and not the displayed one, so a repaired row title needs no rewrite here: the card computes the displayed title from the live row and this. |
+
+**A missing prediction is never a number.** A pending row with no stored prediction, or one below 0.5, has no key and is in no partition; an accepted row nobody scored is public and sorts last. The keys come from one pure function, `public_feed_keys` (`reference_feed_keys.py`), with the TypeScript twin `referencePublicFeedKeys` (`lib/reference-feed-keys.ts`); `scripts/fixtures/public-feed-key-vectors.json` holds the vectors both test. Like the medium keys they are sparse: written when the row can be public, cleared only when the row currently holds them, and never an explicit null on a row that has none (a null on an index key of a new row is not a missing attribute).
+
+**Who keeps them right** (in each writer, not in the stream trigger, so a failed trigger batch can never leave a row invisible):
+
+| Writer | What it does |
+| --- | --- |
+| `feed_keys` (`reference_feed_keys.py`): `catalog.reference_record`, `reference_url_text`, accession, `records.py` new versions, `original_prediction_fields` | Include the public keys when the row can be public or holds them. A row accepted at import is public from the start. |
+| `monitoring_router.record_original_prediction`, `relevance_sweep`, the router's copy of an earlier decision (`original_prediction_fields`) | The first prediction of at least 0.5 brings a pending row into the recommended partition; a lower one writes no key. |
+| `reviewReferenceCuration`, `rateReferenceQuality` (`category-action`), `review_reference_curation` (chat), `auto_accept.py`, `auto_reject.py`, `reference_citation_stubs.py` | Move the keys with the vote (`referencePublicKeyPatch`, `public_key_patch`): the partition follows the vote, the sort key keeps the original prediction's place; a reject or an archive clears both. A patch for a row that neither has nor will have keys names no public field, so it works on a backend that does not have the attributes yet. The chat tool's `getReference` query selects the prediction and arrival the keys are made from. |
+| `records.py` supersede, `moveReferenceCorpus` | The superseded version loses its keys. The new version is keyed from its own facts (its own id is in the sort key) and carries the card copies, which belong to the preview and are read by lineage. |
+| `reference_images.attach_preview` (the router, URL intake, email submission), `enrich-images` | After the preview attachment, `card_update` writes the card copies in one more mutation per new Reference, and none when the row already holds the same values. A failed card write does not fail the preview; the backfill repairs it. |
+| `reference_thumbnails.record_thumbnail` (`correctReferenceCapture`, `papyrus references capture-thumbnails`) | Writes `cardImage` with `thumbnailPath` in the same update, so a video's thumbnail ends up in `cardImage`. |
+| `papyrus references backfill-public-fields` | The one command that reads existing rows (below). |
+
+An editor-chosen picture (`via: editor` on the preview attachment) is honoured by `card_fields`, but nothing in this tree writes one yet; whichever writer adds it calls `card_update`.
+
+The home-page trigger watches `CHANGE_FIELDS`, which does not include any of these attributes, so writing them (the backfill included) schedules no snapshot. The six fields are in `EXCLUDED_REFERENCE_FIELDS` (`home_page/export.py`): none is published under its own name.
+
+### Backfill
+
+```bash
+papyrus references backfill-public-fields --site KEY                      # preview: one line per row it would change, then counts; writes nothing
+papyrus references backfill-public-fields --corpus-key KEY1,KEY2 --write  # writes
+papyrus references backfill-public-fields --all-corpora                   # preview of every corpus the backend lists
+```
+
+It reads the accepted rows of a corpus from the curation-status index and its pending rows from the prediction index, **highest first, stopping at the first row under 0.5**; for each row that can be public it reads the preview attachments once, and writes only the six fields. Rejected, archived, unpredicted and low-scored rows are not read past that point or touched. It changes no vote, writes nothing on a second run, and reports `public`, `accepted`, `recommended`, `keysSet`, `keysCleared`, the card fields set, `videosWithoutImage` (videos whose thumbnail copy is not recorded yet; run `capture-thumbnails` and then this again) and `longestSummary` (so the stored summary length is learned from data). It previews by default, like `backfill-medium`, and is an operator command. The rows must already carry `feedStateKey` and `predictionSortKey` (`backfill-feed-keys`) for the pending ones to be found. Cost per site, once: one list of the accepted rows, the pending index down to 0.5, one attachment read per public row, and one write per changed row.
+
+**Rollout.** (1) Deploy the data API with the five attributes (no index) and the engine with the writers. The router and chat tolerate a site whose schema lacks the attributes (`NEWER_REFERENCE_FIELDS`, `MEDIUM_REFERENCE_FIELDS`), but the TypeScript Lambdas and the chat's own GraphQL path have no such retry: they ship with the schema in the same site deploy. (2) `backfill-public-fields` per site, preview then `--write`. (3) The index, alone, in a later deploy: one new index per table per deploy, and with the keys already in place it is complete the moment it is active. No IAM change: the attributes ride on `createReference` and `updateReference`, which every worker already holds (`procedures/newsroom/tests/test_reference_medium_iam.py` fails if a grant is lost or if the monitoring template ever names one of the new fields).
 
 ## The Captured filter and the capture list
 
@@ -134,7 +194,7 @@ The feed shows a Reference only if it has the keys, whatever its source. Every c
 | Moving a Reference to another corpus | `category-action` `moveReferenceCorpus` (TypeScript, `referenceFeedKeys`) |
 | An agent's accept, reject, reopen or archive from chat | `papyrus_newsroom/reference_actions.review_reference_curation` sets `feedStateKey` |
 
-The console's "Paste a URL" and "Import a file" create Cyclotron priming examples, not References.
+The console's "Paste a URL" calls `intakePendingReferences` and creates a pending Reference (it used to write a Cyclotron priming request, which created no Reference, so a pasted page never appeared in the list). "Import a file" still creates Cyclotron priming examples, not References.
 
 A re-import does not repair a Reference that has no keys: it reuses a current Reference with the same import run or content. Only the backfill below keys existing rows.
 

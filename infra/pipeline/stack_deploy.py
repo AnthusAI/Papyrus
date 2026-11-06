@@ -153,6 +153,23 @@ def failure_cause(events: list[dict], known: set[str], stack: dict | None) -> st
     return "\n".join(lines) or "no failure event found"
 
 
+def validation_failures(events: list[dict]) -> list[str]:
+    """Lines for the failed early validations in a change set's events (`describe-events --change-set-name`): which resource, which check, why.
+    The change set's own status reason says only that a validation failed."""
+    lines = []
+    for event in events:
+        failed = str(event.get("ValidationStatus", "")).upper() == "FAILED" or (event.get("ValidationName") and str(event.get("ValidationStatus", "")).upper() not in ("", "PASSED", "SUCCEEDED"))
+        if not failed:
+            continue
+        where = event.get("LogicalResourceId") or event.get("ValidationPath") or "(no resource named)"
+        lines.append(f"{where} ({event.get('ResourceType', 'unknown type')}): {event.get('ValidationName', 'validation')} failed: {event.get('ValidationStatusReason') or 'no reason given'}")
+    return lines
+
+
+EXISTENCE_HINT = ("A resource this template creates with a fixed name already exists outside the stack (usually a Retain resource left behind by a create that rolled back). "
+                  "Look at it: if it is empty and nobody uses it, a person deletes it (this pipeline never deletes data), then re-run the release; if it holds data, import it into the stack instead.")
+
+
 def changed_stacks(config: dict, files: list[str]) -> list[str]:
     names = []
     for stack in config["stacks"]:
@@ -300,6 +317,10 @@ class AwsCli:
 
     def describe_change_set(self, stack: str, name: str) -> dict:
         return self._aws("cloudformation", "describe-change-set", "--stack-name", stack, "--change-set-name", name)
+
+    def change_set_events(self, stack: str, change_set_id: str) -> list[dict]:
+        """The events of a change set, which is where a failed early validation says which resource it failed on. Must be read before the change set is deleted."""
+        return self._aws("cloudformation", "describe-events", "--stack-name", stack, "--change-set-name", change_set_id)["OperationEvents"]
 
     def delete_change_set(self, stack: str, name: str) -> None:
         self._aws("cloudformation", "delete-change-set", "--stack-name", stack, "--change-set-name", name, parse=False)
@@ -459,11 +480,21 @@ def deploy_stack(ctx: Context, cfg: dict) -> str:
     described = wait_for_change_set(ctx, name, change_set)
     if described["Status"] == "FAILED":
         reason = described.get("StatusReason", "")
+        nothing = "didn't contain changes" in reason or "No updates are to be performed" in reason
+        detail = []
+        if not nothing:
+            # Early validation says only "validation failed" in the reason; the events say which resource. Read them before the change set goes.
+            try:
+                detail = validation_failures(cloud.change_set_events(name, described.get("ChangeSetId") or change_set))
+            except (AwsError, KeyError) as error:
+                detail = [f"(the change set's validation events could not be read: {error})"]
         cloud.delete_change_set(name, change_set)
-        if "didn't contain changes" in reason or "No updates are to be performed" in reason:
+        if nothing:
             ctx.write_summary(f"### {name}\nNothing to deploy: the template and parameters match the live stack.")
             return "unchanged"
-        raise Failed(f"change set failed to create: {reason}")
+        hints = [EXISTENCE_HINT] if "ResourceExistenceCheck" in reason + " ".join(detail) else []
+        message = "\n".join([f"change set failed to create: {reason}", *detail, *hints])
+        raise Failed(message)   # main() puts the message in the job summary and the annotation
 
     violations, lines = review_changes(name, described.get("Changes", []), ctx.allowed)
     table = "| Action | Logical id | Type | Replacement |\n| --- | --- | --- | --- |\n" + "\n".join(lines)

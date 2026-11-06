@@ -192,6 +192,18 @@ test("a rename and an alias are written, and the node keeps its key", async () =
   assert.deepEqual(decodeReviewMarks(nodes.get(node.id)!.changeReason).aliasedBy, { ...person, via: "cli" });
 });
 
+test("an editor's page decision is stamped as made through the CLI, keeps the other marks, and handing it back removes it", () => {
+  const stored = encodeReviewMarks({ acceptedBy: person, descriptionEditedBy: null, rejectedBy: null });
+  const taken = encodeReviewMarks({ acceptedBy: person, descriptionEditedBy: null, rejectedBy: null, pageTakenBy: person });
+  const written = stampedChangeReason(taken, stored, "cli");
+  const marks = decodeReviewMarks(written);
+  assert.deepEqual(marks.pageTakenBy, { ...person, via: "cli" });
+  assert.deepEqual(marks.acceptedBy, person);
+  const back = decodeReviewMarks(stampedChangeReason(stored, written, "cli"));
+  assert.equal(back.pageTakenBy, undefined);
+  assert.equal(back.pageGivenBy, undefined);
+});
+
 test("a person's accept from the CLI is stamped as made through the CLI, whatever the call says, and an earlier stamp is kept", () => {
   const forged = encodeReviewMarks({ acceptedBy: { ...person, via: "newsroom" }, descriptionEditedBy: null, rejectedBy: null });
   assert.deepEqual(decodeReviewMarks(stampedChangeReason(forged, undefined, "cli")).acceptedBy, { ...person, via: "cli" });
@@ -246,7 +258,7 @@ test("where a decision was made comes from the token's client, never from the re
   assert.equal(editOriginOfIdentity(identity(CLI_CLIENT), null), "signed-in");   // a site that has not named its CLI client cannot tell, and says so
   assert.equal(editOriginOfIdentity({ claims: {} }, CLI_CLIENT), "operator");
   assert.equal(editOriginOfIdentity(undefined, CLI_CLIENT), "operator");
-  assert.throws(() => editOriginOfIdentity({ claims: { sub: "sub-1", "cognito:groups": ["editor"] } }, CLI_CLIENT), /could not be read/);   // no readable client: refused, never labelled Newsroom
+  assert.equal(editOriginOfIdentity({ claims: { sub: "sub-1", "cognito:groups": ["editor"] } }, CLI_CLIENT), "signed-in");   // no readable client: may act, noted as signed-in
 });
 
 test("the console says when the words were written through the CLI, and says nothing new about the others", () => {

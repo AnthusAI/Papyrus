@@ -184,7 +184,7 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
                 weekly_start=week_monday(min(counts)).isoformat(),
                 change=change_of(values8, history),
                 new=is_new(history),
-                href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template and has_page and is_public_kind(node.kind, options.public_kinds) else None,
+                href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template and has_page and node.has_page and is_public_kind(node.kind, options.public_kinds) else None,
             )
         )
     return sorted(entities, key=lambda entity: (-len(entity.item_keys), entity.key))

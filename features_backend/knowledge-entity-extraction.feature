@@ -119,6 +119,41 @@ Feature: Jev decides which names in the texts are real, what kind they are and w
     Then Jev was not asked about "Heron Networks Report"
     And Jev was asked only once about "Tern3"
 
+  Scenario: The number of documents a name is in is kept beside its page score
+    When the entities are extracted
+    Then the item "doc-1" has "Tern3" with page score 0.8 and 2 documents
+    And the item "doc-1" has "Maple Lab" with page score 0.3 and 2 documents
+
+  Scenario: A heading at any level is not a name to file
+    Given a corpus of two documents that both read "## Experimental Design\n\nTern3 won.\n\n### Tern Migration\n\nMore."
+    When the entities are extracted
+    Then Jev was not asked about "Experimental Design"
+    And Jev was not asked about "Tern Migration"
+    And Jev was asked only once about "Tern3"
+
+  Scenario: A heading that lists section names gives none of them
+    Given a corpus of two documents that both read "## Materials and Methods\n\nTern3 won.\n\n### Authors and Affiliations\n\nMore."
+    When the entities are extracted
+    Then Jev was not asked about "Materials"
+    And Jev was not asked about "Methods"
+    And Jev was not asked about "Authors"
+    And Jev was not asked about "Affiliations"
+    And Jev was asked only once about "Tern3"
+
+  Scenario: A section name that the text also uses stays a candidate
+    Given a corpus of two documents that both read "## Tern Migration\n\nWe saw Tern Migration begin."
+    When the entities are extracted
+    Then Jev was asked only once about "Tern Migration"
+
+  Scenario: A date, a bare number or a quantity is not a name
+    Given a corpus of two documents that both read "Tern3 ran on October 22 and 23 at Hz and 10 for 3.5 weeks, 5 March 2024 and 10 Hz."
+    When the entities are extracted
+    Then Jev was not asked about "October 22"
+    And Jev was not asked about "Hz"
+    And Jev was not asked about "10"
+    And Jev was not asked about "March 2024"
+    And Jev was asked only once about "Tern3"
+
   Scenario: Two names joined by "and" are two names
     Given a corpus of two documents that both read "Cedar Lab and Maple Lab agreed."
     When the entities are extracted

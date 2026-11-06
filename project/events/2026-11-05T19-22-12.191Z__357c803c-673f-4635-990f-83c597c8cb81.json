@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "357c803c-673f-4635-990f-83c597c8cb81",
+  "issue_id": "PPY-5beaabfe-3d39-41a3-a4e3-d3c92181a392",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T19:22:12.191Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom search finds exact words and shows results plainly",
+    "description": "Ryan, 2026-11-05, tested on Machines on Machines: (1) searching 'sound' does not find the video 'I discovered a sound that leaks your exact location'; semantic results come back but not the exact title hit. Treat as a bug first: an exact title word is never missing. (2) A search goes to a separate page that asks for the search again, with no options; searching goes straight to results. (3) Keyword and semantic matches look the same; keyword hits rank above semantic ones, and each result says which kind it is in words, never colour alone. (4) The results page needs a readability redesign, reviewed by Ryan with screenshots. Gherkin specs; ends with a p.apyr.us docs task. Separate from PPY-ec0d0a (media filter).",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

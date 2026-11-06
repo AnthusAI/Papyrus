@@ -80,6 +80,7 @@ Resources:
                 Action:
                   - cloudformation:DescribeStacks
                   - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeEvents
                   - cloudformation:GetTemplate
                   - cloudformation:GetTemplateSummary
                   - cloudformation:ListChangeSets
@@ -151,13 +152,15 @@ Resources:
         Statement:
           - Sid: Functions
             Effect: Allow
-            Action: [lambda:CreateFunction, lambda:DeleteFunction, lambda:GetFunction, lambda:GetFunctionConfiguration, lambda:UpdateFunctionCode, lambda:UpdateFunctionConfiguration, lambda:PutFunctionConcurrency, lambda:DeleteFunctionConcurrency, lambda:PutFunctionEventInvokeConfig, lambda:UpdateFunctionEventInvokeConfig, lambda:DeleteFunctionEventInvokeConfig, lambda:AddPermission, lambda:RemovePermission, lambda:TagResource, lambda:UntagResource, lambda:ListTags, lambda:GetPolicy]
+            Action: [lambda:CreateFunction, lambda:DeleteFunction, lambda:GetFunction, lambda:GetFunctionConfiguration, lambda:UpdateFunctionCode, lambda:UpdateFunctionConfiguration, lambda:PutFunctionConcurrency, lambda:DeleteFunctionConcurrency, lambda:PutFunctionEventInvokeConfig, lambda:UpdateFunctionEventInvokeConfig, lambda:DeleteFunctionEventInvokeConfig, lambda:GetFunctionEventInvokeConfig, lambda:AddPermission, lambda:RemovePermission, lambda:TagResource, lambda:UntagResource, lambda:ListTags, lambda:GetPolicy]
             Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-*
-          # CloudFormation runs a stack's custom resources with this role. Only the one function that needs it, so this role cannot start the others.
-          - Sid: RunTheRecipientKeyCustomResource
+          # CloudFormation runs a stack's custom resources with this role. Only the functions that back them, so this role cannot start the others.
+          - Sid: RunTheCustomResources
             Effect: Allow
             Action: lambda:InvokeFunction
-            Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-monitoring-OperatorRecipientKey*
+            Resource:
+              - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-monitoring-OperatorRecipientKey*
+              - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-monitoring-OperatorDeadmanSeed*
           # Creating a mapping is checked against the function it points at, not against an event source mapping ARN.
           - Sid: CreateEventSourceMappingsForOurFunctions
             Effect: Allow
@@ -168,8 +171,16 @@ Resources:
                 lambda:FunctionArn: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:papyrus-*
           - Sid: EventSourceMappings
             Effect: Allow
-            Action: [lambda:CreateEventSourceMapping, lambda:UpdateEventSourceMapping, lambda:DeleteEventSourceMapping, lambda:GetEventSourceMapping, lambda:TagResource, lambda:UntagResource]
+            Action: [lambda:CreateEventSourceMapping, lambda:UpdateEventSourceMapping, lambda:DeleteEventSourceMapping, lambda:GetEventSourceMapping, lambda:ListTags, lambda:TagResource, lambda:UntagResource]
             Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:event-source-mapping:*
+          # Rolling back a mapping whose creation was cancelled has no mapping id yet, and Lambda then checks Get and Delete against resource "*", not an
+          # event-source-mapping ARN (the first full deploy of papyrus-monitoring failed its rollback on exactly this, 2026-11-05). Lambda allows no narrower
+          # scope for these two. The statement above already lets this role Get and Delete any mapping in the account by ARN, so this adds no reach; it only
+          # lets the call that has no ARN yet (and so finds nothing) through.
+          - Sid: EventSourceMappingsBeforeTheyHaveAnId
+            Effect: Allow
+            Action: [lambda:GetEventSourceMapping, lambda:DeleteEventSourceMapping]
+            Resource: "*"
           - Sid: ReadTheZipsTheFunctionsRunFrom
             Effect: Allow
             Action: s3:GetObject
@@ -180,7 +191,7 @@ Resources:
             Resource: !Sub arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/papyrus-*
           - Sid: RulesAndBuses
             Effect: Allow
-            Action: [events:PutRule, events:DeleteRule, events:DescribeRule, events:EnableRule, events:DisableRule, events:PutTargets, events:RemoveTargets, events:TagResource, events:UntagResource, events:ListTagsForResource, events:CreateEventBus, events:DeleteEventBus, events:DescribeEventBus, events:PutPermission, events:RemovePermission]
+            Action: [events:PutRule, events:DeleteRule, events:DescribeRule, events:ListTargetsByRule, events:EnableRule, events:DisableRule, events:PutTargets, events:RemoveTargets, events:TagResource, events:UntagResource, events:ListTagsForResource, events:CreateEventBus, events:DeleteEventBus, events:DescribeEventBus, events:PutPermission, events:RemovePermission]
             Resource:
               - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/papyrus-*
               - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*/papyrus-*
@@ -196,13 +207,13 @@ Resources:
             Resource: "*"
           - Sid: TheStacksOwnRoles
             Effect: Allow
-            Action: [iam:CreateRole, iam:DeleteRole, iam:GetRole, iam:UpdateRole, iam:UpdateAssumeRolePolicy, iam:PutRolePolicy, iam:DeleteRolePolicy, iam:GetRolePolicy, iam:AttachRolePolicy, iam:DetachRolePolicy, iam:TagRole, iam:UntagRole, iam:ListRolePolicies, iam:ListAttachedRolePolicies, iam:PassRole]
+            Action: [iam:CreateRole, iam:DeleteRole, iam:GetRole, iam:UpdateRole, iam:UpdateRoleDescription, iam:UpdateAssumeRolePolicy, iam:PutRolePolicy, iam:DeleteRolePolicy, iam:GetRolePolicy, iam:AttachRolePolicy, iam:DetachRolePolicy, iam:TagRole, iam:UntagRole, iam:ListRolePolicies, iam:ListAttachedRolePolicies, iam:PassRole]
             Resource:
               - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-monitoring-*
               - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/papyrus-newsletter-sending-*
           - Sid: TheStacksOwnManagedPolicies
             Effect: Allow
-            Action: [iam:CreatePolicy, iam:DeletePolicy, iam:GetPolicy, iam:CreatePolicyVersion, iam:DeletePolicyVersion, iam:GetPolicyVersion, iam:ListPolicyVersions, iam:TagPolicy, iam:UntagPolicy]
+            Action: [iam:CreatePolicy, iam:DeletePolicy, iam:GetPolicy, iam:CreatePolicyVersion, iam:DeletePolicyVersion, iam:GetPolicyVersion, iam:ListPolicyVersions, iam:ListEntitiesForPolicy, iam:TagPolicy, iam:UntagPolicy]
             Resource:
               - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/papyrus-monitoring-*
               - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/papyrus-newsletter-sending-*
@@ -216,7 +227,7 @@ Resources:
         Statement:
           - Sid: Tables
             Effect: Allow
-            Action: [dynamodb:CreateTable, dynamodb:DeleteTable, dynamodb:DescribeTable, dynamodb:UpdateTable, dynamodb:DescribeContinuousBackups, dynamodb:UpdateContinuousBackups, dynamodb:DescribeTimeToLive, dynamodb:UpdateTimeToLive, dynamodb:TagResource, dynamodb:UntagResource, dynamodb:ListTagsOfResource]
+            Action: [dynamodb:CreateTable, dynamodb:DeleteTable, dynamodb:DescribeTable, dynamodb:UpdateTable, dynamodb:DescribeContinuousBackups, dynamodb:UpdateContinuousBackups, dynamodb:DescribeTimeToLive, dynamodb:UpdateTimeToLive, dynamodb:DescribeContributorInsights, dynamodb:DescribeKinesisStreamingDestination, dynamodb:TagResource, dynamodb:UntagResource, dynamodb:ListTagsOfResource]
             Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/papyrus-*
           - Sid: Queues
             Effect: Allow
@@ -224,7 +235,7 @@ Resources:
             Resource: !Sub arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:papyrus-*
           - Sid: Topics
             Effect: Allow
-            Action: [sns:CreateTopic, sns:DeleteTopic, sns:GetTopicAttributes, sns:SetTopicAttributes, sns:Subscribe, sns:Unsubscribe, sns:GetSubscriptionAttributes, sns:SetSubscriptionAttributes, sns:TagResource, sns:UntagResource, sns:ListTagsForResource]
+            Action: [sns:CreateTopic, sns:DeleteTopic, sns:GetTopicAttributes, sns:SetTopicAttributes, sns:Subscribe, sns:Unsubscribe, sns:GetSubscriptionAttributes, sns:SetSubscriptionAttributes, sns:ListSubscriptionsByTopic, sns:TagResource, sns:UntagResource, sns:ListTagsForResource]
             Resource: !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:papyrus-*
           - Sid: Parameters
             Effect: Allow

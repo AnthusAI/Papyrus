@@ -2,7 +2,8 @@ Feature: Automated runs never change a concept that already exists
   A concept is a node in the knowledge graph, and people edit concepts in the wiki: its name, its description, its aliases.
   An automated writer, a knowledge run or an import, must never undo those edits. A run gets or creates the concept: when the
   concept is missing it creates it, when it exists it leaves it alone, and either way it writes the associations to it. The
-  only thing a machine may keep updating on an existing concept is the numbers worked out from the graph, as a partial
+  only things a machine may keep updating on an existing concept are the numbers worked out from the graph and the
+  extractor's page answer (an editor's own decision on the page is kept elsewhere and wins), each as a partial
   update that names only those fields. Three exceptions are kept: a generated concept becomes accepted when a published
   Story's front matter names it, the acceptance mark on a concept that same path created, and a generated concept becomes
   accepted when a monitor record names it. None of them ever touches a rejected concept.

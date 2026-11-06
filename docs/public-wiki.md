@@ -57,7 +57,7 @@ papyrus knowledge wiki sync --beats-category-set <set id> [--topics-section topi
 papyrus knowledge wiki sync --beats-config web/scoring.json --apply
 ```
 
-For each accepted entity it creates or updates a draft page in the wiki section. The Item id is `item-<section>-<slug>`; the slug is the entity key with `--` folded to `-`. Rejected and merely generated entities get no page.
+For each accepted entity whose page answer is not no (the extractor's, or an editor's decision against it; an entity with no answer keeps its page: see [page answer](knowledge-snapshot.md#page-answer)) it creates or updates a draft page in the wiki section. The Item id is `item-<section>-<slug>`; the slug is the entity key with `--` folded to `-`. Rejected and merely generated entities get no page.
 
 What happens to a page that already exists:
 
@@ -67,7 +67,7 @@ What happens to a page that already exists:
 | A draft page whose entity changed | The draft is updated in place. |
 | A published page whose entity changed | A pending revision: a new draft version of the same lineage (`<lineage>-v2`), marked current. The live page is untouched until the revision is published. A second change updates that draft rather than adding versions. |
 | Nothing changed | Nothing is written. |
-| An entity that is no longer accepted, or whose kind is no longer public | A warning, and the page is left as it is. With `--retire` the page is retired (see "Public kinds"). |
+| An entity that is no longer accepted, whose kind is no longer public, or whose page answer is now no | A warning, and the page is left as it is. With `--retire` the page is retired (see "Public kinds"). |
 
 The sync removes the `review` stamp from any text it writes, so changed text can never keep the stamp of the text it replaced.
 

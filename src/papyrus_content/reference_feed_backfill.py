@@ -18,7 +18,7 @@ from typing import Any, Callable
 from .ideas.digest import relations_of, relevance_of
 from .reference_capture_state import attachments_for_state, capture_state, normalize_capture_state
 from .reference_policy import normalize_reference_curation_status
-from .reference_feed_keys import FEED_KEY_FIELDS, PREDICTION_FIELDS, feed_keys, original_prediction_fields, stale_feed_keys, stale_star_feed_key
+from .reference_feed_keys import FEED_KEY_FIELDS, PREDICTION_FIELDS, PUBLIC_KEY_FIELDS, feed_keys, original_prediction_fields, stale_feed_keys, stale_star_feed_key
 
 STATUSES = ("pending", "accepted", "rejected", "archived")
 
@@ -49,6 +49,8 @@ def planned_fields(client: Any, reference: dict[str, Any], positive_label: str) 
                 confidence=decision["confidence"] if decision.get("confidence") is not None else decision.get("score"),
                 decided_at=decision.get("decidedAt") or feed_keys(reference)["feedArrivalAt"]))
             working.update({key: fields[key] for key in PREDICTION_FIELDS})
+            for key in PUBLIC_KEY_FIELDS:   # this command writes the six feed fields; the public keys belong to `backfill-public-fields`
+                fields.pop(key, None)
     fields.update(stale_feed_keys(working))
     fields.update(stale_star_feed_key(working))
     fields.update(planned_capture_state(client, reference))

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "55dc2565-de29-4856-ae57-f9c7a1cf99cc",
+  "issue_id": "PPY-70438356-96ff-414a-9692-42b7b9d99151",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T21:03:27.588Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Tell editors a change reaches the public site in a few minutes",
+    "description": "Ryan, 2026-11-05: he accepted the video on Machines on Machines, checked the Videos page at once, saw nothing and thought it had failed; the home-page snapshot runs after a debounce of up to about 5 minutes. When an editor accepts, rejects, rates or edits something that changes public pages, the Newsroom confirmation says it will be live on the site in a few minutes. Plain words, no colour alone. Gherkin. Later, when blocks read indexes (PPY-7f1e54), the wait may shrink; keep the wording honest to the real delay.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

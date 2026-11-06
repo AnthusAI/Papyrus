@@ -24,6 +24,7 @@ from ..knowledge_snapshot.cluster_records import CLUSTER_KIND, STATUS_PROPOSED, 
 from ..knowledge_snapshot.cluster_review import accept_cluster_patches
 from ..knowledge_snapshot.entity_review import accept_patches, reject_patches
 from ..knowledge_snapshot.keys import slug
+from ..knowledge_snapshot.page_answer import page_order_key
 from ..knowledge_snapshot.publish_run import is_item_mention
 from ..knowledge_snapshot.relation_review import (
     PROPOSED,
@@ -293,9 +294,10 @@ def node_names(node: Mapping[str, Any]) -> list[str]:
 
 
 def entity_candidates(nodes: list[dict], typed: TypedRun) -> dict[str, dict]:
-    """The generated nodes that have a sentence behind them: the only ones the model is asked about."""
+    """The generated nodes that have a sentence behind them: the only ones the model is asked about, in review order: the highest page score first,
+    with the number of documents as the tie-break and no threshold (``page_answer.page_order_key``); a node the extractor gave no answer comes last."""
     candidates: dict[str, dict] = {}
-    for index, node in enumerate(nodes):
+    for index, node in enumerate(sorted(nodes, key=page_order_key)):
         snippets = typed.entity_snippets(str(node.get("nodeKind")), node_names(node))
         if snippets:
             candidates[f"n{index}"] = {"node": node, "snippets": snippets}
@@ -319,7 +321,7 @@ def review_entities(
     candidates = entity_candidates(nodes, typed)
     patches: list[dict] = []
     decisions: list[Decision] = []
-    for group in batches(sorted(candidates)):
+    for group in batches(list(candidates)):
         if model.exhausted():
             break
         payload = [

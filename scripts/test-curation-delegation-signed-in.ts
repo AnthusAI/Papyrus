@@ -330,11 +330,16 @@ const behaviours: Record<string, () => Promise<void>> = {
     assert.ok(!JSON.stringify(stored).includes("agent-held-secret"), "the secret half of the token is never stored");
   },
 
-  async a_direct_vote_from_a_cli_session_is_the_agents_and_not_a_person_label() {
+  async a_direct_vote_from_a_cli_session_is_the_signed_in_persons_with_a_via_note() {
     const backend = await makeBackend();
-    await backend.call("reviewReferenceCuration", cliSession, { referenceId, action: "accept" });
-    assert.equal(backend.reference().curationActorKind, "agent");
-    assert.equal(backend.reference().curationDelegation, null);
+    await backend.call("reviewReferenceCuration", cliSession, { referenceId, action: "accept", agentLabel: "Claude" });
+    assert.equal(backend.reference().curationActorKind, "human", "an agent in the editor's session votes as the editor");
+    assert.equal(backend.reference().curationDelegation, null, "no delegation is needed or recorded");
+    assert.match(String(backend.reference().curationStatusUpdatedBy), /via cli \(Claude\)$/, "where it came from is a plain note");
+    const unreadable = { sub: "editor-sub-1", claims: { sub: "editor-sub-1", email: EDITOR, "cognito:groups": ["editor"] } };
+    await backend.call("reviewReferenceCuration", unreadable, { referenceId, action: "accept" });
+    assert.match(String(backend.reference().curationStatusUpdatedBy), /via signed-in$/);
+    await assert.rejects(backend.call("reviewReferenceCuration", idToken(CLI_CLIENT, []), { referenceId, action: "accept" }), /Only an editor or administrator/);
     await backend.call("reviewReferenceCuration", newsroomSession, { referenceId, action: "accept" });
     assert.equal(backend.reference().curationActorKind, "human");
     const unseparated = await makeBackend({ cliClientId: null });
@@ -350,7 +355,10 @@ const behaviours: Record<string, () => Promise<void>> = {
     }
     assert.equal(backend.reference().starRating, undefined, "a bad rating writes nothing");
     const rated = await relay(backend, "recordDelegatedStars", request, { stars: 4 });
-    assert.deepEqual([rated.ok, rated.stars, rated.status], [true, 4, "pending"]);
+    // Rating a pending Reference accepts it, relayed under the same delegation; later ratings leave that status alone.
+    assert.deepEqual([rated.ok, rated.stars, rated.status], [true, 4, "accepted"]);
+    assert.equal(backend.reference().curationStatus, "accepted");
+    assert.equal((JSON.parse(backend.reference().curationDelegation as string) as { relayedBy: string }).relayedBy, "Claude", "the acceptance is the editor's, relayed by the agent");
     assert.equal(backend.reference().starFeedKey, "corpus-fixture#stars#4");
     assert.ok(backend.reference().starRatedAt);
     await relay(backend, "recordDelegatedStars", request, { stars: 5 });
@@ -433,12 +441,15 @@ const behaviours: Record<string, () => Promise<void>> = {
     assert.equal((await backend.call("getCurationDelegationStatus", cliSession, { delegationId: request.delegationId })).state, "pending", "the request is still waiting");
   },
 
-  async a_cli_session_cannot_file_a_rating_as_the_person() {
+  async a_cli_session_rates_as_the_person_with_a_via_note() {
     const backend = await makeBackend();
-    await assert.rejects(backend.call("setReferenceStars", cliSession, { referenceId, stars: 5, actorLabel: EDITOR }), /papyrus references set-stars/);
-    await assert.rejects(backend.call("setItemStars", cliSession, { itemId: "item-1", stars: 5, actorLabel: EDITOR }), /Rate Stories in the Newsroom/);
-    assert.equal(backend.reference().starRating, undefined, "nothing was written");
-    // The Newsroom's own rating is unchanged, and so is the delegated one.
+    assert.equal((await backend.call("setReferenceStars", cliSession, { referenceId, stars: 5, actorLabel: EDITOR, agentLabel: "Claude" })).stars, 5);
+    assert.equal(backend.reference().starRating, 5);
+    assert.equal(backend.reference().starRatedBy, `${EDITOR} via cli (Claude)`);
+    // This fixture has no Item model, so a Story rating gets past the session checks and stops at reading the Story: no CLI refusal.
+    await assert.rejects(backend.call("setItemStars", cliSession, { itemId: "item-1", stars: 4, actorLabel: EDITOR }), (error: Error) => !/CLI session|Only an editor/.test(error.message));
+    await assert.rejects(backend.call("setReferenceStars", idToken(CLI_CLIENT, []), { referenceId, stars: 1 }), /Only an editor or administrator/);
+    // The Newsroom's own rating carries no note, and the delegated one still works.
     assert.equal((await backend.call("setReferenceStars", newsroomSession, { referenceId, stars: 3 })).stars, 3);
     assert.equal(backend.reference().starRatedBy, EDITOR);
     const request = await approved(backend);

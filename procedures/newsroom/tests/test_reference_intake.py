@@ -36,6 +36,11 @@ class IntakeClient:
             return lambda model: copy.deepcopy(list(self.tables.get(model, {}).values()))
         return getattr(self.story, name)
 
+    def list_by_index(self, index, value):
+        if index != "knowledgeCorporaByRoleAndName":
+            return self.story.list_by_index(index, value)
+        return copy.deepcopy([row for row in self.tables["KnowledgeCorpus"].values() if row.get("role") == value])
+
     def create_record(self, model, record):
         with self.lock:
             table = self.tables.setdefault(model, {})
@@ -107,6 +112,31 @@ def test_editor_intake_and_link_preserve_story():
     assert c.tables["Item"] == before
     assert c.tables["Message"] == prior_messages
     assert not c.tables.get("PublishedItem")
+
+
+def address_only(url="https://example.test/well-architected-agent"):
+    return {"items": [{"source_uri": url}]}
+
+
+def test_the_add_dialog_sends_only_an_address():
+    c = IntakeClient()
+    c.tables["KnowledgeCorpus"] = {"knowledge-corpus-pub": {"id": "knowledge-corpus-pub", "role": "canonical", "name": "Publication"}}
+    result = submit(c, address_only())
+    ref = c.tables["Reference"][result["references"][0]["id"]]
+    assert ref["corpusId"] == "knowledge-corpus-pub"
+    assert ref["curationStatus"] == "pending"
+    assert ref["title"] == "https://example.test/well-architected-agent"
+    provenance = json.loads(next(iter(c.uploads.values())))
+    assert provenance["rationale"] == "Added by an editor from the Newsroom."
+    assert submit(c, address_only())["references"][0]["id"] == result["references"][0]["id"]
+    assert len(c.tables["Reference"]) == 1
+
+
+def test_an_address_alone_is_refused_when_the_backend_has_no_single_canonical_corpus():
+    c = IntakeClient()   # its only corpus has no canonical role
+    with pytest.raises(IntakeError):
+        submit(c, address_only())
+    assert not c.tables["Reference"]
 
 
 @pytest.mark.parametrize("violation", ["no identity", "a reader role", "another issuer", "another publication", "another corpus", "a caller selected tenant"])

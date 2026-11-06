@@ -170,6 +170,12 @@ def step_no_page(context, item, text, score):
     assert found and all((e["page_score"], e["page_answer"]) == (score, False) for e in found), found
 
 
+@then('the item "{item}" has "{text}" with page score {score:f} and {documents:d} documents')
+def step_documents(context, item, text, score, documents):
+    found = [entity for entity in entities_of(context, item) if entity["text"] == text]
+    assert found and all((entity["page_score"], entity["page_documents"]) == (score, documents) for entity in found), found
+
+
 @then('the item "{item}" has no entity "{text}"')
 def step_no_entity(context, item, text):
     assert not [e for e in entities_of(context, item) if e["text"] == text]

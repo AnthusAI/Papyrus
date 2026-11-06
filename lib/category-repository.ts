@@ -316,6 +316,13 @@ export type ReferenceRecord = {
   captureReason?: string | null;
   /** `<corpusId>#<medium>#needs_content#<status>` while the content of a video is missing: the content-needed index's partition. */
   contentNeededKey?: string | null;
+  /** The public blocks' index keys and card copies (docs/plans/public-blocks-from-indexes.md). Null unless the row can be public. */
+  publicFeedKey?: string | null;
+  publicOrderKey?: string | null;
+  cardImage?: string | null;
+  cardSummary?: string | null;
+  cardSiteName?: string | null;
+  cardPageTitle?: string | null;
   /** The monitor that delivered this Reference (set at intake; the Reference is the record, no Message). */
   discoveredByMonitorId?: string | null;
   /** What the monitor's source said about it (a Hub model's structured fields, say). */

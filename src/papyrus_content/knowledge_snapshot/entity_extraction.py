@@ -2,9 +2,10 @@
 
 1. ``find_candidates`` reads the extracted texts with no model: capitalised sequences, mixed-case and versioned names, and
    lower-case words and phrases that appear in two documents or three times. Reference lists and bibliographies are not read, a
-   citation number stuck to a name is cut off, a name is never joined across ``and`` (unless the whole is one proper name), and a name
-   that only ever appears as a whole level-1 heading (a document's title) is not a candidate. Each distinct name keeps up to three
-   passages from different documents.
+   citation number stuck to a name is cut off, a name is never joined across ``and`` (unless the whole is one proper name), a name that
+   only ever appears as a whole section heading, at any level (a document's title, ``Materials and Methods``), is not a candidate, and
+   neither is a date or a quantity (``October 22 and 23``, ``10 Hz``, ``3.5``). Each distinct name keeps up to three passages from
+   different documents.
 2. ``decide`` asks Jev three questions per distinct name (not per mention) in one request: is it a real thing (a yes/no answer that
    files it or drops it), which of the vocabulary's kinds is it, and does a reader of the publication need a page of its own for it
    (a second yes/no answer). Answers are cached by name, passages, the question text, the publication and the model, so a rerun
@@ -21,6 +22,7 @@ Nothing here cuts entities off by confidence: ``publish-run``'s filter and the A
 from __future__ import annotations
 
 import hashlib
+import calendar
 import json
 import re
 import time
@@ -58,6 +60,24 @@ REFERENCE_HEADING = re.compile(r"(?im)^[ \t]*(#{1,6})?[ \t]*(references|bibliogr
 HEADING = re.compile(r"(?m)^(#{1,6})[ \t]+\S")
 STUCK_NUMBER = re.compile(r"^(.*[A-Za-z])(\d{2,3})$")
 GLUED_WORD = re.compile(r"\b[A-Za-z][\w\-]*[A-Za-z]\d{2,3}\b")
+
+
+# A date or a quantity is not a name: every word of it is a number, a month or weekday, a connector or a unit, and at least one is a number.
+# The calendar's own names are used (not a list kept here); a unit is a base unit with an optional SI prefix, so ``kHz`` and ``GB`` are units and
+# ``GPT`` is not (``GPT 4`` is a name). A bare unit or month with no number beside it (``May``, ``ML``) is left to the other filters.
+NUMBER = re.compile(r"[+\-\u00b1~]?\d[\d.,:/\u2013\-]*(?:%|(?:st|nd|rd|th))?")
+UNIT = re.compile(r"[YZEPTGMkhdcmµunpfa]?(?:Hz|B|W|V|A|J|N|K|Pa|s|m|g|l|\u03a9)|[%\u00b0]")
+AFTER_NUMBER = re.compile(r"(?:^|\s)" + NUMBER.pattern + r"\s*$")
+CALENDAR_WORDS = frozenset(word.casefold() for word in (*calendar.month_name, *calendar.month_abbr, *calendar.day_name, *calendar.day_abbr) if word)
+
+
+def is_quantity(text: str) -> bool:
+    """A date (``October 22 and 23``), a number (``3.5``, ``2020-2024``) or a number with units (``10 Hz and 10``), and nothing else."""
+    words = [word.strip(",;:.()") for word in text.split()]
+    words = [word for word in words if word]
+    if not words or not any(NUMBER.fullmatch(word) for word in words):
+        return False
+    return all(NUMBER.fullmatch(word) or UNIT.fullmatch(word) or word.casefold() in CALENDAR_WORDS or word.casefold() in CONNECTORS or word.casefold() == "to" for word in words)
 
 
 class ExtractionError(ValueError):
@@ -126,7 +146,16 @@ def scan_mentions(documents: Mapping[str, str], stop_words: Iterable[str]) -> tu
         lower_words.update(word for word, _a, _b in words)
         for pattern in (NAMED, MIXED):
             for match in pattern.finditer(text):
-                for a, b in _pieces(match.group(), citations=counted, glued=glued):
+                pieces = _pieces(match.group(), citations=counted, glued=glued)
+                written = [match.group()[a:b] for a, b in pieces]
+                quantity = [is_quantity(piece) for piece in written]
+                for (a, b), piece, number, at in zip(pieces, written, quantity, range(len(pieces))):
+                    # ``Hz`` in ``Hz and 10`` or ``10 Hz``, ``June`` in ``12th June``: a unit or a calendar word that belongs to a number
+                    unit_of_a_number = (bool(UNIT.fullmatch(piece)) or piece.casefold() in CALENDAR_WORDS) and (
+                        any(quantity[max(at - 1, 0):at + 2]) or (at == 0 and bool(AFTER_NUMBER.search(text[max(match.start() + a - 24, 0):match.start() + a])))
+                    )
+                    if number or unit_of_a_number:
+                        continue
                     if outside(match.start() + a):
                         seen[match.group()[a:b].casefold()].append((item_id, match.start() + a, match.start() + b, match.group()[a:b]))
         for size in (1, 2, 3):  # lower-case words and phrases, unbroken by punctuation and with no stop word at either edge
@@ -142,13 +171,18 @@ def scan_mentions(documents: Mapping[str, str], stop_words: Iterable[str]) -> tu
     return seen, lower_words
 
 
-def _is_document_title(text: str, start: int, end: int) -> bool:
-    """The mention is the whole of a level-1 heading line: the title of an article or paper, which is not a thing to file."""
+def _is_section_heading(text: str, start: int, end: int) -> bool:
+    """The mention is the whole of a heading line, or one of the parts of a heading that lists them (``Materials and Methods``), at any level: the
+    name of a section, which is not a thing to file."""
     begin = text.rfind("\n", 0, start) + 1
     stop = text.find("\n", end)
     line = text[begin:len(text) if stop < 0 else stop]
-    heading = re.match(r"#[ \t]+(.*)$", line)
-    return bool(heading) and heading.group(1).strip().rstrip(".:").casefold() == text[start:end].casefold()
+    heading = re.match(r"#{1,6}[ \t]+(.*)$", line)
+    if not heading:
+        return False
+    written = text[start:end].casefold()
+    parts = re.split(r"\s*(?:,|&|\band\b)\s*", heading.group(1).strip().rstrip(".:").casefold())
+    return written in [part.strip() for part in parts if part.strip()]
 
 
 def find_candidates(documents: Mapping[str, str], stop_words: Iterable[str]) -> dict[str, dict]:
@@ -171,7 +205,9 @@ def find_candidates(documents: Mapping[str, str], stop_words: Iterable[str]) -> 
         if not lower and len(words) == 1 and key.isalpha() and lower_words[key] > capitalised:  # a word capitalised only at a sentence start
             continue
         mentions = sorted(set(mentions), key=lambda mention: (mention[0], mention[1]))
-        if all(_is_document_title(documents[item_id], start, end) for item_id, start, end, _text in mentions):
+        if all(_is_section_heading(documents[item_id], start, end) for item_id, start, end, _text in mentions):
+            continue
+        if all(is_quantity(mention[3]) for mention in mentions):
             continue
         found[key] = {"name": Counter(mention[3] for mention in mentions).most_common(1)[0][0], "contexts": _passages(documents, mentions), "mentions": mentions}
     return found
@@ -384,28 +420,31 @@ def build_output(
 ) -> dict:
     """The file ``publish-run --entities`` reads. Mentions of names Jev has not answered for are left out, and so are names it does not
     call real. Each proposed entity carries the page answer: Jev's probability that the name deserves a page of its own and whether
-    that is a yes, both 0 for a name in only one document outside the reference lists (decided here, not asked in the prompt)."""
-    by_item: dict[str, list[tuple[int, int, str, str, float, str | None, float | None]]] = defaultdict(list)
+    that is a yes, both 0 for a name in only one document outside the reference lists (decided here, not asked in the prompt), and
+    ``page_documents``, the number of documents the name is in (null on a resolved entity), which is shown beside the score and never blended into it."""
+    by_item: dict[str, list[tuple[int, int, str, str, float, str | None, float | None, int | None]]] = defaultdict(list)
     for item_id, text in documents.items():
         for start, end, written, key, kind in matcher.find(text):
-            by_item[item_id].append((start, end, written, kind, 1.0, key, None))
+            by_item[item_id].append((start, end, written, kind, 1.0, key, None, None))
     resolved_spans = {item_id: [(start, end) for start, end, *_rest in mentions] for item_id, mentions in by_item.items()}
     for key, decision in decisions.items():
         if decision["real"] < FILED_AT or matcher.knows(candidates[key]["name"]):
             continue
-        page = 0.0 if len({mention[0] for mention in candidates[key]["mentions"]}) < 2 else decision["page"]
+        found_in = len({mention[0] for mention in candidates[key]["mentions"]})
+        page = 0.0 if found_in < 2 else decision["page"]
         for item_id, start, end, written in candidates[key]["mentions"]:
             if any(a <= start and end <= b for a, b in resolved_spans.get(item_id, ())):  # inside the mention of an accepted entity
                 continue
-            by_item[item_id].append((start, end, written, decision["choice"], decision["real"], None, page))
+            by_item[item_id].append((start, end, written, decision["choice"], decision["real"], None, page, found_in))
     items = []
     for item_id in sorted(documents):
         entities = [
             {
                 "id": f"e{number}", "kind": kind, "text": written, "state": "resolved" if entity_key else "proposed", "entity_key": entity_key,
                 "span": {"start": start, "end": end}, "score": score, "page_score": page, "page_answer": None if page is None else page >= FILED_AT,
+                "page_documents": documents,
             }
-            for number, (start, end, written, kind, score, entity_key, page) in enumerate(sorted(by_item[item_id], key=lambda mention: mention[:3]), 1)
+            for number, (start, end, written, kind, score, entity_key, page, documents) in enumerate(sorted(by_item[item_id], key=lambda mention: mention[:3]), 1)
         ]
         items.append({"item_id": item_id, "entities": entities, "relations": []})
     resolved = sum(1 for item in items for entity in item["entities"] if entity["state"] == "resolved")

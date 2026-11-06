@@ -1,6 +1,6 @@
 """The References page search (``papyrus_knowledge_query.reference_search``): the word index, the meaning lane, fusion and the cursor.
 
-Everything runs against a fake GraphQL list and a fake vector index, with synthetic data.
+Everything runs against a fake DynamoDB (a word table and a Reference table that count requests) and a fake vector index, with synthetic data.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
-from papyrus_knowledge_query import cuts, lambda_handler, reference_search as rs  # noqa: E402
+from papyrus_knowledge_query import cuts, lambda_handler, reference_search as rs, reference_words  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -31,23 +31,110 @@ def row(lineage, title, *, authors=None, state="unrated", source=None, external=
     }
 
 
+class ConditionalCheckFailed(Exception):
+    pass
+
+
+class FakeTable:
+    def __init__(self, dynamo, name):
+        self.dynamo, self.name = dynamo, name
+        self.items = dynamo.tables.setdefault(name, {})
+
+    def query(self, KeyConditionExpression, ExpressionAttributeValues, ExclusiveStartKey=None):
+        assert KeyConditionExpression == "shard = :s AND begins_with(entry, :p)"
+        shard, prefix = ExpressionAttributeValues[":s"], ExpressionAttributeValues[":p"]
+        keys = sorted(key for key in self.items if key[0] == shard and key[1].startswith(prefix))
+        if ExclusiveStartKey:
+            keys = [key for key in keys if key > (ExclusiveStartKey["shard"], ExclusiveStartKey["entry"])]
+        page, more = keys[:self.dynamo.page], len(keys) > self.dynamo.page
+        self.dynamo.record("query", self.name, len(page))
+        return {"Items": [dict(self.items[key]) for key in page],
+                "LastEvaluatedKey": {"shard": page[-1][0], "entry": page[-1][1]} if more else None}
+
+    def _guard(self, key, version):
+        held = self.items.get(key)
+        if held is not None and not int(held["versionNumber"]) <= version:
+            raise ConditionalCheckFailed()
+
+    def put_item(self, Item, ConditionExpression, ExpressionAttributeValues):
+        key = (Item["shard"], Item["entry"])
+        self._guard(key, ExpressionAttributeValues[":v"])
+        self.items[key] = dict(Item)
+        self.dynamo.record("put_item", self.name, 0)
+
+    def delete_item(self, Key, ConditionExpression, ExpressionAttributeValues):
+        key = (Key["shard"], Key["entry"])
+        self._guard(key, ExpressionAttributeValues[":v"])
+        self.items.pop(key, None)
+        self.dynamo.record("delete_item", self.name, 0)
+
+    def get_item(self, Key):
+        self.dynamo.record("get_item", self.name, 0)
+        held = self.items.get((Key["shard"], Key["entry"]))
+        return {"Item": dict(held)} if held else {}
+
+    def scan(self, **_kwargs):
+        raise AssertionError("a search must never scan a table")
+
+
+class FakeDynamo:
+    """Two tables in memory, the word table and the Reference table, that count every request and every item a request returned.
+    There is no scan: asking for one fails the test."""
+
+    WORDS, REFERENCES = "words", "references"
+
+    def __init__(self, page=1000):
+        self.tables, self.page, self.requests, self.items_read = {self.WORDS: {}, self.REFERENCES: {}}, page, [], 0
+
+    def record(self, operation, table, items):
+        self.requests.append((operation, table))
+        if operation in ("query", "batch_get_item"):
+            self.items_read += items
+
+    def Table(self, name):
+        return FakeTable(self, name)
+
+    def batch_get_item(self, RequestItems):
+        responses = {}
+        for name, spec in RequestItems.items():
+            assert len(spec["Keys"]) <= 100
+            table = self.tables[name]
+            found = [dict(table[(key["shard"], key["entry"])] if "shard" in key else table[key["id"]])
+                     for key in spec["Keys"] if ((key["shard"], key["entry"]) if "shard" in key else key["id"]) in table]
+            responses[name] = found
+            self.record("batch_get_item", name, len(found))
+        return {"Responses": responses, "UnprocessedKeys": {}}
+
+    def describe_table(self, TableName):
+        return {"Table": {"ItemCount": len(self.tables[TableName])}}
+
+
 class FakeSite:
-    """A GraphQL endpoint holding Reference rows: pages of ``page`` rows, ascending by updatedAt, honouring the ``updatedAt.ge`` condition."""
+    """A site of Reference rows with its word index written the way the stream consumer writes it, and a word source reading both tables."""
 
-    def __init__(self, rows, page=2):
-        self.rows, self.page, self.calls = list(rows), page, []
+    def __init__(self, rows, page=1000):
+        self.dynamo = FakeDynamo(page=page)
+        self.writer = reference_words.WordWriter(FakeTable(self.dynamo, FakeDynamo.WORDS), conflict_errors=(ConditionalCheckFailed,))
+        self.source = reference_words.DynamoWordSource(self.dynamo, self.dynamo, word_table=FakeDynamo.WORDS, reference_table=FakeDynamo.REFERENCES)
+        self.rows = {}
+        for candidate in rows:
+            self.change(None, candidate)
+        self.dynamo.requests.clear()
+        self.dynamo.items_read = 0
 
-    def graphql(self, query, variables):
-        assert "listReferencesByVersionStateAndUpdatedAt" in query and variables["versionState"] == "current"
-        self.calls.append(variables)
-        rows = sorted(self.rows, key=lambda candidate: candidate["updatedAt"])
-        bound = (variables.get("updatedAt") or {}).get("ge")
-        if bound:
-            rows = [candidate for candidate in rows if candidate["updatedAt"] >= bound]
-        start = int(variables.get("nextToken") or 0)
-        chunk = rows[start:start + self.page]
-        more = start + self.page < len(rows)
-        return {"listReferencesByVersionStateAndUpdatedAt": {"items": chunk, "nextToken": str(start + self.page) if more else None}}
+    def change(self, old, new):
+        """A Reference row changing (the stream record), the word rows following."""
+        if new is not None:
+            self.dynamo.tables[FakeDynamo.REFERENCES][new["id"]] = new
+            self.rows[new["lineageId"]] = new
+        self.writer.apply_change(old, new)
+
+    def index(self):
+        """An in-memory index of the indexed rows, for tests of the ranking itself."""
+        index = rs.ReferenceWordIndex()
+        for candidate in self.dynamo.tables[FakeDynamo.REFERENCES].values():
+            index.upsert(candidate)
+        return index
 
 
 class FakeVectors:
@@ -67,7 +154,7 @@ class FakeVectors:
 
 
 def search(site, vectors, query, show="all", **extra):
-    return rs.search_references({"query": query, "show": show, **extra}, graphql=site.graphql if site else None, vectors=vectors, index=rs.ReferenceWordIndex())
+    return rs.search_references({"query": query, "show": show, **extra}, words=site.source if site else None, vectors=vectors)
 
 
 def titles(result):
@@ -76,44 +163,69 @@ def titles(result):
 
 # --- the word index -------------------------------------------------------------------------------------------------------------------------
 
-def test_the_first_query_reads_every_page_and_drops_references_in_no_feed():
-    site = FakeSite([row("a", "Alpha"), row("b", "Beta"), row("c", "Gamma", state=None), row("d", "Delta"), row("e", "Epsilon")])
-    index = rs.ReferenceWordIndex()
-    assert index.refresh(site.graphql) == 5
-    assert len(index) == 4   # the one with no feedStateKey is in no feed
-    assert len(site.calls) == 3 and index.built_in_ms is not None   # three pages of two, and the cold build was timed
+def test_a_reference_in_no_feed_has_no_words_and_the_others_are_found_by_exact_word_and_by_prefix():
+    site = FakeSite([row("a", "Alpha"), row("b", "Beta"), row("c", "Gamma", state=None), row("d", "Delta sound"), row("e", "Epsilon")])
+    assert titles(search(site, None, "gamma")) == []   # in no feed: archived, or not the current version
+    assert titles(search(site, None, "sound")) == ["Delta sound"]
+    assert titles(search(site, None, "alp")) == ["Alpha"]   # a term of three letters also matches the start of a longer word
+    assert titles(search(site, None, "al")) == []   # two letters match whole words only
 
 
-def test_later_queries_read_only_rows_changed_since_the_last_read():
-    site = FakeSite([row("a", "Alpha", updated="2026-11-01T10:00:00.000Z"), row("b", "Beta", updated="2026-11-01T11:00:00.000Z")])
-    index = rs.ReferenceWordIndex()
-    index.refresh(site.graphql)
-    site.calls.clear()
-    site.rows.append(row("c", "Newly arrived", updated="2026-11-01T11:00:30.000Z"))
-    assert index.refresh(site.graphql) == 2   # the overlap re-reads the last row, plus the new one
-    assert site.calls[0]["updatedAt"] == {"ge": "2026-11-01T10:58:00.000Z"}   # watermark less the two-minute overlap
-    assert [hit.lineage_id for hit in index.search("newly arrived", "all")] == ["c"]
+def test_an_exact_word_in_a_title_is_never_missing_however_many_other_results_there_are():
+    sound = row("sound", "I discovered a sound that leaks your exact location", state="unrated")
+    crowd = [row(f"other{n}", f"Another story about location tracking {n}", state="rated", curationStatus="accepted") for n in range(40)]
+    site = FakeSite(crowd + [sound], page=5)   # a word's lookup spans several pages here
+    related = [(f"other{n}", 0.1 + n / 1000) for n in range(40)]
+    result = search(site, FakeVectors(related + smooth_tail()), "sound")
+    assert result["items"][0]["reference"]["title"] == "I discovered a sound that leaks your exact location"
+    assert result["items"][0]["matchedBy"] == ["keyword"] and "title" in result["items"][0]["matchedFields"]
 
 
-def test_a_reference_updated_a_moment_ago_is_found_under_its_new_words():
-    site = FakeSite([row("a", "Old title", updated="2026-11-01T10:00:00.000Z")])
-    index = rs.ReferenceWordIndex()
-    index.refresh(site.graphql)
-    assert index.search("fresh", "all") == []
-    site.rows[0] = row("a", "Fresh title", updated="2026-11-01T10:00:05.000Z", version=2)
-    index.refresh(site.graphql)
-    assert [hit.lineage_id for hit in index.search("fresh", "all")] == ["a"] and index.search("old", "all") == []
+def test_a_new_reference_a_changed_title_and_an_archived_reference_follow_the_stream():
+    site = FakeSite([row("a", "Old title")])
+    assert titles(search(site, None, "fresh")) == []
+    site.change(site.rows["a"], row("a", "Fresh title"))   # the same row, a new title
+    assert titles(search(site, None, "fresh")) == ["Fresh title"] and titles(search(site, None, "old")) == []
+    site.change(None, row("n", "Newly arrived"))
+    assert titles(search(site, None, "newly")) == ["Newly arrived"]
+    site.change(site.rows["n"], row("n", "Newly arrived", state=None))   # archived: no feed key
+    assert titles(search(site, None, "newly")) == []
 
 
-def test_an_archived_reference_leaves_the_index_and_an_older_version_never_replaces_a_newer_one():
-    site = FakeSite([row("a", "Alpha story", updated="2026-11-01T10:00:00.000Z", version=2)])
-    index = rs.ReferenceWordIndex()
-    index.refresh(site.graphql)
-    index.upsert(row("a", "Stale alpha", version=1))
-    assert index.row("a")["title"] == "Alpha story"
-    site.rows[0] = row("a", "Alpha story", state=None, updated="2026-11-01T10:05:00.000Z", version=2)
-    index.refresh(site.graphql)
-    assert index.search("alpha", "all") == []
+def test_a_vote_or_a_star_writes_no_word_rows():
+    site = FakeSite([row("a", "Alpha story", state="unrated")])
+    before = {key: dict(value) for key, value in site.dynamo.tables[FakeDynamo.WORDS].items()}
+    site.change(site.rows["a"], {**site.rows["a"], "feedStateKey": "c#rated", "curationStatus": "accepted", "starRating": 4})
+    assert site.dynamo.tables[FakeDynamo.WORDS] == before
+    assert [operation for operation, _table in site.dynamo.requests if operation in ("put_item", "delete_item")] == []
+
+
+def test_a_new_version_replaces_the_words_and_an_older_versions_late_event_never_undoes_it():
+    v1 = row("a", "Alpha story", version=1)
+    site = FakeSite([v1])
+    v2 = row("a", "Beta story", version=2)
+    site.change(None, v2)                                 # the new version arrives first
+    site.change(v1, {**v1, "versionState": "superseded"})   # then the old version's change to superseded, late
+    assert titles(search(site, None, "beta")) == ["Beta story"] and titles(search(site, None, "alpha")) == []
+    assert titles(search(site, None, "story")) == ["Beta story"]   # the shared word still points at the new version
+    assert site.dynamo.tables[FakeDynamo.WORDS][("~a", "a")]["referenceId"] == "a-v2"
+
+
+def test_a_search_reads_only_the_rows_its_words_matched_never_the_table():
+    site = FakeSite([row(f"r{n}", f"Story number {n} about {'sound' if n % 50 == 0 else 'filler'}") for n in range(300)], page=1000)
+    result = search(site, None, "sound")
+    assert len(result["items"]) == 6
+    operations = {operation for operation, _table in site.dynamo.requests}
+    assert operations <= {"query", "batch_get_item"}   # no scan exists in the fake: asking for one fails
+    assert site.dynamo.items_read == 6 + 6              # six word rows, then the six Reference rows they pointed at; not 300
+    assert len(site.dynamo.requests) <= 2
+
+
+def test_a_meaning_match_the_words_did_not_find_is_read_through_its_pointer_row():
+    site = FakeSite([row("m", "Unrelated headline"), row("w", "Agent memory")])
+    result = search(site, FakeVectors([("m", 0.1)] + smooth_tail()), "agent memory")
+    assert titles(result) == ["Agent memory", "Unrelated headline"]
+    assert [item["matchedBy"] for item in result["items"]] == [["keyword"], ["meaning"]]
 
 
 def test_word_matches_come_in_the_order_exact_phrase_all_in_title_all_across_fields_partial():
@@ -190,11 +302,13 @@ def test_a_match_on_both_lanes_ranks_first_and_says_so_and_strong_word_matches_b
     assert [item["matchedBy"] for item in result["items"]] == [["keyword", "meaning"], ["keyword"], ["meaning"]]
 
 
-def test_a_partial_word_match_does_not_outrank_a_better_meaning_rank_but_a_strong_one_always_does():
+def test_any_word_match_outranks_a_match_found_only_by_meaning_and_a_strong_one_leads_the_partial_ones():
     words = [rs.WordHit("some", rs.SOME_TERMS, 1, 4, 1), rs.WordHit("all", rs.ALL_TERMS_ACROSS_FIELDS, 2, 4, 1)]
     fused = rs.fuse(words, [("m1", 0.9), ("m2", 0.8), ("some", 0.7)])
     assert [entry.lineage_id for entry in fused] == ["all", "some", "m1", "m2"]
     assert fused[0].strong and not fused[1].strong
+    alone = rs.fuse([rs.WordHit("some", rs.SOME_TERMS, 1, 4, 1)], [("m1", 0.9)])
+    assert [entry.lineage_id for entry in alone] == ["some", "m1"]   # words alone still above a better meaning rank
     assert fused[1].score == pytest.approx(1 / 61 + 1 / 63)   # 'some' is words rank 1 and meaning rank 3: reciprocal rank fusion, k = 60
 
 
@@ -247,8 +361,7 @@ def test_a_long_question_ranks_meaning_matches_above_single_common_word_title_ma
 
 def test_a_partial_match_covering_few_of_a_long_querys_distinctive_terms_is_dropped_and_rare_terms_weigh_more():
     site = forgetting_site()
-    index = rs.ReferenceWordIndex()
-    index.refresh(site.graphql)
+    index = site.index()
     hits = {hit.lineage_id: hit for hit in index.search(QUESTION, "all")}
     assert "generic0" not in hits and "training0" not in hits and "wide" in hits and hits["wide"].coverage >= rs.PARTIAL_COVERAGE_FLOOR
     # A short query keeps every partial match, but the rarer word ranks above the common one.
@@ -293,11 +406,10 @@ def test_a_long_question_with_meaning_down_still_returns_the_word_results_that_c
 
 def test_paging_never_repeats_a_card_and_ends():
     site = FakeSite([row(f"r{n}", f"Shared topic {n}", updated=f"2026-11-01T10:{n:02d}:00.000Z") for n in range(30)], page=10)
-    index = rs.ReferenceWordIndex()
     seen, cursor, pages = [], None, 0
     while True:
         extra = {"cursor": cursor} if cursor else {}
-        result = rs.search_references({"query": "shared topic", "limit": 7, **extra}, graphql=site.graphql, vectors=None, index=index)
+        result = rs.search_references({"query": "shared topic", "limit": 7, **extra}, words=site.source, vectors=None)
         seen += [item["reference"]["lineageId"] for item in result["items"]]
         pages += 1
         cursor = result["nextCursor"]
@@ -323,7 +435,19 @@ def test_limit_show_and_empty_queries():
     assert search(site, None, "   ")["items"] == []
     assert search(site, None, "the of")["items"] == []   # only stop words: they are searched as they are, and nothing holds them
     with pytest.raises(rs.SearchError):
-        search(site, None, "alpha", show="rejected")
+        search(site, None, "alpha", show="archived")
+
+
+def test_each_status_can_be_asked_for_on_its_own():
+    site = FakeSite([row("p", "Shared pending", state="unrated"), row("a", "Shared accepted", state="rated", curationStatus="accepted"),
+                     row("r", "Shared rejected", state="rated", curationStatus="rejected")])
+    assert titles(search(site, None, "shared", show="unrated")) == ["Shared pending"]
+    assert titles(search(site, None, "shared", show="accepted")) == ["Shared accepted"]
+    assert titles(search(site, None, "shared", show="rejected")) == ["Shared rejected"]
+    assert sorted(titles(search(site, None, "shared", show="all"))) == ["Shared accepted", "Shared pending", "Shared rejected"]
+    vectors = FakeVectors([("r", 0.1)])
+    search(site, vectors, "shared", show="rejected")
+    assert vectors.filters[0]["$and"][1] == {"curationStatus": {"$in": ["rejected"]}}
 
 
 # --- sort and minimum stars --------------------------------------------------------------------------------------------------------------------
@@ -397,10 +521,10 @@ def test_a_cursor_from_another_ordering_or_minimum_is_refused():
 
 def test_paging_through_a_quality_search_never_repeats_or_skips():
     site = FakeSite([row(f"r{n}", f"Shared topic {n}", arrival=f"2026-11-01T10:{n:02d}:00.000Z", starRating=(n % 5) + 1) for n in range(20)], page=10)
-    index, seen, cursor = rs.ReferenceWordIndex(), [], None
+    seen, cursor = [], None
     while True:
         extra = {"cursor": cursor} if cursor else {}
-        result = rs.search_references({"query": "shared topic", "limit": 4, "sort": "quality", "minStars": 3, **extra}, graphql=site.graphql, vectors=None, index=index)
+        result = rs.search_references({"query": "shared topic", "limit": 4, "sort": "quality", "minStars": 3, **extra}, words=site.source, vectors=None)
         seen += [(item["reference"]["starRating"], item["reference"]["feedArrivalAt"]) for item in result["items"]]
         cursor = result["nextCursor"]
         if not cursor:
@@ -421,17 +545,17 @@ def test_a_meaning_failure_still_returns_the_word_results_with_its_status():
 def test_a_word_failure_still_returns_the_meaning_results():
     site = FakeSite([row("a", "Agent memory")], page=10)
 
-    def broken(query, variables):
-        raise RuntimeError("AppSync is down")
+    class Broken:
+        def lookup(self, term):
+            raise RuntimeError("DynamoDB is down")
 
-    index = rs.ReferenceWordIndex()
-    index.upsert(row("a", "Unrelated"))
-    result = rs.search_references({"query": "agent memory"}, graphql=broken, vectors=FakeVectors([("a", 0.1)]), index=index)
-    assert titles(result) == ["Unrelated"] and result["lanes"]["keyword"]["status"] == "failed" and result["lanes"]["meaning"] == {"status": "ok"}
+    result = rs.search_references({"query": "agent memory"}, words=Broken(), vectors=FakeVectors([("a", 0.1)]))
+    assert result["items"] == [] and result["lanes"]["keyword"]["status"] == "failed" and result["lanes"]["meaning"] == {"status": "ok"}
+    assert site  # the meaning match has no row to show when the word table cannot be read: it is left out, not invented
 
 
 def test_both_lanes_failing_returns_no_cards_and_two_failed_statuses():
-    result = rs.search_references({"query": "agent"}, graphql=None, vectors=None, index=rs.ReferenceWordIndex())
+    result = rs.search_references({"query": "agent"}, words=None, vectors=None)
     assert result["items"] == [] and result["lanes"]["keyword"]["status"] == "failed" and result["lanes"]["meaning"]["status"] == "failed"
 
 
@@ -450,11 +574,10 @@ def test_the_lambda_answers_searchReferences_by_field_name_and_everything_else_a
     site = FakeSite([row("a", "Agent memory")], page=10)
 
     class Services:
-        graph = type("Graph", (), {"graphql": staticmethod(site.graphql)})()
         semantic = None
 
     monkeypatch.setattr(lambda_handler, "build_environment_services", lambda event: Services())
-    monkeypatch.setattr(rs, "_index", rs.ReferenceWordIndex())
+    monkeypatch.setattr(reference_words.DynamoWordSource, "from_environment", classmethod(lambda cls: site.source))
     monkeypatch.setattr(lambda_handler, "run_knowledge_query", lambda payload, services: {"asked": "knowledgeQuery"})
     event = {"info": {"fieldName": "searchReferences"}, "identity": {"groups": ["editor"]}, "arguments": {"input": '{"query": "agent memory"}'}}
     result = lambda_handler.handler(event)

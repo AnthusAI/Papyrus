@@ -916,6 +916,8 @@ Resources:
       Description: >-
         Item enrichment: the router reads and writes captured text in its own private bucket, and reads back a delivered
         Reference's metadata attachment (createModelAttachmentDownload) when it copies the item's curation onto it.
+        It also holds the vector pass's S3 Vectors actions on the sites' indexes and its read of each site's storage bucket (moved here
+        from RouterIdeaPolicy, which had reached IAM's policy-size limit).
       Roles: [!Ref RouterRole]
       PolicyDocument:
         Version: "2012-10-17"
@@ -936,6 +938,38 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createModelAttachmentDownload"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createModelAttachmentDownload"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${MachinesOnMachinesApiId}/types/Mutation/fields/createModelAttachmentDownload"
+          # The vector pass of the daily monitor-stories task (get, put, and its one-time first run lists) and the suggestion checks (get, query) on the eight sites' indexes. A parameter left at its default names no index.
+          # These two statements live here, not in RouterIdeaPolicy: that policy reached IAM's 6,144-character limit (the first full deploy of this stack
+          # failed on it), and RouterRole is near the 20-managed-policy limit, so a new policy was not an option. Moving a statement between two policies
+          # attached to the same role changes no access.
+          - Sid: SiteVectorIndexes
+            Effect: Allow
+            Action:
+              - s3vectors:GetVectors
+              - s3vectors:QueryVectors
+              - s3vectors:PutVectors
+              - s3vectors:ListVectors
+            Resource:
+              - !Ref AnthUsVectorIndexArn
+              - !Ref PapyrusVectorIndexArn
+              - !Ref ThreatIntelVectorIndexArn
+              - !Ref DataParadeVectorIndexArn
+              - !Ref PilobolusVectorIndexArn
+              - !Ref ShippedVectorIndexArn
+              - !Ref DistinctiveVectorIndexArn
+              - !Ref MachinesOnMachinesVectorIndexArn
+          - Sid: SiteStorageExtractedText
+            Effect: Allow
+            Action: s3:GetObject
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::${AnthUsStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${PapyrusStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${ThreatIntelStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${DataParadeStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${PilobolusStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${ShippedStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${DistinctiveStorageBucketName}/*"
+              - !Sub "arn:${AWS::Partition}:s3:::${MachinesOnMachinesStorageBucketName}/*"
 
   RouterEnrichmentKeyPolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -1945,16 +1979,18 @@ Resources:
   # It also carries the reads of the context-pack signals (the publication's Messages, human votes, concepts and Reference summaries:
   # src/papyrus_content/ideas/signal_inputs.py and signal_queue.py) and the writes of a pack idea (the Item, its based_on and concept edges:
   # pack_stories.py), still in this one policy. Test: test_monitoring_packs.py records every field the pack path asks for.
-  # The SSM statement reads the TypeSafe key for the gate's judgment lane. The vector pass (src/papyrus_content/monitoring_vectors.py) adds the S3 Vectors
-  # actions on the eight sites' indexes, the read of each site's storage bucket for the text it embeds, and the GraphQL fields that sync and suggestions ask for;
+  # The SSM statement reads the TypeSafe key for the gate's judgment lane. The vector pass (src/papyrus_content/monitoring_vectors.py) adds the GraphQL fields
+  # that sync and suggestions ask for here; its S3 Vectors actions on the eight sites' indexes and its read of each site's storage bucket (the text it embeds) are in
+  # RouterEnrichmentStoragePolicy, because this policy hit IAM's 6,144-character limit. test_stack_deploy.py computes every managed policy's size and fails near the limit;
   # test_monitoring_vectors.py records every field they ask for. Hand-run with a change set; the sixteen VectorIndexArn / StorageBucketName parameters need values.
   RouterIdeaPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: >-
         The router's monitor-stories task: idea Items and the Humanus gate, the context-pack signal reads and pack idea writes, the vector
-        pass (S3 Vectors on the seven sites' indexes, each site's storage bucket), and the TypeSafe key. One policy because RouterRole is near
-        the 20-managed-policy limit; the fields are named exactly and the API is a wildcard (the seven routed publication APIs).
+        pass's GraphQL fields, the fan-out invoke, and the TypeSafe key (the vector pass's S3 Vectors and bucket reads are in
+        RouterEnrichmentStoragePolicy). One policy because RouterRole is near the 20-managed-policy limit; the fields are named exactly and
+        the API is a wildcard (the seven routed publication APIs).
       Roles: [!Ref RouterRole]
       PolicyDocument:
         Version: "2012-10-17"
@@ -2003,39 +2039,10 @@ Resources:
               # The curation flag of a run that files nothing (ideas/review.py settle_curation_flag): find this publication's open flag, and acknowledge it when ideas flow again.
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReviewRequests"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateReviewRequest"
-          # The vector pass of the daily monitor-stories task (get, put, and its one-time first run lists) and the suggestion checks (get, query) on the eight sites' indexes. A parameter left at its default names no index.
           - Sid: FanOutMonitorStories
             Effect: Allow
             Action: lambda:InvokeFunction
             Resource: !GetAtt RouterFunction.Arn   # the router's own ARN: a monitor-stories run without publicationId invokes itself once per publication
-          - Sid: SiteVectorIndexes
-            Effect: Allow
-            Action:
-              - s3vectors:GetVectors
-              - s3vectors:QueryVectors
-              - s3vectors:PutVectors
-              - s3vectors:ListVectors
-            Resource:
-              - !Ref AnthUsVectorIndexArn
-              - !Ref PapyrusVectorIndexArn
-              - !Ref ThreatIntelVectorIndexArn
-              - !Ref DataParadeVectorIndexArn
-              - !Ref PilobolusVectorIndexArn
-              - !Ref ShippedVectorIndexArn
-              - !Ref DistinctiveVectorIndexArn
-              - !Ref MachinesOnMachinesVectorIndexArn
-          - Sid: SiteStorageExtractedText
-            Effect: Allow
-            Action: s3:GetObject
-            Resource:
-              - !Sub "arn:${AWS::Partition}:s3:::${AnthUsStorageBucketName}/*"
-              - !Sub "arn:${AWS::Partition}:s3:::${PapyrusStorageBucketName}/*"
-              - !Sub "arn:${AWS::Partition}:s3:::${ThreatIntelStorageBucketName}/*"
-              - !Sub "arn:${AWS::Partition}:s3:::${DataParadeStorageBucketName}/*"
-              - !Sub "arn:${AWS::Partition}:s3:::${PilobolusStorageBucketName}/*"
-              - !Sub "arn:${AWS::Partition}:s3:::${ShippedStorageBucketName}/*"
-              - !Sub "arn:${AWS::Partition}:s3:::${DistinctiveStorageBucketName}/*"
-              - !Sub "arn:${AWS::Partition}:s3:::${MachinesOnMachinesStorageBucketName}/*"
           # With EditorialJudgmentKeyParameter empty this ARN names no parameter, so the grant reads nothing.
           - Sid: ReadEditorialJudgmentKey
             Effect: Allow
@@ -2532,9 +2539,12 @@ Resources:
   # Every CloudWatch alarm state change in this account and Region reaches the default bus. The rule below sends each one (except the
   # last-resort alarms below, which already email by SNS) to a queue; caducus.notify turns it into one triage-ready email per incident.
   # Only additions: the collector and router above are untouched. Addresses are read from SSM at run time and are never in this file.
+  # RetainExceptOnCreate: the table is kept when the stack or the resource is deleted (it will hold the delivery log), but is deleted when the
+  # create that makes it rolls back. Plain Retain left an empty papyrus-operator-alerts behind after a failed first deploy, and the next change set
+  # then failed the existence check (AWS::EarlyValidation::ResourceExistenceCheck) twice on 2026-11-05.
   OperatorTable:
     Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
+    DeletionPolicy: RetainExceptOnCreate
     UpdateReplacePolicy: Retain
     Properties:
       TableName: papyrus-operator-alerts
@@ -3111,10 +3121,66 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt ScheduleDeadLetterQueue.Arn
 
+  # Starts the dead-man clock at the moment the stack is created. A new alarm that treats missing data as breaching has three empty periods
+  # behind it the moment it exists, so it went to ALARM and emailed on the first create (2026-11-05, 16:45 UTC) before any heartbeat could run. This
+  # writes one HeartbeatDelivered=1 datapoint, on Create only, so the alarm sees a delivered beat for its first ~30 minutes. The real heartbeat (every
+  # 15 minutes) takes over; if it never starts, the datapoint ages out of the window and the alarm fires about 30 to 45 minutes after the deploy.
+  # Best effort: if the write fails the stack still deploys (the worst case is the old false alarm).
+  OperatorDeadmanSeedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Policies:
+        - PolicyName: put-the-first-heartbeat
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "cloudwatch:namespace": Papyrus/Operator
+
+  OperatorDeadmanSeedFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: index.handler
+      Timeout: 30
+      Role: !GetAtt OperatorDeadmanSeedRole.Arn
+      Description: Writes one HeartbeatDelivered datapoint when the stack is created, so the dead-man alarm does not fire before the first heartbeat.
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+
+          def handler(event, context):
+              try:
+                  if event["RequestType"] == "Create":
+                      boto3.client("cloudwatch").put_metric_data(Namespace="Papyrus/Operator", MetricData=[{"MetricName": "HeartbeatDelivered", "Value": 1, "Unit": "Count"}])
+              except Exception as error:
+                  print("seed not written:", error)
+              cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, "deadman-start")
+
+  OperatorDeadmanSeed:
+    Type: Custom::DeadmanStart
+    Properties:
+      ServiceToken: !GetAtt OperatorDeadmanSeedFunction.Arn
+
   # ----- The two last-resort alerts (PPY-dd8c18): the only human alerts that stay on SNS, because they must not depend on the listener -----
   # The listener ignores every alarm named papyrus-operator-*, so these do not also arrive as operator mail.
   OperatorDeadmanAlarm:
     Type: AWS::CloudWatch::Alarm
+    DependsOn: OperatorDeadmanSeed
     Properties:
       AlarmName: papyrus-operator-deadman
       AlarmDescription: >-
