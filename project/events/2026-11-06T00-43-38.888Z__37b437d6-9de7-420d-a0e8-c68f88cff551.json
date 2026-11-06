@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "37b437d6-9de7-420d-a0e8-c68f88cff551",
+  "issue_id": "PPY-89327b0e-655b-4e14-9f72-4c4972e8d87a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T00:43:38.888Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Capture video thumbnails when the CLI adds a Reference, and show which videos have none",
+    "description": "Ryan, 2026-11-05: thumbnail capture must run locally because YouTube refuses cloud addresses, so the CLI should capture a video's thumbnail at once when it adds a Reference (create-from-catalog and every add path). References added through the cloud MCP server or the Newsroom Add dialog still need a local capture-thumbnails run. Make that visible: the CLI reports N videos waiting for a thumbnail, and/or the Newsroom shows which videos have no picture. Scope to settle with Ryan. Gherkin.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
