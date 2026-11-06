@@ -63,6 +63,7 @@ jobs:
           npm run test:mcp-integration
           npx tsx scripts/test-mcp-transport.ts
           npx tsx scripts/test-mcp-oauth-runtime.ts
+          npx tsx scripts/test-mcp-oauth-browser.ts
           npx cucumber-js --profile mcpCards
           npx cucumber-js --profile mcpTransport
           npx cucumber-js --profile mcpOAuth
