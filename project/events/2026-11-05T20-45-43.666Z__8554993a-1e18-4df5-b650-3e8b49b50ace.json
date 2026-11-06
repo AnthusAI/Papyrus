@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "8554993a-1e18-4df5-b650-3e8b49b50ace",
+  "issue_id": "PPY-17cdb1f4-187a-4153-a0d0-943ffac5dab0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T20:45:43.666Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Support reader OAuth when the public site and CMS use different origins",
+    "description": "Design a site-bound reader identity handoff and reviewed OAuth discovery/consent routing for split CMS origins. Preserve the Prospectus site-subject boundary. Current browser refresh expires with the upstream grant; evaluate renewable CLI federation for longer sessions separately.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
+    "labels": []
+  }
+}

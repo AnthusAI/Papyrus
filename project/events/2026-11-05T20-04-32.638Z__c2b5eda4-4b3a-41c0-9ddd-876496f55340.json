@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c2b5eda4-4b3a-41c0-9ddd-876496f55340",
+  "issue_id": "PPY-e7ad4f9f-7a57-415d-8ff3-cba9d40f5207",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-05T20:04:32.638Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Authenticated Papyrus MCP",
+    "description": "Hosted site-bound MCP tools for signed-in staff and readers, with rotating OAuth sessions and optional interactive Reference and Story cards.",
+    "issue_type": "initiative",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
