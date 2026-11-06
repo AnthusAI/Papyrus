@@ -1,0 +1,20 @@
+{
+  "id": "PPY-59c772df-3671-4ec8-b2d0-d6f063090cf9",
+  "title": "Define the four-lens review and final approval workflow",
+  "description": "Design built-in review expectations for people, reader agents, search crawlers and social previews. Determine what evidence, findings, unresolved risks and editorial judgment the final review presents, what happens when a lens cannot be assessed, and how this reaches all newsroom agents. Integrate existing context packs, mission and site-specific policy without requiring publications to restate universal defaults. Decide which checks are advisory or gates rather than assuming a new blocking gate.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a88bd4a5-4dff-4e0a-8b16-f3bd6e0fe132",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-06T20:14:14.871667Z",
+  "updated_at": "2026-11-06T20:14:14.871703Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
