@@ -614,6 +614,31 @@ def draft_record(
 # --- the run -------------------------------------------------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class Prepared:
+    """What a plan already read for one of its steps (``draft_monitor_stories(prepared=...)``): the step's item (none for a pack), and the site's existing ideas
+    as dedupe rows (``id``, ``title``, ``summary``, ``state``, ``targets``)."""
+
+    items: list[MonitoredItem]
+    proposals: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class PlanInput:
+    """What ``draft_monitor_stories(plan_sink=...)`` hands the sink: the ordered ``steps`` (``("pack", Pack)`` or ``("item", MonitoredItem)``), the ``knowledge`` that
+    gives an item its connections, the run's ``context`` and ``proposals`` (the site's existing ideas), the ``run`` record, the ``signal_run``, the ``candidates``
+    that are items, and ``covered`` (the Reference lineages an earlier idea cites)."""
+
+    steps: list[tuple[str, Any]]
+    knowledge: Any
+    context: dict[str, Any]
+    proposals: list[dict[str, Any]]
+    run: dict[str, Any]
+    signal_run: Any
+    candidates: list[MonitoredItem]
+    covered: set[str]
+
+
 def draft_monitor_stories(
     *,
     client: Any,
@@ -645,6 +670,9 @@ def draft_monitor_stories(
     suggestions_waiting: bool = False,
     priority_lineages: Iterable[str] = (),
     count_pending: bool = True,
+    run_id: str | None = None,
+    prepared: Prepared | None = None,
+    plan_sink: Callable[[PlanInput], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing.
 
@@ -670,6 +698,12 @@ def draft_monitor_stories(
     Reference or accept reason, and then it is written again. Without one given, a run with a ``json_store`` keeps the memory in files beside it, and a run
     without either remembers nothing. A dry run recalls but remembers nothing new.
 
+    Two arguments split the run in two for the queue (``ideas/story_plan.py``, docs/monitoring-cloud.md#monitor-stories-daily). ``plan_sink`` makes it the
+    PLAN: everything up to the ordered steps is done as usual, the sink is handed the steps (``PlanInput``) and the run returns without drafting, asking the model,
+    filing or requesting a review. ``prepared`` makes it ONE STEP of such a plan: the items, the existing ideas and the steps were read by the plan, so the run reads
+    none of them again (no walk of the corpus and no list of the site's stories) and does not request the review or the curation flag, which belong to the whole
+    plan. ``run_id`` is the plan's run id, shared by every step of it.
+
     ``signal_run`` (``ideas/signal_queue.SignalRun``) turns the run into one walk over a queue of context packs and scored single items: the queue
     orders the candidates (an item with no evidence is not in it), a pack goes to ``pack_stories.draft_pack_ideas``, an item to the path below, and
     both share one cost meter, ``out_of_time()``, ``maximum_cost_usd`` and the filing-error stop. The ideas packs filed are in ``drafts`` (``origin``
@@ -682,20 +716,25 @@ def draft_monitor_stories(
     threshold = cut.threshold
     run: dict[str, Any] = {
         "duplicateCut": cut.record(),
-        "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model, "minimumStandard": connection_rules.MORE_THAN_SUMMARY,
+        "runId": run_id or run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model, "minimumStandard": connection_rules.MORE_THAN_SUMMARY,
         "store": "dry-run" if dry_run else (idea_store.kind if idea_store else "json"), "dryRun": dry_run, "private": True,
         "window": {"since": since, "until": iso(moment)}, "limit": limit, "stoppedBy": None, "suggestionsWaiting": suggestions_waiting,
         "excludedSourceHosts": list(normalize_hosts(excluded_hosts)), "statuses": list(dict.fromkeys(statuses)),
     }
     stored = [idea for idea in (json_store.ideas() if json_store else []) if idea.get("origin") == "monitor"]
-    proposals = idea_store.story_drafts() if idea_store else []
+    proposals = prepared.proposals if prepared is not None else (idea_store.story_drafts() if idea_store else [])
     already = drafted_lineage_ids(proposals, stored)
-    automated, automation_error = automated_monitor_ids(client)
     started = time.monotonic()
-    items, counts = collect_monitored_items(
-        client, site=corpus_key or site, since=since, now=moment, drafted=already, excluded_hosts=excluded_hosts, automated_monitors=automated, automation_handled=automation_handled, statuses=statuses,
-        workers=read_workers, out_of_time=out_of_time, priority_lineages=priority_lineages, count_pending=count_pending,
-    )
+    if prepared is not None:
+        # One step of a plan: its item was read, and found a candidate, when the plan was made.
+        automated, automation_error = set(), None
+        items, counts = list(prepared.items), {"inWindow": len(prepared.items), "notAccepted": 0, "notMonitored": 0, "pendingNotCandidate": 0, "noSourceUri": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0, "hasStory": 0}
+    else:
+        automated, automation_error = automated_monitor_ids(client)
+        items, counts = collect_monitored_items(
+            client, site=corpus_key or site, since=since, now=moment, drafted=already, excluded_hosts=excluded_hosts, automated_monitors=automated, automation_handled=automation_handled, statuses=statuses,
+            workers=read_workers, out_of_time=out_of_time, priority_lineages=priority_lineages, count_pending=count_pending,
+        )
     timings = {"collectSeconds": round(time.monotonic() - started, 1)}
     if counts.get("readStopped"):
         run["stoppedBy"] = "time"   # the time ran out while reading: what was read is drafted if any time is left, the rest waits for the next run
@@ -704,7 +743,7 @@ def draft_monitor_stories(
         run["automationLookupError"] = automation_error
     freshness = learn_freshness(items)
     run["freshness"] = freshness or {"tauDays": None, "examples": sum(item.status == "accepted" for item in items), "note": f"Fewer than {MINIMUM_FRESHNESS_EXAMPLES} accepted examples: no freshness weight, the score alone ranks."}
-    promoted = promoted_reference_ids(client, items) if items else set()
+    promoted = promoted_reference_ids(client, items) if items and prepared is None else set()
     counts.update(alreadyDrafted=sum(item.lineage_id in already for item in items), promoted=sum(item.reference_id in promoted and item.lineage_id not in already for item in items))
     # One Reference is drafted once: not when its lineage, nor the address it came from, is already covered by a Proposal in any state, nor twice in this run.
     keys = source_keys(items)
@@ -738,11 +777,17 @@ def draft_monitor_stories(
     attempt_cap = None if limit is None else limit * ATTEMPT_FACTOR
     run["ranking"] = [{"rank": number, **item.as_dict()} for number, item in enumerate(candidates[:attempt_cap], start=1)]
     run.update(attempted=0, invalid=[], skipped=[], duplicates=[], drafts=[], modelCalls=[], usage=None, pointChecks=[], retriedWithNewConnections=[])
+    if knowledge is None:
+        knowledge = default_knowledge(client, signal_run)
+    if plan_sink is not None:
+        # The plan: hand the ordered steps to the queue and stop. Nothing is asked of the model, filed or reviewed here.
+        run["planned"] = plan_sink(PlanInput(steps=steps, knowledge=knowledge, context=context, proposals=proposals, run=run, signal_run=signal_run, candidates=candidates, covered=already))
+        run["timings"] = {**timings, "afterCollectSeconds": round(time.monotonic() - started - timings["collectSeconds"], 1)}
+        run["finishedAt"] = iso(datetime.now(timezone.utc))
+        return run
     documents = comparison_documents(context, [*stored], proposals, [])
     sections = [section["title"] for section in context.get("sections", [])]
     meter = CostMeter()
-    if knowledge is None:
-        knowledge = default_knowledge(client, signal_run)
 
     def recall(subject: str) -> Any:
         """What was remembered about a rejection, or None. A memory that cannot be read is no memory: the subject is tried again, and the run says so."""
@@ -915,8 +960,9 @@ def draft_monitor_stories(
             if not dry_run:
                 try:
                     if idea_store:
-                        # Read the targets again: another run (an overlapping task, a laptop) may have filed this Reference since this run began.
-                        if item.lineage_id in drafted_lineage_ids(idea_store.story_drafts(), []):
+                        # Read the targets again: another run (an overlapping task, a laptop) may have filed this Reference since this run began. (A step of a
+                        # plan does not: filing is idempotent by the Reference's lineage, and listing the site's stories again would read the whole table.)
+                        if prepared is None and item.lineage_id in drafted_lineage_ids(idea_store.story_drafts(), []):
                             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": "already_drafted"})
                             continue
                         idea_store.mark(record, idea_store.file_story_draft(record))
@@ -935,7 +981,7 @@ def draft_monitor_stories(
             break
     run["usage"] = _usage(model, run["modelCalls"])
     timings["afterCollectSeconds"] = round(time.monotonic() - started - timings["collectSeconds"], 1)
-    if not count_pending and "pending" not in list(statuses) and (out_of_time is None or not out_of_time()):
+    if not count_pending and prepared is None and "pending" not in list(statuses) and (out_of_time is None or not out_of_time()):
         counts["notAccepted"] = len(collect_references(client, [f"{CORPUS_PREFIX}{corpus_key or site}"], ["pending"], None))   # counted last, and only if the time allows
     run["timings"] = timings
     if memory_errors:
@@ -960,6 +1006,9 @@ def draft_monitor_stories(
     if dry_run:
         run["review"] = {"status": "skipped", "requested": False, "ideas": len(run["drafts"]), "note": "Dry run: nothing was filed, so no review was requested."}
         run["curationFlag"] = {"status": "skipped", "note": "Dry run: no flag is raised."}
+    elif prepared is not None:
+        run["review"] = {"status": "left_to_the_plan", "requested": False, "ideas": len(run["drafts"])}   # one review and one curation flag for the whole plan (story_plan.py)
+        run["curationFlag"] = {"status": "left_to_the_plan"}
     else:
         request_human_review(review_client, run, run["drafts"], noun="monitor story draft")
         run["curationFlag"] = settle_curation_flag(review_client, run, site)

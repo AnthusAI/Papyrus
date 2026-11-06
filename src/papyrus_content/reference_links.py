@@ -248,12 +248,14 @@ def link_item_concept(
     actor: str,
     note: str | None = None,
     now: str | None = None,
+    story: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Tags a story (an Item, by lineage id) with a concept: a ``related_to`` edge from the item to the ``semanticNode`` row ``node``, so the
-    story shows on the concept's page. Same row conventions as ``link_concept``; ``related_to`` allows an item as its subject."""
+    story shows on the concept's page. Same row conventions as ``link_concept``; ``related_to`` allows an item as its subject.
+    ``story`` is the record the caller has just written; the lineage index is eventually consistent (see ``link_reference_to_story``)."""
     _require_provenance(provenance)
     now = now or utc_now_iso()
-    story = latest_story_version(client, item_lineage_id)
+    story = story or latest_story_version(client, item_lineage_id)
     item_end = {"kind": "item", "id": story["id"], "lineageId": item_lineage_id, "versionNumber": story.get("versionNumber")}
     node_end = {"kind": "semanticNode", "id": node["id"], "lineageId": node.get("lineageId") or node["id"], "versionNumber": node.get("versionNumber")}
     return _write_edge(

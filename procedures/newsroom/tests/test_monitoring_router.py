@@ -1130,7 +1130,7 @@ def test_router_role_is_least_privilege():
     template = _template()
     statements = template["Resources"]["RouterRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {s["Sid"] for s in statements} == {"MonitoringTable", "OwnLogs", "FailedInvocations", "CyclotronMachineInvoker",
-                                              "PublicationReferenceIntake", "SuggestQueueSend"}
+                                              "PublicationReferenceIntake", "SuggestQueueSend", "StoryQueueSend"}
     by_sid = {s["Sid"]: s for s in statements}
     assert by_sid["CyclotronMachineInvoker"]["Action"] == "sts:AssumeRole" and by_sid["CyclotronMachineInvoker"]["Resource"] == ("Ref", "CyclotronInvokerRoleArn")
     assert template["Parameters"]["CyclotronInvokerRoleArn"]["Default"] == "arn:aws:iam::682849160744:role/cyclotron-machine-invoker"

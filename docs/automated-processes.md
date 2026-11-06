@@ -120,11 +120,11 @@ A process that cannot fill a line says so in that line.
 - **May write.** Content Items at the `idea` stage marked Generated, one soft review request per pass, and the based-on links.
 - **Must never.** Publish; draft one Reference twice; file an idea that only summarises its source; read pending References for drafting.
 - **Seen and reversed.** The Idea column of the Stories board. An editor moves an idea forward or spikes it with a reason.
-- **Records.** One JSON log line per publication per run and the receipt.
-- **Fails.** Closed: the run stops on `time`, `cost` or `file_error` and says which; what was filed stays filed and the next day continues from the same ranking.
-- **Cost and bound.** The Lambda time and a per-publication model spend backstop (`MAXIMUM_COST_USD`, 0.50). No fixed number of ideas.
+- **Records.** One JSON log line per publication for the plan, one per step (`monitorStoriesStep`), one when the plan finishes, and the receipt.
+- **Fails.** Closed, and nothing is thrown away: the daily run only plans, and a queue drafts one candidate per message; a step that fails is delivered again up to three times, then waits in a dead-letter queue with an alarm, and the plan finishes without it. What was filed stays filed, and the next plan offers only what is not drafted.
+- **Cost and bound.** One plan a day per publication; one step is bounded by the Lambda's 300 seconds and a 0.50 dollar guard on one oversized request. No fixed number of ideas and no time stop on the plan.
 - **Measured.** The log counts. Whether editors keep or spike the ideas is visible on the board but not reported: **no spec**.
-- **Gherkin.** `monitoring-daily-stories`, `idea-pipeline`, `idea-monitor-stories`, `idea-trend-stories`, `idea-context-packs`, `idea-items`, `idea-duplicate-cut`, `idea-excluded-source-hosts`, `idea-run-large-site`, `idea-standard-replay`. Details: [idea-pipeline.md](idea-pipeline.md), [monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily).
+- **Gherkin.** `monitoring-daily-stories`, `monitoring-stories-queue`, `idea-pipeline`, `idea-monitor-stories`, `idea-trend-stories`, `idea-context-packs`, `idea-items`, `idea-duplicate-cut`, `idea-excluded-source-hosts`, `idea-run-large-site`, `idea-standard-replay`. Details: [idea-pipeline.md](idea-pipeline.md), [monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily).
 
 ### 8. Point check ("so what")
 

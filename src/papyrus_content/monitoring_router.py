@@ -80,7 +80,7 @@ from .monitoring_feed import FEED_HOSTS
 from .monitoring_huggingface import hf_accepts, validate_rule
 from .monitoring_vectors import watermark_sort_key
 from .reference_suggest_once import queue_sender, queue_unchecked
-from .monitoring_stories import lambda_openai_key, lambda_story_transport, run_publication as draft_publication_stories, validate_monitor_stories
+from .monitoring_stories import REAL_EXPLORER, lambda_judgment_key, lambda_openai_key, lambda_story_transport, plan_publication as plan_publication_stories, run_publication as draft_publication_stories, validate_monitor_stories
 
 CONTRACT_VERSION = "cyclotron-decision/v1"   # Cyclotron's neutral contract: bindings, callers and reviewers
 LEGACY_CONTRACT_VERSION = "cyclotron-publication/v1"   # a combined job posted before the switch still answers in it
@@ -1273,7 +1273,10 @@ class Router:
                  enricher: Enricher | None = None, max_decisions: int | None = None, hold_override: bool = False,
                  previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
                  story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None,
-                 suggest_queue: tuple[Any, str] | None = None, predict=None):
+                 suggest_queue: tuple[Any, str] | None = None, predict=None, story_queue: tuple[Any, str] | None = None,
+                 story_planner: Callable[..., dict] = plan_publication_stories):
+        self.story_queue = story_queue   # (SQS client, queue URL) of the story queue (ideas/story_plan.py); None: the daily task drafts in this process, as it did before the queue
+        self.story_planner = story_planner
         self.predict = predict or record_reference_prediction   # records one decision on a Reference that already exists (reference_prediction_queue.py)
         self.suggest_queue = suggest_queue   # (SQS client, queue URL) of the one-check-per-Reference suggestion queue (reference_suggest_once.py); None: no checks are queued
         self.embedding_key = embedding_key   # the OpenAI key the vector pass embeds with (monitoring_vectors.py); held in memory only
@@ -2616,7 +2619,7 @@ class Router:
                 continue
             if not (publication.get("monitorStories") or {}).get("enabled", True):
                 results[pid] = {"publicationId": pid, "status": "disabled", **empty}
-            elif self.story_transport is None:
+            elif self.story_transport is None and self.story_queue is None:   # with a story queue the model key is the worker's, not this plan's
                 results[pid] = {"publicationId": pid, "status": "skipped", "reason": "openai_not_configured", **empty}
             else:
                 queue.append(publication)
@@ -2640,16 +2643,23 @@ class Router:
                 vector_stop_at = stop_at + span * 0.75
                 signal_stop_at = stop_at + span * (0.75 - 1 / 6)
                 try:
-                    result = self.story_drafter(self.client(publication), publication, transport=self.story_transport,
-                                                now=datetime.fromtimestamp(self.now + passes, timezone.utc),   # a pass's run id (and so its review request) is its own
-                                                out_of_time=lambda stop_at=stop_at: self.time_left() < stop_at,
-                                                vector_out_of_time=lambda vector_stop_at=vector_stop_at: self.time_left() < vector_stop_at,
-                                                signal_out_of_time=lambda signal_stop_at=signal_stop_at: self.time_left() < signal_stop_at,
-                                                handled_references=self.automation_handled_references(publication), embedding_key=self.embedding_key,
-                                                retry_memory=self.retry_memory(pid), on_summary_written=self.suggestion_sender(pid),
-                                                read_watermark=lambda pid=pid: (self.store.get_any(self.monitor_id, watermark_sort_key(pid)) or {}).get("watermark"),
-                                                write_watermark=lambda value, pid=pid: self.store.put_any(
-                                                    self.monitor_id, {"pk": pk(self.monitor_id), "sk": watermark_sort_key(pid), "watermark": value, "updatedAt": _iso(self.now)}))
+                    options = dict(
+                        transport=self.story_transport,
+                        now=datetime.fromtimestamp(self.now + passes, timezone.utc),   # a pass's run id (and so its review request) is its own
+                        out_of_time=lambda stop_at=stop_at: self.time_left() < stop_at,
+                        vector_out_of_time=lambda vector_stop_at=vector_stop_at: self.time_left() < vector_stop_at,
+                        signal_out_of_time=lambda signal_stop_at=signal_stop_at: self.time_left() < signal_stop_at,
+                        handled_references=self.automation_handled_references(publication), embedding_key=self.embedding_key,
+                        retry_memory=self.retry_memory(pid), on_summary_written=self.suggestion_sender(pid),
+                        read_watermark=lambda pid=pid: (self.store.get_any(self.monitor_id, watermark_sort_key(pid)) or {}).get("watermark"),
+                        write_watermark=lambda value, pid=pid: self.store.put_any(
+                            self.monitor_id, {"pk": pk(self.monitor_id), "sk": watermark_sort_key(pid), "watermark": value, "updatedAt": _iso(self.now)}))
+                    if self.story_queue is not None:
+                        # The plan: read once, queue each step; a worker drafts one step per invocation (ideas/story_plan.py).
+                        sqs, queue_url = self.story_queue
+                        result = self.story_planner(self.client(publication), publication, store=self.store, monitor_id=self.monitor_id, sqs=sqs, queue_url=queue_url, **options)
+                    else:
+                        result = self.story_drafter(self.client(publication), publication, **options)
                 except Exception as error:  # noqa: BLE001 - never fails the run
                     result = {"publicationId": pid, "status": "failed", "reason": short(error), **empty}
                 earlier = results.get(pid)
@@ -2994,7 +3004,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                hold_override: bool = False, previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
                story_drafter: Callable[..., dict] = draft_publication_stories, embedding_key: str | None = None,
                publication_id: str | None = None, fan_out: Callable[[str], None] | None = None,
-               suggest_queue: tuple[Any, str] | None = None, write: bool = False, predict=None) -> dict:
+               suggest_queue: tuple[Any, str] | None = None, write: bool = False, predict=None, story_queue: tuple[Any, str] | None = None,
+               story_planner: Callable[..., dict] = plan_publication_stories) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -3042,7 +3053,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
                         start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher,
                         max_decisions=max_decisions, hold_override=hold_override, previewer=previewer,
-                        story_transport=story_transport, story_drafter=story_drafter, embedding_key=embedding_key, suggest_queue=suggest_queue, predict=predict)
+                        story_transport=story_transport, story_drafter=story_drafter, embedding_key=embedding_key, suggest_queue=suggest_queue, predict=predict, story_queue=story_queue, story_planner=story_planner)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
                    {"status": "skipped"} if task in ("feedback", "auto-accept", "monitor-stories", "research-assignments", "suggest-unchecked") else router.collect() if task == "collect" else router.sweep())
         feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept", "monitor-stories", "research-assignments", "suggest-unchecked") else router.feedback()
@@ -3125,6 +3136,64 @@ def is_suggestion_queue_event(event) -> bool:
     return bool(records) and all(isinstance(record, dict) and record.get("eventSource") == "aws:sqs" for record in records)
 
 
+def is_story_queue_event(event) -> bool:
+    """An SQS event whose messages are steps of a monitor-stories plan (``ideas/story_plan.py``); the suggestion queue's messages are the other kind."""
+    if not is_suggestion_queue_event(event):
+        return False
+    from .ideas import story_plan
+
+    try:
+        return all(story_plan.is_story_message(json.loads(record["body"])) for record in event["Records"])
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def handle_story_queue(store, event, *, appsync=make_appsync_client, transport=None, gate_for=None, now=None, explorer=REAL_EXPLORER, fetch=None, emit=print) -> dict:
+    """SQS entry point: one step of a monitor-stories plan per message (``story_plan.run_step``). Returns the partial-batch response, so a step that raised is
+    delivered again, up to the queue's receive limit, then parked in the dead-letter queue."""
+    from . import review_requests
+    from .ideas import monitor_stories, story_plan
+    from .ideas.gate import HumanusGate
+
+    moment = now or datetime.now(timezone.utc)
+    failures: list[dict[str, str]] = []
+    model = transport if transport is not None else lambda_story_transport()
+    for record in event.get("Records") or []:
+        line: dict = {}
+        try:
+            message = json.loads(record["body"])
+            monitor_id, publication_id = str(message["monitorId"]), str(message["publicationId"])
+            line = {"monitorId": monitor_id, "publicationId": publication_id, "planId": message.get("planId"), "step": message.get("step")}
+            raw = store.get_router_config(monitor_id)
+            config = validate_router_config(raw) if raw else None
+            publication = next((entry for entry in (config or {}).get("publications", []) if entry["publicationId"] == publication_id), None)
+            if publication is None:
+                raise ValueError(f"unknown publication {publication_id!r} for monitor {monitor_id}")
+            if model is None:
+                raise RuntimeError("no model key is configured for the story worker")
+            client = appsync(publication["appsyncEndpoint"], publication["tenantId"]) if publication.get("tenantId") else appsync(publication["appsyncEndpoint"])
+            gate = gate_for(client) if gate_for else HumanusGate.for_client(client, judgment_key=lambda_judgment_key())
+            receives = int((record.get("attributes") or {}).get("ApproximateReceiveCount") or 1)
+            outcome = story_plan.run_step(
+                store, monitor_id, publication, message, client=client, transport=model, gate=gate, now=moment, review_requests=review_requests, receive_count=receives, emit=emit,
+                fetch=fetch, explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer)
+            emit(json.dumps({"storyStep": outcome["status"], **line}))
+        except Exception as error:  # noqa: BLE001 - the queue redelivers it, and the dead-letter queue keeps it after the last try
+            failures.append({"itemIdentifier": str(record.get("messageId"))})
+            emit(json.dumps({"storyStep": "failed", "reason": f"{type(error).__name__}: {str(error)[:300]}", **line}))
+    return {"batchItemFailures": failures}
+
+
+def story_queue_from_environment() -> tuple[Any, str] | None:
+    """(SQS client, queue URL) when the stack gave the router a story queue (``STORY_QUEUE_URL``), else None (the daily task then drafts in process)."""
+    url = os.environ.get("STORY_QUEUE_URL")
+    if not url:
+        return None
+    import boto3  # provided by the Lambda runtime
+
+    return boto3.client("sqs"), url
+
+
 CALIBRATIONS = None   # a warm container's calibration per site (reference_suggest_once.Calibrations)
 
 
@@ -3175,6 +3244,8 @@ def handler(event, context):
 
     event = event if isinstance(event, dict) else {}
     store = RouterStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
+    if is_story_queue_event(event):
+        return handle_story_queue(store, event)
     if is_suggestion_queue_event(event):
         return handle_suggestion_queue(store, event)
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
@@ -3197,7 +3268,8 @@ def handler(event, context):
                         story_transport=story_transport, embedding_key=embedding_key,
                         hold_override=event.get("holdOverride") is False,
                         publication_id=event.get("publicationId"),
-                        suggest_queue=suggest_queue_from_environment(), write=event.get("write") is True,
+                        suggest_queue=suggest_queue_from_environment(), story_queue=story_queue_from_environment() if event.get("task") == "monitor-stories" else None,
+                        write=event.get("write") is True,
                         fan_out=lambda pid: invoke_self(context, {**event, "publicationId": pid}))   # only false lifts the hold, and only for this invocation
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "suggestUnchecked", "researchAssignments", "waitingForClassifier", "posted", "reason", "publications")}
