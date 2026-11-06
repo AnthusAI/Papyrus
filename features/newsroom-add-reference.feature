@@ -19,10 +19,10 @@ Feature: Adding a reference from the Newsroom makes a real Reference that an edi
     And the same Reference is then rated 5 of 5 stars
     And the dialog says it was added, accepted and rated
 
-  Scenario: A rating alone does not accept
+  Scenario: A rating is also an acceptance, and the stars fill to the left
     Given an editor with the Add dialog open
     When the editor adds an address and gives it 3 stars without accepting
-    Then the Reference is rated but left pending
+    Then the dialog turns Accept on, fills the first three stars and sends no separate accept, because the newsroom accepts a rated pending Reference itself
 
   Scenario: An address that is already a Reference
     Given an editor with the Add dialog open

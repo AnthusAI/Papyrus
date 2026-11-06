@@ -12,10 +12,15 @@ Feature: An editor rates a Reference one to five stars while accepting or reject
     Then the card shows four solid stars and one outline star, with the count written beside them
     And the second tap clears the rating
 
-  Scenario: Stars work before or after a vote and never change it
+  Scenario: Pressing a star lights it and every star to its left
     Given a References page with unrated, rated and automatically accepted References
-    When the editor rates a card five stars and then accepts it, and accepts another card and then rates it three stars
-    Then no vote was recorded by the rating alone and each vote leaves its stars as they were
+    When the editor presses the second, then the fifth, then the third star on an unrated card
+    Then each press fills that star and every star to its left as solid shapes, leaves the rest as outlines, and writes the count beside them
+
+  Scenario: Rating a pending Reference also accepts it, and stars never overturn a decision
+    Given a References page with unrated, rated and automatically accepted References
+    When the editor rates a pending card five stars, and accepts another card and then rates it three stars
+    Then the rated card is accepted by the same rating with no separate vote, and the accepted card keeps its decision and takes the stars
 
   Scenario: What is saved is shown, and an automatic acceptance can be rated without being confirmed
     Given a References page with unrated, rated and automatically accepted References
