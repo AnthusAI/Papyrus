@@ -130,7 +130,7 @@ def step_params(context):
 
 @then("the five existing monitoring alarms still notify the alarm topic")
 def step_legacy(context):
-    legacy = {n: p for n, p in alarm_props(context.resources).items() if n.startswith("papyrus-monitoring-") and n != "papyrus-monitoring-suggest-dead-letters"}   # the suggestion dead-letter alarm is newer than the parallel run
+    legacy = {n: p for n, p in alarm_props(context.resources).items() if n.startswith("papyrus-monitoring-") and n not in ("papyrus-monitoring-suggest-dead-letters", "papyrus-monitoring-story-dead-letters")}   # the suggestion and story dead-letter alarms are newer than the parallel run
     assert len(legacy) == 5 and all(p["AlarmActions"] == [{"Ref": "AlarmTopic"}] for p in legacy.values())
 
 
