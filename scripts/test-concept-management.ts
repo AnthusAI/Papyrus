@@ -253,12 +253,15 @@ test("accepting an entity confirms its mention links, and an older version of a 
 // --- honest labelling -------------------------------------------------------------------------------------------------------
 
 test("where a decision was made comes from the token's client, never from the request", () => {
-  assert.equal(editOriginOfIdentity(identity(CLI_CLIENT), CLI_CLIENT), "cli");
-  assert.equal(editOriginOfIdentity(identity("web-client"), CLI_CLIENT), "newsroom");
-  assert.equal(editOriginOfIdentity(identity(CLI_CLIENT), null), "signed-in");   // a site that has not named its CLI client cannot tell, and says so
-  assert.equal(editOriginOfIdentity({ claims: {} }, CLI_CLIENT), "operator");
-  assert.equal(editOriginOfIdentity(undefined, CLI_CLIENT), "operator");
-  assert.equal(editOriginOfIdentity({ claims: { sub: "sub-1", "cognito:groups": ["editor"] } }, CLI_CLIENT), "signed-in");   // no readable client: may act, noted as signed-in
+  const clients = { web: "web-client", cli: CLI_CLIENT, mcp: "mcp-client" };
+  assert.equal(editOriginOfIdentity(identity(CLI_CLIENT), clients), "cli");
+  assert.equal(editOriginOfIdentity(identity("web-client"), clients), "newsroom");
+  assert.equal(editOriginOfIdentity(identity("other-client"), clients), "signed-in");
+  assert.equal(editOriginOfIdentity(identity("web-client"), { ...clients, cli: null }), "signed-in");
+  assert.equal(editOriginOfIdentity({ userArn: "arn:aws:sts::123:assumed-role/x/y", accountId: "123" }, clients), "operator");
+  assert.equal(editOriginOfIdentity({ claims: {} }, clients), "signed-in");
+  assert.equal(editOriginOfIdentity(undefined, clients), "signed-in");
+  assert.equal(editOriginOfIdentity({ claims: { sub: "sub-1", "cognito:groups": ["editor"] } }, clients), "signed-in");
 });
 
 test("the console says when the words were written through the CLI, and says nothing new about the others", () => {

@@ -127,3 +127,9 @@ Feature: An agent on the signed-in CLI accepts, rejects and rates as the signed-
     When the deployed authorization of the delegation routes is read
     Then the agent routes allow the operator lane and the editor and admin groups
     And the person routes allow the editor and admin groups only
+
+  Scenario: Only the configured web client can approve a delegation
+    Given an editor has requested a delegation from the CLI
+    When web, CLI, agent and unknown client identities are checked
+    Then only the configured web client may approve for that editor
+    And malformed Cognito identities cannot act as an operator

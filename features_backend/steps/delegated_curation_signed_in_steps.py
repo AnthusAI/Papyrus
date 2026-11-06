@@ -291,3 +291,12 @@ def _nothing_sent(context):
     assert len(context.refused) == 4 and all("1 to 5" in message for message in context.refused)
     assert "dry-run: nothing sent" in context.printed.getvalue()
     json.dumps(context.refused)
+
+
+@given("an editor has requested a delegation from the CLI")
+def _editor_requested(context):
+    pass
+
+newsroom_step("web, CLI, agent and unknown client identities are checked", "explicit_client_identity_guards_delegations", when)
+newsroom_step("only the configured web client may approve for that editor", "explicit_client_identity_guards_delegations", then)
+newsroom_step("malformed Cognito identities cannot act as an operator", "explicit_client_identity_guards_delegations", then)
