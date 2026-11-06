@@ -17,18 +17,6 @@
       "logicalId": "DecisionReadyInvokePermission",
       "change": "Replace",
       "reason": "Its template is unchanged; CloudFormation reports a possible replacement because it depends on the router function. Recreated in the same update."
-    },
-    {
-      "stack": "papyrus-monitoring",
-      "logicalId": "RouterEnrichmentStoragePolicy",
-      "change": "Replace",
-      "reason": "Approved by Ryan 2026-11-06 for the first full papyrus-monitoring deploy. The stack is in UPDATE_ROLLBACK_COMPLETE; the replacement creates the managed policy again and detaches the old one from RouterRole. Entry removed after the deploy."
-    },
-    {
-      "stack": "papyrus-monitoring",
-      "logicalId": "RouterIdeaPolicy",
-      "change": "Replace",
-      "reason": "Approved by Ryan 2026-11-06 for the first full papyrus-monitoring deploy. The stack is in UPDATE_ROLLBACK_COMPLETE; the replacement creates the managed policy again and detaches the old one from RouterRole. Entry removed after the deploy."
     }
   ]
 }
