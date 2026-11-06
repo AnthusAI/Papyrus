@@ -31,8 +31,8 @@ Listing (`kind="listing"`):
 | Option | Meaning |
 | --- | --- |
 | `type="article\|post"`, `section="a\|b"` | Short forms of `types` and `sections`. |
-| `sections="N" per="M"` | One group per section: the N sections whose best Story ranks highest, each with up to M Stories, best first. A digit string is the group count; anything else is still a list of section names. `per` may be a list (`per="2,1"` means 2, then 1 for every later group). A section with nothing to show is skipped, so there is no empty group. |
-| `fallback="post"` | When a selection, or a section in a group, has no Story of `type`, use these types instead. It is empty only when there are none of those either. Combine with `unique="true"` so posts used here do not repeat in later post listings. |
+| `sections="N" per="M"` | One group per section: the N sections whose best Story ranks highest (one ranking over `type` and `fallback` together, stars first inside the rolling window, so a section's rank is that of the Story it would show), each with up to M Stories, best first. A digit string is the group count; anything else is still a list of section names. `per` may be a list (`per="2,1"` means 2, then 1 for every later group). A section with nothing to show is skipped, so there is no empty group. |
+| `fallback="post"` | When a selection, or a section in a group, has no Story of `type` left (none exist, or `unique` already placed them), use these types instead. It is empty only when there are none of those either. Combine with `unique="true"` so posts used here do not repeat in later post listings. |
 | `unique="true"` | Claim and skip through the page ledger (above). |
 | `counts="true"` | The wrapper carries `data-count="N"` (how many cards it holds) and the class `papyrus-has-lead` (the first is the best, so the largest). On by default for groups. The `card` hook also receives `count` when it takes that name, next to `variant` and `index`. |
 | `heading="true"`, `more="More in {section}"` | Each group starts with `<header class="papyrus-group-head"><h2 class="papyrus-group-title">Label</h2><a class="papyrus-group-more" href="...">More in Label</a></header>`. |

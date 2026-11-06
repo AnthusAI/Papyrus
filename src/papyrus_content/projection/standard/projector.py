@@ -65,6 +65,7 @@ from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, bo
 from . import wiki
 from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, STYLESHEET_PATH as PAGE_ACTIONS_STYLESHEET, render_page_actions, stylesheet_text as page_actions_stylesheet_text
 from .page_ledger import PageLedger
+from .home_page_blocks import LEAD_CLASS
 from .forms import FORM_SCRIPT_PATH, render_form
 from .fragments import MARKUS_ARTICLE_CLOSE_PATTERN, first_image_of, lede_of, with_date_format, with_lede, with_listing
 from .family import family_footer
@@ -454,7 +455,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         self._require_listing_dependency(attributes, source)
         listed = [entry for entry in self._entries(site) if entry.listed]
         page = self._page("item", PageHead(title="", path="/"), site, entries=tuple(listed)) if self.hooks.card is not None else None
-        return self._listing_markup(attributes, includes.listing_entries(attributes, listed, self.standard), page)
+        return self._listing_markup(attributes, includes.listing_groups(attributes, listed, self.standard) if includes.is_group(attributes) else includes.listing_entries(attributes, listed, self.standard), page)
 
     def _require_listing_dependency(self, attributes: dict, source: str) -> None:
         """An item page re-renders when the entries it depends on change; a listing in an item names them or fails the build."""
@@ -468,11 +469,53 @@ class StandardMarkusProjector(MarkusSiteProjector):
             )
 
     def _listing_markup(self, attributes: dict, chosen, page) -> str:
-        cards = [self._card(entry, page, attributes.get("card"), position) for position, entry in enumerate(chosen)]
+        if includes.is_group(attributes):
+            return self._group_markup(attributes, chosen, page)
+        cards = [self._card(entry, page, attributes.get("card"), position, len(chosen)) for position, entry in enumerate(chosen)]
+        counted = attributes.get("counts") == "true" and bool(cards)
+        data = f' data-count="{len(cards)}"' if counted else ""
         if "tag" in attributes:
-            css = f' class="{components.esc(attributes["class"])}"' if "class" in attributes else ""
-            return f'<{attributes["tag"]}{css}>' + "".join(cards) + f'</{attributes["tag"]}>' if cards else ""
-        return "".join(cards) if attributes.get("layout") == "bare" else '<div class="markus-card-grid">' + "\n".join(cards) + "</div>"
+            classes = " ".join(name for name in (attributes.get("class", ""), LEAD_CLASS if counted else "") if name)
+            css = f' class="{components.esc(classes)}"' if classes else ""
+            return f'<{attributes["tag"]}{css}{data}>' + "".join(cards) + f'</{attributes["tag"]}>' if cards else ""
+        if attributes.get("layout") == "bare":
+            return "".join(cards)
+        lead = f' class="markus-card-grid {LEAD_CLASS}"' if counted else ' class="markus-card-grid"'
+        return f"<div{lead}{data}>" + "\n".join(cards) + "</div>"
+
+    def _group_markup(self, attributes: dict, groups, page) -> str:
+        """One element per group of a ``sections="N"`` listing: its header (optional), its cards best first, and ``data-count`` / the lead class so a layout can fill its row."""
+        tag = attributes.get("tag", "section")
+        parts = []
+        for index, group in enumerate(groups):
+            count = len(group.entries)
+            label, href = self._group_label(group.topic)
+            classes = " ".join(name for name in ("papyrus-group", attributes.get("class", ""), LEAD_CLASS) if name)
+            head = ""
+            if attributes.get("heading") == "true":
+                more = attributes.get("more", "").replace("{section}", label)
+                link = f'<a class="papyrus-group-more" href="{components.esc(href)}">{components.esc(more)}</a>' if more and href else ""
+                head = f'<header class="papyrus-group-head"><h2 class="papyrus-group-title">{components.esc(label)}</h2>{link}</header>'
+            cards = "".join(self._card(entry, page, attributes.get("card"), position, count) for position, entry in enumerate(group.entries))
+            parts.append(
+                f'<{tag} class="{components.esc(classes)}" data-section="{components.esc(group.topic)}" data-label="{components.esc(label)}" '
+                f'data-index="{index}" data-count="{count}">{head}{cards}</{tag}>'
+            )
+        return "".join(parts)
+
+    def _group_label(self, topic: str) -> tuple[str, str]:
+        """The label of a section's group and, for a declared section that has a listing page, where its "More" link goes (else empty)."""
+        for section in self.standard.sections:
+            if section.item_type is None and (section.name == topic or topic in section.aliases):
+                href = self.policy.path(f"/{section.base}/") if section.listing_page else ""
+                return section.label, href
+        return topic, ""
+
+    def _listing_chosen(self, attributes: dict, entries: list, ledger: PageLedger):
+        """What a listing include places on a page: its entries, or its groups for ``sections="N"``, in the page's ledger order."""
+        if includes.is_group(attributes):
+            return includes.listing_groups(attributes, entries, self.standard, self._story_stars, self._as_of, ledger)
+        return includes.listing_entries(attributes, entries, self.standard, self._story_stars, self._as_of, ledger)
 
     # ------------------------------------------------------------------ model
 
@@ -1020,7 +1063,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _include_markdown(self, attributes: dict, page: StandardPage, source: str, ledger: PageLedger) -> str:
         kind = includes.check(attributes, self.standard, source)
         if kind == "listing":
-            return "\n".join(entry_line(entry, self.environment.origin) for entry in includes.listing_entries(attributes, list(page.entries), self.standard, self._story_stars, self._as_of))
+            return "\n".join(entry_line(entry, self.environment.origin) for entry in includes.listing_entries(attributes, list(page.entries), self.standard, self._story_stars, self._as_of, ledger))
         if kind == "showcase":
             wall = self.standard.showcase
             sites = showcase_sites(page.summaries, wall) if wall is not None else []
@@ -1665,8 +1708,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         pager = components.pager(view.page, view.pages, view.url_for_page) if view.pages > 1 else ""
         return f'<div class="markus-document"><h1>{components.esc(heading)}</h1>{blocks}{pager}</div>'
 
-    def _card(self, entry: StandardEntry, page: StandardPage, variant: str | None = None, index: int = 0) -> str:
-        """The site's ``card`` hook, given ``variant`` and ``index`` (the card's place in its list) when it takes them by name."""
+    def _card(self, entry: StandardEntry, page: StandardPage, variant: str | None = None, index: int = 0, count: int | None = None) -> str:
+        """The site's ``card`` hook, given ``variant``, ``index`` (the card's place in its list) and ``count`` (how many cards the list holds) when it takes them by name."""
         hook = self.hooks.card
         if hook is None:
             if variant is not None:
@@ -1680,6 +1723,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             raise ValueError(f"::include card={variant!r}: the site's card hook takes no variant")
         if "index" in names:
             keywords["index"] = index
+        if "count" in names and count is not None:
+            keywords["count"] = count
         return hook(entry, page, **keywords)
 
     # ------------------------------------------------------------------ authored pages and includes
@@ -1729,7 +1774,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _include(self, attributes: dict, page: StandardPage, source: str) -> str:
         kind = includes.check(attributes, self.standard, source)
         if kind == "listing":
-            return self._listing_markup(attributes, includes.listing_entries(attributes, list(page.entries), self.standard, self._story_stars, self._as_of), page)
+            return self._listing_markup(attributes, self._listing_chosen(attributes, list(page.entries), page.ledger), page)
         if kind == "showcase":
             wall = self.standard.showcase
             if wall is None:

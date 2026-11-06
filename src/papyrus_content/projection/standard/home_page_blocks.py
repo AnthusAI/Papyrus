@@ -29,12 +29,15 @@ from .knowledge_components import esc, safe_href
 from .page_ledger import PageLedger
 
 KIND = "references"
+LEAD_CLASS = "papyrus-has-lead"   # a counted list whose first card is the best, so the largest
+REFERENCES_LEAD_CLASS = "home-page-has-lead"
+IMAGES = ("none", "any")
 THREADS_KIND = "threads"
 THREADS_ATTRIBUTES = {"select", "count", "layout", "heading", "empty"}
 THREAD_SELECTIONS = ("recent",)
 THREAD_LAYOUTS = ("list", "grid")
 THREAD_LEDGER_PREFIX = "thread:"
-ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket", "medium", "paged", "id"}
+ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket", "medium", "paged", "id", "image", "counts", "explainer", "explainerKicker", "explainerBody"}
 LIST_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SELECTIONS = ("recent", "confident", "recommended")
 CARDS = ("tile", "row")
@@ -68,6 +71,14 @@ def check(attributes: Mapping, source: str) -> None:
         raise ValueError(f"{source}: ::include references card must be one of {', '.join(CARDS)}, got {attributes['card']!r}")
     if "more" in attributes and not safe_href(attributes["more"]):
         raise ValueError(f"{source}: ::include references more must be a site path or an http(s) address, got {attributes['more']!r}")
+    if attributes.get("image", "any") not in IMAGES:
+        raise ValueError(f"{source}: ::include references image must be one of {', '.join(IMAGES)}, got {attributes['image']!r}")
+    if attributes.get("counts", "false") not in ("true", "false"):
+        raise ValueError(f"{source}: ::include references counts must be \"true\" or \"false\", got {attributes['counts']!r}")
+    if ("explainerKicker" in attributes or "explainerBody" in attributes) and not attributes.get("explainer"):
+        raise ValueError(f"{source}: ::include references explainerKicker and explainerBody go with explainer (the card's heading)")
+    if is_paged(attributes) and ("explainer" in attributes or "counts" in attributes):
+        raise ValueError(f"{source}: ::include references cannot be paged and have an explainer or counts: a paged list is the whole selection")
     if attributes.get("paged", "false") not in ("true", "false"):
         raise ValueError(f"{source}: ::include references paged must be \"true\" or \"false\", got {attributes['paged']!r}")
     if "id" in attributes and (attributes.get("paged") != "true" or not LIST_ID.match(attributes["id"])):
@@ -118,6 +129,10 @@ def candidates_of(document: Mapping | None, attributes: Mapping, section_labels:
     candidates = ordered(records, attributes["select"], attributes.get("bucket"), as_of)
     if attributes.get("medium"):   # only the References whose address certainly says this medium; a record with no `medium` field never matches
         candidates = [record for record in candidates if record.get("medium") == attributes["medium"]]
+    if attributes.get("image") == "none":   # only the References with no picture: text-only cards
+        candidates = [record for record in candidates if not _text(record, "image")]
+    elif attributes.get("image") == "any":   # only the References with a picture
+        candidates = [record for record in candidates if _text(record, "image")]
     if attributes.get("section"):
         candidates = [record for record in candidates if _in_section(record, attributes["section"], section_labels or {})]
     return candidates
@@ -166,13 +181,26 @@ def render(
     heading = f'<h2 class="home-page-heading">{esc(attributes["heading"])}</h2>' if attributes.get("heading") else ""
     draw = parts.tile if card == "tile" else parts.row
     show_medium = not attributes.get("medium")   # a block of one medium needs no label on every card; a block that mixes media keeps it
-    cards = "".join(f"<li>{draw(reference, show_medium=show_medium)}</li>" for reference in chosen)
+    cards = explainer_item(attributes) + "".join(f"<li>{draw(reference, show_medium=show_medium)}</li>" for reference in chosen)
+    counted = attributes.get("counts") == "true"
     more = f'<p class="home-page-more"><a href="{esc(safe_href(attributes["more"]))}">More</a></p>' if attributes.get("more") else ""
     medium_attribute = f' data-medium="{esc(attributes["medium"])}"' if attributes.get("medium") else ""
+    data = f' data-count="{len(chosen)}"' if counted else ""
+    lead = f" {REFERENCES_LEAD_CLASS}" if counted else ""
     return (
-        f'<section class="home-page-references" data-select="{esc(attributes["select"])}" data-card="{esc(card)}"{medium_attribute}>{heading}'
-        f'<ul class="home-page-grid" data-card="{esc(card)}">{cards}</ul>{more}</section>'
+        f'<section class="home-page-references" data-select="{esc(attributes["select"])}" data-card="{esc(card)}"{medium_attribute}{data}>{heading}'
+        f'<ul class="home-page-grid{lead}" data-card="{esc(card)}"{data}>{cards}</ul>{more}</section>'
     )
+
+
+def explainer_item(attributes: Mapping) -> str:
+    """The explainer card, first in the grid: a heading, an optional kicker and body, all from the include (plain text). It is not a Reference and is never counted."""
+    if not attributes.get("explainer"):
+        return ""
+    kicker = f'<p class="home-page-eyebrow">{esc(attributes["explainerKicker"])}</p>' if attributes.get("explainerKicker") else ""
+    body = f'<p class="home-page-explainer-body">{esc(attributes["explainerBody"])}</p>' if attributes.get("explainerBody") else ""
+    return f'<li class="home-page-explainer"><div class="home-page-explainer-card">{kicker}<h3 class="home-page-title">{esc(attributes["explainer"])}</h3>{body}</div></li>'
+
 
 
 def render_paged(attributes: Mapping, ledger: PageLedger, found: lists.PagedList, asset_href: Callable[[str], str] | None = None) -> str:

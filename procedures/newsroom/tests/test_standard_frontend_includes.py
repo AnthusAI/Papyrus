@@ -641,7 +641,7 @@ def test_an_include_listing_can_keep_or_drop_story_types(typed_listings, name):
     assert cards(typed_listings.text(f"{name}/index.html")) == TYPE_CASES[name][1]
 
 
-@pytest.mark.parametrize("attribute", ["type", "notType", "Types"])
+@pytest.mark.parametrize("attribute", ["notType", "Types"])
 def test_a_misspelt_type_attribute_is_still_refused(attribute):
     site = DirectorySite(settings(pages=[page_entry("p")]), [item("x", section="posts")], {"p.md": f'{BAND}::include{{kind="listing" {attribute}="post"}}\n'})
     try:

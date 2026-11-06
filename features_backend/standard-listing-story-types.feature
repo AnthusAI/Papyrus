@@ -17,8 +17,8 @@ Feature: A listing can show just one Story type
     Then the block shows every article and no post
 
   Scenario: An unknown selection attribute is still refused
-    When a page includes a listing with the attribute "type"
-    Then the projection fails naming the unknown attribute "type"
+    When a page includes a listing with the attribute "notType"
+    Then the projection fails naming the unknown attribute "notType"
 
   Scenario: A change to an excluded type does not rewrite the page
     Given a page whose listing shows the newest article
