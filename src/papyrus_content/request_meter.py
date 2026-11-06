@@ -109,8 +109,9 @@ class Run:
         if self.override is None and env_budget and env_budget.isdigit():
             self.override = int(env_budget)
         if self.override is not None:
-            _log(self.emit, {"event": "papyrus_request_budget_override", "caller": caller, "budget": self.override,
-                             "default": self.budget(use_override=False)})
+            default = self.budget(use_override=False)
+            _log(self.emit, {"event": "papyrus_request_budget_override", "caller": caller, "budget": self.override, "default": default},
+                 text=f"papyrus request meter: {caller} runs with a budget of {self.override} (override; the default would be {default})")
 
     def budget(self, *, use_override: bool = True) -> int:
         if use_override and self.override is not None:

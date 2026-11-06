@@ -104,7 +104,7 @@ def test_the_budget_flag_is_removed_and_logged(capsys):
     assert request_meter.split_budget_flag(["ref-1"]) == (["ref-1"], None)
     with request_meter.run("cli:references show", emit="stderr", budget=40):
         pass
-    assert "papyrus_request_budget_override" in capsys.readouterr().err
+    assert "budget of 40 (override; the default would be" in capsys.readouterr().err
 
 
 def test_an_unbounded_list_outside_a_sweep_is_logged_and_counted(capsys):
