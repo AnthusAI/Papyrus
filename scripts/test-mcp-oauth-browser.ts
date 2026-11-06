@@ -38,18 +38,23 @@ async function main() {
     identity: async () => ({ principal: { kind: "reader", siteSubject: `ss1_${"A".repeat(43)}` }, upstream_expiry: 4102444800 }),
     invoke: async () => ({ code: "browser-code" }) });
   handle = request => new URL(request.url).pathname === "/api/mcp/oauth/authorize" ? oauth.authorize(request) : oauth.consent(request);
-  const browser = await chromium.launch({ headless: true, ...(process.env.PAPYRUS_CHROMIUM_PATH ? { executablePath: process.env.PAPYRUS_CHROMIUM_PATH } : {}) });
+  let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
   try {
+    browser = await chromium.launch({ headless: true, ...(process.env.PAPYRUS_CHROMIUM_PATH ? { executablePath: process.env.PAPYRUS_CHROMIUM_PATH } : {}) });
     const page = await browser.newPage();
+    page.setDefaultTimeout(7000);
+    page.setDefaultNavigationTimeout(7000);
     const params = new URLSearchParams({ response_type: "code", client_id: "client", redirect_uri: redirect,
-      resource: `${origin}/api/mcp`, code_challenge_method: "S256", code_challenge: "A".repeat(43) });
+      resource: `${origin}/api/mcp`, code_challenge_method: "S256", code_challenge: "A".repeat(43), state: "browser-state" });
     await page.goto(`${origin}/api/mcp/oauth/authorize?${params}`);
     await page.getByLabel("Reader").check();
     await Promise.all([page.waitForURL(url => url.origin === callbackOrigin), page.getByRole("button", { name: "Allow" }).click()]);
     assert.equal(new URL(page.url()).searchParams.get("code"), "browser-code");
+    assert.equal(new URL(page.url()).searchParams.get("state"), "browser-state");
+    assert.equal(new URL(page.url()).searchParams.get("iss"), origin);
     assert.match(await page.locator("body").innerText(), /Arrived/);
   } finally {
-    await browser.close();
+    await browser?.close();
     await Promise.all([new Promise<void>(resolve => server.close(() => resolve())), new Promise<void>(resolve => callback.close(() => resolve()))]);
   }
 }
