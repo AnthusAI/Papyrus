@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "087ec961-a262-4b17-9a3d-ba675d3ae679",
+  "issue_id": "PPY-cc9d389e-34cf-42ab-8885-f8776fbabfc8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T00:43:38.779Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Rating a Reference accepts it, and stars fill to the left",
+    "description": "Ryan, 2026-11-05, Machines on Machines: 'If I rate the number of stars then it should become approved automatically.' Four videos got stars and stayed pending; the data shows no race, an accept that never registered or the assumption that rating accepts. Any star rating on a pending Reference also records it accepted by the same person. Also: pressing a star fills it and every star to its left; today only the pressed one lights. Newsroom cards, the Add dialog and anywhere stars are set. Gherkin.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
