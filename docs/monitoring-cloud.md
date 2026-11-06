@@ -1337,13 +1337,17 @@ Counts `predicted`, `predictionSkipped`, `predictionFailed`, `predictionsWaiting
 them in groups of 100 per AppSync call when signed in; the 100 is a transport size, not a limit) and the router decides them in its own time, as many as fit in each run, the
 rest staying queued for the next. Nothing is decided inside the importing request.
 
+**Who drains which partition.** Sites queue into their `emailMonitorId` partition, `hn` unless the site sets one. A request in a partition no schedule reads is never decided
+(Machines on Machines had 366 waiting in `hn` on 2026-11-06 while the only `email-references` schedule read `p-apyr-us-email`). `ReferencePredictionSchedule`
+(`papyrus-monitoring-reference-predictions`, every five minutes) runs `email-references` for the stack parameter `ReferencePredictionMonitorId` (default `hn`); the partition's
+`CONFIG#router` must list the publication. `src/papyrus_content/prediction_lane_drain_test.py` fails when the site default and the stack default disagree.
+
 **Deploy.** The router code (`RouterCodeKey`) must ship before any site queues, or requests wait unread (harmless). The site backends need a deploy for the new
 `content-actions` grant (`dynamodb:PutItem` on the table, only the site's own `MONITOR#<emailMonitorId>` partition, `wireEmailReferenceIntake`) and the `monitoringQueueReferencePredictions`
 field (`monitoring-view/schema.ts`). Until a site deploys, its console paste still creates the Reference and the answer carries `prediction.ok: false`. The router's AppSync role
 needs nothing new: it already reads and writes the fields delivery uses on each site.
 
-**The References that predate this.** By hand, once per site: `papyrus references queue-predictions --site KEY --dry-run`, then without `--dry-run`. It lists the corpus's
-pending References once (a scan, said so) and queues those with no prediction. It is idempotent and nothing schedules it. (`papyrus references decide-relevance` is the older
+**The References that predate this.** By hand, once per site: `papyrus references queue-predictions --site KEY --dry-run`, then without `--dry-run`. It reads the corpus's prediction index (pending and voted partitions, highest score first, stopping at the 0.5 an unpredicted row sorts at; no scan of the table) and queues those with no prediction, accepted ones included. It is idempotent and nothing schedules it. (`papyrus references decide-relevance` is the older
 embedded sweep with its own store and model; it is not the router's Cyclotron. See its section before using it on a site that has no `relevanceCyclotron` block.)
 
 A maintenance deployment must preserve newer shared-router behavior: apply only this change's

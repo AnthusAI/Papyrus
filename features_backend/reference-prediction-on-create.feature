@@ -69,3 +69,11 @@ Feature: A Reference created without a prediction gets one, requested once by th
     And a route that created it asks for its prediction
     When the monitor is changed to deliver by rule and the router works through the queued requests
     Then the Cyclotron was not called and the request is still queued
+
+  Scenario: Requests queued in the partition the sites use by default are drained by a schedule
+    Given the partition every site backend queues prediction requests into by default
+    Then the monitoring stack has a five minute schedule that runs the email-references task for that same partition
+
+  Scenario: A Reference that is already accepted still gets a prediction request
+    Given a Reference that an import created already accepted and that has no prediction
+    Then it is one of the References a prediction is requested for

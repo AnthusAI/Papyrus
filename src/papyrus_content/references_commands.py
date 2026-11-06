@@ -466,21 +466,20 @@ def references_queue_predictions(flags: list[str]) -> None:
     """``papyrus references queue-predictions (--site KEY | --corpus-key KEY[,KEY...]) [--dry-run]``.
 
     By hand, once: asks the site's cloud Cyclotron for a prediction for every current pending Reference that has none, by queueing one request per
-    Reference exactly as a route does when it creates one (src/papyrus_content/reference_prediction_queue.py). It lists each corpus's pending
-    Reference once and writes nothing to a Reference: the router decides the queued requests and records the decisions. A Reference already queued,
+    Reference exactly as a route does when it creates one (src/papyrus_content/reference_prediction_queue.py). It reads each corpus's prediction index
+    (pending and voted partitions, highest first, down to the 0.5 an unpredicted row sorts at) and writes nothing to a Reference: the router decides the queued requests and records the decisions. A Reference already queued,
     or already predicted, is left alone. ``--dry-run`` prints the counts and queues nothing. Nothing schedules this command."""
     from .reference_feed_backfill import corpus_ids_for
-    from .reference_prediction_queue import references_for_prediction, request_line, request_predictions
+    from .reference_prediction_queue import references_for_prediction, request_line, request_predictions, unpredicted_rows
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references queue-predictions")
     client, _ = create_authoring_client()
     corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")), all_corpora=False)
     failed = False
     for corpus_id in corpus_ids:
-        pending = [row for row in client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#pending")
-                   if row and row.get("versionState", "current") == "current"]
-        wanted = references_for_prediction(pending)
-        print(f"references\tqueue-predictions\t{corpus_id}\tpending\t{len(pending)}\twithout-prediction\t{len(wanted)}\t{'queue' if apply else 'dry-run'}")
+        rows = list(unpredicted_rows(client, corpus_id))
+        wanted = references_for_prediction(rows)
+        print(f"references\tqueue-predictions\t{corpus_id}\tread\t{len(rows)}\twithout-prediction\t{len(wanted)}\t{'queue' if apply else 'dry-run'}")
         for start in range(0, len(wanted) if apply else 0, REQUEST_CHUNK):
             request = request_predictions(client, wanted[start:start + REQUEST_CHUNK])
             print(request_line(f"references\tqueue-predictions\t{corpus_id}", request))
