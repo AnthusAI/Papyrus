@@ -24,9 +24,8 @@ import type { AssignmentRecord, NewsroomSectionRecord } from "../lib/category-re
 import { displayNewsroomSectionShortTitle, newsroomDeskOptions } from "../lib/newsroom-sections";
 import { getContentItemName, getContentItemStageDefinitions, SITE_BRAND } from "../lib/site-brand";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { loadNewsroomAssignmentPage, loadNewsroomPublishedContentItemVersions, saveNewsroomAssignmentDesk } from "./news-desk-taxonomy-client";
+import { loadNewsroomAssignmentPage, saveNewsroomAssignmentDesk } from "./news-desk-taxonomy-client";
 import { usePagedContentItemVersions } from "./use-paged-content-item-versions";
-import type { ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
@@ -38,12 +37,12 @@ import { StoryCardStars, useStoryCardSlots } from "./story-board-stars";
 import { useStoryStars } from "./use-story-stars";
 import { NewsroomAssignmentDetail } from "./newsroom-assignment-detail";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
+import { startBoardRefresh } from "../lib/board-refresh";
 import { readLocalReaderSettings, subscribeReaderSettingsChanges } from "./reader-settings";
 
 /** A board with a story or assignment open lives at `?open=<id>`, distinct from the standalone page for that record. */
 const SELECTED_ISSUE_PARAMETER = "open";
 const STATIC_MOTION = { mode: "static" } as const;
-const BOARD_REFRESH_INTERVAL_MILLISECONDS = 30_000;
 
 async function loadEveryNewsroomAssignment() {
   const assignments: AssignmentRecord[] = [];
@@ -64,7 +63,6 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const allowed = canReadNewsroomBoard(session?.shell.phase);
   const [lowMotion, setLowMotion] = useState(false);
   const [assignmentBoardIssues, setAssignmentBoardIssues] = useState<NativeBoardIssue[]>([]);
-  const [publishedVersions, setPublishedVersions] = useState<ContentItemVersionRecord[]>([]);
   const [assignments, setAssignments] = useState<AssignmentRecord[]>([]);
   const [view, setView] = useState<"board" | "list">("board");
   const router = useRouter();
@@ -102,37 +100,44 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
     setLowMotion(readLocalReaderSettings().motion === "low");
     return subscribeReaderSettingsChanges(settings => setLowMotion(settings.motion === "low"));
   }, []);
+  const refreshSupportingRecordsRef = useRef<() => Promise<void>>(async () => undefined);
+  const pagedRefreshRef = useRef(pagedContentItems.refresh);
+  pagedRefreshRef.current = pagedContentItems.refresh;
+  const refreshBoardNowRef = useRef<() => void>(() => undefined);
   useEffect(() => {
     const request = ++generation.current;
-    setAssignmentBoardIssues([]); setPublishedVersions([]); setAssignments([]); setSupportingRecordsError(null);
+    setAssignmentBoardIssues([]); setAssignments([]); setSupportingRecordsError(null);
     if (!allowed) { setSupportingRecordsLoading(false); return; }
-    const loadSupportingRecords = () => subject !== "assignment"
-      ? Promise.all([loadNewsroomPublishedContentItemVersions(), loadEveryNewsroomAssignment()]).then(([published, everyAssignment]) => {
-        if (generation.current === request) { setPublishedVersions(published); setAssignments(everyAssignment); }
-      })
-      : loadEveryNewsroomAssignment().then(everyAssignment => {
-        if (generation.current === request) { setAssignments(everyAssignment); setAssignmentBoardIssues(projectAssignmentBoard(everyAssignment)); }
-      });
-    const refresh = (initial: boolean) => {
-      if (initial) setSupportingRecordsLoading(true);
-      loadSupportingRecords().then(() => {
-        if (generation.current === request) setSupportingRecordsError(null);
-      }).catch((reason: unknown) => {
-        if (generation.current === request && initial) setSupportingRecordsError(reason instanceof Error ? reason.message : "Could not load newsroom records.");
-      }).finally(() => { if (generation.current === request && initial) setSupportingRecordsLoading(false); });
-    };
-    refresh(true);
-    const refreshWhenVisible = () => { if (document.visibilityState === "visible") refresh(false); };
-    const interval = window.setInterval(refreshWhenVisible, BOARD_REFRESH_INTERVAL_MILLISECONDS);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => { generation.current = request + 1; window.clearInterval(interval); document.removeEventListener("visibilitychange", refreshWhenVisible); };
+    // Assignments have no index that answers "changed since", so they are still read whole (follow-up: a feed + updatedAt index).
+    const loadSupportingRecords = () => loadEveryNewsroomAssignment().then(everyAssignment => {
+      if (generation.current !== request) return;
+      setAssignments(everyAssignment);
+      if (subject === "assignment") setAssignmentBoardIssues(projectAssignmentBoard(everyAssignment));
+    });
+    refreshSupportingRecordsRef.current = () => loadSupportingRecords().catch(() => undefined);
+    setSupportingRecordsLoading(true);
+    loadSupportingRecords().then(() => {
+      if (generation.current === request) setSupportingRecordsError(null);
+    }).catch((reason: unknown) => {
+      if (generation.current === request) setSupportingRecordsError(reason instanceof Error ? reason.message : "Could not load newsroom records.");
+    }).finally(() => { if (generation.current === request) setSupportingRecordsLoading(false); });
+    // One timer for the whole board, paused while the tab is hidden; the user's own actions refresh through refreshBoardNowRef.
+    const refresher = startBoardRefresh({ refresh: () => Promise.all([refreshSupportingRecordsRef.current(), subject === "assignment" ? undefined : pagedRefreshRef.current()]) });
+    refreshBoardNowRef.current = refresher.refreshNow;
+    return () => { generation.current = request + 1; refresher.stop(); refreshBoardNowRef.current = () => undefined; };
   }, [allowed, subject]);
+  // Closing or switching the open record is the end of the user's edits in the panel, so show what they changed.
+  const previouslySelected = useRef(selected);
+  useEffect(() => {
+    if (previouslySelected.current && previouslySelected.current !== selected) refreshBoardNowRef.current();
+    previouslySelected.current = selected;
+  }, [selected]);
   const issues = useMemo(() => {
     if (subject === "assignment") return assignmentBoardIssues;
-    if (subject === "contentItem") return projectContentItemBoard({ contentItemVersions: [...pagedContentItems.versions, ...publishedVersions], assignments });
-    const versionsOnDesk = [...pagedContentItems.versions, ...publishedVersions].filter(version => deskId && deskContainsContentItem(version, deskId));
+    if (subject === "contentItem") return projectContentItemBoard({ contentItemVersions: pagedContentItems.versions, assignments });
+    const versionsOnDesk = pagedContentItems.versions.filter(version => deskId && deskContainsContentItem(version, deskId));
     return [...projectContentItemBoard({ contentItemVersions: versionsOnDesk, assignments: assignments.filter(assignment => deskId && deskContainsAssignment(assignment, deskId)) }), ...deskAssignmentIssues];
-  }, [assignmentBoardIssues, assignments, deskAssignmentIssues, deskId, pagedContentItems.versions, publishedVersions, subject]);
+  }, [assignmentBoardIssues, assignments, deskAssignmentIssues, deskId, pagedContentItems.versions, subject]);
   const loading = supportingRecordsLoading || (showsContentItems && pagedContentItems.loading);
   const error = supportingRecordsError ?? (showsContentItems ? pagedContentItems.error : null);
   const config = useMemo(() => subject === "contentItem" ? contentItemBoardConfig(issues) : subject === "desk" ? deskBoardConfig(issues) : assignmentBoardConfig(issues), [issues, subject]);

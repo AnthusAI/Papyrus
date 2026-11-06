@@ -47,7 +47,7 @@ const BOARD_CLIENT = `
 import { createLocalPreviewContentItemVersions } from ${JSON.stringify(root + "lib/local-preview-seed")};
 export const CONTENT_ITEM_COLUMN_PAGE_LIMIT = 25;
 export const loadNewsroomContentItemStagePage = async (stage) => ({ versions: createLocalPreviewContentItemVersions().filter((version) => version.stage === stage), nextToken: null });
-export const loadNewsroomPublishedContentItemVersions = async () => [];
+export const loadNewsroomContentItemsChangedSince = async () => [];
 export const loadNewsroomAssignmentPage = async () => ({ items: [], nextToken: null });
 export const saveNewsroomAssignmentDesk = async () => undefined;
 `;

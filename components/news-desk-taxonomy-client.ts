@@ -10,7 +10,7 @@ import { hasEditorRights } from "../lib/staff-groups";
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { AUTO_ACCEPTED_PAGE_SIZE, autoAcceptedFromRecords, autoAcceptedServerFilter, collectAutoAcceptedPage, type AutoAcceptedPage } from "../lib/auto-accepted-references";
-import { createLocalPreviewRealPublishedVersions, createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
+import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
@@ -2677,61 +2677,44 @@ export async function loadNewsroomContentItemStagePage(
   return { versions: page.items, nextToken: page.nextToken };
 }
 
-const PUBLISHED_ITEMS_QUERY = `
-  query ListPublishedItems($filter: ModelPublishedItemFilterInput, $limit: Int, $nextToken: String) {
-    listPublishedItems(filter: $filter, limit: $limit, nextToken: $nextToken) {
-      items { sourceItemId itemLineageId versionNumber type status title headline slug section publishedAt }
+const CONTENT_ITEMS_CHANGED_SINCE_QUERY = `
+  query ListItemsChangedSince($stage: String!, $updatedAt: ModelStringKeyConditionInput, $sortDirection: ModelSortDirection, $filter: ModelItemFilterInput, $limit: Int, $nextToken: String) {
+    listItemsByStageAndUpdatedAt(stage: $stage, updatedAt: $updatedAt, sortDirection: $sortDirection, filter: $filter, limit: $limit, nextToken: $nextToken) {
+      items { id lineageId versionNumber stage type status title headline deck metadata slug section updatedAt versionCreatedBy starRating }
       nextToken
     }
   }
 `;
 
-type PublishedItemBoardRow = {
-  sourceItemId: string;
-  itemLineageId: string;
-  versionNumber: number;
-  type: string;
-  status: string;
-  title?: string | null;
-  headline?: string | null;
-  slug: string;
-  section?: string | null;
-  publishedAt?: string | null;
-};
-
-export async function loadNewsroomPublishedContentItemVersions(): Promise<ContentItemVersionRecord[]> {
-  if (isLocalPreviewEnabled()) return createLocalPreviewRealPublishedVersions();
+/**
+ * Every story-type Item in one stage whose `updatedAt` is at or after `since`, newest first. This is a key condition on the stage index's
+ * sort key, so DynamoDB reads only the changed rows: a quiet board costs one small request per stage that returns nothing. `since` is
+ * inclusive (a row written in the same instant as the newest row already shown is read again, and the caller merges by id).
+ */
+export async function loadNewsroomContentItemsChangedSince(stage: string, since: string): Promise<ContentItemVersionRecord[]> {
+  if (isLocalPreviewEnabled()) {
+    return createLocalPreviewContentItemVersions().filter(version => version.stage === stage && isStoryItemType(version.type) && String(version.updatedAt ?? "") >= since);
+  }
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as {
-    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<PublishedItemBoardRow>>;
+    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<ContentItemVersionRecord>>;
   };
-  const rows: PublishedItemBoardRow[] = [];
+  const field = "listItemsByStageAndUpdatedAt";
+  const changed: ContentItemVersionRecord[] = [];
   let nextToken: string | null = null;
   do {
-    const response: GraphQLConnectionResponse<PublishedItemBoardRow> = await client.graphql({
-      query: PUBLISHED_ITEMS_QUERY,
-      variables: { filter: storyItemTypeFilter(), limit: NEWSROOM_PAGE_LIMIT, nextToken },
+    const response: GraphQLConnectionResponse<ContentItemVersionRecord> = await client.graphql({
+      query: CONTENT_ITEMS_CHANGED_SINCE_QUERY,
+      variables: { stage, updatedAt: { ge: since }, sortDirection: "DESC", filter: storyItemTypeFilter(), limit: CONTENT_ITEM_COLUMN_PAGE_LIMIT, nextToken },
       authMode: USER_POOL_AUTH_MODE,
     });
     assertNoGraphQLErrors(response.errors);
-    const connection = response.data?.listPublishedItems;
-    if (!connection) throw new Error("Missing GraphQL connection payload for listPublishedItems.");
-    rows.push(...((connection.items ?? []).filter(Boolean) as PublishedItemBoardRow[]));
+    const connection = response.data?.[field];
+    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
+    changed.push(...((connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[]));
     nextToken = connection.nextToken ?? null;
   } while (nextToken);
-  return rows.map(row => ({
-    id: row.sourceItemId,
-    lineageId: row.itemLineageId,
-    versionNumber: row.versionNumber,
-    stage: "published",
-    type: row.type,
-    status: row.status,
-    title: row.title,
-    headline: row.headline,
-    slug: row.slug,
-    section: row.section,
-    updatedAt: row.publishedAt,
-  }));
+  return changed;
 }
 
 export async function loadModelPayloadsForOwner(
