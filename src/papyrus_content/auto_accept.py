@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from .batched_reads import chunks, current_relations_of_many
+from . import request_meter
 from .ideas.digest import parse_time, relations_of, relevance_of
 from .reference_feed_keys import feed_state_key, medium_key_patch, public_key_patch
 from .reference_vote import CYCLOTRON, RULE, vote_fields
@@ -125,7 +127,12 @@ class Verdict:
 
 def verdict_of(client: Any, reference: Mapping[str, Any], positive_label: str) -> Verdict | None:
     """The Cyclotron's current verdict on a Reference: whether it is the positive label and how sure. None when it has none."""
-    decision = relevance_of(relations_of(client, dict(reference)))
+    return verdict_from_relations(relations_of(client, dict(reference)), positive_label)
+
+
+def verdict_from_relations(relations: Sequence[Mapping[str, Any]], positive_label: str) -> Verdict | None:
+    """`verdict_of` for relations already read (several References' relations come in one batched read)."""
+    decision = relevance_of(relations)
     if decision is None:
         return None
     confidence = decision.get("confidence")
@@ -220,13 +227,16 @@ def run_auto_accept(client: Any, publication: Mapping[str, Any], policy: Mapping
         return result
 
     votes: list[tuple[float, bool]] = []
-    for row in voted:
+    request_meter.add_units(len(voted))
+    for group in chunks(voted):   # the relations of 25 References per request, not one request per Reference
         if out_of_time():
             result["reason"] = "time budget reached while reading editor votes"
             return result
-        verdict = verdict_of(client, row, positive_label)
-        if verdict is not None and verdict.positive and verdict.confidence is not None:
-            votes.append((float(verdict.confidence), row.get("curationStatus") == "accepted"))
+        relations = current_relations_of_many(client, group)
+        for row in group:
+            verdict = verdict_from_relations(relations.get(str(row.get("lineageId")), []), positive_label)
+            if verdict is not None and verdict.positive and verdict.confidence is not None:
+                votes.append((float(verdict.confidence), row.get("curationStatus") == "accepted"))
     learned = learn_threshold(votes, policy["precision"])
     result.update(votes=learned["votes"], threshold=learned["threshold"])
     if learned["threshold"] is None:
@@ -238,23 +248,26 @@ def run_auto_accept(client: Any, publication: Mapping[str, Any], policy: Mapping
                if not human_actor(str(row.get("curationStatusUpdatedBy") or ""))
                and (age_seconds(row.get("createdAt"), now) or -1) >= delay]
     result["status"] = "ran"
-    for row in waiting:
+    request_meter.add_units(len(waiting))
+    for group in chunks(waiting):   # as above: 25 References' relations per request
         if out_of_time():
             result["reason"] = "time budget reached while reading candidates"
             break
-        verdict = verdict_of(client, row, positive_label)
-        if verdict is None or not verdict.positive or verdict.confidence is None or verdict.confidence < learned["threshold"]:
-            continue
-        result["candidates"] += 1
-        if dry_run:
-            continue
-        evidence = {"confidence": float(verdict.confidence), "threshold": learned["threshold"], "estimatedPrecision": learned["rate"],
-                    "precisionLowerBound": learned["lowerBound"], "votes": learned["votes"], "targetPrecision": policy["precision"],
-                    "delaySeconds": delay, "latencyQuantile": policy["latencyQuantile"]}
-        if accept_reference_automatically(client, row, now=moment, evidence=evidence, reason=reason_text(
-                confidence=float(verdict.confidence), learned=learned, precision=policy["precision"], delay_seconds=delay,
-                quantile_=policy["latencyQuantile"])):
-            result["accepted"] += 1
+        relations = current_relations_of_many(client, group)
+        for row in group:
+            verdict = verdict_from_relations(relations.get(str(row.get("lineageId")), []), positive_label)
+            if verdict is None or not verdict.positive or verdict.confidence is None or verdict.confidence < learned["threshold"]:
+                continue
+            result["candidates"] += 1
+            if dry_run:
+                continue
+            evidence = {"confidence": float(verdict.confidence), "threshold": learned["threshold"], "estimatedPrecision": learned["rate"],
+                        "precisionLowerBound": learned["lowerBound"], "votes": learned["votes"], "targetPrecision": policy["precision"],
+                        "delaySeconds": delay, "latencyQuantile": policy["latencyQuantile"]}
+            if accept_reference_automatically(client, row, now=moment, evidence=evidence, reason=reason_text(
+                    confidence=float(verdict.confidence), learned=learned, precision=policy["precision"], delay_seconds=delay,
+                    quantile_=policy["latencyQuantile"])):
+                result["accepted"] += 1
     if not dry_run:
         result["summaryUpdated"] = record_summary_after_accepts(client, corpus_id, result["accepted"], reason="references auto-accept")
     if dry_run:
@@ -288,17 +301,19 @@ def direct_monitors(client: Any, rows: Sequence[Mapping[str, Any]]) -> dict[str,
     or when none of its deliveries in the corpus carries a Cyclotron verdict at all (a Cyclotron-decided delivery always does)."""
     from .knowledge_snapshot.monitor_records import discovery_monitor_id, discovery_rule
     seen: dict[str, dict[str, Any]] = {}
-    for row in rows:
-        monitor = discovery_monitor_id(row)
-        if monitor is None:
-            continue
-        entry = seen.setdefault(monitor, {"rule": None, "flagged": False, "verdicts": 0, "deliveries": 0})
-        entry["deliveries"] += 1
-        decision = discovery_rule(row)
-        if decision is not None:
-            entry["flagged"], entry["rule"] = True, decision.get("rule")
-        if relevance_of(relations_of(client, dict(row))) is not None:
-            entry["verdicts"] += 1
+    delivered = [row for row in rows if discovery_monitor_id(row) is not None]
+    request_meter.add_units(len(delivered))
+    for group in chunks(delivered):   # 25 deliveries' relations per request
+        relations = current_relations_of_many(client, group)
+        for row in group:
+            monitor = discovery_monitor_id(row)
+            entry = seen.setdefault(monitor, {"rule": None, "flagged": False, "verdicts": 0, "deliveries": 0})
+            entry["deliveries"] += 1
+            decision = discovery_rule(row)
+            if decision is not None:
+                entry["flagged"], entry["rule"] = True, decision.get("rule")
+            if relevance_of(relations.get(str(row.get("lineageId")), [])) is not None:
+                entry["verdicts"] += 1
     return {monitor: {"rule": entry["rule"], "deliveries": entry["deliveries"]} for monitor, entry in seen.items()
             if entry["flagged"] or entry["verdicts"] == 0}
 

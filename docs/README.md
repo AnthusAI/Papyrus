@@ -12,6 +12,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - **Copy a site's data into a new site**: [site-copy.md](site-copy.md), `papyrus ops site copy` (dry run by default; rewrite rules, owners, media, verify).
 - **Re-project or repair a site**: [site-hosting.md](site-hosting.md#operations-runbook), [site-hosting.md](site-hosting.md#projection-lease-one-projection-at-a-time).
 - **Add a site to Hacker News routing**: [monitoring-cloud.md](monitoring-cloud.md), [../AGENTS.md](../AGENTS.md#add-a-site-to-the-hacker-news-routing).
+- **Count, budget and batch AppSync requests**: [request-meter.md](request-meter.md), the per-caller request summary, the budget warning, `--budget`, the whole-table-read ratchet and the 25-to-a-request batched reads.
 - **Register a procedure or an automation**: [procedure-runner.md](procedure-runner.md), [automations.md](automations.md).
 - **Run the weekly knowledge run**: [knowledge-workstation-run.md](knowledge-workstation-run.md), [knowledge-cloud-run.md](knowledge-cloud-run.md).
 - **Review requests and the Notification Center**: [notification-center.md](notification-center.md), [review-requests.md](review-requests.md). The console home is ignore-safe (only a hard gate waits for a person), steering is fed back to the step that raised the request, and marks accompany every colour.
