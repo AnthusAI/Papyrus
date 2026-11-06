@@ -76,6 +76,9 @@ def forbidden_world(monkeypatch, tmp_path):
     for name in list(os.environ):
         if name.startswith(("PAPYRUS_", "AWS_", "AMPLIFY_")):
             monkeypatch.delenv(name)
+    # `--site` sets PAPYRUS_SITE directly in os.environ; registering it here makes teardown remove it, so it cannot leak into other tests.
+    monkeypatch.setenv("PAPYRUS_SITE", "unused.example")
+    monkeypatch.delenv("PAPYRUS_SITE")
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     return touched
