@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { oauthRoute } from "../lib/mcp/oauth-site";
+import { mcpReaderSignInRequest, oauthRoute } from "../lib/mcp/oauth-site";
+import { sealProspectusCookie } from "../lib/prospectus-session";
+import { safeMcpRedirect } from "../lib/mcp/oauth-clients";
 import { createOAuthHttp } from "../lib/mcp/oauth-http";
 const operations: Record<string, unknown>[] = [];
 const app = createOAuthHttp({
@@ -8,6 +10,25 @@ const app = createOAuthHttp({
   identity: async () => ({ principal: { kind: "reader", siteSubject: "ss1_test" }, upstream_expiry: 2000000000 }),
 });
 async function main() {
+  assert.equal(safeMcpRedirect("https://foo;default-src.example/cb"), false);
+  assert.equal(safeMcpRedirect("https://foo%3Bdefault-src.example/cb"), false);
+  assert.equal(safeMcpRedirect("http://[::1]:4444/cb"), true);
+  const callback = "https://chat.example/callback";
+  const chat = createOAuthHttp({ origin: "https://example.test", clients: { chat: [callback] }, secret: "x".repeat(32), invoke: async () => ({ code: "chat-code" }), identity: async () => ({ principal: { kind: "reader", siteSubject: "ss1_test" }, upstream_expiry: 2000000000 }) });
+  const chatParams = new URLSearchParams({ response_type: "code", client_id: "chat", redirect_uri: callback, resource: "https://example.test/api/mcp", code_challenge_method: "S256", code_challenge: "A".repeat(43) });
+  const start = await chat.authorize(new Request(`https://example.test/api/mcp/oauth/authorize?${chatParams}`));
+  const chatCookie = start.headers.get("set-cookie")!.split(";")[0];
+  const page = await chat.consent(new Request("https://example.test/mcp/authorize", { headers: { cookie: chatCookie } }));
+  assert.equal(page.headers.get("content-security-policy"), "default-src 'none'; form-action 'self' https://chat.example; frame-ancestors 'none'; base-uri 'none'");
+  const chatCsrf = (await page.text()).match(/name="csrf" value="([^"]+)"/)![1];
+  const submitChat = (origin: string, csrf: string) => chat.consent(new Request("https://example.test/mcp/authorize", { method: "POST", headers: { cookie: chatCookie, origin, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ csrf, decision: "allow", identity: "reader" }) }));
+  assert.equal((await submitChat("https://evil.test", chatCsrf)).status, 403);
+  assert.equal((await submitChat("https://example.test", "bad")).status, 403);
+  const approved = await submitChat("https://example.test", chatCsrf);
+  assert.equal(approved.status, 303);
+  const destination = new URL(approved.headers.get("location")!);
+  assert.equal(destination.origin + destination.pathname, callback);
+  assert.equal(destination.searchParams.get("code"), "chat-code");
   const dependencies = { config: () => ({ origin: "https://example.test", functionArn: "test" }), clients: () => ({ client: ["https://client.test/cb"] }), service: async () => { throw new Error("secret unavailable"); } };
   let response = await oauthRoute("metadata", new Request("https://example.test/.well-known/oauth-authorization-server"), dependencies); const metadata = await response.json(); assert.equal(metadata.issuer, "https://example.test"); assert.equal(metadata.authorization_response_iss_parameter_supported, true);
   response = await oauthRoute("resource", new Request("https://example.test/api/mcp/oauth/resource"), dependencies); assert.equal((await response.json()).resource, "https://example.test/api/mcp");
@@ -35,11 +56,24 @@ async function main() {
   response = await staff.consent(new Request("https://example.test/mcp/authorize", { headers: { cookie: staffCookie } })); const staffCsrf = (await response.text()).match(/name="csrf" value="([^"]+)"/)![1];
   response = await staff.consent(new Request("https://example.test/mcp/authorize", { method: "POST", headers: { cookie: staffCookie, origin: "https://example.test", "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ csrf: staffCsrf, decision: "allow", identity: "staff" }) })); assert.equal(response.status, 303); assert.equal((operations.at(-1)?.principal as { kind: string }).kind, "staff");
   let signedIn = false;
-  const returning = createOAuthHttp({ origin: "https://example.test", clients: { client: ["http://127.0.0.1:4444/callback"] }, secret: "x".repeat(32), invoke: async () => ({ code: "return-code" }), identity: async (_request, kind) => signedIn && kind === "reader" ? { principal: { kind: "reader", siteSubject: "ss1_test" }, upstream_expiry: 2000000000 } : null });
+  let signInCalls = 0;
+  const returning = createOAuthHttp({ origin: "https://example.test", clients: { client: ["http://127.0.0.1:4444/callback"] }, secret: "x".repeat(32), readerSignIn: async () => { signInCalls++; return new Response(null, { status: 303, headers: { Location: "https://hosted.example/oauth2/authorize" } }); }, invoke: async () => ({ code: "return-code" }), identity: async (_request, kind) => signedIn && kind === "reader" ? { principal: { kind: "reader", siteSubject: "ss1_test" }, upstream_expiry: 2000000000 } : null });
   response = await returning.authorize(new Request(`https://example.test/api/mcp/oauth/authorize?${params}`)); const returnCookie = response.headers.get("set-cookie")!.split(";")[0];
   response = await returning.consent(new Request("https://example.test/mcp/authorize", { headers: { cookie: returnCookie } })); const returnCsrf = (await response.text()).match(/name="csrf" value="([^"]+)"/)![1];
   const submit = () => new Request("https://example.test/mcp/authorize", { method: "POST", headers: { cookie: returnCookie, origin: "https://example.test", "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ csrf: returnCsrf, decision: "allow", identity: "reader" }) });
-  response = await returning.consent(submit()); assert.equal(response.status, 401); assert.equal(response.headers.get("referrer-policy"), "same-origin"); assert.match(await response.text(), /Sign in as a reader/);
+  response = await returning.consent(submit()); assert.equal(response.status, 401); assert.equal(response.headers.get("referrer-policy"), "same-origin"); assert.match(await response.text(), /href="\/mcp\/authorize\?sign_in=reader"/);
+  const derived = mcpReaderSignInRequest("https://example.test", new Request("https://example.test/mcp/authorize?returnTo=https://evil.test"));
+  assert.equal(derived.url, "https://example.test/mcp/authorize?returnTo=%2Fmcp%2Fauthorize");
+  const signInRequest = (cookieValue: string) => new Request("https://example.test/mcp/authorize?sign_in=reader&returnTo=https://evil.test", { headers: { cookie: cookieValue } });
+  const expired = sealProspectusCookie("x".repeat(32), "__Host-papyrus-mcp-consent", {}, Math.floor(Date.now() / 1000) - 1);
+  response = await returning.consent(signInRequest(`__Host-papyrus-mcp-consent=${expired}`)); assert.equal(response.status, 400); assert.equal(signInCalls, 0);
+  response = await returning.consent(signInRequest(returnCookie)); assert.equal(response.status, 303); assert.equal(response.headers.get("location"), "https://hosted.example/oauth2/authorize"); assert.equal(signInCalls, 1);
+  const disabled = createOAuthHttp({ origin: "https://example.test", clients: { client: ["http://127.0.0.1:4444/callback"] }, secret: "x".repeat(32), readerSignInAvailable: false, readerSignIn: async () => { throw new Error("must not call"); }, invoke: async () => ({}), identity: async () => null });
+  response = await disabled.consent(signInRequest(returnCookie)); assert.equal(response.status, 404);
+  response = await disabled.consent(submit()); assert.match(await response.text(), /Reader authorization is unavailable/);
+  const noCallback = createOAuthHttp({ origin: "https://example.test", clients: { client: ["http://127.0.0.1:4444/callback"] }, secret: "x".repeat(32), invoke: async () => ({}), identity: async () => null });
+  response = await noCallback.consent(submit()); assert.match(await response.text(), /Reader authorization is unavailable/);
+  response = await noCallback.consent(signInRequest(returnCookie)); assert.equal(response.status, 404);
   signedIn = true; response = await returning.consent(submit()); assert.equal(response.status, 303);
   console.log("MCP OAuth HTTP checks passed");
 }

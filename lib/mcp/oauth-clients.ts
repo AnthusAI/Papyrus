@@ -2,6 +2,8 @@
 export function safeMcpRedirect(value: string): boolean {
   try {
     const url = new URL(value);
+    // URL accepts host characters such as semicolons that are not safe in a CSP host-source.
+    if (url.hostname !== "[::1]" && !/^[a-z0-9.-]+$/.test(url.hostname)) return false;
     return !url.username && !url.password && !url.hash && (url.protocol === "https:" || (url.protocol === "http:" && ["127.0.0.1", "[::1]", "localhost"].includes(url.hostname)));
   } catch { return false; }
 }

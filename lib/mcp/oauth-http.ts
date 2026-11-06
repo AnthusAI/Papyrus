@@ -4,7 +4,7 @@ import { openProspectusCookie, sealProspectusCookie } from "../prospectus-sessio
 
 type Principal = { kind: "staff"; subject: string; accessToken: string; idToken: string; expiresAt?: number } | { kind: "reader"; siteSubject: string };
 type Operation = { operation: "issue"; client: string; redirect: string; resource: string; challenge: string; principal: Principal; upstream_expiry: number; transaction_id: string } | { operation: "exchange"; code: string; client: string; redirect: string; resource: string; verifier: string } | { operation: "refresh"; token: string; client: string; resource: string } | { operation: "revoke"; token: string; client: string };
-type Options = { readerSignInAvailable?: boolean; origin: string; clients: Record<string, string[]>; secret: string; invoke: (request: Operation) => Promise<Record<string, unknown>>; identity: (request: Request, kind: "staff" | "reader") => Promise<{ principal: Principal; upstream_expiry: number } | null> };
+type Options = { readerSignInAvailable?: boolean; readerSignIn?: (request: Request) => Promise<Response>; origin: string; clients: Record<string, string[]>; secret: string; invoke: (request: Operation) => Promise<Record<string, unknown>>; identity: (request: Request, kind: "staff" | "reader") => Promise<{ principal: Principal; upstream_expiry: number } | null> };
 type Transaction = { client: string; redirect: string; resource: string; challenge: string; state: string; csrf: string };
 const cookieName = "__Host-papyrus-mcp-consent";
 const noStore = { "Cache-Control": "no-store", "Pragma": "no-cache", "X-Content-Type-Options": "nosniff" };
@@ -58,8 +58,12 @@ export function createOAuthHttp(options: Options) {
       const tx = openProspectusCookie<Transaction>(secret, cookieName, readCookie(request));
       if (!tx || !registered(tx.client, tx.redirect) || tx.resource !== resource) return new Response("<!doctype html><html><head><title>Authorization expired</title></head><body><main><h1>Authorization expired</h1><p>Return to your client and start authorization again.</p></main></body></html>", { status: 400, headers: { ...noStore, "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" } });
       if (request.method === "GET") {
+        if (new URL(request.url).searchParams.get("sign_in") === "reader") {
+          if (options.readerSignInAvailable === false || !options.readerSignIn) return failure(404, "invalid_request");
+          return options.readerSignIn(request);
+        }
         const html = `<!doctype html><html><head><meta charset="utf-8"><title>Authorize client</title></head><body><main><h1>Authorize client</h1><p>Allow ${escapeHtml(tx.client)} to access this publication as you?</p><p>Return address: ${escapeHtml(tx.redirect)}</p><form method="post"><input type="hidden" name="csrf" value="${escapeHtml(tx.csrf)}"><label><input type="radio" name="identity" value="staff" required> Staff</label><label><input type="radio" name="identity" value="reader" required> Reader</label><button name="decision" value="allow">Allow</button><button name="decision" value="deny">Deny</button></form></main></body></html>`;
-        return new Response(html, { headers: { ...noStore, "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'", "Referrer-Policy": "same-origin" } });
+        return new Response(html, { headers: { ...noStore, "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": `default-src 'none'; form-action 'self' ${new URL(tx.redirect).origin}; frame-ancestors 'none'; base-uri 'none'`, "Referrer-Policy": "same-origin" } });
       }
       if (request.method !== "POST") return failure(405, "invalid_request");
       if (request.headers.get("origin") !== origin) return failure(403, "invalid_request");
@@ -77,7 +81,7 @@ export function createOAuthHttp(options: Options) {
         let signedIn: Awaited<ReturnType<typeof identity>>;
         try { signedIn = await identity(request, kind); } catch { return failure(503, "temporarily_unavailable"); }
         if (!signedIn || signedIn.upstream_expiry <= Math.floor(Date.now() / 1000)) {
-          const signIn = kind === "staff" ? '<p><a href="/newsroom" target="_blank" rel="noopener noreferrer">Sign in to the newsroom</a>, then return to this page.</p>' : options.readerSignInAvailable === false ? '<p>Reader authorization is unavailable on this console.</p>' : '<form method="post" action="/api/auth/prospectus/sign-in"><input type="hidden" name="returnTo" value="/mcp/authorize"><button>Sign in as a reader</button></form>';
+          const signIn = kind === "staff" ? '<p><a href="/newsroom" target="_blank" rel="noopener noreferrer">Sign in to the newsroom</a>, then return to this page.</p>' : (options.readerSignInAvailable === false || !options.readerSignIn) ? '<p>Reader authorization is unavailable on this console.</p>' : '<p><a href="/mcp/authorize?sign_in=reader">Sign in as a reader</a></p>';
           return new Response(`<!doctype html><html><head><meta charset="utf-8"><title>Sign in</title></head><body><main><h1>Sign in to continue</h1>${signIn}<p><a href="/mcp/authorize">Return to authorization</a></p></main></body></html>`, { status: 401, headers: { ...noStore, "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "default-src 'none'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'", "Referrer-Policy": "same-origin" } });
         }
         try {

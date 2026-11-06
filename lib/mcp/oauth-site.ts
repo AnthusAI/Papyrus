@@ -5,10 +5,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAmplifyServerRuntime } from "../amplify-server-runtime";
 import { resolveNewsroomChatIdentity } from "../newsroom-chat-identity";
 import { loadProspectusSessionSealingSecret, signedInProspectusSession } from "../prospectus-session";
+import { handleProspectusSignInStart } from "../prospectus-sign-in-routes";
 import { readerSubject } from "../reader-subject";
 import { mcpOAuthClients } from "./oauth-clients";
 import { createOAuthHttp, oauthMetadata } from "./oauth-http";
 import { invokeMcpOAuth, mcpOAuthConfig } from "./oauth-runtime";
+
+/** Preserve only the trusted fixed return path, never parameters supplied by the browser. */
+export function mcpReaderSignInRequest(origin: string, request: Request): NextRequest {
+  const url = new URL("/mcp/authorize", origin);
+  url.searchParams.set("returnTo", "/mcp/authorize");
+  return new NextRequest(url, { headers: request.headers });
+}
 
 /** Configuration is operator-provided; never use Host or client parameters as the issuer. */
 export async function siteOAuth() {
@@ -19,6 +27,7 @@ export async function siteOAuth() {
   if (!secret) throw new Error("Consent secret unavailable");
   return createOAuthHttp({
     origin: config.origin, secret, clients, readerSignInAvailable: process.env.PAPYRUS_SITE_ORIGIN === config.origin,
+    readerSignIn: request => handleProspectusSignInStart(mcpReaderSignInRequest(config.origin, request)),
     invoke: request => invokeMcpOAuth(request),
     identity: async (request, kind) => {
       const nextRequest = new NextRequest(request);

@@ -43,3 +43,15 @@ Feature: Authorize an MCP client
     When the consent form is submitted from the configured origin
     Then the form permits the browser to send its origin without exposing cross-origin referrers
     And a null or foreign origin cannot issue a code
+
+  Scenario: The browser reaches the registered client after consent
+    Given a client has a registered HTTPS callback
+    When a signed-in person submits consent
+    Then the browser may follow the response to that callback
+    And foreign origins and invalid CSRF tokens remain refused
+
+  Scenario: A reader starts sign-in from a pending authorization
+    Given a pending client authorization and a signed-out reader
+    When the reader follows the clean sign-in link
+    Then the site starts sign-in and returns to the pending consent
+    And an expired transaction or disabled reader sign-in cannot start it
