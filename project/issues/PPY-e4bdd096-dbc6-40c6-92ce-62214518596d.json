@@ -10,9 +10,17 @@
   "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d752731c-ec27-4978-a0a0-0beb71e3a902",
+      "author": "home",
+      "text": "Ryan's clarification, 2026-11-07: Machines on Machines allows generated editorial illustrations but prohibits generated realistic or photorealistic imagery. The purpose is to avoid images that could be mistaken for documentary photographs or pretend to depict actual people, places or events. Whether a visibly illustrated image is AI-generated is a separate issue. This rule applies to generated imagery; it does not prohibit authentic photographs or other image sources.\n\nCapture this as a publication-level, binding generation constraint, not a generic default for every Papyrus publication. The effective profile and any Story or section overrides must not silently weaken the prohibition. Both Gemini and OpenAI generation paths and the shared CLI, MCP, UI and agent workflows must honor it, including initial choices, variants and later edits. Generate prompts should request unambiguously illustrative treatments and exclude photorealism; do not equate prompt instructions with guaranteed compliance. Provide an honest review step or screening mechanism appropriate to the workflow, make unapproved or uncertain results reviewable, and allow discarding an unsuitable candidate. The rule must also be visible in the generated-candidate metadata or resolved guidance so a reviewer can assess it. Respect the publication's existing visual design system; no need for all illustrations to use the same composition or a diagram.\n\nConcrete acceptance case: an editor or agent requests an illustration for Machines on Machines; no matter which supported provider or client is used, the effective publication guidance prohibits realistic/photorealistic generation, and an output that looks like a real photograph cannot be accepted as conforming merely because the prompt asked for illustration. Distinguish machine assessment from verified human approval.\n",
+      "created_at": "2026-11-07T17:51:39.846079Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T17:48:13.006746Z",
-  "updated_at": "2026-11-07T17:48:13.007124Z",
+  "updated_at": "2026-11-07T17:51:39.847195Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
