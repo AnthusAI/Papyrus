@@ -64,9 +64,11 @@ def build_reference_url_text_attachment_plans(
     grobid_url: str | None = None,
     allow_discovery: bool = False,
     find_only: bool = False,
+    all_references: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    """``references`` are the candidates; ``all_references`` (default: the same list) is where a cited paper is looked up, and may be a ``DeferredRows``."""
     corpus_key_by_id = corpus_key_by_id or {}
-    semantic_relations = semantic_relations or []
+    semantic_relations = semantic_relations if semantic_relations is not None else []
     selected_reference_ids = set(reference_ids or [])
     selected_external_item_ids = set(external_item_ids or [])
     plans: list[dict[str, Any]] = []
@@ -448,7 +450,7 @@ def build_reference_url_text_attachment_plans(
             else:
                 graph_plan = _plan_grobid_citation_graph_records(
                     source_reference=reference,
-                    all_references=references,
+                    all_references=all_references if all_references is not None else references,
                     semantic_relations=semantic_relations,
                     structured=structured,
                     now=canonical_metadata["filteredAt"],
@@ -611,11 +613,13 @@ def run_reference_url_text_extraction(
     model: str = DEFAULT_REFERENCE_FILTER_MODEL,
     pdf_only: bool = False,
     grobid_url: str | None = None,
+    all_references: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     from .records import build_record_changes, build_record_changes_targeted_by_id
 
     planned = build_reference_url_text_attachment_plans(
         references=references,
+        all_references=all_references,
         attachments=attachments,
         semantic_relations=semantic_relations,
         corpus_key_by_id=corpus_key_by_id,
