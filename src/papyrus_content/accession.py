@@ -16,6 +16,7 @@ import yaml
 
 from .biblicus_runner import BiblicusCommandError, BiblicusRunner, resolve_biblicus_workdir
 from .reference_feed_keys import feed_keys
+from .reference_reads import attachments_for_references
 from .automatic_assignments import OPERATIONAL_ASSIGNMENT_FEED_KEY
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import semantic_relation_record
@@ -747,7 +748,7 @@ def resolve_accession_assignment_metadata(
         (options or {}).get("corpus-key"),
     )
     corpus_id = knowledge_corpus_id(corpus_config)
-    attachments = client.list_records("ReferenceAttachment")
+    attachments = attachments_for_references(client, [reference])
     readiness = reference_source_readiness(reference, attachments, None)
     rebuilt = reference_accession_assignment_record(
         reference,

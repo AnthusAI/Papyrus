@@ -235,6 +235,27 @@ def test_a_catalog_import_of_many_is_one_row_each_and_the_router_works_through_t
     assert not lane_rows(world.table)
 
 
+def test_the_pass_reads_the_references_and_relations_of_its_requests_in_batches_and_decides_the_same(world):
+    rows = [reference_row(f"reference-import-{n}-v1", sourceUri=f"https://example.org/p{n}", title=f"Paper {n}") for n in range(30)]
+    for row in rows:
+        world.client.rows[("Reference", row["id"])] = row
+    batches = []
+
+    def get_many(model, ids):
+        batches.append(("get_many", model, len(ids)))
+        return {record_id: dict(world.client.rows[(model, record_id)]) for record_id in ids if (model, record_id) in world.client.rows}
+
+    def index_many(index, keys):
+        batches.append(("index_many", index, len(keys)))
+        return {key: world.client.list_by_index(index, key) for key in keys}
+
+    world.client.get_many, world.client.index_many = get_many, index_many
+    world.ask([request_of(row) for row in rows])
+    world.drain(time_left=lambda: 1e9)
+    assert batches == [("get_many", "Reference", 30), ("index_many", "semanticRelationsBySubjectState", 30)]
+    assert all(reference(world, row["id"]).get("predictedAcceptProbability") is not None for row in rows)
+
+
 def test_the_router_stops_at_its_time_budget_and_the_rest_wait_in_the_lane(world):
     rows = [reference_row(f"reference-import-{n}-v1", sourceUri=f"https://example.org/p{n}", title=f"Paper {n}") for n in range(4)]
     for row in rows:

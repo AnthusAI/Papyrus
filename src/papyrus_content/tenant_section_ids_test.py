@@ -25,6 +25,8 @@ class InMemoryNewsroomSectionBackend:
             else:
                 self.rows[payload["id"]].update(copy.deepcopy(payload))
             return {}
+        if "BatchGetNewsroomSection" in query:   # several gets as aliased fields
+            return {f"r{n}": copy.deepcopy(self.rows.get(variables[f"k{n}"])) for n in range(len(re.findall(r"\br\d+:", query)))}
         if "getNewsroomSection" in query:
             return {"getNewsroomSection": copy.deepcopy(self.rows.get(variables["id"]))}
         return {"listNewsroomSections": {"items": copy.deepcopy(list(self.rows.values())), "nextToken": None}}

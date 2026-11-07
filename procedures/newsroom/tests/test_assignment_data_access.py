@@ -51,7 +51,7 @@ def test_reference_registration_and_provenance_operations_fit_assignment_access(
     changes = build_record_changes(client, plan['records'])
     apply_record_changes(client, changes)
     update_newsroom_summary_after_reference_registration(client, changes, plan)
-    assert {'Query/fields/listReferences', 'Mutation/fields/createReference',
+    assert {'Query/fields/listReferencesByLineageAndVersion', 'Mutation/fields/createReference',
             'Mutation/fields/createKnowledgeImportRun', 'Mutation/fields/createModelAttachmentUpload',
             'Mutation/fields/completeModelAttachmentUpload', 'Mutation/fields/updateNewsroomSummary'} <= set(calls)
     assert not any('/delete' in operation or 'EditorialPolicy' in operation or 'UserRole' in operation for operation in calls)

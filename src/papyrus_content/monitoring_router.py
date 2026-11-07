@@ -69,6 +69,7 @@ from .email_submission_authorization import (
     EditorLookupUnavailable,
     publication_ids_for_editor,
 )
+from . import request_meter
 from .auto_accept import accept_by_rule, run_auto_accept, validate_auto_accept
 from .research_assignments_worker import run_research_assignments, validate_research_assignments
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
@@ -202,6 +203,10 @@ PROCEDURE_INPUT_NAME = re.compile(r"^[a-z_][a-z0-9_]{0,63}$")
 SSM_PARAMETER = re.compile(r"^/[A-Za-z0-9_./-]{1,1000}$")
 TRIGGER_PLACEHOLDERS = frozenset({"sourceId", "sourceIdPrefix", "canonicalUrl", "documentUrl", "sourceItemUrl", "title",
                                   "publishedAt", "referenceId", "publicationId", "corpusId"})
+
+
+# How many items' prediction reads are fetched together: four batches of 25, so a long queue is read as the pass reaches it and memory stays small.
+PREFETCH_WINDOW = 100
 
 
 class EnrichmentPending(Exception):
@@ -1321,6 +1326,8 @@ class Router:
         self.holding = config.get("holdDecisions") is True and not hold_override   # CONFIG#router holdDecisions: no decide POST; enrichment, polling and feedback still run. hold_override (event holdOverride=false) lifts it for this invocation only
         self.max_decisions, self.posted, self.capped = max_decisions, [], False   # canary: at most max_decisions new decide POSTs this run (combined or per publication); `posted` is what was sent
         self.combined_unavailable = False   # a 404 from POST /machine/decisions, remembered for the run
+        self._prefetched_references: dict[tuple[str, str], dict | None] = {}   # (publicationId, referenceId) -> row read in a batch of 25
+        self._prefetched_relations: dict[tuple[str, str], list] = {}
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
                        "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "backedOff": 0, "deliveryFailed": 0, "skippedNotReady": 0,
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
@@ -1449,7 +1456,10 @@ class Router:
             candidates = (self.store.query_partition(gsi_partition(self.monitor_id, "email-references"))
                           + self.store.query_partition(gsi_partition(self.monitor_id, PREDICTION_LANE)))
         errors: list = []
-        for disc in candidates:
+        request_meter.add_units(len(candidates))
+        for index, disc in enumerate(candidates):
+            if index % PREFETCH_WINDOW == 0:
+                self.prefetch_prediction_reads([d for d in candidates[index:index + PREFETCH_WINDOW] if d])
             lane = selected_lane(disc) if disc else None
             if (not lane or disc.get("gsi1pk") != gsi_partition(self.monitor_id, lane)
                     or disc.get("sourceType") != ("email" if lane == "email-references" else PREDICTION_SOURCE)):
@@ -2411,6 +2421,34 @@ class Router:
         finally:
             self.active_publications = original_active_publications
 
+    def prefetch_prediction_reads(self, candidates: list[dict]) -> None:
+        """Read the Reference of every prediction request in the pass, and the relations of those that may need a decision copied, 25 to a request,
+        so `prediction_needed` does not spend two requests per request. A failed batch only means the per-item reads run as before."""
+        from .batched_reads import current_relations_of_many, references_by_id
+        if self.config["mode"] != "live" or self.config["decisions"] != "cyclotron":
+            return
+        by_publication: dict[str, list[str]] = {}
+        for disc in candidates:
+            if is_prediction_request(disc):
+                by_publication.setdefault(disc["predictFor"]["publicationId"], []).append(disc["predictFor"]["referenceId"])
+        for publication_id, reference_ids in by_publication.items():
+            publication = self.publications.get(publication_id)
+            if publication is None:
+                continue
+            try:
+                client = self.client(publication)
+                found = references_by_id(client, reference_ids)
+                open_rows = [row for row in found.values() if row.get("versionState", "current") == "current"
+                             and row.get("curationStatus") != "archived" and not has_real_prediction(row)]
+                relations = current_relations_of_many(client, open_rows)
+            except Exception as error:   # noqa: BLE001 - the per-item reads still work
+                print(json.dumps({"prefetch": "prediction_reads_failed", "publicationId": publication_id, "reason": short(error)}))
+                continue
+            for reference_id in reference_ids:
+                self._prefetched_references[(publication_id, reference_id)] = found.get(reference_id)
+            for row in open_rows:
+                self._prefetched_relations[(publication_id, row["id"])] = relations.get(str(row.get("lineageId")), [])
+
     def prediction_needed(self, publication: dict, disc: dict, route: dict) -> bool:
         """False, with the request finished, when there is nothing to decide: the Reference is gone, is not the current version, is archived, already has
         a prediction, or already has a decision that only needs copying onto the row. Costs one read of the Reference and one of its relations; no
@@ -2418,7 +2456,11 @@ class Router:
         from .ideas.digest import relevance_of
         from .reference_feed_keys import original_prediction_fields
         client = self.client(publication)
-        reference = client.get_record("Reference", disc["predictFor"]["referenceId"])
+        read_key = (publication["publicationId"], disc["predictFor"]["referenceId"])
+        if read_key in self._prefetched_references:   # read in a batch at the start of the pass; used once
+            reference = self._prefetched_references.pop(read_key)
+        else:
+            reference = client.get_record("Reference", disc["predictFor"]["referenceId"])
         if not reference or reference.get("corpusId") != publication["corpusId"] or reference.get("sourceUri") != disc["canonicalUrl"]:
             self.finish(disc, route, "refused", "the Reference is missing or does not match the request")
             return False
@@ -2429,7 +2471,9 @@ class Router:
             self.counts["predictionSkipped"] += 1
             self.finish(disc, route, "routed", "the Reference already has a prediction")
             return False
-        decision = relevance_of(client.list_by_index("semanticRelationsBySubjectState", f"reference#{reference.get('lineageId') or reference['id']}#current"))
+        prefetched = self._prefetched_relations.pop((publication["publicationId"], reference["id"]), None) if reference.get("lineageId") else None
+        decision = relevance_of(prefetched if prefetched is not None
+                                else client.list_by_index("semanticRelationsBySubjectState", f"reference#{reference.get('lineageId') or reference['id']}#current"))
         if decision:   # decided before (the sweep, an older delivery) but the row never got the number: copy it, do not ask the Cyclotron again
             fields = original_prediction_fields(
                 {k: v for k, v in reference.items() if k != "predictionDecidedAt"}, label=decision["label"], positive_label=decision.get("positiveLabel") or publication["positiveLabel"],
@@ -2482,6 +2526,7 @@ class Router:
         if self.config["mode"] == "live":
             self.retry_deferred()
         candidates = self.candidates()
+        request_meter.add_units(len(candidates))
         if self.config["mode"] == "live" and self.config["decisions"] == "cyclotron" and not self.holding:
             try:
                 self.backfill()
@@ -2490,7 +2535,9 @@ class Router:
                         "waitingForClassifier": self.waiting_for_classifier()}
             self.nowait = True
         awaiting: list[dict] = []
-        for disc in candidates:
+        for index, disc in enumerate(candidates):
+            if index % PREFETCH_WINDOW == 0:
+                self.prefetch_prediction_reads(candidates[index:index + PREFETCH_WINDOW])
             if self.time_left() < MIN_REMAINING_SECONDS:
                 status, stopped = "stopped", "time_budget"
                 break
@@ -2569,6 +2616,7 @@ class Router:
                 pending.append((oldest_posted_at(route), disc))
         pending = [disc for _, disc in sorted(pending, key=lambda pair: pair[0])]   # oldest job first; the first 429 ends the pass
         self.counts["examined"] = len(pending)
+        request_meter.add_units(len(pending))
         status, stopped = "complete", None
         try:
             # one pass first, so jobs that finished while nobody was looking are delivered without waiting
@@ -2627,6 +2675,7 @@ class Router:
                 result["failed"] += 1
                 print(json.dumps({"feedback": "votes_unreadable", "publicationId": publication["publicationId"], "reason": short(error)}))
                 continue
+            request_meter.add_units(len(votes))
             for reference in votes:
                 if self.time_left() < MIN_REMAINING_SECONDS:
                     result.update(status="stopped", stoppedBy="time_budget")
@@ -3338,6 +3387,7 @@ def invoke_self(context, payload: dict) -> None:
     boto3.client("lambda").invoke(FunctionName=context.invoked_function_arn, InvocationType="Event", Payload=json.dumps(payload).encode())
 
 
+@request_meter.metered_handler("router")
 def handler(event, context):
     """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"|"monitor-stories"|"auto-accept"|"research-assignments"|"cyclotron-status"|"suggest-unchecked"}` limits the pass (operator debugging).
     `{"task": "monitor-stories"|"auto-accept"|"research-assignments", "monitorId": "hn", "publicationId": "anth-us"}` runs only that publication, with the whole time budget and its own lock;

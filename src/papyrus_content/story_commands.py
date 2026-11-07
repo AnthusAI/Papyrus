@@ -7,6 +7,7 @@ import re
 import sys
 from pathlib import Path
 
+from .audience_lenses import lens_lines, lens_payload, lens_step_states
 from .graphql_authoring import create_authoring_client
 from .newsroom_process import assess, next_lines, print_next_lines, print_reminder, reminder_assessment, step_lines, story_facts, warn_skipped
 from .options import normalize_string, parse_boolean_option, parse_options, parse_repeated_option, resolve_mutation_apply
@@ -417,7 +418,8 @@ def stories_list(flags: list[str]) -> None:
 def stories_next(flags: list[str]) -> None:
     """papyrus stories next --story <lineage> [--json]
 
-    Read only. Prints each step of the Story procedure with its state, then what comes next and any skipped steps (docs/story-procedure.md)."""
+    Read only. Prints each step of the Story procedure with its state, then what comes next and any skipped steps (docs/story-procedure.md), then one
+    `lens` line for each of the four review steps that is not done (docs/four-lens-review.md)."""
     options = parse_options(flags)
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
@@ -425,11 +427,13 @@ def stories_next(flags: list[str]) -> None:
     from .story_checklist import checklist_lines, progress_text, read_steps, steps_for_display, summary_of
 
     stored = steps_for_display(read_steps(client, lineage_id), lineage_id)   # one index read by Story lineage
+    states = lens_step_states(client, lineage_id)
     if options.get("json"):
-        print(json.dumps({"ok": True, "story": lineage_id, **assessment, "checklist": stored, "progress": progress_text(summary_of(stored)) if stored else None}, indent=2))
+        print(json.dumps({"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
+                          "checklist": stored, "progress": progress_text(summary_of(stored)) if stored else None}, indent=2))
         return
     print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
-    for line in step_lines(assessment) + checklist_lines(stored) + next_lines(assessment):
+    for line in step_lines(assessment) + checklist_lines(stored) + next_lines(assessment) + lens_lines(states, lineage=lineage_id):
         print(line)
 
 
@@ -472,7 +476,10 @@ def stories_checklist_backfill(flags: list[str]) -> None:
     apply = resolve_mutation_apply(options, "stories checklist-backfill")
     stages = tuple(parse_repeated_option(flags, "stage")) or None
     client, _ = create_authoring_client()
-    counts = backfill(client, apply=apply, stages=stages, page_size=int(options.get("page-size") or 50))
+    from . import request_meter
+
+    with request_meter.sweep("stories-checklist-backfill"):   # a declared sweep: every Story, one stage at a time, in pages
+        counts = backfill(client, apply=apply, stages=stages, page_size=int(options.get("page-size") or 50))
     print(f"stories\tchecklist-backfill\t{'write' if apply else 'dry run'}\t" + "\t".join(f"{name} {value}" for name, value in counts.items()))
 
 
