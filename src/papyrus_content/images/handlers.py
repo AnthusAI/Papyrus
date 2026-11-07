@@ -18,6 +18,7 @@ class Caller:
     kind: Literal["person", "agent"] = "person"
     subject: str = ""
     delegated_by: str | None = None
+    is_admin: bool = False   # an admin of this site; only a person who is one may change a binding constraint
 
 
 @dataclass(frozen=True)
@@ -126,3 +127,10 @@ def execute(name: str, arguments: Any, caller: Caller | None = None, handlers: d
         return ok_envelope(name, handler(arguments or {}, caller))
     except ImageOperationError as error:
         return error_envelope(name, error.code, error.message, retryable=error.retryable, details=error.details)
+
+
+# The style profile operations are built (project/wiki/image-toolchain.md section 9, step 2). On this lane each call opens the signed-in person's own
+# authoring client; the image-service function binds the same handlers to the caller's identity instead.
+from .profile_handlers import signed_in_handlers  # noqa: E402  (after the names above, which profile_handlers imports)
+
+HANDLERS.update(signed_in_handlers())

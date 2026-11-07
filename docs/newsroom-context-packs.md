@@ -19,9 +19,12 @@ The command only reads. It prints what the agent would be given, what each layer
 | --- | --- | --- |
 | `reporter` | Yes | None |
 | `copywriter` | Yes | The site's editorial policies, and published Stories in full as examples of the voice |
-| `editor` | No | The section's Stories in progress |
+| `editor` | No | The section's Stories in progress, and the image types the publication has (the `visual_style` layer, types only) |
+| `illustrator` | Yes | The `visual_style` layer in full: the publication's image style, its rules that cannot be loosened and its image types; then the assignment, the Story, its place in the procedure, its References and its conversation |
 
 The `audience_lenses` layer is core, so it is never shed. It is generated from `src/papyrus_content/audience_lenses.py` and cut to the agent's role ([four-lens review](four-lens-review.md)).
+
+The `visual_style` layer is core. It reads the publication's visual style profile ([image style profiles](image-style-profiles.md)) and lists each image type in one plain line, grouped by use, with where its pictures may come from and whether it is read as a thumbnail, then tells the agent to choose a type before asking for a picture. A publication with no profile gets an empty layer and the warning that the style of generated images will be undefined and unpredictable. The wording of every line comes from the profile; the code only supplies the headings.
 
 To add a signal, change the layer or the ranking it belongs to (`reference_rank` for References). To add an agent, add a profile. To add a kind of context, add a row to `LAYERS` and name it in the profiles that need it.
 

@@ -106,9 +106,12 @@ def find_section(client, value: str) -> dict | None:
 def resolve_editorial_context(client, *, endpoint: str, publication_key: str | None = None,
                               section_id: str | None = None, story_lineage_id: str | None = None,
                               assignment_id: str | None = None, max_characters: int = 0,
-                              optional_publication_doctrine: bool = False) -> dict:
+                              optional_publication_doctrine: bool = False, include_visual_style: bool = False) -> dict:
     """``optional_publication_doctrine``: no current mission or policy record is reported in ``missingPublicationDoctrine``
-    instead of failing (the editorial check's rule lane needs no doctrine); more than one current record is treated the same way, with a warning that names the publication."""
+    instead of failing (the editorial check's rule lane needs no doctrine); more than one current record is treated the same way, with a warning that names the publication.
+
+    ``include_visual_style`` adds the publication's image style (the optional third doctrine) when it has one; a publication without it simply has no such entry.
+    Context packs leave it off because the illustrator's pack has its own layer for it."""
     if not endpoint:
         raise ValueError('An endpoint is required for hosted editorial context.')
     publication = hosted_publication(client, publication_key)
@@ -156,6 +159,13 @@ def resolve_editorial_context(client, *, endpoint: str, publication_key: str | N
         if not text:
             raise ValueError(f'Required publication {kind} is empty.')
         entries.append(_entry('publication', kind, text, record))
+    if include_visual_style:
+        from .images.profile_store import read_current_profile
+        from .images.style_text import style_text
+
+        style, _, style_row = read_current_profile(client)
+        if style and style_text(style):
+            entries.append(_entry('publication', 'visual-style', style_text(style), style_row))
     if section_id:
         try:
             section = find_section(client, section_id)
@@ -225,7 +235,7 @@ def configured_context(*, publication_key=None, section_id=None, story_lineage_i
     client, _ = create_authoring_client()
     return resolve_editorial_context(client, endpoint=graphql_endpoint(), publication_key=publication_key,
                                      section_id=section_id, story_lineage_id=story_lineage_id,
-                                     assignment_id=assignment_id, max_characters=max_characters)
+                                     assignment_id=assignment_id, max_characters=max_characters, include_visual_style=True)
 
 
 def editorial_context_command(flags: list[str]) -> None:
