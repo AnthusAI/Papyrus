@@ -186,7 +186,7 @@ async function main() {
   // This direct Lambda fixture checks attribution, not AppSync invocation rights.
   // An IAM identity cannot manufacture a human label through request arguments.
   const service = await invoke({ action: "accept", actorSub: "claimed-editor", actorLabel: "Claimed editor", actorKind: "human" },
-    { userArn: "arn:aws:sts::123456789012:assumed-role/fixture-agent/session" });
+    { accountId: "123456789012", userArn: "arn:aws:sts::123456789012:assumed-role/fixture-agent/session" });
   assert.equal(service.ok, true);
   assert.equal(voteOnReference().actorKind, "agent");
   assert.equal(current().curationDelegation, null, "no delegation is invented");
