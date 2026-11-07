@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4b26caf1-4b9f-44a3-8e96-1e09d97d23cb",
+  "issue_id": "PPY-db3bf949-d6cb-4b6d-842e-4efe30822a7a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T18:38:02.076Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Live Reference word search fails and misses an exact-title video",
+    "description": "Observed 2026-11-06 on newsroom.machines-on-machines.anth.us, using papyrus-newsroom 5.91.0 and a signed-in editor: `papyrus --site newsroom.machines-on-machines.anth.us references search sound --limit 10 --json` returns no items, keyword lane status `failed` with `Word search could not read the References.`, and meaning lane status `ok`. The accepted Reference titled `I discovered a sound that leaks your exact location (and it’s everywhere)` exists: https://www.youtube.com/watch?v=UytYrhYLOKI. It is the oldest accepted video Reference (created 2026-11-04). The failure is reported by the live searchReferences service, not established as a local CLI parsing problem. Search A #1247 and Search B #1248 are merged into develop and included in main release #1255, but the deployed site backend version and root cause have not been established. Inspect backend logs and site deployment/index state without assuming missing index, permissions, or a particular exception. The MCP feature branch has search integration; verify whether its tool uses the same searchReferences operation and preserves partial lane failure; MCP impact has not yet been reproduced. Coordinate with ongoing search/MCP work and avoid duplicate implementation.\n\nFeature: A signed-in editor can find an existing Reference by an exact title word\n  Scenario: The exact title word finds the video\n    Given the publication has an accepted Reference titled I discovered a sound that leaks your exact location\n    When an editor searches for sound\n    Then the word search succeeds and returns that Reference as a title match\n  Scenario: The search backend cannot read its word index\n    Given the word-search backend cannot read its index\n    When an editor searches for sound through any supported client\n    Then the client reports the word-search failure distinctly from an empty result\n    And any available meaning results remain visible\n  Scenario: CLI and MCP share the behavior\n    Given the same authorized user and publication\n    When the user searches the same query through CLI and MCP\n    Then the exact-word result and lane failure information agree.\n\nDo not expose private Reference content or user credentials in diagnostics.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-5beaabfe-3d39-41a3-a4e3-d3c92181a392",
+    "labels": []
+  }
+}
