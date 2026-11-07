@@ -332,9 +332,12 @@ entry with `inTail: true` is a likely paywall, but that is the editor's call (or
 
 ### The bodies: `ModelAttachment`
 
-Owner `reference` / `Reference.id`, role `metadata`, so list them with
-`modelAttachmentsByOwnerRoleAndSortKey(ownerId = Reference.id)` or read one by id
-(`model-attachment-reference-<safe_id(Reference.id)>-metadata-<sort key>`, `createModelAttachmentDownload`):
+Owner `reference` / `Reference.id`, role `metadata`. **Find one by listing**
+`modelAttachmentsByOwnerRoleAndSortKey(ownerId = Reference.id)` and take the active row with the sort key, then download it with
+`createModelAttachmentDownload`. Do not build the id: the upload function makes it (`model-attachment-<kind>-<owner>-<role>-<sort key>`, each part
+lowercased, runs of other characters turned into `-`, a part over 80 characters cut to 67 plus `-` and 12 hex digits of its SHA-256), and the client's
+formula disagreed with it for a Reference id over 80 characters (every real one: `reference-<corpus>-<64 hex>-v1`) until PPY-caa222.
+`model_attachment_id` now matches, and `AttachmentStore` and the knowledge query use the list:
 
 | Sort key | Media type | Content |
 |---|---|---|
@@ -658,6 +661,10 @@ The p.apyr.us documentation should gain a short "Create a Story from a Reference
 * Whether a capture is complete: a Cyclotron classifier trained on `card.labels`.
 * Biblicus-quality extraction (`extracted_text` in corpus storage) for pending References: the curated text
   lives on `ModelAttachment`s, so the topic runs that read `extracted_text` attachments do not see it. Accepted
-  References still get that text through `process-fetch-url-text`.
+  References still get that text through `process-fetch-url-text`. **The knowledge query does read it now**
+  (PPY-caa222, [Where a query reads a Reference's text](internal-knowledge-research.md#where-a-query-reads-a-references-text)):
+  a correction (`curation-edit-*`) beats an `extracted_text` attachment, which beats the machine `curation-text`.
+  Still not done: the **vector index** (`knowledge-vector-index`) and the topic-model runs read only `extracted_text`, so a Reference whose text was
+  only captured has a summary vector but no passage vectors until its text is also indexed (a follow-up; it needs a re-index, not a deploy).
 * Publication doctrine in the summary prompt; the citation graph from GROBID references (stored as fields,
   not yet linked as References).

@@ -61,6 +61,22 @@ REFERENCE_ATTACHMENT_FIELDS = """
 id referenceId referenceLineageId referenceVersionNumber referenceVersionKey role sortKey storagePath sourceUri filename mediaType byteSize sha256 etag importRunId importedAt metadata
 """
 
+CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION = """
+mutation CreateModelAttachmentDownload($attachmentId: ID!) {
+  createModelAttachmentDownload(attachmentId: $attachmentId) {
+    ok
+    attachmentId
+    method
+    downloadUrl
+    storagePath
+    mediaType
+    byteSize
+    expiresAt
+    requiredHeaders
+  }
+}
+"""
+
 KNOWLEDGE_RELATION_DOMAINS = {"knowledge", "ontology", "classification", "evidence"}
 DEFAULT_EXCLUDED_RELATION_DOMAINS = {"commentary", "workflow", "publication", "generic"}
 DEFAULT_EXCLUDED_RELATION_TYPES = {
@@ -715,6 +731,33 @@ class GraphQLKnowledgeGraphProvider:
                 connection = payload.get(alias) or {}
                 results[lineage_id] = [item for item in connection.get("items") or [] if item]
         return results
+
+    def read_model_attachment_text(self, attachment: dict[str, Any], max_bytes: int = 2_000_000) -> str | None:
+        """The text of one ``ModelAttachment`` body, fetched as the caller: ``createModelAttachmentDownload`` is authorized for the caller's group
+        and returns a short-lived URL for exactly that attachment. The knowledge-query function's own role reads only ``corpora/*`` (not the
+        ``newsroom/payloads/*`` keys these bodies live under), so this is the one way it can read them and still never returns text the caller could not
+        fetch. A refusal or a failed download raises; the caller reports it."""
+        attachment_id = str(attachment.get("id") or "")
+        if not attachment_id:
+            return None
+        data = self.graphql(CREATE_MODEL_ATTACHMENT_DOWNLOAD_MUTATION, {"attachmentId": attachment_id})
+        slot = data.get("createModelAttachmentDownload") or {}
+        url = slot.get("downloadUrl")
+        if not url:
+            raise RuntimeError(f"the download slot for {attachment_id} had no URL")
+        headers = slot.get("requiredHeaders") or {}
+        if isinstance(headers, str):
+            try:
+                headers = json.loads(headers)
+            except json.JSONDecodeError:
+                headers = {}
+        request = urllib.request.Request(url, headers={str(key): str(value) for key, value in headers.items()}, method=slot.get("method") or "GET")
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:  # nosec B310 - a presigned URL our own API just issued for this attachment
+                body = response.read(max_bytes + 1)
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(f"download of {attachment_id} failed with HTTP {exc.code}") from exc
+        return body[:max_bytes].decode("utf-8", errors="replace")
 
     def list_outgoing_relations(self, obj: dict[str, Any]) -> list[dict[str, Any]]:
         kind = str(obj.get("kind") or obj.get("subjectKind") or "").strip()

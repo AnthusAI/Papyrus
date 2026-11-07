@@ -22,7 +22,7 @@ from typing import Any, Callable
 
 from .ids import hash_short
 from .reference_capture_state import sync_capture_state
-from .model_attachments import build_model_payload_attachment, download_attachment_buffer, model_attachment_id, upload_attachment_body
+from .model_attachments import build_model_payload_attachment, download_attachment_buffer, upload_attachment_body
 
 PIPELINE_VERSION = "reference-curation-v1"
 CARD_SCHEMA_VERSION = 1
@@ -139,8 +139,19 @@ class AttachmentStore:
         upload_attachment_body(self.client, entry["attachment"], entry["body"])
         return entry["attachment"]
 
+    def find(self, reference: dict[str, Any], sort_key: str) -> dict[str, Any] | None:
+        """The active body of ``sort_key`` for this Reference version, found through the owner index (``modelAttachmentsByOwnerRoleAndSortKey``).
+
+        The id is the upload function's to make (TypeScript ``safeId``), so the client does not build one: that disagreed for Reference ids longer than
+        80 characters and made a stored body read as missing (PPY-caa222). The index lists only this Reference's few bodies, never a table.
+        """
+        rows = self.client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", reference["id"])
+        found = [row for row in rows if row.get("ownerKind") == "reference" and row.get("ownerId") == reference["id"] and row.get("role") == BODY_ROLE
+                 and row.get("sortKey") == sort_key and row.get("status") in (None, "", "active") and row.get("storagePath")]
+        return max(found, key=lambda row: str(row.get("updatedAt") or row.get("createdAt") or "")) if found else None
+
     def read(self, reference: dict[str, Any], sort_key: str) -> bytes | None:
-        attachment = self.client.get_record("ModelAttachment", model_attachment_id("reference", reference["id"], BODY_ROLE, sort_key))
+        attachment = self.find(reference, sort_key)
         return download_attachment_buffer(self.client, attachment) if attachment else None
 
     def get_attachment(self, attachment_id: str) -> dict[str, Any] | None:
