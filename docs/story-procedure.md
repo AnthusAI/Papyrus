@@ -46,6 +46,8 @@ How each step reads its record:
 - editor_review is done when the stored review is for the current version and approves it.
 - publish is done when the Story is published.
 
+`papyrus stories next` also prints one `lens` line for each of the four review steps (people, AI reader agents, search, social previews) that is not done, with its audience. Those steps and their checks are defined in [four-lens-review.md](four-lens-review.md).
+
 ## Reminders on writes
 
 After a successful write (never on `--dry-run`), `stories create`, `stories move`, `stories save-version`, `stories link-reference`, `stories assign-research`, `assignments research-multi` and `assignments process-proposals` (when the Assignment is on a Story) print the `next` and `skipped` lines. With `--json`, the two assignment commands add `next` to their JSON. A failure computing the reminder prints one line to stderr and never changes the result of the write. `stories move` to a later stage also prints a warning on stderr naming each skipped step, and still moves.
