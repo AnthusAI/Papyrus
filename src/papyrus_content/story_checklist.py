@@ -1,9 +1,16 @@
 """The editorial checklist of one Story (docs/story-procedure.md, "The checklist").
 
-The Story procedure (``newsroom_process.STEPS``) is the template. Each live step of it becomes one ``StoryStep`` record per Story,
-found through one index by Story lineage (``storyStepsByStory``). The record says what happened to the step, who did it and when, why it
-was skipped, and what proves it. Nothing here scans: a Story's steps are one index read, and a small summary (counts by state) is kept on
-the Story's current version (``metadata.checklist``) so a board card needs no extra query.
+The Story procedure (``newsroom_process.STEPS``) is the template. Following Kanbus, each live step of it is a sub-task of the Story: an ``Item`` of type
+``sub-task`` whose ``parentLineageId`` is the Story's lineage. The ``Item`` table is the newsroom's one issues table; there is no separate table. A
+Story's steps are one index read (``itemsByParent``: parent, then ``sortTitle``, the zero-padded step order). Item versioning is the history: every
+change is a new version with its creator and time. A small summary (counts by state) is kept on the Story's current version
+(``metadata.checklist``) so a board card needs no extra query.
+
+Fields of a sub-task Item: ``lineageId`` ``step-<story>-<key>``, ``title`` (the step's words), ``status`` (the state: ``open``, ``done``, ``skipped``,
+``not_applicable``), ``typeStatus``, ``sortTitle``, ``parentLineageId``, ``versionCreatedBy`` / ``versionCreatedAt`` (the actor and time),
+``changeReason`` (the reason or findings note) and ``metadata.checklist`` (step key, template version, the command, and this version's actor kind,
+sub, reason, note and evidence reference). A sub-task has no stage, no section and no body: it never reaches a board column, a listing or a page,
+and ``sub-task`` is a system type (``content_item_lifecycle.SYSTEM_ITEM_TYPES``), so it is never a Story and never publishable.
 
 * A step is ``open``, ``done``, ``skipped`` or ``not_applicable``. Skipped and not applicable need a reason; a manual step (the four review
   lenses) needs a short findings note to be done. Only a person reopens a step.
@@ -30,8 +37,8 @@ from .newsroom_process import (
 )
 from .record_helpers import to_aws_json
 
-MODEL = "StoryStep"
-INDEX = "storyStepsByStory"
+SUB_TASK_TYPE = "sub-task"
+INDEX = "itemsByParent"
 SUMMARY_KEY = "checklist"
 
 OPEN = "open"
@@ -46,7 +53,18 @@ ACTOR_PERSON = "person"
 ACTOR_AGENT = "agent"
 ACTOR_SYSTEM = "system"
 ACTOR_KINDS = (ACTOR_PERSON, ACTOR_AGENT, ACTOR_SYSTEM)
-EVIDENCE_ACTOR = {"kind": ACTOR_SYSTEM, "label": "evidence"}
+TEMPLATE_ACTOR = {"kind": ACTOR_SYSTEM, "label": "Automatically, from the template"}
+#: What proves each step, in the words an editor reads after "Automatically, from ".
+EVIDENCE_SOURCES = {
+    "choose": "the Story's stage", "direction": "the research direction", "research": "the research packet", "outline": "the outline",
+    "draft": "the draft version", "copy_edit": "the copy-edit check", "publish": "publishing",
+}
+
+
+def evidence_actor(key: str) -> dict[str, Any]:
+    """The actor of a step the records proved: nobody, so the label says where the proof came from."""
+    return {"kind": ACTOR_SYSTEM, "label": f"Automatically, from {EVIDENCE_SOURCES.get(key, 'the records')}"}
+
 
 #: The step the publish action itself completes; the gate never waits for it.
 PUBLISH_KEY = "publish"
@@ -81,19 +99,34 @@ def utc_now() -> str:
 
 
 def read_steps(client, lineage: str) -> list[dict[str, Any]]:
-    """The Story's steps, in template order. One index read by Story lineage."""
-    rows = [normalize(row) for row in client.list_by_index(INDEX, lineage)]
-    return sorted(rows, key=lambda row: (int(row.get("stepOrder") or 0), row["stepKey"]))
+    """The Story's steps, in template order. One index read by parent (the Story's lineage).
+
+    Each step is the newest version of its sub-task Item; its ``history`` is every version's entry, oldest first."""
+    versions: dict[str, list[dict[str, Any]]] = {}
+    for row in client.list_by_index(INDEX, lineage):
+        if row.get("type") == SUB_TASK_TYPE and isinstance(row.get("lineageId"), str):
+            versions.setdefault(row["lineageId"], []).append(row)
+    return sorted((_flat(group) for group in versions.values()), key=lambda step: (int(step.get("stepOrder") or 0), step["stepKey"]))
 
 
-def normalize(row: dict[str, Any]) -> dict[str, Any]:
-    history = row.get("history")
-    if isinstance(history, str):
-        try:
-            history = json.loads(history) if history else []
-        except json.JSONDecodeError:
-            history = []
-    return {**row, "history": history if isinstance(history, list) else []}
+def _checklist_meta(row: dict[str, Any]) -> dict[str, Any]:
+    value = _metadata_of(row).get(SUMMARY_KEY)
+    return value if isinstance(value, dict) else {}
+
+
+def _flat(group: list[dict[str, Any]]) -> dict[str, Any]:
+    """One step from its versions of the sub-task Item: the newest is the step; every version's entry is its history."""
+    ordered = sorted(group, key=lambda row: int(row.get("versionNumber") or 0))
+    current = ordered[-1]
+    meta = _checklist_meta(current)
+    entry = meta.get("entry") if isinstance(meta.get("entry"), dict) else {}
+    return {
+        "id": current["lineageId"], "itemId": current["id"], "storyLineageId": current.get("parentLineageId"), "stepKey": meta.get("stepKey"),
+        "stepOrder": meta.get("stepOrder", 0), "templateVersion": meta.get("templateVersion"), "title": current.get("title"), "command": meta.get("command"),
+        "state": current.get("status"), "actorKind": entry.get("actorKind"), "actorLabel": entry.get("actorLabel"), "actorSub": entry.get("actorSub"),
+        "changedAt": entry.get("at") or current.get("versionCreatedAt"), "reason": entry.get("reason"), "note": entry.get("note"),
+        "evidence": entry.get("evidence"), "history": [_checklist_meta(row).get("entry") or {} for row in ordered],
+    }
 
 
 def summary_of(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -145,12 +178,11 @@ def _entry(state: str, actor: dict[str, Any], now: str, *, reason=None, note=Non
     }.items() if value not in (None, "")}
 
 
-def _new_row(lineage: str, key: str, now: str) -> dict[str, Any]:
+def _new_row(lineage: str, key: str) -> dict[str, Any]:
     step = STEP_BY_KEY[key]
     return {
         "id": step_id(lineage, key), "storyLineageId": lineage, "stepKey": key, "stepOrder": step_order(key),
-        "templateVersion": TEMPLATE_VERSION, "title": step.title, "command": step.command.replace("{story}", lineage), "state": OPEN,
-        "history": [], "createdAt": now, "updatedAt": now,
+        "templateVersion": TEMPLATE_VERSION, "title": step.title, "command": step.command.replace("{story}", lineage), "history": [],
     }
 
 
@@ -158,18 +190,30 @@ def _apply(row: dict[str, Any], state: str, actor: dict[str, Any], now: str, *, 
     entry = _entry(state, actor, now, reason=reason, note=note, evidence=evidence)
     return {
         **row, "state": state, "actorKind": actor["kind"], "actorLabel": actor.get("label"), "actorSub": actor.get("sub"),
-        "changedAt": now, "reason": reason, "note": note, "evidence": evidence, "updatedAt": now,
-        "history": [*row.get("history", []), entry],
+        "changedAt": now, "reason": reason, "note": note, "evidence": evidence, "history": [*row.get("history", []), entry],
     }
 
 
-def _write(client, row: dict[str, Any], *, created: bool) -> None:
-    payload = {**row, "history": to_aws_json(row.get("history", []))}
-    if created:
-        payload = {key: value for key, value in payload.items() if value is not None}
-        client.create_record(MODEL, payload)
-    else:
-        client.update_record(MODEL, payload)
+def _write(client, row: dict[str, Any], *, supersede: bool = True) -> None:
+    """Writes the newest entry of the step as the next version of its sub-task Item (versions are the history). The version before it is marked
+    superseded unless ``supersede`` is False (a role that may create Items but not update them); the newest version is the step either way."""
+    number = len(row["history"])
+    entry = row["history"][-1]
+    state = row["state"]
+    payload = {
+        "id": f"{row['id']}-v{number}", "lineageId": row["id"], "versionNumber": number, "versionState": "current", "versionCreatedAt": entry["at"],
+        "versionCreatedBy": entry.get("actorLabel") or entry.get("actorSub"), "changeReason": entry.get("reason") or entry.get("note") or state,
+        "type": SUB_TASK_TYPE, "status": state, "typeStatus": f"{SUB_TASK_TYPE}#{state}", "slug": row["id"], "title": row["title"],
+        "sortTitle": f"{int(row['stepOrder']):03d}", "parentLineageId": row["storyLineageId"], "updatedAt": entry["at"],
+        "metadata": to_aws_json({SUMMARY_KEY: {
+            "stepKey": row["stepKey"], "stepOrder": row["stepOrder"], "templateVersion": row["templateVersion"], "command": row.get("command"), "entry": entry,
+        }}),
+    }
+    if number > 1:
+        payload["previousVersionId"] = f"{row['id']}-v{number - 1}"
+    client.create_record("Item", {key: value for key, value in payload.items() if value is not None})
+    if number > 1 and supersede:
+        client.update_record("Item", {"id": f"{row['id']}-v{number - 1}", "versionState": "superseded"})
 
 
 def evidence_text(key: str, facts: dict[str, Any]) -> str:
@@ -198,7 +242,7 @@ def _reopened_by_person(row: dict[str, Any]) -> bool:
 
 
 def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None, assessment: dict[str, Any] | None = None,
-                   now: str | None = None) -> dict[str, Any]:
+                   now: str | None = None, write_summary: bool = True) -> dict[str, Any]:
     """Brings the Story's checklist up to date once, after a change: creates a missing item (the whole checklist for a new Story, a new
     template step for an unpublished one), marks an open item done when its evidence exists, and refreshes the summary.
 
@@ -216,27 +260,30 @@ def sync_checklist(client, lineage: str, *, facts: dict[str, Any] | None = None,
         if existing is None:
             if kept_as_record:
                 continue
-            row = _new_row(lineage, step.key, now)
+            row = _new_row(lineage, step.key)
             if states.get(step.key) == DONE:
-                row = _apply(row, STEP_DONE, EVIDENCE_ACTOR, now, evidence=evidence_text(step.key, facts))
+                row = _apply(row, STEP_DONE, evidence_actor(step.key), now, evidence=evidence_text(step.key, facts))
                 completed.append(step.key)
-            _write(client, row, created=True)
+            else:
+                row = _apply(row, OPEN, TEMPLATE_ACTOR, now)
+            _write(client, row, supersede=write_summary)
             rows[step.key] = row
             created.append(step.key)
         elif existing["state"] == OPEN and states.get(step.key) == DONE and not _reopened_by_person(existing):
-            row = _apply(existing, STEP_DONE, EVIDENCE_ACTOR, now, evidence=evidence_text(step.key, facts))
-            _write(client, row, created=False)
+            row = _apply(existing, STEP_DONE, evidence_actor(step.key), now, evidence=evidence_text(step.key, facts))
+            _write(client, row, supersede=write_summary)
             rows[step.key] = row
             completed.append(step.key)
     ordered = sorted(rows.values(), key=lambda row: (int(row.get("stepOrder") or 0), row["stepKey"]))
-    summary = refresh_summary(client, lineage, ordered, now=now)
+    # The research worker's role may create Items but not update them: it leaves the card summary (and the old version's mark) for the next change by an editor.
+    summary = refresh_summary(client, lineage, ordered, now=now) if write_summary else summary_of(ordered)
     return {"created": created, "completed": completed, "summary": summary}
 
 
-def sync_quietly(client, lineage: str, *, facts=None, assessment=None) -> dict[str, Any] | None:
+def sync_quietly(client, lineage: str, *, facts=None, assessment=None, write_summary: bool = True) -> dict[str, Any] | None:
     """``sync_checklist`` for a write that has already happened: a failure prints one line to stderr and never changes the write's result."""
     try:
-        return sync_checklist(client, lineage, facts=facts, assessment=assessment)
+        return sync_checklist(client, lineage, facts=facts, assessment=assessment, write_summary=write_summary)
     except Exception as error:  # noqa: BLE001 - the checklist follows the write; the write stands
         print(f"checklist\tnot updated\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
         return None
@@ -274,14 +321,39 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
         sync_checklist(client, lineage, now=now)
         rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
     existing = rows.get(key)
-    created = existing is None
-    if created and step.status != LIVE:
+    if existing is None and step.status != LIVE:
         raise ChecklistError(f"Step '{key}' is not live in the procedure yet, so it has no checklist item.")
-    row = _apply(existing or _new_row(lineage, key, now), state, actor, now, reason=reason, note=note, evidence=evidence)
-    _write(client, row, created=created)
+    row = _apply(existing or _new_row(lineage, key), state, actor, now, reason=reason, note=note, evidence=evidence)
+    _write(client, row)
     rows[key] = row
     refresh_summary(client, lineage, sorted(rows.values(), key=lambda item: (int(item.get("stepOrder") or 0), item["stepKey"])), now=now)
     return row
+
+
+def mark_imported(client, lineage: str, source: str, *, now: str | None = None) -> bool:
+    """A Story that was imported (not written in the newsroom) gets a checklist with every step but publishing marked not applicable, reason
+    ``imported from <source>``. Nothing is touched when the Story already has a checklist. Returns whether it made one."""
+    now = now or utc_now()
+    if read_steps(client, lineage):
+        return False
+    actor = {"kind": ACTOR_SYSTEM, "label": "Automatically, from the import"}
+    rows = []
+    for step in template_steps():
+        row = _new_row(lineage, step.key)
+        row = _apply(row, OPEN if step.key == PUBLISH_KEY else NOT_APPLICABLE, actor if step.key != PUBLISH_KEY else TEMPLATE_ACTOR, now,
+                     reason=None if step.key == PUBLISH_KEY else f"imported from {source}")
+        _write(client, row)
+        rows.append(row)
+    refresh_summary(client, lineage, rows, now=now)
+    return True
+
+
+def mark_imported_quietly(client, lineage: str, source: str) -> None:
+    """``mark_imported`` for an import that has already saved the Story: a failure prints one line to stderr and never fails the import."""
+    try:
+        mark_imported(client, lineage, source)
+    except Exception as error:  # noqa: BLE001
+        print(f"checklist\tnot updated\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
 
 
 def open_required(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

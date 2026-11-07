@@ -157,6 +157,23 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
     setAssignmentBoardIssues(current => current.map(candidate => candidate.nativeId === record.id ? { ...candidate } : candidate));
   };
   const issue = issues.find(item => item.id === selected);
+  // Kanbus scrolls the board to its far end when a panel opens, which hides the first columns when the columns do not all fit. Keep the open card in view instead, and the
+  // first column where it is when nothing needs to move.
+  useEffect(() => {
+    if (!selected || !issue) return;
+    const body = boardBodyRef.current;
+    const collection = body?.querySelector<HTMLElement>(".kb-grid");
+    const open = Array.from(body?.querySelectorAll<HTMLElement>(".issue-card[data-issue-id]") ?? []).find(element => element.getAttribute("data-issue-id") === selected);
+    if (!collection || !open) return;
+    const frame = requestAnimationFrame(() => {
+      collection.scrollLeft = 0;
+      const box = collection.getBoundingClientRect();
+      const card = open.getBoundingClientRect();
+      if (card.right > box.right) collection.scrollLeft = card.right - box.right + 8;
+    });
+    return () => cancelAnimationFrame(frame);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, Boolean(issue)]);
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
   return <NewsroomOpsShell activeTab={subject === "contentItem" ? "articles" : subject === "desk" ? "desks" : "assignments"} appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle={pageTitle}
     headerActions={<NewsroomBoardHeaderActions view={view} onViewChange={setView} recordCount={loading ? null : issues.length} showsNewContentItemLink={showsContentItems} />}>
@@ -175,8 +192,8 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
         {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[]}>
           {issue.kind === "contentItem"
             ? <>
-              <StoryChecklistPanel key={`checklist-${issue.id}`} lineageId={issue.nativeId} storyIssueId={issue.id} />
               <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded starsController={storyStars} />
+              <StoryChecklistPanel key={`checklist-${issue.id}`} lineageId={issue.nativeId} storyIssueId={issue.id} onChanged={() => refreshBoardNowRef.current()} />
               <Link className="organizer-header-button" href={getNewsroomNavHref(issue.href)}>Open full page</Link>
             </>
             : (() => {

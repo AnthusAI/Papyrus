@@ -120,9 +120,6 @@ STORY_VARIATION_FIELDS = (
     "id storyLineageId variationNumber status point headline deck bodyMarkus section connections origin basedOnVariationIds requestMessageId "
     "pointCheck runId model createdBy decidedBySub decidedByLabel decidedAt decisionReason createdAt updatedAt"
 )
-STORY_STEP_FIELDS = (
-    "id storyLineageId stepKey stepOrder templateVersion title command state actorKind actorLabel actorSub changedAt reason note evidence history createdAt updatedAt"
-)
 REVIEW_RECIPIENT_RULE_FIELDS = "id scope key roles emails updatedBy updatedAt"
 EDITORIAL_CHECK_SETTINGS_FIELDS = "id settings"
 USER_ROLE_ASSIGNMENT_FIELDS = (
@@ -155,7 +152,7 @@ PUBLISHED_EDITION_ITEM_FIELDS = (
 )
 ITEM_FIELDS = (
     f"{VERSION_FIELDS} id tenantId tenantSlug type status typeStatus stage slug shortSlug section sectionStatus title headline deck body "
-    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata starRating starRatedAt starRatedBy"
+    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata starRating starRatedAt starRatedBy parentLineageId"
 )
 PUBLISHED_ITEM_FIELDS = (
     "id tenantId tenantSlug sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
@@ -207,7 +204,6 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "ReviewRequest": {"field": "listReviewRequests", "fields": REVIEW_REQUEST_FIELDS},
     "ReviewReadMark": {"field": "listReviewReadMarks", "fields": REVIEW_READ_MARK_FIELDS},
     "StoryVariation": {"field": "listStoryVariations", "fields": STORY_VARIATION_FIELDS},
-    "StoryStep": {"field": "listStorySteps", "fields": STORY_STEP_FIELDS},
     "ReviewRecipientRule": {"field": "listReviewRecipientRules", "fields": REVIEW_RECIPIENT_RULE_FIELDS},
     "EditorialCheckSettings": {"field": "listEditorialCheckSettings", "fields": EDITORIAL_CHECK_SETTINGS_FIELDS},
     "UserRoleAssignment": {"field": "listUserRoleAssignments", "fields": USER_ROLE_ASSIGNMENT_FIELDS},
@@ -533,11 +529,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionType": "ID",
         "fields": STORY_VARIATION_FIELDS,
     },
-    "storyStepsByStory": {
-        "field": "listStoryStepsByStoryAndOrder",
-        "partitionKey": "storyLineageId",
+    "itemsByParent": {
+        "field": "listItemsByParentAndOrder",
+        "partitionKey": "parentLineageId",
         "partitionType": "ID",
-        "fields": STORY_STEP_FIELDS,
+        "fields": ITEM_FIELDS,
     },
     "semanticRelationsByNewsroomFeedAndCreatedAt": {
         "field": "listSemanticRelationsByNewsroomFeedAndCreatedAt",

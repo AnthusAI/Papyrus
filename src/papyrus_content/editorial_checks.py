@@ -625,7 +625,7 @@ LIST_FEEDBACK = "query ListEditorialFeedbacks($nextToken: String) { listEditoria
 CREATE_POLICY = "mutation CreateEditorialPolicy($input: CreateEditorialPolicyInput!) { createEditorialPolicy(input: $input) { id } }"
 UPDATE_POLICY = "mutation UpdateEditorialPolicy($input: UpdateEditorialPolicyInput!) { updateEditorialPolicy(input: $input) { id } }"
 GET_ITEM = "query GetItemForEditorialCheck($id: ID!) { getItem(id: $id) { id lineageId versionNumber section contentHash bodyMarkus } }"
-LIST_STORY_VERSIONS = "query ListStoryVersionsForEditorialCheck($versionState: String!, $nextToken: String) { listItemsByVersionStateAndUpdatedAt(versionState: $versionState, limit: 200, nextToken: $nextToken) { items { id lineageId versionNumber versionState slug bodyMarkus } nextToken } }"
+LIST_STORY_VERSIONS = "query ListStoryVersionsForEditorialCheck($versionState: String!, $nextToken: String) { listItemsByVersionStateAndUpdatedAt(versionState: $versionState, limit: 200, nextToken: $nextToken) { items { id lineageId versionNumber versionState type slug bodyMarkus } nextToken } }"
 GET_CHECK_RUN = "query GetEditorialCheckRun($id: ID!) { getEditorialCheckRun(id: $id) { id } }"
 _CHECK_RUN_SELECTION = "id itemId lineageId versionNumber section contentHash packVersion violations reviews findings lanes checkedAt"
 GET_CHECK_RUN_RECORD = f"query GetEditorialCheckRunRecord($id: ID!) {{ getEditorialCheckRun(id: $id) {{ {_CHECK_RUN_SELECTION} }} }}"
@@ -715,7 +715,7 @@ class GraphQLEditorialStore:
             token = None
             while True:
                 page = self._execute(LIST_STORY_VERSIONS, {"versionState": state, "nextToken": token})["listItemsByVersionStateAndUpdatedAt"]
-                rows.extend(page["items"])
+                rows.extend(row for row in page["items"] if row.get("type") != "sub-task")   # a checklist step has no text to compare
                 token = page.get("nextToken")
                 if not token:
                     break

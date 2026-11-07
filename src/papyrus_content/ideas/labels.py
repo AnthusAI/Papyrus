@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from ..content_item_lifecycle import without_sub_tasks
 from ..priming_export import compose_text, iso_day, machine_story_actor, row, scrubbed
 from ..story_from_reference import _current_versions, reference_lineages_of_targets
 from ..story_reporting import STAGE_MOVES_KEY
@@ -51,7 +52,7 @@ def decision_of(item: dict[str, Any]) -> dict[str, Any] | None:
 def decided_ideas(client: Any) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]]:
     """(Item, its ``generated`` record, its decision) for every decided generated idea, oldest decision first."""
     found = []
-    for item in _current_versions(client.list_records("Item")):
+    for item in _current_versions(without_sub_tasks(client.list_records("Item"))):
         generated = generated_of(item)
         decision = decision_of(item) if generated is not None else None
         if decision is not None:

@@ -35,12 +35,21 @@ LEGACY_CONTENT_ITEM_STAGE_REPLACEMENTS = {
 UNTYPED_ITEM_TYPE = "untyped"
 #: The Item types that are not Stories: the fixed system set, the same list as SYSTEM_ITEM_TYPES in lib/content-item-lifecycle.ts (change both).
 #: Every other type is a Story type, so a site's own new type needs no engine change.
-SYSTEM_ITEM_TYPES = ("wiki_page", "doctrine", "page")
+SYSTEM_ITEM_TYPES = ("wiki_page", "doctrine", "page", "sub-task")
 
 
 def is_story_item_type(item_type: str | None) -> bool:
     """Every Item type outside the system set is a Story type."""
     return bool(item_type) and item_type not in SYSTEM_ITEM_TYPES
+
+
+SUB_TASK_ITEM_TYPE = "sub-task"
+
+
+def without_sub_tasks(rows):
+    """The rows that are not checklist steps. A step is an Item of type ``sub-task`` (docs/story-procedure.md); every scan of the Item table that means
+    Stories, pages or anything a reader or an editor lists leaves them out."""
+    return [row for row in rows if row.get("type") != SUB_TASK_ITEM_TYPE]
 
 
 def is_untyped(item_type: str | None) -> bool:

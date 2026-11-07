@@ -6,12 +6,16 @@ import {
   formatStepTime,
   projectStoryStepIssues,
   stepActorText,
+  stepChangeProblem,
   storyChecklistSummary,
+  storyStepsFromItems,
+  storyStepBoardConfig,
   summarizeStoryChecklist,
   type StoryStepRecord,
 } from "../lib/story-checklist";
 import { projectContentItemBoard } from "../lib/newsroom-board";
-import { createLocalPreviewContentItemVersions, createLocalPreviewStoryChecklist } from "../lib/local-preview-seed";
+import { createLocalPreviewContentItemVersions, createLocalPreviewStoryChecklist, resetLocalPreviewStoryChecklists, setLocalPreviewStoryStep } from "../lib/local-preview-seed";
+import { SYSTEM_ITEM_TYPES, isStoryItemType, storyItemTypeFilter } from "../lib/content-item-lifecycle";
 
 const summary = { templateVersion: 2, total: 9, open: 3, done: 3, skipped: 2, not_applicable: 1, requiredOpen: ["draft"] };
 
@@ -47,7 +51,9 @@ test("steps are Kanbus sub-tasks of the Story card, in template order, with thei
     ["sub-task", "contentItem:s1", "done", "choose"],
     ["sub-task", "contentItem:s1", "open", "Write the draft"],
   ]);
-  assert.equal(issues[0].assignee, "AI");
+  assert.equal(issues[0].assignee, "AI (agent)");
+  assert.deepEqual(issues.map(issue => issue.priority), [2, 1], "a priority names the state, so Kanbus's own card says Done or Open");
+  assert.deepEqual(storyStepBoardConfig().statuses.map(status => status.name), ["Open", "Done", "Skipped", "Not applicable"]);
 });
 
 test("who and when read in plain words", () => {
@@ -89,4 +95,51 @@ test("a reason or findings note is stored with every skipped, not-applicable and
       if (item.state === "done" && item.stepKey.startsWith("review_")) assert.ok(item.note, `${item.id} has findings`);
     }
   }
+});
+
+test("a step is read from the sub-task Item: the newest version is the step, its entry says who and when", () => {
+  const meta = (state: string, entry: Record<string, unknown>) => JSON.stringify({ checklist: { stepKey: "review_search", stepOrder: 8, templateVersion: 2, command: "papyrus stories step --story s1 --step review_search", entry: { state, ...entry } } });
+  const items = [
+    { id: "step-s1-review_search-v2", lineageId: "step-s1-review_search", versionNumber: 2, type: "sub-task", status: "done", title: "Reviewed for search", parentLineageId: "s1", versionCreatedAt: "2026-11-07T10:00:00Z",
+      metadata: meta("done", { at: "2026-11-07T10:00:00Z", actorKind: "person", actorLabel: "Ryan", note: "Reads well in results." }) },
+    { id: "step-s1-review_search-v1", lineageId: "step-s1-review_search", versionNumber: 1, type: "sub-task", status: "open", title: "Reviewed for search", parentLineageId: "s1", metadata: meta("open", { at: "2026-11-01T09:00:00Z", actorKind: "system", actorLabel: "Automatically, from the template" }) },
+    { id: "story-v1", lineageId: "story", versionNumber: 1, type: "article", status: "draft", title: "Not a step", parentLineageId: null },
+  ];
+  const [only, ...rest] = storyStepsFromItems(items);
+  assert.equal(rest.length, 0, "only sub-tasks are steps");
+  assert.deepEqual([only.id, only.stepKey, only.state, only.actorLabel, only.note, only.storyLineageId], ["step-s1-review_search", "review_search", "done", "Ryan", "Reads well in results.", "s1"]);
+});
+
+test("the panel's rules are the backend's: a reason to skip or mark not applicable, findings for a review to be done", () => {
+  assert.match(stepChangeProblem("outline", "skipped", {}) ?? "", /why/i);
+  assert.match(stepChangeProblem("outline", "not_applicable", { reason: "  " }) ?? "", /why/i);
+  assert.equal(stepChangeProblem("outline", "skipped", { reason: "Wrote it by hand" }), null);
+  assert.match(stepChangeProblem("review_social", "done", {}) ?? "", /note/i);
+  assert.equal(stepChangeProblem("review_social", "done", { note: "Card reads well" }), null);
+  assert.equal(stepChangeProblem("outline", "done", {}), null, "a step with its own evidence needs no note");
+  assert.equal(stepChangeProblem("review_social", "open", {}), null);
+});
+
+test("the preview records a change the way the backend does and refuses what it refuses", () => {
+  resetLocalPreviewStoryChecklists();
+  const lineage = "preview-item-lineage-copywriting-0";
+  assert.throws(() => setLocalPreviewStoryStep(lineage, "review_search", "done", {}), /note/i);
+  setLocalPreviewStoryStep(lineage, "review_search", "done", { note: "Reads well" });
+  const changed = createLocalPreviewStoryChecklist(lineage).find(item => item.stepKey === "review_search")!;
+  assert.deepEqual([changed.state, changed.actorKind, changed.note], ["done", "person", "Reads well"]);
+  resetLocalPreviewStoryChecklists();
+});
+
+test("a sub-task is never a Story: not on the board, not in a listing filter, never counted", () => {
+  assert.ok(SYSTEM_ITEM_TYPES.includes("sub-task"));
+  assert.equal(isStoryItemType("sub-task"), false);
+  assert.equal(isStoryItemType("article"), true);
+  assert.deepEqual(storyItemTypeFilter(), { and: SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })) });
+  const cards = projectContentItemBoard({
+    contentItemVersions: [
+      { id: "s1-v1", lineageId: "s1", versionNumber: 1, stage: "copywriting", type: "article", status: "draft", slug: "a", title: "A" },
+      { id: "step-s1-outline-v1", lineageId: "step-s1-outline", versionNumber: 1, stage: "copywriting", type: "sub-task", status: "open", slug: "step-s1-outline", title: "Write the outline" },
+    ],
+  });
+  assert.deepEqual(cards.map(card => card.nativeId), ["s1"], "a step that somehow carries a stage still never becomes a card");
 });

@@ -22,6 +22,15 @@ def no_check_store(real_checklist_gate):   # this module exercises the publish r
         yield
 
 
+def sub_tasks(client) -> dict:
+    return {row_id: row for row_id, row in client.tables["Item"].items() if row.get("type") == "sub-task"}
+
+
+def drop_sub_tasks(client) -> None:
+    for row_id in list(sub_tasks(client)):
+        client.delete_record("Item", row_id)
+
+
 def lineage_of(client) -> str:
     return sorted({row["lineageId"] for row in client.tables["Item"].values()})[0]
 
@@ -86,11 +95,10 @@ def test_the_console_save_of_a_story_makes_a_checklist_and_a_page_is_left_alone(
     handler = load_handler()
     client = FakeAuthoringClient()
     item = create_story(client, title="Saved", section_key=None, actor="AI")
-    for row in list(client.tables.get("StoryStep", {})):
-        client.delete_record("StoryStep", row)
+    drop_sub_tasks(client)
     handler.sync_story_checklist(client, item)
     assert len(checklist.read_steps(client, item["lineageId"])) == len(checklist.template_steps())
-    client.tables["StoryStep"].clear()
+    drop_sub_tasks(client)
     handler.sync_story_checklist(client, {**item, "type": "wiki_page"})
     assert checklist.read_steps(client, item["lineageId"]) == []
 
@@ -125,9 +133,10 @@ def test_a_change_records_every_entry_and_a_reopen_by_a_person_works():
     checklist.set_step(client, lineage, "outline", "open", actor=PERSON, now="2026-11-07T11:00:00Z")
     checklist.set_step(client, lineage, "outline", "done", actor={"kind": "agent", "label": "AI"}, evidence="Item x", now="2026-11-07T12:00:00Z")
     row = {r["stepKey"]: r for r in checklist.read_steps(client, lineage)}["outline"]
-    assert [entry["state"] for entry in row["history"]] == ["skipped", "open", "done"]
+    assert [entry["state"] for entry in row["history"]] == ["open", "skipped", "open", "done"]
     assert row["reason"] is None and row["evidence"] == "Item x"   # a reopen clears the old answer
-    assert isinstance(client.tables["StoryStep"][row["id"]]["history"], str)   # stored as JSON text
+    versions = [item for item in sub_tasks(client).values() if item["lineageId"] == row["id"]]
+    assert [v["versionNumber"] for v in sorted(versions, key=lambda v: v["versionNumber"])] == [1, 2, 3, 4]   # versions are the history
 
 
 def test_an_actor_is_required_and_a_system_actor_cannot_be_claimed():
@@ -169,7 +178,7 @@ def test_the_summary_is_not_rewritten_when_nothing_changed():
 def test_a_sync_that_fails_prints_one_line_and_never_raises(capsys):
     class Broken(FakeAuthoringClient):
         def list_by_index(self, index_name, key_value, **kwargs):
-            if index_name == "storyStepsByStory":
+            if index_name == "itemsByParent":
                 raise RuntimeError("index unreachable")
             return super().list_by_index(index_name, key_value, **kwargs)
 
@@ -191,7 +200,7 @@ def test_the_backfill_pages_every_stage_counts_and_writes_nothing_on_a_dry_run()
     client = FakeAuthoringClient()
     first = create_story(client, title="One", section_key=None, actor="AI")["lineageId"]
     second = create_story(client, title="Two", section_key=None, actor="AI", stage="reporting", now="2026-11-07T08:00:00Z")["lineageId"]
-    client.tables["StoryStep"].clear()
+    drop_sub_tasks(client)
     client.calls.clear()
     pages = []
     original = client.iterate_newest_first
@@ -200,10 +209,10 @@ def test_the_backfill_pages_every_stage_counts_and_writes_nothing_on_a_dry_run()
     assert client.write_calls() == [] and dry["stories"] == 2 and dry["created_items"] == 2 * len(checklist.template_steps())
     assert {page[2] for page in pages} == {10} and {page[1] for page in pages} >= {"idea", "reporting", "published"}   # every stage, paged
     applied = checklist.backfill(client, apply=True)
-    assert applied["created_items"] == dry["created_items"] and len(client.tables["StoryStep"]) == dry["created_items"]
+    assert applied["created_items"] == dry["created_items"] and len(sub_tasks(client)) == dry["created_items"]
     again = checklist.backfill(client, apply=True)
     assert again["already_complete"] == 2 and again["created_items"] == 0
-    assert {row["storyLineageId"] for row in client.tables["StoryStep"].values()} == {first, second}
+    assert {row["parentLineageId"] for row in sub_tasks(client).values()} == {first, second}
 
 
 def test_the_backfill_skips_pages_that_are_not_stories_and_survives_one_bad_story(capsys):
@@ -211,7 +220,7 @@ def test_the_backfill_skips_pages_that_are_not_stories_and_survives_one_bad_stor
     create_story(client, title="Good", section_key=None, actor="AI")
     client.tables["Item"]["page-1"] = {"id": "page-1", "lineageId": "page-1", "versionNumber": 1, "versionState": "current", "type": "wiki_page", "stage": "idea", "metadata": "{}", "updatedAt": "2026-11-07T00:00:00Z"}
     client.tables["Item"]["bad-1"] = {"id": "bad-1", "lineageId": "bad-1", "versionNumber": 1, "versionState": "current", "type": "article", "stage": "idea", "updatedAt": "2026-11-07T00:00:00Z"}
-    client.tables["StoryStep"].clear()
+    drop_sub_tasks(client)
     original = checklist._backfill_one
 
     def flaky(client, lineage, *, apply):
@@ -222,4 +231,96 @@ def test_the_backfill_skips_pages_that_are_not_stories_and_survives_one_bad_stor
     with patch.object(checklist, "_backfill_one", flaky):
         counts = checklist.backfill(client, apply=True)
     assert counts["stories"] == 2 and counts["failed"] == 1 and "bad-1" in capsys.readouterr().err
-    assert "page-1" not in {row["storyLineageId"] for row in client.tables["StoryStep"].values()}
+    assert "page-1" not in {row["parentLineageId"] for row in sub_tasks(client).values()}
+
+
+# --- a checklist step is an Item of type sub-task: Kanbus's own model (docs/story-procedure.md) -------------------------------------------
+
+
+def test_a_step_is_a_sub_task_item_with_its_story_as_parent_and_versions_as_history():
+    client = FakeAuthoringClient()
+    lineage = create_story(client, title="Kanbus", section_key=None, actor="AI")["lineageId"]
+    checklist.set_step(client, lineage, "outline", "skipped", actor=PERSON, reason="Later", now="2026-11-07T10:00:00Z")
+    first, second = (sub_tasks(client)[f"step-{lineage}-outline-v{n}"] for n in (1, 2))
+    assert (second["type"], second["status"], second["typeStatus"], second["parentLineageId"], second["lineageId"]) == (
+        "sub-task", "skipped", "sub-task#skipped", lineage, f"step-{lineage}-outline")
+    assert (second["versionCreatedBy"], second["versionCreatedAt"], second["changeReason"], second["previousVersionId"]) == ("Ryan", "2026-11-07T10:00:00Z", "Later", first["id"])
+    assert first["versionState"] == "superseded" and second["versionState"] == "current"
+    assert all(item.get("stage") is None and item.get("sectionStatus") is None and not item.get("bodyMarkus") for item in sub_tasks(client).values())   # never on a board, a section or a page
+    assert json.loads(second["metadata"])["checklist"]["entry"]["actorSub"] == "sub-1"
+
+
+def test_a_role_that_may_create_items_but_not_update_them_still_records_the_step():
+    class CreateOnly(FakeAuthoringClient):
+        def update_record(self, model_name, payload):
+            raise PermissionError("updateItem is not granted")
+
+    client = CreateOnly()
+    item = create_story(client, title="Worker", section_key=None, actor="AI")
+    lineage = item["lineageId"]
+    client.update_record = lambda *a, **k: (_ for _ in ()).throw(PermissionError("updateItem is not granted"))
+    row = {r["stepKey"]: r for r in checklist.read_steps(client, lineage)}["research"]
+    checklist.sync_checklist(client, lineage, write_summary=False)   # nothing to complete: no update is attempted
+    done = checklist._apply(row, "done", checklist.evidence_actor("research"), "2026-11-07T10:00:00Z", evidence="Assignment a1 research packet")
+    checklist._write(client, done, supersede=False)
+    assert {r["stepKey"]: r for r in checklist.read_steps(client, lineage)}["research"]["state"] == "done"   # the newest version is the step
+
+
+def test_an_imported_story_has_every_step_not_applicable_and_is_not_blocked():
+    client = FakeAuthoringClient()
+    item = create_story(client, title="Imported", section_key=None, actor="AI")
+    lineage = item["lineageId"]
+    drop_sub_tasks(client)
+    assert checklist.mark_imported(client, lineage, "articles/imported.md") is True
+    rows = {r["stepKey"]: r for r in checklist.read_steps(client, lineage)}
+    assert all(r["state"] == "not_applicable" and r["reason"] == "imported from articles/imported.md" for key, r in rows.items() if key != "publish")
+    assert rows["publish"]["state"] == "open" and rows["review_people"]["actorLabel"] == "Automatically, from the import"
+    checklist.require_checklist_closed(client, item)   # publishing is not blocked
+    assert checklist.mark_imported(client, lineage, "articles/imported.md") is False   # a checklist that exists is left alone
+
+
+def test_automatic_completions_say_where_the_proof_came_from():
+    assert checklist.evidence_actor("research")["label"] == "Automatically, from the research packet"
+    assert checklist.evidence_actor("copy_edit")["label"] == "Automatically, from the copy-edit check"
+    assert checklist.evidence_actor("draft")["label"] == "Automatically, from the draft version"
+    assert checklist.evidence_actor("outline")["label"] == "Automatically, from the outline"
+
+
+def test_a_sub_task_is_never_a_story_and_never_publishable_and_never_listed_with_stories(capsys):
+    """The main Story listing and publishing paths, with a sub-task present."""
+    from papyrus_content.content_item_lifecycle import SYSTEM_ITEM_TYPES, is_story_item_type
+    from papyrus_content.publishing import PublishError, publish_item
+
+    client = FakeAuthoringClient()
+    story = create_story(client, title="Real Story", section_key=None, actor="AI")
+    step = next(iter(sub_tasks(client).values()))
+    assert "sub-task" in SYSTEM_ITEM_TYPES and not is_story_item_type("sub-task")
+    with pytest.raises(PublishError) as error:
+        publish_item(client, step["id"], actor="editor", approved_by="sub-1")
+    assert error.value.code == "sub-task-not-publishable"
+    assert client.tables.get("PublishedItem", {}) == {}
+    from papyrus_content.content_item_lifecycle import CONTENT_ITEM_STAGES
+
+    on_the_board = [row for stage in CONTENT_ITEM_STAGES for row in client.list_by_index("itemsByStage", stage)]   # what the board columns and the Story list read
+    assert [row["lineageId"] for row in on_the_board] == [story["lineageId"]]
+    from papyrus_content.story_from_reference import _current_versions
+    from papyrus_content.ideas.duplicate_cut import is_story_item_type as duplicates_check  # the duplicate logic keeps Stories only
+    assert not duplicates_check("sub-task")
+    stories = [row for row in _current_versions(list(client.tables["Item"].values())) if is_story_item_type(row["type"])]
+    assert [row["lineageId"] for row in stories] == [story["lineageId"]]
+
+
+def test_the_scans_of_the_item_table_leave_sub_tasks_out():
+    """Idea and duplicate logic, learning, the Reference-link plan and the boilerplate listing see Stories only, with a sub-task present."""
+    from papyrus_content.content_item_lifecycle import without_sub_tasks
+    from papyrus_content.ideas.items import idea_rows
+    from papyrus_content.ideas.labels import decided_ideas
+    from papyrus_content.monitor_promotion import promoted_reference_ids
+
+    client = FakeAuthoringClient()
+    create_story(client, title="Real Story", section_key=None, actor="AI")
+    assert len(sub_tasks(client)) > 0
+    assert all(row["type"] != "sub-task" for row in without_sub_tasks(client.list_records("Item")))
+    assert idea_rows(client) == []   # a sub-task is no generated idea
+    assert decided_ideas(client) == []
+    assert promoted_reference_ids(client, []) == set()

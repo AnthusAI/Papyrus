@@ -27,6 +27,7 @@ from urllib.parse import urlsplit
 
 import yaml
 
+from .content_item_lifecycle import without_sub_tasks
 from .link_exploration import canonical_url
 from .publishing import ItemFields, item_id_for, save_item
 from .record_helpers import slugify
@@ -386,7 +387,7 @@ def plan_reference_links(client: Any, *, role: str | None = None) -> list[dict[s
         if key:
             by_key.setdefault(key, reference)
     plan = []
-    for item in _current_versions(client.list_records("Item")):
+    for item in _current_versions(without_sub_tasks(client.list_records("Item"))):
         matches = [(by_key[key], address) for key, address in item_urls(item).items() if key in by_key]
         if not matches:
             continue

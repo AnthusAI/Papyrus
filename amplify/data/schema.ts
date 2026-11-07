@@ -1538,34 +1538,6 @@ const definitions = {
       allow.groups(contentWriteGroups).to(["read", "create", "update"]),
     ]),
 
-  /** One item of a Story's editorial checklist: a step of the Story procedure, its state, who changed it and why (docs/story-procedure.md). Read by Story lineage only. */
-  StoryStep: modelWithoutSubscriptions({
-      id: a.id().required(),
-      storyLineageId: a.id().required(),
-      stepKey: a.string().required(),
-      stepOrder: a.integer().required(),
-      templateVersion: a.integer().required(),
-      title: a.string(),
-      command: a.string(),
-      state: a.string().required(),
-      actorKind: a.string(),
-      actorLabel: a.string(),
-      actorSub: a.string(),
-      changedAt: a.datetime(),
-      reason: a.string(),
-      note: a.string(),
-      evidence: a.string(),
-      history: a.json(),
-      createdAt: a.datetime().required(),
-      updatedAt: a.datetime().required(),
-    })
-    .secondaryIndexes((index) => [
-      index("storyLineageId").sortKeys(["stepOrder"]).queryField("listStoryStepsByStoryAndOrder"),
-    ])
-    .authorization((allow) => [
-      allow.groups(contentWriteGroups).to(["read", "create", "update"]),
-    ]),
-
   /** Who is told about review requests: scope default, mode or automation. Changed by data, not code. */
   ReviewRecipientRule: modelWithoutSubscriptions({
       id: a.id().required(),
@@ -2322,6 +2294,8 @@ const definitions = {
       starRating: a.integer(),
       starRatedAt: a.datetime(),
       starRatedBy: a.string(),
+      /** The Item this one is a child of: a checklist step (type sub-task) names its Story's lineage here (docs/story-procedure.md). */
+      parentLineageId: a.id(),
       tags: a.hasMany("ItemTag", "itemId"),
       mediaAssets: a.hasMany("MediaAsset", "itemId"),
       ...(includeEditions ? { editionItems: a.hasMany("EditionItem", "itemId") } : {}),
@@ -2334,6 +2308,7 @@ const definitions = {
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listItemsBySectionStatusAndPublishedAt"),
       index("versionState").sortKeys(["updatedAt"]).queryField("listItemsByVersionStateAndUpdatedAt"),
       index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt"),
+      index("parentLineageId").sortKeys(["sortTitle"]).queryField("listItemsByParentAndOrder"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),

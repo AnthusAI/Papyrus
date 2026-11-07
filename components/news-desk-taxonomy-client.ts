@@ -10,8 +10,7 @@ import { hasEditorRights } from "../lib/staff-groups";
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { AUTO_ACCEPTED_PAGE_SIZE, autoAcceptedFromRecords, autoAcceptedServerFilter, collectAutoAcceptedPage, type AutoAcceptedPage } from "../lib/auto-accepted-references";
-import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences, createLocalPreviewStoryChecklist } from "../lib/local-preview-seed";
-import type { StoryStepRecord } from "../lib/story-checklist";
+import { createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
@@ -2676,38 +2675,6 @@ export async function loadNewsroomContentItemStagePage(
     return { items: (connection.items ?? []).filter(Boolean) as ContentItemVersionRecord[], nextToken: connection.nextToken ?? null };
   }, { nextToken, wanted: limit });
   return { versions: page.items, nextToken: page.nextToken };
-}
-
-const STORY_STEPS_BY_STORY_QUERY = `
-  query ListStoryStepsByStoryAndOrder($storyLineageId: ID!, $limit: Int, $nextToken: String) {
-    listStoryStepsByStoryAndOrder(storyLineageId: $storyLineageId, limit: $limit, nextToken: $nextToken) {
-      items { id storyLineageId stepKey stepOrder templateVersion title command state actorKind actorLabel changedAt reason note evidence }
-      nextToken
-    }
-  }
-`;
-
-/** The checklist items of one Story, in template order: one read of the index by Story lineage, made when the Story's panel opens (never for a board card, which reads the summary on the Story). */
-export async function loadStoryChecklistSteps(lineageId: string): Promise<StoryStepRecord[]> {
-  if (isLocalPreviewEnabled()) return createLocalPreviewStoryChecklist(lineageId);
-  configureAmplifyClient();
-  const client = generateClient<Schema>() as unknown as {
-    graphql: (options: Record<string, unknown>) => Promise<GraphQLConnectionResponse<StoryStepRecord>>;
-  };
-  const field = "listStoryStepsByStoryAndOrder";
-  const steps: StoryStepRecord[] = [];
-  let nextToken: string | null = null;
-  do {
-    const response: GraphQLConnectionResponse<StoryStepRecord> = await client.graphql({
-      query: STORY_STEPS_BY_STORY_QUERY, variables: { storyLineageId: lineageId, limit: 50, nextToken }, authMode: USER_POOL_AUTH_MODE,
-    });
-    assertNoGraphQLErrors(response.errors);
-    const connection = response.data?.[field];
-    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
-    steps.push(...((connection.items ?? []).filter(Boolean) as StoryStepRecord[]));
-    nextToken = connection.nextToken ?? null;
-  } while (nextToken);
-  return steps.sort((a, b) => a.stepOrder - b.stepOrder);
 }
 
 const CONTENT_ITEMS_CHANGED_SINCE_QUERY = `

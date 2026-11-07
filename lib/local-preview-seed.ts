@@ -7,7 +7,7 @@ import type { ResearchPacketView } from "./research-packet";
 import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailAgentNote, type TrailAssignment, type TrailReference, type TrailThread, type TrailVersion } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
-import { summarizeStoryChecklist, type StoryStepRecord } from "./story-checklist";
+import { stepChangeProblem, summarizeStoryChecklist, type StoryStepRecord } from "./story-checklist";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
 
 const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
@@ -71,7 +71,10 @@ const PREVIEW_CHECKLIST_TEMPLATE: readonly { key: string; title: string; command
   { key: "publish", title: "Publish the Story", command: "papyrus ops content publish --id <item id>", required: false },
 ];
 const PREVIEW_CHECKLIST_TEMPLATE_VERSION = 2;
-const PREVIEW_CHECKLIST_EVIDENCE_ACTOR = { actorKind: "system", actorLabel: "evidence" } as const;
+const PREVIEW_CHECKLIST_EVIDENCE_SOURCES: Record<string, string> = {
+  choose: "the Story's stage", direction: "the research direction", research: "the research packet", outline: "the outline", draft: "the draft version",
+  copy_edit: "the copy-edit check", publish: "publishing",
+};
 
 /** How far each preview Story's checklist has got, so a card and a panel show open, done, skipped and not-applicable steps. */
 function previewChecklistFor(stageKey: string, headlineIndex: number, lineageId: string): StoryStepRecord[] {
@@ -96,17 +99,42 @@ function previewChecklistFor(stageKey: string, headlineIndex: number, lineageId:
       return { ...base, state: "done", actorKind: "person", actorLabel: "Preview editor", changedAt, note: "Reads clearly; the second section is long but earns its length." };
     }
     if (reached >= doneBy(entry.key) && !entry.key.startsWith("review_")) {
-      return { ...base, state: "done", ...PREVIEW_CHECKLIST_EVIDENCE_ACTOR, changedAt, evidence: `Preview record for ${entry.key}` };
+      return { ...base, state: "done", actorKind: "system", actorLabel: `Automatically, from ${PREVIEW_CHECKLIST_EVIDENCE_SOURCES[entry.key] ?? "the records"}`, changedAt, evidence: `Preview record for ${entry.key}` };
     }
     return base;
   });
 }
 
-/** The checklist items of a preview Story (the index read the panel makes against the real backend). */
-export function createLocalPreviewStoryChecklist(lineageId: string): StoryStepRecord[] {
-  const version = createLocalPreviewContentItemVersions().find(candidate => candidate.lineageId === lineageId);
+/** Changes made in the preview (the panel's buttons): the preview has no backend, so a Story's steps are kept here once one is changed. */
+const previewChecklistChanges = new Map<string, StoryStepRecord[]>();
+
+function previewChecklistOf(lineageId: string): StoryStepRecord[] {
+  const changed = previewChecklistChanges.get(lineageId);
+  if (changed) return changed;
   const match = /^preview-item-lineage-(.+)-(\d+)$/.exec(lineageId);
-  return version && match ? previewChecklistFor(match[1], Number(match[2]), lineageId) : [];
+  return match ? previewChecklistFor(match[1], Number(match[2]), lineageId) : [];
+}
+
+/** The checklist steps of a preview Story (the index read the panel makes against the real backend). */
+export function createLocalPreviewStoryChecklist(lineageId: string): StoryStepRecord[] {
+  return previewChecklistOf(lineageId).map(step => ({ ...step }));
+}
+
+/** What the backend does for `setStoryStep`, for the preview: the same rules, the change recorded as the preview editor. */
+export function setLocalPreviewStoryStep(lineageId: string, stepKey: string, state: StoryStepRecord["state"], input: { reason?: string; note?: string }): void {
+  const problem = stepChangeProblem(stepKey, state, input);
+  if (problem) throw new Error(problem);
+  const steps = previewChecklistOf(lineageId);
+  if (!steps.some(step => step.stepKey === stepKey)) throw new Error(`Unknown step ${stepKey}.`);
+  previewChecklistChanges.set(lineageId, steps.map(step => step.stepKey !== stepKey ? step : {
+    ...step, state, actorKind: "person", actorLabel: "Preview editor", changedAt: new Date().toISOString(),
+    reason: state === "skipped" || state === "not_applicable" ? input.reason?.trim() ?? null : null, note: input.note?.trim() || null, evidence: null,
+  }));
+}
+
+/** Forgets the preview's changes (a test starts from the sample steps). */
+export function resetLocalPreviewStoryChecklists(): void {
+  previewChecklistChanges.clear();
 }
 
 export function createLocalPreviewContentItemVersions(): ContentItemVersionRecord[] {
@@ -130,7 +158,7 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
         updatedAt: isoTimestampHoursBeforeBase(stageIndex * 3 + headlineIndex),
         versionCreatedBy: stageKey === "idea" && headlineIndex === 0 ? "AI" : "Preview editor",
         starRating: PREVIEW_STORY_STARS[`${stageKey}-${headlineIndex}`] ?? null,
-        metadata: { checklist: summarizeStoryChecklist(previewChecklistFor(stageKey, headlineIndex, `preview-item-lineage-${stageKey}-${headlineIndex}`), PREVIEW_CHECKLIST_TEMPLATE.filter(entry => entry.required).map(entry => entry.key), PREVIEW_CHECKLIST_TEMPLATE_VERSION) },
+        metadata: { checklist: summarizeStoryChecklist(previewChecklistOf(`preview-item-lineage-${stageKey}-${headlineIndex}`), PREVIEW_CHECKLIST_TEMPLATE.filter(entry => entry.required).map(entry => entry.key), PREVIEW_CHECKLIST_TEMPLATE_VERSION) },
       };
     });
   });

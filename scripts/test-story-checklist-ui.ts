@@ -45,11 +45,12 @@ export const useSearchParams = () => { const search = useSyncExternalStore(subsc
 export const useRouter = () => useMemo(() => ({ push: (url) => { history.pushState({}, '', url); notify(); }, replace: (url) => { history.replaceState({}, '', url); notify(); } }), []);
 `;
 const BOARD_CLIENT = `
-import { createLocalPreviewContentItemVersions, createLocalPreviewStoryChecklist } from ${JSON.stringify(root + "lib/local-preview-seed")};
+import { createLocalPreviewContentItemVersions, createLocalPreviewStoryChecklist, setLocalPreviewStoryStep } from ${JSON.stringify(root + "lib/local-preview-seed")};
 export const CONTENT_ITEM_COLUMN_PAGE_LIMIT = 25;
 export const loadNewsroomContentItemStagePage = async (stage) => ({ versions: createLocalPreviewContentItemVersions().filter((version) => version.stage === stage), nextToken: null });
 export const loadNewsroomContentItemsChangedSince = async () => [];
 export const loadStoryChecklistSteps = async (lineageId) => createLocalPreviewStoryChecklist(lineageId);
+export const saveStoryChecklistStep = async (lineageId, stepKey, state, input) => { window.fixtureSaves.push({ lineageId, stepKey, state, ...input }); setLocalPreviewStoryStep(lineageId, stepKey, state, input); };
 export const loadNewsroomAssignmentPage = async () => ({ items: [], nextToken: null });
 export const saveNewsroomAssignmentDesk = async () => undefined;
 `;
@@ -57,7 +58,6 @@ const STUBS: Record<string, string> = {
   "news-desk-client-provider": "export const useOptionalNewsDeskClient = () => ({ shell: { phase: 'ready', dashboard: { newsroomSections: [] } } });",
   "newsroom-access-gate": "export const NewsDeskAccessGate = () => null;",
   "newsroom-assignment-detail": "export const NewsroomAssignmentDetail = () => null;",
-  "newsroom-article-editor": "export const NewsroomArticleEditor = () => <p data-article-editor-stub>The Story editor sits here.</p>;",
   "newsroom-ops-shell": "export const NewsroomOpsShell = ({ children, headerActions, pageTitle }) => <div className='newsroom-organizer' data-kanbus-theme='newspaper-gothic' data-color-mode={document.documentElement.dataset.colorMode || 'light'} data-sidebar-collapsed='true'><div className='organizer-workspace'><header className='organizer-topbar'><h1>{pageTitle}</h1><div className='organizer-header-actions'>{headerActions}</div></header><main className='organizer-main'>{children}</main></div></div>; export const NewsroomOpsStatusBanner = ({ children }) => <p role='alert'>{children}</p>;",
 };
 
@@ -69,13 +69,15 @@ function browserBundle(): Promise<string> {
     banner: { js: 'window.process = { env: { NODE_ENV: "development", NEXT_PUBLIC_PAPYRUS_LOCAL_PREVIEW: "1" } };' },
     plugins: [{ name: "fixture-boundaries", setup(builder) {
       builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "fixture" }));
-      builder.onResolve({ filter: /news-desk-taxonomy-client$/ }, (args) => /newsroom-board-view|use-paged-content-item-versions|story-checklist-panel/.test(args.importer) ? { path: "board-client", namespace: "fixture" } : undefined);
+      builder.onResolve({ filter: /news-desk-taxonomy-client$/ }, (args) => /newsroom-board-view|use-paged-content-item-versions/.test(args.importer) ? { path: "board-client", namespace: "fixture" } : undefined);
+      builder.onResolve({ filter: /story-checklist-client$/ }, () => ({ path: "board-client", namespace: "fixture" }));
       builder.onResolve({ filter: new RegExp(`/(${Object.keys(STUBS).join("|")})$`) }, (args) => ({ path: args.path.split("/").pop()!, namespace: "fixture-stub" }));
       builder.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path }) => ({ contents: path === "navigation" ? NAVIGATION : BOARD_CLIENT, loader: "js", resolveDir: root }));
       builder.onLoad({ filter: /.*/, namespace: "fixture-stub" }, ({ path }) => ({ contents: STUBS[path], loader: "jsx", resolveDir: root }));
     } }],
     stdin: { resolveDir: root, loader: "tsx", sourcefile: "story-stars-fixture.tsx", contents: `
 import { createRoot } from "react-dom/client";
+window.fixtureSaves = [];
 import { NewsroomBoardView } from "./components/newsroom-board-view";
 createRoot(document.getElementById("root")).render(<NewsroomBoardView subject="contentItem" />);
 ` },
@@ -108,10 +110,13 @@ const board = "/newsroom/articles";
 const card = (page: Page, lineage: string) => page.locator(`.issue-card[data-issue-id="contentItem:${lineage}"]`);
 const progress = (page: Page, lineage: string) => card(page, lineage).locator("[data-story-checklist-progress]");
 const panel = (page: Page) => page.locator("[data-story-checklist]");
+const step = (page: Page, key: string) => panel(page).locator(`.issue-card[data-issue-id$="-${key}"]`);
+const actions = (page: Page) => panel(page).locator("[data-story-step-actions]");
+const saves = (page: Page) => page.evaluate(() => (window as unknown as { fixtureSaves: unknown[] }).fixtureSaves);
 async function openStory(page: Page, lineage: string) {
   await card(page, lineage).locator("h3").click();
   await panel(page).waitFor();
-  await panel(page).locator("[data-step-key]").first().waitFor();
+  await panel(page).locator(".issue-card").first().waitFor();
 }
 async function shot(page: Page, name: string) {
   if (shots) { fs.mkdirSync(shots, { recursive: true }); await page.screenshot({ path: `${shots}/${name}.png` }); }
@@ -119,7 +124,7 @@ async function shot(page: Page, name: string) {
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 
 const scenarios: Record<string, () => Promise<void>> = {
-  /** A Story card shows its progress, with an icon, and a Story with nothing done shows 1 of its steps; a tap on it opens the panel. */
+  /** A Story card shows its progress, with an icon, and a tap on it opens the panel. */
   async card_progress() {
     for (const mode of ["light", "dark"] as const) {
       const { browser, page, errors } = await setup(board, 1440, 1000, mode);
@@ -130,8 +135,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         assert.match(await progress(page, COPYWRITING.lineage).getAttribute("aria-label") ?? "", /Checklist: 6\/11 · 1 skipped/, "the words for a screen reader");
         assert.equal(await progress(page, IDEA.lineage).innerText(), "0/11", "an idea has done nothing yet");
         assert.equal(await card(page, COPYWRITING.lineage).locator(".issue-card-owner [data-story-checklist-progress]").count(), 1, "in the card's owner row");
-        await progress(page, COPYWRITING.lineage).scrollIntoViewIfNeeded();
-        await shot(page, `card-${mode}-1440`);
+        await shot(page, `card-${mode}-1440-v3`);
         await progress(page, COPYWRITING.lineage).click();
         await panel(page).waitFor();
         assert.deepEqual(errors, []);
@@ -139,29 +143,94 @@ const scenarios: Record<string, () => Promise<void>> = {
     }
   },
 
-  /** The open panel lists the steps as Kanbus sub-tasks of the Story: each has a state as an icon and a word, who and when, the reason or findings, and the next command while open. */
+  /** The Story's own content comes first in the panel (title, then the editor's fields and text); the checklist follows it, toward the bottom. */
+  async content_first() {
+    for (const mode of ["light", "dark"] as const) {
+      const { browser, page, errors } = await setup(board, 1440, 1000, mode);
+      try {
+        await card(page, COPYWRITING.lineage).locator("h3").click();
+        await panel(page).waitFor();
+        const detail = page.locator(".kb-issue-detail");
+        await detail.locator("[data-newsroom-article-stars]").waitFor();
+        const order = await page.evaluate(`(function(){var d=document.querySelector('.kb-issue-detail');var title=d.querySelector('h2').getBoundingClientRect().top;var editor=d.querySelector('[data-newsroom-article-stars]').getBoundingClientRect().top;var list=d.querySelector('[data-story-checklist]').getBoundingClientRect().top;return {title:title,editor:editor,list:list};})()`) as { title: number; editor: number; list: number };
+        assert.ok(order.title < order.editor && order.editor < order.list, `title, then the Story's content, then the checklist: ${JSON.stringify(order)}`);
+        await detail.evaluate(node => { node.scrollTop = 0; });
+        await shot(page, `panel-content-${mode}-1440-v3`);
+        await panel(page).scrollIntoViewIfNeeded();
+        await detail.evaluate(node => { node.scrollTop = node.scrollHeight; });
+        await shot(page, `panel-checklist-${mode}-1440-v3`);
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+  },
+
+  /** The panel lists the steps as Kanbus's own sub-task cards: type sub-task, the state as a word and an icon, the actor in plain words, the reason or findings, and no raw command. */
   async panel_sub_tasks() {
     for (const mode of ["light", "dark"] as const) {
       const { browser, page, errors } = await setup(board, 1440, 1000, mode);
       try {
         await openStory(page, COPYWRITING.lineage);
-        const rows = panel(page).locator("[data-step-key]");
-        assert.equal(await rows.count(), 11, "every live step of the template");
-        assert.equal(await rows.evaluateAll(nodes => nodes.every(node => node.getAttribute("data-issue-type") === "sub-task" && node.getAttribute("data-parent") === "contentItem:preview-item-lineage-copywriting-0")), true, "sub-tasks of the Story");
-        const outline = panel(page).locator('[data-step-key="outline"]');
-        assert.equal(await outline.getAttribute("data-step-state"), "skipped");
-        assert.match(await outline.innerText(), /Skipped[\s\S]*Preview editor[\s\S]*Reason: The editor wrote the draft straight from the reporting notes\./);
-        const readers = panel(page).locator('[data-step-key="review_people"]');
-        assert.match(await readers.innerText(), /Done[\s\S]*Reviewed for readers[\s\S]*Findings: Reads clearly/);
-        const search = panel(page).locator('[data-step-key="review_search"]');
-        assert.equal(await search.getAttribute("data-step-state"), "open");
-        assert.match(await search.innerText(), /Open[\s\S]*Reviewed for search[\s\S]*Next: papyrus stories step --story preview-item-lineage-copywriting-0 --step review_search/);
-        const research = panel(page).locator('[data-step-key="research"]');
-        assert.match(await research.innerText(), /evidence/, "a step the records proved is shown as evidence's");
-        assert.equal(await rows.evaluateAll(nodes => nodes.every(node => node.querySelectorAll("svg").length === 1 && /\b(Open|Done|Skipped|Not applicable)\b/.test((node as HTMLElement).innerText))), true, "every state is an icon and a word, never colour alone");
-        assert.equal(await panel(page).locator("svg").count(), 12, "Lucide icons: one per step and one in the heading");
-        await panel(page).scrollIntoViewIfNeeded();
-        await shot(page, `panel-${mode}-1440`);
+        const cards = panel(page).locator(".issue-card");
+        assert.equal(await cards.count(), 11, "every live step of the template");
+        assert.equal(await cards.evaluateAll(nodes => nodes.every(node => node.getAttribute("data-type") === "sub-task")), true, "Kanbus sub-task cards");
+        assert.equal(await step(page, "outline").getAttribute("data-priority"), "Skipped");
+        assert.match(await step(page, "outline").innerText(), /Reason: The editor wrote the draft straight from the reporting notes\./);
+        assert.match(await step(page, "review_people").innerText(), /Findings: Reads clearly/);
+        assert.equal(await step(page, "review_search").getAttribute("data-priority"), "Open");
+        assert.match(await step(page, "research").innerText(), /Automatically, from the research packet/, "an automatic completion says where the proof came from");
+        assert.doesNotMatch(await panel(page).innerText(), /papyrus stories step|Next:|\bevidence\b/, "no raw command and no jargon in the panel");
+        assert.equal(await cards.evaluateAll(nodes => nodes.every(node => /\b(Open|Done|Skipped|Not applicable)\b/i.test((node as HTMLElement).innerText))), true, "every state is a word as well as an icon");
+        const icons = await cards.evaluateAll(nodes => nodes.map(node => getComputedStyle(node.querySelector(".issue-accent-priority")!, "::before").maskImage));
+        assert.ok(icons.every(image => image.startsWith("url(")), "every state has a Lucide icon");
+        assert.equal(new Set(icons).size, 3, "three states on this Story, three icons");
+        await shot(page, `panel-${mode}-1440-v3`);
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+  },
+
+  /** Choosing a step offers the buttons: a review step needs findings to be done, a skip needs a reason, and a done step can be reopened. */
+  async buttons() {
+    for (const mode of ["light", "dark"] as const) {
+      const { browser, page, errors } = await setup(board, 1440, 1000, mode);
+      try {
+        await openStory(page, COPYWRITING.lineage);
+        assert.equal(await actions(page).count(), 0, "nothing is offered until a step is chosen");
+        await step(page, "review_search").locator("h3").click();
+        assert.deepEqual(await actions(page).locator("[data-step-action]").evaluateAll(nodes => nodes.map(node => node.getAttribute("data-step-action"))), ["done", "skipped", "not_applicable"]);
+        assert.equal(await actions(page).locator("button svg").count(), 3, "Lucide icons");
+        await actions(page).locator('[data-step-action="done"]').click();
+        await actions(page).locator("textarea").waitFor();
+        await actions(page).locator('[data-step-action="save"]').click();
+        assert.match(await actions(page).locator("[data-step-problem]").innerText(), /note of what the review found/i, "findings are required for a review step");
+        assert.deepEqual(await saves(page), [], "nothing was saved");
+        await shot(page, `buttons-${mode}-1440-v3`);
+        await actions(page).locator("textarea").fill("Title and description read well in results.");
+        await actions(page).locator('[data-step-action="save"]').click();
+        await step(page, "review_search").locator('[data-priority="Done"], .issue-accent-priority:has-text("Done")').first().waitFor();
+        assert.deepEqual(await saves(page), [{ lineageId: COPYWRITING.lineage, stepKey: "review_search", state: "done", note: "Title and description read well in results." }]);
+        assert.match(await step(page, "review_search").innerText(), /Findings: Title and description read well/);
+        assert.match(await step(page, "review_search").innerText(), /Preview editor/, "a person's change shows their name");
+        // Skipping needs a reason.
+        await step(page, "review_social").locator("h3").click();
+        await actions(page).locator('[data-step-action="skipped"]').click();
+        await actions(page).locator('[data-step-action="save"]').click();
+        assert.match(await actions(page).locator("[data-step-problem]").innerText(), /say why/i);
+        await actions(page).locator("textarea").fill("No image on this Story.");
+        await actions(page).locator('[data-step-action="save"]').click();
+        await step(page, "review_social").locator('.issue-accent-priority:has-text("Skipped")').waitFor();
+        assert.match(await panel(page).locator(".story-checklist-progress").innerText(), /^7\/11 · 2 skipped$/, "the panel's progress follows");
+        // A non-review step with no text needed is done in one tap; a done step is reopened by a person.
+        await step(page, "review_reader_agents").locator("h3").click();
+        await actions(page).locator('[data-step-action="not_applicable"]').click();
+        await actions(page).locator("textarea").fill("Agents do not read this page.");
+        await actions(page).locator('[data-step-action="save"]').click();
+        await step(page, "review_reader_agents").locator('.issue-accent-priority:has-text("Not applicable")').waitFor();
+        await step(page, "review_search").locator("h3").click();
+        assert.deepEqual(await actions(page).locator("[data-step-action]").evaluateAll(nodes => nodes.map(node => node.getAttribute("data-step-action"))), ["open"], "a closed step offers reopen only");
+        await actions(page).locator('[data-step-action="open"]').click();
+        await step(page, "review_search").locator('.issue-accent-priority:has-text("Open")').waitFor();
+        assert.deepEqual((await saves(page)).map(save => (save as { state: string }).state), ["done", "skipped", "not_applicable", "open"]);
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }
     }
@@ -173,26 +242,45 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await openStory(page, PUBLISHED.lineage);
       assert.equal(await progress(page, PUBLISHED.lineage).innerText(), "10/11 · 1 skipped");
-      const social = panel(page).locator('[data-step-key="review_social"]');
-      assert.equal(await social.getAttribute("data-step-state"), "not_applicable");
-      assert.match(await social.innerText(), /Not applicable[\s\S]*Reason: This Story has no image to preview\./);
-      assert.equal(await panel(page).locator('[data-step-state="open"]').count(), 0);
+      assert.equal(await step(page, "review_social").getAttribute("data-priority"), "Not applicable");
+      assert.match(await step(page, "review_social").innerText(), /Reason: This Story has no image to preview\./);
+      assert.equal(await panel(page).locator('.issue-card[data-priority="Open"]').count(), 0);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
 
-  /** On a phone the panel's steps stack in one column and nothing scrolls sideways. */
+  /** With the panel open the board's columns are not clipped on the left: every column starts at the board's edge (it scrolls, or shrinks), and nothing scrolls sideways on the page. */
+  async columns_not_clipped() {
+    for (const [width, height] of [[1440, 1000], [1024, 800]] as const) {
+      const { browser, page, errors } = await setup(board, width, height);
+      try {
+        await openStory(page, COPYWRITING.lineage);
+        const geometry = await page.evaluate(`(function(){var grid=document.querySelector('.organizer-board-body .kb-grid');var box=grid.getBoundingClientRect();var card=document.querySelector('.issue-card[data-issue-id="contentItem:${COPYWRITING.lineage}"]').getBoundingClientRect();var first=document.querySelector('.organizer-board-body .kb-column').getBoundingClientRect();return {scrollLeft:grid.scrollLeft,boardLeft:box.left,boardRight:box.right,firstLeft:first.left,cardLeft:card.left,cardRight:card.right};})()`) as { scrollLeft: number; boardLeft: number; boardRight: number; firstLeft: number; cardLeft: number; cardRight: number };
+        if (width >= 1440) {   // the columns up to the open Story's fit beside the panel: nothing scrolls, so the first column is whole
+          assert.equal(geometry.scrollLeft, 0, `${width}px: the board is not scrolled away from its first column: ${JSON.stringify(geometry)}`);
+          assert.ok(geometry.firstLeft >= geometry.boardLeft - 1, `${width}px: the first column starts inside the board: ${JSON.stringify(geometry)}`);
+        }   // on a narrower screen the board scrolls just far enough to show the open Story's card whole
+        assert.ok(geometry.cardLeft >= geometry.boardLeft - 1 && geometry.cardRight <= geometry.boardRight + 1, `${width}px: the open Story's card is fully inside the board: ${JSON.stringify(geometry)}`);
+        await shot(page, `columns-${width}-v3`);
+        assert.equal(await noSideScroll(page), true, `${width}px: nothing scrolls sideways on the page`);
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+  },
+
+  /** On a phone the panel's steps and buttons stack in one column and nothing scrolls sideways. */
   async phone() {
     for (const mode of ["light", "dark"] as const) {
       const { browser, page, errors } = await setup(board, 375, 900, mode);
       try {
         await progress(page, COPYWRITING.lineage).waitFor();
         await progress(page, COPYWRITING.lineage).scrollIntoViewIfNeeded();
-        await shot(page, `card-${mode}-375`);
+        await shot(page, `card-${mode}-375-v3`);
         assert.equal(await noSideScroll(page), true, "board: nothing scrolls sideways");
         await openStory(page, COPYWRITING.lineage);
         await panel(page).scrollIntoViewIfNeeded();
-        await shot(page, `panel-${mode}-375`);
+        await step(page, "review_search").locator("h3").click();
+        await shot(page, `panel-${mode}-375-v3`);
         assert.equal(await noSideScroll(page), true, "panel: nothing scrolls sideways");
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }

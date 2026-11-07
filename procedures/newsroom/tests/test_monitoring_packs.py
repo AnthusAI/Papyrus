@@ -440,7 +440,7 @@ def test_the_two_flags_cannot_be_combined_and_packs_need_the_item_store(monkeypa
 
 ROUTER_IDEA_POLICY_FIELDS = {
     ("Query", "getItem"), ("Query", "getMessage"), ("Query", "getReference"), ("Query", "getSemanticRelation"), ("Query", "listItems"),
-    ("Query", "listItemsByLineageAndVersion"), ("Query", "listMessageThreads"), ("Query", "listMessagesByThreadAndCreatedAt"),
+    ("Query", "listItemsByLineageAndVersion"), ("Query", "listItemsByParentAndOrder"), ("Query", "listMessageThreads"), ("Query", "listMessagesByThreadAndCreatedAt"),
     ("Query", "listReferenceAttachmentsByReferenceLineageAndSortKey"), ("Query", "listReferencesByCurationStatusKeyAndUpdatedAt"),
     ("Query", "listReferencesByLineageAndVersion"), ("Query", "listSemanticNodes"), ("Query", "listSemanticRelationsByObjectState"),
     ("Query", "listSemanticRelationsBySubjectState"), ("Mutation", "createItem"), ("Mutation", "createSemanticRelation"), ("Mutation", "updateItem"),

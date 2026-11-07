@@ -348,6 +348,8 @@ def publish_item(
     published_id = published_item_id_for(lineage_id)
     metadata = _parse_json_object(item.get("metadata"))
     envelope = _derive_or_raise(metadata.get("frontMatterYaml"), item.get("bodyMarkus") or "")
+    if item.get("type") == "sub-task":
+        raise PublishError("sub-task-not-publishable", "A checklist step belongs to its Story and is never published on its own.")
     if item.get("type") == UNTYPED_ITEM_TYPE:
         raise PublishError("type-required", "This story has no type yet. Choose its type, then publish: the site decides where a page lives from it.")
     if item.get("type") == WIKI_PAGE_ITEM_TYPE:

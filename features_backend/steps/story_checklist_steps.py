@@ -63,7 +63,7 @@ def checklist_exists(context):
 def checklist_without_step(context, key):
     with evidence_patches(context):
         checklist.sync_checklist(client_of(context), lineage_of(context), now=AT)
-    client_of(context).delete_record("StoryStep", checklist.step_id(LINEAGE, key))
+    client_of(context).delete_record("Item", f"{checklist.step_id(LINEAGE, key)}-v1")
 
 
 @given('the checklist item "{key}" is marked "{state}" by the person "{label}" with the reason "{reason}"')
@@ -201,7 +201,7 @@ def refused(context, text):
 @then('publishing was refused saying "{text}"')
 def publishing_refused(context, text):
     assert context.publish_error is not None and text in str(context.publish_error), repr(context.publish_error)
-    assert context.publish_error.code == "checklist-open"
+    assert context.publish_error.code in ("checklist-open", "sub-task-not-publishable")
 
 
 @then("publishing succeeded")
@@ -225,3 +225,51 @@ def item_line(context, key, state):
 @then('the procedure output mentions "{text}"')
 def output_mentions(context, text):
     assert text in context.output, context.output
+
+
+@when('the Story is imported from "{source}"')
+def imported(context, source):
+    with evidence_patches(context):
+        checklist.mark_imported(client_of(context), lineage_of(context), source, now=AT)
+
+
+@when('the checklist step "{key}" is published as an Item')
+def publish_step(context, key):
+    context.publish_error = None
+    try:
+        publish_item(client_of(context), f"{checklist.step_id(lineage_of(context), key)}-v{len(item(context, key)['history'])}", actor="editor", approved_by="editor-sub")
+    except PublishError as error:
+        context.publish_error = error
+
+
+@then('the checklist step "{key}" is an Item of type "{item_type}" with the parent "{parent}"')
+def step_is_item(context, key, item_type, parent):
+    row = client_of(context).tables["Item"][f"{checklist.step_id(lineage_of(context), key)}-v{len(item(context, key)['history'])}"]
+    assert (row["type"], row["parentLineageId"]) == (item_type, parent), row
+
+
+@then('the checklist step "{key}" has {count:d} versions, the newest by "{label}"')
+def step_versions(context, key, count, label):
+    step_lineage = checklist.step_id(lineage_of(context), key)
+    versions = sorted((row for row in client_of(context).tables["Item"].values() if row.get("lineageId") == step_lineage), key=lambda row: row["versionNumber"])
+    assert len(versions) == count and versions[-1]["versionCreatedBy"] == label, versions
+
+
+@then("the sub-task Items have no stage, no section and no body")
+def sub_tasks_plain(context):
+    rows = [row for row in client_of(context).tables["Item"].values() if row.get("type") == "sub-task"]
+    assert rows and all(not row.get("stage") and not row.get("section") and not row.get("sectionStatus") and not row.get("bodyMarkus") for row in rows), rows
+
+
+@then("no page was published")
+def nothing_published(context):
+    assert not client_of(context).tables.get("PublishedItem")
+
+
+@then("the Story board lists only the Story, not its sub-tasks")
+def board_lists_story_only(context):
+    from papyrus_content.content_item_lifecycle import CONTENT_ITEM_STAGES
+
+    client = client_of(context)
+    listed = [row for stage in CONTENT_ITEM_STAGES for row in client.list_by_index("itemsByStage", stage)]
+    assert {row["lineageId"] for row in listed} == {LINEAGE} and all(row["type"] != "sub-task" for row in listed), listed

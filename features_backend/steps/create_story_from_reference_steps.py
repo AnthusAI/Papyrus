@@ -189,7 +189,7 @@ def _status(context, status):
 
 @then("no second Story is made")
 def _no_second(context):
-    assert held(context).result["created"] is False and len(held(context).client.tables["Item"]) == 1
+    assert held(context).result["created"] is False and len([row for row in held(context).client.tables["Item"].values() if row.get("type") != "sub-task"]) == 1
 
 
 @then("the existing Story is offered")

@@ -68,6 +68,10 @@ export type CreateStoryFromReferenceResult =
     }
   | { ok: true; created: false; existing: ExistingStory[]; referenceLineageId: string };
 
+/** A change to one checklist step of a Story (the sub-task Item of that step): done, skipped, not applicable, or open again. The backend stamps the signed-in person. */
+export type SetStoryStepInput = { lineageId: string; stepKey: string; state: "open" | "done" | "skipped" | "not_applicable"; reason?: string; note?: string };
+export type SetStoryStepResult = { ok: true; step: { stepKey: string; state: string; changedAt?: string | null } };
+
 export type CaptureAssessment = "complete" | "incomplete" | "incorrect";
 export type CorrectReferenceCaptureInput = {
   referenceId: string;
@@ -101,6 +105,7 @@ export type ContentActionsTransport = {
     publishItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     unpublishItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     moveStoryStage: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
+    setStoryStep: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     createStoryFromReference: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     correctReferenceCapture: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
   };
@@ -141,6 +146,9 @@ export function createContentActionsClient(transport: ContentActionsTransport) {
     async moveStoryStage(input: MoveStoryStageInput): Promise<MoveStoryStageResult> {
       return parseActionResponse(await transport.mutations.moveStoryStage({ input: JSON.stringify(input) }, USER_POOL));
     },
+    async setStoryStep(input: SetStoryStepInput): Promise<SetStoryStepResult> {
+      return parseActionResponse(await transport.mutations.setStoryStep({ input: JSON.stringify(input) }, USER_POOL));
+    },
     async createStoryFromReference(input: CreateStoryFromReferenceInput): Promise<CreateStoryFromReferenceResult> {
       const { preview: _preview, ...sent } = input;
       return parseActionResponse(await transport.mutations.createStoryFromReference({ input: JSON.stringify(sent) }, USER_POOL));
@@ -165,6 +173,7 @@ export const saveItemDraft = (input: SaveItemDraftInput) => contentActionsClient
 export const publishItem = (id: string) => contentActionsClient().publishItem(id);
 export const createStoryFromReference = (input: CreateStoryFromReferenceInput) => contentActionsClient().createStoryFromReference(input);
 export const moveStoryStage = (input: MoveStoryStageInput) => contentActionsClient().moveStoryStage(input);
+export const setStoryStep = (input: SetStoryStepInput) => contentActionsClient().setStoryStep(input);
 export const unpublishItem = (id: string) => contentActionsClient().unpublishItem(id);
 
 export const correctReferenceCapture = (input: CorrectReferenceCaptureInput) => contentActionsClient().correctReferenceCapture(input);

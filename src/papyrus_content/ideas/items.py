@@ -17,6 +17,7 @@ from typing import Any
 
 import yaml
 
+from ..content_item_lifecycle import without_sub_tasks
 from ..ids import hash_short
 from ..machine_writes import machine_write
 from ..publishing import ItemFields, item_id_for, save_item, utc_now_iso
@@ -182,6 +183,13 @@ def file_idea_item(
         if gate is not None and result is not None and not result.get("skipped"):
             gate.record(existing, result)
     lineage_id = existing.get("lineageId") or item_id
+    if created:
+        try:   # every path that makes a Story makes its checklist; a router bundle without the checklist module still files the idea
+            from ..story_checklist import ensure_for_new_story
+
+            ensure_for_new_story(client, lineage_id)
+        except ImportError:
+            pass
     linked = [link_reference_to_story(client, lineage_id, row["id"], role=BASED_ON, actor=actor, now=now, story=existing)["referenceLineageId"] for row in references]
     return {"itemId": item_id, "lineageId": lineage_id, "created": created, "linked": linked, "check": check, "story": existing}
 
@@ -190,7 +198,7 @@ def idea_rows(client: Any) -> list[dict[str, Any]]:
     """Every generated story (current version of each Item lineage that records a ``generated`` origin), in the shape of a Proposal row: the
     pipeline's dedupe reads ``id``, ``title``, ``summary``, ``targets``, ``state`` (``declined`` for a spiked idea) and ``createdAt``."""
     rows = []
-    for item in _current_versions(client.list_records("Item")):
+    for item in _current_versions(without_sub_tasks(client.list_records("Item"))):
         generated = generated_of(item)
         if generated is None:
             continue

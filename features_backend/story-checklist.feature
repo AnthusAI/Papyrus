@@ -1,8 +1,9 @@
 @checklist-gate
 Feature: The editorial checklist of a Story
   Every Story has one checklist, made from the Story procedure, so the newsroom can see which editorial steps happened,
-  who did them, and why any were skipped. Each live step of the procedure is one item with a state: open, done, skipped
-  or not applicable. A skipped or not-applicable item needs a reason, a review item needs a findings note to be done,
+  who did them, and why any were skipped. Following Kanbus, each live step of the procedure is a sub-task of the Story:
+  an Item of type sub-task whose parent is the Story, in the same Item table as the Story, with a state: open, done,
+  skipped or not applicable. Every change is a new version of that Item, so versions are the history. A skipped or not-applicable item needs a reason, a review item needs a findings note to be done,
   and only a person reopens an item. Evidence marks items done through the same logic that "papyrus stories next" uses,
   once, after a write. A template that gains a step gives an unpublished Story that step as open the next time the Story
   changes. Publishing refuses while a required item is open. The board reads a small summary kept on the Story, never
@@ -33,7 +34,7 @@ Feature: The editorial checklist of a Story
     Given an empty newsroom
     When I run "stories create" with "--title Brand-new-Story --stage reporting"
     Then the checklist item "choose" is "done"
-    And the checklist item "choose" was changed by the system "evidence"
+    And the checklist item "choose" was changed by the system "Automatically, from the Story's stage"
 
   Scenario: Skipping a step without a reason is refused
     Given a Story at the "reporting" stage
@@ -85,7 +86,7 @@ Feature: The editorial checklist of a Story
     And the checklist item "outline" is "skipped"
     When I run "stories step" with "--story story-1 --step outline --state open --actor-label Ryan"
     Then the checklist item "outline" is "open"
-    And the checklist item "outline" has 2 history entries
+    And the checklist item "outline" has 3 history entries
 
   Scenario: A dry run changes nothing
     Given a Story at the "reporting" stage
@@ -100,7 +101,7 @@ Feature: The editorial checklist of a Story
     When the checklist is brought up to date after a change
     Then the checklist item "direction" is "done"
     And the checklist item "research" is "done"
-    And the checklist item "research" was changed by the system "evidence"
+    And the checklist item "research" was changed by the system "Automatically, from the research packet"
     And the checklist item "research" has evidence naming "a1"
     And the checklist item "outline" is "open"
 
@@ -242,3 +243,29 @@ Feature: The editorial checklist of a Story
     And I run "stories checklist-backfill" with "--page-size 25"
     Then the procedure output mentions "already_complete 1"
     And the procedure output mentions "created_items 0"
+
+  Scenario: A step is a sub-task Item whose parent is its Story and whose versions are its history
+    Given a Story at the "reporting" stage
+    And the Story's checklist exists
+    When I run "stories step" with "--story story-1 --step outline --state skipped --reason 'Written by hand' --actor-label Ryan"
+    Then the checklist step "outline" is an Item of type "sub-task" with the parent "story-1"
+    And the checklist step "outline" has 2 versions, the newest by "Ryan"
+    And the sub-task Items have no stage, no section and no body
+
+  Scenario: A sub-task is never published on its own and is never a Story
+    Given a Story at the "copywriting" stage
+    And the Story's checklist exists
+    When the checklist step "outline" is published as an Item
+    Then publishing was refused saying "never published on its own"
+    And no page was published
+    And the Story board lists only the Story, not its sub-tasks
+
+  Scenario: An imported Story has every step but publishing marked not applicable, with the source as the reason
+    Given a Story at the "copywriting" stage
+    When the Story is imported from "articles/hello.md"
+    Then the checklist item "review_people" is "not_applicable"
+    And the checklist item "review_people" has the reason "imported from articles/hello.md"
+    And the checklist item "review_people" was changed by the system "Automatically, from the import"
+    And the checklist item "publish" is "open"
+    When the Story is published by an editor
+    Then publishing succeeded
