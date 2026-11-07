@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6ec145ca-09eb-412f-9367-1d23388e6c84",
+  "issue_id": "PPY-e237789c-5361-495f-b781-dc1096548f0f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:51:47.052Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Image toolchain: regenerate existing generated images under the current style profile",
+    "description": "Ryan 2026-11-07 wants every existing generated image on a Story or Reference re-generated under the new image types and style profiles once the toolchain can generate. Plan: (1) an inventory that counts, per publication and image type, the images whose provenance says they were generated, read through an index, never a table scan (the index may need adding, one per table per deploy); (2) a dry run that lists what would be regenerated and an estimate (unpriced until the trial measures tokens per image); (3) one single-image request per old image through the unattended Batch lane, spend-approved only for a publication that has approval (today only Machines on Machines, gpt-image-2.5-flare); (4) the old image is never deleted: the new one waits as a candidate in the review queue and is applied according to the site's imageReview setting (after_the_fact sites let it be applied unreviewed), always reversible through image_unapply; (5) each regeneration records which old image it replaces and the profile version used. Depends on build steps 2 to 6 (profile, candidates, OpenAI adapter). Not started; needs Ryan's go for spend and per-publication scope before running.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+    "labels": []
+  }
+}

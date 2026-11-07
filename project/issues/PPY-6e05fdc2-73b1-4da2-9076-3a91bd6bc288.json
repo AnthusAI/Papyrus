@@ -10,9 +10,17 @@
   "parent": "PPY-1f68bf26-6671-4514-a2b2-3cb220a33d96",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5883bd2d-f903-48ba-b927-5d408a4e35c3",
+      "author": "home",
+      "text": "Step 2 is built as two PRs. 2a (AnthusAI/Papyrus#1288, merged to develop): the visual style profile with image types as a doctrine kind, the validator and resolver, profile get/resolve/diff/save/history handlers on the signed-in lane, the visual-style editorial context entry, the visual_style context pack layer and illustrator profile, and the prompt skeleton with its lint test. 2b (#1289, rebased onto develop, waiting on CI): the image-service Lambda with imageRead and imageWrite, and the optional NewsroomSection.visualStyle field. Deploy: only 2b needs a data-API deploy per site, one site first then all, with Ryan's go; no GSI. Not verified locally: the full CDK synth hung, so CI must confirm it, and the first-site deploy must confirm the function's permissions on Item. Known limits: the door cannot tell a person from an agent (actorKind is self-declared), the constraint edit check on the CLI lane is best effort, and two concurrent saves could both succeed (the reader takes the highest version).",
+      "created_at": "2026-11-07T21:51:45.932726Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T18:39:03.524181Z",
-  "updated_at": "2026-11-07T20:45:08.029642Z",
+  "updated_at": "2026-11-07T21:51:45.936049Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
