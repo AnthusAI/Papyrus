@@ -50,6 +50,11 @@ Feature: One definition of the four lenses a Story is reviewed through
     And the lens text says only a person gives the final approval
     And the lens text names the three problems that must be fixed before a step can close
 
+  Scenario: Agents are told to run lens-check and fix what they can
+    Given a newsroom with a publication policy, a section "law-policy" and a Story "story-1" in it
+    When the copywriter's context pack is built for the Story
+    Then the lens text tells the agent to run papyrus stories lens-check for the Story and fix what it can
+
   Scenario: The copywriter is told accuracy and natural writing beat any lens
     Given a newsroom with a publication policy, a section "law-policy" and a Story "story-1" in it
     When the copywriter's context pack is built for the Story

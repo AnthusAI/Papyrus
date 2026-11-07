@@ -148,7 +148,7 @@ An entry's `image_dark` is the Night version of its `image` (front matter `image
 the entry has no `image`). The standard listing cards, which every site gets unless it sets a `card` hook, then carry both
 pictures and `markus-components.css` shows one by theme: the system setting, or a theme picked by hand (`dark` or `dark-theme`
 on the root element shows Night, `light`, `light-theme` or `data-theme="light"` shows Day). It needs no JavaScript, and the picture
-that is hidden is not fetched. Social images (`og:image`), feeds and the public data always use `image`. A site's own `card` hook
+that is hidden is not fetched. Social images (`og:image`), feeds and the public data always use `image`. A Story's own picture takes its description for `og:image:alt` and `twitter:image:alt` from front matter `imageAlt` (the site's `seo.defaultImageAlt` describes the default picture only); without `imageAlt` no alt is emitted for it, and `papyrus stories lens-check` says so ([four-lens review](four-lens-review.md)). A site's own `card` hook
 reads `entry.image_dark` itself, or `components.card_image(entry)` for the same markup. Nothing needs to be written by hand: when a Story is
 published, and its `image` is a body `::image` figure that has a `srcDark` (the file itself or one of its
 `assets/responsive/<folder>/<stem>-<width>.<ext>` renditions), the Night file or rendition is stored with the item's listing data as
