@@ -5,7 +5,7 @@ const SCHEMA_FILES = ["amplify/data/schema.ts", "amplify/data/resource.ts"];
 // The deployed schema (schema.ts) and the typed schema (resource.ts) must agree
 // for every model the Python authoring client reads with a fixed field list.
 const MODEL_NAMES = [
-  "Item", "PublishedItem", "StoryVariation", "SemanticNode", "SemanticRelation", "Reference", "Message",
+  "Item", "PublishedItem", "StoryVariation", "StoryStep", "SemanticNode", "SemanticRelation", "Reference", "Message",
   "Assignment", "KnowledgeRawPayload", "CurationDelegationRecord", "ModelAttachment", "MediaAsset", "PublishedMediaAsset", "NewsroomSection", "Automation", "ProcedureRun", "ReviewRequest", "ReviewReadMark", "ReviewRecipientRule",
 ];
 const REQUIRED_FIELDS: Record<string, string[]> = {

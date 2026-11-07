@@ -7,6 +7,7 @@ import type { ResearchPacketView } from "./research-packet";
 import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailAgentNote, type TrailAssignment, type TrailReference, type TrailThread, type TrailVersion } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
+import { summarizeStoryChecklist, type StoryStepRecord } from "./story-checklist";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
 
 const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
@@ -55,6 +56,59 @@ const PREVIEW_STORY_STARS: Readonly<Record<string, number>> = {
   "idea-1": 2,
 };
 
+/** The template, as the preview shows it: the live steps of the Story procedure (src/papyrus_content/newsroom_process.py), in order. */
+const PREVIEW_CHECKLIST_TEMPLATE: readonly { key: string; title: string; command: string; required: boolean }[] = [
+  { key: "choose", title: "Choose the idea", command: "papyrus ideas select --section <section>", required: true },
+  { key: "direction", title: "Give the research direction", command: "papyrus stories assign-research --story {story} --direction-file direction.md", required: true },
+  { key: "research", title: "Research the Story", command: "papyrus assignments research-multi <assignment id>", required: true },
+  { key: "outline", title: "Write the outline after the research", command: "papyrus stories outline --story {story}", required: true },
+  { key: "draft", title: "Write the draft", command: "papyrus stories draft --story {story}", required: true },
+  { key: "copy_edit", title: "Copy-edit the draft", command: "papyrus editorial check-version --item <current version id>", required: true },
+  { key: "review_people", title: "Reviewed for readers", command: "papyrus stories step --story {story} --step review_people --state done --note <findings>", required: true },
+  { key: "review_reader_agents", title: "Reviewed for AI reader agents", command: "papyrus stories step --story {story} --step review_reader_agents --state done --note <findings>", required: true },
+  { key: "review_search", title: "Reviewed for search", command: "papyrus stories step --story {story} --step review_search --state done --note <findings>", required: true },
+  { key: "review_social", title: "Reviewed for social previews", command: "papyrus stories step --story {story} --step review_social --state done --note <findings>", required: true },
+  { key: "publish", title: "Publish the Story", command: "papyrus ops content publish --id <item id>", required: false },
+];
+const PREVIEW_CHECKLIST_TEMPLATE_VERSION = 2;
+const PREVIEW_CHECKLIST_EVIDENCE_ACTOR = { actorKind: "system", actorLabel: "evidence" } as const;
+
+/** How far each preview Story's checklist has got, so a card and a panel show open, done, skipped and not-applicable steps. */
+function previewChecklistFor(stageKey: string, headlineIndex: number, lineageId: string): StoryStepRecord[] {
+  const stageOrder = ["idea", "assignment", "reporting", "copywriting", "illustration", "typesetting", "published"];
+  const reached = Math.max(0, stageOrder.indexOf(stageKey));
+  const doneBy = (key: string): number => ({ choose: 1, direction: 1, research: 2, outline: 2, draft: 3, copy_edit: 3, publish: 6 } as Record<string, number>)[key] ?? 99;
+  return PREVIEW_CHECKLIST_TEMPLATE.map((entry, index): StoryStepRecord => {
+    const base = {
+      id: `step-${lineageId}-${entry.key}`, storyLineageId: lineageId, stepKey: entry.key, stepOrder: index, templateVersion: PREVIEW_CHECKLIST_TEMPLATE_VERSION,
+      title: entry.title, command: entry.command.replace("{story}", lineageId), state: "open" as const,
+    };
+    const changedAt = isoTimestampHoursBeforeBase(index + 1);
+    if (stageKey === "published" && entry.key.startsWith("review_")) {
+      return entry.key === "review_social"
+        ? { ...base, state: "not_applicable", actorKind: "person", actorLabel: "Preview editor", changedAt, reason: "This Story has no image to preview." }
+        : { ...base, state: "done", actorKind: "agent", actorLabel: "Reviewing agent", changedAt, note: "Read as a reader would: the headline, deck and first paragraph hold up." };
+    }
+    if (entry.key === "outline" && reached >= 3 && headlineIndex === 0) {
+      return { ...base, state: "skipped", actorKind: "person", actorLabel: "Preview editor", changedAt, reason: "The editor wrote the draft straight from the reporting notes." };
+    }
+    if (entry.key === "review_people" && reached === 3 && headlineIndex === 0) {
+      return { ...base, state: "done", actorKind: "person", actorLabel: "Preview editor", changedAt, note: "Reads clearly; the second section is long but earns its length." };
+    }
+    if (reached >= doneBy(entry.key) && !entry.key.startsWith("review_")) {
+      return { ...base, state: "done", ...PREVIEW_CHECKLIST_EVIDENCE_ACTOR, changedAt, evidence: `Preview record for ${entry.key}` };
+    }
+    return base;
+  });
+}
+
+/** The checklist items of a preview Story (the index read the panel makes against the real backend). */
+export function createLocalPreviewStoryChecklist(lineageId: string): StoryStepRecord[] {
+  const version = createLocalPreviewContentItemVersions().find(candidate => candidate.lineageId === lineageId);
+  const match = /^preview-item-lineage-(.+)-(\d+)$/.exec(lineageId);
+  return version && match ? previewChecklistFor(match[1], Number(match[2]), lineageId) : [];
+}
+
 export function createLocalPreviewContentItemVersions(): ContentItemVersionRecord[] {
   const stageKeys = contentItemStageKeys(getContentItemStageDefinitions());
   return stageKeys.flatMap((stageKey, stageIndex) => {
@@ -76,6 +130,7 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
         updatedAt: isoTimestampHoursBeforeBase(stageIndex * 3 + headlineIndex),
         versionCreatedBy: stageKey === "idea" && headlineIndex === 0 ? "AI" : "Preview editor",
         starRating: PREVIEW_STORY_STARS[`${stageKey}-${headlineIndex}`] ?? null,
+        metadata: { checklist: summarizeStoryChecklist(previewChecklistFor(stageKey, headlineIndex, `preview-item-lineage-${stageKey}-${headlineIndex}`), PREVIEW_CHECKLIST_TEMPLATE.filter(entry => entry.required).map(entry => entry.key), PREVIEW_CHECKLIST_TEMPLATE_VERSION) },
       };
     });
   });

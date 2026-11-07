@@ -1,9 +1,11 @@
 Feature: One definition of the Story procedure
   A Story moves through the newsroom in one ordered list of steps, defined once and read by the command line. Each step
   has a stage, a role, a command and a status: live, off or not built. A step is done, not done or unknown; unknown is
-  honest, and a step with no record to read is never reported as done. A skipped step warns and never refuses: publishing
-  stays the only hard gate, there are no new stages, and human review is never a stage. People and agents read the same
-  list: papyrus stories next shows where a Story stands and what comes next, and every write reminds the writer.
+  honest, and a step with no record to read is never reported as done. A skipped step needs a recorded reason and an open
+  required step blocks publishing (features_backend/story-checklist.feature); there are no new stages, and human review is
+  never a stage. Between the copy edit and publishing sit the four review lenses, done by hand with a findings note. People
+  and agents read the same list: papyrus stories next shows where a Story stands and what comes next, and every write
+  reminds the writer.
 
   Scenario: Choosing is done once the Story is past the idea stage
     Given a Story at the "idea" stage
@@ -138,7 +140,17 @@ Feature: One definition of the Story procedure
     And the current version is number 3 and the outline marker is on version 2
     And a finished check of the current version with no violation
     When the procedure is assessed
-    Then the next step is "publish"
+    Then the next step is "review_people"
+
+  Scenario: The four review lenses are live steps that no record proves
+    Given a Story at the "copywriting" stage
+    And a finished check of the current version with no violation
+    When the procedure is assessed
+    Then the procedure step "review_people" is "not_done"
+    And the procedure step "review_reader_agents" is "not_done"
+    And the procedure step "review_search" is "not_done"
+    And the procedure step "review_social" is "not_done"
+    And the procedure step "review_social" has the status "live"
 
   Scenario: A spiked or held Story has no next step
     Given a Story at the "spiked" stage
@@ -160,7 +172,7 @@ Feature: One definition of the Story procedure
   Scenario: Stories next prints every step with its state and then what comes next
     Given a Story at the "idea" stage
     When I run "stories next" with "--story story-1"
-    Then the procedure output has a step line for each of the 11 steps
+    Then the procedure output has a step line for each of the 15 steps
     And the procedure output has a "next" line for "choose"
 
   Scenario: A step that is off or not built says so instead of offering a command

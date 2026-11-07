@@ -12,6 +12,7 @@ import {
 } from "./content-item-lifecycle";
 import { contentItemExcerpt } from "./front-matter-fields";
 import { assignmentStatusLabel } from "./newsroom-assignments";
+import { storyChecklistSummary, type StoryChecklistSummary } from "./story-checklist";
 import { getContentItemName, getContentItemStageDefinitions } from "./site-brand";
 
 export type NativeBoardKind = "contentItem" | "assignment";
@@ -26,6 +27,8 @@ export interface NativeBoardIssue extends KanbanIssue {
   displayId: string;
   /** A Story's private 1-5 rating (null unrated); undefined when the card was not read from an Item row, so it cannot be rated here. */
   starRating?: number | null;
+  /** The Story's checklist counts, read from its version's metadata; undefined for a Story with no checklist yet. */
+  checklist?: StoryChecklistSummary;
 }
 
 function slugify(text: string): string {
@@ -81,6 +84,11 @@ function safeJson(text: string): unknown {
 const ASSIGNMENT_STATUSES_BEFORE_OTHERS = ["open", "claimed"];
 const ASSIGNMENT_STATUSES_AFTER_OTHERS = ["completed", "canceled"];
 
+function checklistOf(version: ContentItemVersionRecord): { checklist?: StoryChecklistSummary } {
+  const checklist = storyChecklistSummary(version.metadata);
+  return checklist ? { checklist } : {};
+}
+
 /** One card per content item, in the column for its lifecycle stage; its assignments are counted on the card. */
 export function projectContentItemBoard(records: {
   contentItemVersions: readonly ContentItemVersionRecord[];
@@ -107,6 +115,7 @@ export function projectContentItemBoard(records: {
       priority: stage === "idea" ? IDEA_ORIGIN_PRIORITIES[ideaOrigin(version)] : 2, description: workCount ? `${workCount} assignment${workCount === 1 ? "" : "s"} on this ${contentItemType}.` : undefined,
       updated_at: version.updatedAt ?? undefined, href: `/newsroom/articles/${encodeURIComponent(version.id)}`,
       excerpt: contentItemExcerpt(version), displayId: contentItemDisplayId(version), starRating: version.starRating,
+      ...checklistOf(version),
     };
   });
 }

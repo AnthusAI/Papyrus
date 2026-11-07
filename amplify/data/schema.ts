@@ -730,6 +730,13 @@ const definitions = {
     .authorization((allow) => [allow.groups(contentWriteGroups)])
     .handler(functionHandler("contentActions", contentActions)),
 
+  setStoryStep: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
   addStoryAgentNote: a
     .mutation()
     .arguments({ input: a.json().required() })
@@ -1526,6 +1533,34 @@ const definitions = {
     })
     .secondaryIndexes((index) => [
       index("storyLineageId").sortKeys(["variationNumber"]).queryField("listStoryVariationsByStoryAndNumber"),
+    ])
+    .authorization((allow) => [
+      allow.groups(contentWriteGroups).to(["read", "create", "update"]),
+    ]),
+
+  /** One item of a Story's editorial checklist: a step of the Story procedure, its state, who changed it and why (docs/story-procedure.md). Read by Story lineage only. */
+  StoryStep: modelWithoutSubscriptions({
+      id: a.id().required(),
+      storyLineageId: a.id().required(),
+      stepKey: a.string().required(),
+      stepOrder: a.integer().required(),
+      templateVersion: a.integer().required(),
+      title: a.string(),
+      command: a.string(),
+      state: a.string().required(),
+      actorKind: a.string(),
+      actorLabel: a.string(),
+      actorSub: a.string(),
+      changedAt: a.datetime(),
+      reason: a.string(),
+      note: a.string(),
+      evidence: a.string(),
+      history: a.json(),
+      createdAt: a.datetime().required(),
+      updatedAt: a.datetime().required(),
+    })
+    .secondaryIndexes((index) => [
+      index("storyLineageId").sortKeys(["stepOrder"]).queryField("listStoryStepsByStoryAndOrder"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups).to(["read", "create", "update"]),

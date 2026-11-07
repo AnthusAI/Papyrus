@@ -1,6 +1,6 @@
 # The Story procedure
 
-One definition of how a Story moves through the newsroom. The command line reads it (`papyrus stories next`, and the reminders printed after a write), and the context pack will read it later. It lives in `src/papyrus_content/newsroom_process.py` as an ordered list of steps. It applies to people and agents alike.
+One definition of how a Story moves through the newsroom. The command line reads it (`papyrus stories next`, and the reminders printed after a write), and the context pack will read it later. It lives in `src/papyrus_content/newsroom_process.py` as an ordered list of steps. It applies to people and agents alike. It is also the **template** of every Story's editorial checklist, which records what was and was not done ([the checklist](#the-checklist)).
 
 ## The sequence
 
@@ -14,6 +14,10 @@ One definition of how a Story moves through the newsroom. The command line reads
 | fact_check | copywriting | Fact-check agent | none yet (PPY-719a02) | not built |
 | copy_edit | copywriting | Copywriter with Humanus | `papyrus editorial check-version --item VERSION_ID` | live |
 | editor_review | copywriting | Editor agent | none (needs the `editor_review.tac` procedure, which no site has on) | off |
+| review_people | copywriting | Editor or reviewing agent | `papyrus stories step --story LINEAGE --step review_people --state done --note FINDINGS` | live, by hand |
+| review_reader_agents | copywriting | Editor or reviewing agent | the same, with `--step review_reader_agents` | live, by hand |
+| review_search | copywriting | Editor or reviewing agent | the same, with `--step review_search` | live, by hand |
+| review_social | copywriting | Editor or reviewing agent | the same, with `--step review_social` | live, by hand |
 | illustration | illustration | Editor | none yet | not built, optional |
 | typesetting | typesetting | Editor | none yet | not built, optional |
 | publish | published | A person | `papyrus ops content publish --id ITEM_ID` | live |
@@ -23,7 +27,22 @@ The illustration and typesetting steps are described in [story-illustration-type
 ## Two decisions
 
 - The outline comes after the research. The editor writes it once the reporter's packet exists, and saves it with `--outline` so the draft step can tell the outline from the draft.
-- A skipped step warns and never refuses. Publishing stays the only hard gate. There are no new stages, and human review is never a stage: a person comes in through a review request ([review requests](review-requests.md)).
+- A skipped step needs a recorded reason, and an open required step blocks publishing (the checklist, below). This replaces the earlier rule that a skipped step only warned. There are no new stages, and human review is never a stage: a person comes in through a review request ([review requests](review-requests.md)).
+- The four review steps are the four audience lenses, one step each: human readers, AI agents that read the page for a person, search crawlers, and social previews (link cards). They come after the copy edit and before publishing, and they are required. No record proves them yet, so each is completed by hand with a short findings note. What each lens checks, and the final approval, are a later design (PPY-59c772df).
+
+## The checklist
+
+Every Story has one checklist, made from this template, so the record shows which steps happened, who did them and why any were skipped. Each live step is one `StoryStep` record: the Story's lineage, the step key, the template version it came from, a state, the actor (a person or an agent, with a name, or `system` for evidence), the time, a reason, an evidence reference and the history of changes. Steps that are off or not built have no item, because they cannot be done; when one goes live it joins the checklist.
+
+- **States.** `open`, `done`, `skipped` or `not_applicable`. A skipped or not-applicable step needs a reason, and a skip without one is refused. A review step needs a short findings note to be done. Every change records who and when. A person can reopen a step; an agent cannot.
+- **One index, no scans.** The steps of a Story are one read of the index `storyStepsByStory` (the Story's lineage, in template order), done when a Story panel opens or a command needs them. The Story keeps a small summary (counts by state, and the required steps still open) on its current version's metadata (`checklist`), updated whenever a step changes, so a board card needs no extra query.
+- **Every way of making a Story makes its checklist.** `papyrus stories create` and the agent tool that wraps it (chat); the monitor promotion, the editor's Create Story from a Reference and an approved story draft Proposal (all through `create_story_from_references`); an Assignment that mints a Story; and a Story an editor creates or saves in the console. An idea the idea pipeline files as an Item at the idea stage does not get one yet: the cloud router that files it has a narrow role that may not write a checklist, so the idea gets its checklist the first time anything changes it (picking it with `ideas select` is a move, which brings the checklist up to date and makes it). The older `papyrus_newsroom` library writes Items directly and is not hooked: a Story it makes gets its checklist from its first write through any of the paths above, from the sweep, or at publish time. A write that changes a Story also brings its checklist up to date once: a step the template gained since is added as `open` (a published Story gets none: its checklist is a record), and an open step whose evidence now exists is marked done. Nothing runs on a schedule over all Stories.
+- **Evidence marks steps done.** The same facts `papyrus stories next` reads decide it: a research packet marks research (the cloud research worker has no right to write Stories, so the step is marked at the next write to the Story or when it is published), the outline marker marks the outline, a version newer than the outline marks the draft, a finished editorial check without an error-level violation marks the copy edit, and so on. The actor is `system` and the evidence reference names the record. A step a person reopened is not marked done again by evidence.
+- **Marking a step by hand:** `papyrus stories step --story LINEAGE --step KEY --state done|skipped|not_applicable|open --reason TEXT --note TEXT [--agent NAME]`. The console uses the `setStoryStep` mutation, which stamps the signed-in person; an agent acting through that session is recorded as the agent.
+- **Publishing enforces it.** Publishing refuses while any required step (live and not optional, except publishing itself) is `open`. Every required step must be done, skipped with a reason, or not applicable with a reason. A Story with no checklist yet gets one first, with steps done where evidence exists, so an older Story cannot slip through. The error names each open step and the command that closes it. Publishing marks the publish step done.
+- **On the board.** A Story card shows progress, for example `4/9 · 2 skipped` (done and not-applicable steps over all steps, then the skipped count). The Story panel lists the steps as Kanbus sub-tasks with an icon and a label for the state, the actor, the time, the reason or note, and the next command.
+- **Existing Stories** get their checklists from one named sweep: `papyrus stories checklist-backfill --dry-run` prints the counts and writes nothing; without `--dry-run` it creates the checklists, published Stories included, marks steps done where evidence exists and leaves the rest open (so the four review steps start open). It pages by stage and is safe to run again.
+- **Changing the template** means editing `STEPS` and raising `TEMPLATE_VERSION` in `newsroom_process.py`. Each item records the version it came from.
 
 ## Reading `papyrus stories next`
 
@@ -33,6 +52,7 @@ The illustration and typesetting steps are described in [story-illustration-type
 - `next` is the first live step that is not done; when none is left it is the first step that is not done.
 - `skipped` lists steps before the Story's current stage that are not done. Unknown, not built and optional steps are never listed.
 - A Story that is spiked or held has no next step.
+- It then prints the stored checklist: one `item` line per checklist item (key, state, title, actor, time, and the reason, note or evidence) and a `checklist progress` line such as `4/9 · 2 skipped`. A Story with no checklist yet says so. `--json` adds `checklist` and `progress`.
 - `--json` prints the same assessment as JSON.
 
 How each step reads its record:
@@ -48,7 +68,7 @@ How each step reads its record:
 
 ## Reminders on writes
 
-After a successful write (never on `--dry-run`), `stories create`, `stories move`, `stories save-version`, `stories link-reference`, `stories assign-research`, `assignments research-multi` and `assignments process-proposals` (when the Assignment is on a Story) print the `next` and `skipped` lines. With `--json`, the two assignment commands add `next` to their JSON. A failure computing the reminder prints one line to stderr and never changes the result of the write. `stories move` to a later stage also prints a warning on stderr naming each skipped step, and still moves.
+After a successful write (never on `--dry-run`), the checklist is brought up to date once (see above), and `stories create`, `stories move`, `stories save-version`, `stories link-reference`, `stories assign-research`, `assignments research-multi` and `assignments process-proposals` (when the Assignment is on a Story) print the `next` and `skipped` lines. With `--json`, the two assignment commands add `next` to their JSON. A failure computing the reminder prints one line to stderr and never changes the result of the write. `stories move` to a later stage also prints a warning on stderr naming each step skipped before that stage, and still moves; the reason is recorded on the checklist, and publishing is where an open required step stops a Story.
 
 ## The outline and the draft
 

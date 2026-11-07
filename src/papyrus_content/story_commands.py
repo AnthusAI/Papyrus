@@ -422,12 +422,58 @@ def stories_next(flags: list[str]) -> None:
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
     assessment = assess(story_facts(client, lineage_id))
+    from .story_checklist import checklist_lines, progress_text, read_steps, steps_for_display, summary_of
+
+    stored = steps_for_display(read_steps(client, lineage_id), lineage_id)   # one index read by Story lineage
     if options.get("json"):
-        print(json.dumps({"ok": True, "story": lineage_id, **assessment}, indent=2))
+        print(json.dumps({"ok": True, "story": lineage_id, **assessment, "checklist": stored, "progress": progress_text(summary_of(stored)) if stored else None}, indent=2))
         return
     print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
-    for line in step_lines(assessment) + next_lines(assessment):
+    for line in step_lines(assessment) + checklist_lines(stored) + next_lines(assessment):
         print(line)
+
+
+def stories_step(flags: list[str]) -> None:
+    """papyrus stories step --story <lineage> --step <key> --state done|skipped|not_applicable|open [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--dry-run]
+
+    Marks one step of the Story's checklist and records who did it and when. A skipped or not-applicable step needs --reason; a review step needs --note
+    (the findings) to be done; only a person reopens a step (--state open). --agent NAME says an agent made the change; without it the actor is a person."""
+    from .story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, set_step
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories step")
+    lineage_id = _required_option(options, "story")
+    key = _required_option(options, "step")
+    state = _required_option(options, "state")
+    agent = normalize_string(options.get("agent"))
+    actor = {"kind": ACTOR_AGENT if agent else ACTOR_PERSON, "label": agent or normalize_string(options.get("actor-label")) or "papyrus-cli"}
+    if not apply:
+        print(f"stories\tstep\t{lineage_id}\t{key}\t{state}\tdry run")
+        return
+    client, _ = create_authoring_client()
+    try:
+        row = set_step(client, lineage_id, key, state, actor=actor, reason=normalize_string(options.get("reason")),
+                       note=normalize_string(options.get("note")), evidence=normalize_string(options.get("evidence")))
+    except ChecklistError as error:
+        raise ValueError(str(error)) from error
+    print(f"stories\tstep\t{lineage_id}\t{row['stepKey']}\t{row['state']}\twrite")
+
+
+def stories_checklist_backfill(flags: list[str]) -> None:
+    """papyrus stories checklist-backfill [--dry-run] [--stage STAGE ...] [--page-size N]
+
+    The one-time sweep that gives every existing Story a checklist, published ones included (docs/story-procedure.md). Steps are marked done where a
+    record proves them (including the publish step of a published Story) and left open otherwise; the four review lenses start open. A Story that
+    already has a full checklist is left alone, so running it again is safe. Paged by stage, newest first. With --dry-run nothing is written and the
+    counts say what would be."""
+    from .story_checklist import backfill
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories checklist-backfill")
+    stages = tuple(parse_repeated_option(flags, "stage")) or None
+    client, _ = create_authoring_client()
+    counts = backfill(client, apply=apply, stages=stages, page_size=int(options.get("page-size") or 50))
+    print(f"stories\tchecklist-backfill\t{'write' if apply else 'dry run'}\t" + "\t".join(f"{name} {value}" for name, value in counts.items()))
 
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -583,7 +629,7 @@ def stories_move(flags: list[str]) -> None:
         from .story_triggers import deliver_from_environment
 
         deliver_from_environment(client, lineage_id)
-    assessment = reminder_assessment(client, lineage_id)
+    assessment = reminder_assessment(client, lineage_id, sync_checklist=True)
     if assessment is not None and result["changed"] and _moved_forward(result):
         warn_skipped(assessment)
     print_next_lines(assessment)

@@ -363,7 +363,12 @@ def publish_item(
     if already_projected and item.get("status") == "published":
         return PublishResult(False, item_id, published_id, existing.get("versionNumber"))
     from .publish_gate import ensure_publish_approval
+    from .story_checklist import ChecklistError, require_checklist_closed
 
+    try:
+        require_checklist_closed(client, item)   # every required step done, or skipped / not applicable with a recorded reason
+    except ChecklistError as error:
+        raise PublishError("checklist-open", str(error)) from error
     ensure_publish_approval(client, item, approved_by=approved_by, actor=actor)
     if already_projected:
         version_number = existing.get("versionNumber") or 1
@@ -408,6 +413,12 @@ def publish_item(
     for sibling in client.list_by_index("itemsByLineageAndVersion", lineage_id):
         if sibling["id"] != item_id and sibling.get("versionState") == "current":
             client.update_record("Item", {"id": sibling["id"], "versionState": "superseded"})
+    from .content_item_lifecycle import is_story_item_type
+
+    if is_story_item_type(item.get("type")):
+        from .story_checklist import mark_published
+
+        mark_published(client, lineage_id, actor_label=actor)
     return PublishResult(True, item_id, published_id, version_number, deleted)
 
 

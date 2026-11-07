@@ -140,6 +140,14 @@ def run_papyrus_cli_json(args: list[str]) -> dict[str, Any]:
     return json.loads(completed.stdout)
 
 
+def _checklist_for_new_content_item(client, new_content_item_version: dict[str, Any] | None) -> None:
+    """An Assignment that mints a new Story also makes the Story's checklist (every path that makes a Story does)."""
+    if new_content_item_version:
+        from .story_checklist import ensure_for_new_story
+
+        ensure_for_new_story(client, new_content_item_version["lineageId"])
+
+
 def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> dict[str, Any]:
     apply = resolve_mutation_apply(options, "assignments create-research")
     title = normalize_string(options.get("title"))
@@ -286,6 +294,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
         print(f"assignments\tcreate-research\tnext\t{result['next']}")
         return result
     apply_record_changes(client, changes)
+    _checklist_for_new_content_item(client, new_content_item_version)
     update_newsroom_summary_after_assignment_creates(
         client,
         changes,
@@ -421,6 +430,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         print(f"assignments\tcreate-reporting\tnext\t{result['next']}")
         return result
     apply_record_changes(client, changes)
+    _checklist_for_new_content_item(client, new_content_item_version)
     update_newsroom_summary_after_assignment_creates(
         client,
         changes,

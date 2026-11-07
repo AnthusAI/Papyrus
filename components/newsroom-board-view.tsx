@@ -34,6 +34,8 @@ import { NewsroomBoardHeaderActions } from "./newsroom-board-header-actions";
 import { NewsroomArticleEditor } from "./newsroom-article-editor";
 import { resolveArticlesBackend } from "../lib/newsroom-articles";
 import { StoryCardStars, useStoryCardSlots } from "./story-board-stars";
+import { StoryCardChecklist, useStoryChecklistSlots } from "./story-checklist-card";
+import { StoryChecklistPanel } from "./story-checklist-panel";
 import { useStoryStars } from "./use-story-stars";
 import { NewsroomAssignmentDetail } from "./newsroom-assignment-detail";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
@@ -82,6 +84,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   const articlesBackend = useMemo(() => resolveArticlesBackend(isLocalPreviewEnabled()), []);
   const storyStars = useStoryStars((itemId, stars) => articlesBackend.actions.setItemStars(itemId, stars));
   const storyCardSlots = useStoryCardSlots(boardBodyRef, subject !== "assignment");
+  const storyChecklistSlots = useStoryChecklistSlots(boardBodyRef, subject !== "assignment");
   const [typeFilter, setTypeFilter] = useState<string | null>("all");
   const showsContentItems = subject !== "assignment";
   const contentItemColumnKeyPrefix = `${contentItemBoardType()}/`;
@@ -168,9 +171,11 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
           selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={item => setSelected(item.id)} ariaLabel={pageTitle}
           emptyMessage={error ? "Records could not be loaded." : "No records in this selection."} />}
         {subject !== "assignment" ? <StoryCardStars issues={issues} slots={storyCardSlots} controller={storyStars} /> : null}
+        {subject !== "assignment" ? <StoryCardChecklist issues={issues} slots={storyChecklistSlots} /> : null}
         {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[]}>
           {issue.kind === "contentItem"
             ? <>
+              <StoryChecklistPanel key={`checklist-${issue.id}`} lineageId={issue.nativeId} storyIssueId={issue.id} />
               <NewsroomArticleEditor key={issue.id} articleId={decodeURIComponent(issue.href.split("/").pop() ?? "")} demo={isLocalPreviewEnabled()} embedded starsController={storyStars} />
               <Link className="organizer-header-button" href={getNewsroomNavHref(issue.href)}>Open full page</Link>
             </>

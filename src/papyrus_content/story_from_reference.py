@@ -251,6 +251,10 @@ def create_story_from_references(
         )
         existing = client.get_record("Item", story_id)
     lineage_id = existing.get("lineageId") or story_id
+    if created:
+        from .story_checklist import ensure_for_new_story
+
+        ensure_for_new_story(client, lineage_id)   # every path that makes a Story makes its checklist
     linked = []
     for row in rows:
         result = link_reference_to_story(client, lineage_id, row["id"], role=BASED_ON, actor=actor, now=now)
