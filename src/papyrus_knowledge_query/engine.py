@@ -54,6 +54,8 @@ PASSAGE_STOPWORDS = {
     "or", "our", "that", "the", "their", "this", "to", "we", "what", "with",
 }
 
+CURATION_CARD_TYPE = "curation"
+
 MODEL_ATTACHMENT_FIELDS = """
 id ownerKind ownerId role sortKey storagePath status createdAt updatedAt
 """
@@ -529,12 +531,13 @@ def _build_context_blocks(
                 priority=140,
                 required=True,
                 provenance={
-                    "source": "extracted_text",
+                    "source": full_source.get("source") or "extracted_text",
                     "referenceId": full_source.get("referenceId"),
                     "referenceLineageId": full_source.get("referenceLineageId"),
                     "objectUri": full_source.get("objectUri"),
                     "storagePath": full_source.get("storagePath"),
                     "reason": "full_source_fits_budget",
+                    **({"capture": full_source["capture"]} if full_source.get("capture") else {}),
                 },
             )
         )
@@ -551,6 +554,8 @@ def _build_context_blocks(
                     priority=115 + (float((passage.get("ranking") or {}).get("finalScore", 0.0)) * 25),
                     provenance={
                         "source": passage.get("selectionReason") or "extracted_text",
+                        "textSource": passage.get("textSource"),
+                        **({"capture": passage["capture"]} if passage.get("capture") else {}),
                         "referenceId": passage.get("referenceId"),
                         "referenceLineageId": passage.get("referenceLineageId"),
                         "objectUri": passage.get("objectUri"),
@@ -2782,12 +2787,14 @@ def _collect_reference_evidence(
             attachments_by_lineage[lineage_id] = attachments
             structured["referenceAttachments"].extend(attachments)
     structured["referenceAttachments"] = _dedupe_by_id(structured["referenceAttachments"])
+    problems = structured.setdefault("_sourceTextProblems", set())
     source_texts_by_lineage = _read_reference_source_texts(
         references,
         attachments_by_lineage,
         request,
         services,
         warnings,
+        problems,
     )
     for source_texts in source_texts_by_lineage.values():
         structured.setdefault("_sourceTexts", []).extend(source_texts)
@@ -2810,21 +2817,19 @@ def _collect_reference_evidence(
         if reference.get("curationStatus") not in {None, "accepted"}:
             continue
         lineage_id = str(reference.get("lineageId") or reference.get("id") or "")
-        attachments = attachments_by_lineage.get(lineage_id, [])
-        text_attachments = [
-            attachment for attachment in attachments
-            if attachment.get("role") == "extracted_text" and attachment.get("storagePath")
-        ]
-        if not text_attachments:
+        plan = _captured_text_plan(attachments_by_lineage.get(lineage_id, []))
+        if not plan["use"]:
             if reference.get("curationStatus") == "accepted":
-                warnings.append(f"No extracted text attachment found for {object_title(reference) or anchor_ref(reference)}")
+                warnings.append(f"No extracted or captured text found for {object_title(reference) or anchor_ref(reference)}")
             continue
-        if not services.corpus_text:
+        if plan["use"] == "extracted" and not services.corpus_text:
             warnings.append(f"No corpus text provider configured for {object_title(reference) or anchor_ref(reference)}")
             continue
         source_texts = source_texts_by_lineage.get(lineage_id) or []
         if not source_texts:
-            warnings.append(f"Extracted text was empty or unreadable for {object_title(reference) or anchor_ref(reference)}")
+            # Why it is empty was already said, with its cause, when the read failed or found nothing (_read_reference_source_texts).
+            if lineage_id not in structured.setdefault("_sourceTextProblems", set()):
+                warnings.append(f"Extracted text was empty or unreadable for {object_title(reference) or anchor_ref(reference)}")
             continue
         for source_text in source_texts:
             text = str(source_text.get("text") or "")
@@ -2853,6 +2858,10 @@ def _collect_reference_evidence(
                 max_passage_tokens=max_passage_tokens,
                 services=services,
             )
+            for passage in selected:
+                passage["textSource"] = source_text.get("source") or "extracted_text"
+                if source_text.get("capture"):
+                    passage["capture"] = source_text["capture"]
             structured["evidencePassages"].extend(selected)
             remaining -= len(selected)
             reference_key = str(reference.get("lineageId") or reference.get("id") or "")
@@ -2866,54 +2875,164 @@ def _collect_reference_evidence(
                         obj["ranking"] = ranking
 
 
+def _curation_card(attachments: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The Reference's curation card (``ReferenceAttachment`` role ``curation``), parsed. It is loaded with the other attachments, so no request."""
+    for attachment in attachments:
+        if attachment.get("role") != CURATION_CARD_TYPE:
+            continue
+        try:
+            card = json.loads(attachment.get("metadata") or "{}")
+        except (TypeError, ValueError):
+            continue
+        if isinstance(card, dict) and card.get("kind") == "reference-curation":
+            return card
+    return None
+
+
+def _curated_text_choice(card: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The text the card says is current: ``{sortKey, source, capture}`` or None. ``source`` is ``curation_edit`` (a person, or an agent acting for
+    one, replaced the text through ``correctReferenceCapture``) or ``curation_text`` (the machine capture). ``capture`` is the attribution to show."""
+    if not card:
+        return None
+    current = card.get("current") if isinstance(card.get("current"), dict) else {}
+    sort_key = str(current.get("textSortKey") or "").strip()
+    if not sort_key:
+        return None
+    edit = next((e for e in card.get("edits") or [] if isinstance(e, dict) and e.get("kind") == "text" and e.get("sortKey") == sort_key), None)
+    if edit:
+        label = next((l for l in reversed(card.get("labels") or []) if isinstance(l, dict) and sort_key in (l.get("editSortKeys") or [])), None)
+        capture = {"sortKey": sort_key, "source": "curation_edit", "editedBy": edit.get("editedBy"), "editedAt": edit.get("editedAt"),
+                   "provenance": edit.get("provenance"), "via": current.get("textVia") or edit.get("via"), "note": edit.get("note") or None,
+                   "assessmentOfMachineCapture": (label or {}).get("assessment")}
+        return {"sortKey": sort_key, "source": "curation_edit", "capture": {k: v for k, v in capture.items() if v is not None}}
+    machine = card.get("capture") if isinstance(card.get("capture"), dict) else {}
+    capture = {"sortKey": sort_key, "source": "curation_text", "capturedAt": machine.get("capturedAt"), "via": machine.get("textVia") or machine.get("via")}
+    return {"sortKey": sort_key, "source": "curation_text", "capture": {k: v for k, v in capture.items() if v is not None}}
+
+
+def _captured_text_plan(attachments: list[dict[str, Any]]) -> dict[str, Any]:
+    """Which text a Reference's evidence is read from (docs/reference-curation-pipeline.md, "Where a knowledge query reads a Reference's text").
+
+    1. A person's correction (the card's current text is a ``curation-edit-NNNN-text`` body) wins over everything: it is the latest word, and the
+       ``extracted_text`` attachment it replaces is the older machine capture.
+    2. Otherwise an ``extracted_text`` ReferenceAttachment (Biblicus-quality extraction, read from corpus storage) is used when there is one.
+    3. Otherwise the card's machine capture (``curation-text``), which is all a monitor-delivered or curated Reference has.
+    """
+    extracted = [a for a in attachments if a.get("role") == "extracted_text" and a.get("storagePath")]
+    curated = _curated_text_choice(_curation_card(attachments))
+    if curated and curated["source"] == "curation_edit":
+        use = "curated"
+    elif extracted:
+        use = "extracted"
+    elif curated:
+        use = "curated"
+    else:
+        use = None
+    return {"use": use, "extracted": extracted, "curated": curated}
+
+
+def _find_curated_text_attachment(graph: Any, reference: dict[str, Any], sort_key: str) -> dict[str, Any] | None:
+    """The active ModelAttachment body for ``sort_key``, through the owner index (one request, this Reference's few bodies); never by a built id."""
+    reference_id = str(reference.get("id") or "")
+    if not reference_id or not hasattr(graph, "graphql"):
+        return None
+    next_token = None
+    found: list[dict[str, Any]] = []
+    while True:
+        payload = graph.graphql(LIST_MODEL_ATTACHMENTS_BY_OWNER_QUERY, {"ownerId": reference_id, "limit": 50, "nextToken": next_token})
+        connection = payload.get("listModelAttachmentsByOwnerRoleAndSortKey") or {}
+        found.extend(
+            item for item in connection.get("items") or []
+            if item and item.get("ownerKind") == "reference" and item.get("ownerId") == reference_id and item.get("role") == "metadata"
+            and item.get("sortKey") == sort_key and item.get("status") in (None, "", "active") and item.get("storagePath")
+        )
+        next_token = connection.get("nextToken")
+        if not next_token:
+            break
+    return max(found, key=lambda item: str(item.get("updatedAt") or item.get("createdAt") or "")) if found else None
+
+
 def _read_reference_source_texts(
     references: list[dict[str, Any]],
     attachments_by_lineage: dict[str, list[dict[str, Any]]],
     request: dict[str, Any],
     services: KnowledgeQueryServices,
     warnings: list[str],
+    problems: set[str] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
-    if not references or not services.corpus_text:
-        return {}
+    problems = problems if problems is not None else set()
     tasks: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for reference in references:
+        if reference.get("curationStatus") not in {None, "accepted"}:
+            continue   # evidence is only ever taken from accepted References (the loop in _collect_reference_evidence), so nothing else is fetched
         lineage_id = str(reference.get("lineageId") or reference.get("id") or "")
-        for attachment in attachments_by_lineage.get(lineage_id, []):
-            if attachment.get("role") == "extracted_text" and attachment.get("storagePath"):
-                tasks.append((reference, attachment))
+        plan = _captured_text_plan(attachments_by_lineage.get(lineage_id, []))
+        if plan["use"] == "extracted" and services.corpus_text:
+            tasks.extend((reference, {"kind": "extracted", "attachment": attachment}) for attachment in plan["extracted"])
+        elif plan["use"] == "curated":
+            tasks.append((reference, {"kind": "curated", **plan["curated"]}))
     if not tasks:
         return {}
 
-    def read_one(reference: dict[str, Any], attachment: dict[str, Any]) -> tuple[str, dict[str, Any] | None, str | None]:
-        lineage_id = str(reference.get("lineageId") or reference.get("id") or "")
+    def read_extracted(reference: dict[str, Any], attachment: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
         storage_path = str(attachment.get("storagePath") or "")
         try:
             text = services.corpus_text.read_text(storage_path) if services.corpus_text else None
         except Exception as exc:  # pragma: no cover - defensive runtime note
-            return lineage_id, None, f"Could not read extracted text for {object_title(reference) or anchor_ref(reference)}: {exc}"
-        if not text:
-            return lineage_id, None, None
+            return None, f"Could not read extracted text for {object_title(reference) or anchor_ref(reference)}: {exc}"
+        return ({"storagePath": storage_path, "text": text, "source": "extracted_text"} if text else None), None
+
+    def read_curated(reference: dict[str, Any], choice: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+        title = object_title(reference) or anchor_ref(reference)
+        graph = services.graph
+        try:
+            attachment = _find_curated_text_attachment(graph, reference, choice["sortKey"])
+        except Exception as exc:
+            return None, f"Could not look up the captured text ({choice['sortKey']}) for {title}: {exc}"
+        if not attachment:
+            return None, (f"The curation card for {title} says its current text is {choice['sortKey']}, but no active attachment with that sort key was found "
+                          "for this Reference version; its text is not used.")
+        try:
+            if hasattr(graph, "read_model_attachment_text"):
+                text = graph.read_model_attachment_text(attachment)
+            elif services.corpus_text:
+                text = services.corpus_text.read_text(str(attachment.get("storagePath") or ""))
+            else:
+                return None, f"The captured text ({choice['sortKey']}) for {title} exists but no reader is configured to fetch it."
+        except Exception as exc:
+            return None, f"The captured text ({choice['sortKey']}) for {title} exists but could not be read (permission or storage): {exc}"
+        if not text or not text.strip():
+            return None, f"The captured text ({choice['sortKey']}) for {title} exists but is empty."
+        return {"storagePath": attachment.get("storagePath"), "attachmentId": attachment.get("id"), "text": text, "source": choice["source"],
+                "capture": choice["capture"]}, None
+
+    def read_one(reference: dict[str, Any], task: dict[str, Any]) -> tuple[str, dict[str, Any] | None, str | None]:
+        lineage_id = str(reference.get("lineageId") or reference.get("id") or "")
+        body, problem = read_curated(reference, task) if task["kind"] == "curated" else read_extracted(reference, task["attachment"])
+        if body is None:
+            return lineage_id, None, problem
         return lineage_id, {
             "referenceId": reference.get("id"),
             "referenceLineageId": reference.get("lineageId"),
             "referenceTitle": object_title(reference),
             "objectUri": object_uri(reference),
-            "storagePath": storage_path,
-            "text": text.strip(),
-            "tokens": services.token_counter.count(text),
+            **{key: value for key, value in body.items() if key != "text"},
+            "text": body["text"].strip(),
+            "tokens": services.token_counter.count(body["text"]),
         }, None
 
     worker_count = _graph_fetch_worker_count(request, len(tasks))
     if worker_count <= 1:
-        results = [read_one(reference, attachment) for reference, attachment in tasks]
+        results = [read_one(reference, task) for reference, task in tasks]
     else:
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = [executor.submit(read_one, reference, attachment) for reference, attachment in tasks]
+            futures = [executor.submit(read_one, reference, task) for reference, task in tasks]
             results = [future.result() for future in as_completed(futures)]
     source_texts_by_lineage: dict[str, list[dict[str, Any]]] = {}
     for lineage_id, source_text, warning in results:
         if warning:
             warnings.append(warning)
+            problems.add(lineage_id)
         if source_text and lineage_id:
             source_texts_by_lineage.setdefault(lineage_id, []).append(source_text)
     return source_texts_by_lineage
@@ -3146,10 +3265,30 @@ def _clean_text(text: str) -> str:
     return text.strip()
 
 
+def _captured_text_notes(passages: list[dict[str, Any]]) -> list[str]:
+    """One line per Reference whose evidence came from captured text (not Biblicus extraction): who captured it and the capture's own note, verbatim, so a
+    reader sees text an agent supplied and any "not independently completeness-checked" label that came with it."""
+    lines: list[str] = []
+    seen: set[str] = set()
+    for passage in passages:
+        capture = passage.get("capture")
+        key = _passage_reference_key(passage)
+        if not isinstance(capture, dict) or key in seen:
+            continue
+        seen.add(key)
+        who = f" by {capture['editedBy']}" if capture.get("editedBy") else ""
+        when = f" on {capture['editedAt']}" if capture.get("editedAt") else (f" on {capture['capturedAt']}" if capture.get("capturedAt") else "")
+        note = f" Capture note: {capture['note']}" if capture.get("note") else ""
+        kind = "A correction" if capture.get("source") == "curation_edit" else "Machine capture"
+        lines.append(f"Source text for {passage.get('referenceTitle') or 'a source'} is captured text ({kind.lower()}, {capture.get('sortKey')}){who}{when}.{note}")
+    return lines
+
+
 def _knowledge_summary_text(semantic_query: str, passages: list[dict[str, Any]], references: list[dict[str, Any]]) -> str:
     lines = []
     if semantic_query:
         lines.append(f"Query focus: {semantic_query}.")
+    lines.extend(_captured_text_notes(passages))
     if len(references) > 1:
         return "\n".join(lines)
     if passages:
