@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "81862e88-0828-44b5-9a46-8b94e9abfafe",
+  "issue_id": "PPY-c8412923-6192-4a0a-b507-cf98966be2c8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T23:32:38.257Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "TI brand pack",
+    "description": "Express TI's palette (light and dark), fonts from the allow-list, wordmark and logo as a brand pack (from publication/brand.ts, theme.css and redesign/theme-tokens.css).\nScenario: The brand pack alone gives TI its look\n  Given the pack and the core preset\n  When the site builds in light and dark\n  Then colours, fonts and logo are TI's and the platform checks pass\n\nDepends on: PPY-88a883, PPY-f06abd.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-fe8bc69c-453f-45f8-938d-eaabb8a366a8",
+    "labels": [
+      "standard-frontend-plan",
+      "threat-intelligence"
+    ]
+  }
+}
