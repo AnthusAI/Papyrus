@@ -55,6 +55,11 @@ module.exports = {
     require: ["features/step_definitions/decision-control.steps.js"],
     format: ["summary"],
   },
+  boardRefresh: {
+    paths: ["features/newsroom-board-refresh.feature"],
+    require: ["features/step_definitions/board-refresh.steps.js"],
+    format: ["summary"],
+  },
   boardStoryTypes: {
     paths: ["features/newsroom-board-story-types.feature"],
     require: ["features/step_definitions/board-story-types.steps.js"],

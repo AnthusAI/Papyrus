@@ -500,7 +500,7 @@ def test_the_router_zip_closure_carries_the_pack_modules_and_they_import_with_on
     build = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(build)
     modules = build.router_modules()
-    needed = ["ideas/signal_inputs", "ideas/signal_queue", "ideas/context_packs", "ideas/item_signals", "ideas/pack_stories", "ideas/connections", "monitoring_stories"]
+    needed = ["ideas/signal_inputs", "ideas/signal_queue", "ideas/context_packs", "ideas/item_signals", "ideas/pack_stories", "ideas/connections", "ideas/story_plan", "monitoring_stories"]
     assert set(needed) <= set(modules), sorted(set(needed) - set(modules))
     task = tmp_path / "task"
     for name in ["__init__", *modules]:
@@ -509,7 +509,7 @@ def test_the_router_zip_closure_carries_the_pack_modules_and_they_import_with_on
         shutil.copy(root / "src" / "papyrus_content" / f"{name}.py", target)
     shutil.copytree(Path(yaml.__file__).parent, task / "yaml")
     script = ("import sys; sys.path.insert(0, sys.argv[1])\n"
-              "from papyrus_content.ideas import signal_inputs, signal_queue, context_packs, item_signals, pack_stories, connections, monitor_stories\n"
+              "from papyrus_content.ideas import signal_inputs, signal_queue, context_packs, item_signals, pack_stories, connections, monitor_stories, story_plan\n"
               "from papyrus_content import monitoring_stories\n"
               "assert monitoring_stories.validate_monitor_stories('p', None)['contextPacks']['enabled']\n"
               "assert not any(m in sys.modules for m in ('pydantic', 'biblicus', 'httpx', 'tiktoken'))\n")

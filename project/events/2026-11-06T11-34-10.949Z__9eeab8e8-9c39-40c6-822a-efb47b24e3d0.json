@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9eeab8e8-9c39-40c6-822a-efb47b24e3d0",
+  "issue_id": "PPY-735a4527-14f5-4375-9bb7-6a4d580e7c14",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T11:34:10.949Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Make Papyrus MCP onboarding repeatable on a stable HTTPS URL",
+    "description": "## Intent\n\nAvoid plugin recreation across fixture/service restarts. Keep the first real ChatGPT pilot on the already-supported configured public client, then add zero-secret client metadata for compatible hosts as a separate, explicitly ordered change.\n\n## Steps\n\n1. For PPY-17c201, use one approved persistent test origin and exact /api/mcp resource for the entire trial. Reserve host, issuer, callback allowlist and client ID before creating any connection. Use the currently supported preregistered public client, S256 and token endpoint method none. Do not rely on a rotating tunnel hostname or change the installed endpoint after a process restart. Choose an already approved HTTPS test environment or request the specific shared-infrastructure approval if none exists.\n2. After the first host verification, add Client ID Metadata Document resolution as an opt-in alternative in lib/mcp/oauth-clients.ts and OAuth discovery. Accept operator-pinned exact HTTPS metadata document URLs for approved hosts, never arbitrary client-supplied fetch destinations. Validate status, bounded JSON, exact self-identifying client_id, registered redirect URIs and public token authentication method. Disable fetch redirects. Restrict egress to pinned destinations and refuse private/loopback resolution; bound cache to at most one hour and fail closed on expiry if refresh fails. Preserve explicit preregistration as fallback. Do not add an open dynamic registration endpoint to Papyrus in this initiative.\n3. Keep consent mandatory and the server site/Account-bound. Support only exact configured HTTPS callback URIs and existing reviewed loopback callbacks. Include issuer, resource and host state in tests. A successful metadata lookup grants no tool access by itself. Record the registration mode per host and keep runtime gates independent of the mode.\n\n## Gherkin acceptance\n\nFeature: Reuse one Papyrus MCP installation\nScenario: The HTTPS server restarts\n  Given a host has installed the site using its stable HTTPS address\n  When the server restarts and the user reconnects from that installation\n  Then metadata and OAuth still identify the same issuer and resource\n  And no new installation or secret is required\n\nScenario: A client supplies a metadata URL outside the reviewed list\n  Given a publication accepts client metadata for approved hosts\n  When an authorization request names an unknown or redirected document\n  Then the service refuses it without fetching an unapproved destination\n  And the request creates no grant\n\n## Verification\n\nStart with the stable URL rehearsal on preregistration. Then add fixture coverage for the supported metadata method and record each tested host. A host limited to an unsupported registration mode is a compatibility finding.",
+    "issue_type": "sub-task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9bf332ad-6651-4358-883c-dcd601e22d9b",
+    "labels": []
+  }
+}

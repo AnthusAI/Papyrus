@@ -7,9 +7,9 @@ import {
   type ContentItemVersionRecord,
 } from "../lib/content-item-lifecycle";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
-import { loadNewsroomContentItemStagePage } from "./news-desk-taxonomy-client";
+import { applyChangedVersions, newestUpdatedAt } from "../lib/board-refresh";
+import { loadNewsroomContentItemStagePage, loadNewsroomContentItemsChangedSince } from "./news-desk-taxonomy-client";
 
-const REFRESH_INTERVAL_MILLISECONDS = 30_000;
 const FAILED_PAGE_RETRY_DELAY_MILLISECONDS = 5_000;
 const FAILED_PAGE_RETRY_LIMIT = 5;
 
@@ -25,21 +25,14 @@ export type PagedContentItemVersions = {
   error: string | null;
   stageHasMore: (canonicalStage: string) => boolean;
   loadMoreForStage: (canonicalStage: string) => void;
+  /** Ask each loaded stage only for rows changed since its newest row, and merge them in. The board's single timer calls this. */
+  refresh: () => Promise<void>;
 };
-
-function mergeFreshFirstPage(existing: StageBucket | undefined, fresh: StageBucket): StageBucket {
-  if (!existing || existing.pagesLoaded <= 1) return fresh;
-  const freshIds = new Set(fresh.versions.map(version => version.id));
-  return {
-    versions: [...fresh.versions, ...existing.versions.filter(version => !freshIds.has(version.id))],
-    nextToken: existing.nextToken,
-    pagesLoaded: existing.pagesLoaded,
-  };
-}
 
 /**
  * Newest-updated content items per stage, one page per stage to start, more pages on demand.
- * The periodic refresh re-fetches only first pages and keeps whatever later pages were already loaded.
+ * A refresh asks each stage only for rows updated since the newest row it already holds (the stage index's sort key), so a quiet
+ * board gets empty answers. The caller owns the timer.
  */
 export function usePagedContentItemVersions(options: {
   enabled: boolean;
@@ -72,7 +65,7 @@ export function usePagedContentItemVersions(options: {
     setBuckets(next);
   }, []);
 
-  const refreshFirstPages = useCallback(async (request: number, isInitial: boolean, stageKeys: readonly string[]) => {
+  const loadFirstPages = useCallback(async (request: number, isInitial: boolean, stageKeys: readonly string[]) => {
     if (isInitial) setLoading(true);
     try {
       const freshBuckets = await Promise.all(stageKeys.map(async stageKey => {
@@ -82,7 +75,7 @@ export function usePagedContentItemVersions(options: {
       if (generationRef.current !== request) return;
       storeBuckets(previous => {
         const next = { ...previous };
-        for (const [stageKey, fresh] of freshBuckets) next[stageKey] = mergeFreshFirstPage(previous[stageKey], fresh);
+        for (const [stageKey, fresh] of freshBuckets) next[stageKey] = fresh;
         return next;
       });
       setError(null);
@@ -93,30 +86,37 @@ export function usePagedContentItemVersions(options: {
     }
   }, [storeBuckets]);
 
+  const refresh = useCallback(async () => {
+    const request = generationRef.current;
+    const stageKeys = stageKeysToLoadRef.current.filter(stageKey => stageKey in bucketsRef.current);
+    try {
+      const changed = await Promise.all(stageKeys.map(async stageKey => {
+        const since = newestUpdatedAt(bucketsRef.current[stageKey].versions);
+        const rows = since ? await loadNewsroomContentItemsChangedSince(stageKey, since) : (await loadNewsroomContentItemStagePage(stageKey)).versions;
+        return [stageKey, rows] as const;
+      }));
+      if (generationRef.current !== request) return;
+      storeBuckets(previous => applyChangedVersions(previous, Object.fromEntries(changed)));
+    } catch {
+      // A failed background refresh keeps what is shown; the next refresh tries again.
+    }
+  }, [storeBuckets]);
+
   useEffect(() => {
     const request = ++generationRef.current;
     bucketsRef.current = {};
     setBuckets({});
     setError(null);
     if (!enabled) { setLoading(false); return; }
-    void refreshFirstPages(request, true, stageKeysToLoadRef.current);
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void refreshFirstPages(request, false, stageKeysToLoadRef.current);
-    };
-    const interval = window.setInterval(refreshWhenVisible, REFRESH_INTERVAL_MILLISECONDS);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => {
-      generationRef.current = request + 1;
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
-  }, [enabled, refreshFirstPages]);
+    void loadFirstPages(request, true, stageKeysToLoadRef.current);
+    return () => { generationRef.current = request + 1; };
+  }, [enabled, loadFirstPages]);
 
   useEffect(() => {
     if (!enabled) return;
     const stageKeysNotLoadedYet = stageKeysToLoad.filter(stageKey => !(stageKey in bucketsRef.current));
-    if (stageKeysNotLoadedYet.length) void refreshFirstPages(generationRef.current, false, stageKeysNotLoadedYet);
-  }, [enabled, refreshFirstPages, stageKeysToLoad]);
+    if (stageKeysNotLoadedYet.length) void loadFirstPages(generationRef.current, false, stageKeysNotLoadedYet);
+  }, [enabled, loadFirstPages, stageKeysToLoad]);
 
   const stageKeysInCanonicalStage = useCallback((canonicalStage: string) => Object.keys(bucketsRef.current)
     .filter(stageKey => canonicalContentItemStage(stageKey, getContentItemStageDefinitions()) === canonicalStage), []);
@@ -156,5 +156,5 @@ export function usePagedContentItemVersions(options: {
     .some(stageKey => Boolean(bucketsRef.current[stageKey]?.nextToken)), [stageKeysInCanonicalStage]);
 
   const versions = useMemo(() => Object.values(buckets).flatMap(bucket => bucket.versions), [buckets]);
-  return { versions, loading, error, stageHasMore, loadMoreForStage };
+  return { versions, loading, error, stageHasMore, loadMoreForStage, refresh };
 }

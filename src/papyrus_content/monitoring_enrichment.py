@@ -294,10 +294,11 @@ def decision_inputs(row: dict[str, Any] | None, texts: Any) -> dict[str, Any]:
 # --- delivery: copy the item's curation onto a Reference -----------------------------------------------------------------------
 
 
-def copy_curation(client: Any, reference: dict[str, Any], row: dict[str, Any], texts: Any, now: datetime) -> str:
+def copy_curation(client: Any, reference: dict[str, Any], row: dict[str, Any], texts: Any, now: datetime, *, note: str | None = None) -> str:
     """Write the item's curation onto `reference` in the shape `papyrus.reference.curate` uses (a `curation` ReferenceAttachment card
     plus `curation-*` ModelAttachment bodies), so the newsroom shows exactly what was decided and the post-delivery procedure only
-    fills gaps. A Reference that already has a card keeps it. Returns `copied` or `kept`."""
+    fills gaps. A Reference that already has a card keeps it (a person's or an earlier correction always wins). `note` labels the copy as automated and
+    not checked for completeness (the way a `correctReferenceCapture` note labels an agent's text); a monitor's delivery passes none. Returns `copied` or `kept`."""
     if read_card(client, reference) is not None:
         return "kept"
     curation = row["curation"]
@@ -308,6 +309,8 @@ def copy_curation(client: Any, reference: dict[str, Any], row: dict[str, Any], t
                 completedAt=row.get("completedAt"),
                 origin={"kind": "item-enrichment", "version": ENRICHMENT_VERSION, "sourceId": row["sourceId"],
                         "revision": row["revision"], "enrichedAt": row.get("completedAt")})
+    if note:
+        card["origin"].update(note=note, completenessChecked=False)
     text = texts.get(row["textKey"]) if row.get("textKey") else None
     if text:
         store.write(reference, TEXT_SORT_KEY, "curation-text.md", "text/markdown", text, now)

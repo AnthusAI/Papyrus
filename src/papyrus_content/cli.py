@@ -327,6 +327,7 @@ PORTED_COMMANDS = frozenset(
         "references:backfill-word-index",
         "references:backfill-public-fields",
         "references:queue-predictions",
+        "references:queue-enrichment",
         "references:retire-citation-stubs",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
@@ -765,6 +766,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:queue-predictions":
         from .references_commands import references_queue_predictions
         references_queue_predictions(flags)
+    elif route == "references:queue-enrichment":
+        from .references_commands import references_queue_enrichment
+        references_queue_enrichment(flags)
     elif route == "references:retire-citation-stubs":
         from .references_commands import references_retire_citation_stubs
         references_retire_citation_stubs(flags)
@@ -1255,6 +1259,16 @@ def references_prepare_catalog(flags: list[str]) -> None:
     )
 
 
+def attach_previews_for_created(client, changes: list[dict]) -> int:
+    """Give each Reference a plan just created its link-preview attachment, as the signed-in intake and the router do. Newly created ones only; one
+    that fails (a page that will not answer) is logged by ``attach_preview`` and never fails the command. Returns how many were tried."""
+    from .reference_images import attach_preview
+    created = [change["expected"] for change in changes if change.get("modelName") == "Reference" and change.get("action") == "create"]
+    for reference in created:
+        attach_preview(client, reference)
+    return len(created)
+
+
 def references_register_catalog(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references create-from-catalog")
@@ -1274,7 +1288,8 @@ def references_register_catalog(flags: list[str]) -> None:
     apply_record_changes(client, result["changes"])
     update_newsroom_summary_after_reference_registration(client, result["changes"], result["plan"])
     from .reference_prediction_queue import request_for_created
-    request_for_created(client, result["changes"], "references\tcreate-from-catalog")   # one Cyclotron prediction per new Reference, requested once, here
+    request_for_created(client, result["changes"], "references\tcreate-from-catalog")   # one Cyclotron prediction (and the enrichment that precedes it) per new Reference, requested once, here
+    attach_previews_for_created(client, result["changes"])   # as the signed-in intake does; a video's own thumbnail still needs `capture-thumbnails`
 
 
 def references_register_catalog_split(flags: list[str]) -> None:
@@ -1324,6 +1339,7 @@ def references_register_catalog_split(flags: list[str]) -> None:
             update_newsroom_summary_after_reference_registration(client, result["changes"], result["plan"])
             from .reference_prediction_queue import request_for_created
             request_for_created(client, result["changes"], f"references\tcreate-from-catalog-split\t{bucket_name}")
+            attach_previews_for_created(client, result["changes"])
 
 
 def references_source_status(flags: list[str]) -> None:

@@ -384,7 +384,7 @@ def comparison_documents(pack: Pack, store: ItemStore | None, existing_titles: I
 
 
 def link_concepts(client: Any, lineage_id: str, idea: Mapping[str, Any], handles: PackHandles, concept_nodes: Mapping[str, Mapping[str, Any]], actor: str,
-                  result: PackIdeasResult) -> list[str]:
+                  result: PackIdeasResult, story: Mapping[str, Any] | None = None) -> list[str]:
     linked = []
     for handle in idea["citedConcepts"]:
         hashtag = handles.concepts[handle]["hashtag"]
@@ -393,7 +393,7 @@ def link_concepts(client: Any, lineage_id: str, idea: Mapping[str, Any], handles
             if hashtag not in result.concepts_without_node:
                 result.concepts_without_node.append(hashtag)
             continue
-        link_item_concept(client, lineage_id, dict(node), "derived", actor=actor)
+        link_item_concept(client, lineage_id, dict(node), "derived", actor=actor, story=dict(story) if story else None)
         linked.append(hashtag)
     return linked
 
@@ -477,6 +477,6 @@ def draft_pack_ideas(
             continue
         if store is not None:
             store.mark(record, filed["lineageId"])
-        linked = link_concepts(client, filed["lineageId"], checked, handles, concept_nodes or {}, actor, result)
+        linked = link_concepts(client, filed["lineageId"], checked, handles, concept_nodes or {}, actor, result, story=filed.get("story"))
         result.filed.append({**summary, "itemId": filed["itemId"], "lineageId": filed["lineageId"], "linkedReferences": filed["linked"], "linkedConcepts": linked})
     return result

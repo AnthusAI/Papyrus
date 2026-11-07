@@ -42,6 +42,7 @@ def register_pending_catalog(client, options: dict, *, apply: bool) -> None:
     # outlast the client's read timeout and leave the outcome unknown (PPY-856536). The server derives each
     # Reference id from the canonical URL, so repeating any request returns the same record.
     failed = []
+    videos = 0
     total = len(items)
     for number, item in enumerate(items, start=1):
         label = f"{number}/{total}\t{item['source_uri']}"
@@ -60,9 +61,14 @@ def register_pending_catalog(client, options: dict, *, apply: bool) -> None:
         for reference in result.get("references") or [{}]:
             print(f"references\tcreate-from-catalog\trecorded\t{label}\t{reference.get('id') or '-'}\t{reference.get('curationStatus') or '-'}", flush=True)
         prediction = result.get("prediction") or {}
+        videos += int(prediction.get("videos") or 0)
         if prediction.get("ok") is False:   # the server could not queue it: the Reference exists and stays hidden until it has a prediction
             print(f"references\tcreate-from-catalog\tprediction\tNOT-REQUESTED\t{label}\t{prediction.get('error')}\t"
                   "queue it with `papyrus references queue-predictions` once the cause is fixed", flush=True)
+    from .reference_prediction_queue import video_line
+    line = video_line("references\tcreate-from-catalog", videos)   # a video's picture and transcript can only be read from a machine the platform answers
+    if line:
+        print(line, flush=True)
     print(f"references\tcreate-from-catalog\tsummary\tconfirmed={total - len(failed)}\tnot-confirmed={len(failed)}", flush=True)
     if failed:
         raise ValueError(

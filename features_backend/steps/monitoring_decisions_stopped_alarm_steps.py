@@ -36,10 +36,10 @@ def step_template(context):
 @then("every alarm in the stack notifies the one alarm topic")
 def step_notifies(context):
     # The operator listener's own alarms (papyrus-operator-*, features_backend/operator-alerts.feature) and its test alarm
-    # sit beside these six (the suggestion dead-letter alarm is the sixth); the six monitoring alarms still each notify the one topic.
+    # sit beside these six (the suggestion dead-letter alarm is the sixth, the story dead-letter alarm the seventh); the seven monitoring alarms still each notify the one topic.
     alarms = [r["Properties"] for r in context.resources.values() if r["Type"] == "AWS::CloudWatch::Alarm"
               and not r["Properties"]["AlarmName"].startswith(("papyrus-operator-", "papyrus-notify-test-"))]
-    assert len(alarms) == 6 and all(len(a["AlarmActions"]) == 1 for a in alarms)
+    assert len(alarms) == 7 and all(len(a["AlarmActions"]) == 1 for a in alarms)
     every = [r["Properties"] for r in context.resources.values() if r["Type"] in ("AWS::CloudWatch::Alarm", "AWS::CloudWatch::CompositeAlarm")]
     uses = sum(len(a.get("AlarmActions", [])) + len(a.get("OKActions", [])) for a in every)
     assert TEMPLATE.read_text().count("- !Ref AlarmTopic") == uses

@@ -123,6 +123,8 @@ def test_an_exclude_decision_is_recorded_too_with_a_low_probability(world):
 
 def test_the_decision_input_is_the_title_and_address_only_with_no_page_fetch_and_no_summary_model(world):
     world.ask()
+    for row in lane_rows(world.table):
+        row["predictFor"].pop("enrich")   # a request queued before enrichment existed
     world.drain(enricher=object())   # an enricher that would explode if it were used
     (post,) = world.cyclotron.posts()
     values = post[2]["payload"]["item"]["values"]
@@ -270,9 +272,9 @@ def test_the_lambda_that_creates_the_reference_queues_it_and_reports_a_failure_i
     arguments = {"items": [{"source_uri": URL, "title": "Typed by the editor", "ingestion_rationale": "r"}]}
     env = {"PAPYRUS_GRAPHQL_ENDPOINT": ENDPOINT_ANTH}
     ok = queue.queue_after_intake(created, arguments, env=env, store=world.queue_store)
-    assert ok == {"requested": 1, "ok": True, "queued": 1, "alreadyQueued": 0}
-    (row,) = lane_rows(world.table)
-    assert row["title"] == "Typed by the editor"   # only the new, pending Reference was queued
+    assert ok == {"requested": 2, "ok": True, "queued": 2, "alreadyQueued": 0, "videos": 0}   # the new Reference and the one that arrived already voted; not the reused one
+    row = next(row for row in lane_rows(world.table) if row["predictFor"]["referenceId"] == "reference-user-intake-aaa-v1")
+    assert row["title"] == "Typed by the editor"
     broken = queue.queue_after_intake(created, arguments, env={"PAPYRUS_GRAPHQL_ENDPOINT": "https://zzz.appsync-api.us-east-1.amazonaws.com/graphql"}, store=world.queue_store)
     assert broken["ok"] is False and "not served" in broken["error"]
     assert '"referencePrediction": "queue_failed"' in capsys.readouterr().out
@@ -328,7 +330,7 @@ def test_the_created_references_of_a_plan_are_the_only_ones_requested():
                {"modelName": "Reference", "action": "create", "expected": reference_row("reference-done-v1", predictionDecidedAt="2026-11-05T09:00:00.000Z", predictedAcceptProbability=0.6)},
                {"modelName": "Reference", "action": "create", "expected": reference_row("reference-voted-v1", curationStatus="accepted")},
                {"modelName": "Assignment", "action": "create", "expected": {"id": "assignment-1"}}]
-    assert [item["referenceId"] for item in queue.references_created_by(changes)] == ["reference-new-v1"]
+    assert [item["referenceId"] for item in queue.references_created_by(changes)] == ["reference-new-v1", "reference-voted-v1"]   # a Reference created already voted still needs a prediction
 
 
 def test_the_site_function_queues_for_editors_only_and_answers_a_rejection_as_data(world):
@@ -351,15 +353,16 @@ def test_the_site_function_queues_for_editors_only_and_answers_a_rejection_as_da
 # --- the commands ---------------------------------------------------------------------------------------------------------------------------------------
 
 class Listing:
+    """The prediction index, highest score first, one partition at a time (``iterate_newest_first``)."""
     endpoint = ENDPOINT_ANTH
 
     def __init__(self, rows):
         self.rows = rows
         self.asked = []
 
-    def list_by_index(self, index, key):
+    def iterate_newest_first(self, index, key):
         self.asked.append((index, key))
-        return list(self.rows)
+        yield from (row for row in self.rows if row.get("feedStateKey") == key)
 
 
 @pytest.fixture
@@ -370,28 +373,50 @@ def operator(world, monkeypatch):
     return world
 
 
-def test_the_by_hand_command_lists_the_pending_references_once_and_queues_only_those_without_a_prediction(operator, monkeypatch, capsys):
+def test_the_by_hand_command_reads_the_prediction_index_once_and_queues_only_those_without_a_prediction(operator, monkeypatch, capsys):
     from papyrus_content import references_commands as commands
-    rows = [reference_row("reference-a-v1", sourceUri="https://example.org/a"),
-            reference_row("reference-b-v1", sourceUri="https://example.org/b", predictionDecidedAt="2026-11-05T09:00:00.000Z", predictedAcceptProbability=0.4),
-            reference_row("reference-c-v1", sourceUri="https://example.org/c", versionState="superseded")]
+    unrated, rated = f"{CORPUS}#unrated", f"{CORPUS}#rated"
+    rows = [reference_row("reference-a-v1", sourceUri="https://example.org/a", feedStateKey=unrated, predictionSortKey="0.500000#x"),
+            reference_row("reference-b-v1", sourceUri="https://example.org/b", predictionDecidedAt="2026-11-05T09:00:00.000Z", predictedAcceptProbability=0.4,
+                          feedStateKey=unrated, predictionSortKey="0.400000#x"),
+            reference_row("reference-c-v1", sourceUri="https://example.org/c", versionState="superseded", feedStateKey=unrated, predictionSortKey="0.500000#x"),
+            reference_row("reference-d-v1", sourceUri="https://example.org/d", curationStatus="accepted", feedStateKey=rated, predictionSortKey="0.500000#x")]
     client = Listing(rows)
     monkeypatch.setattr(commands, "create_authoring_client", lambda: (client, {}))
     commands.references_queue_predictions(["--site", "anth-us", "--dry-run"])
-    assert "without-prediction\t1\tdry-run" in capsys.readouterr().out and not lane_rows(operator.table)
+    assert "without-prediction\t2\tdry-run" in capsys.readouterr().out and not lane_rows(operator.table)
     commands.references_queue_predictions(["--site", "anth-us"])
     out = capsys.readouterr().out
-    assert "prediction\trequested\t1" in out and client.asked == [("referencesByCurationStatusKey", f"{CORPUS}#pending")] * 2
-    assert [row["predictFor"]["referenceId"] for row in lane_rows(operator.table)] == ["reference-a-v1"]
+    assert "prediction\trequested\t2" in out
+    assert client.asked == [("referencesByFeedStateAndPrediction", unrated), ("referencesByFeedStateAndPrediction", rated)] * 2
+    assert sorted(row["predictFor"]["referenceId"] for row in lane_rows(operator.table)) == ["reference-a-v1", "reference-d-v1"]   # an accepted one too
     commands.references_queue_predictions(["--site", "anth-us"])   # again: nothing new is queued, nothing breaks
-    assert len(lane_rows(operator.table)) == 1
+    assert len(lane_rows(operator.table)) == 2
+
+
+def test_the_enrichment_backfill_queues_enrich_only_requests_for_uncaptured_references_and_is_idempotent(operator, monkeypatch, capsys):
+    from papyrus_content import references_commands as commands
+    unrated = f"{CORPUS}#unrated"
+    rows = [reference_row("reference-a-v1", sourceUri="https://example.org/a", feedStateKey=unrated),
+            reference_row("reference-b-v1", sourceUri="https://example.org/b", feedStateKey=unrated, captureState="full"),
+            reference_row("reference-c-v1", sourceUri="https://www.youtube.com/watch?v=dQw4w9WgXcQ", feedStateKey=unrated, predictedAcceptProbability=0.4)]
+    monkeypatch.setattr(commands, "create_authoring_client", lambda: (Listing(rows), {}))
+    commands.references_queue_enrichment(["--site", "anth-us", "--dry-run"])
+    out = capsys.readouterr().out
+    assert "needing-enrichment\t2\tdry-run" in out and "1 video needs a local run" in out and not lane_rows(operator.table)
+    commands.references_queue_enrichment(["--site", "anth-us"])
+    assert "enrichment\trequested\t2" in capsys.readouterr().out
+    assert sorted(row["predictFor"]["referenceId"] for row in lane_rows(operator.table)) == ["reference-a-v1", "reference-c-v1"]
+    assert all(row["predictFor"]["enrichOnly"] for row in lane_rows(operator.table))
+    commands.references_queue_enrichment(["--site", "anth-us"])
+    assert len(lane_rows(operator.table)) == 2
 
 
 def test_the_by_hand_command_fails_loudly_when_the_requests_cannot_be_made(monkeypatch, capsys):
     from papyrus_content import references_commands as commands
     monkeypatch.setattr("papyrus_content.user_auth_mode.user_auth_requested", lambda: False)
     monkeypatch.setattr("papyrus_content.monitoring_view.default_email_store_factory", lambda env: (lambda: None))
-    monkeypatch.setattr(commands, "create_authoring_client", lambda: (Listing([reference_row()]), {}))
+    monkeypatch.setattr(commands, "create_authoring_client", lambda: (Listing([reference_row(feedStateKey=f"{CORPUS}#unrated", predictionSortKey="0.500000#x")]), {}))
     with pytest.raises(ValueError, match="NOT-REQUESTED"):
         commands.references_queue_predictions(["--site", "anth-us"])
     assert "NOT-REQUESTED" in capsys.readouterr().out

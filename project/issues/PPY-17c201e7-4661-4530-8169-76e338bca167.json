@@ -1,0 +1,37 @@
+{
+  "id": "PPY-17c201e7-4661-4530-8169-76e338bca167",
+  "title": "Verify Papyrus MCP on an HTTPS pilot site and live clients",
+  "description": "Verify the authenticated MCP server and optional Apps on a dedicated stable HTTPS test publication. PPY-fdf150 specifies the behavior. PR #1244 and docs/mcp-host-trial.md are the current baseline. The previous Quick Tunnel run proved a synthetic Chromium flow with the host callback intercepted. It did not verify a real upstream grant or ChatGPT.\n\n## Ordered gate\n\n1. Integrate and verify the local transport, PPY-c898ac, PPY-cf2ab5, PPY-ca57a5, PPY-cc5b44 and PPY-a45a7f. Confirm the same browser session resumes and asks for one approval. Run seeded HTTP and browser harnesses, OAuth/Cognito fixtures, concurrency and replay, old JWT renewal, 7-day fake clock, permission removal, cross-site/Account, configured feature gates and production reader closure. Record tools and cards separately. Tests must work with the UI closed; never operate the user's Mac UI.\n2. Reserve an already approved persistent HTTPS origin with the exact console resource /api/mcp. Reuse the first part of PPY-735a45 without waiting for client metadata support. Keep the same origin, exact registered ChatGPT callback and public client ID across restarts; client auth method none. If no approved environment exists, identify the single infrastructure approval needed and continue local checks. Use a test publication and synthetic content; no AWS or upstream credentials on a client host.\n3. Test real Google/Cognito staff and same-origin Prospectus reader on the configured HTTPS site. Verify normal sign-in and resume, one Allow or Deny, actual callback arrival, exact resource and issuer, successful exchange, rotated refresh after the original downstream JWT expires, hard deadline, Disconnect, denied stale or foreign connections, and inability of a removed staff member to mutate. Verify the fresh-sign-in proof required by PPY-c898ac; if the provider cannot prove it, keep renewable mode off. Record what was simulated, time-accelerated or wall-clock observed.\n4. Only after terminal/headless rehearsal passes, test actual ChatGPT using the existing saved connection where applicable. Use the real host callback rather than intercept it. Run the shared acceptance test after restarting the server. Refresh and then Disconnect through the same saved installation. Confirm the old access token fails on rotation, both successor tokens fail after Disconnect, and an independent connection survives. Test discovery and read first, then safe synthetic write and optional card separately. In the reader flow exercise only enabled participation actions and assert private editorial denial.\n5. After ChatGPT, verify Claude Desktop, then Antigravity, Cursor, Brockbot and other candidates. DataParade uses Claude Desktop then ChatGPT on its own endpoint. Record separately endpoint reachability, registration mode, browser handoff, exchange and refresh, tool call, and card rendering and mutation. Treat an unsupported host registration mode as a compatibility finding. Retest compatible metadata-client onboarding once PPY-735a45 lands. Never infer host support from headless tests.\n6. Record branch, engine PR, CI, site approval and exact checks. Merge via develop after review. Release or site activation follows the repository policy and separate authorization. Keep split-origin reader work in PPY-17cdb1 and deferred domain operations in PPY-427b05.\n\n## Gherkin acceptance\n\nFeature: Verify a reusable hosted MCP connection\nScenario: A host keeps its installed connection after a restart\n  Given the host is installed at a stable HTTPS site address\n  When the server restarts and the existing host refreshes\n  Then tools work through the same installation\n  And a supported card action reaches the same operation as a chat tool call\n\nScenario: A reader tries an editorial action\n  Given the reader has completed the real site sign-in\n  When the reader host requests private editorial tools\n  Then those tools are unavailable\n  And allowed participation remains attributed to the verified site subject",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2bc3e82b-f0a9-4331-8e9a-cb861a449dd9",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-cc5b44bb-cb35-4056-be73-1ad4f90a1aba",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a45a7f86-3eb8-428f-a3f6-7978cf0fdb8b",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "68b801cf-3151-49d1-9432-06c37883a0b0",
+      "author": "home",
+      "text": "PR #1244 on feature/PPY-2bc3e8-authenticated-mcp fixes the consent browser redirect at d0b2381f. Terminal-only Chromium rehearsal over the existing HTTPS pilot reached the exact ChatGPT callback (intercepted in the test), exchanged the code with PKCE, discovered tools, rendered and approved a synthetic Reference card through MCP, rejected a stale write, and rotated refresh credentials. The OAuth HTTP/runtime tests, 10 Gherkin scenarios, and TypeScript typecheck passed. Actual ChatGPT authorization and card rendering remain to be confirmed on the existing connection.",
+      "created_at": "2026-11-06T01:47:11.590479Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-05T20:45:43.174636Z",
+  "updated_at": "2026-11-06T13:40:42.905039Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
