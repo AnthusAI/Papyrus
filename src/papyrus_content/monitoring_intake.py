@@ -70,10 +70,16 @@ def listing_for(client) -> ReferenceListing | None:
 
 
 class ReferenceIntake:
-    def __init__(self, client, monitor: Monitor, *, auth_mode: str, persist=None, listing: ReferenceListing | None = None):
+    def __init__(self, client, monitor: Monitor, *, auth_mode: str, persist=None, listing: ReferenceListing | None = None,
+                 tenant_id: str | None = None):
         if auth_mode != "iam":
             raise ValueError("This Monitor worker requires explicitly configured IAM; editorial-session intake is owned by PR367. No IAM fallback.")
-        if client.endpoint.rstrip("/") != monitor.endpoint.rstrip("/") or getattr(client, "tenant_id", None):
+        # `tenant_id` is the tenant the publication names (its router entry's `tenantId`), or None. The client must be scoped to exactly that tenant:
+        # a tenant client for a publication that names none, or for another tenant's, is refused, as is a plain client for a tenant publication.
+        # Reference, KnowledgeCorpus and KnowledgeImportRun are not tenant models (tenancy.TENANT_MODELS), so under a tenant client they are
+        # written and read exactly as without one; the tenant only has to match so the run never mixes one tenant's client with another's publication.
+        if (client.endpoint.rstrip("/") != monitor.endpoint.rstrip("/")
+                or (getattr(client, "tenant_id", None) or None) != (tenant_id or None)):
             raise ValueError("Monitor endpoint/tenant binding does not match the selected worker client")
         corpora = [r for r in client.list_records("KnowledgeCorpus") if r.get("role") == "canonical"]
         if (len(corpora) != 1 or corpora[0].get("id") != monitor.corpus_id
