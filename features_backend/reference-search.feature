@@ -19,6 +19,14 @@ Feature: The References page search finds a Reference again by its words and by 
     Then the rejected Reference is the only result, found by words in its authors
     And it carries its whole record, so the page can draw an ordinary card
 
+  Scenario: The word search asks the word table in a way DynamoDB accepts
+    Given a site with an unrated, an accepted and a rejected Reference, the rejected one by "Marta Okafor"
+    When an editor searches all References for "Okafor"
+    Then the rejected Reference is the only result, found by words in its authors
+    # The table's key names are reserved words in DynamoDB; a lookup that names them bare is refused ("Attribute name is a reserved keyword")
+    # and the whole word search reports "Word search could not read the References". The test table refuses it the same way, so this fails if
+    # the lookup ever names a key attribute without an alias.
+
   Scenario: A word from a title finds an unrated Reference
     Given a site with an unrated, an accepted and a rejected Reference, the rejected one by "Marta Okafor"
     When an editor searches unrated References for "notebooks"
