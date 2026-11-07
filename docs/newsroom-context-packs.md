@@ -13,13 +13,15 @@ The command only reads. It prints what the agent would be given, what each layer
 
 - **`LAYERS`** is the table of everything a pack can hold: each layer's heading, whether it is core or a ring, and the function that builds it.
 - **`PROFILES`** defines each agent as data: its role text and its layers.
-- **Blocks** are the layers agents share: `STORY_BLOCK` (the assignment, the Story, its References, its conversation, its research), `SECTION_BLOCK` (the section's core concepts and the References about them, then what the section has published and its top accepted References) and `PUBLICATION_BLOCK` (the same for the other sections).
+- **Blocks** are the layers agents share: `STORY_BLOCK` (the assignment, the Story, where it is in the procedure, how it will be reviewed for four audiences, its References, its conversation, its research), `SECTION_BLOCK` (the section's core concepts and the References about them, then what the section has published and its top accepted References) and `PUBLICATION_BLOCK` (the same for the other sections).
 
 | Agent | Needs a Story | Layers beyond the blocks |
 | --- | --- | --- |
 | `reporter` | Yes | None |
 | `copywriter` | Yes | The site's editorial policies, and published Stories in full as examples of the voice |
 | `editor` | No | The section's Stories in progress |
+
+The `audience_lenses` layer is core, so it is never shed. It is generated from `src/papyrus_content/audience_lenses.py` and cut to the agent's role ([four-lens review](four-lens-review.md)).
 
 To add a signal, change the layer or the ranking it belongs to (`reference_rank` for References). To add an agent, add a profile. To add a kind of context, add a row to `LAYERS` and name it in the profiles that need it.
 

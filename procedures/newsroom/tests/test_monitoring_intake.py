@@ -245,3 +245,45 @@ def test_listing_for_gives_one_listing_per_client():
 
     client = Client()
     assert listing_for(client) is listing_for(client) and listing_for(Client()) is not listing_for(client)
+
+
+class TenantClient(Client):
+    def __init__(self, tenant_id):
+        super().__init__()
+        self.tenant_id = tenant_id
+
+
+def tenant_intake(client, tenant_id, tmp_path):
+    saved = []
+    monitor = Monitor("hn", "publication", "knowledge-corpus-publication", client.endpoint, tmp_path / "state")
+    return monitor, saved, ReferenceIntake(client, monitor, auth_mode="iam", persist=lambda rows: saved.extend(rows), tenant_id=tenant_id)
+
+
+def test_a_tenant_publication_is_delivered_through_its_own_tenant_client(tmp_path):
+    client = TenantClient("machines-on-machines")
+    monitor, saved, sink = tenant_intake(client, "machines-on-machines", tmp_path)
+    item = SourceItem("123", "A source", "https://example.org/paper", "https://news.ycombinator.com/item?id=123", None)
+    receipt = sink(item, {**monitor.binding, "sourceId": "123", "sourceItemUrl": item.source_item_url,
+                          "fingerprint": item.fingerprint, "observedAt": "2026-11-07T00:00:00Z", "revision": 1})
+    assert receipt["referenceReused"] is False and len(client.writes) == 1
+    assert "tenantId" not in client.references[0]   # Reference is not a tenant model: nothing tenant-shaped is written
+
+
+@pytest.mark.parametrize("client_tenant, publication_tenant", [
+    ("another-tenant", "machines-on-machines"),   # a tenant that differs from the publication's
+    ("machines-on-machines", None),               # a tenant client for a publication that names none
+    (None, "machines-on-machines"),               # a plain client for a tenant publication
+])
+def test_a_tenant_that_does_not_match_the_publications_is_refused_before_mutation(tmp_path, client_tenant, publication_tenant):
+    client = TenantClient(client_tenant)
+    monitor = Monitor("hn", "publication", "knowledge-corpus-publication", client.endpoint, tmp_path / "state")
+    with pytest.raises(ValueError, match="endpoint/tenant binding"):
+        ReferenceIntake(client, monitor, auth_mode="iam", tenant_id=publication_tenant)
+    assert client.writes == []
+
+
+def test_a_tenant_publication_is_still_refused_on_another_endpoint(tmp_path):
+    client = TenantClient("machines-on-machines")
+    monitor = Monitor("hn", "publication", "knowledge-corpus-publication", "https://other.org/graphql", tmp_path / "state")
+    with pytest.raises(ValueError, match="endpoint/tenant binding"):
+        ReferenceIntake(client, monitor, auth_mode="iam", tenant_id="machines-on-machines")

@@ -774,6 +774,179 @@ Resources:
       AlarmActions:
         - !Ref AlarmTopic
 
+  # The monitor-stories queue (src/papyrus_content/ideas/story_plan.py). The daily task (the router function) only PLANS: it reads the publication once and sends one
+  # message per candidate, packs and single items in the order it ranked them. StoryWorkerFunction drafts one message per invocation. A FIFO queue with the publication
+  # as the message group, so a publication's steps run in order and one at a time (two publications may run side by side) and an idea is never filed against one filed a
+  # moment before by the next step. A step that fails is delivered again until MaxReceiveCount, then waits in the dead-letter queue, whose alarm tells a person; the last
+  # try leaves a record so the plan still finishes. The visibility timeout is six times the worker's timeout, as an event source mapping advises.
+  StoryDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  StoryQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      VisibilityTimeout: 1800
+      MessageRetentionPeriod: 1209600   # the plan's rows expire a day after this (PLAN_TTL_SECONDS)
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt StoryDeadLetterQueue.Arn
+        maxReceiveCount: 3   # keep in step with MAXIMUM_RECEIVES in ideas/story_plan.py
+
+  StoryWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/papyrus-monitoring-story-worker
+      RetentionInDays: 30
+
+  # One step of a plan: the same code zip and entry point as the router (an SQS event whose messages are story steps goes to monitoring_router.handle_story_queue), in a
+  # function and role of its own because the router function is held to one execution at a time and RouterRole already has the 20 managed policies a role may have. The
+  # role holds exactly what a step asks for: the router's table (the plan's rows, the retry memory), the queue, the model and search keys, and the AppSync fields of filing an
+  # idea (the Item, its based_on and concept edges, the Humanus gate) and of the plan's review request and curation flag. The API is a wildcard, as in RouterIdeaPolicy.
+  # test_monitor_stories_queue.py records every field a step asks for and checks this list covers it.
+  StoryWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      ManagedPolicyArns: !If
+        - HasBedrockWebSearch
+        - [!Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonBedrockMantleInferenceAccess"]
+        - !Ref AWS::NoValue
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: story-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: MonitoringTable
+                Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:Query]
+                Resource: !GetAtt MonitoringTable.Arn
+              - Sid: OwnLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${StoryWorkerLogGroup.Arn}:*"
+              - Sid: StoryQueueConsume
+                Effect: Allow
+                Action: [sqs:ReceiveMessage, sqs:DeleteMessage, sqs:GetQueueAttributes, sqs:ChangeMessageVisibility]
+                Resource: !GetAtt StoryQueue.Arn
+              - Sid: StoryStepFields
+                Effect: Allow
+                Action: appsync:GraphQL
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getItem"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getPublishedItem"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReference"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getReviewRequest"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/itemByTenantSlug"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialCheckSettings"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialContext"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/getEditorialCheckRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialFeedbacks"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listEditorialPolicies"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listItemsByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listNewsroomSections"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReferencesByLineageAndVersion"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Query/fields/listReviewRequests"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createItem"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateItem"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateSemanticRelation"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createEditorialCheckRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateEditorialCheckRun"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/createReviewRequest"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/*/types/Mutation/fields/updateReviewRequest"
+              # The model key (the one item enrichment uses), the TypeSafe key of the gate's judgment lane and the search keys the link explorer uses. A parameter left at
+              # its default names no parameter, so its grant reads nothing.
+              - Sid: ReadKeys
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${EnrichmentOpenAiKeyParameter}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${EditorialJudgmentKeyParameter}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TavilyKeyParameter}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${OpenAiSearchKeyParameter}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${PerplexityKeyParameter}"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${GeminiKeyParameter}"
+              - Sid: DecryptKeys
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+              - Sid: BedrockWebSearch
+                Effect: Allow
+                Action: ["bedrock:CallWithBearerToken", "bedrock-websearch:InvokeSearch", "bedrock-websearch:InvokeFetch"]
+                Resource: "*"
+
+  StoryWorkerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: StoryWorkerLogGroup
+    Properties:
+      FunctionName: papyrus-monitoring-story-worker
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: papyrus_content.monitoring_router.handler
+      MemorySize: 1024   # a step holds the pages it opens, PDFs included
+      Timeout: 300   # one step: 8 attempts took 199 s in the old run, 25 s each; the queue's visibility timeout is six times this
+      Role: !GetAtt StoryWorkerRole.Arn
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref RouterCodeKey
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MonitoringTable
+          PAPYRUS_ROOT: /var/task
+          PAPYRUS_GRAPHQL_AUTH: iam
+          ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
+          EDITORIAL_JUDGMENT_KEY_PARAMETER: !If [HasEditorialJudgmentKey, !Ref EditorialJudgmentKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
+          WEB_SEARCH_PROVIDERS: !If [HasWebSearchChain, !Ref WebSearchProviders, !Ref AWS::NoValue]
+          PAPYRUS_OPENAI_KEY_PARAMETER: !If [HasOpenAiSearchKey, !Ref OpenAiSearchKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_PERPLEXITY_KEY_PARAMETER: !If [HasPerplexityKey, !Ref PerplexityKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_GEMINI_KEY_PARAMETER: !If [HasGeminiKey, !Ref GeminiKeyParameter, !Ref AWS::NoValue]
+          BEDROCK_SEARCH_MODEL: !If [HasBedrockSearchModel, !Ref BedrockSearchModel, !Ref AWS::NoValue]
+
+  StoryEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      FunctionName: !Ref StoryWorkerFunction
+      EventSourceArn: !GetAtt StoryQueue.Arn
+      BatchSize: 1
+      FunctionResponseTypes: [ReportBatchItemFailures]
+      ScalingConfig:
+        MaximumConcurrency: 2   # the least a mapping allows; a FIFO queue runs one publication's steps at a time whatever this is
+
+  StoryDeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: papyrus-monitoring-story-dead-letters
+      AlarmDescription: >-
+        A step of the daily monitor-stories plan failed three times and its message is waiting in the story dead-letter queue (the plan finished without it). Read the
+        story worker's {"storyStep": "failed"} log lines for the reason; after the cause is fixed, move the message back to the story queue (SQS redrive).
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - { Name: QueueName, Value: !GetAtt StoryDeadLetterQueue.QueueName }
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+
   RouterRole:
     Type: AWS::IAM::Role
     Properties:
@@ -820,6 +993,11 @@ Resources:
                 Effect: Allow
                 Action: sqs:SendMessage
                 Resource: !GetAtt SuggestQueue.Arn
+              # The daily monitor-stories task plans and sends one message per step to the story queue; StoryWorkerFunction drafts them.
+              - Sid: StoryQueueSend
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt StoryQueue.Arn
               - Sid: CyclotronMachineInvoker
                 Effect: Allow
                 Action: sts:AssumeRole
@@ -906,6 +1084,7 @@ Resources:
           PAPYRUS_ROOT: /var/task
           PAPYRUS_GRAPHQL_AUTH: iam
           SUGGEST_QUEUE_URL: !Ref SuggestQueue
+          STORY_QUEUE_URL: !Ref StoryQueue
           PROCEDURE_RUNNER_FUNCTION: !If [HasProcedureRunner, !Ref ProcedureRunnerFunctionName, !Ref AWS::NoValue]
           ENRICHMENT_BUCKET: !Ref EnrichmentBucket
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]

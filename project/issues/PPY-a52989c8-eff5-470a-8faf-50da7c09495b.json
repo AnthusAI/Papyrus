@@ -1,0 +1,25 @@
+{
+  "id": "PPY-a52989c8-eff5-470a-8faf-50da7c09495b",
+  "title": "Connect the newsroom image picker to shared image operations",
+  "description": "As a newsroom editor, I want the existing four-option picker to use the same image workflow as the CLI and MCP so that choices and image provenance agree across interfaces.\n\nFeature: Newsroom image curation parity\n  Scenario: Pick an image in the newsroom\n    Given an editor opens image selection for a Story\n    When they search and accept a candidate\n    Then the picker applies it through the shared image workflow\n    And preserves the existing search, reload, source credit and saved-cover behavior\n  Scenario: Work with an agent's draft choice\n    Given an agent selected a draft image for an item\n    When the editor opens the item\n    Then the editor can inspect and replace that selection\n\nSupport generated candidates when configured, while preserving an option to leave the existing placeholder. Keep publication-specific visual guidance in publication policy.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-8553c698-7339-4884-be07-61ad5f7fde73",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-06T14:42:19.206287Z",
+  "updated_at": "2026-11-06T14:42:39.846061Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

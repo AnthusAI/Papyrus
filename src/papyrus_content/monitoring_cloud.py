@@ -186,10 +186,28 @@ class DynamoStore:
         return self.query_prefix(pk(monitor_id), "QUERY#")
 
     def put_receipt(self, monitor_id, record):
-        self.table.put_item(Item=record)
+        self.table.put_item(Item=_storable(record))
 
     def put_state(self, monitor_id, record):
-        self.table.put_item(Item=record)
+        self.table.put_item(Item=_storable(record))
+
+
+TINY_NUMBER = Decimal("1e-100")   # DynamoDB stores numbers from 1E-130 up, with 38 digits; anything smaller is a rounding artefact of a statistic
+
+
+def _storable(value):
+    """The record with every number made one DynamoDB will store. boto3 refuses a Decimal that is too small or has more than 38 digits (``Underflow`` /
+    ``Inexact``) and that refusal fails the whole write, so a receipt carrying one odd statistic was lost. A number below 1e-100 is stored as 0 and the rest
+    keep 15 significant digits; everything else is unchanged."""
+    if isinstance(value, dict):
+        return {key: _storable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_storable(item) for item in value]
+    if isinstance(value, float):
+        value = Decimal(repr(value))
+    if isinstance(value, Decimal) and value.is_finite() and value != 0:
+        return Decimal(0) if abs(value) < TINY_NUMBER else Decimal(f"{value:.15g}")
+    return value
 
 
 def _validate_config(raw: dict) -> dict:

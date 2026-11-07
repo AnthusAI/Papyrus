@@ -266,7 +266,10 @@ class DynamoWordSource:
         postings: list[Posting] = []
         start_key: dict[str, Any] | None = None
         while True:
-            kwargs: dict[str, Any] = {"KeyConditionExpression": "shard = :s AND begins_with(entry, :p)", "ExpressionAttributeValues": values}
+            # `shard` is a DynamoDB reserved word; a bare name in a key condition is refused ("Attribute name is a reserved keyword"), so both key
+            # attributes go through aliases.
+            kwargs: dict[str, Any] = {"KeyConditionExpression": "#shard = :s AND begins_with(#entry, :p)",
+                                      "ExpressionAttributeNames": {"#shard": "shard", "#entry": "entry"}, "ExpressionAttributeValues": values}
             if start_key:
                 kwargs["ExclusiveStartKey"] = start_key
             page = self._words.query(**kwargs)

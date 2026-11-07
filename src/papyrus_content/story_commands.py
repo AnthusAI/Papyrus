@@ -7,6 +7,7 @@ import re
 import sys
 from pathlib import Path
 
+from .audience_lenses import lens_lines, lens_payload, lens_step_states
 from .graphql_authoring import create_authoring_client
 from .newsroom_process import assess, next_lines, print_next_lines, print_reminder, reminder_assessment, step_lines, story_facts, warn_skipped
 from .options import normalize_string, parse_boolean_option, parse_options, parse_repeated_option, resolve_mutation_apply
@@ -417,16 +418,18 @@ def stories_list(flags: list[str]) -> None:
 def stories_next(flags: list[str]) -> None:
     """papyrus stories next --story <lineage> [--json]
 
-    Read only. Prints each step of the Story procedure with its state, then what comes next and any skipped steps (docs/story-procedure.md)."""
+    Read only. Prints each step of the Story procedure with its state, then what comes next and any skipped steps (docs/story-procedure.md), then one
+    `lens` line for each of the four review steps that is not done (docs/four-lens-review.md)."""
     options = parse_options(flags)
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
     assessment = assess(story_facts(client, lineage_id))
+    states = lens_step_states(client, lineage_id)
     if options.get("json"):
-        print(json.dumps({"ok": True, "story": lineage_id, **assessment}, indent=2))
+        print(json.dumps({"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id)}, indent=2))
         return
     print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
-    for line in step_lines(assessment) + next_lines(assessment):
+    for line in step_lines(assessment) + next_lines(assessment) + lens_lines(states, lineage=lineage_id):
         print(line)
 
 

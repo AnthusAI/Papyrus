@@ -182,8 +182,8 @@ def file_idea_item(
         if gate is not None and result is not None and not result.get("skipped"):
             gate.record(existing, result)
     lineage_id = existing.get("lineageId") or item_id
-    linked = [link_reference_to_story(client, lineage_id, row["id"], role=BASED_ON, actor=actor, now=now)["referenceLineageId"] for row in references]
-    return {"itemId": item_id, "lineageId": lineage_id, "created": created, "linked": linked, "check": check}
+    linked = [link_reference_to_story(client, lineage_id, row["id"], role=BASED_ON, actor=actor, now=now, story=existing)["referenceLineageId"] for row in references]
+    return {"itemId": item_id, "lineageId": lineage_id, "created": created, "linked": linked, "check": check, "story": existing}
 
 
 def idea_rows(client: Any) -> list[dict[str, Any]]:

@@ -504,6 +504,13 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "feedStateKey",
         "fields": REFERENCE_FIELDS,
     },
+    "referencesByCorpusAndExternalItem": {
+        "field": "listReferencesByCorpusAndExternalItem",
+        "partitionKey": "corpusId",
+        "partitionType": "ID",
+        "sortKey": "externalItemId",
+        "fields": REFERENCE_FIELDS,
+    },
     "referencesByMediumFeedAndArrival": {
         "field": "listReferencesByMediumFeedAndArrival",
         "partitionKey": "mediumFeedKey",
@@ -610,6 +617,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": KNOWLEDGE_RAW_PAYLOAD_FIELDS,
         "partitionType": "ID",
     },
+    "referenceAttachmentsByReferenceVersionAndSortKey": {
+        "field": "listReferenceAttachmentsByReferenceVersionAndSortKey",
+        "partitionKey": "referenceVersionKey",
+        "fields": REFERENCE_ATTACHMENT_FIELDS,
+    },
     "referenceAttachmentsByReferenceLineageAndSortKey": {
         "field": "listReferenceAttachmentsByReferenceLineageAndSortKey",
         "partitionKey": "referenceLineageId",
@@ -619,11 +631,14 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
 }
 
 
-def _index_query(field: str, partition_key: str, fields: str, partition_type: str = "String") -> str:
+def _index_query(field: str, partition_key: str, fields: str, partition_type: str = "String", sort_key: str | None = None) -> str:
     operation = field[0].upper() + field[1:]
+    # `sort_key` narrows the partition to the rows whose sort field equals one value (a key condition, not a filter: only those rows are read).
+    sort_variable = ", $sortEq: ModelStringKeyConditionInput" if sort_key else ""
+    sort_argument = f", {sort_key}: $sortEq" if sort_key else ""
     return f"""
-query {operation}(${partition_key}: {partition_type}!, $limit: Int, $nextToken: String) {{
-  {field}({partition_key}: ${partition_key}, limit: $limit, nextToken: $nextToken) {{
+query {operation}(${partition_key}: {partition_type}!{sort_variable}, $limit: Int, $nextToken: String) {{
+  {field}({partition_key}: ${partition_key}{sort_argument}, limit: $limit, nextToken: $nextToken) {{
     items {{ {fields} }}
     nextToken
   }}
@@ -1032,26 +1047,31 @@ class PapyrusGraphQLAuthoringClient:
             next_token = connection.get("nextToken")
         return rows
 
-    def list_by_index(self, index_name: str, key_value: str, *, limit: int = 100) -> list[dict[str, Any]]:
+    def list_by_index(self, index_name: str, key_value: str, *, limit: int = 100, sort_eq: str | None = None) -> list[dict[str, Any]]:
+        """Every row of one index partition. ``sort_eq`` (for an index whose definition names a ``sortKey``) keeps only the rows with that sort value."""
         index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
         definition = INDEX_DEFINITIONS[index_name]
+        sort_key = definition.get("sortKey") if sort_eq is not None else None
+        if sort_eq is not None and not sort_key:
+            raise ValueError(f"Index {index_name} has no sort key to match.")
         query = _index_query(
             definition["field"],
             definition["partitionKey"],
             definition["fields"],
             definition.get("partitionType", "String"),
+            sort_key,
         )
         items: list[dict[str, Any]] = []
         next_token = None
         while True:
-            result = self.graphql(
-                query,
-                {
-                    definition["partitionKey"]: key_value,
-                    "limit": limit,
-                    "nextToken": next_token,
-                },
-            )
+            variables = {
+                definition["partitionKey"]: key_value,
+                "limit": limit,
+                "nextToken": next_token,
+            }
+            if sort_key:
+                variables["sortEq"] = {"eq": sort_eq}
+            result = self.graphql(query, variables)
             connection = result.get(definition["field"]) or {}
             items.extend(entry for entry in connection.get("items") or [] if entry)
             next_token = connection.get("nextToken")

@@ -1,0 +1,28 @@
+{
+  "id": "PPY-59c772df-3671-4ec8-b2d0-d6f063090cf9",
+  "title": "Define the four-lens review and final approval workflow",
+  "description": "Design built-in review expectations for people, reader agents, search crawlers and social previews. Determine what evidence, findings, unresolved risks and editorial judgment the final review presents, what happens when a lens cannot be assessed, and how this reaches all newsroom agents. Integrate existing context packs, mission and site-specific policy without requiring publications to restate universal defaults. Decide which checks are advisory or gates rather than assuming a new blocking gate.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": "Papyrus newsroom automation",
+  "creator": null,
+  "parent": "PPY-a88bd4a5-4dff-4e0a-8b16-f3bd6e0fe132",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "442cc47b-8f0e-4764-ae6f-a28da96f8bdd",
+      "author": "home",
+      "text": "Ryan 2026-11-07: claimed and in progress. Each Story gets four separate checklist items, one per lens (people, AI reader agents, search crawlers, social previews), in the per-Story editorial checklist shown as Kanbus sub-tasks (branch feat/story-checklist). Done needs a findings note; skipped or not applicable needs a reason; an open lens step blocks publishing. Next in this issue: what each lens checks, and the final approval.",
+      "created_at": "2026-11-07T16:57:12.282140Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-06T20:14:14.871667Z",
+  "updated_at": "2026-11-07T16:57:12.282354Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

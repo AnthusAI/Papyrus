@@ -131,6 +131,7 @@ from .model_defaults import (
     DEFAULT_REFERENCE_SUMMARY_MODEL,
 )
 from .relations_commands import relations_backfill, relations_import_types
+from .reference_reads import attachments_for_references, reference_by_token, targeted_scope
 from .references_commands import (
     references_attach_extracted_text,
     references_backfill_corpus_storage_paths,
@@ -328,6 +329,7 @@ PORTED_COMMANDS = frozenset(
         "references:backfill-word-index",
         "references:backfill-public-fields",
         "references:queue-predictions",
+        "references:queue-enrichment",
         "references:retire-citation-stubs",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
@@ -770,6 +772,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:queue-predictions":
         from .references_commands import references_queue_predictions
         references_queue_predictions(flags)
+    elif route == "references:queue-enrichment":
+        from .references_commands import references_queue_enrichment
+        references_queue_enrichment(flags)
     elif route == "references:retire-citation-stubs":
         from .references_commands import references_retire_citation_stubs
         references_retire_citation_stubs(flags)
@@ -1260,6 +1265,16 @@ def references_prepare_catalog(flags: list[str]) -> None:
     )
 
 
+def attach_previews_for_created(client, changes: list[dict]) -> int:
+    """Give each Reference a plan just created its link-preview attachment, as the signed-in intake and the router do. Newly created ones only; one
+    that fails (a page that will not answer) is logged by ``attach_preview`` and never fails the command. Returns how many were tried."""
+    from .reference_images import attach_preview
+    created = [change["expected"] for change in changes if change.get("modelName") == "Reference" and change.get("action") == "create"]
+    for reference in created:
+        attach_preview(client, reference)
+    return len(created)
+
+
 def references_register_catalog(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references create-from-catalog")
@@ -1279,7 +1294,8 @@ def references_register_catalog(flags: list[str]) -> None:
     apply_record_changes(client, result["changes"])
     update_newsroom_summary_after_reference_registration(client, result["changes"], result["plan"])
     from .reference_prediction_queue import request_for_created
-    request_for_created(client, result["changes"], "references\tcreate-from-catalog")   # one Cyclotron prediction per new Reference, requested once, here
+    request_for_created(client, result["changes"], "references\tcreate-from-catalog")   # one Cyclotron prediction (and the enrichment that precedes it) per new Reference, requested once, here
+    attach_previews_for_created(client, result["changes"])   # as the signed-in intake does; a video's own thumbnail still needs `capture-thumbnails`
 
 
 def references_register_catalog_split(flags: list[str]) -> None:
@@ -1329,6 +1345,7 @@ def references_register_catalog_split(flags: list[str]) -> None:
             update_newsroom_summary_after_reference_registration(client, result["changes"], result["plan"])
             from .reference_prediction_queue import request_for_created
             request_for_created(client, result["changes"], f"references\tcreate-from-catalog-split\t{bucket_name}")
+            attach_previews_for_created(client, result["changes"])
 
 
 def references_source_status(flags: list[str]) -> None:
@@ -1451,8 +1468,7 @@ def references_accession_now(flags: list[str]) -> None:
     if not options.get("reference"):
         raise ValueError("references process-accession-now requires --reference <reference-id>.")
     client, auth = create_authoring_client()
-    references = client.list_records("Reference")
-    reference = find_reference_for_source_accession(references, options["reference"])
+    reference = find_reference_for_source_accession(reference_by_token(client, options["reference"]), options["reference"])
     if not reference:
         raise ValueError(f"Reference {options['reference']} was not found.")
     steering_config = load_steering_config(options.get("config")) or require_steering_config()
@@ -1462,7 +1478,7 @@ def references_accession_now(flags: list[str]) -> None:
         options.get("corpus-key"),
     )
     corpus_id = knowledge_corpus_id(corpus_config)
-    attachments = client.list_records("ReferenceAttachment")
+    attachments = attachments_for_references(client, [reference])
     assignments = client.list_records("Assignment")
     readiness = reference_source_readiness(reference, attachments, None)
     if readiness["state"] != SOURCE_READINESS_STATES["URL_ONLY"]:
@@ -1532,8 +1548,9 @@ def plan_reference_catalog_registration(client, options: dict[str, Any]) -> dict
         persist=bool(options.get("__apply") and catalog_path),
     )
     catalog = {**catalog, "items": catalog_items_with_external_ids(catalog)}
+    existing = None
     if options.get("skip-existing", True) is not False and str(options.get("skip-existing", "true")).lower() != "false":
-        existing = client.list_records("Reference")
+        existing = client.list_records("Reference")   # read once: the identity gate below uses this same listing
         corpus_id = knowledge_corpus_id(corpus_config)
         existing_ids = {
             ref["externalItemId"]
@@ -1556,7 +1573,7 @@ def plan_reference_catalog_registration(client, options: dict[str, Any]) -> dict
     registration_status = normalize_reference_curation_status(options.get("status"), "pending")
     skipping_existing = options.get("skip-existing", True) is not False and str(options.get("skip-existing", "true")).lower() != "false"
     fresh_items, identity_rows = split_by_identity(
-        IdentityIndex(client.list_records("Reference")), catalog_items(catalog), corpus_id=registration_corpus_id, status=registration_status,
+        IdentityIndex(existing if existing is not None else client.list_records("Reference")), catalog_items(catalog), corpus_id=registration_corpus_id, status=registration_status,
         reimport_lineage_of=None if skipping_existing else lambda item: reference_lineage_id_for(
             registration_corpus_id, str(item.get("item_id") or item.get("externalItemId") or item.get("id") or "")))
     if identity_rows:
@@ -1668,9 +1685,9 @@ def fetch_reference_url_text_after_registration(
     )
     if not reference_ids:
         return {"lines": ["references\tprocess-fetch-url-text\tskipped\tno GraphQL Reference changes"]}
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
-    semantic_relations = client.list_records("SemanticRelation")
+    # The References this registration just wrote, and nothing else; the whole tables are read only if a citation graph needs them.
+    scope = targeted_scope(client, reference_ids=reference_ids)
+    references, attachments, semantic_relations = scope["references"], scope["attachments"], scope["relations"]
     corpus_config = result.get("corpusConfig") or {}
     corpus_id = result.get("plan", {}).get("corpusId")
     max_count = normalize_non_negative_integer(options.get("url-text-max-count"), "--url-text-max-count")
@@ -1679,6 +1696,7 @@ def fetch_reference_url_text_after_registration(
     extraction = run_reference_url_text_extraction(
         client=client,
         references=references,
+        all_references=scope["all_references"],
         attachments=attachments,
         semantic_relations=semantic_relations,
         corpus_key_by_id={str(corpus_id or ""): str(corpus_config.get("key") or "")},
@@ -1745,8 +1763,8 @@ def generate_reference_metadata_after_registration(
     )
     if not reference_ids:
         return {"lines": ["references\tprocess-generate-metadata\tskipped\tno GraphQL Reference changes"]}
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
+    scope = targeted_scope(client, reference_ids=reference_ids)
+    references, attachments = scope["references"], scope["attachments"]
     corpus_id = result.get("plan", {}).get("corpusId")
     max_count = normalize_non_negative_integer(options.get("metadata-max-count"), "--metadata-max-count")
     generation = run_reference_metadata_generation_from_extracted_text(

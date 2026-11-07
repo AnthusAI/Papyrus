@@ -289,3 +289,22 @@ def test_template_iam_has_no_wildcard_resources(template):
                 assert all("*" not in a for a in (statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]))
     collector = str(template["CollectorRole"]["Properties"]["Policies"])
     assert "appsync" not in collector.lower() and "secretsmanager" not in collector.lower()
+
+
+def test_a_receipt_with_an_unstorable_number_is_stored_not_lost():
+    """A router run crashed writing its receipt: DynamoDB refused a number too small to store (decimal.Underflow). Such a number is stored as zero and an
+    over-precise one is rounded, so the receipt is kept."""
+    from decimal import Decimal
+    from boto3.dynamodb.types import TypeSerializer
+
+    from papyrus_content.monitoring_cloud import _storable
+
+    record = {"pk": "monitor#hn", "counts": {"examined": 3, "tiny": Decimal("1E-320"), "ratio": Decimal(1) / Decimal(3) * Decimal("1E-5"), "long": Decimal(0.1)},
+              "series": [Decimal("2.5"), 1e-310, 0.25], "note": "kept", "none": None}
+    stored = _storable(record)
+    TypeSerializer().serialize(stored)   # the call that raised before
+    assert stored["counts"]["tiny"] == 0 and stored["series"][1] == 0
+    assert stored["counts"]["examined"] == 3 and stored["series"][0] == Decimal("2.5") and stored["series"][2] == Decimal("0.25")
+    assert stored["note"] == "kept" and stored["none"] is None
+    assert Decimal("0.0000033333333333333") < stored["counts"]["ratio"] < Decimal("0.0000033333333333334")
+    assert len(stored["counts"]["long"].as_tuple().digits) <= 15

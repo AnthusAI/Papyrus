@@ -4,6 +4,7 @@ Everything runs against a fake DynamoDB (a word table and a Reference table that
 """
 from __future__ import annotations
 
+import re
 import math
 import sys
 from pathlib import Path
@@ -40,8 +41,13 @@ class FakeTable:
         self.dynamo, self.name = dynamo, name
         self.items = dynamo.tables.setdefault(name, {})
 
-    def query(self, KeyConditionExpression, ExpressionAttributeValues, ExclusiveStartKey=None):
-        assert KeyConditionExpression == "shard = :s AND begins_with(entry, :p)"
+    def query(self, KeyConditionExpression, ExpressionAttributeValues, ExpressionAttributeNames=None, ExclusiveStartKey=None):
+        # DynamoDB refuses a key condition that names a reserved word (shard is one) without an alias; the live backend failed this way, so the fake does too.
+        for reserved in ("shard", "entry"):
+            bare = re.sub(r"#\w+", "", KeyConditionExpression)
+            assert reserved not in bare.split(), f"bare {reserved!r} in the key condition: DynamoDB would reject it"
+        assert KeyConditionExpression == "#shard = :s AND begins_with(#entry, :p)"
+        assert ExpressionAttributeNames == {"#shard": "shard", "#entry": "entry"}
         shard, prefix = ExpressionAttributeValues[":s"], ExpressionAttributeValues[":p"]
         keys = sorted(key for key in self.items if key[0] == shard and key[1].startswith(prefix))
         if ExclusiveStartKey:

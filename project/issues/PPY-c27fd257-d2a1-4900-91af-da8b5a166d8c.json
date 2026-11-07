@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c27fd257-d2a1-4900-91af-da8b5a166d8c",
+  "title": "Expose site and section search targets through CLI and MCP",
+  "description": "Investigate whether publication-level and section-linked concepts already provide intended search targets and how to distinguish explicit prioritization, aliases, inherited scope, overrides and no targets without assuming every concept is a target. Provide aligned read-only CLI and MCP interfaces backed by shared logic that list effective targets for the site and a selected section, show source/provenance and support machine-readable output. Specify how agents and review use this information; do not create a duplicate store without evidence.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a88bd4a5-4dff-4e0a-8b16-f3bd6e0fe132",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-06T20:14:15.454806Z",
+  "updated_at": "2026-11-06T20:14:15.454844Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -92,7 +92,7 @@ the section. Papyrus lists no story types. Three Item types are not stories, the
 `src/papyrus_content/content_item_lifecycle.py`; `scripts/test-story-types.ts` and `procedures/newsroom/tests/test_story_types.py` keep the two equal),
 and **every other type is a story type**, so a site's own new type (`guide`, `case_study`, the type its newsletter issues use) needs no engine change.
 Nothing else is special: a newsletter issue is an ordinary Story of whatever `issueType` the site's roundup list names, and the brief is not a type (see below).
-The Stories board's queries (`loadNewsroomContentItemStagePage` and `loadNewsroomPublishedContentItemVersions`) filter with `type ne` for each system type and never
+The Stories board's queries (`loadNewsroomContentItemStagePage` and `loadNewsroomContentItemsChangedSince`) filter with `type ne` for each system type and never
 count those; a stage query filters after DynamoDB reads a page, so a column keeps reading until it has a page of stories (`lib/story-stage-paging.ts`). The idea
 context and the duplicate cut use `is_story_item_type`, the same rule.
 

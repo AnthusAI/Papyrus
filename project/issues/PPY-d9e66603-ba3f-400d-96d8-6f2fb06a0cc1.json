@@ -1,0 +1,20 @@
+{
+  "id": "PPY-d9e66603-ba3f-400d-96d8-6f2fb06a0cc1",
+  "title": "Review articles for human readability and skimmability",
+  "description": "Assess a strong, accurate and entertaining narrative, informative headings, introductions, illustrations, diagrams, inset material and pull quotes where appropriate; protect against repetitive AI-style prose and keyword stuffing. Reuse Humanus and existing policy work. Consider accessibility and screen-reader structure; do not require every story to have every visual element.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a88bd4a5-4dff-4e0a-8b16-f3bd6e0fe132",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-06T20:14:14.990986Z",
+  "updated_at": "2026-11-06T20:14:14.991018Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
