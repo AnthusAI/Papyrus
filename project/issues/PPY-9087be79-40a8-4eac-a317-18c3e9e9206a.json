@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9087be79-40a8-4eac-a317-18c3e9e9206a",
+  "title": "Image toolchain step 6: OpenAI adapter, standard and Batch",
+  "description": "Build step 6 of the image toolchain (design: project/wiki/image-toolchain.md, section 9).\n\nImages endpoints only (`/v1/images/generations`, `/v1/images/edits`), `models.json` for `gpt-image-2.5-flare` (and `-sunburst` declared but not enabled), Batch JSONL submission and output parsing, size and transparency mapping, recorded-response contract tests (no live calls in CI), SSM key from the PPY-6af46b rotation, price entries for both lanes. Then switch on the Machines on Machines trial: `provider: openai`, `model: gpt-image-2.5-flare`, `approved: true`.\n\nSpecs: `image-provider-openai.feature` with recorded fixtures: one request per candidate; batch lines matched by `custom_id`; error lines and expiry handled per candidate; unsupported size returns `capability_unsupported`; actual model and lane recorded.\n\nWhat deploys: Lambda code; trial on MoM only.\n\nFulfils or changes: c101a6, 7c3f6a, f0af42 (decision recorded).\n\nGherkin specs are required, and every PR merges to develop. Spending is only approved for step 6 (OpenAI gpt-image-2.5-flare, Machines on Machines trial; Batch where nobody waits). Style guidance is data, never code.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T18:39:03.867082Z",
+  "updated_at": "2026-11-07T18:39:03.867108Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

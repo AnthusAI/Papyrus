@@ -1,6 +1,6 @@
 {
   "id": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
-  "title": "Shared image curation and generation for CLI, MCP, and newsroom",
+  "title": "Image operations: one definition behind the CLI, MCP, skill and newsroom",
   "description": "Provide one publication-neutral Papyrus image workflow used by the newsroom, command line and authenticated MCP. Build on the existing Wikimedia picker and stock and generation initiatives rather than duplicate them. Support source search and four-candidate rounds, generation through a configurable provider, selection, provenance and application to Stories and References. Preserve publication policy and the current editor workflow. Deliver observable parity, authorization, tests and documentation. Coordinate with the in-progress MCP implementation before integration; do not choose or invoke a paid model without the owner decision recorded in PPY-ff3780.",
   "type": "epic",
   "status": "open",
@@ -22,10 +22,17 @@
       "text": "Planning branch: codex/PPY-011174-image-curation; draft PR: https://github.com/AnthusAI/Papyrus/pull/1268. Based on origin/develop cc6ef2c9. MCP server implementation is on origin/feature/PPY-2bc3e8-authenticated-mcp (draft PR #1244), not yet on develop. Planning only; no behavior implemented or runtime checks run.",
       "created_at": "2026-11-06T14:44:41.229727Z",
       "comment_type": "default"
+    },
+    {
+      "id": "90c5c7b3-237b-41f1-9a6d-e30ca6adecda",
+      "author": "home",
+      "text": "Restructured 2026-11-07 after Ryan approved the image toolchain design (project/wiki/image-toolchain.md). This epic is now the shared service: the single operation table that generates the CLI, the MCP tools, the TypeScript types, the skill reference and the docs. Epics around it: PPY-1f68bf (style profiles and how they reach agents, with PPY-e4bdd0), PPY-3ec25c (papyrus images CLI, with PPY-40b7a4), PPY-dbfcbc (MCP image tools, with PPY-8ea0f1). Linked rather than rebuilt: PPY-956dff (the newsroom picker) and PPY-ff3780 (generated images) must use these operations, not their own. Build steps: 1 PPY-1232dc, 2 PPY-6e05fd, 3 PPY-6d878b, 4 PPY-8553c6, 5 PPY-6f9fb9 (with PPY-c101a6), 6 PPY-9087be, 7 PPY-a52989 and PPY-956dff, 8 PPY-8ea0f1, 9 PPY-c7a616, 10 PPY-876957.",
+      "created_at": "2026-11-07T18:39:21.647680Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-06T14:41:50.042100Z",
-  "updated_at": "2026-11-06T14:44:41.229944Z",
+  "updated_at": "2026-11-07T18:39:21.647929Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

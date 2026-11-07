@@ -1,0 +1,20 @@
+{
+  "id": "PPY-6d878b2d-783e-4cee-9e14-164fdfff4b74",
+  "title": "Image toolchain step 3: Profile editing, example uploads and the Machines on Machines profile",
+  "description": "Build step 3 of the image toolchain (design: project/wiki/image-toolchain.md, section 9).\n\nFirst commit: the upload function's new roles, image types and 10 MB cap (5.8). Then Administration > Policies > Visual style (prose, structured form, Examples grid with add and remove, review setting buttons), `image_profile_example_add`/`_remove`, `profile diff`/`init`. Then write MoM's profile, examples and `imageReview: after_the_fact` (with Ryan's review) through the signed-in CLI.\n\nSpecs: `features/newsroom/visual-style-admin.feature` and `image-profile-examples.feature`: upload, wrong type or size refused, removing an example keeps it in older versions, identifiable pictures not sent unless a person allows it.\n\nWhat deploys: Upload function + UI. MoM data write after Ryan reviews the document.\n\nFulfils or changes: e4bdd096.\n\nGherkin specs are required, and every PR merges to develop. Spending is only approved for step 6 (OpenAI gpt-image-2.5-flare, Machines on Machines trial; Batch where nobody waits). Style guidance is data, never code.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1f68bf26-6671-4514-a2b2-3cb220a33d96",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T18:39:03.637535Z",
+  "updated_at": "2026-11-07T18:39:03.637567Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

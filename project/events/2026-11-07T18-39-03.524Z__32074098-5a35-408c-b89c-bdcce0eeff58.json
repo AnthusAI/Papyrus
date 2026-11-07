@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "32074098-5a35-408c-b89c-bdcce0eeff58",
+  "issue_id": "PPY-6e05fdc2-73b1-4da2-9076-3a91bd6bc288",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T18:39:03.524Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Image toolchain step 2: Style profile in the backend",
+    "description": "Build step 2 of the image toolchain (design: project/wiki/image-toolchain.md, section 9).\n\n`visual-style` doctrine kind, `metadata.visualStyle` and `metadata.imageReview` schemas, `resolve_visual_style`, constraints, `NewsroomSection.visualStyle` field, `image-service` Lambda with `imageRead`/`imageWrite` and the profile operations, `papyrus images profile ...`, editorial-context `visual-style` entry, context pack `visual_style` layer and `illustrator` profile, the prompt skeleton (5.9) with its no-literals lint.\n\nSpecs: `image-profile.feature`: two publications never leak; precedence previewable with sources; a Story override cannot remove a constraint; agents cannot edit constraints; a profile edit makes a new version and old snapshots stay; no profile gives the warning and a skeleton-only plan.\n\nWhat deploys: Backend: one optional field, one Lambda, two GraphQL fields. One site, then all.\n\nFulfils or changes: e4bdd096 (profile half).\n\nGherkin specs are required, and every PR merges to develop. Spending is only approved for step 6 (OpenAI gpt-image-2.5-flare, Machines on Machines trial; Batch where nobody waits). Style guidance is data, never code.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-1f68bf26-6671-4514-a2b2-3cb220a33d96",
+    "labels": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-8769571e-b10c-4785-8d47-c5f69fb1c590",
+  "title": "Image toolchain step 10: Image skill, docs and the p.apyr.us feature page",
+  "description": "Build step 10 of the image toolchain (design: project/wiki/image-toolchain.md, section 9).\n\nThe skill's full prose for generation, review and the two lanes; p.apyr.us feature page.\n\nSpecs: Doc checks.\n\nWhat deploys: Docs.\n\nFulfils or changes: b2b075, 192956.\n\nGherkin specs are required, and every PR merges to develop. Spending is only approved for step 6 (OpenAI gpt-image-2.5-flare, Machines on Machines trial; Batch where nobody waits). Style guidance is data, never code.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T18:39:04.093195Z",
+  "updated_at": "2026-11-07T18:39:04.093231Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "364247c0-1170-40ed-8674-cceaa8fbafb0",
+  "issue_id": "PPY-6f9fb906-d59f-4428-89f9-63a4f8273a55",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T18:39:03.752Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Image toolchain step 5: Candidates, review and generation with a fake provider",
+    "description": "Build step 5 of the image toolchain (design: project/wiki/image-toolchain.md, section 9).\n\n`ImageCandidate` model with lanes and batch fields, `image-worker`, `image-batch-check`, prompt plans, rounds, polling, retry, iterate, free checks, alt draft from the brief, review status, `image_review` and `image_review_queue`, the `ReviewRequest` index, the `imageReview` publish gate and `stories next` step, cost recording by lane, provenance on `MediaAsset`, expiry on publish.\n\nSpecs: `image-generation.feature`, `image-review.feature`, `image-batch.feature`: a person gets one or four on the standard lane; an agent gets one on the batch lane and asking for four gets `set_needs_person`; a batch line fails while others succeed; a 24-hour expiry fails retryably; \"Make it now\" moves to standard; `before_publish` blocks publish on an unreviewed picture and `after_the_fact` does not; no path writes `human-verified` for an agent; the constraint is in every plan; apply refused without alt text or credit.\n\nWhat deploys: Backend model + Lambdas + one index, generation off everywhere.\n\nFulfils or changes: c101a6 (all but the real provider); e4bdd096 acceptance scenarios; supersedes 7c3f6a's storage notes.\n\nGherkin specs are required, and every PR merges to develop. Spending is only approved for step 6 (OpenAI gpt-image-2.5-flare, Machines on Machines trial; Batch where nobody waits). Style guidance is data, never code.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+    "labels": []
+  }
+}
