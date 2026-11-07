@@ -65,13 +65,18 @@ TARGET = obj({"kind": choice("story", "reference"), "lineageId": text("The linea
 USE = choice(*USES, description="Where the picture goes: the cover, inline in the body, or a social card.")
 VERSION_GUARD = text("The Story's current version id when you read it. The write is refused with stale_version if the Story has moved on.")
 REASON = text("Why, in plain words. It is recorded with who and when.")
+IMAGE_TYPE = text("A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; "
+                  "inside the article you must name one.")
+TYPE_CHOSEN_BY = choice("request", "default-for-use", description="Whether the caller named the image type or the use's default supplied it.")
+IMAGE_TYPE_CHOICE = record({"key": text(), "label": text(), "description": text(), "sources": many(text())}, ("key",))
 PROFILE_DOCUMENT = {"type": "object", "description": "The visual style document: a full or partial profile (design section 5.2)."}
 
 COST_ESTIMATE = record({"priced": flag("False means the model has no price on file yet. Unpriced is never free."), "usd": {"type": "number"},
                         "perCandidate": {"type": "number"}, "basis": text()}, ("priced",), "What it would cost; spends nothing.")
 SELECTION = record({"by": text(), "byKind": choice("human", "agent"), "delegatedBy": text(), "at": text(), "reason": text()}, ("by", "byKind", "at", "reason"))
 CANDIDATE_SUMMARY = record({
-    "id": text(), "position": whole(minimum=0), "status": choice(*STATUSES), "treatment": text(), "lane": choice("standard", "batch"),
+    "id": text(), "position": whole(minimum=0), "status": choice(*STATUSES), "treatment": text(), "imageType": text(),
+    "origin": choice("generated", "stock", "figure"), "lane": choice("standard", "batch"),
     "reviewStatus": choice("unreviewed", "human-verified"), "previewUrl": text("Short-lived signed address of the picture."),
     "retryOf": text(), "error": record({"code": text(), "message": text(), "retryable": flag()}, ("code", "message")),
 }, ("id", "position", "status"))
@@ -84,17 +89,17 @@ PAGE = {"nextToken": text("Pass this to get the next page. Absent when there is 
 
 # image_generate and image_prompt_preview take the same input.
 GENERATE_INPUT = obj({
-    "target": TARGET, "use": USE, "brief": text("What the picture should show. The publication's style rules are added by the service, never written here."),
+    "target": TARGET, "use": USE, "imageType": IMAGE_TYPE, "brief": text("What the picture should show. The publication's style rules are added by the service, never written here."),
     "count": whole("How many to make (default 1). More than 1 is for a person choosing; an agent asking for more gets set_needs_person."),
-    "spread": choice("variations", "treatments", description="Four takes of one treatment, or one take of each treatment the use allows."),
-    "treatments": many(text(), "Treatments to use, from the profile."),
+    "spread": choice("variations", "types", description="Four takes of one image type, or one take of each type the use allows that can be generated."),
+    "imageTypes": many(text(), "Image types to spread across, from the profile."),
     "model": text("A configured, approved model. Recorded as requested and never swapped."),
     "acceptFallback": text("Id of a fallback offered in a capability_unsupported error, to use instead."),
-    "references": many(text(), "Profile example ids to send as style references. Nothing else is accepted."),
+    "references": many(text(), "Example ids of the chosen image type to send as style references. Nothing else is accepted."),
     "speed": choice("auto", "standard", "batch", description="Which lane: auto picks by who is asking (a person standard, an agent batch at half price)."),
 }, ("target", "use", "brief"))
 ROUND_RESULT = record({
-    "roundId": text(), "candidates": many(CANDIDATE_SUMMARY), "estimate": COST_ESTIMATE,
+    "roundId": text(), "imageType": text(), "imageTypeChosenBy": TYPE_CHOSEN_BY, "candidates": many(CANDIDATE_SUMMARY), "estimate": COST_ESTIMATE,
 }, ("roundId", "candidates"), "Returned at once; the pictures arrive later (image_round_get).")
 
 # --- the table ------------------------------------------------------------------------------------------------------------------------------------
@@ -150,6 +155,12 @@ ERRORS = (
     ErrorCode("set_needs_person", "A set of several pictures is for a person choosing. Unattended work gets one picture."),
     ErrorCode("not_found", "No such Story, Reference, round or picture in this publication."),
     ErrorCode("constraint_conflict", "The request asks for something one of the publication's rules forbids.", details="the constraint"),
+    ErrorCode("image_type_required", "This request has to name an image type: an inline picture, or a use with no default, did not.",
+              details="choices lists the publication's image types for that use, with their descriptions"),
+    ErrorCode("image_type_unknown", "There is no such image type in this publication's profile, or it has been retired.",
+              details="choices lists the publication's image types for that use, with their descriptions"),
+    ErrorCode("source_not_allowed", "This image type does not allow that way of getting a picture.",
+              details="allowed lists the type's sources in order, and where their rules live"),
     ErrorCode("checks_failed", "A check failed, so the picture cannot be applied.", details="checks lists which"),
     ErrorCode("generation_not_configured", "No approved image model is set up for this site, so nothing was made.", details="how to configure it"),
     ErrorCode("capability_unsupported", "The configured model cannot do what was asked.", details="alternatives lists fallbacks the caller may opt into"),
@@ -168,8 +179,9 @@ COMMON_ERRORS = ("invalid_input", "not_authorized", "service_unavailable", "not_
 # Example ids below are made up. There are no real people, sites or addresses in this file.
 _STORY = {"kind": "story", "lineageId": "story-containment-note"}
 _GUARD = "item-story-containment-note-v7"
-_CANDIDATE = {"id": "candidate-1", "position": 0, "status": "ready", "treatment": "editorial-illustration", "lane": "standard", "reviewStatus": "unreviewed"}
+_CANDIDATE = {"id": "candidate-1", "position": 0, "status": "ready", "treatment": "editorial-illustration", "imageType": "cover-illustration", "origin": "generated", "lane": "standard", "reviewStatus": "unreviewed"}
 _ESTIMATE = {"priced": False}
+_TYPE_CHOICE = {"key": "cover-illustration", "label": "Cover illustration", "description": "A calm editorial illustration for the cover.", "sources": ["generated", "stock"]}
 _PROFILE_REF = {"itemId": "item-editorial-doctrine-visual-style-v3", "versionNumber": 3, "contentHash": "sha256:0f3a"}
 
 OPERATIONS: tuple[Operation, ...] = (
@@ -187,16 +199,18 @@ OPERATIONS: tuple[Operation, ...] = (
         "image_profile_resolve", ("profile", "resolve"),
         "Show the style that would apply to a Story, section and use, with the layer every field came from.", "read",
         obj({"target": TARGET, "sectionId": text("A section id; worked out from the Story when left out."), "use": USE,
-             "treatment": text("A treatment from the profile.")}, ("use",)),
+             "imageType": IMAGE_TYPE}, ("use",)),
         record({"resolutionHash": text(), "profile": {"type": ["object", "null"], "description": "Which profile version; null when the publication has none."},
                 "layers": many(record({"layer": text()}, ("layer",))), "effective": {"type": "object"}, "fieldSources": {"type": "object"},
+                "imageType": text(), "imageTypeChosenBy": TYPE_CHOSEN_BY, "availableTypes": many(IMAGE_TYPE_CHOICE),
                 "constraints": many({"type": "object"}), "warnings": many(record({"code": text(), "message": text()}, ("code", "message")))},
-               ("resolutionHash", "profile", "layers", "effective", "fieldSources", "constraints", "warnings"),
+               ("resolutionHash", "profile", "layers", "effective", "fieldSources", "imageType", "imageTypeChosenBy", "availableTypes", "constraints", "warnings"),
                "The effective guidance. A publication with no profile gets the profile_missing warning, not an error."),
-        ("constraint_conflict", "not_found"),
-        (Example({"target": _STORY, "use": "cover"}, {
-            "resolutionHash": "sha256:91bc", "profile": _PROFILE_REF, "layers": [{"layer": "publication"}, {"layer": "use"}],
-            "effective": {"aspectRatio": "16:9"}, "fieldSources": {"aspectRatio": "use:cover"}, "constraints": [], "warnings": []}),),
+        ("constraint_conflict", "image_type_required", "image_type_unknown", "not_found"),
+        (Example({"target": _STORY, "use": "cover", "imageType": "cover-illustration"}, {
+            "resolutionHash": "sha256:91bc", "profile": _PROFILE_REF, "layers": [{"layer": "publication"}, {"layer": "use"}, {"layer": "image-type"}],
+            "effective": {"aspectRatio": "16:9"}, "fieldSources": {"aspectRatio": "use:cover"}, "imageType": "cover-illustration", "imageTypeChosenBy": "request",
+            "availableTypes": [_TYPE_CHOICE], "constraints": [], "warnings": []}),),
         flags=(("sectionId", "section"),),
     ),
     Operation(
@@ -230,13 +244,14 @@ OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "image_profile_example_add", ("profile", "example", "add"), "Add an example or an avoid-this picture to the profile, as a new version.", "write",
         obj({"uploadId": text("The id of a picture already uploaded through the newsroom's upload step."), "kind": choice("exemplar", "negative"),
-             "note": text("Why this picture is a good example, or what to avoid."), "treatment": text(),
+             "note": text("Why this picture is a good example, or what to avoid."),
+             "imageType": text("The image type this example belongs to, or identity for a brand-wide example."),
              "sendToProvider": flag("Send it to the image model as a style reference. Default false."), "reason": REASON,
              "expectedCurrentVersionId": text("The profile's current version id when you read it.")},
-            ("uploadId", "kind", "note", "reason", "expectedCurrentVersionId")),
+            ("uploadId", "imageType", "kind", "note", "reason", "expectedCurrentVersionId")),
         record({"attachmentId": text(), "sha256": text(), "versionNumber": whole()}, ("attachmentId", "sha256", "versionNumber")),
-        ("human_required", "not_found", "stale_version"),
-        (Example({"uploadId": "upload-1", "kind": "exemplar", "note": "The calm we want.", "reason": "Cover from the containment Story.",
+        ("human_required", "image_type_unknown", "not_found", "stale_version"),
+        (Example({"uploadId": "upload-1", "imageType": "cover-illustration", "kind": "exemplar", "note": "The calm we want.", "reason": "Cover from the containment Story.",
                   "expectedCurrentVersionId": "item-editorial-doctrine-visual-style-v3"},
                  {"attachmentId": "model-attachment-1", "sha256": "sha256:aa10", "versionNumber": 4}),),
         notes="Only a person may set sendToProvider for a picture that shows identifiable people or logos.",
@@ -261,47 +276,74 @@ OPERATIONS: tuple[Operation, ...] = (
     ),
     Operation(
         "image_brief_draft", ("brief",), "Work out a starting brief and stock search from a Story's title and deck.", "read",
-        obj({"target": TARGET, "use": USE}, ("target", "use")),
-        record({"brief": text(), "searchTarget": text(), "derivedFrom": many(text()), "workedOut": flag()}, ("brief", "searchTarget", "derivedFrom", "workedOut")),
-        ("not_found",),
-        (Example({"target": _STORY, "use": "cover"}, {"brief": "A locked filing cabinet with one drawer ajar", "searchTarget": "filing cabinet",
-                                                       "derivedFrom": ["title", "deck"], "workedOut": True}),),
+        obj({"target": TARGET, "use": USE, "imageType": IMAGE_TYPE}, ("target", "use")),
+        record({"brief": text(), "searchTarget": text(), "imageType": text(), "imageTypeChosenBy": TYPE_CHOSEN_BY, "typeChoices": many(IMAGE_TYPE_CHOICE),
+                "derivedFrom": many(text()), "workedOut": flag()}, ("brief", "searchTarget", "derivedFrom", "workedOut")),
+        ("image_type_required", "not_found"),
+        (Example({"target": _STORY, "use": "cover", "imageType": "cover-illustration"},
+                 {"brief": "A locked filing cabinet with one drawer ajar", "searchTarget": "filing cabinet", "imageType": "cover-illustration",
+                  "imageTypeChosenBy": "request", "typeChoices": [_TYPE_CHOICE], "derivedFrom": ["title", "deck"], "workedOut": True}),),
     ),
     Operation(
         "image_prompt_preview", ("prompt",), "Show exactly what would be asked of the image model, and what it would cost, without making anything.", "read",
         GENERATE_INPUT,
         record({"plans": many({"type": "object"}), "estimate": COST_ESTIMATE, "capabilityCheck": {"type": "object"}}, ("plans", "estimate", "capabilityCheck")),
-        ("capability_unsupported", "constraint_conflict", "generation_not_configured", "not_found", "set_needs_person"),
-        (Example({"target": _STORY, "use": "cover", "brief": "A locked filing cabinet with one drawer ajar"},
-                 {"plans": [{"planVersion": "image-prompt/v1", "segments": [], "avoid": []}], "estimate": _ESTIMATE, "capabilityCheck": {"ok": True}}),),
+        ("capability_unsupported", "constraint_conflict", "generation_not_configured", "image_type_required", "image_type_unknown", "not_found",
+         "set_needs_person", "source_not_allowed"),
+        (Example({"target": _STORY, "use": "cover", "imageType": "cover-illustration", "brief": "A locked filing cabinet with one drawer ajar"},
+                 {"plans": [{"planVersion": "image-prompt/v1", "imageType": "cover-illustration", "segments": [], "avoid": []}], "estimate": _ESTIMATE, "capabilityCheck": {"ok": True}}),),
     ),
     # --- finding and making
     Operation(
         "image_search", ("search",), "Find stock pictures for a Story, four at a time.", "read",
-        obj({"target": TARGET, "query": text("Search words; worked out from the Story when left out."), "source": text("A stock source, for example wikimedia-commons."),
+        obj({"target": TARGET, "use": USE, "imageType": IMAGE_TYPE, "query": text("Search words; worked out from the Story when left out."), "source": text("A stock source, for example wikimedia-commons."),
              "cursor": text("The nextCursor of the previous page."), "exclude": many(text(), "Candidate ids already shown, which never come back.")}, ("target",)),
-        record({"candidates": many(STOCK_CANDIDATE), "nextCursor": {"type": ["string", "null"]}, "searched": text(), "searchedFromStory": flag()},
+        record({"imageType": text(), "imageTypeChosenBy": TYPE_CHOSEN_BY, "candidates": many(STOCK_CANDIDATE), "nextCursor": {"type": ["string", "null"]}, "searched": text(), "searchedFromStory": flag()},
                ("candidates", "nextCursor", "searched", "searchedFromStory")),
-        ("not_found",),
-        (Example({"target": _STORY}, {"candidates": [], "nextCursor": None, "searched": "filing cabinet", "searchedFromStory": True}),),
+        ("image_type_required", "image_type_unknown", "not_found", "source_not_allowed"),
+        (Example({"target": _STORY, "use": "cover", "imageType": "cover-illustration"},
+                 {"imageType": "cover-illustration", "imageTypeChosenBy": "request", "candidates": [], "nextCursor": None, "searched": "filing cabinet", "searchedFromStory": True}),),
         notes="Nothing is stored until a picture is selected or applied.",
     ),
     Operation(
         "image_generate", ("generate",), "Make pictures from a brief in the publication's style. The pictures arrive later.", "spend",
         GENERATE_INPUT, ROUND_RESULT,
-        ("capability_unsupported", "constraint_conflict", "generation_not_configured", "not_found", "provider_busy", "set_needs_person"),
-        (Example({"target": _STORY, "use": "cover", "brief": "A locked filing cabinet with one drawer ajar"},
-                 {"roundId": "round-1", "candidates": [{"id": "candidate-1", "position": 0, "status": "queued", "lane": "batch"}], "estimate": _ESTIMATE}),),
-        flags=(("treatments", "treatment"),),
+        ("capability_unsupported", "constraint_conflict", "generation_not_configured", "image_type_required", "image_type_unknown", "not_found", "provider_busy",
+         "set_needs_person", "source_not_allowed"),
+        (Example({"target": _STORY, "use": "cover", "imageType": "cover-illustration", "brief": "A locked filing cabinet with one drawer ajar"},
+                 {"roundId": "round-1", "imageType": "cover-illustration", "imageTypeChosenBy": "request",
+                  "candidates": [{"id": "candidate-1", "position": 0, "status": "queued", "imageType": "cover-illustration", "origin": "generated", "lane": "batch"}],
+                  "estimate": _ESTIMATE}),),
+        flags=(("imageTypes", "image-types"),),
         notes="Spends only when the site's image generation is configured and approved.",
+    ),
+    Operation(
+        "image_figure_add", ("figure", "add"),
+        "Record a figure drawn with the publication's figure system as a picture to preview, review and apply. It draws and generates nothing.", "write",
+        obj({"target": TARGET, "imageType": text("The image type the figure is for, such as cover-diagram. It must allow the figure-system source."),
+             "uploadIds": obj({"light": text("The id of the uploaded light PNG."), "dark": text("The id of the uploaded dark PNG.")}, ("light",),
+                              "Pictures already uploaded through the newsroom's upload step."),
+             "figureId": text("The id of the figure record, once the backend stores figures (PPY-cd4585)."),
+             "figure": obj({"audience": text(), "shows": text(), "complements": text(), "approvedBy": text()}, ("audience", "shows", "complements"),
+                           "The figure.json acceptance fields.")},
+            ("target", "imageType", "figure"), **one_of("uploadIds", "figureId")),
+        record({"candidateId": text(), "origin": choice("figure"), "checks": many({"type": "object"})}, ("candidateId", "origin", "checks")),
+        ("checks_failed", "image_type_unknown", "not_found", "source_not_allowed"),
+        (Example({"target": _STORY, "imageType": "cover-diagram", "uploadIds": {"light": "upload-2", "dark": "upload-3"},
+                  "figure": {"audience": "Editors deciding what to publish.", "shows": "Which checks run before a picture is applied.",
+                             "complements": "The paragraph on review."}},
+                 {"candidateId": "candidate-7", "origin": "figure", "checks": [{"name": "alt-text", "passed": True}]}),),
+        file_field="figure",
+        notes="Needs an image type whose sources include figure-system. The figure is drawn and rendered elsewhere; this only records it. "
+              "The CLI reads the figure.json acceptance fields from --file and takes uploadIds through --input-file.",
     ),
     Operation(
         "image_round_get", ("round",), "Read a round of pictures and say whether they are all done.", "read",
         obj({"roundId": text()}, ("roundId",)),
-        record({"roundId": text(), "target": TARGET, "use": USE, "brief": {"type": "string"}, "candidates": many(CANDIDATE_SUMMARY), "done": flag()},
+        record({"roundId": text(), "target": TARGET, "use": USE, "imageType": text(), "brief": {"type": "string"}, "candidates": many(CANDIDATE_SUMMARY), "done": flag()},
                ("roundId", "target", "use", "candidates", "done")),
         ("not_found",),
-        (Example({"roundId": "round-1"}, {"roundId": "round-1", "target": _STORY, "use": "cover", "brief": "A locked filing cabinet with one drawer ajar",
+        (Example({"roundId": "round-1"}, {"roundId": "round-1", "target": _STORY, "use": "cover", "imageType": "cover-illustration", "brief": "A locked filing cabinet with one drawer ajar",
                                           "candidates": [_CANDIDATE], "done": True}),),
         positional=("roundId",),
     ),
@@ -316,10 +358,10 @@ OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "image_list", ("list",), "List the rounds and pictures made for a Story or Reference, newest first.", "read",
         obj({"target": TARGET, "status": choice(*STATUSES), "nextToken": PAGE["nextToken"]}, ("target",)),
-        record({"rounds": many(record({"roundId": text(), "use": USE, "brief": {"type": "string"}, "createdAt": text(), "candidates": many(CANDIDATE_SUMMARY)},
+        record({"rounds": many(record({"roundId": text(), "use": USE, "imageType": text(), "brief": {"type": "string"}, "createdAt": text(), "candidates": many(CANDIDATE_SUMMARY)},
                                       ("roundId", "candidates"))), **PAGE}, ("rounds",)),
         ("not_found",),
-        (Example({"target": _STORY}, {"rounds": [{"roundId": "round-1", "use": "cover", "brief": "A locked filing cabinet", "createdAt": "2026-11-07T18:00:00Z",
+        (Example({"target": _STORY}, {"rounds": [{"roundId": "round-1", "use": "cover", "imageType": "cover-illustration", "brief": "A locked filing cabinet", "createdAt": "2026-11-07T18:00:00Z",
                                                   "candidates": [_CANDIDATE]}]}),),
     ),
     Operation(
@@ -391,16 +433,16 @@ OPERATIONS: tuple[Operation, ...] = (
     Operation(
         "image_apply", ("apply",), "Put a picture on a Story: copy it into the site's media and record where it came from. It never publishes.", "write",
         obj({"candidateId": text(), "candidateRef": text("A stock picture's reference from image_search."), "target": TARGET, "use": USE,
-             "alt": text("Alt text; the picture's own draft when left out."), "caption": text(), "expectedCurrentVersionId": VERSION_GUARD,
+             "imageType": IMAGE_TYPE, "alt": text("Alt text; the picture's own draft when left out."), "caption": text(), "expectedCurrentVersionId": VERSION_GUARD,
              "save": flag("Make the new Story version now (default true). The newsroom editor passes false and saves itself.")},
             ("target", "use", "expectedCurrentVersionId"), **one_of("candidateId", "candidateRef")),
         record({"patch": record({"bodyDirective": text(), "frontMatter": {"type": "object"}}, ("bodyDirective", "frontMatter")), "mediaAsset": {"type": "object"},
-                "reviewStatus": choice("unreviewed", "human-verified"), "reviewRequestId": text(),
+                "imageType": text(), "reviewStatus": choice("unreviewed", "human-verified"), "reviewRequestId": text(),
                 "savedVersion": record({"versionId": text(), "versionNumber": whole()})}, ("patch", "mediaAsset", "reviewStatus")),
-        ("candidate_closed", "candidate_not_ready", "checks_failed", "not_found", "stale_version"),
-        (Example({"candidateId": "candidate-1", "target": _STORY, "use": "cover", "expectedCurrentVersionId": _GUARD},
+        ("candidate_closed", "candidate_not_ready", "checks_failed", "image_type_unknown", "not_found", "source_not_allowed", "stale_version"),
+        (Example({"candidateId": "candidate-1", "target": _STORY, "use": "cover", "imageType": "cover-illustration", "expectedCurrentVersionId": _GUARD},
                  {"patch": {"bodyDirective": "::image{src=\"media/assets/containment/cover.png\"}", "frontMatter": {"image": "media/assets/containment/cover.png"}},
-                  "mediaAsset": {"id": "media-asset-1"}, "reviewStatus": "unreviewed", "reviewRequestId": "review-1",
+                  "mediaAsset": {"id": "media-asset-1"}, "imageType": "cover-illustration", "reviewStatus": "unreviewed", "reviewRequestId": "review-1",
                   "savedVersion": {"versionId": "item-story-containment-note-v8", "versionNumber": 8}}),),
         positional=("candidateId",),
         notes="A person applying from a set they looked at makes it human-verified. Anyone else makes it unreviewed and opens a review request.",

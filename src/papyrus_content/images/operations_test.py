@@ -20,7 +20,7 @@ DESIGN_NAMES = {
     "image_profile_get", "image_profile_resolve", "image_profile_diff", "image_profile_save", "image_profile_history", "image_profile_example_add",
     "image_profile_example_remove", "image_capabilities", "image_brief_draft", "image_prompt_preview", "image_search", "image_generate", "image_round_get",
     "image_candidate_get", "image_list", "image_retry", "image_iterate", "image_select", "image_unapply", "image_review", "image_review_queue",
-    "image_apply", "image_discard",
+    "image_apply", "image_discard", "image_figure_add",
 }
 
 
@@ -145,7 +145,7 @@ def test_each_front_end_covers_exactly_the_operations_in_the_table():
     assert re.findall(r"^  (image_[a-z_]+): \{ effect:", ts, re.M) == NAMES
     skill = generate.SKILL.read_text(encoding="utf-8")
     block = skill[skill.index(generate.BEGIN):skill.index(generate.END)]
-    assert re.findall(r"^\| `(image_[a-z_]+)` \|", block, re.M) == NAMES
+    assert re.findall(r"^\| `(image_[a-z_]+)` \| `papyrus images", block, re.M) == NAMES
     docs = generate.DOCS.read_text(encoding="utf-8")
     assert re.findall(r"^## (image_[a-z_]+)$", docs, re.M) == NAMES
 
@@ -222,6 +222,8 @@ def test_an_unknown_operation_is_an_error_not_a_crash():
     (["profile", "get", "--version", "0"], {"version": 0}, "version"),
     (["generate", "--story", "s", "--use", "banner", "--brief", "x"], {"target": {"kind": "story", "lineageId": "s"}, "use": "banner", "brief": "x"}, "use"),
     (["discard", "--reason", "x"], {"reason": "x"}, ""),
+    (["generate", "--story", "s", "--use", "cover", "--brief", "x", "--image-type="], {"target": {"kind": "story", "lineageId": "s"}, "use": "cover", "brief": "x", "imageType": ""}, "imageType"),
+    (["search", "--story", "s", "--image-type="], {"target": {"kind": "story", "lineageId": "s"}, "imageType": ""}, "imageType"),
 ])
 def test_bad_arguments_return_invalid_input_the_same_way_from_both(argv, arguments, path):
     status, from_cli = run_cli(argv, fake_handlers())
@@ -229,6 +231,29 @@ def test_bad_arguments_return_invalid_input_the_same_way_from_both(argv, argumen
     if arguments is not None:
         spec = max((entry for entry in COMMANDS if argv[: len(entry["words"])] == entry["words"]), key=lambda entry: len(entry["words"]))
         assert mcp.call_image_tool(spec["op"], arguments, Caller(), fake_handlers()) == from_cli
+
+
+def test_image_types_are_in_the_table():
+    assert len(NAMES) == 24
+    for name in ("image_profile_resolve", "image_brief_draft", "image_search", "image_generate", "image_prompt_preview", "image_apply", "image_profile_example_add"):
+        assert "imageType" in BY_NAME[name].input["properties"], name
+    assert "imageType" in BY_NAME["image_profile_example_add"].input["required"]
+    generate_input = BY_NAME["image_generate"].input["properties"]
+    assert generate_input["spread"]["enum"] == ["variations", "types"] and "imageTypes" in generate_input and "treatments" not in generate_input
+    assert dict(BY_NAME["image_generate"].flags)["imageTypes"] == "image-types"
+    summary = BY_NAME["image_round_get"].result["properties"]["candidates"]["items"]["properties"]
+    assert "imageType" in summary and summary["origin"]["enum"] == ["generated", "stock", "figure"]
+    for code in ("image_type_required", "image_type_unknown", "source_not_allowed"):
+        assert code in ERROR_BY_CODE
+
+
+def test_the_figure_operation_records_a_figure_and_draws_nothing():
+    item = BY_NAME["image_figure_add"]
+    assert item.effect == "write" and item.agent_allowed and item.cli == ("figure", "add")
+    assert set(item.errors) == {"image_type_unknown", "source_not_allowed", "checks_failed", "not_found"}
+    assert check(item.input, {**item.examples[0].input, "imageType": None})[0] == "imageType"
+    without_pictures = {key: value for key, value in item.examples[0].input.items() if key != "uploadIds"}
+    assert check(item.input, without_pictures)[1] == "Give exactly one of: uploadIds or figureId."
 
 
 def test_a_property_the_operation_does_not_have_is_refused_over_mcp():
@@ -267,7 +292,8 @@ def test_a_handler_error_keeps_its_code_details_and_retry_flag():
 def test_the_routes_and_their_usage_come_from_the_generated_spec():
     tree = images_cli.route_tree()
     assert set(tree) == {"profile", "capabilities", "brief", "prompt", "search", "generate", "round", "show", "list", "retry", "iterate", "select", "unapply",
-                         "review", "review-queue", "apply", "discard"}
+                         "review", "review-queue", "apply", "discard", "figure"}
+    assert set(tree["figure"]) == {"add"}
     assert set(tree["profile"]) == {"get", "resolve", "diff", "save", "history", "example"} and set(tree["profile"]["example"]) == {"add", "remove"}
     assert images_cli.usage_for(["generate"]).startswith("Usage: papyrus images generate (--story ID | --reference ID)")
     assert "[--dry-run]" in images_cli.usage_for(["generate"]) and "[--dry-run]" not in images_cli.usage_for(["round"])

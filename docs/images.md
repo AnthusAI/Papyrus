@@ -26,6 +26,7 @@ Every operation is still a stub that answers `not_implemented`; later build step
 | [`image_prompt_preview`](#image-prompt-preview) | `papyrus images prompt` | read | Show exactly what would be asked of the image model, and what it would cost, without making anything. |
 | [`image_search`](#image-search) | `papyrus images search` | read | Find stock pictures for a Story, four at a time. |
 | [`image_generate`](#image-generate) | `papyrus images generate` | spend | Make pictures from a brief in the publication's style. The pictures arrive later. |
+| [`image_figure_add`](#image-figure-add) | `papyrus images figure add` | write | Record a figure drawn with the publication's figure system as a picture to preview, review and apply. It draws and generates nothing. |
 | [`image_round_get`](#image-round-get) | `papyrus images round` | read | Read a round of pictures and say whether they are all done. |
 | [`image_candidate_get`](#image-candidate-get) | `papyrus images show` | read | Read one picture's full record, with a short-lived preview address. |
 | [`image_list`](#image-list) | `papyrus images list` | read | List the rounds and pictures made for a Story or Reference, newest first. |
@@ -58,6 +59,9 @@ Every operation may return `invalid_input`, `not_authorized`, `service_unavailab
 | `set_needs_person` | A set of several pictures is for a person choosing. Unattended work gets one picture. | no |  |
 | `not_found` | No such Story, Reference, round or picture in this publication. | no |  |
 | `constraint_conflict` | The request asks for something one of the publication's rules forbids. | no | the constraint |
+| `image_type_required` | This request has to name an image type: an inline picture, or a use with no default, did not. | no | choices lists the publication's image types for that use, with their descriptions |
+| `image_type_unknown` | There is no such image type in this publication's profile, or it has been retired. | no | choices lists the publication's image types for that use, with their descriptions |
+| `source_not_allowed` | This image type does not allow that way of getting a picture. | no | allowed lists the type's sources in order, and where their rules live |
 | `checks_failed` | A check failed, so the picture cannot be applied. | no | checks lists which |
 | `generation_not_configured` | No approved image model is set up for this site, so nothing was made. | no | how to configure it |
 | `capability_unsupported` | The configured model cannot do what was asked. | no | alternatives lists fallbacks the caller may opt into |
@@ -137,7 +141,7 @@ Input:
 | `target` | object | no | What the picture is for: a Story or a Reference. |
 | `sectionId` | string | no | A section id; worked out from the Story when left out. |
 | `use` | string | yes | Where the picture goes: the cover, inline in the body, or a social card. One of: `cover`, `inline`, `social`. |
-| `treatment` | string | no | A treatment from the profile. |
+| `imageType` | string | no | A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. |
 
 Result:
 
@@ -148,10 +152,13 @@ Result:
 | `layers` | array | yes |  |
 | `effective` | object | yes |  |
 | `fieldSources` | object | yes |  |
+| `imageType` | string | yes |  |
+| `imageTypeChosenBy` | string | yes | Whether the caller named the image type or the use's default supplied it. One of: `request`, `default-for-use`. |
+| `availableTypes` | array | yes |  |
 | `constraints` | array | yes |  |
 | `warnings` | array | yes |  |
 
-Errors: `constraint_conflict`, `not_found`.
+Errors: `constraint_conflict`, `image_type_required`, `image_type_unknown`, `not_found`.
 
 Example input:
 
@@ -161,7 +168,8 @@ Example input:
     "kind": "story",
     "lineageId": "story-containment-note"
   },
-  "use": "cover"
+  "use": "cover",
+  "imageType": "cover-illustration"
 }
 ```
 
@@ -181,6 +189,9 @@ Example result:
     },
     {
       "layer": "use"
+    },
+    {
+      "layer": "image-type"
     }
   ],
   "effective": {
@@ -189,6 +200,19 @@ Example result:
   "fieldSources": {
     "aspectRatio": "use:cover"
   },
+  "imageType": "cover-illustration",
+  "imageTypeChosenBy": "request",
+  "availableTypes": [
+    {
+      "key": "cover-illustration",
+      "label": "Cover illustration",
+      "description": "A calm editorial illustration for the cover.",
+      "sources": [
+        "generated",
+        "stock"
+      ]
+    }
+  ],
   "constraints": [],
   "warnings": []
 }
@@ -375,7 +399,7 @@ Input:
 | `uploadId` | string | yes | The id of a picture already uploaded through the newsroom's upload step. |
 | `kind` | string | yes | One of: `exemplar`, `negative`. |
 | `note` | string | yes | Why this picture is a good example, or what to avoid. |
-| `treatment` | string | no |  |
+| `imageType` | string | yes | The image type this example belongs to, or identity for a brand-wide example. |
 | `sendToProvider` | boolean | no | Send it to the image model as a style reference. Default false. |
 | `reason` | string | yes | Why, in plain words. It is recorded with who and when. |
 | `expectedCurrentVersionId` | string | yes | The profile's current version id when you read it. |
@@ -388,13 +412,14 @@ Result:
 | `sha256` | string | yes |  |
 | `versionNumber` | integer | yes |  |
 
-Errors: `human_required`, `not_found`, `stale_version`.
+Errors: `human_required`, `image_type_unknown`, `not_found`, `stale_version`.
 
 Example input:
 
 ```json
 {
   "uploadId": "upload-1",
+  "imageType": "cover-illustration",
   "kind": "exemplar",
   "note": "The calm we want.",
   "reason": "Cover from the containment Story.",
@@ -510,6 +535,7 @@ Input:
 | --- | --- | --- | --- |
 | `target` | object | yes | What the picture is for: a Story or a Reference. |
 | `use` | string | yes | Where the picture goes: the cover, inline in the body, or a social card. One of: `cover`, `inline`, `social`. |
+| `imageType` | string | no | A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. |
 
 Result:
 
@@ -517,10 +543,13 @@ Result:
 | --- | --- | --- | --- |
 | `brief` | string | yes |  |
 | `searchTarget` | string | yes |  |
+| `imageType` | string | no |  |
+| `imageTypeChosenBy` | string | no | Whether the caller named the image type or the use's default supplied it. One of: `request`, `default-for-use`. |
+| `typeChoices` | array | no |  |
 | `derivedFrom` | array | yes |  |
 | `workedOut` | boolean | yes |  |
 
-Errors: `not_found`.
+Errors: `image_type_required`, `not_found`.
 
 Example input:
 
@@ -530,7 +559,8 @@ Example input:
     "kind": "story",
     "lineageId": "story-containment-note"
   },
-  "use": "cover"
+  "use": "cover",
+  "imageType": "cover-illustration"
 }
 ```
 
@@ -540,6 +570,19 @@ Example result:
 {
   "brief": "A locked filing cabinet with one drawer ajar",
   "searchTarget": "filing cabinet",
+  "imageType": "cover-illustration",
+  "imageTypeChosenBy": "request",
+  "typeChoices": [
+    {
+      "key": "cover-illustration",
+      "label": "Cover illustration",
+      "description": "A calm editorial illustration for the cover.",
+      "sources": [
+        "generated",
+        "stock"
+      ]
+    }
+  ],
   "derivedFrom": [
     "title",
     "deck"
@@ -563,13 +606,14 @@ Input:
 | --- | --- | --- | --- |
 | `target` | object | yes | What the picture is for: a Story or a Reference. |
 | `use` | string | yes | Where the picture goes: the cover, inline in the body, or a social card. One of: `cover`, `inline`, `social`. |
+| `imageType` | string | no | A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. |
 | `brief` | string | yes | What the picture should show. The publication's style rules are added by the service, never written here. |
 | `count` | integer | no | How many to make (default 1). More than 1 is for a person choosing; an agent asking for more gets set_needs_person. |
-| `spread` | string | no | Four takes of one treatment, or one take of each treatment the use allows. One of: `variations`, `treatments`. |
-| `treatments` | array | no | Treatments to use, from the profile. |
+| `spread` | string | no | Four takes of one image type, or one take of each type the use allows that can be generated. One of: `variations`, `types`. |
+| `imageTypes` | array | no | Image types to spread across, from the profile. |
 | `model` | string | no | A configured, approved model. Recorded as requested and never swapped. |
 | `acceptFallback` | string | no | Id of a fallback offered in a capability_unsupported error, to use instead. |
-| `references` | array | no | Profile example ids to send as style references. Nothing else is accepted. |
+| `references` | array | no | Example ids of the chosen image type to send as style references. Nothing else is accepted. |
 | `speed` | string | no | Which lane: auto picks by who is asking (a person standard, an agent batch at half price). One of: `auto`, `standard`, `batch`. |
 
 Result:
@@ -580,7 +624,7 @@ Result:
 | `estimate` | object | yes | What it would cost; spends nothing. |
 | `capabilityCheck` | object | yes |  |
 
-Errors: `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `not_found`, `set_needs_person`.
+Errors: `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `set_needs_person`, `source_not_allowed`.
 
 Example input:
 
@@ -591,6 +635,7 @@ Example input:
     "lineageId": "story-containment-note"
   },
   "use": "cover",
+  "imageType": "cover-illustration",
   "brief": "A locked filing cabinet with one drawer ajar"
 }
 ```
@@ -602,6 +647,7 @@ Example result:
   "plans": [
     {
       "planVersion": "image-prompt/v1",
+      "imageType": "cover-illustration",
       "segments": [],
       "avoid": []
     }
@@ -630,6 +676,8 @@ Input:
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `target` | object | yes | What the picture is for: a Story or a Reference. |
+| `use` | string | no | Where the picture goes: the cover, inline in the body, or a social card. One of: `cover`, `inline`, `social`. |
+| `imageType` | string | no | A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. |
 | `query` | string | no | Search words; worked out from the Story when left out. |
 | `source` | string | no | A stock source, for example wikimedia-commons. |
 | `cursor` | string | no | The nextCursor of the previous page. |
@@ -639,12 +687,14 @@ Result:
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
+| `imageType` | string | no |  |
+| `imageTypeChosenBy` | string | no | Whether the caller named the image type or the use's default supplied it. One of: `request`, `default-for-use`. |
 | `candidates` | array | yes |  |
 | `nextCursor` | string/null | yes |  |
 | `searched` | string | yes |  |
 | `searchedFromStory` | boolean | yes |  |
 
-Errors: `not_found`.
+Errors: `image_type_required`, `image_type_unknown`, `not_found`, `source_not_allowed`.
 
 Example input:
 
@@ -653,7 +703,9 @@ Example input:
   "target": {
     "kind": "story",
     "lineageId": "story-containment-note"
-  }
+  },
+  "use": "cover",
+  "imageType": "cover-illustration"
 }
 ```
 
@@ -661,6 +713,8 @@ Example result:
 
 ```json
 {
+  "imageType": "cover-illustration",
+  "imageTypeChosenBy": "request",
   "candidates": [],
   "nextCursor": null,
   "searched": "filing cabinet",
@@ -684,13 +738,14 @@ Input:
 | --- | --- | --- | --- |
 | `target` | object | yes | What the picture is for: a Story or a Reference. |
 | `use` | string | yes | Where the picture goes: the cover, inline in the body, or a social card. One of: `cover`, `inline`, `social`. |
+| `imageType` | string | no | A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. |
 | `brief` | string | yes | What the picture should show. The publication's style rules are added by the service, never written here. |
 | `count` | integer | no | How many to make (default 1). More than 1 is for a person choosing; an agent asking for more gets set_needs_person. |
-| `spread` | string | no | Four takes of one treatment, or one take of each treatment the use allows. One of: `variations`, `treatments`. |
-| `treatments` | array | no | Treatments to use, from the profile. |
+| `spread` | string | no | Four takes of one image type, or one take of each type the use allows that can be generated. One of: `variations`, `types`. |
+| `imageTypes` | array | no | Image types to spread across, from the profile. |
 | `model` | string | no | A configured, approved model. Recorded as requested and never swapped. |
 | `acceptFallback` | string | no | Id of a fallback offered in a capability_unsupported error, to use instead. |
-| `references` | array | no | Profile example ids to send as style references. Nothing else is accepted. |
+| `references` | array | no | Example ids of the chosen image type to send as style references. Nothing else is accepted. |
 | `speed` | string | no | Which lane: auto picks by who is asking (a person standard, an agent batch at half price). One of: `auto`, `standard`, `batch`. |
 
 Result:
@@ -698,10 +753,12 @@ Result:
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `roundId` | string | yes |  |
+| `imageType` | string | no |  |
+| `imageTypeChosenBy` | string | no | Whether the caller named the image type or the use's default supplied it. One of: `request`, `default-for-use`. |
 | `candidates` | array | yes |  |
 | `estimate` | object | no | What it would cost; spends nothing. |
 
-Errors: `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `not_found`, `provider_busy`, `set_needs_person`.
+Errors: `capability_unsupported`, `constraint_conflict`, `generation_not_configured`, `image_type_required`, `image_type_unknown`, `not_found`, `provider_busy`, `set_needs_person`, `source_not_allowed`.
 
 Example input:
 
@@ -712,6 +769,7 @@ Example input:
     "lineageId": "story-containment-note"
   },
   "use": "cover",
+  "imageType": "cover-illustration",
   "brief": "A locked filing cabinet with one drawer ajar"
 }
 ```
@@ -721,17 +779,89 @@ Example result:
 ```json
 {
   "roundId": "round-1",
+  "imageType": "cover-illustration",
+  "imageTypeChosenBy": "request",
   "candidates": [
     {
       "id": "candidate-1",
       "position": 0,
       "status": "queued",
+      "imageType": "cover-illustration",
+      "origin": "generated",
       "lane": "batch"
     }
   ],
   "estimate": {
     "priced": false
   }
+}
+```
+
+## image_figure_add
+
+Record a figure drawn with the publication's figure system as a picture to preview, review and apply. It draws and generates nothing.
+
+- Command: `papyrus images figure add`
+- MCP tool: `image_figure_add`
+- Effect: write
+- Agent may call: yes
+- Note: Needs an image type whose sources include figure-system. The figure is drawn and rendered elsewhere; this only records it. The CLI reads the figure.json acceptance fields from --file and takes uploadIds through --input-file.
+
+Input:
+
+| Name | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `target` | object | yes | What the picture is for: a Story or a Reference. |
+| `imageType` | string | yes | The image type the figure is for, such as cover-diagram. It must allow the figure-system source. |
+| `uploadIds` | object | no | Pictures already uploaded through the newsroom's upload step. |
+| `figureId` | string | no | The id of the figure record, once the backend stores figures (PPY-cd4585). |
+| `figure` | object | yes | The figure.json acceptance fields. |
+
+Give exactly one of: `uploadIds`, `figureId`.
+
+Result:
+
+| Name | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `candidateId` | string | yes |  |
+| `origin` | string | yes | One of: `figure`. |
+| `checks` | array | yes |  |
+
+Errors: `checks_failed`, `image_type_unknown`, `not_found`, `source_not_allowed`.
+
+Example input:
+
+```json
+{
+  "target": {
+    "kind": "story",
+    "lineageId": "story-containment-note"
+  },
+  "imageType": "cover-diagram",
+  "uploadIds": {
+    "light": "upload-2",
+    "dark": "upload-3"
+  },
+  "figure": {
+    "audience": "Editors deciding what to publish.",
+    "shows": "Which checks run before a picture is applied.",
+    "complements": "The paragraph on review."
+  }
+}
+```
+
+Example result:
+
+```json
+{
+  "candidateId": "candidate-7",
+  "origin": "figure",
+  "checks": [
+    {
+      "name": "alt-text",
+      "passed": true
+    }
+  ]
 }
 ```
 
@@ -757,6 +887,7 @@ Result:
 | `roundId` | string | yes |  |
 | `target` | object | yes | What the picture is for: a Story or a Reference. |
 | `use` | string | yes | Where the picture goes: the cover, inline in the body, or a social card. One of: `cover`, `inline`, `social`. |
+| `imageType` | string | no |  |
 | `brief` | string | no |  |
 | `candidates` | array | yes |  |
 | `done` | boolean | yes |  |
@@ -781,6 +912,7 @@ Example result:
     "lineageId": "story-containment-note"
   },
   "use": "cover",
+  "imageType": "cover-illustration",
   "brief": "A locked filing cabinet with one drawer ajar",
   "candidates": [
     {
@@ -788,6 +920,8 @@ Example result:
       "position": 0,
       "status": "ready",
       "treatment": "editorial-illustration",
+      "imageType": "cover-illustration",
+      "origin": "generated",
       "lane": "standard",
       "reviewStatus": "unreviewed"
     }
@@ -837,6 +971,8 @@ Example result:
     "position": 0,
     "status": "ready",
     "treatment": "editorial-illustration",
+    "imageType": "cover-illustration",
+    "origin": "generated",
     "lane": "standard",
     "reviewStatus": "unreviewed"
   },
@@ -889,6 +1025,7 @@ Example result:
     {
       "roundId": "round-1",
       "use": "cover",
+      "imageType": "cover-illustration",
       "brief": "A locked filing cabinet",
       "createdAt": "2026-11-07T18:00:00Z",
       "candidates": [
@@ -897,6 +1034,8 @@ Example result:
           "position": 0,
           "status": "ready",
           "treatment": "editorial-illustration",
+          "imageType": "cover-illustration",
+          "origin": "generated",
           "lane": "standard",
           "reviewStatus": "unreviewed"
         }
@@ -982,6 +1121,8 @@ Result:
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `roundId` | string | yes |  |
+| `imageType` | string | no |  |
+| `imageTypeChosenBy` | string | no | Whether the caller named the image type or the use's default supplied it. One of: `request`, `default-for-use`. |
 | `candidates` | array | yes |  |
 | `estimate` | object | no | What it would cost; spends nothing. |
 
@@ -1244,6 +1385,7 @@ Input:
 | `candidateRef` | string | no | A stock picture's reference from image_search. |
 | `target` | object | yes | What the picture is for: a Story or a Reference. |
 | `use` | string | yes | Where the picture goes: the cover, inline in the body, or a social card. One of: `cover`, `inline`, `social`. |
+| `imageType` | string | no | A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. |
 | `alt` | string | no | Alt text; the picture's own draft when left out. |
 | `caption` | string | no |  |
 | `expectedCurrentVersionId` | string | yes | The Story's current version id when you read it. The write is refused with stale_version if the Story has moved on. |
@@ -1257,11 +1399,12 @@ Result:
 | --- | --- | --- | --- |
 | `patch` | object | yes |  |
 | `mediaAsset` | object | yes |  |
+| `imageType` | string | no |  |
 | `reviewStatus` | string | yes | One of: `unreviewed`, `human-verified`. |
 | `reviewRequestId` | string | no |  |
 | `savedVersion` | object | no |  |
 
-Errors: `candidate_closed`, `candidate_not_ready`, `checks_failed`, `not_found`, `stale_version`.
+Errors: `candidate_closed`, `candidate_not_ready`, `checks_failed`, `image_type_unknown`, `not_found`, `source_not_allowed`, `stale_version`.
 
 Example input:
 
@@ -1273,6 +1416,7 @@ Example input:
     "lineageId": "story-containment-note"
   },
   "use": "cover",
+  "imageType": "cover-illustration",
   "expectedCurrentVersionId": "item-story-containment-note-v7"
 }
 ```
@@ -1290,6 +1434,7 @@ Example result:
   "mediaAsset": {
     "id": "media-asset-1"
   },
+  "imageType": "cover-illustration",
   "reviewStatus": "unreviewed",
   "reviewRequestId": "review-1",
   "savedVersion": {

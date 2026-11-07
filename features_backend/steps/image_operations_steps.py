@@ -48,13 +48,13 @@ def step_cover(context):
     assert list(mcp.image_tools()) == NAMES
     assert re.findall(r"^  (image_[a-z_]+): \{ input:", generate.TS_TYPES.read_text(encoding="utf-8"), re.M) == NAMES
     skill = generate.SKILL.read_text(encoding="utf-8")
-    assert re.findall(r"^\| `(image_[a-z_]+)` \|", skill[skill.index(generate.BEGIN):skill.index(generate.END)], re.M) == NAMES
+    assert re.findall(r"^\| `(image_[a-z_]+)` \| `papyrus images", skill[skill.index(generate.BEGIN):skill.index(generate.END)], re.M) == NAMES
     assert re.findall(r"^## (image_[a-z_]+)$", generate.DOCS.read_text(encoding="utf-8"), re.M) == NAMES
 
 
-@then("the table has the 23 operations the design describes")
+@then("the table has the 24 operations the design describes")
 def step_count(context):
-    assert len(NAMES) == 23
+    assert len(NAMES) == 24
 
 
 @then("the generate operation offers a speed of auto, standard or batch")
@@ -185,3 +185,26 @@ def step_all_default(context):
 def step_not_implemented(context):
     for item, answer in context.answers:
         assert answer["error"]["code"] == "not_implemented" and answer["error"]["details"] == {"operation": item.name}
+
+
+@when("the MCP tool image_generate is called with an empty image type")
+def step_empty_type_mcp(context):
+    context.mcp_answer = mcp.call_image_tool(
+        "image_generate", {"target": {"kind": "story", "lineageId": "story-1"}, "use": "cover", "imageType": "", "brief": "x"}, Caller())
+
+
+@when("the MCP tool image_figure_add is called without an image type")
+def step_figure_without_type(context):
+    figure = BY_NAME["image_figure_add"].examples[0].input
+    context.mcp_answer = mcp.call_image_tool("image_figure_add", {key: value for key, value in figure.items() if key != "imageType"}, Caller())
+
+
+@then("image_type_required, image_type_unknown and source_not_allowed are in the shared error table")
+def step_type_errors(context):
+    from papyrus_content.images.operations import ERROR_BY_CODE
+    assert {"image_type_required", "image_type_unknown", "source_not_allowed"} <= set(ERROR_BY_CODE)
+
+
+@then("image_figure_add names image_type_unknown, source_not_allowed, checks_failed and not_found")
+def step_figure_errors(context):
+    assert set(BY_NAME["image_figure_add"].errors) == {"image_type_unknown", "source_not_allowed", "checks_failed", "not_found"}
