@@ -1,0 +1,20 @@
+{
+  "id": "PPY-7ccfced2-110a-4f31-9eb1-337911f18579",
+  "title": "Story editor controls run past the screen edge at phone width",
+  "description": "Found 2026-11-07 while reviewing the Story checklist at 375 px wide. In the Story detail panel, the article view toggle (DIV.newsroom-article-view-toggle) and the header button (BUTTON.organizer-header-button) draw past the screen edge on CI's fonts, and the Slug field and the Preview, Edit, Messages and References tab row also reach the edge. They predate the checklist. Fix the editor layout so nothing in the detail panel runs past the screen at phone width, then widen the checklist UI test's phone check (scripts/test-story-checklist-ui.ts, now limited to the checklist) back to the whole panel.",
+  "type": "bug",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T18:53:14.682501Z",
+  "updated_at": "2026-11-07T18:53:14.682809Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
