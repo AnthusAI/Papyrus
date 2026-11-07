@@ -218,7 +218,7 @@ OPERATIONS: tuple[Operation, ...] = (
         obj({"document": PROFILE_DOCUMENT}, ("document",)),
         record({"changes": many(record({"path": text(), "from": anything(), "to": anything()}, ("path",))),
                 "constraintChanges": many({"type": "object"}), "wouldCreateVersion": whole()}, ("changes", "constraintChanges", "wouldCreateVersion")),
-        (), (Example({"document": {"identity": {"mood": ["calm"]}}}, {"changes": [{"path": "identity.mood", "from": ["calm", "precise"], "to": ["calm"]}],
+        ("constraint_conflict",), (Example({"document": {"identity": {"mood": ["calm"]}}}, {"changes": [{"path": "identity.mood", "from": ["calm", "precise"], "to": ["calm"]}],
                                                                    "constraintChanges": [], "wouldCreateVersion": 4}),),
         file_field="document",
     ),
@@ -227,11 +227,12 @@ OPERATIONS: tuple[Operation, ...] = (
         obj({"document": PROFILE_DOCUMENT, "reason": REASON, "expectedCurrentVersionId": text("The profile's current version id when you read it.")},
             ("document", "reason", "expectedCurrentVersionId")),
         record({"itemId": text(), "versionNumber": whole(), "contentHash": text()}, ("itemId", "versionNumber", "contentHash")),
-        ("human_required", "stale_version"),
+        ("human_required", "stale_version", "constraint_conflict"),
         (Example({"document": {"identity": {"mood": ["calm"]}}, "reason": "Dropped one mood word.", "expectedCurrentVersionId": "item-editorial-doctrine-visual-style-v3"},
                  {"itemId": "item-editorial-doctrine-visual-style-v4", "versionNumber": 4, "contentHash": "sha256:7d21"}),),
         file_field="document",
-        notes="Adding, changing or removing a binding constraint needs an admin who is a person; an agent gets human_required.",
+        notes="Adding, changing or removing a binding constraint needs an admin who is a person; an agent gets human_required. The document is laid over the current profile "
+              "(objects merge, lists replace, null removes a key). For the very first profile pass none as expectedCurrentVersionId. Saving a document that changes nothing makes no version.",
     ),
     Operation(
         "image_profile_history", ("profile", "history"), "List the profile's versions, newest first, with who changed it and why.", "read",

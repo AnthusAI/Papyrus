@@ -5,7 +5,12 @@ the `image-work` skill's reference and this page are generated from it, so they 
 
 **Adding or changing an operation:** edit the table, then run `python scripts/generate-image-operations.py`. A test fails when a generated file is out of date.
 
-Every operation is still a stub that answers `not_implemented`; later build steps fill them in.
+Operations are built one step at a time. The five style profile operations (`image_profile_get`, `image_profile_resolve`, `image_profile_diff`, `image_profile_save`, `image_profile_history`) are built:
+they read and save the publication's visual style profile and resolve it for a Story ([image style profiles](image-style-profiles.md)). The rest still answer `not_implemented`; later build steps fill them in.
+Example add and remove are step 3.
+
+On the command line the profile operations run on the signed-in lane (`papyrus login`): each call acts as the person who signed in, so the backend applies their own rights.
+An agent (`PAPYRUS_ACTOR_KIND=agent`) may save a style document but not change a binding constraint, which needs a person who is an admin.
 
 <!-- generated:image-operations -->
 <!-- Generated from src/papyrus_content/images/operations.py. Do not edit by hand; run scripts/generate-image-operations.py. -->
@@ -241,7 +246,7 @@ Result:
 | `constraintChanges` | array | yes |  |
 | `wouldCreateVersion` | integer | yes |  |
 
-Errors: only the common ones.
+Errors: `constraint_conflict`.
 
 Example input:
 
@@ -286,7 +291,7 @@ Save a style document as a new profile version.
 - MCP tool: `image_profile_save`
 - Effect: write
 - Agent may call: yes
-- Note: Adding, changing or removing a binding constraint needs an admin who is a person; an agent gets human_required.
+- Note: Adding, changing or removing a binding constraint needs an admin who is a person; an agent gets human_required. The document is laid over the current profile (objects merge, lists replace, null removes a key). For the very first profile pass none as expectedCurrentVersionId. Saving a document that changes nothing makes no version.
 
 Input:
 
@@ -304,7 +309,7 @@ Result:
 | `versionNumber` | integer | yes |  |
 | `contentHash` | string | yes |  |
 
-Errors: `human_required`, `stale_version`.
+Errors: `human_required`, `stale_version`, `constraint_conflict`.
 
 Example input:
 

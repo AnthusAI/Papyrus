@@ -25,6 +25,15 @@ DOCTRINE_DEFINITION_BY_KIND = {
     },
 }
 
+# The third kind of doctrine is optional: a publication without it gets a warning wherever images are made, never a refusal. It is kept out of
+# DOCTRINE_DEFINITION_BY_KIND, whose kinds are all required and seeded together (project/wiki/image-toolchain.md section 5.1).
+VISUAL_STYLE_DEFINITION = {
+    "slug": "editorial-doctrine-visual-style",
+    "id": "item-editorial-doctrine-visual-style-v1",
+    "lineageId": "item-editorial-doctrine-visual-style",
+    "title": "Visual Style",
+}
+
 _publication_doctrine_seed_cache: dict[str, dict[str, Any]] = {}
 
 

@@ -8,6 +8,12 @@ description: Use when a Story or Reference needs a picture: finding stock images
 This skill is for any agent that adds a picture to a Story or Reference, through the `papyrus images` commands or the `image_*` MCP tools. They are
 the same operations, with the same input and the same JSON result.
 
+Start from the publication's style. `image_profile_resolve` says which image types the publication has for a use (`availableTypes`, each with a plain description and its
+allowed sources, best first), which one applies, and where every rule came from. Name an image type for anything inside the article; for a cover or social card you may leave it out
+and the publication's default is used and said so. Write a brief about what the picture should show, never about its style: the style comes from the profile. A publication with no
+profile gives a `profile_missing` warning, not an error: say so, and do not make up style rules. You may save profile changes with `image_profile_save`, but binding constraints
+belong to a person who is an admin: an agent gets `human_required`.
+
 The guidance on when to use stock, when to generate, how to choose, and how review works is written in a later build step. Until then, read the
 reference below, and treat a picture you apply without a person as a suggestion: it is not approved.
 
@@ -22,8 +28,8 @@ Each operation is a command and a tool with the same input and the same JSON res
 | --- | --- | --- | --- | --- |
 | `image_profile_get` | `papyrus images profile get` | Read the publication's visual style profile, the current version or an older one. | yes | `not_found` |
 | `image_profile_resolve` | `papyrus images profile resolve` | Show the style that would apply to a Story, section and use, with the layer every field came from. | yes | `constraint_conflict`, `image_type_required`, `image_type_unknown`, `not_found` |
-| `image_profile_diff` | `papyrus images profile diff` | Show what saving a style document would change, without saving it. | yes | only the common ones |
-| `image_profile_save` | `papyrus images profile save` | Save a style document as a new profile version. | yes | `human_required`, `stale_version` |
+| `image_profile_diff` | `papyrus images profile diff` | Show what saving a style document would change, without saving it. | yes | `constraint_conflict` |
+| `image_profile_save` | `papyrus images profile save` | Save a style document as a new profile version. | yes | `human_required`, `stale_version`, `constraint_conflict` |
 | `image_profile_history` | `papyrus images profile history` | List the profile's versions, newest first, with who changed it and why. | yes | only the common ones |
 | `image_profile_example_add` | `papyrus images profile example add` | Add an example or an avoid-this picture to the profile, as a new version. | yes | `human_required`, `image_type_unknown`, `not_found`, `stale_version` |
 | `image_profile_example_remove` | `papyrus images profile example remove` | Remove an example picture from the profile, as a new version. | yes | `not_found`, `stale_version` |

@@ -91,6 +91,15 @@ How to read what follows:
 - Say what you would cut as well as what you would keep.
 """
 
+ILLUSTRATOR_ROLE = """You are an illustrator at this publication. An editor has chosen a Story and you decide what picture it needs and which kind of picture it should be. You ask for pictures through the image operations; you never publish.
+
+How to read what follows:
+- The publication's image style and its image types come first. The types are the publication's own list: choose one before you ask for a picture, and say why.
+- The rules that cannot be loosened are not suggestions. Write a brief about what the picture should show, never about its style: the style is added for you from the publication's profile.
+- The Story and the conversation on it say what the picture is for. Do not describe anyone or anything the Story does not support.
+- A picture you add without a person looking at it is marked as not reviewed. Never say a person approved a picture.
+"""
+
 #: What every agent on a Story reads about it, what every agent in a section reads about that section, and what it reads about the publication beyond.
 STORY_BLOCK = ("assignment", "story", "process", "audience_lenses", "story_references", "related_references", "story_conversation", "prior_research")
 SECTION_CONCEPT_LAYERS = ("section_concepts", "concept_references")
@@ -104,7 +113,9 @@ PROFILES: dict[str, dict[str, Any]] = {
     "reporter": {"role": REPORTER_ROLE, "needsStory": True, "layers": (*STORY_BLOCK, *SECTION_BLOCK, *PUBLICATION_BLOCK)},
     "copywriter": {"role": COPYWRITER_ROLE, "needsStory": True, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"),
                    "layers": ("editorial_policies", *STORY_BLOCK, "voice_examples", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
-    "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"), "layers": (*STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
+    "editor": {"role": EDITOR_ROLE, "needsStory": False, "sheds": ("section_concepts", "story_references", "story_conversation", "prior_research"), "layers": ("visual_style", *STORY_BLOCK, "desk_in_progress", *SECTION_BLOCK, *PUBLICATION_BLOCK)},
+    "illustrator": {"role": ILLUSTRATOR_ROLE, "needsStory": True, "sheds": ("story_references", "story_conversation"),
+                    "layers": ("visual_style", "assignment", "story", "process", "story_references", "story_conversation")},
 }
 
 
@@ -843,6 +854,22 @@ def editorial_policies_layer(situation: Situation) -> tuple[list[Entry], str | N
     return entries, None if entries else "the site has no editorial policies"
 
 
+def visual_style_layer(situation: Situation) -> tuple[list[Entry], str | None]:
+    """The publication's image style for the Story's section and its image types, one plain line each. The editor only needs to know what kinds of picture exist."""
+    from .images.profile_store import read_current_profile
+    from .images.style_text import style_text
+    from .images.visual_style import PROFILE_MISSING
+
+    document, _, row = read_current_profile(situation.store)
+    if document is None:
+        situation.warnings.append(PROFILE_MISSING)
+        return [], "the publication has no image style guidelines"
+    text = style_text(document, section=situation.section, types_only=situation.profile == "editor")
+    if not text:
+        return [], "the image style profile has no image types yet"
+    return [_entry("visual_style", str(row["id"]), text, lineageId=row.get("lineageId"), versionNumber=row.get("versionNumber"))], None
+
+
 def concept_relations(situation: Situation, lineage: str) -> list[dict[str, Any]]:
     key = f"semanticNode#{lineage}#current"
     return [*situation.store.list_semantic_relations_by_subject_state(key), *situation.store.list_semantic_relations_by_object_state(key)]
@@ -973,6 +1000,7 @@ class Layer:
 
 LAYERS: dict[str, Layer] = {
     "editorial_policies": Layer("The site's editorial policies", True, editorial_policies_layer),
+    "visual_style": Layer("The publication's image style and image types", True, visual_style_layer),
     "assignment": Layer("The editor's assignment", True, assignment_layer),
     "story": Layer("The Story", True, story_layer, needs_story=True),
     "process": Layer("Where the Story is in the newsroom's procedure", True, process_layer, needs_story=True),
