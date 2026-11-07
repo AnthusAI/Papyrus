@@ -54,7 +54,7 @@ PASSAGE_STOPWORDS = {
     "or", "our", "that", "the", "their", "this", "to", "we", "what", "with",
 }
 
-CURATION_CARD_ROLE = "curation"
+CURATION_CARD_TYPE = "curation"
 
 MODEL_ATTACHMENT_FIELDS = """
 id ownerKind ownerId role sortKey storagePath status createdAt updatedAt
@@ -2878,7 +2878,7 @@ def _collect_reference_evidence(
 def _curation_card(attachments: list[dict[str, Any]]) -> dict[str, Any] | None:
     """The Reference's curation card (``ReferenceAttachment`` role ``curation``), parsed. It is loaded with the other attachments, so no request."""
     for attachment in attachments:
-        if attachment.get("role") != CURATION_CARD_ROLE:
+        if attachment.get("role") != CURATION_CARD_TYPE:
             continue
         try:
             card = json.loads(attachment.get("metadata") or "{}")
