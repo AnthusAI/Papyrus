@@ -24,7 +24,7 @@ const version = (id: string, type: string, stage: string, status = "draft"): Con
 const scenario = process.argv[2] ?? "all";
 const runs: Record<string, () => Promise<void>> = {
   async types() {
-    assert.deepEqual([...SYSTEM_ITEM_TYPES], ["wiki_page", "doctrine", "page"], "the system set is fixed: these are not stories");
+    assert.deepEqual([...SYSTEM_ITEM_TYPES], ["wiki_page", "doctrine", "page", "sub-task"], "the system set is fixed: these are not stories");
     for (const type of ["article", "post", "guide", "case_study", "untyped", "newsletter_issue"]) assert.equal(isStoryItemType(type), true, `${type} is a story type: nothing but the system set decides`);
     for (const type of ["wiki_page", "doctrine", "page", "", null, undefined]) assert.equal(isStoryItemType(type as string), false, `${String(type)} is not a story`);
     assert.deepEqual(storyItemTypeFilter(), { and: SYSTEM_ITEM_TYPES.map(type => ({ type: { ne: type } })) }, "the query filter excludes the system set and names no story type");

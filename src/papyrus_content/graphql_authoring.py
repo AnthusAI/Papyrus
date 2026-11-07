@@ -153,7 +153,7 @@ PUBLISHED_EDITION_ITEM_FIELDS = (
 )
 ITEM_FIELDS = (
     f"{VERSION_FIELDS} id tenantId tenantSlug type status typeStatus stage slug shortSlug section sectionStatus title headline deck body "
-    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata starRating starRatedAt starRatedBy"
+    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata starRating starRatedAt starRatedBy parentLineageId"
 )
 PUBLISHED_ITEM_FIELDS = (
     "id tenantId tenantSlug sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
@@ -536,6 +536,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "storyLineageId",
         "partitionType": "ID",
         "fields": STORY_VARIATION_FIELDS,
+    },
+    "itemsByParent": {
+        "field": "listItemsByParentAndOrder",
+        "partitionKey": "parentLineageId",
+        "partitionType": "ID",
+        "fields": ITEM_FIELDS,
     },
     "semanticRelationsByNewsroomFeedAndCreatedAt": {
         "field": "listSemanticRelationsByNewsroomFeedAndCreatedAt",

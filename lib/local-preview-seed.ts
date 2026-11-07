@@ -7,6 +7,7 @@ import type { ResearchPacketView } from "./research-packet";
 import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailAgentNote, type TrailAssignment, type TrailReference, type TrailThread, type TrailVersion } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
+import { noteProblem, stepChangeProblem, summarizeStoryChecklist, type StoryStepNote, type StoryStepRecord } from "./story-checklist";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
 
 const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
@@ -55,6 +56,112 @@ const PREVIEW_STORY_STARS: Readonly<Record<string, number>> = {
   "idea-1": 2,
 };
 
+/** The template, as the preview shows it: the live steps of the Story procedure (src/papyrus_content/newsroom_process.py), in order. */
+const PREVIEW_CHECKLIST_TEMPLATE: readonly { key: string; title: string; command: string; required: boolean }[] = [
+  { key: "choose", title: "Choose the idea", command: "papyrus ideas select --section <section>", required: true },
+  { key: "direction", title: "Give the research direction", command: "papyrus stories assign-research --story {story} --direction-file direction.md", required: true },
+  { key: "research", title: "Research the Story", command: "papyrus assignments research-multi <assignment id>", required: true },
+  { key: "outline", title: "Write the outline after the research", command: "papyrus stories outline --story {story}", required: true },
+  { key: "draft", title: "Write the draft", command: "papyrus stories draft --story {story}", required: true },
+  { key: "copy_edit", title: "Copy-edit the draft", command: "papyrus editorial check-version --item <current version id>", required: true },
+  { key: "review_people", title: "Reviewed for readers", command: "papyrus stories step --story {story} --step review_people --state done --note <findings>", required: true },
+  { key: "review_reader_agents", title: "Reviewed for AI reader agents", command: "papyrus stories step --story {story} --step review_reader_agents --state done --note <findings>", required: true },
+  { key: "review_search", title: "Reviewed for search", command: "papyrus stories step --story {story} --step review_search --state done --note <findings>", required: true },
+  { key: "review_social", title: "Reviewed for social previews", command: "papyrus stories step --story {story} --step review_social --state done --note <findings>", required: true },
+  { key: "publish", title: "Publish the Story", command: "papyrus ops content publish --id <item id>", required: false },
+];
+const PREVIEW_CHECKLIST_TEMPLATE_VERSION = 2;
+const PREVIEW_CHECKLIST_EVIDENCE_SOURCES: Record<string, string> = {
+  choose: "the Story's stage", direction: "the research direction", research: "the research packet", outline: "the outline", draft: "the draft version",
+  copy_edit: "the copy-edit check", publish: "publishing",
+};
+
+/** Notes the preview steps already carry, so the panel shows an open, a closed and a crowded step: the log is newest last. */
+function previewNotesFor(lineageId: string, key: string): StoryStepNote[] {
+  if (lineageId !== "preview-item-lineage-copywriting-0") return [];
+  if (key === "review_people") return [
+    { at: "2026-10-01T05:30:00.000Z", actorKind: "agent", actorLabel: "AI", text: "Headline and dek agree with the opening paragraph." },
+    { at: "2026-10-01T06:10:00.000Z", actorKind: "person", actorLabel: "Preview editor", text: "The second section is long. Leave it for now, but trim it if the Story runs again.\nThe quotation in the fourth paragraph needs its source named." },
+    { at: "2026-10-01T07:45:00.000Z", actorKind: "person", actorLabel: "Sierra", text: "Correction to the note above: the quotation is already sourced in the footer." },
+    { at: "2026-10-01T09:00:00.000Z", actorKind: "agent", actorLabel: "AI", text: "Checked the footer: the source is named there." },
+  ];
+  if (key === "outline") return [{ at: "2026-10-01T08:20:00.000Z", actorKind: "person", actorLabel: "Preview editor", text: "Skipped on purpose: this Story came from a single Reference." }];
+  if (key === "review_search") return [{ at: "2026-10-01T09:30:00.000Z", actorKind: "person", actorLabel: "Sierra", text: "Waiting on the section editor to choose the final headline." }];
+  return [];
+}
+
+/** How far each preview Story's checklist has got, so a card and a panel show open, done, skipped and not-applicable steps. */
+function previewChecklistFor(stageKey: string, headlineIndex: number, lineageId: string): StoryStepRecord[] {
+  const stageOrder = ["idea", "assignment", "reporting", "copywriting", "illustration", "typesetting", "published"];
+  const reached = Math.max(0, stageOrder.indexOf(stageKey));
+  const doneBy = (key: string): number => ({ choose: 1, direction: 1, research: 2, outline: 2, draft: 3, copy_edit: 3, publish: 6 } as Record<string, number>)[key] ?? 99;
+  return PREVIEW_CHECKLIST_TEMPLATE.map((entry, index): StoryStepRecord => {
+    const base = {
+      id: `step-${lineageId}-${entry.key}`, storyLineageId: lineageId, stepKey: entry.key, stepOrder: index, templateVersion: PREVIEW_CHECKLIST_TEMPLATE_VERSION,
+      title: entry.title, command: entry.command.replace("{story}", lineageId), state: "open" as const, notes: previewNotesFor(lineageId, entry.key),
+    };
+    const changedAt = isoTimestampHoursBeforeBase(index + 1);
+    if (stageKey === "published" && entry.key.startsWith("review_")) {
+      return entry.key === "review_social"
+        ? { ...base, state: "not_applicable", actorKind: "person", actorLabel: "Preview editor", changedAt, reason: "This Story has no image to preview." }
+        : { ...base, state: "done", actorKind: "agent", actorLabel: "Reviewing agent", changedAt, note: "Read as a reader would: the headline, deck and first paragraph hold up." };
+    }
+    if (entry.key === "outline" && reached >= 3 && headlineIndex === 0) {
+      return { ...base, state: "skipped", actorKind: "person", actorLabel: "Preview editor", changedAt, reason: "The editor wrote the draft straight from the reporting notes." };
+    }
+    if (entry.key === "review_people" && reached === 3 && headlineIndex === 0) {
+      return { ...base, state: "done", actorKind: "person", actorLabel: "Preview editor", changedAt, note: "Reads clearly; the second section is long but earns its length." };
+    }
+    if (reached >= doneBy(entry.key) && !entry.key.startsWith("review_")) {
+      return { ...base, state: "done", actorKind: "system", actorLabel: `Automatically, from ${PREVIEW_CHECKLIST_EVIDENCE_SOURCES[entry.key] ?? "the records"}`, changedAt, evidence: `Preview record for ${entry.key}` };
+    }
+    return base;
+  });
+}
+
+/** Changes made in the preview (the panel's buttons): the preview has no backend, so a Story's steps are kept here once one is changed. */
+const previewChecklistChanges = new Map<string, StoryStepRecord[]>();
+
+function previewChecklistOf(lineageId: string): StoryStepRecord[] {
+  const changed = previewChecklistChanges.get(lineageId);
+  if (changed) return changed;
+  const match = /^preview-item-lineage-(.+)-(\d+)$/.exec(lineageId);
+  return match ? previewChecklistFor(match[1], Number(match[2]), lineageId) : [];
+}
+
+/** The checklist steps of a preview Story (the index read the panel makes against the real backend). */
+export function createLocalPreviewStoryChecklist(lineageId: string): StoryStepRecord[] {
+  return previewChecklistOf(lineageId).map(step => ({ ...step }));
+}
+
+/** What the backend does for `setStoryStep`, for the preview: the same rules, the change recorded as the preview editor. */
+export function setLocalPreviewStoryStep(lineageId: string, stepKey: string, state: StoryStepRecord["state"], input: { reason?: string; note?: string }): void {
+  const problem = stepChangeProblem(stepKey, state, input);
+  if (problem) throw new Error(problem);
+  const steps = previewChecklistOf(lineageId);
+  if (!steps.some(step => step.stepKey === stepKey)) throw new Error(`Unknown step ${stepKey}.`);
+  previewChecklistChanges.set(lineageId, steps.map(step => step.stepKey !== stepKey ? step : {
+    ...step, state, actorKind: "person", actorLabel: "Preview editor", changedAt: new Date().toISOString(),
+    reason: state === "skipped" || state === "not_applicable" ? input.reason?.trim() ?? null : null, note: input.note?.trim() || null, evidence: null,
+  }));
+}
+
+/** What the backend does for a note, for the preview: appended to the step's log, as the preview editor, whatever the step's state. */
+export function addLocalPreviewStoryStepNote(lineageId: string, stepKey: string, text: string): void {
+  const problem = noteProblem(text);
+  if (problem) throw new Error(problem);
+  const steps = previewChecklistOf(lineageId);
+  if (!steps.some(step => step.stepKey === stepKey)) throw new Error(`Unknown step ${stepKey}.`);
+  previewChecklistChanges.set(lineageId, steps.map(step => step.stepKey !== stepKey ? step : {
+    ...step, notes: [...step.notes, { at: new Date().toISOString(), actorKind: "person", actorLabel: "Preview editor", text: text.trim() }],
+  }));
+}
+
+/** Forgets the preview's changes (a test starts from the sample steps). */
+export function resetLocalPreviewStoryChecklists(): void {
+  previewChecklistChanges.clear();
+}
+
 export function createLocalPreviewContentItemVersions(): ContentItemVersionRecord[] {
   const stageKeys = contentItemStageKeys(getContentItemStageDefinitions());
   return stageKeys.flatMap((stageKey, stageIndex) => {
@@ -76,6 +183,7 @@ export function createLocalPreviewContentItemVersions(): ContentItemVersionRecor
         updatedAt: isoTimestampHoursBeforeBase(stageIndex * 3 + headlineIndex),
         versionCreatedBy: stageKey === "idea" && headlineIndex === 0 ? "AI" : "Preview editor",
         starRating: PREVIEW_STORY_STARS[`${stageKey}-${headlineIndex}`] ?? null,
+        metadata: { checklist: summarizeStoryChecklist(previewChecklistOf(`preview-item-lineage-${stageKey}-${headlineIndex}`), PREVIEW_CHECKLIST_TEMPLATE.filter(entry => entry.required).map(entry => entry.key), PREVIEW_CHECKLIST_TEMPLATE_VERSION) },
       };
     });
   });

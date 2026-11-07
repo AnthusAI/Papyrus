@@ -280,6 +280,40 @@ def _run_projection_task(task: dict) -> dict:
     return {"ok": True, "paths": [*report.written, *report.deleted]}
 
 
+def sync_story_checklist(client, record: dict) -> None:
+    """Brings a Story's checklist up to date after a console save (best effort: the save stands whatever happens here)."""
+    from papyrus_content.content_item_lifecycle import is_story_item_type
+    from papyrus_content.story_checklist import sync_quietly
+
+    if is_story_item_type(record.get("type")):
+        sync_quietly(client, record.get("lineageId") or record["id"])
+
+
+def set_story_step_action(arguments: dict, event: dict) -> dict:
+    """Marks one step of a Story's checklist done, skipped, not applicable or open again, as the signed-in person.
+    ``agent`` names an agent acting through that person's session: the change is recorded as the agent's, on that person's behalf, and an agent cannot reopen a step."""
+    from papyrus_content.story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, add_note, set_step
+
+    person = person_from_event(event)
+    if not person:
+        return {"ok": False, "errors": [{"code": "not-signed-in", "message": "Sign in as an editor to change a checklist step.", "line": None}]}
+    agent = (arguments.get("agent") or "").strip()
+    label = agent or (arguments.get("actorLabel") or "").strip() or (event.get("identity") or {}).get("username") or "editor"
+    client, _claims = create_authoring_client()
+    actor = {"kind": ACTOR_AGENT if agent else ACTOR_PERSON, "label": label, "sub": person}
+    try:
+        if not arguments.get("state"):   # no state: a note on the step, whatever its state, changing nothing else
+            row = add_note(client, arguments["lineageId"], arguments["stepKey"], arguments.get("note") or "", actor=actor)
+        else:
+            row = set_step(
+                client, arguments["lineageId"], arguments["stepKey"], arguments["state"], actor=actor,
+                reason=arguments.get("reason"), note=arguments.get("note"), evidence=arguments.get("evidence"),
+            )
+    except ChecklistError as error:
+        return {"ok": False, "errors": [{"code": "checklist-rejected", "message": str(error), "line": None}]}
+    return {"ok": True, "step": {"stepKey": row["stepKey"], "state": row["state"], "changedAt": row.get("changedAt")}}
+
+
 def save_item_draft_action(arguments: dict, actor: str, approved_by: str | None = None) -> dict:
     client, _claims = create_authoring_client()
     if arguments.get("newVersion") and arguments.get("id"):
@@ -298,6 +332,7 @@ def save_item_draft_action(arguments: dict, actor: str, approved_by: str | None 
             )
         except ValueError as error:
             raise PublishError("story-not-saved", str(error)) from error
+        sync_story_checklist(client, record)
         return {
             "ok": True,
             "item": {
@@ -331,6 +366,7 @@ def save_item_draft_action(arguments: dict, actor: str, approved_by: str | None 
         id=arguments.get("id"),
     )
     record = save_item(client, fields, actor=actor, expected_content_hash=arguments.get("expectedContentHash"))
+    sync_story_checklist(client, record)   # a Story the editor creates here gets its checklist; one they change catches up with the template
     response = {
         "ok": True,
         "item": {
@@ -520,6 +556,8 @@ def handler(event, context):
             return create_story_from_reference_action(arguments, actor)
         if field == "moveStoryStage":
             return move_story_stage_action(arguments, actor)
+        if field == "setStoryStep":
+            return set_story_step_action(arguments, event)
         if field == "addStoryAgentNote":
             return add_story_agent_note_action(arguments, person_from_event(event))
         if field == "unpublishItem":

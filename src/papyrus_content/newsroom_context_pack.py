@@ -302,7 +302,14 @@ def process_layer(situation: Situation) -> tuple[list[Entry], str | None]:
     assessment = reminder_assessment(situation.store, situation.lineage, getattr(situation.store, "read_check_run", None))
     if assessment is None:
         return [], "the Story's place in the procedure could not be worked out"
-    return [_entry("process", str(situation.lineage), process_text(assessment))], None
+    text = process_text(assessment)
+    try:   # the notes people and agents left on the Story's checklist steps, for context (one index read by parent)
+        from .story_checklist import notes_text, read_steps
+
+        notes = notes_text(read_steps(situation.store, situation.lineage))
+    except Exception:  # noqa: BLE001 - a store without the checklist index has no notes to show
+        notes = ""
+    return [_entry("process", str(situation.lineage), text + ("\n\n" + notes if notes else ""))], None
 
 
 def audience_lenses_layer(situation: Situation) -> tuple[list[Entry], str | None]:

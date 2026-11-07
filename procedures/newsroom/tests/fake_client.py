@@ -20,6 +20,8 @@ INDEX_MODELS = {
     "semanticRelationsByObjectState": "SemanticRelation",
     "referencesByLineageAndVersion": "Reference",
     "assignmentsByItemLineageAndCreatedAt": "Assignment",
+    "itemsByParent": "Item",
+    "itemsByStage": "Item",
 }
 
 
@@ -72,6 +74,13 @@ class FakeAuthoringClient:
         partition_key = INDEX_DEFINITIONS[index_name]["partitionKey"]
         model_name = INDEX_MODELS[index_name]
         return [copy.deepcopy(row) for row in self._table(model_name).values() if row.get(partition_key) == key_value]
+
+    def get_records_by_id(self, model_name: str, record_ids: list[str]) -> dict[str, dict[str, Any]]:
+        return {record_id: copy.deepcopy(row) for record_id in record_ids if (row := self._table(model_name).get(record_id)) is not None}
+
+    def iterate_newest_first(self, index_name: str, key_value: str, *, page_size: int = 50):
+        rows = self.list_by_index(index_name, key_value)
+        yield from sorted(rows, key=lambda row: str(row.get("updatedAt") or ""), reverse=True)
 
     def list_reference_attachments_by_lineage(self, reference_lineage_id: str) -> list[dict[str, Any]]:
         return self.list_by_index("referenceAttachmentsByReferenceLineageAndSortKey", reference_lineage_id)

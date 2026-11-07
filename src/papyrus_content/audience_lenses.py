@@ -203,12 +203,16 @@ def has_checks_built() -> bool:
 # --- the checklist seam ----------------------------------------------------------------------------------------------------------
 
 def lens_step_states(client: Any, lineage: str) -> dict[str, str]:
-    """Seam: each lens step's recorded state, ``{step key: state}``.
+    """Each lens step's recorded state, ``{step key: state}``, read from the Story's checklist: the four ``review_*`` sub-task Items
+    (``story_checklist.py``; one index read by parent). A Story with no checklist yet, or one that cannot be read, knows nothing, so every lens step
+    reads as not checked yet."""
+    from .story_checklist import read_steps
 
-    The per-Story checklist (``story_checklist.py``, branch ``feat/story-checklist``) records whether a person or an agent finished each
-    ``review_*`` step. Until it is merged this knows nothing, so every lens step reads as not checked yet. When it lands, this is the one function
-    to point at its records."""
-    return {}
+    try:
+        rows = read_steps(client, lineage)
+    except Exception:  # noqa: BLE001 - an unreadable checklist is "not checked yet", never a failure of `stories next`
+        return {}
+    return {row["stepKey"]: row["state"] for row in rows if row["stepKey"] in LENS_BY_STEP}
 
 
 # --- generated text --------------------------------------------------------------------------------------------------------------
@@ -259,7 +263,7 @@ def lens_lines(states: Mapping[str, str] | None = None, counts: Mapping[str, Map
     ``counts`` is ``{step: {state: n}}`` from stored evidence of the current version; with none a lens reads "not checked yet"."""
     lines = []
     for lens in LENSES:
-        if (states or {}).get(lens.step) == "done":
+        if (states or {}).get(lens.step) in ("done", "skipped", "not_applicable"):
             continue
         found = (counts or {}).get(lens.step)
         if found:

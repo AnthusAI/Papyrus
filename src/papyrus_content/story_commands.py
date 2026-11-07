@@ -424,13 +424,75 @@ def stories_next(flags: list[str]) -> None:
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
     assessment = assess(story_facts(client, lineage_id))
+    from .story_checklist import checklist_lines, progress_text, read_steps, steps_for_display, summary_of
+
+    stored = steps_for_display(read_steps(client, lineage_id), lineage_id)   # one index read by Story lineage
     states = lens_step_states(client, lineage_id)
     if options.get("json"):
-        print(json.dumps({"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id)}, indent=2))
+        print(json.dumps({"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
+                          "checklist": stored, "progress": progress_text(summary_of(stored)) if stored else None}, indent=2))
         return
     print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
-    for line in step_lines(assessment) + next_lines(assessment) + lens_lines(states, lineage=lineage_id):
+    for line in step_lines(assessment) + checklist_lines(stored) + next_lines(assessment) + lens_lines(states, lineage=lineage_id):
         print(line)
+
+
+def stories_step(flags: list[str]) -> None:
+    """papyrus stories step --story <lineage> --step <key> [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--dry-run]
+
+    Marks one step of the Story's checklist and records who did it and when. A skipped or not-applicable step needs --reason; a review step needs --note
+    (the findings) to be done; only a person reopens a step (--state open). With --note and no --state it adds a note to the step and changes nothing
+    else: notes accumulate (who, when, text), can be added to any step in any state, and are never edited or deleted. --agent NAME says an agent made the change; without it the actor is a person."""
+    from .story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, set_step
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories step")
+    lineage_id = _required_option(options, "story")
+    key = _required_option(options, "step")
+    state = normalize_string(options.get("state"))
+    if state is None and not normalize_string(options.get("note")):
+        raise ValueError("--state is required (or --note alone, to add a note without changing the state).")
+    agent = normalize_string(options.get("agent"))
+    actor = {"kind": ACTOR_AGENT if agent else ACTOR_PERSON, "label": agent or normalize_string(options.get("actor-label")) or "papyrus-cli"}
+    if not apply:
+        print(f"stories\tstep\t{lineage_id}\t{key}\t{state or 'note'}\tdry run")
+        return
+    client, _ = create_authoring_client()
+    if state is None:   # a note on its own: the step's state, reason and findings stay as they are
+        from .story_checklist import add_note
+
+        try:
+            row = add_note(client, lineage_id, key, normalize_string(options.get("note")) or "", actor=actor)
+        except ChecklistError as error:
+            raise ValueError(str(error)) from error
+        print(f"stories\tstep\t{lineage_id}\t{row['stepKey']}\tnote\twrite\t{len(row['notes'])} notes")
+        return
+    try:
+        row = set_step(client, lineage_id, key, state, actor=actor, reason=normalize_string(options.get("reason")),
+                       note=normalize_string(options.get("note")), evidence=normalize_string(options.get("evidence")))
+    except ChecklistError as error:
+        raise ValueError(str(error)) from error
+    print(f"stories\tstep\t{lineage_id}\t{row['stepKey']}\t{row['state']}\twrite")
+
+
+def stories_checklist_backfill(flags: list[str]) -> None:
+    """papyrus stories checklist-backfill [--dry-run] [--stage STAGE ...] [--page-size N]
+
+    The one-time sweep that gives every existing Story a checklist, published ones included (docs/story-procedure.md). Steps are marked done where a
+    record proves them (including the publish step of a published Story) and left open otherwise; the four review lenses start open. A Story that
+    already has a full checklist is left alone, so running it again is safe. Paged by stage, newest first. With --dry-run nothing is written and the
+    counts say what would be."""
+    from .story_checklist import backfill
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories checklist-backfill")
+    stages = tuple(parse_repeated_option(flags, "stage")) or None
+    client, _ = create_authoring_client()
+    from . import request_meter
+
+    with request_meter.sweep("stories-checklist-backfill"):   # a declared sweep: every Story, one stage at a time, in pages
+        counts = backfill(client, apply=apply, stages=stages, page_size=int(options.get("page-size") or 50))
+    print(f"stories\tchecklist-backfill\t{'write' if apply else 'dry run'}\t" + "\t".join(f"{name} {value}" for name, value in counts.items()))
 
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -586,7 +648,7 @@ def stories_move(flags: list[str]) -> None:
         from .story_triggers import deliver_from_environment
 
         deliver_from_environment(client, lineage_id)
-    assessment = reminder_assessment(client, lineage_id)
+    assessment = reminder_assessment(client, lineage_id, sync_checklist=True)
     if assessment is not None and result["changed"] and _moved_forward(result):
         warn_skipped(assessment)
     print_next_lines(assessment)

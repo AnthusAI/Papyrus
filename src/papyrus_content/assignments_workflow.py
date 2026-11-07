@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
+from .content_item_lifecycle import without_sub_tasks
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import message_record, semantic_relation_record
 from .content_item_lifecycle import (
@@ -138,6 +139,22 @@ def run_papyrus_cli_json(args: list[str]) -> dict[str, Any]:
     if completed.returncode != 0:
         raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or "papyrus command failed")
     return json.loads(completed.stdout)
+
+
+def _checklist_for_new_content_item(client, new_content_item_version: dict[str, Any] | None) -> None:
+    """An Assignment that mints a new Story also makes the Story's checklist (every path that makes a Story does)."""
+    if new_content_item_version:
+        from .story_checklist import ensure_for_new_story
+
+        ensure_for_new_story(client, new_content_item_version["lineageId"])
+
+
+def _sync_checklist_of_assignment(client, assignment: dict[str, Any]) -> None:
+    """A research packet is evidence for its Story's research step: bring the checklist up to date once."""
+    if assignment.get("itemLineageId"):
+        from .story_checklist import sync_quietly
+
+        sync_quietly(client, assignment["itemLineageId"], write_summary=False)   # this runs under the research worker role: no Item writes
 
 
 def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> dict[str, Any]:
@@ -286,6 +303,7 @@ def create_research_assignment(client: PapyrusGraphQLAuthoringClient, options: d
         print(f"assignments\tcreate-research\tnext\t{result['next']}")
         return result
     apply_record_changes(client, changes)
+    _checklist_for_new_content_item(client, new_content_item_version)
     update_newsroom_summary_after_assignment_creates(
         client,
         changes,
@@ -421,6 +439,7 @@ def create_reporting_assignment(client: PapyrusGraphQLAuthoringClient, options: 
         print(f"assignments\tcreate-reporting\tnext\t{result['next']}")
         return result
     apply_record_changes(client, changes)
+    _checklist_for_new_content_item(client, new_content_item_version)
     update_newsroom_summary_after_assignment_creates(
         client,
         changes,
@@ -1017,6 +1036,7 @@ def apply_research_packet(client: PapyrusGraphQLAuthoringClient, options: dict[s
         print("assignments\tapply-research-packet\tapply\tskipped\tuse --dry-run to preview without writes")
         return result
     apply_record_changes(client, changes)
+    _sync_checklist_of_assignment(client, assignment)
     update_newsroom_summary_after_research_packet_creates(
         client,
         changes,
@@ -1173,6 +1193,7 @@ def apply_reporting_packet(client: PapyrusGraphQLAuthoringClient, options: dict[
         print("assignments\tapply-reporting-packet\tapply\tskipped\tuse --dry-run to preview without writes")
         return result
     apply_record_changes(client, changes)
+    _sync_checklist_of_assignment(client, assignment)
     update_newsroom_summary_after_research_packet_creates(
         client,
         changes,
@@ -2383,7 +2404,7 @@ def backfill_section_indexes(client: PapyrusGraphQLAuthoringClient, options: dic
 
 def backfill_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
     apply = resolve_mutation_apply(options, "assignments backfill-content-items")
-    items = client.list_records("Item")
+    items = without_sub_tasks(client.list_records("Item"))
     lineage_id_by_item_id = {item["id"]: item.get("lineageId") or item["id"] for item in items if item.get("id")}
     assignments = client.list_records("Assignment")
     reporting_assignments = [
@@ -2442,7 +2463,7 @@ def backfill_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[
 
 def demote_undrafted_content_items(client: PapyrusGraphQLAuthoringClient, options: dict[str, Any]) -> None:
     apply = resolve_mutation_apply(options, "assignments demote-undrafted-content-items")
-    items = client.list_records("Item")
+    items = without_sub_tasks(client.list_records("Item"))
     reporting_assignments = [
         assignment
         for assignment in client.list_records("Assignment")

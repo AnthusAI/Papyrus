@@ -68,6 +68,9 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-board-body{position:relative;display:grid;grid-template-columns:minmax(0,1fr);flex:1;min-width:0;min-height:0;gap:16px}
 .organizer-board-body[data-detail-open=true]{grid-template-columns:minmax(0,1fr) clamp(320px,34vw,1000px)}
 .organizer-board-body>.kb-issue-collection{height:100%;min-height:0;overflow:auto}
+/* With a Story open the board has less room, so its columns shrink to fit instead of overflowing: Kanbus scrolls an overflowing board to its far end when a panel opens, which clipped the first columns. */
+.organizer-board-body[data-detail-open=true] .kb-grid{--kb-column-width:180px}
+.organizer-board-body[data-detail-open=true] .kb-column:not(.kb-column-collapsed){min-width:0}
 /* The detail view is a solid surface from its first frame: the theme's panel token (opaque), with the card token as a fallback if
    a theme has not defined it yet, and never any opacity animation, so the board never shows through it while it loads. */
 .organizer-board-body>.kb-issue-detail{overflow:auto;min-height:0;position:relative;z-index:2;opacity:1;background-color:var(--kb-theme-panel,var(--card,Canvas));isolation:isolate}
@@ -556,3 +559,33 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .connect-cli-copy:hover{background:color-mix(in srgb,var(--org-ink) 24%,transparent)}
 @media (min-width:640px){.connect-cli-row{flex-direction:row;align-items:stretch}.connect-cli-copy{min-width:120px}}
 .connect-cli-command,.connect-cli-inline{font-variant-ligatures:none;font-feature-settings:"liga" 0,"calt" 0}
+/* The Story checklist: a card line, and in the panel Kanbus's own sub-task cards with the buttons for the chosen step. Flat backgrounds and rounded rectangles, no outlines;
+   a state is an icon and a word, never colour alone. Class names carry no "rounded" because the newsroom theme squares every class that does. */
+.story-card-checklist-slot{display:inline-flex;align-items:center;margin-right:auto;pointer-events:none}
+.story-card-checklist{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:8px;background:var(--card-muted,var(--muted));color:var(--org-muted);font:500 11px/1.3 var(--kb-theme-ui-font)}
+.story-checklist{display:grid;gap:8px;padding:12px 8px 4px}
+.story-checklist-heading{display:flex;align-items:center;gap:6px;margin:0;font:600 13px/1.2 var(--kb-theme-ui-font)}
+.story-checklist-progress{margin-left:auto;padding:2px 8px;border-radius:8px;background:var(--card-muted,var(--muted));font-weight:500;font-size:11px;color:var(--org-muted)}
+.story-checklist-note{margin:0;font-size:12px;color:var(--org-muted)}
+.story-checklist-steps{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.story-checklist-step{display:grid;gap:4px}
+.story-checklist-steps .issue-card{border-radius:8px}
+.story-checklist-steps .issue-accent-priority::before{content:"";display:inline-block;width:12px;height:12px;margin-right:4px;vertical-align:-1px;background:currentColor;-webkit-mask:var(--step-state-icon) center/contain no-repeat;mask:var(--step-state-icon) center/contain no-repeat}
+.story-checklist-steps .issue-card[data-priority="Open"] .issue-accent-priority::before{--step-state-icon:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Ccircle%20cx=%2212%22%20cy=%2212%22%20r=%2210%22%20/%3E%3C/svg%3E")}
+.story-checklist-steps .issue-card[data-priority="Done"] .issue-accent-priority::before{--step-state-icon:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Ccircle%20cx=%2212%22%20cy=%2212%22%20r=%2210%22%20/%3E%20%3Cpath%20d=%22m9%2012%202%202%204-4%22%20/%3E%3C/svg%3E")}
+.story-checklist-steps .issue-card[data-priority="Skipped"] .issue-accent-priority::before{--step-state-icon:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d=%22M21%204v16%22%20/%3E%20%3Cpath%20d=%22M6.029%204.285A2%202%200%200%200%203%206v12a2%202%200%200%200%203.029%201.715l9.997-5.998a2%202%200%200%200%20.003-3.432z%22%20/%3E%3C/svg%3E")}
+.story-checklist-steps .issue-card[data-priority="Not applicable"] .issue-accent-priority::before{--step-state-icon:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Ccircle%20cx=%2212%22%20cy=%2212%22%20r=%2210%22%20/%3E%20%3Cpath%20d=%22M4.929%204.929%2019.07%2019.071%22%20/%3E%3C/svg%3E")}
+.story-checklist-actions{display:grid;gap:6px;padding:0 4px}
+.story-checklist-meta{margin:0;font-size:11px;line-height:1.4;color:var(--org-muted)}
+.story-checklist-buttons{display:flex;flex-wrap:wrap;gap:6px}
+.story-checklist-button{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:2px 10px;border:0;border-radius:8px;background:var(--card,var(--org-paper));color:var(--org-ink);font:600 12px var(--kb-theme-ui-font);cursor:pointer}
+.story-checklist-button:disabled{opacity:.6;cursor:default}
+.story-checklist-form{display:grid;gap:6px}
+.story-checklist-form label{font-size:12px;font-weight:600}
+.story-checklist-text{width:100%;padding:8px;border:0;border-radius:8px;background:var(--card,var(--org-paper));color:var(--org-ink);font:13px/1.4 var(--kb-theme-ui-font);resize:vertical}
+.newsroom-organizer .story-checklist-button,.newsroom-organizer .story-checklist-text,.newsroom-organizer .story-checklist-steps .issue-card{border-radius:8px !important}
+.story-checklist-notes{display:grid;gap:4px;padding:0 4px}
+.story-checklist-note-list{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.story-checklist-note-item{display:grid;gap:2px;padding:6px 10px;border-radius:8px;background:var(--card-muted,var(--muted))}
+.story-checklist-note-text{font:13px/1.4 var(--kb-theme-ui-font);white-space:pre-wrap;overflow-wrap:anywhere}
+.story-checklist-fold{justify-self:start}

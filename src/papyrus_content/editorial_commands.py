@@ -328,6 +328,22 @@ def format_findings(findings: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
+def sync_checklist_of_version(item_id: str) -> None:
+    """A finished check is evidence for the Story's copy-edit step: bring its checklist up to date once. Never fails the check."""
+    try:
+        from .graphql_authoring import create_authoring_client
+        from .story_checklist import sync_quietly
+
+        client, _ = create_authoring_client()
+        item = client.get_record("Item", item_id)
+        if item is not None:
+            sync_quietly(client, item.get("lineageId") or item_id)
+    except Exception as error:  # noqa: BLE001
+        import sys
+
+        print(f"checklist\tnot updated\t{type(error).__name__}: {str(error)[:160]}", file=sys.stderr)
+
+
 def editorial_check_version(flags: list[str]) -> None:
     parser = argparse.ArgumentParser(prog="papyrus editorial check-version", description="Check one saved version of a story, store the result with it and print every finding.")
     parser.add_argument("--item", required=True, help="Item version id, e.g. <lineage>-v2.")
@@ -336,6 +352,7 @@ def editorial_check_version(flags: list[str]) -> None:
     summary = request_item_check(args.item)
     run = read_item_check_run(args.item) or {}
     findings = run.get("findings") or []
+    sync_checklist_of_version(args.item)
     if args.json:
         _emit({"summary": summary, "findings": findings}, None)
         return
