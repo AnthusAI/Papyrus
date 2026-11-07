@@ -3,7 +3,7 @@
   "title": "Image toolchain step 1: Operation table and generators",
   "description": "Build step 1 of the image toolchain (design: project/wiki/image-toolchain.md, section 9).\n\n`images/operations.py`, error table, generator script, staleness test, empty `skills/image-work/SKILL.md` with the generated block, `docs/images.md` reference. Handlers return `not_implemented`.\n\nSpecs: `features_backend/image-operations.feature`: generated CLI, MCP schema, TS types and skill block match the table; CLI and MCP adapters give identical JSON for each example against a fake backend.\n\nWhat deploys: Nothing.\n\nFulfils or changes: Foundation for 40b7a4, 8ea0f1.\n\nGherkin specs are required, and every PR merges to develop. Spending is only approved for step 6 (OpenAI gpt-image-2.5-flare, Machines on Machines trial; Batch where nobody waits). Style guidance is data, never code.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": "Papyrus newsroom automation",
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Ryan 2026-11-07: start implementing the image toolchain. Step 1 (this story) is in progress through a Sonnet agent; worktree ~/Projects/Papyrus-worktrees/image-operations, branch feat/image-operations.",
       "created_at": "2026-11-07T18:55:13.813268Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d2c8c2bc-909b-41fb-9986-afef3ca90a1a",
+      "author": "home",
+      "text": "Merged to develop as AnthusAI/Papyrus#1285: the 23-operation table, handler stubs (not_implemented), generators for the papyrus images CLI, MCP tool schema, TypeScript types, skill block and docs/images.md, and the staleness test. Nothing deploys. Next: step 2 (PPY-6e05fd), the style profile backend.",
+      "created_at": "2026-11-07T19:29:55.600040Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-07T18:39:03.412756Z",
-  "updated_at": "2026-11-07T18:55:13.813878Z",
-  "closed_at": null,
+  "updated_at": "2026-11-07T19:29:55.600635Z",
+  "closed_at": "2026-11-07T19:29:55.308386Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
