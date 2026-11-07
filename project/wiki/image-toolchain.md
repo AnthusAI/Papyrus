@@ -274,65 +274,106 @@ Section overrides reuse `NewsroomSection.visualGuidance` (prose, already exists)
 
 The only new model in the whole design is `ImageCandidate` (5.7 / 7.2). I checked the alternatives: `StoryVariation` is Story-text-specific with required `point` and `headline`; `ModelAttachment` has no metadata for provenance; `MediaAsset` is guest-projected at publish and keyed to an Item. A dedicated row, built on the `StoryVariation` pattern, is the honest fit.
 
-### 5.2 Structured fields (`metadata.visualStyle`, schemaVersion 1)
+### 5.2 Structured fields (`metadata.visualStyle`, schemaVersion 2)
+
+A site needs several kinds of picture, and the same family needs different rules depending on where it appears and how small it is shown (Ryan, 2026-11-07). A chunky diagram that reads as a thumbnail is wrong for a technical diagram deep in an article; a headline illustration that must survive as a card thumbnail is different from a larger, more detailed illustration in the body. So the profile has **named image types**, the publication's own list, in the spirit of nano-banana-aware's `design/image-types.json` (keyed types, `defaults`, `extends`). Treatments and uses stay, but only as shared bases that types build on; the type is what an agent or editor actually asks for.
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "identity": {
-    "summary": "Flat, calm editorial illustration in ink blue on cool paper.",
-    "masterPrompt": "Flat editorial illustration, side elevation, large simple shapes with generous rounded corners, no texture, no gradients, no outlines.",
+    "summary": "Flat, calm pictures in ink blue on cool paper.",
+    "masterPrompt": "Flat shapes with generous rounded corners, no texture, no gradients, no outlines.",
     "palette": [
       {"name": "Ink blue", "hex": "#1f2a44", "token": "brand", "role": "brand"},
       {"name": "Cool paper", "hex": "#f6f7f9", "token": "paper", "role": "ground"}
     ],
     "paletteLimit": 6,
-    "mood": ["calm", "precise"]
+    "mood": ["calm", "precise"],
+    "examples": []
   },
-  "techniques": {"preferred": ["flat shapes", "one large disc cropped by the edge"], "avoided": ["perspective", "drop shadows", "lens effects"]},
-  "subjects": {
-    "guidance": "One subject, in the lower third.",
-    "representation": "People are faceless silhouettes.",
-    "never": ["real people", "real places", "real brands or logos", "rendered text"]
-  },
+  "techniques": {"preferred": ["flat shapes"], "avoided": ["perspective", "drop shadows", "lens effects"]},
+  "subjects": {"representation": "People are faceless silhouettes.", "never": ["real people", "real places", "real brands or logos"]},
+
   "treatments": {
-    "editorial-illustration": {"label": "Editorial illustration", "prompt": "...", "negative": ["photograph", "3D render"], "origins": ["generated", "stock", "drawn"]},
-    "abstract": {"label": "Abstract", "prompt": "...", "origins": ["generated", "drawn"]},
-    "photo": {"label": "Photograph", "origins": ["stock"]},
-    "diagram": {"label": "Diagram", "origins": ["drawn"], "note": "Draw with design/figures; not generated."}
+    "diagram": {"label": "Diagram", "guidance": "Explains a relationship. Shapes have fixed meanings (the figure rules)."},
+    "editorial-illustration": {"label": "Editorial illustration", "guidance": "A place or a moment, not an explanation.", "avoid": ["photograph", "3D render"]},
+    "photo": {"label": "Photograph", "guidance": "Authentic photographs only, credited."}
   },
   "uses": {
-    "cover": {"aspectRatio": "16:9", "minWidth": 1920, "treatments": ["editorial-illustration", "abstract"],
-              "safeZones": [{"region": "upper third", "instruction": "Keep the upper third quiet; headlines may sit over it on cards."}]},
-    "inline": {"aspectRatio": "16:9", "treatments": ["editorial-illustration"]},
-    "social": {"aspectRatio": "1.91:1", "derivedFrom": "cover"}
+    "cover": {"label": "Headline picture", "where": "Top of the article, and on home, section and related cards"},
+    "inline": {"label": "In the article", "where": "Inside the article body"},
+    "social": {"label": "Social card", "where": "Link previews on other sites"}
   },
-  "examples": [
-    {"attachmentId": "model-attachment-...", "kind": "exemplar", "treatment": "editorial-illustration", "note": "The containment Story cover: the right calm.", "sendToProvider": true},
-    {"attachmentId": "model-attachment-...", "kind": "negative", "note": "Too photographic.", "sendToProvider": false}
-  ],
-  "attribution": {
-    "generatedCredit": "Drafted by AI. Approved by {approvedBy}.",
-    "disclosure": "Generated illustrations are labelled in the credit."
+
+  "imageTypes": {
+    "cover-illustration": {
+      "label": "Headline illustration",
+      "description": "A simple, bold illustration for the top of a Story that still reads as a small card thumbnail.",
+      "treatment": "editorial-illustration", "use": "cover",
+      "display": {"where": "article top, home and section cards", "smallestWidthPx": 160, "thumbnail": true},
+      "guidance": "One subject, large, in the lower third. One large disc cropped by the edge. Must read at thumbnail size.",
+      "avoid": ["small details", "more than one subject"],
+      "sizes": {"aspectRatio": "16:9", "width": 1920, "height": 1088},
+      "safeZones": [{"region": "upper third", "instruction": "Keep the upper third quiet."}],
+      "sources": ["stock", "generated", "figure-system"],
+      "examples": [{"attachmentId": "model-attachment-...", "kind": "exemplar", "note": "The containment Story cover.", "sendToProvider": true}],
+      "constraints": []
+    },
+    "inline-illustration": {
+      "extends": "cover-illustration",
+      "label": "Illustration in the article",
+      "description": "A larger illustration inside the article that can carry more detail and mood. Never shown as a thumbnail.",
+      "use": "inline",
+      "display": {"where": "article body", "smallestWidthPx": 343, "thumbnail": false},
+      "guidance": "Several elements may share the scene; still one focal subject.",
+      "removeFromParent": {"avoid": ["small details", "more than one subject"], "safeZones": true},
+      "sizes": {"aspectRatio": "16:9", "width": 1920, "height": 1088},
+      "sources": ["generated", "stock", "figure-system"]
+    },
+    "social-card": {"extends": "cover-illustration", "label": "Social card", "use": "social",
+      "sizes": {"aspectRatio": "1.91:1", "width": 1200, "height": 630}, "display": {"where": "link previews", "smallestWidthPx": 120, "thumbnail": true}}
   },
-  "constraints": [ /* 5.4 */ ],
+  "typePreference": {
+    "cover": ["cover-diagram", "cover-photo", "cover-illustration"],
+    "inline": null,
+    "social": ["social-card"]
+  },
+
+  "attribution": {"generatedCredit": "Drafted by AI. Approved by {approvedBy}.", "disclosure": "Generated illustrations are labelled in the credit."},
+  "constraints": [ /* publication only, 5.4 */ ],
   "designSources": [ /* 5.5 */ ],
-  "generation": {"interactiveCount": 4, "defaultSpread": "treatments"}
+  "generation": {"interactiveCount": 4, "defaultSpread": "types", "variationDirectives": ["wide view", "close view", "from the side", "a single object"]}
 }
 ```
 
-Brand identity (`identity`, `techniques`, `subjects`), treatments and uses are separate on purpose: a publication changes its look in one place, and a treatment or use changes only what is particular to it. Example images control treatment, not content: an example with `sendToProvider: false` is described in words only, and the service refuses to send any example marked as showing identifiable people or logos.
+**What a type holds.** `label` and a one-sentence plain `description` (what agents and editors see when choosing); `treatment` (its family) and `use` (its base); `display` (where it appears, the smallest width it is shown at, whether it is shown as a thumbnail); its own `guidance` prose and structured fields (`avoid`, `techniques`, palette subset); `sizes`; `safeZones`; `sources` in order of preference; `examples` (exemplar and negative pictures that belong to this type); optional extra `constraints`; and for a figure-system type, `figureSystem` (below). Brand identity (`identity`, `techniques`, `subjects`) stays shared across all types.
+
+**`extends`.** A type may extend one other type (single inheritance, as in the reference repo). It inherits everything, then applies its own fields by the merge rules in 5.3, not the reference repo's shallow replace: a shallow replace would let a child drop its parent's things to avoid without anyone noticing. A child that really should not inherit a list item says so explicitly in `removeFromParent` (allowed for a type's own `avoid` items and safe zones, never for publication-level `never` lists or constraints), and the resolution records it. Cycles and unknown parents are refused at save. A type's `treatment` and `use` name their bases; a type that extends another inherits them unless it sets its own.
+
+**`sources` and `typePreference`: the order of preference is data.** A type lists the sources it permits, best first: `figure-system`, `stock`, `generated`. `typePreference` lists, per use, which types to consider first. Together they replace the skill's prose rule "diagram first, then stock, then generation": for Machines on Machines covers the data says try `cover-diagram` (figure system only), then `cover-photo` (stock only), then `cover-illustration` (stock, then generated). A use whose `typePreference` is `null` (inline) has no default: the caller must name a type.
+
+**Figure-system types: the service never draws a diagram.** A type with `"sources": ["figure-system"]` points at the publication's figure system:
+
+```json
+"figureSystem": {"rules": "AnthusAI/Machines-on-Machines:design/figures/rules.md", "mapping": "design/figures/mapping.json",
+                 "variant": "cover", "renderTool": "tools/render_figures.py", "records": "PPY-cd4585 figure records"}
+```
+
+For such a type the image service only records, previews and applies: `image_figure_add` (3.4) takes a figure an agent or person drew and rendered with the figure tools (light and dark PNG, its `figure.json` with audience, shows, complements and approval), checks it against the type's sizes and the free checks, stores it as a candidate with `origin: "figure"`, and `image_apply` puts it on the Story like any other picture, with its dark twin. `image_generate` and `image_search` on such a type return `source_not_allowed` naming the allowed source and where its rules live. When PPY-cd4585 lands its figure record ("figures are data, not code"), `image_figure_add` takes that record's id instead of uploaded files; the candidate keeps a link to it.
 
 ### 5.3 Precedence
 
-Layers, broadest first: **publication** → **treatment** → **use** → **section** → **Story** → **request brief**. Field-by-field merge rules (written in the schema, applied by one function, `resolve_visual_style`):
+Layers, broadest first: **publication identity** → **treatment base** → **use base** → **image type** (its ancestors through `extends` first, then the type) → **section** → **Story** → **request brief**. Section and Story overrides may target a type (`NewsroomSection.visualStyle.imageTypes.<key>`, `Item.metadata.imageStyle.imageTypes.<key>`) or apply to all types. Field-by-field merge rules (written in the schema, applied by one function, `resolve_visual_style`):
 
 | Kind of field | Rule |
 | --- | --- |
-| Prose (`masterPrompt`, `guidance`, section `visualGuidance`, Story notes) | Kept in order, each under its own heading. Narrower text is added, never replaces. |
-| Lists of things to avoid (`avoided`, `negative`, `never`) | Union. Nothing narrower can remove an item. |
-| Choices (`aspectRatio`, `treatments`, palette subset) | Narrowest wins, unless the publication marks the field `locked: true`. |
-| `constraints` | Publication only can define; narrower layers may add their own; nobody narrower can remove or soften one. A narrower choice that a constraint forbids is `constraint_conflict`, not silently dropped. |
+| Prose (`masterPrompt`, treatment and type `guidance`, section `visualGuidance`, Story notes) | Kept in order, each under its own heading. Narrower text is added, never replaces. |
+| Lists of things to avoid (`avoided`, `avoid`, `never`) | Union. Nothing narrower can remove an item, except a type's own explicit `removeFromParent` for an item a parent type added (recorded). |
+| Choices (`sizes`, `sources`, palette subset, `display`) | Narrowest wins, unless the publication marks the field `locked: true`. A section or Story may narrow a type's `sources` (for example "stock only here") but never add a source the type forbids. |
+| `constraints` | Publication only can define the binding ones; a type, section or Story may add its own; nobody narrower can remove or soften one. A narrower choice that a constraint forbids is `constraint_conflict`. |
+
+**Choosing the type.** Operations take `imageType`. When it is omitted, the service picks the first type in `typePreference[use]` whose `sources` allow what the operation does (generation needs `generated`, search needs `stock`) and says so (`imageTypeChosenBy: "default-for-use"` and a warning naming it). For an inline request, or a use whose list is `null`, an omitted type is `image_type_required`, and the error lists the publication's types for that use with their descriptions.
 
 `image_profile_resolve` returns:
 
@@ -340,21 +381,29 @@ Layers, broadest first: **publication** → **treatment** → **use** → **sect
 {
   "resolutionHash": "sha256:...",
   "profile": {"itemId": "item-editorial-doctrine-visual-style-v3", "versionNumber": 3, "contentHash": "sha256:..."},
+  "imageType": "inline-illustration", "imageTypeChosenBy": "request",
   "layers": [
     {"layer": "publication", "source": {"itemId": "...", "versionNumber": 3}},
     {"layer": "treatment", "key": "editorial-illustration"},
-    {"layer": "use", "key": "cover"},
+    {"layer": "use", "key": "inline"},
+    {"layer": "image-type", "key": "cover-illustration", "via": "extends"},
+    {"layer": "image-type", "key": "inline-illustration"},
     {"layer": "section", "source": {"sectionId": "security", "updatedAt": "..."}},
     {"layer": "story", "source": {"itemId": "...", "versionNumber": 7}}
   ],
-  "effective": {"masterPrompt": "...", "palette": [...], "avoid": [...], "aspectRatio": "16:9", "safeZones": [...], "treatment": "editorial-illustration"},
-  "fieldSources": {"aspectRatio": "use:cover", "avoid[3]": "section:security"},
+  "effective": {"masterPrompt": "...", "guidance": ["...", "..."], "palette": [...], "avoid": [...], "sizes": {"aspectRatio": "16:9", "width": 1920, "height": 1088},
+                "display": {"smallestWidthPx": 343, "thumbnail": false}, "sources": ["generated", "stock", "figure-system"], "treatment": "editorial-illustration"},
+  "fieldSources": {"sizes": "image-type:inline-illustration", "avoid[3]": "section:security", "removed": ["avoid:'small details' by image-type:inline-illustration"]},
   "constraints": [{"id": "mom-no-photoreal-generated", "text": "...", "version": 1}],
+  "availableTypes": [{"key": "inline-illustration", "label": "Illustration in the article", "description": "...", "sources": ["generated", "stock", "figure-system"]},
+                     {"key": "inline-diagram", "label": "Technical diagram", "description": "...", "sources": ["figure-system"]}],
   "warnings": []
 }
 ```
 
 The `fieldSources` map is what makes precedence visible: a reviewer can see which layer contributed every word, before generating and afterwards on the candidate.
+
+**Type keys are permanent.** Labels and rules may change (each change is a new profile version); a key, once a candidate uses it, is never renamed. A type is retired with `"retired": true`: no longer offered, still resolvable for old candidates.
 
 ### 5.4 Binding constraints and the Machines on Machines rule
 
@@ -377,7 +426,7 @@ A constraint is data on the publication profile:
 How it is enforced, using only what we control:
 
 1. Only the publication profile defines constraints, and only an `admin` person can add, change or remove one (`human_required` for agents). Each change is a new profile version with `changeReason`.
-2. The resolver unions constraints; section and Story layers have no field that removes one, and a forbidden choice raises `constraint_conflict`.
+2. The resolver unions constraints; image types, sections and Stories have no field that removes one (`removeFromParent` cannot name a constraint or a publication `never` item), and a forbidden choice raises `constraint_conflict`. A type may add its own stricter constraint.
 3. The service, not the client, composes the prompt, so every provider and every client gets the `promptDirective` (an unambiguously illustrated treatment) and `promptAvoid` (photorealism named as a negative). This applies to first images, `image_retry` and `image_iterate`, and an iteration instruction cannot remove them. Requests for a prohibited treatment never reach the provider.
 4. Every generated candidate carries `constraints` (id, version, text) and the full effective guidance it was made from, so a reviewer sees the rule beside the picture.
 5. Every candidate and applied picture carries a visible `reviewStatus`: `unreviewed` (no person has looked) or `human-verified` (a person looked and kept it, with who and when). In the newsroom, the person picking from the options is the review, so their apply records `human-verified`. Unattended, an agent may apply its one image as `unreviewed`; that opens a review request in the review queue, where an editor keeps, swaps or removes it, and `image_unapply` makes removal one step. Nothing ever writes `human-verified` for an agent.
@@ -418,10 +467,14 @@ Yes, uploading example and negative images is part of the plan, and editors uplo
 
 - **Path:** the existing `createModelAttachmentUpload` → browser or CLI `PUT` to the signed URL → `completeModelAttachmentUpload` (checks size, type and hash) → `image_profile_example_add`. The upload function (`amplify/functions/model-attachment-upload/handler.ts`) already accepts `ownerKind: "item"`, and the profile is an Item. It needs three small additions: roles `visual_example` and `visual_negative`; media types `image/png`, `image/jpeg`, `image/webp` (today it allows only text and JSON types); and a 10 MB cap for those roles, the editor's own `MAX_IMAGE_BYTES` (the general cap is 25 MB). SVG is not accepted, because providers take raster images.
 - **Where it lives:** `newsroom/payloads/item/item-editorial-doctrine-visual-style/<role>/<file>`, which is private to editors and admins. The attachment's owner is the profile lineage, and `sortKey` is the file's SHA-256, so the same picture uploaded twice is one row.
-- **Snapshots without copies:** files are immutable. Each profile version's `metadata.visualStyle.examples` lists `{attachmentId, sha256, kind, note, treatment, sendToProvider}`. Adding or removing an example makes a new version with a new list; older versions still point at their own files, so a candidate's snapshot keeps the exact pictures it was made with. A file is deleted only when no version lists it and an admin purges it.
+- **Examples belong to a type:** each type's `examples` lists `{attachmentId, sha256, kind, note, sendToProvider}`; `identity.examples` holds the few that show the brand across all types. The same file may be listed by two types (one attachment row, two list entries). A child type does not inherit its parent's examples unless it lists them, because an example of a thumbnail cover is a poor example of a detailed inline picture.
+- **Snapshots without copies:** files are immutable. Each profile version lists its examples inside the types. Adding or removing an example makes a new version with a new list; older versions still point at their own files, so a candidate's snapshot keeps the exact pictures it was made with. A file is deleted only when no version lists it and an admin purges it.
 - **Who:** editors and admins (the mutation's existing `categoryWriteGroups`). Agents may add an example through the CLI or MCP (`byKind: "agent"`, recorded); only people may mark an example `sendToProvider: true` for a picture showing identifiable people or logos, and the default for every upload is `false` until an editor ticks it.
-- **CLI or agent:** `papyrus images profile example add --file cover.png --kind exemplar --note "the calm we want" --reason "..."` runs the three upload steps and the add in one command.
-- **Administration UI:** Policies > Visual style > Examples: a grid of exemplar and negative pictures with their notes, an "Add picture" button (file picker, kind as two buttons "Good example" / "Avoid this", note box, treatment buttons, "Send to the image model as a style reference" switch), and Remove on each. Labels in words, not colour.
+- **CLI or agent:** `papyrus images profile example add --file cover.png --image-type cover-illustration --kind exemplar --note "the calm we want" --reason "..."` runs the three upload steps and the add in one command.
+- **Administration UI:** Policies > Visual style has three parts:
+  - **Brand:** identity, palette, shared techniques and subjects, brand-wide examples, review setting, constraints (admin only).
+  - **Image types:** a list of the publication's types, each a row with its label, description, family, use, "shown as a thumbnail" or not, smallest size, allowed sources in order, and how many examples. "Add a type" (with an optional "Start from" another type, which sets `extends`), "Retire" on each. Opening a type shows its guidance, sizes, safe zones (drawn on a sample frame with labelled hatching), sources as an ordered list with Move up and Move down buttons, its own Examples grid, and the effective rules after inheritance, each line labelled with where it came from.
+  - **Examples grid (per type):** exemplar and negative pictures with their notes, an "Add picture" button (file picker, kind as two buttons "Good example" / "Avoid this", note box, "Send to the image model as a style reference" switch), and Remove on each. For a thumbnail type each example also shows at the type's smallest size. Labels in words, not colour.
 - **Build step:** part of PR 3 (profile editing), with the upload-function change as its first commit.
 
 ### 5.9 Style lives in data; the skeleton is the only code
@@ -433,6 +486,7 @@ Every style rule, wording, negative and constraint comes from the profile data. 
 ```
 {style}
 {treatment}
+{image type}
 {constraints}
 Subject: {brief}
 Composition: {aspect ratio as words} ({width}x{height}). {safe zones}
@@ -442,11 +496,27 @@ Colours: {palette}
 Avoid: {avoid list}
 ```
 
-plus mechanics: empty slots are dropped; a palette entry renders as "name (#hex)"; sizes come from the provider's capabilities; the "Avoid:" sentence is used only when the provider has no native negative field. The variation directives for `spread: "variations"` (6.2) are also profile data (`generation.variationDirectives`), not code.
+plus mechanics: empty slots are dropped; `{image type}` joins the guidance of the type's ancestors and the type, each from data; a palette entry renders as "name (#hex)"; sizes come from the provider's capabilities; the "Avoid:" sentence is used only when the provider has no native negative field. The variation directives for `spread: "variations"` (6.2) are also profile data (`generation.variationDirectives`), not code.
 
 **Never in code:** any adjective of style; any treatment's wording; any negative ("photograph", "watermark", "blurry"); any constraint text or prompt directive, including the Machines on Machines rule; any palette, ratio or safe zone; any alt-text or credit wording beyond the fallback "Illustration: {brief}"; any provider-specific "magic words". A Gherkin scenario renders a plan with an empty profile and asserts it contains only the skeleton's words and the brief, and a lint test fails if the composer module contains string literals outside the skeleton list.
 
 Why: the same code then serves every publication, and every word the provider receives can be traced to an editor's saved, versioned choice.
+
+
+### 5.10 Machines on Machines starter types (draft for Ryan to correct)
+
+Drawn from `design/figures/rules.md` (sections 2, 3, 5, 11, 12), `design/figures/mapping.json` (diagram canvas 680px, illustration 960x540, phone width 343px, no text under 13px on a phone) and the 2026-11-07 rule. The smallest card width is a placeholder (160px) until read from the site's card layout.
+
+| Key | Family / use | Shown as a thumbnail? Smallest size | Sources, best first | What its guidance says |
+| --- | --- | --- | --- | --- |
+| `cover-diagram` | diagram / cover | Yes; card thumbnail, about 160px wide | `figure-system` only | Chunky: at most three or four shapes, one inverted focal tile, rounded tiles, heavy lines, words only if they stay readable at thumbnail size (a numeral or one word); one question; 16:9 crop of the figure canvas. Drawn and rendered with the figure tools; never generated. |
+| `inline-diagram` | diagram / inline | No; 343px phone width | `figure-system` only | Technical: the full figure rules. Choose the form for the relationship (steps, timeline, layers, chart, comparison), top to bottom, labels to the right, nothing under 13px at 343px, up to 1100px tall, `figure.json` acceptance criteria first, a person confirms it. Never generated. |
+| `cover-photo` | photo / cover | Yes; about 160px | `stock` only | An authentic, rights-cleared photograph that is relevant; never implies it shows a person, place or event it does not; creator, source and licence recorded. Not generated (the binding rule). |
+| `cover-illustration` | editorial illustration / cover | Yes; about 160px | `stock`, then `generated` | Section 11: flat side elevation, one large disc cropped by the edge, exactly one subject in the focal colour in the lower third, at most six palette roles, faceless silhouettes, no real people, places or brands, no rendered text; bold enough to read as a thumbnail. Generated only as an unmistakable illustration. |
+| `inline-illustration` | editorial illustration / inline (extends `cover-illustration`) | No; 343px | `generated`, then `stock` | The same language with room for more information or mood: several elements in one scene, still one focal subject; detail allowed because it is never a thumbnail. |
+| `social-card` | editorial illustration / social (extends `cover-illustration`) | Yes; about 120px in feeds | as its parent | 1200x630; the subject clear of the platform's crop. Usually made from the chosen cover, not separately. |
+
+`typePreference.cover`: `cover-diagram`, `cover-photo`, `cover-illustration` (PPY-5c9e9a's order: a diagram when one makes sense, then stock, then generation). Inline has no default: the agent must say whether it wants a technical diagram or an illustration. Credit for drawn figures stays section 12's `Drafted by AI. Approved by {approved_by}.`; for generated illustrations the profile's `generatedCredit`.
 
 ---
 
@@ -455,7 +525,7 @@ Why: the same code then serves every publication, and every word the provider re
 ### 6.1 Into context packs
 
 - `resolve_editorial_context` adds an optional `visual-style` entry at publication scope and the section's `visualGuidance`, with sources and hashes, so `contextHash` changes when the style changes.
-- `newsroom_context_pack.py` gets a `visual_style` layer (core) that renders the resolved style **for the Story's section**: identity summary, treatments and uses in plain words, things to avoid, and the binding constraints in full. A new profile `illustrator` (needs a Story) includes it; `editor` includes a short version so editor agents know what is possible. The reporter and copywriter do not need it.
+- `newsroom_context_pack.py` gets a `visual_style` layer (core) that renders the resolved style **for the Story's section**: identity summary, things to avoid, the binding constraints in full, and then **the image types**, grouped by use, one line each from the profile: key, label, plain description, smallest size and whether it is a thumbnail, allowed sources in order. For example: "`cover-diagram` (headline diagram): chunky, readable as a 160px card thumbnail; drawn with the figure system, never generated." and "`inline-diagram` (technical diagram): explains in detail inside the article, never a thumbnail; figure system only." The layer ends with the instruction: "Choose a type before asking for a picture. For covers, try the types in the order listed. For pictures inside the article you must name a type." A new profile `illustrator` (needs a Story) includes it; `editor` includes the type list without the full guidance so editor agents know what is possible. The reporter and copywriter do not need it.
 - The Tactus host's `editorial_context{...}` therefore carries it to procedures with no extra wiring.
 
 ### 6.2 Prompt composition inside the service (provider-neutral)
@@ -464,19 +534,21 @@ Inspired by nano-banana-aware's `{{MASTER_STYLE_PROMPT}} {{request}} {{dimension
 
 ```json
 {
-  "planVersion": "image-prompt/v1",
+  "planVersion": "image-prompt/v2",
+  "imageType": "cover-illustration",
   "segments": [
     {"slot": "style", "source": "publication:v3.identity.masterPrompt", "text": "..."},
     {"slot": "treatment", "source": "publication:v3.treatments.editorial-illustration", "text": "..."},
+    {"slot": "image type", "source": "publication:v3.imageTypes.cover-illustration", "text": "One subject, large, in the lower third ... Must read at thumbnail size."},
     {"slot": "constraint", "source": "constraint:mom-no-photoreal-generated@1", "text": "Unmistakably an illustration: ..."},
     {"slot": "subject", "source": "request.brief", "text": "A locked filing cabinet with one drawer ajar ..."},
-    {"slot": "composition", "source": "use:cover", "text": "Wide 16:9 frame. Keep the upper third quiet ..."},
+    {"slot": "composition", "source": "imageType:cover-illustration.sizes+safeZones", "text": "Wide 16:9 frame (1920x1088). Keep the upper third quiet ..."},
     {"slot": "palette", "source": "publication:v3.identity.palette", "text": "Use only: ink blue (#1f2a44), cool paper (#f6f7f9), ..."},
     {"slot": "section", "source": "section:security.visualGuidance", "text": "..."}
   ],
   "avoid": ["photograph", "photorealistic", "rendered text", "logos", "..."],
   "references": [{"attachmentId": "...", "sha256": "...", "purpose": "style"}],
-  "settings": {"aspectRatio": "16:9", "width": 1920, "height": 1080, "outputs": 1, "transparency": false}
+  "settings": {"aspectRatio": "16:9", "width": 1920, "height": 1088, "outputs": 1, "transparency": false}
 }
 ```
 
@@ -484,7 +556,7 @@ Each adapter turns the plan into its own request: native negative prompt if the 
 
 Why segments: every sentence the provider receives carries the layer that produced it, so "precedence is previewable and recorded" is just the plan itself, and adapters can rearrange or drop slots for a model without losing the record.
 
-`spread: "treatments"` gives each candidate a different treatment allowed for the use (cycling in the profile's order); `spread: "variations"` keeps one treatment and varies composition with a variation directive per position taken from the profile's `generation.variationDirectives` (for example "wide view", "close view"; data, not code), recorded in the segment list.
+`spread: "types"` (was `"treatments"`) gives each candidate a different image type allowed for the use whose sources include `generated`, in `typePreference` order, cycling when there are fewer types than candidates (for a Machines on Machines cover only `cover-illustration` qualifies, so it falls back to variations and says so); `spread: "variations"` keeps one type and varies composition with a variation directive per position taken from the profile's `generation.variationDirectives` (for example "wide view", "close view"; data, not code), recorded in the segment list.
 
 ### 6.3 What the agent sees and what stays in the service
 
