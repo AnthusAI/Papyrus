@@ -340,6 +340,12 @@ def _run_with_arguments(argv: list[str] | None) -> int:
     if group == "monitors":
         from papyrus_content.monitoring_commands import command as monitor_command
         return monitor_command(args[1:])
+    if group == "images":
+        if len(args) == 1:
+            print_group_help(group)
+            return 0
+        from papyrus_content.images.cli import command as images_command
+        return images_command(args[1:])
     command = args[1] if len(args) > 1 else None
     flags = [*global_flags, *(args[2:] if len(args) > 2 else [])]
 

@@ -119,6 +119,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [newsroom-curation-integration.md](newsroom-curation-integration.md): the opt-in References curation seam.
 - [editorial-checks.md](editorial-checks.md): Humanus editorial checks, policies and editor feedback.
 - [editorial-context.md](editorial-context.md): the mission, policy and section guidance that agents and checks read.
+- [images.md](images.md): the image operations (profile, search, generate, review, apply, undo) as commands and MCP tools, generated from one table.
 - [Context packs for newsroom agents](newsroom-context-packs.md): the one pack every agent in a section works from, and how to change it.
 - [Choosing which ideas become Stories](idea-selection.md): the editor agent's picky selection, what recent means and the rate limit.
 - [story-reporting.md](story-reporting.md): story versions, reference links and the reporting trail.
