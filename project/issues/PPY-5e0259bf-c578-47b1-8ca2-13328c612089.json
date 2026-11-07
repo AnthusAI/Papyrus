@@ -1,0 +1,22 @@
+{
+  "id": "PPY-5e0259bf-c578-47b1-8ca2-13328c612089",
+  "title": "Tenant authorisation in every resolver, Lambda and storage path",
+  "description": "What: every data rule, function and S3 path checks the caller's tenant, not only a group. Includes the cross-tenant negative test suite (reads, writes, objects, snapshots, search).\nAcceptance:\nScenario: Tenant A's editor cannot touch tenant B\n  Given editor tokens for tenants A and B\n  When A's token reads or writes any of B's rows, objects or snapshots\n  Then every attempt is denied",
+  "type": "story",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:47.795313Z",
+  "updated_at": "2026-11-07T21:42:47.795340Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

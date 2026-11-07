@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "da58eba1-bcdf-46ad-80d0-9ddf523d3f79",
+  "issue_id": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:08.703Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reader feedback as catalogue blocks in core",
+    "description": "Why: voting, comments, flags and Proposals are mostly built as the reader-steering plugin (PPY-77bb3b, PPY-49e9b5 1-5 stars, PPY-1546fc reader accounts, PPY-452419 conversations) but each site hand-places the islands in hooks. Make them blocks placed from data, and make the snapshot incremental before many tenants run it. Driven first by Shipped (see the Shipped-web board epic). Ends with a p.apyr.us page.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "title": "Real tenant authorisation and the cost fixes, before any outside tenant",
+  "description": "Why: tenancy today is a convention (\"This is scoping, not authorization\", docs/multi-tenancy.md). AppSync rules grant by Cognito group, never by tenant; References and corpora have no isolation; editors can write all of media/*. Cost also multiplies by tenant count: the whole-corpus home snapshot (PPY-ee02b8, about 55,000 AppSync requests an hour on MoM), the reader snapshot's full read, ReferenceIntake's whole-table list and CloudFront invalidations. No paying stranger goes on the shared tier until this epic is done. Ends with a p.apyr.us page.\nExisting, linked: PPY-7f1e54 (index-backed public blocks), PPY-ee02b8 (snapshot and intake scans), PPY-409932 (cache strategy). Do not duplicate them.",
+  "type": "epic",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:47.671102Z",
+  "updated_at": "2026-11-07T21:42:47.671135Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,22 @@
+{
+  "id": "PPY-8e6c0600-8cb6-43f1-b5da-0ba9b46089fe",
+  "title": "Tenant export and deletion",
+  "description": "What: one command exports or deletes every row and object of a tenant. The tenant owns all of it; export is complete and in open formats.\nAcceptance:\nScenario: Export holds everything\n  Given a tenant with content, media and settings\n  When it exports\n  Then the archive reopens as a complete dedicated seed\nScenario: Deletion leaves nothing behind",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:48.773140Z",
+  "updated_at": "2026-11-07T21:42:48.773177Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,22 @@
+{
+  "id": "PPY-e277e373-2ce4-48ef-848a-6284c2afd065",
+  "title": "Tenant keys on Reference, corpus and reader models",
+  "description": "What: Reference, corpora and reader rows carry and enforce tenantId. Any new index follows the one-GSI-per-table-per-release rule, so the story plans its index across releases. Adopts legacy bare-id rows into the dedicated tenant (see existing PPY-109133 for the adoption pattern).\nAcceptance:\nScenario: A query on tenant A's References returns only A's rows\n  Given References in two tenants\n  When tenant A lists by an index\n  Then only A's rows return and no whole-table read happens",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:47.917446Z",
+  "updated_at": "2026-11-07T21:42:47.917478Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,22 @@
+{
+  "id": "PPY-a1158789-1a84-48ee-823e-8f1462e12317",
+  "title": "Dedicated deployment manifest: site.json describes one fixed tenant of the same artefact",
+  "description": "Acceptance:\nScenario: A dedicated site and a shared tenant render identically\n  Given the same site data loaded as a dedicated deployment and as a shared tenant\n  When both build\n  Then the HTML is byte identical",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:43:09.450507Z",
+  "updated_at": "2026-11-07T21:43:09.450534Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

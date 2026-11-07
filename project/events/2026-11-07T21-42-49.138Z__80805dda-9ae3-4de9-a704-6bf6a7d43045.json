@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "80805dda-9ae3-4de9-a704-6bf6a7d43045",
+  "issue_id": "PPY-89c4f084-e08b-458e-8317-5152555f77d5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:49.138Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Usage plans and invoices in Prospectus; no free tier, no seats",
+    "description": "What: define plans as usage prices in the Prospectus plan catalogue (profiles, plans, billing lines), with custom domains included. Meter events from Papyrus become billing lines. Coordinate with the Prospectus session; its approval is needed for Prospectus changes.\nAcceptance:\nScenario: Usage becomes a priced line\n  Given a month of metered usage\n  When the invoice is prepared\n  Then lines show usage times price and no per-seat charge",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

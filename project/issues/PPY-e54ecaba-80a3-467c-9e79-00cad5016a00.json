@@ -1,0 +1,22 @@
+{
+  "id": "PPY-e54ecaba-80a3-467c-9e79-00cad5016a00",
+  "title": "Sign-up to live site with no human step (staging)",
+  "description": "What: payment, account creation, entitlement, tenant provisioning and first sign-in chained; payment is required before the site exists.\nAcceptance:\nScenario: A paid sign-up reaches a live site\n  Given a new person completes payment in staging\n  When provisioning finishes\n  Then their subdomain serves a starter site and they can sign in as admin",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:49.263434Z",
+  "updated_at": "2026-11-07T21:42:49.263481Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

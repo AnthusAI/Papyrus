@@ -1,0 +1,22 @@
+{
+  "id": "PPY-2a44b217-dae4-4d20-9792-cb51a3a1017e",
+  "title": "Design tokens authored at final sizes; retire the scaler",
+  "description": "Why: Machines on Machines gets its wide-screen look by multiplying px values (tools/scale_css.py, a phone CSS file and a generated scaled CSS file). Ryan wanted the design rebuilt at the target size, not scaled, and finds the scaling approach not robust. Core ships one set of tokens in the sizes people see, with text floors as tokens, no multiplier and no dual stylesheet.\nDone when: MoM renders at the same sizes with the scaler deleted, and the platform policy checks run for every brand pack. Ends with a p.apyr.us page.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:24.693504Z",
+  "updated_at": "2026-11-07T21:42:24.693539Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

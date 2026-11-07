@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "56dcf226-affc-4155-b538-e75b5aeef5f6",
+  "issue_id": "PPY-2d9715e2-2a51-4f7a-8602-c7889cc019ae",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:04.758Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Sections are placed by their best item under the same rule, in core",
+    "description": "What: the references and stories includes group by section name and place each section by its best item under the one ordering rule, with no HTML parsing. Replaces newest-update placement for Articles and Posts. Uses section names from PPY-6a3735.\nWhy: MoM's group redraw is the evidence that core cannot do this today.\nAcceptance:\nScenario: A section with the best recent item comes first\n  Given section A updated yesterday with a weak item and section B with a strong item in the same bucket\n  When the home page is built\n  Then section B is placed before section A\nScenario: Articles and Posts sections follow the same placement as Videos\n  Given the same data for all three kinds\n  When each list is built\n  Then the section order is identical in rule",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-c446fe56-1b96-4fe5-8a17-af8be3a2b68b",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

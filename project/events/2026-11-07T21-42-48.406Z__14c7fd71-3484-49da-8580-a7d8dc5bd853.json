@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "14c7fd71-3484-49da-8580-a7d8dc5bd853",
+  "issue_id": "PPY-fea16f70-ec54-434b-8909-f6fa754b2dd3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:42:48.406Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Shared stack: one distribution and bucket, host-to-tenant routing, wildcard subdomain",
+    "description": "Acceptance:\nScenario: Two hosts show two tenants\n  Given tenants on a.example and b.example subdomains\n  When each host is requested\n  Then each returns only its own site and an unknown host returns a 404",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

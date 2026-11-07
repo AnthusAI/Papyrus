@@ -1,0 +1,22 @@
+{
+  "id": "PPY-ea3f085a-0b23-45a8-b00f-bfb9673b868b",
+  "title": "Per-tenant usage meters, computed once on write",
+  "description": "What: counters for the costly things (model spend, storage, requests, monitors, outbound mail) maintained when the work happens, read from an index and sent to Prospectus. No whole-table counts.\nAcceptance:\nScenario: One model call adds one usage record\n  Given a tenant runs one model call\n  When usage is read\n  Then the tenant's meter rose by that call's cost once",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:49.017472Z",
+  "updated_at": "2026-11-07T21:42:49.017513Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

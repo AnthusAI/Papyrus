@@ -1,0 +1,22 @@
+{
+  "id": "PPY-9d27c2bc-5a45-4b56-9428-bd31040fa8a4",
+  "title": "Record the decision: reverse 'no shared backend' for the default tier",
+  "description": "What: update docs/standard-site.md section 0 decision 2 to say the default tier is multi-tenant with the reasons (isolation and blast radius were the original reasons, now met by real authorisation) and that dedicated stays the same artefact with one fixed tenant.\nAcceptance:\nScenario: The docs state both tiers\n  Given docs/standard-site.md\n  Then it names the shared default, the dedicated option and the reversal",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:25.847627Z",
+  "updated_at": "2026-11-07T21:42:25.847682Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

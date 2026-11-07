@@ -1,0 +1,22 @@
+{
+  "id": "PPY-fea16f70-ec54-434b-8909-f6fa754b2dd3",
+  "title": "Shared stack: one distribution and bucket, host-to-tenant routing, wildcard subdomain",
+  "description": "Acceptance:\nScenario: Two hosts show two tenants\n  Given tenants on a.example and b.example subdomains\n  When each host is requested\n  Then each returns only its own site and an unknown host returns a 404\n\nFirst tenant: Threat Intelligence moves in as tenant #1, only after (a) the brand-neutral acceptance test passes on the standard layout and (b) real tenant authorisation (epic PPY-e0c34a) is enforced, because no outside data may share a tier until isolation holds. A separate staging tenant (PPY-1192d3) stays for release checks.\nScenario: TI is served from the shared stack\n  Given TI passes the acceptance test and tenant authorisation is enforced\n  When TI is moved to the shared stack\n  Then it is served by host routing and its old origin is kept for rollback",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:48.406622Z",
+  "updated_at": "2026-11-07T21:42:48.406654Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
