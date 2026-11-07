@@ -10,7 +10,6 @@
   "amplify/site-backend-names.ts": 2,
   "amplify/site-backend.ts": 4,
   "amplify/storage-backups/construct.ts": 1,
-  "components/papyrus-console-shell.tsx": 4,
   "infra/amplify-app-shell/examples/p-apyr-us.site.json": 3,
   "infra/amplify-app-shell/examples/threat-intelligence.site.json": 7,
   "infra/edge/p-apyr-us-reader-cache.yaml": 3,
@@ -41,6 +40,5 @@
   "scripts/verify-production-console-chat.sh": 1,
   "scripts/verify_archived_email_submission.py": 1,
   "scripts/wait-graph-import-recount-forum.sh": 2,
-  "src/papyrus_content/corpus_storage_paths.py": 1,
-  "src/papyrus_content/priming_provider_budget.py": 1
+  "src/papyrus_content/corpus_storage_paths.py": 1
 }

@@ -101,10 +101,6 @@ const VultusBotAvatar = dynamic<VultusBotAvatarProps>(
 );
 const CONSOLE_MODEL_OPTIONS = [
   { value: "gpt-6-luna", label: "GPT 6 Luna", provider: "openai" },
-  { value: "gpt-5.5", label: "GPT 5.5", provider: "openai" },
-  { value: "gpt-5.4", label: "GPT 5.4", provider: "openai" },
-  { value: "gpt-5.4-mini", label: "GPT 5.4 Mini", provider: "openai" },
-  { value: "gpt-5.4-nano", label: "GPT 5.4 Nano", provider: "openai" },
 ] as const;
 
 type PapyrusConsoleShellProps = {
