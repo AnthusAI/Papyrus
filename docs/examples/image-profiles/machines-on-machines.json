@@ -1,0 +1,227 @@
+{
+  "DRAFT": "DRAFT for Ryan to correct. Written from Machines on Machines design/figures/rules.md, design/figures/mapping.json, design/system/tokens.json and AGENTS.md, and from the 2026-11-07 rule against generated realistic imagery. It is a file in this repository only: nothing has been saved to any backend.",
+  "openQuestions": [
+    "1. The generated-imagery rule. The constraint below bans generated pictures that look like photographs, and applies to origin 'generated' only; cover-photo is stock-only, so authentic photographs stay allowed. rules.md section 11 also says 'No generated imagery unless an editor asks for it'. Is the constraint alone right, or should generated illustration also be switched off until an editor opts in per Story?",
+    "2. Review. imageReview is after_the_fact, as asked. But rules.md section 1 says a person confirms every drawn figure before it is published. This setting only governs pictures an agent added without a person (generated, stock); it does not remove the figure approval (approvedBy in figure.json). Is that the intended split?",
+    "3. Night pictures. Figures are exported as two files (<slug>.png and <slug>.dark.png). The design has no rule for a generated illustration's Night version, so the profile asks for one picture on the Day palette only. Does a generated illustration need a Night twin, and if so is it a second generation or a recolour?",
+    "4. Smallest card width. 160px for cover types and 120px for the social card are placeholders; they should be read from the site's card layout (cards run at most three across at 1280px, so the real smallest width is probably larger on a phone, not smaller). 343px for inline types is the phone width in mapping.json.",
+    "5. Credit wording for generated illustrations is set to 'Drafted by AI. Approved by {approvedBy}.' to match the figure credit. Is that the subtle credit you want, or something shorter such as 'Illustration, drafted by AI.'?",
+    "6. Variation directives (generation.variationDirectives) are my invention, to give four different takes of one type. Please correct or replace them.",
+    "7. Diagram canvas sizes. cover-diagram is the 680px figure canvas cropped to 16:9 and exported at 2x (1360x765). inline-diagram has no fixed ratio (up to 1100px tall at 680 wide), so it has no sizes entry. Is a fixed cover ratio right, or should the cover crop be chosen per figure?",
+    "8. social-card extends cover-illustration, which makes it inherit the illustration rules. rules.md does not mention social cards. Should a social card instead be made from the chosen cover, and be a figure-system or stock type when the cover is?"
+  ],
+  "exampleSlots": [
+    {
+      "imageType": "cover-diagram",
+      "exemplar": [
+        {"name": "A chunky cover diagram that still reads as a card thumbnail", "note": "Crop of design/figures/gallery/walls-and-gaps or search-nobody-sees to 16:9: three or four shapes, one inverted focal tile."}
+      ],
+      "negative": [
+        {"name": "A diagram with too many labels for a thumbnail", "note": "Any figure near the density limits in rules.md section 9 used as a cover: it turns to mush at 160px."}
+      ]
+    },
+    {
+      "imageType": "inline-diagram",
+      "exemplar": [
+        {"name": "A full technical figure readable at 343px", "note": "design/figures/gallery/wiped-board (timeline) and walls-and-gaps (layers): every word at least 13px on a phone."}
+      ],
+      "negative": [
+        {"name": "A figure that needs scrolling to read", "note": "Taller than one phone screen, or labels set under 13px."}
+      ]
+    },
+    {
+      "imageType": "cover-photo",
+      "exemplar": [
+        {"name": "An authentic, rights-cleared photograph that is relevant", "note": "A source image or stock photograph with its creator, source and licence recorded."}
+      ],
+      "negative": [
+        {"name": "A photograph that implies it shows a person, place or event it does not", "note": "Any stock photo used as if it documented the Story's subject."}
+      ]
+    },
+    {
+      "imageType": "cover-illustration",
+      "exemplar": [
+        {"name": "The placeholder art's eclipse composition", "note": "One large disc cropped by the edge, one subject in the focal colour in the lower third."},
+        {"name": "design/figures/gallery/parked-car", "note": "Flat side elevation, faceless silhouette, one focal subject."}
+      ],
+      "negative": [
+        {"name": "A generated image that looks like a photograph", "note": "Photographic lighting, depth of field, skin or material realism. This is what the binding rule exists to stop."},
+        {"name": "An illustration with gradients, texture or outlines", "note": "Anything with perspective, a ground shadow or a rendered face."}
+      ]
+    },
+    {
+      "imageType": "inline-illustration",
+      "exemplar": [
+        {"name": "A larger scene with room for mood", "note": "Several elements in one flat scene, still exactly one focal subject."}
+      ],
+      "negative": [
+        {"name": "A scene with two competing focal subjects", "note": "If two things seem focal the picture has no point yet."}
+      ]
+    },
+    {
+      "imageType": "social-card",
+      "exemplar": [
+        {"name": "A cover cropped to 1.91:1 with the subject clear of the edge", "note": "Made from the chosen cover where possible."}
+      ],
+      "negative": [
+        {"name": "A card whose subject is cut off by the feed's crop", "note": "Subject or words in the outer edge."}
+      ]
+    }
+  ],
+  "howToSave": "The profile is under the 'profile' key. Extract it, check it, then save it as an admin who is a person (the binding constraint needs one): jq .profile machines-on-machines.json > /tmp/mom-profile.json; papyrus images profile diff --file /tmp/mom-profile.json; papyrus images profile save --file /tmp/mom-profile.json --reason '...' --expected-current-version-id none. Example pictures are added afterwards, one by one, with: papyrus images profile example add --file PICTURE --image-type KEY --kind exemplar|negative --note '...' --reason '...'.",
+  "profile": {
+    "schemaVersion": 2,
+    "imageReview": "after_the_fact",
+    "identity": {
+      "summary": "Neutral, like a newspaper: flat shapes on cool paper, with ink blue as the only strong colour. Machine-made things sit on a cool blue-gray tint and human-chosen things on a warm gray tint, and the tint alone never carries the meaning.",
+      "masterPrompt": "Flat shapes with generous rounded corners (at least 12px), large discs and simple curves. No perspective, no ground shadow, no gradient, no texture and no outlines. Separate shapes by fill, never by a line. People are silhouettes with no faces.",
+      "palette": [
+        {"name": "Panel", "hex": "#e9ecf0", "token": "panel", "role": "ground"},
+        {"name": "Card", "hex": "#ffffff", "token": "card", "role": "inset"},
+        {"name": "Machine tint", "hex": "#dce3ec", "token": "machine", "role": "made or found by machines"},
+        {"name": "Human tint", "hex": "#e7e1d4", "token": "human", "role": "chosen by people"},
+        {"name": "Ink blue", "hex": "#1f2a44", "token": "brand", "role": "brand"},
+        {"name": "Ink", "hex": "#14181f", "token": "ink", "role": "focal"}
+      ],
+      "paletteLimit": 6,
+      "mood": ["calm", "plain", "precise"],
+      "examples": []
+    },
+    "techniques": {
+      "preferred": ["flat shapes", "one large disc cropped by the canvas edge", "rounded rectangles", "separating shapes by fill"],
+      "avoided": ["perspective", "ground shadows", "gradients", "texture", "outlines and hairline borders", "italic, serif or monospace type"]
+    },
+    "subjects": {
+      "representation": "People are silhouettes with no faces, in the proportions of the person glyph.",
+      "never": []
+    },
+    "treatments": {
+      "diagram": {"label": "Diagram", "guidance": "Explains a relationship. Shapes and lines have fixed meanings (the figure rules). Drawn with the figure tools, never generated."},
+      "editorial-illustration": {"label": "Editorial illustration", "guidance": "A place or a moment, not an explanation. It shares its language with the placeholder art: flat shapes, large discs, generous corners."},
+      "photo": {"label": "Photograph", "guidance": "Authentic, rights-cleared photographs only. Never generated."}
+    },
+    "uses": {
+      "cover": {"label": "Headline picture", "where": "Top of the Story, and on home, section and related cards"},
+      "inline": {"label": "In the article", "where": "Inside the article body"},
+      "social": {"label": "Social card", "where": "Link previews on other sites"}
+    },
+    "imageTypes": {
+      "cover-diagram": {
+        "label": "Headline diagram",
+        "description": "A chunky, simple diagram for the top of a Story that still reads as a small card thumbnail.",
+        "treatment": "diagram",
+        "use": "cover",
+        "display": {"where": "article top and home, section and related cards", "smallestWidthPx": 160, "thumbnail": true},
+        "guidance": "Chunky: at most three or four shapes, with one inverted focal tile (focal fill with the paper colour on it, data-focal true) and rounded tiles with heavy lines. Words only if they stay readable at thumbnail size, such as a numeral or one word. It answers one question. A 16:9 crop of the figure canvas. Drawn and rendered with the figure tools, never generated.",
+        "avoid": ["more than four shapes", "labels longer than one word", "more than one focal mark"],
+        "sizes": {"aspectRatio": "16:9", "width": 1360, "height": 765},
+        "sources": ["figure-system"],
+        "figureSystem": {
+          "rules": "AnthusAI/Machines-on-Machines:design/figures/rules.md",
+          "mapping": "design/figures/mapping.json",
+          "variant": "cover",
+          "renderTool": "tools/render_figures.py"
+        },
+        "examples": []
+      },
+      "inline-diagram": {
+        "label": "Technical diagram",
+        "description": "A detailed diagram inside the article that explains one relationship step by step. Never shown as a thumbnail.",
+        "treatment": "diagram",
+        "use": "inline",
+        "display": {"where": "article body", "smallestWidthPx": 343, "thumbnail": false},
+        "guidance": "The full figure rules. Choose the form for the relationship (numbered steps, timeline, layers, line or bar chart, comparison), run it top to bottom with labels to the right of the shape they name, and put nothing under 13px at 343px wide. Up to 1100px tall at 680px wide, one phone screen. Write figure.json acceptance criteria first (audience, shows, complements, surrounding_text). One question, at most nine named things, fourteen labels, six connectors and one focal mark. A person confirms it before it is published. Drawn and rendered with the figure tools, never generated.",
+        "avoid": ["labels under 13px on a phone", "color as the only way to tell things apart", "more than three chart series", "a figure that needs scrolling"],
+        "sources": ["figure-system"],
+        "figureSystem": {
+          "rules": "AnthusAI/Machines-on-Machines:design/figures/rules.md",
+          "mapping": "design/figures/mapping.json",
+          "variant": "inline",
+          "renderTool": "tools/render_figures.py"
+        },
+        "examples": []
+      },
+      "cover-photo": {
+        "label": "Headline photograph",
+        "description": "An authentic, rights-cleared photograph that is relevant to the Story.",
+        "treatment": "photo",
+        "use": "cover",
+        "display": {"where": "article top and home, section and related cards", "smallestWidthPx": 160, "thumbnail": true},
+        "guidance": "A relevant, rights-cleared photograph or source image. It must not imply that it depicts a person, place or event it does not show. Record its creator, source and licence. Not generated: the publication's binding rule bans generated realistic imagery.",
+        "avoid": ["a photograph that implies it shows the Story's subject when it does not"],
+        "sources": ["stock"],
+        "examples": []
+      },
+      "cover-illustration": {
+        "label": "Headline illustration",
+        "description": "A simple, bold illustration for the top of a Story that still reads as a small card thumbnail.",
+        "treatment": "editorial-illustration",
+        "use": "cover",
+        "display": {"where": "article top and home, section and related cards", "smallestWidthPx": 160, "thumbnail": true},
+        "guidance": "A place or a moment, not an explanation. A flat side elevation on a 960 by 540 canvas, full bleed, with no rounded ground. Shapes are rectangles with corners of at least 12px, discs and simple curves. One large disc cropped by the canvas edge. Exactly one subject, in the focal colour with the paper colour on it, in the lower third. At most six palette roles: panel, card, machine tint, human tint, ink blue, and ink as the focal colour. The tints are paint here and say nothing about who acted; put no machine or person glyphs in an illustration. People are faceless silhouettes. Words only what a real sign would say, in the display type, plus the stamp if the scene is invented. Bold enough to read as a thumbnail. Generated only as an unmistakable illustration.",
+        "avoid": ["small details", "more than one subject", "a real person", "a real place", "a real brand or logo", "rendered text that no real sign would carry"],
+        "sizes": {"aspectRatio": "16:9", "width": 1920, "height": 1080},
+        "sources": ["stock", "generated"],
+        "examples": []
+      },
+      "inline-illustration": {
+        "extends": "cover-illustration",
+        "label": "Illustration in the article",
+        "description": "A larger illustration inside the article that can carry more information or mood. Never shown as a thumbnail.",
+        "use": "inline",
+        "display": {"where": "article body", "smallestWidthPx": 343, "thumbnail": false},
+        "guidance": "The same language as the headline illustration with room for more information or mood: several elements may share one flat scene, but there is still exactly one focal subject. Detail is allowed because it is never a thumbnail.",
+        "removeFromParent": {"avoid": ["small details"]},
+        "sources": ["generated", "stock"],
+        "examples": []
+      },
+      "social-card": {
+        "extends": "cover-illustration",
+        "label": "Social card",
+        "description": "The picture in link previews on other sites, usually made from the chosen cover.",
+        "use": "social",
+        "display": {"where": "link previews in feeds", "smallestWidthPx": 120, "thumbnail": true},
+        "guidance": "1200 by 630. The subject stays clear of the platform's crop. Usually made from the chosen cover rather than separately.",
+        "sizes": {"aspectRatio": "1.91:1", "width": 1200, "height": 630},
+        "safeZones": [{"region": "outer edge", "instruction": "Keep the subject and any words clear of the outer edge, where feeds crop."}],
+        "examples": []
+      }
+    },
+    "typePreference": {
+      "cover": ["cover-diagram", "cover-photo", "cover-illustration"],
+      "inline": null,
+      "social": ["social-card"]
+    },
+    "attribution": {
+      "generatedCredit": "Drafted by AI. Approved by {approvedBy}.",
+      "disclosure": "Generated illustrations are labelled in the credit."
+    },
+    "generation": {
+      "interactiveCount": 4,
+      "defaultSpread": "types",
+      "variationDirectives": [
+        "a different single subject in the focal colour",
+        "the large disc in a different position",
+        "a wider scene with a second, quieter element",
+        "a closer view of the subject"
+      ]
+    },
+    "constraints": [
+      {
+        "id": "mom-no-photoreal-generated",
+        "version": 1,
+        "appliesTo": {"origins": ["generated"]},
+        "prohibits": {"treatments": ["photo"], "looks": ["photographic", "photorealistic"]},
+        "text": "Generated pictures must be unmistakably illustrations. Nothing generated may look like a documentary photograph or pretend to show real people, places or events. Authentic photographs from other sources are not affected.",
+        "promptDirective": "Unmistakably an illustration: flat shapes, visible stylisation, no photographic lighting, depth of field, lens effects, skin or material realism.",
+        "promptAvoid": ["photograph", "photorealistic", "hyperrealistic", "DSLR", "35mm", "depth of field", "real person", "news photo"],
+        "reason": "Ryan, 2026-11-07, PPY-e4bdd096"
+      }
+    ],
+    "designSources": [
+      {"repo": "AnthusAI/Machines-on-Machines", "path": "design/system/tokens.json", "fields": ["identity.palette"]},
+      {"repo": "AnthusAI/Machines-on-Machines", "path": "design/figures/rules.md", "fields": ["imageTypes.cover-diagram", "imageTypes.inline-diagram", "imageTypes.cover-illustration"]},
+      {"repo": "AnthusAI/Machines-on-Machines", "path": "design/figures/mapping.json", "fields": ["imageTypes.cover-diagram.sizes", "imageTypes.cover-illustration.sizes"]}
+    ]
+  }
+}
