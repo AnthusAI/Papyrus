@@ -3,17 +3,25 @@
   "title": "Image toolchain step 1b: Image types in the operation table",
   "description": "Build step 1b of the image toolchain (design: project/wiki/image-toolchain.md, section 9). Revised 2026-11-07 for named image types.\n\n(small follow-up to merged PR 1). The edits in 3.7: `imageType` on resolve, brief, prompt preview, search, generate and apply; `imageTypes` and `spread: types`; examples belong to a type; `image_figure_add`; three new errors; rerun the generator. Handlers still `not_implemented`.\n\nSpecs: `image-operations.feature` rerun; new examples show `imageType`; parity holds for `image_figure_add`.\n\nWhat deploys: Nothing.\n\nFulfils or changes: Amends PR 1.\n\nGherkin specs are required. Style guidance is data, never code. Spending is only approved for step 6.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": "Papyrus newsroom automation",
   "creator": null,
   "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a603e362-e128-4e32-b074-60cce4d3ea39",
+      "author": "home",
+      "text": "Merged to develop as AnthusAI/Papyrus#1286: imageType on the image operations, image_figure_add (24 operations), three new errors, regenerated CLI, MCP schema, TS types, skill block and docs. Nothing deploys. Next: step 2 (PPY-6e05fd), the style profile backend with image types; it needs a data-API deploy, so it waits for Ryan's go.",
+      "created_at": "2026-11-07T20:41:38.459123Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T19:38:36.220288Z",
-  "updated_at": "2026-11-07T20:17:30.098806Z",
-  "closed_at": null,
+  "updated_at": "2026-11-07T20:41:38.459650Z",
+  "closed_at": "2026-11-07T20:41:38.229710Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
