@@ -589,3 +589,19 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .story-checklist-note-item{display:grid;gap:2px;padding:6px 10px;border-radius:8px;background:var(--card-muted,var(--muted))}
 .story-checklist-note-text{font:13px/1.4 var(--kb-theme-ui-font);white-space:pre-wrap;overflow-wrap:anywhere}
 .story-checklist-fold{justify-self:start}
+
+/* Administration > Policies > Visual style: flat fills and rounded shapes, no outlines or hairlines (the Anthus design rule). The organizer's square, outlined controls are
+   undone inside this panel only; shapes use the vs-* classes (not Tailwind's rounded-*, which the organizer zeroes) and every state keeps its icon and its word. */
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] :is(button,input,textarea,[role=button]){border-radius:12px !important;border:0 !important;text-transform:none;letter-spacing:0;font-family:var(--org-ui-font)}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-pill{border-radius:999px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-panel{border-radius:20px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-tile{border-radius:12px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] .vs-small{border-radius:8px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="bg-primary"]{background:var(--org-ink) !important;color:var(--org-paper) !important;border:0 !important;font-weight:600}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="bg-secondary"]{background:var(--org-control) !important;color:var(--org-ink) !important;border:0 !important;font-weight:600}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="text-primary-foreground"]{color:var(--org-paper) !important}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] [class~="text-secondary-foreground"]{color:var(--org-ink) !important}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] button[class~="hover:bg-muted"]:hover,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] button[data-slot=button]:not([class~="bg-primary"]):not([class~="bg-secondary"]):hover{background:var(--org-control)}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] input:not([type=file]),.newsroom-organizer [data-news-desk-admin-panel="visual-style"] textarea{background:var(--org-paper) !important;color:var(--org-ink) !important;min-height:0;padding:8px 12px;font-size:14px;line-height:1.5}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] input:focus-visible,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] textarea:focus-visible,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] button:focus-visible{outline:2px solid var(--org-ink);outline-offset:2px}
+.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h3,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h4,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h5,.newsroom-organizer [data-news-desk-admin-panel="visual-style"] h6{text-transform:none;letter-spacing:0}
