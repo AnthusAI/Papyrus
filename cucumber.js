@@ -17,6 +17,26 @@ const defaultProfile = {
 
 module.exports = {
   default: defaultProfile,
+  mcpOAuth: {
+    paths: ["features/mcp/oauth.feature"],
+    require: ["features/step_definitions/mcp-oauth.steps.js"],
+    format: ["summary"],
+  },
+  mcpSiteIntegration: {
+    paths: ["features/mcp/site-integration.feature"],
+    require: ["features/step_definitions/mcp-site-integration.steps.js"],
+    format: ["summary"],
+  },
+  mcpCards: {
+    paths: ["features/mcp/cards.feature"],
+    require: ["features/step_definitions/mcp-cards.steps.js"],
+    format: ["summary"],
+  },
+  mcpTransport: {
+    paths: ["features/mcp/streamable-http.feature"],
+    require: ["features/step_definitions/mcp-transport.steps.js"],
+    format: ["summary"],
+  },
   // Hermetic component/browser acceptance: no server, credentials or production reads.
   emailReceipt: {
     paths: ["features/newsroom-email-receipt.feature"],

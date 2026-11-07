@@ -162,18 +162,33 @@ def save_story_version(
     media_rows: Callable[[str], list[dict[str, Any]]] | None = None,
     machine_write: dict[str, str] | None = None,
     item_type: str | None = None,
+    expected_current_id: str | None = None,
+    atomic_persist: Callable[[str, str, dict[str, Any]], None] | None = None,
+    skip_media: bool = False,
 ) -> dict[str, Any]:
     """Records the next draft version of a story and marks the previous latest version superseded.
 
     ``media_rows`` maps the new version's id to the ``MediaAsset`` rows to store on it (``stories save-version --images``).
     ``item_type`` gives the new version another Story type (the type is a field of the version, not of the lineage); the published version keeps the
     type it was published with, so the live address does not move until the new version is published.
+
+    When supplied, ``expected_current_id`` requires ``atomic_persist``. The hook must
+    atomically check the exact lineage and current state, require the new ID to be
+    absent, and create the draft while superseding the expected version. It must
+    raise if any condition fails. Media copying still happens after that transaction;
+    a caller must account for that before exposing this path as a public operation.
     """
     now = now or utc_now_iso()
     versions = story_versions(client, lineage_id)
     if not versions:
         raise ValueError(f"No story found for lineage {lineage_id}.")
     latest = _current_of(versions)
+    if (expected_current_id is None) != (atomic_persist is None):
+        raise ValueError("Expected current version and atomic persistence must be supplied together.")
+    if expected_current_id is not None:
+        current = [row for row in versions if row.get("versionState") == "current"]
+        if len(current) != 1 or current[0]["id"] != expected_current_id:
+            raise ValueError("stale_version: The current Story changed; reload it before saving.")
     next_number = max(int(row.get("versionNumber") or 1) for row in versions) + 1
     record_id = next_version_record_id(lineage_id, next_number, {row["id"] for row in versions})
     fields = ItemFields(
@@ -217,13 +232,20 @@ def save_story_version(
     if stage:
         record["stage"] = require_content_item_stage(stage)
     carry_item_stars(latest, record)   # the editors' rating of the Story belongs to the Story, not to one version
-    client.create_record("Item", compact_dict(record))
-    for row in (media_rows(record_id) if media_rows else []):
-        client.upsert("MediaAsset", row)
-    _carry_media_forward(client, record_id, envelope, versions)
-    for row in versions:
-        if row.get("versionState") == "current" or row["id"] == latest["id"]:
-            client.update_record("Item", {"id": row["id"], "versionState": "superseded"})
+    if atomic_persist is not None:
+        # The implementation must atomically condition on this exact current Item and
+        # an absent new ID, then create the draft and supersede that Item together.
+        atomic_persist(lineage_id, expected_current_id, compact_dict(record))
+    else:
+        client.create_record("Item", compact_dict(record))
+    if not skip_media:
+        for row in (media_rows(record_id) if media_rows else []):
+            client.upsert("MediaAsset", row)
+        _carry_media_forward(client, record_id, envelope, versions)
+    if atomic_persist is None:
+        for row in versions:
+            if row.get("versionState") == "current" or row["id"] == latest["id"]:
+                client.update_record("Item", {"id": row["id"], "versionState": "superseded"})
     return record
 
 

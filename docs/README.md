@@ -140,3 +140,5 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [archive/priming-acceptance-evidence-2026-10.md](archive/priming-acceptance-evidence-2026-10.md): priming acceptance verification log (archive).
 - [archive/curation-integration-verification.md](archive/curation-integration-verification.md): References integration verification log (archive).
 - [archive/web-console-chat-fix/](archive/web-console-chat-fix/): the web console chat IAM fix notes and verification (archive).
+
+- [Site MCP service](mcp.md): configuration, discovery, verification and limits.

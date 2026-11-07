@@ -13,13 +13,18 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 ITEM_STAR_FIELDS = ("starRating", "starRatedAt", "starRatedBy")
+ITEM_PRIVATE_STAR_FIELDS = (*ITEM_STAR_FIELDS, "starRevision")
 
 
 def carry_item_stars(current: Mapping[str, Any] | None, next_version: dict[str, Any]) -> dict[str, Any]:
     """``next_version`` with the rating of ``current`` on it, unless it already carries one. Returns ``next_version`` itself (changed in place)."""
-    if not current or current.get("starRating") is None or next_version.get("starRating") is not None:
+    if not current:
         return next_version
-    for name in ITEM_STAR_FIELDS:
+    if current.get("starRevision") is not None and next_version.get("starRevision") is None:
+        next_version["starRevision"] = current["starRevision"]
+    if current.get("starRating") is None or next_version.get("starRating") is not None:
+        return next_version
+    for name in ("starRating", "starRatedAt", "starRatedBy"):
         next_version[name] = current.get(name)
     return next_version
 
@@ -34,6 +39,6 @@ def item_stars(item: Mapping[str, Any] | None) -> int | None:
 
 def assert_no_item_stars(record: Mapping[str, Any]) -> None:
     """Raises when a row bound for public output carries a rating: stars change order in the newsroom and are never published."""
-    leaked = [name for name in ITEM_STAR_FIELDS if name in record]
+    leaked = [name for name in ITEM_PRIVATE_STAR_FIELDS if name in record]
     if leaked:
         raise AssertionError(f"Story stars are private and cannot reach published output: {', '.join(leaked)}")

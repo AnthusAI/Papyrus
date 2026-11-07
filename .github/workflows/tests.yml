@@ -58,6 +58,15 @@ jobs:
       # The app-shell CDK app must type-check cleanly with no TS_NODE_TRANSPILE_ONLY escape hatch.
       - run: npm run build
         working-directory: infra/amplify-app-shell
+      - name: MCP transport, OAuth and Apps
+        run: |
+          npm run test:mcp-integration
+          npx tsx scripts/test-mcp-transport.ts
+          npx tsx scripts/test-mcp-oauth-runtime.ts
+          npx tsx scripts/test-mcp-oauth-browser.ts
+          npx cucumber-js --profile mcpCards
+          npx cucumber-js --profile mcpTransport
+          npx cucumber-js --profile mcpOAuth
       - run: npm test
 
   python:
@@ -92,6 +101,16 @@ jobs:
       # imports and executes the real Lambda handler, including payload upload.
       - name: Pending Reference intake handler and concurrency
         run: poetry run pytest -vv procedures/newsroom/tests/test_reference_intake.py
+      # MCP hosting and publication scenarios execute the real TypeScript checks.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: MCP private services and domain behavior
+        run: |
+          poetry run pytest -q --import-mode=importlib amplify/functions/mcp-oauth/test_handler.py amplify/functions/mcp-oauth/test_store.py amplify/functions/mcp-oauth/test_concurrency.py amplify/functions/mcp-tools/test_handler.py src/papyrus_content/mcp_story_atomic_test.py src/papyrus_content/mcp_story_transaction_test.py src/papyrus_content/mcp_publish_request_test.py
+          poetry run behave features_backend/mcp-domain-tools.feature features_backend/mcp-story-version-safety.feature features_backend/mcp-publish-request.feature features_backend/mcp-oauth.feature features_backend/mcp-oauth-hosting.feature
       - name: Python unit tests
         run: |
           poetry run pytest -q \
@@ -105,9 +124,4 @@ jobs:
             --ignore=procedures/newsroom/tests/test_papyrus_content.py
       # Excluded feature, PPY-c22e1c (stale steps/assertions): research-reporting-context
       # The curation-routes scenario drives the real Next route handlers (tsx) against a live peer.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
       - run: poetry run behave features_backend --tags=~@live-agent --exclude 'research-reporting-context'

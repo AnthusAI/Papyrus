@@ -198,6 +198,7 @@
     "check:backend-node-policy": "poetry run papyrus procedures policy check-backend-node-scripts",
     "check:reference-action-contract": "poetry run papyrus procedures policy check-reference-action-contract",
     "test:content-cli-live": "poetry run python -m unittest procedures.newsroom.tests.test_content_cli_live -v",
+    "test:mcp-integration": "tsx scripts/test-mcp-integration.ts && tsx scripts/test-mcp-tools-infra.ts && cucumber-js --profile mcpSiteIntegration",
     "test:bdd": "cucumber-js",
     "test:bdd:headed": "PAPYRUS_HEADLESS=false cucumber-js",
     "test:bdd:check-brand": "node scripts/check-bdd-site-brand.mjs",

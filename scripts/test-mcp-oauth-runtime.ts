@@ -1,0 +1,41 @@
+import assert from "node:assert/strict";
+import { App, Stack } from "aws-cdk-lib";
+import { Template } from "aws-cdk-lib/assertions";
+import { Code } from "aws-cdk-lib/aws-lambda";
+import { addMcpOAuth, planMcpOAuth } from "../amplify/mcp-oauth/resource";
+import { resolveSiteBackendFeatureFlags } from "../amplify/site-backend-names";
+import { invokeMcpOAuth, mcpOAuthConfig } from "../lib/mcp/oauth-runtime";
+
+async function main() {
+const env = { PAPYRUS_CONSOLE_ORIGIN: "https://cms.example", PAPYRUS_MCP_INVOKER_ROLE_ARN: "arn:aws:iam::123456789012:role/site-compute" };
+const identity = { brandId: "site", amplifyAppId: "app", amplifyBranch: "main", productionAppId: "other" };
+assert.equal(resolveSiteBackendFeatureFlags(undefined, {}, identity).mcp, false);
+assert.equal(resolveSiteBackendFeatureFlags(undefined, { PAPYRUS_ENABLE_MCP: "true" }, identity).mcp, true);
+assert.equal(resolveSiteBackendFeatureFlags({ mcp: false }, { PAPYRUS_ENABLE_MCP: "true" }, identity).mcp, false);
+assert.equal(planMcpOAuth(false, {}), undefined);
+assert.throws(() => planMcpOAuth(true, {}));
+assert.throws(() => planMcpOAuth(true, { ...env, PAPYRUS_CONSOLE_ORIGIN: "https://cms.example/path" }));
+assert.throws(() => planMcpOAuth(true, { ...env, PAPYRUS_MCP_INVOKER_ROLE_ARN: "*" }));
+const plan = planMcpOAuth(true, env)!;
+const app = new App();
+const stack = new Stack(app, "Test", { env: { account: "123456789012", region: "us-east-1" } });
+addMcpOAuth(stack, plan, Code.fromInline("def handler(event, context): return {}"));
+const template = Template.fromStack(stack);
+template.resourceCountIs("AWS::DynamoDB::Table", 1);
+template.hasResourceProperties("AWS::DynamoDB::Table", { TimeToLiveSpecification: { AttributeName: "expiresAt", Enabled: true } });
+template.hasResourceProperties("AWS::Lambda::Function", { Runtime: "python3.12", Architectures: ["arm64"], Handler: "handler.handler" });
+template.hasResourceProperties("AWS::Lambda::Permission", { Action: "lambda:InvokeFunction", Principal: env.PAPYRUS_MCP_INVOKER_ROLE_ARN });
+template.resourceCountIs("AWS::KMS::Key", 1);
+const config = { functionArn: "arn:aws:lambda:us-east-1:123456789012:function:grant", origin: env.PAPYRUS_CONSOLE_ORIGIN };
+const readOutputs = () => ({ custom: { mcpOAuth: config } });
+assert.deepEqual(mcpOAuthConfig({ readOutputs }), config);
+const request = { operation: "verify" as const, token: "opaque", resource: `${config.origin}/api/mcp` };
+assert.deepEqual(await invokeMcpOAuth(request, { readOutputs, invoke: async () => ({ principal: null }) }), { principal: null });
+await assert.rejects(() => invokeMcpOAuth(request, { readOutputs, invoke: async () => { throw new Error("offline"); } }), /offline/);
+await assert.rejects(() => invokeMcpOAuth(request, { readOutputs, invoke: async () => ({ principal: { kind: "staff" } }) }), /invalid response/);
+await assert.rejects(() => invokeMcpOAuth(request, { readOutputs: () => null }), /not configured/);
+await assert.rejects(() => invokeMcpOAuth(request, { readOutputs, invoke: async () => ({ principal: { kind: "staff", subject: "staff", accessToken: "access" } }) }), /invalid response/);
+assert.deepEqual(await invokeMcpOAuth(request, { readOutputs, invoke: async () => ({ principal: { kind: "staff", subject: "staff", accessToken: "access", idToken: "id" } }) }), { principal: { kind: "staff", subject: "staff", accessToken: "access", idToken: "id" } });
+console.log("MCP OAuth configuration and private invocation checks passed");
+}
+void main();

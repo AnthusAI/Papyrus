@@ -28,11 +28,16 @@ async function main() {
   assert.ok(rules);
   assert.deepEqual(clone(valueFromASTUntyped(rules.value)), [{ allow: "groups", groups: ["editor", "admin"] }],
     "only editor/admin groups may invoke curation; no guest, public or general signed-in rule");
+  const agentReview = mutation.fields?.find((field) => field.name.value === "agentReviewReferenceCuration");
+  const agentRules = agentReview?.directives?.find((directive) => directive.name.value === "auth")?.arguments?.find((argument) => argument.name.value === "rules");
+  assert.ok(agentRules);
+  assert.deepEqual(clone(valueFromASTUntyped(agentRules.value)), [{ allow: "groups", groups: ["editor", "admin"] }]);
 
   const rows = new Map<string, Map<string, RecordValue>>();
   const payloads = new Map<string, unknown>();
   const writes: Array<{ model: string; operation: string; input: RecordValue }> = [];
   let failReferenceUpdate = false;
+  let raceConditionalUpdate = false;
   const table = (name: string) => {
     if (!rows.has(name)) rows.set(name, new Map());
     return rows.get(name)!;
@@ -55,7 +60,16 @@ async function main() {
       return { data: clone(next) };
     },
   });
-  const client = { models: Object.fromEntries(["Reference", "Message", "SemanticRelation", "KnowledgeRawPayload", "NewsroomSection"].map((name) => [name, model(name)])) };
+  const client = { models: Object.fromEntries(["Reference", "Message", "SemanticRelation", "KnowledgeRawPayload", "NewsroomSection"].map((name) => [name, model(name)])),
+    graphql: async ({ variables }: { variables: { input: RecordValue; condition: Record<string, { eq: string }> } }) => {
+      const row = table("Reference").get(variables.input.id)!;
+      if (raceConditionalUpdate) row.updatedAt = "concurrent";
+      if (!Object.entries(variables.condition).every(([key, value]) => row[key] === value.eq))
+        return { errors: [{ message: "ConditionalCheckFailed" }] };
+      table("Reference").set(row.id, { ...row, ...clone(variables.input) });
+      return { data: { updateReference: { id: row.id } } };
+    },
+  };
   const payloadKey = (kind: string, id: string, role: string, payloadKind: string) => JSON.stringify([kind, id, role, payloadKind]);
   const writePayload = async (_client: unknown, owner: { ownerKind: string; ownerId: string }, role: string, payloadKind: string, value: unknown) => {
     payloads.set(payloadKey(owner.ownerKind, owner.ownerId, role, payloadKind), clone(value));
@@ -81,9 +95,10 @@ async function main() {
       builder.onResolve({ filter: /\/shared\/model-payloads$/ }, () => ({ path: "fixture:model-payloads", external: true }));
     } }],
   });
+  const environment: Record<string, string> = {};
   const fixtureModule = { exports: {} as { handler?: (event: HandlerEvent) => Promise<CurationResult> } };
   runInNewContext(bundle.outputFiles[0].text, {
-    module: fixtureModule, exports: fixtureModule.exports, process: { env: {} }, console,
+    module: fixtureModule, exports: fixtureModule.exports, process: { env: environment }, console,
     require: (name: string) => {
       assert.ok(Object.hasOwn(modules, name), `no unmocked cloud or network dependency: ${name}`);
       return modules[name];
@@ -103,6 +118,20 @@ async function main() {
     versionState: "current", corpusId: "corpus-fixture", title: "Synthetic source", curationStatus: "pending",
     feedStateKey: "corpus-fixture#unrated", predictedAcceptProbability: 0.73, predictionDecidedAt: "2026-10-28T09:00:00.000Z",
     feedArrivalAt: "2026-10-28T08:00:00.000Z", predictionSortKey: `0.730000#2026-10-28T08:00:00.000Z#${referenceId}` });
+
+  // Agent calls always record an agent decision, and the storage condition rejects a concurrent change.
+  table("Reference").get(referenceId)!.updatedAt = "revision-one";
+  const agentEvent = { info: { fieldName: "agentReviewReferenceCuration" }, identity: editor,
+    arguments: { referenceId, lineageId: "reference-fixture", expectedRevision: "revision-one", action: "accept" } };
+  await assert.rejects(handler(agentEvent), /not enabled/);
+  environment.PAPYRUS_MCP_REFERENCE_SINGLE_TENANT = "true";
+  await handler(agentEvent);
+  assert.equal(current().curationActorKind, "agent");
+  const latestRevision = String(current().updatedAt);
+  raceConditionalUpdate = true;
+  await assert.rejects(handler({ ...agentEvent, arguments: { ...agentEvent.arguments, expectedRevision: latestRevision, action: "reject", note: "Outside scope" } }), /stale_revision/);
+  assert.equal(current().curationStatus, "accepted", "a concurrent update prevents the decision");
+  raceConditionalUpdate = false;
 
   const accepted = await invoke({ action: "accept", note: "   " });
   assert.equal(accepted.ok, true);

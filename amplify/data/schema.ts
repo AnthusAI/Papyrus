@@ -403,6 +403,20 @@ const definitions = {
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
 
+  // Direct agent decision: conditions protect the exact card that was read.
+  agentReviewReferenceCuration: a
+    .mutation()
+    .arguments({
+      referenceId: a.id().required(),
+      lineageId: a.id().required(),
+      expectedRevision: a.string().required(),
+      action: a.string().required(),
+      note: a.string(),
+    })
+    .returns(a.ref("ReferenceCurationActionResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
   createCurationDelegation: a
     .mutation()
     .arguments({
@@ -538,6 +552,16 @@ const definitions = {
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  agentSetItemStars: a
+    .mutation()
+    .arguments({
+      itemId: a.id().required(), lineageId: a.id().required(), stars: a.integer().required(),
+      expectedUpdatedAt: a.string().required(), expectedStarRevision: a.string(),
+    })
+    .returns(a.ref("ItemStarsActionResult"))
+    .authorization((allow) => [allow.groups(categoryWriteGroups)])
     .handler(functionHandler("categoryAction", categoryAction)),
 
   setItemStars: a
@@ -703,6 +727,20 @@ const definitions = {
     .handler(functionHandler("contentActions", contentActions)),
 
   correctReferenceCapture: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
+  agentRequestStoryPublish: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
+  agentSaveStoryDraft: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
@@ -2285,6 +2323,7 @@ const definitions = {
       editorial: a.json(),
       updatedAt: a.datetime(),
       starRating: a.integer(),
+      starRevision: a.string(),
       starRatedAt: a.datetime(),
       starRatedBy: a.string(),
       tags: a.hasMany("ItemTag", "itemId"),
