@@ -671,3 +671,28 @@ def test_email_provenance_reaches_existing_reference_intake_without_recuration(m
     again = deliver_reference(client, publication, disc, decision, config)
     assert again["referenceId"] == result["referenceId"]
     assert client.references[0] == before and len(client.writes) == 1
+
+
+@pytest.mark.parametrize("client_tenant, delivers", [("machines-on-machines", True), (None, False)])
+def test_the_router_hands_the_publications_tenant_to_the_intake(monkeypatch, client_tenant, delivers):
+    from papyrus_content import monitoring_intake
+    from papyrus_content.monitoring_router import deliver_reference
+    from procedures.newsroom.tests.test_monitoring_intake import TenantClient
+
+    fixture = email_fixture()
+    collect_email(fixture)
+    disc = fixture.table.by_prefix("DISC#")[0]
+    config = validate_router_config(fixture.router)
+    publication = {**config["publications"][0], "tenantId": "machines-on-machines"}
+    client = TenantClient(client_tenant)
+    client.endpoint = publication["appsyncEndpoint"]
+    real_intake = monitoring_intake.ReferenceIntake
+    monkeypatch.setattr(monitoring_intake, "ReferenceIntake", lambda *args, **kwargs:
+                        real_intake(*args, **kwargs, persist=lambda rows: None))
+    decision = {"decisionId": "direct-fixture", "output": "publication", "label": "include"}
+    if delivers:
+        assert deliver_reference(client, publication, disc, decision, config)["referenceId"] == client.references[0]["id"]
+    else:
+        with pytest.raises(ValueError, match="endpoint/tenant binding"):
+            deliver_reference(client, publication, disc, decision, config)
+        assert client.writes == []

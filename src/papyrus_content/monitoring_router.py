@@ -1235,7 +1235,7 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
     if disc.get("sourceType") == "email":
         provenance["emailSubmission"] = disc["emailProvenance"]
         provenance["sectionHandoff"] = "pending-reference-site-sweep"
-    intake = ReferenceIntake(client, monitor, auth_mode="iam", listing=listing_for(client))   # the run's deliveries share one read of the table
+    intake = ReferenceIntake(client, monitor, auth_mode="iam", listing=listing_for(client), tenant_id=publication.get("tenantId"))   # the run's deliveries share one read of the table
     if config.get("decisions") == "direct":
         return intake(item, provenance)   # the monitor's own rule: no machine decision, so no decision relation
     delivered = intake(item, provenance, lambda reference: lab_decision_records(client, publication, decision, config, reference, disc),
