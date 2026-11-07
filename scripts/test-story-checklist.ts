@@ -7,6 +7,9 @@ import {
   projectStoryStepIssues,
   stepActorText,
   stepChangeProblem,
+  noteProblem,
+  storyStepNotes,
+  VISIBLE_STEP_NOTES,
   storyChecklistSummary,
   storyStepsFromItems,
   storyStepBoardConfig,
@@ -14,13 +17,13 @@ import {
   type StoryStepRecord,
 } from "../lib/story-checklist";
 import { projectContentItemBoard } from "../lib/newsroom-board";
-import { createLocalPreviewContentItemVersions, createLocalPreviewStoryChecklist, resetLocalPreviewStoryChecklists, setLocalPreviewStoryStep } from "../lib/local-preview-seed";
+import { addLocalPreviewStoryStepNote, createLocalPreviewContentItemVersions, createLocalPreviewStoryChecklist, resetLocalPreviewStoryChecklists, setLocalPreviewStoryStep } from "../lib/local-preview-seed";
 import { SYSTEM_ITEM_TYPES, isStoryItemType, storyItemTypeFilter } from "../lib/content-item-lifecycle";
 
 const summary = { templateVersion: 2, total: 9, open: 3, done: 3, skipped: 2, not_applicable: 1, requiredOpen: ["draft"] };
 
 function step(key: string, order: number, state: StoryStepRecord["state"], extra: Partial<StoryStepRecord> = {}): StoryStepRecord {
-  return { id: `step-s1-${key}`, storyLineageId: "s1", stepKey: key, stepOrder: order, templateVersion: 2, state, ...extra };
+  return { id: `step-s1-${key}`, storyLineageId: "s1", stepKey: key, stepOrder: order, templateVersion: 2, state, notes: [], ...extra };
 }
 
 test("the card line is done and not-applicable steps over all steps, then the skipped count", () => {
@@ -142,4 +145,35 @@ test("a sub-task is never a Story: not on the board, not in a listing filter, ne
     ],
   });
   assert.deepEqual(cards.map(card => card.nativeId), ["s1"], "a step that somehow carries a stage still never becomes a card");
+});
+
+test("a step's notes are read in the order stored, newest last, and an entry without text is dropped", () => {
+  const notes = storyStepNotes([
+    { at: "2026-11-07T10:00:00Z", actorKind: "person", actorLabel: "Ryan", text: "First" },
+    { at: "2026-11-07T11:00:00Z", actorKind: "agent", actorLabel: "AI", text: "Second\nwith two lines" },
+    { at: "2026-11-07T12:00:00Z", actorKind: "person", actorLabel: "Sierra" },
+    "not a note",
+  ]);
+  assert.deepEqual(notes.map(note => [note.actorLabel, note.text]), [["Ryan", "First"], ["AI", "Second\nwith two lines"]]);
+  assert.deepEqual(storyStepNotes(undefined), []);
+  const [step] = storyStepsFromItems([{ id: "step-s1-outline-v3", lineageId: "step-s1-outline", versionNumber: 3, type: "sub-task", status: "skipped", parentLineageId: "s1",
+    metadata: JSON.stringify({ checklist: { stepKey: "outline", stepOrder: 3, entry: { state: "skipped", reason: "Later" }, notes } }) }]);
+  assert.deepEqual([step.state, step.reason, step.notes.length], ["skipped", "Later", 2], "a note does not touch the state or the reason");
+});
+
+test("a note needs text, and the preview appends it whatever the step's state and never edits an earlier one", () => {
+  resetLocalPreviewStoryChecklists();
+  const lineage = "preview-item-lineage-copywriting-0";
+  const notesOf = (key: string) => createLocalPreviewStoryChecklist(lineage).find(item => item.stepKey === key)!.notes;
+  assert.match(noteProblem("   ") ?? "", /note/i);
+  assert.equal(noteProblem("Something"), null);
+  assert.throws(() => addLocalPreviewStoryStepNote(lineage, "outline", " "), /note/i);
+  const before = notesOf("outline").map(note => ({ ...note }));
+  addLocalPreviewStoryStepNote(lineage, "outline", "A skipped step can take a note too");   // skipped
+  addLocalPreviewStoryStepNote(lineage, "review_social", "An open step can too");
+  assert.deepEqual(notesOf("outline").slice(0, before.length), before, "earlier notes are untouched");
+  assert.equal(notesOf("outline").at(-1)?.text, "A skipped step can take a note too");
+  assert.equal(createLocalPreviewStoryChecklist(lineage).find(item => item.stepKey === "outline")!.state, "skipped", "the state did not change");
+  assert.ok(notesOf("review_people").length > VISIBLE_STEP_NOTES, "the preview has a crowded step to fold");
+  resetLocalPreviewStoryChecklists();
 });

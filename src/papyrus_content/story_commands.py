@@ -438,23 +438,35 @@ def stories_next(flags: list[str]) -> None:
 
 
 def stories_step(flags: list[str]) -> None:
-    """papyrus stories step --story <lineage> --step <key> --state done|skipped|not_applicable|open [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--dry-run]
+    """papyrus stories step --story <lineage> --step <key> [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--dry-run]
 
     Marks one step of the Story's checklist and records who did it and when. A skipped or not-applicable step needs --reason; a review step needs --note
-    (the findings) to be done; only a person reopens a step (--state open). --agent NAME says an agent made the change; without it the actor is a person."""
+    (the findings) to be done; only a person reopens a step (--state open). With --note and no --state it adds a note to the step and changes nothing
+    else: notes accumulate (who, when, text), can be added to any step in any state, and are never edited or deleted. --agent NAME says an agent made the change; without it the actor is a person."""
     from .story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, set_step
 
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories step")
     lineage_id = _required_option(options, "story")
     key = _required_option(options, "step")
-    state = _required_option(options, "state")
+    state = normalize_string(options.get("state"))
+    if state is None and not normalize_string(options.get("note")):
+        raise ValueError("--state is required (or --note alone, to add a note without changing the state).")
     agent = normalize_string(options.get("agent"))
     actor = {"kind": ACTOR_AGENT if agent else ACTOR_PERSON, "label": agent or normalize_string(options.get("actor-label")) or "papyrus-cli"}
     if not apply:
-        print(f"stories\tstep\t{lineage_id}\t{key}\t{state}\tdry run")
+        print(f"stories\tstep\t{lineage_id}\t{key}\t{state or 'note'}\tdry run")
         return
     client, _ = create_authoring_client()
+    if state is None:   # a note on its own: the step's state, reason and findings stay as they are
+        from .story_checklist import add_note
+
+        try:
+            row = add_note(client, lineage_id, key, normalize_string(options.get("note")) or "", actor=actor)
+        except ChecklistError as error:
+            raise ValueError(str(error)) from error
+        print(f"stories\tstep\t{lineage_id}\t{row['stepKey']}\tnote\twrite\t{len(row['notes'])} notes")
+        return
     try:
         row = set_step(client, lineage_id, key, state, actor=actor, reason=normalize_string(options.get("reason")),
                        note=normalize_string(options.get("note")), evidence=normalize_string(options.get("evidence")))

@@ -7,7 +7,7 @@ import type { ResearchPacketView } from "./research-packet";
 import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailAgentNote, type TrailAssignment, type TrailReference, type TrailThread, type TrailVersion } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
-import { stepChangeProblem, summarizeStoryChecklist, type StoryStepRecord } from "./story-checklist";
+import { noteProblem, stepChangeProblem, summarizeStoryChecklist, type StoryStepNote, type StoryStepRecord } from "./story-checklist";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
 
 const SEED_TIMESTAMP_BASE = Date.parse("2026-10-01T12:00:00.000Z");
@@ -76,6 +76,20 @@ const PREVIEW_CHECKLIST_EVIDENCE_SOURCES: Record<string, string> = {
   copy_edit: "the copy-edit check", publish: "publishing",
 };
 
+/** Notes the preview steps already carry, so the panel shows an open, a closed and a crowded step: the log is newest last. */
+function previewNotesFor(lineageId: string, key: string): StoryStepNote[] {
+  if (lineageId !== "preview-item-lineage-copywriting-0") return [];
+  if (key === "review_people") return [
+    { at: "2026-10-01T05:30:00.000Z", actorKind: "agent", actorLabel: "AI", text: "Headline and dek agree with the opening paragraph." },
+    { at: "2026-10-01T06:10:00.000Z", actorKind: "person", actorLabel: "Preview editor", text: "The second section is long. Leave it for now, but trim it if the Story runs again.\nThe quotation in the fourth paragraph needs its source named." },
+    { at: "2026-10-01T07:45:00.000Z", actorKind: "person", actorLabel: "Sierra", text: "Correction to the note above: the quotation is already sourced in the footer." },
+    { at: "2026-10-01T09:00:00.000Z", actorKind: "agent", actorLabel: "AI", text: "Checked the footer: the source is named there." },
+  ];
+  if (key === "outline") return [{ at: "2026-10-01T08:20:00.000Z", actorKind: "person", actorLabel: "Preview editor", text: "Skipped on purpose: this Story came from a single Reference." }];
+  if (key === "review_search") return [{ at: "2026-10-01T09:30:00.000Z", actorKind: "person", actorLabel: "Sierra", text: "Waiting on the section editor to choose the final headline." }];
+  return [];
+}
+
 /** How far each preview Story's checklist has got, so a card and a panel show open, done, skipped and not-applicable steps. */
 function previewChecklistFor(stageKey: string, headlineIndex: number, lineageId: string): StoryStepRecord[] {
   const stageOrder = ["idea", "assignment", "reporting", "copywriting", "illustration", "typesetting", "published"];
@@ -84,7 +98,7 @@ function previewChecklistFor(stageKey: string, headlineIndex: number, lineageId:
   return PREVIEW_CHECKLIST_TEMPLATE.map((entry, index): StoryStepRecord => {
     const base = {
       id: `step-${lineageId}-${entry.key}`, storyLineageId: lineageId, stepKey: entry.key, stepOrder: index, templateVersion: PREVIEW_CHECKLIST_TEMPLATE_VERSION,
-      title: entry.title, command: entry.command.replace("{story}", lineageId), state: "open" as const,
+      title: entry.title, command: entry.command.replace("{story}", lineageId), state: "open" as const, notes: previewNotesFor(lineageId, entry.key),
     };
     const changedAt = isoTimestampHoursBeforeBase(index + 1);
     if (stageKey === "published" && entry.key.startsWith("review_")) {
@@ -129,6 +143,17 @@ export function setLocalPreviewStoryStep(lineageId: string, stepKey: string, sta
   previewChecklistChanges.set(lineageId, steps.map(step => step.stepKey !== stepKey ? step : {
     ...step, state, actorKind: "person", actorLabel: "Preview editor", changedAt: new Date().toISOString(),
     reason: state === "skipped" || state === "not_applicable" ? input.reason?.trim() ?? null : null, note: input.note?.trim() || null, evidence: null,
+  }));
+}
+
+/** What the backend does for a note, for the preview: appended to the step's log, as the preview editor, whatever the step's state. */
+export function addLocalPreviewStoryStepNote(lineageId: string, stepKey: string, text: string): void {
+  const problem = noteProblem(text);
+  if (problem) throw new Error(problem);
+  const steps = previewChecklistOf(lineageId);
+  if (!steps.some(step => step.stepKey === stepKey)) throw new Error(`Unknown step ${stepKey}.`);
+  previewChecklistChanges.set(lineageId, steps.map(step => step.stepKey !== stepKey ? step : {
+    ...step, notes: [...step.notes, { at: new Date().toISOString(), actorKind: "person", actorLabel: "Preview editor", text: text.trim() }],
   }));
 }
 

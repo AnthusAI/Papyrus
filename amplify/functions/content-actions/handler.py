@@ -292,7 +292,7 @@ def sync_story_checklist(client, record: dict) -> None:
 def set_story_step_action(arguments: dict, event: dict) -> dict:
     """Marks one step of a Story's checklist done, skipped, not applicable or open again, as the signed-in person.
     ``agent`` names an agent acting through that person's session: the change is recorded as the agent's, on that person's behalf, and an agent cannot reopen a step."""
-    from papyrus_content.story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, set_step
+    from papyrus_content.story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, add_note, set_step
 
     person = person_from_event(event)
     if not person:
@@ -300,12 +300,15 @@ def set_story_step_action(arguments: dict, event: dict) -> dict:
     agent = (arguments.get("agent") or "").strip()
     label = agent or (arguments.get("actorLabel") or "").strip() or (event.get("identity") or {}).get("username") or "editor"
     client, _claims = create_authoring_client()
+    actor = {"kind": ACTOR_AGENT if agent else ACTOR_PERSON, "label": label, "sub": person}
     try:
-        row = set_step(
-            client, arguments["lineageId"], arguments["stepKey"], arguments["state"],
-            actor={"kind": ACTOR_AGENT if agent else ACTOR_PERSON, "label": label, "sub": person},
-            reason=arguments.get("reason"), note=arguments.get("note"), evidence=arguments.get("evidence"),
-        )
+        if not arguments.get("state"):   # no state: a note on the step, whatever its state, changing nothing else
+            row = add_note(client, arguments["lineageId"], arguments["stepKey"], arguments.get("note") or "", actor=actor)
+        else:
+            row = set_step(
+                client, arguments["lineageId"], arguments["stepKey"], arguments["state"], actor=actor,
+                reason=arguments.get("reason"), note=arguments.get("note"), evidence=arguments.get("evidence"),
+            )
     except ChecklistError as error:
         return {"ok": False, "errors": [{"code": "checklist-rejected", "message": str(error), "line": None}]}
     return {"ok": True, "step": {"stepKey": row["stepKey"], "state": row["state"], "changedAt": row.get("changedAt")}}

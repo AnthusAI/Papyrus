@@ -584,3 +584,8 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .story-checklist-form label{font-size:12px;font-weight:600}
 .story-checklist-text{width:100%;padding:8px;border:0;border-radius:8px;background:var(--card,var(--org-paper));color:var(--org-ink);font:13px/1.4 var(--kb-theme-ui-font);resize:vertical}
 .newsroom-organizer .story-checklist-button,.newsroom-organizer .story-checklist-text,.newsroom-organizer .story-checklist-steps .issue-card{border-radius:8px !important}
+.story-checklist-notes{display:grid;gap:4px;padding:0 4px}
+.story-checklist-note-list{display:grid;gap:4px;margin:0;padding:0;list-style:none}
+.story-checklist-note-item{display:grid;gap:2px;padding:6px 10px;border-radius:8px;background:var(--card-muted,var(--muted))}
+.story-checklist-note-text{font:13px/1.4 var(--kb-theme-ui-font);white-space:pre-wrap;overflow-wrap:anywhere}
+.story-checklist-fold{justify-self:start}

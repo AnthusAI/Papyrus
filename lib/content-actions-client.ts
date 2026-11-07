@@ -68,8 +68,8 @@ export type CreateStoryFromReferenceResult =
     }
   | { ok: true; created: false; existing: ExistingStory[]; referenceLineageId: string };
 
-/** A change to one checklist step of a Story (the sub-task Item of that step): done, skipped, not applicable, or open again. The backend stamps the signed-in person. */
-export type SetStoryStepInput = { lineageId: string; stepKey: string; state: "open" | "done" | "skipped" | "not_applicable"; reason?: string; note?: string };
+/** A change to one checklist step of a Story (the sub-task Item of that step): done, skipped, not applicable, or open again. With no `state` and a `note` it adds a note to the step and changes nothing else. The backend stamps the signed-in person. */
+export type SetStoryStepInput = { lineageId: string; stepKey: string; state?: "open" | "done" | "skipped" | "not_applicable"; reason?: string; note?: string };
 export type SetStoryStepResult = { ok: true; step: { stepKey: string; state: string; changedAt?: string | null } };
 
 export type CaptureAssessment = "complete" | "incomplete" | "incorrect";

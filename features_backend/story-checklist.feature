@@ -269,3 +269,53 @@ Feature: The editorial checklist of a Story
     And the checklist item "publish" is "open"
     When the Story is published by an editor
     Then publishing succeeded
+
+  Scenario: A note can be added to a step in any state and changes nothing else
+    Given a Story at the "reporting" stage
+    And the Story's checklist exists
+    And the checklist item "outline" is marked "skipped" by the person "Ryan" with the reason "Written by hand"
+    When I run "stories step" with "--story story-1 --step outline --note 'The editor wants a shorter outline next time' --actor-label Sierra"
+    Then the procedure command succeeded
+    And the checklist item "outline" is "skipped"
+    And the checklist item "outline" has the reason "Written by hand"
+    And the checklist item "outline" was changed by the person "Ryan"
+    And the checklist item "outline" has 1 note, the newest by the person "Sierra" saying "The editor wants a shorter outline next time"
+    When I run "stories step" with "--story story-1 --step draft --note 'Check the second paragraph' --agent AI"
+    Then the checklist item "draft" has 1 note, the newest by the agent "AI" saying "Check the second paragraph"
+    And the checklist item "draft" is "open"
+
+  Scenario: Notes accumulate, newest last, and survive a change of state
+    Given a Story at the "reporting" stage
+    And the Story's checklist exists
+    When I run "stories step" with "--story story-1 --step outline --note 'First thought' --actor-label Ryan"
+    And I run "stories step" with "--story story-1 --step outline --note 'A correction to the first thought' --actor-label Sierra"
+    And I run "stories step" with "--story story-1 --step outline --state skipped --reason 'Written by hand' --actor-label Ryan"
+    Then the checklist item "outline" has 2 notes, the newest saying "A correction to the first thought"
+    And the checklist item "outline" has the notes in order "First thought" then "A correction to the first thought"
+    And the checklist item "outline" has 2 history entries
+
+  Scenario: A note needs text and an author
+    Given a Story at the "reporting" stage
+    And the Story's checklist exists
+    When I run "stories step" with "--story story-1 --step outline --note ' ' --actor-label Ryan"
+    Then the procedure command was refused saying "--state is required"
+    When an agent tries to add an empty note to the step "outline"
+    Then the procedure command was refused saying "needs some text"
+
+  Scenario: Stories next shows the notes to people and agents
+    Given a Story at the "reporting" stage
+    And the Story's checklist exists
+    When I run "stories step" with "--story story-1 --step outline --note 'Keep it short' --actor-label Ryan"
+    And I run "stories next" with "--story story-1"
+    Then the procedure output has a "note" line for "outline" by "person:Ryan" saying "Keep it short"
+    When I run "stories next" with "--story story-1 --json"
+    Then the JSON checklist step "outline" carries the note "Keep it short"
+
+  Scenario: The agent's context pack carries the step notes
+    Given a Story at the "reporting" stage
+    And the Story's checklist exists
+    And a note "Keep it short" by the person "Ryan" is on the step "outline"
+    When the context pack layer of the procedure is read
+    Then the layer says "Notes on the step outline"
+    And the layer says "Ryan (person)"
+    And the layer says "Keep it short"

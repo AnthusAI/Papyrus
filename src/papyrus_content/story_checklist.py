@@ -125,8 +125,19 @@ def _flat(group: list[dict[str, Any]]) -> dict[str, Any]:
         "stepOrder": meta.get("stepOrder", 0), "templateVersion": meta.get("templateVersion"), "title": current.get("title"), "command": meta.get("command"),
         "state": current.get("status"), "actorKind": entry.get("actorKind"), "actorLabel": entry.get("actorLabel"), "actorSub": entry.get("actorSub"),
         "changedAt": entry.get("at") or current.get("versionCreatedAt"), "reason": entry.get("reason"), "note": entry.get("note"),
-        "evidence": entry.get("evidence"), "history": [_checklist_meta(row).get("entry") or {} for row in ordered],
+        "evidence": entry.get("evidence"), "history": _history_of(ordered), "versionNumber": int(current.get("versionNumber") or len(ordered)),
+        "notes": [note for note in (meta.get("notes") or []) if isinstance(note, dict)],
     }
+
+
+def _history_of(ordered: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The state changes, oldest first. A version that only added a note repeats the entry before it and is not a change."""
+    history: list[dict[str, Any]] = []
+    for row in ordered:
+        entry = _checklist_meta(row).get("entry") or {}
+        if not history or history[-1] != entry:
+            history.append(entry)
+    return history
 
 
 def summary_of(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -182,7 +193,8 @@ def _new_row(lineage: str, key: str) -> dict[str, Any]:
     step = STEP_BY_KEY[key]
     return {
         "id": step_id(lineage, key), "storyLineageId": lineage, "stepKey": key, "stepOrder": step_order(key),
-        "templateVersion": TEMPLATE_VERSION, "title": step.title, "command": step.command.replace("{story}", lineage), "history": [],
+        "templateVersion": TEMPLATE_VERSION, "title": step.title, "command": step.command.replace("{story}", lineage), "history": [], "notes": [],
+        "versionNumber": 0,
     }
 
 
@@ -191,22 +203,26 @@ def _apply(row: dict[str, Any], state: str, actor: dict[str, Any], now: str, *, 
     return {
         **row, "state": state, "actorKind": actor["kind"], "actorLabel": actor.get("label"), "actorSub": actor.get("sub"),
         "changedAt": now, "reason": reason, "note": note, "evidence": evidence, "history": [*row.get("history", []), entry],
+        "versionNumber": int(row.get("versionNumber") or 0) + 1, "written": {"by": entry.get("actorLabel") or entry.get("actorSub"), "at": now, "reason": reason or note or state},
     }
 
 
 def _write(client, row: dict[str, Any], *, supersede: bool = True) -> None:
-    """Writes the newest entry of the step as the next version of its sub-task Item (versions are the history). The version before it is marked
-    superseded unless ``supersede`` is False (a role that may create Items but not update them); the newest version is the step either way."""
-    number = len(row["history"])
+    """Writes the step's newest change as the next version of its sub-task Item (versions are the history). The version before it is marked
+    superseded unless ``supersede`` is False (a role that may create Items but not update them); the newest version is the step either way.
+    A version carries the state entry of the last change and the step's whole log of notes, so a note adds a version and changes no state."""
+    number = int(row["versionNumber"])
     entry = row["history"][-1]
+    written = row["written"]
     state = row["state"]
     payload = {
-        "id": f"{row['id']}-v{number}", "lineageId": row["id"], "versionNumber": number, "versionState": "current", "versionCreatedAt": entry["at"],
-        "versionCreatedBy": entry.get("actorLabel") or entry.get("actorSub"), "changeReason": entry.get("reason") or entry.get("note") or state,
+        "id": f"{row['id']}-v{number}", "lineageId": row["id"], "versionNumber": number, "versionState": "current", "versionCreatedAt": written["at"],
+        "versionCreatedBy": written["by"], "changeReason": written["reason"],
         "type": SUB_TASK_TYPE, "status": state, "typeStatus": f"{SUB_TASK_TYPE}#{state}", "slug": row["id"], "title": row["title"],
-        "sortTitle": f"{int(row['stepOrder']):03d}", "parentLineageId": row["storyLineageId"], "updatedAt": entry["at"],
+        "sortTitle": f"{int(row['stepOrder']):03d}", "parentLineageId": row["storyLineageId"], "updatedAt": written["at"],
         "metadata": to_aws_json({SUMMARY_KEY: {
             "stepKey": row["stepKey"], "stepOrder": row["stepOrder"], "templateVersion": row["templateVersion"], "command": row.get("command"), "entry": entry,
+            "notes": row.get("notes") or [],
         }}),
     }
     if number > 1:
@@ -328,6 +344,45 @@ def set_step(client, lineage: str, key: str, state: str, *, actor: dict[str, Any
     rows[key] = row
     refresh_summary(client, lineage, sorted(rows.values(), key=lambda item: (int(item.get("stepOrder") or 0), item["stepKey"])), now=now)
     return row
+
+
+def add_note(client, lineage: str, key: str, text: str, *, actor: dict[str, Any], now: str | None = None, supersede: bool = True) -> dict[str, Any]:
+    """Adds a note to a step, whatever its state, for context later. Notes only accumulate: each is who (a person or an agent, by name), when and its
+    text, newest last; there is no way to edit or delete one, and a correction is a new note. The step's state, reason and findings do not change.
+    A note is one more version of the step's sub-task Item (created, never updated), so versions still record who and when."""
+    if STEP_BY_KEY.get(key) is None:
+        raise ChecklistError(f"Unknown step {key!r}. The steps are: {', '.join(item.key for item in template_steps())}.")
+    if actor.get("kind") not in (ACTOR_PERSON, ACTOR_AGENT) or not str(actor.get("label") or actor.get("sub") or "").strip():
+        raise ChecklistError("A note needs an author: a person or an agent, with a name.")
+    text = (text or "").strip()
+    if not text:
+        raise ChecklistError("A note needs some text.")
+    now = now or utc_now()
+    rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
+    if not rows:
+        sync_checklist(client, lineage, now=now)
+        rows = {row["stepKey"]: row for row in read_steps(client, lineage)}
+    existing = rows.get(key)
+    if existing is None:
+        raise ChecklistError(f"Step '{key}' is not live in the procedure yet, so it has no checklist item.")
+    note = {k: v for k, v in {"at": now, "actorKind": actor["kind"], "actorLabel": actor.get("label"), "actorSub": actor.get("sub"), "text": text}.items() if v}
+    row = {**existing, "notes": [*existing.get("notes", []), note], "versionNumber": int(existing.get("versionNumber") or 0) + 1,
+           "written": {"by": actor.get("label") or actor.get("sub"), "at": now, "reason": f"note: {text[:80]}"}}
+    _write(client, row, supersede=supersede)
+    return row
+
+
+def notes_text(rows: list[dict[str, Any]]) -> str:
+    """The step notes as plain text for an agent's context (the context pack): one block per step that has notes, oldest first."""
+    blocks = []
+    for row in rows:
+        notes = row.get("notes") or []
+        if not notes:
+            continue
+        lines = [f"Notes on the step {row['stepKey']} ({row.get('title') or row['stepKey']}), oldest first:"]
+        lines += [f"- {note.get('actorLabel') or note.get('actorSub') or 'someone'} ({note.get('actorKind') or 'unknown'}), {note.get('at')}: {note.get('text')}" for note in notes]
+        blocks.append("\n".join(lines))
+    return "\n\n".join(blocks)
 
 
 def mark_imported(client, lineage: str, source: str, *, now: str | None = None) -> bool:
@@ -462,5 +517,7 @@ def checklist_lines(shown: list[dict[str, Any]]) -> list[str]:
         who = f"{row.get('actorKind')}:{row.get('actorLabel')}" if row.get("actorKind") else ""
         detail = row.get("reason") or row.get("note") or row.get("evidence") or ""
         lines.append("\t".join(["item", row["stepKey"], row["state"], row["title"], who, str(row.get("changedAt") or ""), detail]))
+        for note in row.get("notes") or []:
+            lines.append("\t".join(["note", row["stepKey"], f"{note.get('actorKind')}:{note.get('actorLabel') or note.get('actorSub')}", str(note.get("at") or ""), str(note.get("text") or "").replace("\n", " ")]))
     lines.append("\t".join(["checklist", "progress", progress_text(summary_of(shown))]))
     return lines

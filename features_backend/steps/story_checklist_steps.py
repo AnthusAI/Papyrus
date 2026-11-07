@@ -273,3 +273,66 @@ def board_lists_story_only(context):
     client = client_of(context)
     listed = [row for stage in CONTENT_ITEM_STAGES for row in client.list_by_index("itemsByStage", stage)]
     assert {row["lineageId"] for row in listed} == {LINEAGE} and all(row["type"] != "sub-task" for row in listed), listed
+
+
+@then('the checklist item "{key}" has {count:d} note, the newest by the {kind} "{label}" saying "{text}"')
+@then('the checklist item "{key}" has {count:d} notes, the newest by the {kind} "{label}" saying "{text}"')
+def has_newest_note(context, key, count, kind, label, text):
+    notes = item(context, key)["notes"]
+    assert len(notes) == count and (notes[-1]["actorKind"], notes[-1]["actorLabel"], notes[-1]["text"]) == (kind, label, text), notes
+
+
+@then('the checklist item "{key}" has {count:d} notes, the newest saying "{text}"')
+def has_notes_newest(context, key, count, text):
+    notes = item(context, key)["notes"]
+    assert len(notes) == count and notes[-1]["text"] == text, notes
+
+
+@then('the checklist item "{key}" has the notes in order "{first}" then "{second}"')
+def notes_in_order(context, key, first, second):
+    assert [note["text"] for note in item(context, key)["notes"]] == [first, second]
+
+
+@when('an agent tries to add an empty note to the step "{key}"')
+def agent_adds_note(context, key):
+    try:
+        checklist.add_note(client_of(context), lineage_of(context), key, "  ", actor={"kind": "agent", "label": "AI"})
+        context.succeeded, context.error = True, None
+    except Exception as error:
+        context.succeeded, context.error = False, error
+
+
+@given('a note "{text}" by the person "{label}" is on the step "{key}"')
+def note_on_step(context, text, label, key):
+    with evidence_patches(context):
+        checklist.add_note(client_of(context), lineage_of(context), key, text, actor={"kind": "person", "label": label}, now=AT)
+
+
+@then('the procedure output has a "note" line for "{key}" by "{who}" saying "{text}"')
+def note_line(context, key, who, text):
+    lines = [line.split("\t") for line in context.output.splitlines()]
+    assert any(line[:3] == ["note", key, who] and line[-1] == text for line in lines), context.output
+
+
+@then('the JSON checklist step "{key}" carries the note "{text}"')
+def json_note(context, key, text):
+    payload = json.loads(context.output)
+    step = next(row for row in payload["checklist"] if row["stepKey"] == key)
+    assert [note["text"] for note in step["notes"]] == [text], step
+
+
+@when("the context pack layer of the procedure is read")
+def read_layer(context):
+    from papyrus_content.newsroom_context_pack import Situation, process_layer
+
+    client = client_of(context)
+    with evidence_patches(context):
+        situation = Situation.__new__(Situation)
+        situation.store, situation.lineage = client, lineage_of(context)
+        entries, _problem = process_layer(situation)
+    context.layer = "\n".join(entry["text"] for entry in entries)
+
+
+@then('the layer says "{text}"')
+def layer_says(context, text):
+    assert text in context.layer, context.layer

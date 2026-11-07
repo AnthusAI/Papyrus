@@ -18,6 +18,17 @@ export interface StoryChecklistSummary {
   requiredOpen: string[];
 }
 
+/** One note left on a step, for context later: who (a person or an agent, by name), when, and the text. Notes only accumulate; newest last. */
+export interface StoryStepNote {
+  at: string;
+  actorKind?: string | null;
+  actorLabel?: string | null;
+  text: string;
+}
+
+/** How many of a step's notes show at once; older ones sit behind "Show earlier notes". */
+export const VISIBLE_STEP_NOTES = 3;
+
 /** One checklist step as the panel shows it: the newest version of the step's sub-task Item, with the entry of each version as its history. */
 export interface StoryStepRecord {
   /** The step's lineage id (`step-<story>-<key>`): the sub-task Item's `lineageId`. */
@@ -35,6 +46,8 @@ export interface StoryStepRecord {
   reason?: string | null;
   note?: string | null;
   evidence?: string | null;
+  /** The log of notes people and agents left on the step, newest last. */
+  notes: StoryStepNote[];
 }
 
 /** The fields of a sub-task Item the panel reads (`listItemsByParentAndOrder`). Every version of every step comes back; the newest version of each is the step. */
@@ -60,6 +73,21 @@ export function stepChangeProblem(stepKey: string, state: StoryStepState, input:
   return null;
 }
 
+/** The notes of a step from `metadata.checklist.notes`: the entries that have text, in the order stored (newest last). */
+export function storyStepNotes(value: unknown): StoryStepNote[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): StoryStepNote[] => {
+    const note = metadataObject(entry);
+    const text = typeof note?.text === "string" ? note.text : "";
+    return note && text ? [{ at: typeof note.at === "string" ? note.at : "", actorKind: typeof note.actorKind === "string" ? note.actorKind : null, actorLabel: typeof note.actorLabel === "string" ? note.actorLabel : null, text }] : [];
+  });
+}
+
+/** What a person must give to add a note: some text. */
+export function noteProblem(text: string): string | null {
+  return text.trim() ? null : "Write the note first.";
+}
+
 /** The steps of a Story from its sub-task Items: the newest version of each is the step, in template order. */
 export function storyStepsFromItems(items: readonly SubTaskItemRecord[]): StoryStepRecord[] {
   const newest = new Map<string, SubTaskItemRecord>();
@@ -76,7 +104,7 @@ export function storyStepsFromItems(items: readonly SubTaskItemRecord[]): StoryS
       id: item.lineageId, storyLineageId: item.parentLineageId ?? "", stepKey: text(meta.stepKey) ?? item.lineageId, stepOrder: count(meta.stepOrder),
       templateVersion: count(meta.templateVersion), title: item.title ?? null, command: text(meta.command), state: item.status as StoryStepState,
       actorKind: text(entry.actorKind), actorLabel: text(entry.actorLabel), changedAt: text(entry.at) ?? item.versionCreatedAt ?? null,
-      reason: text(entry.reason), note: text(entry.note), evidence: text(entry.evidence),
+      reason: text(entry.reason), note: text(entry.note), evidence: text(entry.evidence), notes: storyStepNotes(meta.notes),
     };
   }).sort((a, b) => a.stepOrder - b.stepOrder);
 }

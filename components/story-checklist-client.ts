@@ -2,7 +2,7 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import { setStoryStep } from "../lib/content-actions-client";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
-import { createLocalPreviewStoryChecklist, setLocalPreviewStoryStep } from "../lib/local-preview-seed";
+import { addLocalPreviewStoryStepNote, createLocalPreviewStoryChecklist, setLocalPreviewStoryStep } from "../lib/local-preview-seed";
 import { storyStepsFromItems, type StoryStepRecord, type StoryStepState, type SubTaskItemRecord } from "../lib/story-checklist";
 import { configureAmplifyClient } from "./amplify-client-provider";
 
@@ -38,4 +38,10 @@ export async function loadStoryChecklistSteps(lineageId: string): Promise<StoryS
 export async function saveStoryChecklistStep(lineageId: string, stepKey: string, state: StoryStepState, input: { reason?: string; note?: string }): Promise<void> {
   if (isLocalPreviewEnabled()) { setLocalPreviewStoryStep(lineageId, stepKey, state, input); return; }
   await setStoryStep({ lineageId, stepKey, state, ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}), ...(input.note?.trim() ? { note: input.note.trim() } : {}) });
+}
+
+/** Adds a note to a step, whatever its state, as the signed-in person: notes only accumulate, and the step's state, reason and findings do not change. */
+export async function addStoryChecklistNote(lineageId: string, stepKey: string, text: string): Promise<void> {
+  if (isLocalPreviewEnabled()) { addLocalPreviewStoryStepNote(lineageId, stepKey, text); return; }
+  await setStoryStep({ lineageId, stepKey, note: text.trim() });
 }

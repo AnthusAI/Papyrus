@@ -324,3 +324,67 @@ def test_the_scans_of_the_item_table_leave_sub_tasks_out():
     assert idea_rows(client) == []   # a sub-task is no generated idea
     assert decided_ideas(client) == []
     assert promoted_reference_ids(client, []) == set()
+
+
+# --- notes: an append-only log on each step, whatever its state ----------------------------------------------------------------------------
+
+
+def test_a_note_is_one_more_version_of_the_step_with_the_state_entry_unchanged():
+    client = FakeAuthoringClient()
+    lineage = create_story(client, title="Notes", section_key=None, actor="AI")["lineageId"]
+    checklist.set_step(client, lineage, "outline", "skipped", actor=PERSON, reason="Later", now="2026-11-07T10:00:00Z")
+    checklist.add_note(client, lineage, "outline", " Keep it short ", actor={"kind": "person", "label": "Sierra", "sub": "sub-2"}, now="2026-11-07T11:00:00Z")
+    checklist.add_note(client, lineage, "outline", "Correction: the editor meant two pages", actor={"kind": "agent", "label": "AI"}, now="2026-11-07T12:00:00Z")
+    step = {r["stepKey"]: r for r in checklist.read_steps(client, lineage)}["outline"]
+    assert [(n["actorLabel"], n["actorKind"], n["text"], n["at"]) for n in step["notes"]] == [
+        ("Sierra", "person", "Keep it short", "2026-11-07T11:00:00Z"), ("AI", "agent", "Correction: the editor meant two pages", "2026-11-07T12:00:00Z")]
+    assert (step["state"], step["reason"], step["actorLabel"], step["changedAt"]) == ("skipped", "Later", "Ryan", "2026-11-07T10:00:00Z")   # the state change is still Ryan's
+    assert [entry["state"] for entry in step["history"]] == ["open", "skipped"] and step["versionNumber"] == 4   # a note adds a version, not a state change
+    versions = sorted((v for v in sub_tasks(client).values() if v["lineageId"] == step["id"]), key=lambda v: v["versionNumber"])
+    assert [(v["versionCreatedBy"], v["status"]) for v in versions[2:]] == [("Sierra", "skipped"), ("AI", "skipped")]
+    assert versions[2]["changeReason"].startswith("note: Keep it short")
+    checklist.set_step(client, lineage, "outline", "open", actor=PERSON, now="2026-11-07T13:00:00Z")
+    reopened = {r["stepKey"]: r for r in checklist.read_steps(client, lineage)}["outline"]
+    assert len(reopened["notes"]) == 2 and reopened["state"] == "open"   # notes survive a change of state
+
+
+def test_a_note_has_no_edit_or_delete_and_needs_text_and_an_author():
+    client = FakeAuthoringClient()
+    lineage = create_story(client, title="Append only", section_key=None, actor="AI")["lineageId"]
+    assert not any(hasattr(checklist, name) for name in ("edit_note", "delete_note", "remove_note", "update_note"))
+    for text, actor in (("", PERSON), ("   ", PERSON), ("Fine", {"kind": "person", "label": ""}), ("Fine", {"kind": "system", "label": "evidence"})):
+        with pytest.raises(checklist.ChecklistError):
+            checklist.add_note(client, lineage, "outline", text, actor=actor)
+    with pytest.raises(checklist.ChecklistError):
+        checklist.add_note(client, lineage, "proofread", "Fine", actor=PERSON)
+
+
+def test_a_role_that_cannot_update_items_can_still_add_a_note():
+    client = FakeAuthoringClient()
+    lineage = create_story(client, title="Worker note", section_key=None, actor="AI")["lineageId"]
+    client.update_record = lambda *a, **k: (_ for _ in ()).throw(PermissionError("updateItem is not granted"))
+    checklist.add_note(client, lineage, "research", "Packet looks thin", actor={"kind": "agent", "label": "Research worker"}, supersede=False)
+    assert [n["text"] for n in {r["stepKey"]: r for r in checklist.read_steps(client, lineage)}["research"]["notes"]] == ["Packet looks thin"]
+
+
+def test_the_notes_read_as_plain_text_for_an_agent():
+    client = FakeAuthoringClient()
+    lineage = create_story(client, title="Context", section_key=None, actor="AI")["lineageId"]
+    checklist.add_note(client, lineage, "review_search", "Title is too long for results", actor=PERSON, now="2026-11-07T11:00:00Z")
+    text = checklist.notes_text(checklist.read_steps(client, lineage))
+    assert text.startswith("Notes on the step review_search (Reviewed for search), oldest first:") and "Ryan (person), 2026-11-07T11:00:00Z: Title is too long for results" in text
+    assert checklist.notes_text(checklist.read_steps(FakeAuthoringClient(), "none")) == ""
+
+
+def test_the_set_step_action_without_a_state_adds_a_note_as_the_signed_in_person_or_agent():
+    handler = load_handler()
+    client = FakeAuthoringClient()
+    lineage = create_story(client, title="Action note", section_key=None, actor="AI")["lineageId"]
+    event = {"identity": {"sub": "sub-1", "issuer": "https://cognito.example.test", "username": "ryan"}}
+    with patch.object(handler, "create_authoring_client", lambda: (client, None)):
+        assert handler.set_story_step_action({"lineageId": lineage, "stepKey": "draft", "note": "Needs a stronger lede"}, event)["ok"]
+        assert handler.set_story_step_action({"lineageId": lineage, "stepKey": "draft", "note": "Agreed", "agent": "AI"}, event)["ok"]
+        refused = handler.set_story_step_action({"lineageId": lineage, "stepKey": "draft", "note": " "}, event)
+        assert refused["ok"] is False and "needs some text" in refused["errors"][0]["message"]
+    step = {r["stepKey"]: r for r in checklist.read_steps(client, lineage)}["draft"]
+    assert [(n["actorKind"], n["actorLabel"], n["actorSub"]) for n in step["notes"]] == [("person", "ryan", "sub-1"), ("agent", "AI", "sub-1")] and step["state"] == "open"
