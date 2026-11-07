@@ -38,7 +38,7 @@ Epic: PPY-0111742e. Profile story: PPY-e4bdd096. Stories it builds on: PPY-40b7a
 
 ### Missing
 
-1. Any backend home for a publication's image style (only the section prose field exists).
+1. Any backend home for a publication's image style or its image types (only the section prose field exists). Machines on Machines' figure rules already distinguish diagrams from illustrations, but not cover from inline sizes.
 2. Any image generation code, provider adapter, candidate record or private candidate storage.
 3. One definition of operations shared by CLI, MCP, UI, skill and docs.
 4. Server-side apply (today apply happens in the browser editor) and atomic media carry-forward for MCP.
@@ -52,7 +52,7 @@ Epic: PPY-0111742e. Profile story: PPY-e4bdd096. Stories it builds on: PPY-40b7a
 
 **One image service, one table of operations, three front ends that are generated from that table.**
 
-Every image action (resolve the style, preview the prompt, search, generate, inspect, select, apply, undo, review, discard) is one named operation, defined once in Python with its input schema, result schema, errors and permission. The backend runs every operation behind one GraphQL door, with the caller's own identity. The CLI, the MCP server and the newsroom UI are thin clients of that door, and their command lines, tool schemas, TypeScript types, skill reference and docs are all **generated** from the same table, so they cannot drift. The publication's visual style lives in the backend as versioned doctrine, next to mission and policy, and the service, never the client, resolves it and writes a snapshot of it onto every candidate.
+Every image action (resolve the style, preview the prompt, search, generate, inspect, select, apply, undo, review, discard) is one named operation, defined once in Python with its input schema, result schema, errors and permission. The backend runs every operation behind one GraphQL door, with the caller's own identity. The CLI, the MCP server and the newsroom UI are thin clients of that door, and their command lines, tool schemas, TypeScript types, skill reference and docs are all **generated** from the same table, so they cannot drift. The publication's visual style lives in the backend as versioned doctrine, next to mission and policy, and the service, never the client, resolves it and writes a snapshot of it onto every candidate. Inside it, each publication defines its own **image types** (for example a chunky cover diagram, a technical inline diagram, a headline illustration and a detailed inline illustration), each with its own display context, rules, examples and allowed sources; every request names one.
 
 ```mermaid
 flowchart LR
@@ -149,7 +149,10 @@ Every error: `{ "ok": false, "op": "...", "error": { "code": "...", "message": "
 | `set_needs_person` | An agent asked for more than one candidate. Sets are for a person choosing; unattended work gets one (3.6). |
 | `not_found` | No such Story, Reference, round or candidate in this publication. Also returned for another publication's ids (never "exists elsewhere"). |
 | (warning) `profile_missing` | Not an error: the publication has no visual style profile. Generation continues, and every result carries the warning (5.6). |
-| `constraint_conflict` | A section, Story or request asks for something a binding constraint forbids (for example a photographic treatment on Machines on Machines). Names the constraint. |
+| `constraint_conflict` | A section, Story, image type or request asks for something a binding constraint forbids (for example a photographic treatment on Machines on Machines). Names the constraint. |
+| `image_type_required` | An inline request, or a use with no default, did not name an image type. `details.choices` lists the publication's types for that use with their descriptions. |
+| `image_type_unknown` | No such image type in this publication's profile, or it is retired. `details.choices` as above. |
+| `source_not_allowed` | The image type does not permit this source (for example generating a `cover-diagram`, which comes only from the figure system). `details.allowed` lists its sources in order and where their rules live. |
 | `checks_failed` | Apply refused: a free check failed (wrong size or format, no alt text, no credit or disclosure). `details.checks` lists which. |
 | `generation_not_configured` | No approved provider and model for this site. Says how to configure; no provider is called. |
 | `capability_unsupported` | The configured model cannot do what was asked (reference images, ratio, count per call, transparency). `details.alternatives` lists explicit fallbacks the caller may opt into. |
@@ -169,11 +172,11 @@ Names are the MCP tool names. "Target" is `{"kind": "story" | "reference", "line
 | Operation | CLI | Effect | Input | Result |
 | --- | --- | --- | --- | --- |
 | `image_profile_get` | `papyrus images profile get [--version N]` | read | `version?` | `{profile: VisualStyleProfile, itemId, versionNumber, updatedAt, updatedBy, contentHash}` |
-| `image_profile_resolve` | `papyrus images profile resolve --story L --use cover [--treatment T]` | read | `target?`, `sectionId?`, `use`, `treatment?` | `ResolvedStyle` (3.5): the effective guidance with, for every field, the layer it came from. This is the precedence preview. |
+| `image_profile_resolve` | `papyrus images profile resolve --story L --use cover [--image-type K]` | read | `target?`, `sectionId?`, `use`, `imageType?` | `ResolvedStyle` (5.3): the effective guidance for one image type with, for every field, the layer it came from, plus `imageTypeChosenBy` and `availableTypes` for the use. This is the precedence preview. Inline without a type: `image_type_required`. |
 | `image_profile_diff` | `papyrus images profile diff --file design/image-style.yml` | read | `document` (a full or partial profile; the CLI reads the file and sends its content) | `{changes: [{path, from, to}], constraintChanges: [...], wouldCreateVersion: N}` |
 | `image_profile_save` | `papyrus images profile save --file F --reason "..."` | write | `document`, `reason`, `expectedCurrentVersionId` | `{itemId, versionNumber, contentHash}`. Adding, changing or removing a binding constraint returns `human_required` for agents and needs `admin`. |
 | `image_profile_history` | `papyrus images profile history` | read | `limit?`, `nextToken?` | `{versions: [{versionNumber, at, by, byKind, reason, contentHash}]}` (by lineage index) |
-| `image_profile_example_add` | `papyrus images profile example add --file cover.png --kind exemplar|negative --note "why" [--treatment T] [--send-to-provider] --reason "..."` | write | `uploadId` (from the existing upload mutation, 5.8), `kind`, `note`, `treatment?`, `sendToProvider`, `reason`, `expectedCurrentVersionId` | `{attachmentId, sha256, versionNumber}`: a new profile version that lists the picture. |
+| `image_profile_example_add` | `papyrus images profile example add --file cover.png --image-type K --kind exemplar|negative --note "why" [--send-to-provider] --reason "..."` | write | `uploadId` (from the existing upload mutation, 5.8), `imageType` (or `"identity"` for a brand-wide example), `kind`, `note`, `sendToProvider`, `reason`, `expectedCurrentVersionId` | `{attachmentId, sha256, versionNumber}`: a new profile version that lists the picture under that type. |
 | `image_profile_example_remove` | `papyrus images profile example remove A --reason "..."` | write | `attachmentId`, `reason`, `expectedCurrentVersionId` | `{versionNumber}`: a new profile version without it. The file stays for older versions. |
 
 #### Planning
@@ -181,15 +184,16 @@ Names are the MCP tool names. "Target" is `{"kind": "story" | "reference", "line
 | Operation | CLI | Effect | Input | Result |
 | --- | --- | --- | --- | --- |
 | `image_capabilities` | `papyrus images capabilities` | read | none | `{configured: bool, models: [ProviderModel], approvedForSpend: bool}` |
-| `image_brief_draft` | `papyrus images brief --story L --use cover` | read | `target`, `use` | `{brief, searchTarget, derivedFrom: ["title","deck"], workedOut: true}`. Deterministic first (the same rule as `search-target.ts`); a GPT-6 Luna draft only when the site enables it, labelled as drafted. |
-| `image_prompt_preview` | `papyrus images prompt --story L --use cover --brief "..." [--count 4 --spread treatments]` | read | same as `image_generate` | `{plans: [PromptPlan], estimate: Cost, capabilityCheck}` for each candidate that would be made. Spends nothing. |
+| `image_brief_draft` | `papyrus images brief --story L --use cover [--image-type K]` | read | `target`, `use`, `imageType?` | `{brief, searchTarget, imageType, imageTypeChosenBy, typeChoices: [{key, label, description, sources}], derivedFrom: ["title","deck"], workedOut: true}`. Deterministic first (the same rule as `search-target.ts`); a GPT-6 Luna draft only when the site enables it, labelled as drafted. |
+| `image_prompt_preview` | `papyrus images prompt --story L --use cover [--image-type K] --brief "..." [--count 4 --spread types]` | read | same as `image_generate` | `{plans: [PromptPlan], estimate: Cost, capabilityCheck}` for each candidate that would be made, each naming its image type. Spends nothing. |
 
 #### Finding and making
 
 | Operation | CLI | Effect | Input | Result |
 | --- | --- | --- | --- | --- |
-| `image_search` | `papyrus images search --story L [--query "..."] [--source wikimedia-commons] [--cursor C]` | read | `target`, `query?`, `source?`, `cursor?`, `exclude?` | `{candidates: [StockCandidate + {candidateRef}], nextCursor, searched, searchedFromStory}`. Four per page, as today. Not stored until selected or applied. |
-| `image_generate` | `papyrus images generate --story L --use cover --brief "..." [--count 4] [--spread variations|treatments] [--treatment T ...] [--model M] [--accept-fallback F]` | spend | `target`, `use`, `brief`, `count` (default 1; more than 1 only for a person, see 3.6), `spread`, `treatments?`, `model?` (must be a configured, approved model; recorded as requested, never swapped), `acceptFallback?`, `references?` (profile example ids only) | `{roundId, candidates: [{id, position, status: "queued", treatment}], estimate}` returned at once; pictures arrive later. |
+| `image_search` | `papyrus images search --story L [--image-type K] [--query "..."] [--source wikimedia-commons] [--cursor C]` | read | `target`, `use?`, `imageType?`, `query?`, `source?`, `cursor?`, `exclude?` | `{imageType, imageTypeChosenBy, candidates: [StockCandidate + {candidateRef}], nextCursor, searched, searchedFromStory}`. Four per page, as today. Not stored until selected or applied. A type whose sources lack `stock`: `source_not_allowed`. |
+| `image_generate` | `papyrus images generate --story L --use cover [--image-type K] --brief "..." [--count 4] [--spread variations|types] [--image-types K ...] [--model M] [--accept-fallback F]` | spend | `target`, `use`, `imageType?` (default per 5.3; inline requires it), `brief`, `count` (default 1; more than 1 only for a person, see 3.6), `spread`, `imageTypes?` (for `spread: types`), `model?` (must be a configured, approved model; recorded as requested, never swapped), `acceptFallback?`, `references?` (example ids of that type only), `speed?` | `{roundId, imageType, imageTypeChosenBy, candidates: [{id, position, status: "queued", imageType}], estimate}` returned at once; pictures arrive later. A type whose sources lack `generated` (a diagram type): `source_not_allowed`. |
+| `image_figure_add` | `papyrus images figure add --story L --image-type cover-diagram --light F.png --dark F.dark.png --figure figure.json` | write | `target`, `imageType`, `uploadIds: {light, dark?}` or `figureId` (once PPY-cd4585 lands), `figure` (the figure.json acceptance fields: audience, shows, complements, approvedBy?) | `{candidateId, origin: "figure", checks}`. Records a figure drawn and rendered with the publication's figure system as a candidate so it can be previewed, reviewed and applied like any other picture. It never draws or generates anything. A type whose sources lack `figure-system`: `source_not_allowed`. |
 | `image_round_get` | `papyrus images round R [--wait]` | read | `roundId` | `{roundId, target, use, brief, candidates: [CandidateSummary], done: bool}`. `--wait` polls until `done`. |
 | `image_candidate_get` | `papyrus images show C` | read | `candidateId` | Full `ImageCandidate` (7.2) with a short-lived signed `previewUrl`. |
 | `image_list` | `papyrus images list --story L` | read | `target`, `status?`, `nextToken?` | Rounds and candidates for this target, newest first (by `targetKey` index; never a scan). |
@@ -204,7 +208,7 @@ Names are the MCP tool names. "Target" is `{"kind": "story" | "reference", "line
 | `image_unapply` | `papyrus images unapply --story L --media-asset M --expected-current-version-id V --reason "..."` | write | `target`, `mediaAssetId`, `expectedCurrentVersionId`, `reason`, `save` | Undoes an apply: a new Story version that restores what the apply replaced (the previous cover recorded in `appliedTo.replaced`, or the placeholder). The `MediaAsset` row and its provenance stay for the record. Any editor or agent may unapply. |
 | `image_review` | `papyrus images review M --keep|--remove [--note "..."]` | write, person only | `mediaAssetId`, `decision` (`keep` or `remove`), `note?`, `expectedCurrentVersionId` (for `remove`) | `keep` sets `reviewStatus: "human-verified"` with who and when; `remove` runs `image_unapply`. Either answers the linked ReviewRequest. To swap, the person opens the picker and applies another; that apply answers it too. Agents get `human_required`. |
 | `image_review_queue` | `papyrus images review-queue` | read | `nextToken?` | Pictures applied with no person, oldest first: `{items: [{mediaAssetId, target, candidateId, appliedAt, appliedBy, reviewRequestId, previewUrl}]}`. Reads open ReviewRequests of mode `image-unreviewed` by an index, never a scan. |
-| `image_apply` | `papyrus images apply C --story L --use cover --expected-current-version-id V [--alt "..."] [--save]` | write | `candidateId` or `candidateRef`, `target`, `use`, `alt?` (defaults to the candidate's draft), `caption?`, `expectedCurrentVersionId`, `save` (default true for CLI/MCP; the UI passes false) | `{patch: {bodyDirective, frontMatter: {image, coverImage}}, mediaAsset, reviewStatus, reviewRequestId?, savedVersion?}`. Runs the free checks (7.5), copies the picture into `media/assets/<slug>/`, writes `MediaAsset` with provenance and what it replaced, and with `save` makes a new Story version conditionally. Never publishes. A person applying from a set they looked at makes it `human-verified`; anyone else makes it `unreviewed` and opens a review request. Refused with `checks_failed` or `stale_version`. |
+| `image_apply` | `papyrus images apply C --story L --use cover [--image-type K] --expected-current-version-id V [--alt "..."] [--save]` | write | `candidateId` or `candidateRef`, `target`, `use`, `imageType?` (taken from the candidate; required with a stock `candidateRef` for inline), `alt?` (defaults to the candidate's draft), `caption?`, `expectedCurrentVersionId`, `save` (default true for CLI/MCP; the UI passes false) | `{patch: {bodyDirective, frontMatter: {image, coverImage}}, mediaAsset, imageType, reviewStatus, reviewRequestId?, savedVersion?}`. Runs the free checks (7.5) against that type's sizes, copies the picture (and a figure's dark twin) into `media/assets/<slug>/`, writes `MediaAsset` with provenance, its image type and what it replaced, and with `save` makes a new Story version conditionally. Never publishes. A person applying from a set they looked at makes it `human-verified`; anyone else makes it `unreviewed` and opens a review request. Refused with `checks_failed`, `source_not_allowed` or `stale_version`. |
 | `image_discard` | `papyrus images discard (C | --round R) --reason "..."` | write | `candidateId` or `roundId`, `reason` | Marks rejected, deletes the private picture, keeps the row for accountability. Discarding a whole round is how "keep the placeholder" is recorded. |
 
 #### Authorization in one line each
@@ -231,6 +235,30 @@ A set of four exists so a person can compare and pick. An unattended agent canno
 
 Why this shape: the number of options follows from whether someone will choose, so it is decided by who is asking rather than by a setting that could drift from reality.
 
+
+### 3.7 Changes to the merged operation table for image types
+
+PR 1 is merged (`src/papyrus_content/images/operations.py`, 23 operations). The image-type change is a small follow-up that edits the table and reruns `scripts/generate-image-operations.py`; the generator itself does not change. Exact edits:
+
+| Where in `operations.py` | Change |
+| --- | --- |
+| Shared pieces | Add `IMAGE_TYPE = text("A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one.")`. |
+| `CANDIDATE_SUMMARY` | Add `"imageType": text()`, and `"origin": choice("generated", "stock", "figure")`. Keep `treatment` (now derived from the type). |
+| `GENERATE_INPUT` (shared by `image_generate` and `image_prompt_preview`) | Add `"imageType": IMAGE_TYPE`. Replace `"treatments": many(text(), ...)` with `"imageTypes": many(text(), "Image types to spread across, from the profile.")`. Change `"spread"` to `choice("variations", "types", description="Four takes of one image type, or one take of each type the use allows that can be generated.")`. `references` description: "Example ids of the chosen image type". Required fields unchanged. |
+| `ROUND_RESULT` | Add `"imageType": text()`, `"imageTypeChosenBy": choice("request", "default-for-use")`. |
+| `image_profile_resolve` | Input: replace `"treatment": text("A treatment from the profile.")` with `"imageType": IMAGE_TYPE`. Result: add `imageType`, `imageTypeChosenBy`, `availableTypes` (records of `key`, `label`, `description`, `sources`). Errors: add `image_type_required`, `image_type_unknown`. Example: layers include `image-type`. |
+| `image_profile_example_add` | Input: replace `"treatment": text()` with required `"imageType": text("The image type this example belongs to, or identity for a brand-wide example.")`. Errors: add `image_type_unknown`. Example updated. |
+| `image_brief_draft` | Input: add optional `"imageType": IMAGE_TYPE`. Result: add `imageType`, `imageTypeChosenBy`, `typeChoices`. Errors: add `image_type_required`. |
+| `image_search` | Input: add optional `"use": USE`, `"imageType": IMAGE_TYPE`. Result: add `imageType`, `imageTypeChosenBy`. Errors: add `image_type_required`, `image_type_unknown`, `source_not_allowed`. |
+| `image_generate` | Via `GENERATE_INPUT`. Errors: add `image_type_required`, `image_type_unknown`, `source_not_allowed`. CLI `flags`: `(("treatments", "treatment"),)` becomes `(("imageTypes", "image-types"),)`. |
+| `image_round_get`, `image_list` | Results gain `imageType` per round (from `ROUND_RESULT` and `CANDIDATE_SUMMARY`). |
+| `image_apply` | Input: add optional `"imageType": IMAGE_TYPE`. Result: add `imageType`. Errors: add `source_not_allowed`, `image_type_unknown`. |
+| New operation | `image_figure_add` (CLI `("figure", "add")`, effect `write`), input and result as in 3.4, errors `image_type_unknown`, `source_not_allowed`, `checks_failed`, `not_found`. The table becomes 24 operations. |
+| `ERRORS` | Add `image_type_required`, `image_type_unknown`, `source_not_allowed` with the wording in 3.3. |
+| `_CANDIDATE`, `_PROFILE_REF` and the other example constants | Add `"imageType": "cover-illustration"` so every regenerated example shows it. |
+
+Regenerated as a result: the `papyrus images` help and flags (`--image-type`, `--image-types`, `figure add`), the MCP tool schemas, `lib/images/operations.generated.ts`, the skill's reference block and the docs reference. The CLI/MCP parity examples rerun unchanged in shape.
+
 ---
 
 ## 4. The skill
@@ -241,9 +269,10 @@ One skill, `skills/image-work/SKILL.md`, read by any agent doing image work thro
 
 **Body (hand-written prose, plus the generated reference block):**
 
-1. **Order of preference** (PPY-5c9e9a): a diagram when one explains something (use the publication's figure rules, for Machines on Machines `design/figures/`), then stock an editor accepts, then generation as the last choice.
-2. **Always start from the resolved style.** Run `image_profile_resolve` for the target and use. Read the constraints first. Never paste style rules into a brief; the service adds them.
-3. **The loop.** `image_brief_draft` → `image_search` or (`image_prompt_preview` → `image_generate`) → `image_round_get` until done → `image_candidate_get` on each ready one → `image_select` with a reason → `image_apply`, or `image_discard --round` to keep the placeholder. Working alone, ask for one image (`count` 1); asking for more returns `set_needs_person`.
+1. **Choose an image type first.** The publication's types are listed in your context pack and by `image_profile_resolve` (`availableTypes`), each with a plain description, the smallest size it is shown at and its allowed sources in order. For a cover, try the types in the listed order (the profile's `typePreference`; on Machines on Machines that is a diagram, then a photograph, then an illustration, which is PPY-5c9e9a's rule written as data). Inside the article, you must name a type: a technical diagram and an illustration are different jobs.
+1a. **Use the type's sources in order.** A figure-system type is drawn with the publication's figure tools (for Machines on Machines `design/figures/`) and brought in with `image_figure_add`; the image service never draws or generates one. A stock type uses `image_search`; a generated type uses `image_generate`. Asking a type for a source it does not allow returns `source_not_allowed`, which tells you what to do instead.
+2. **Always start from the resolved style.** Run `image_profile_resolve` for the target, use and image type. Read the constraints first. Never paste style rules into a brief; the service adds them.
+3. **The loop.** `image_brief_draft` (suggests a type) → `image_search`, `image_figure_add` or (`image_prompt_preview` → `image_generate`), always with `imageType` → `image_round_get` until done → `image_candidate_get` on each ready one → `image_select` with a reason → `image_apply`, or `image_discard --round` to keep the placeholder. Working alone, ask for one image (`count` 1); asking for more returns `set_needs_person`.
 4. **What selection means.** Selecting is your recommendation. It is not approval. Never write that a person approved anything.
 5. **Binding constraints and review.** The service forces the publication's constraints into every prompt; you cannot loosen them and should not try. That is not a guarantee: a picture you apply without a person is marked `unreviewed` and goes into the review queue, where an editor can keep, swap or remove it. If a picture plainly breaks a constraint (for Machines on Machines, it looks like a photograph), do not apply it; discard it with the reason. Never mark anything human-verified.
 6. **Alt text and credit.** The candidate's `altDraft` is drafted from the brief and prompt, not from the picture, and says so. Keep that label unless a person has checked it against the picture. Stock credits come from the source; generated credits and disclosure from the profile. Apply refuses a picture with no alt text, credit or disclosure.
@@ -562,7 +591,7 @@ Why segments: every sentence the provider receives carries the layer that produc
 
 | Shown to agents (context pack, `image_profile_resolve`, candidate) | Kept in the service |
 | --- | --- |
-| Prose guidance, treatments and uses in words, things to avoid, binding constraints, example notes, the composed plan and the exact provider text after the fact | Provider keys (SSM SecureString), reference image bytes, provider-specific request shaping |
+| Prose guidance, the image types with their descriptions, sizes and allowed sources, treatments and uses in words, things to avoid, binding constraints, example notes, the composed plan and the exact provider text after the fact | Provider keys (SSM SecureString), reference image bytes, provider-specific request shaping |
 
 Agents write a **brief**: what the picture should show. They cannot supply a profile, a constraint or a reference outside the profile; `references` accepts only this profile's example ids.
 
@@ -632,8 +661,9 @@ ImageCandidate: modelWithoutSubscriptions({
   tenantId: a.string(), publicationKey: a.string().required(),
   targetKey: a.string().required(),          // "story#<lineageId>" | "reference#<lineageId>"
   roundId: a.id().required(), position: a.integer().required(),
-  use: a.string().required(), treatment: a.string(),
-  origin: a.string().required(),             // "generated" | "stock"
+  use: a.string().required(), imageType: a.string().required(), treatment: a.string(),
+  origin: a.string().required(),             // "generated" | "stock" | "figure"
+  thumbnailPath: a.string(),                 // downscaled preview at the type's smallest size, for thumbnail types
   status: a.string().required(),             // queued | pending (in a batch) | running | ready | failed | rejected | applied | unapplied | expired
   lane: a.string().required(),               // "standard" | "batch"
   laneReason: a.string(),                    // "person waiting" | "nobody waiting" | "forced standard by <who>" | "person chose to wait"
@@ -722,6 +752,7 @@ No model looks at the pictures. The checks below need no model and cost nothing:
 | Palette: dominant colours and share of pixels near the profile's palette, only where a palette is defined | Worker | No; shown as information ("5 main colours, 93% near the palette") |
 | Alt text present | Apply | Yes |
 | Credit and, for generated pictures, the profile's disclosure present | Apply | Yes |
+| Thumbnail preview: for a type with `display.thumbnail: true`, the worker (or `image_figure_add`) makes a downscaled copy at the type's `smallestWidthPx` with a fixed resampling filter, stores it as `thumbnailPath`, and records its size and two free numbers: how many distinct colour regions survive the downscale, and the contrast between the two largest regions | Worker | No; information only. People judge legibility by looking (below) |
 
 ```json
 "checks": [
@@ -731,6 +762,8 @@ No model looks at the pictures. The checks below need no model and cost nothing:
   {"kind": "palette", "result": "info", "detail": {"dominantColours": 5, "nearPalette": 0.93}}
 ]
 ```
+
+**Thumbnail legibility without a model.** For thumbnail types the person, not a model, judges whether the picture still reads small: every candidate tile, the Compare view and the review queue show the picture at the type's smallest display size beside the full size, using the stored `thumbnailPath`. The numbers above help an editor spot a picture that turns to mush, but never block. Types that are never thumbnails (inline diagrams and illustrations) show the picture at their smallest width (343px on Machines on Machines) instead.
 
 **Review status.** Every candidate and applied picture shows `unreviewed` or `human-verified`, in words and with an icon.
 
@@ -757,35 +790,38 @@ Agents may apply their one picture to drafts under both settings; the setting on
 
 ### 7.7 Provenance on the applied picture
 
-`MediaAsset.metadata.generation` (or `.stock` for stock) copies: `candidateId`, `roundId`, `origin`, `provider`, `actualModel`, `profileItemId`, `profileVersion`, `resolutionHash`, plan hash, `constraints`, `checks`, `reviewStatus`, `review`, `altStatus`, `selection`, `appliedBy`, `appliedByKind`, `appliedAt`, `replaced` (what the apply replaced, for undo). `credit` is the profile's `generatedCredit` with `{approvedBy}` filled only from a real person's review; until then it reads "Drafted by AI. Not yet reviewed by a person." Readers see this subtly (Ryan, 2026-11-07): small, in the credit line under the picture on the article page, styled like any other credit, never a badge, banner or overlay. Cards and index pages show no credit, as for stock. Front matter `coverImage` gains `origin`, `candidateId` and `reviewStatus`. `PublishedMediaAsset` already has `metadata`; PR 5 checks that the projection copies it.
+`MediaAsset.metadata.generation` (or `.stock` or `.figure`) copies: `candidateId`, `roundId`, `origin`, `imageType`, `provider`, `actualModel`, `profileItemId`, `profileVersion`, `resolutionHash`, plan hash, `constraints`, `checks`, `reviewStatus`, `review`, `altStatus`, `selection`, `appliedBy`, `appliedByKind`, `appliedAt`, `replaced` (what the apply replaced, for undo). `credit` is the profile's `generatedCredit` with `{approvedBy}` filled only from a real person's review; until then it reads "Drafted by AI. Not yet reviewed by a person." Readers see this subtly (Ryan, 2026-11-07): small, in the credit line under the picture on the article page, styled like any other credit, never a badge, banner or overlay. Cards and index pages show no credit, as for stock. Front matter `coverImage` gains `origin`, `candidateId` and `reviewStatus`. `PublishedMediaAsset` already has `metadata`; PR 5 checks that the projection copies it.
 
 ---
 
 ## 8. The web UI
 
-The existing cover panel (`CoverImagePickerView`) grows two buttons at the top instead of one fixed source.
+The existing cover panel (`CoverImagePickerView`) becomes the picture panel for covers and for pictures inside the article. It starts with the image type, then offers only the sources that type allows.
 
 ```
 +----------------------------------------------------------------------+
 | Cover image                                     [X] Keep placeholder |
-| [Search] Find stock    [Sparkles] Generate                           |
+| Type  [Headline diagram] [Headline photo] [Headline illustration]    |
+|       Bold, simple illustration that still reads as a card thumbnail |
+| [Search] Find stock    [Sparkles] Generate   (sources for this type) |
 |----------------------------------------------------------------------|
 | What should it show?                                                 |
 | [ A locked filing cabinet with one drawer ajar______________ ]       |
 |   (Worked out from the title. Change it if you like.)                |
 |                                                                      |
 | Style  Machines on Machines, version 3           [Eye] Show the ask  |
-|   Editorial illustration · 16:9 · upper third quiet                  |
+|   Headline illustration · 16:9 · shown as small as 160px            |
 |   [ShieldAlert] Rule: generated pictures must be illustrations,      |
 |   never photorealistic. Asked for in every prompt; you check it.     |
 |                                                                      |
 | How many   [1 option] [4 options]                                    |
-| Spread     [Same style, four takes] [Four different treatments]      |
+| Spread     [Four takes of this type] [One of each type]              |
 | Cost       4 with gpt-image-2.5-flare, now (standard price; or:   |
 |            Unpriced until the trial measures one)                    |
 |                                             [Sparkles] Generate      |
 |----------------------------------------------------------------------|
 | [ tile 1 ]        [ tile 2 ]         [ tile 3 ]        [ tile 4 ]   |
+| [small] 160px     [small]            -                 [small]      |
 | Ready             Waiting...         Failed            Ready        |
 | [EyeOff] Not yet  [Loader]           provider busy     [EyeOff]     |
 |  reviewed                            [RotateCw] Retry   Not yet     |
@@ -801,10 +837,11 @@ The existing cover panel (`CoverImagePickerView`) grows two buttons at the top i
 
 | Step | What the person does | Operation |
 | --- | --- | --- |
-| Open | Panel opens with the brief filled in | `image_brief_draft`, `image_profile_resolve` |
+| Open | Panel opens with the brief filled in and a suggested image type selected (buttons, one per type the use allows, each with its plain description); inside the article no type is preselected | `image_brief_draft`, `image_profile_resolve` |
+| Choose the type | Press a type button. The source buttons change to that type's allowed sources in order. For a figure-system type the panel says "Diagrams are drawn with the figure tools" and offers "Add a drawn figure" (upload light and dark PNG and figure.json), never Generate | `image_profile_resolve`, `image_figure_add` |
 | Look at the style | "Show the ask" opens the composed plan, each sentence labelled with where it came from | `image_prompt_preview` |
 | Generate | Press Generate (one or four) | `image_generate`, then `image_round_get` polling |
-| Compare | Tick two or more tiles, press Compare: side by side at article width, card width and social crop with safe zones drawn as labelled hatched areas | `image_candidate_get` |
+| Compare | Tick two or more tiles, press Compare: side by side at the type's full size and its smallest display size (for thumbnail types, the card thumbnail), plus the social crop, with safe zones drawn as labelled hatched areas | `image_candidate_get` |
 | Iterate | "More like this" opens a short instruction box | `image_iterate` |
 | Retry | On a failed tile | `image_retry` |
 | Accept | Alt text box opens with the draft and its label "Drafted from the brief, not checked against the picture"; the person edits or confirms it; Accept. This is the review: the picture becomes `human-verified` | `image_apply` with `save: false`; the returned patch goes into the open editor and the editor's Save makes the version, as today |
@@ -820,6 +857,8 @@ The existing cover panel (`CoverImagePickerView`) grows two buttons at the top i
 
 **Rules kept:** buttons, not dropdowns; one Accept/Reject vocabulary; Lucide icons only; flat backgrounds and rounded rectangles, no outlines; plain words.
 
+**Small size shown, not judged by a model:** for thumbnail types every tile shows a second, small copy at the type's smallest size, labelled "As a card: 160px", so the person sees at once whether it still reads.
+
 **Accessibility:** a polite live region announces "Option 2 of 4 is ready" and failures; every tile is a labelled group with its status in text; all actions reachable by keyboard in reading order; previews carry the alt draft as their `alt`, marked "draft"; Compare is a list of figures with captions, not a canvas; the hatched safe-zone overlay has a text legend.
 
 ---
@@ -831,9 +870,10 @@ Each PR merges to develop with its Gherkin specs. Deploys follow the batch rule:
 | # | PR | Specs | What deploys | Fulfils or changes |
 | --- | --- | --- | --- | --- |
 | 1 | **Operation table and generators.** `images/operations.py`, error table, generator script, staleness test, empty `skills/image-work/SKILL.md` with the generated block, `docs/images.md` reference. Handlers return `not_implemented`. | `features_backend/image-operations.feature`: generated CLI, MCP schema, TS types and skill block match the table; CLI and MCP adapters give identical JSON for each example against a fake backend. | Nothing. | Foundation for 40b7a4, 8ea0f1. |
-| 2 | **Style profile in the backend.** `visual-style` doctrine kind, `metadata.visualStyle` and `metadata.imageReview` schemas, `resolve_visual_style`, constraints, `NewsroomSection.visualStyle` field, `image-service` Lambda with `imageRead`/`imageWrite` and the profile operations, `papyrus images profile ...`, editorial-context `visual-style` entry, context pack `visual_style` layer and `illustrator` profile, the prompt skeleton (5.9) with its no-literals lint. | `image-profile.feature`: two publications never leak; precedence previewable with sources; a Story override cannot remove a constraint; agents cannot edit constraints; a profile edit makes a new version and old snapshots stay; no profile gives the warning and a skeleton-only plan. | Backend: one optional field, one Lambda, two GraphQL fields. One site, then all. | e4bdd096 (profile half). |
-| 3 | **Profile editing, example uploads and the Machines on Machines profile.** First commit: the upload function's new roles, image types and 10 MB cap (5.8). Then Administration > Policies > Visual style (prose, structured form, Examples grid with add and remove, review setting buttons), `image_profile_example_add`/`_remove`, `profile diff`/`init`. Then write MoM's profile, examples and `imageReview: after_the_fact` (with Ryan's review) through the signed-in CLI. | `features/newsroom/visual-style-admin.feature` and `image-profile-examples.feature`: upload, wrong type or size refused, removing an example keeps it in older versions, identifiable pictures not sent unless a person allows it. | Upload function + UI. MoM data write after Ryan reviews the document. | e4bdd096. |
-| 4 | **Search and stock apply through the service.** Port the Commons adapter to Python behind `image_search` (licence list and credit line shared as JSON fixture vectors with the TS code, as `editor-concept-vectors.json` does); server-side `image_apply` and `image_unapply` reusing the media key rule and `cover.ts` behaviour (ported with shared vectors); `image_select`, `image_discard`, `image_list`; the Next route calls the service. Skill prose for stock. | `image-search.feature`: four per round, later rounds differ, apply saves provenance and credit, unapply restores the previous cover, decline leaves placeholder; parity across CLI and UI. | Backend + newsroom. | 8553c6; part of 40b7a4 and a52989. |
+| 1b | **Image types in the operation table** (small follow-up to merged PR 1). The edits in 3.7: `imageType` on resolve, brief, prompt preview, search, generate and apply; `imageTypes` and `spread: types`; examples belong to a type; `image_figure_add`; three new errors; rerun the generator. Handlers still `not_implemented`. | `image-operations.feature` rerun; new examples show `imageType`; parity holds for `image_figure_add`. | Nothing. | Amends PR 1. |
+| 2 | **Style profile with image types in the backend.** `visual-style` doctrine kind, `metadata.visualStyle` schemaVersion 2 (identity, treatment and use bases, `imageTypes` with `extends`, `display`, `sources`, `typePreference`, `figureSystem`) and `metadata.imageReview`, `resolve_visual_style` with the type layer and `removeFromParent`, default-type choice per use and operation, constraints, `NewsroomSection.visualStyle` (may target a type), `image-service` Lambda with `imageRead`/`imageWrite` and the profile operations, `papyrus images profile ...`, editorial-context `visual-style` entry, context pack `visual_style` layer listing the types and `illustrator` profile, the prompt skeleton (5.9) with its `{image type}` slot and no-literals lint. | `image-profile.feature` and `image-types.feature`: two publications never leak; precedence previewable with sources, including the type and its parent; a child type's `removeFromParent` is recorded and cannot touch a constraint or `never` item; a Story override cannot remove a constraint; cycles and unknown parents refused at save; omitted type on a cover picks the default and says so; omitted type inline gives `image_type_required` with choices; generating a figure-system type gives `source_not_allowed`; agents cannot edit constraints; a profile edit makes a new version and old snapshots stay; no profile gives the warning and a skeleton-only plan. | Backend: one optional field, one Lambda, two GraphQL fields. One site, then all. | e4bdd096 (profile half). |
+| 3 | **Profile editing, image types, example uploads and the Machines on Machines profile.** First commit: the upload function's new roles, image media types and 10 MB cap (5.8). Then Administration > Policies > Visual style with Brand, Image types (list, add with "Start from", retire, per-type page with sources order and effective rules) and per-type Examples, `image_profile_example_add`/`_remove` with `imageType`, `profile diff`/`init`. Then write MoM's profile from the starter types in 5.10 (after Ryan corrects them), its examples per type and `imageReview: after_the_fact`, through the signed-in CLI. | `features/newsroom/visual-style-admin.feature` and `image-profile-examples.feature`: add and retire a type; upload to a type, wrong type or size refused; a child type does not inherit examples; removing an example keeps it in older versions; identifiable pictures not sent unless a person allows it. | Upload function + UI. MoM data write after Ryan reviews the document. | e4bdd096. |
+| 4 | **Search and stock apply through the service.** Port the Commons adapter to Python behind `image_search` (licence list and credit line shared as JSON fixture vectors with the TS code, as `editor-concept-vectors.json` does); server-side `image_apply` and `image_unapply` reusing the media key rule and `cover.ts` behaviour (ported with shared vectors); `image_select`, `image_discard`, `image_list`; `image_figure_add` for figure-system types (uploaded light/dark PNG and figure.json now; PPY-cd4585's figure record id when it exists), with the thumbnail preview; the Next route calls the service. Skill prose for stock. | `image-search.feature`: four per round, later rounds differ, apply saves provenance and credit, unapply restores the previous cover, decline leaves placeholder; a drawn MoM figure is added and applied with its dark twin, and searching a figure-system type is refused; parity across CLI and UI. | Backend + newsroom. | 8553c6; part of 40b7a4 and a52989. |
 | 5 | **Candidates, review and generation with a fake provider.** `ImageCandidate` model with lanes and batch fields, `image-worker`, `image-batch-check`, prompt plans, rounds, polling, retry, iterate, free checks, alt draft from the brief, review status, `image_review` and `image_review_queue`, the `ReviewRequest` index, the `imageReview` publish gate and `stories next` step, cost recording by lane, provenance on `MediaAsset`, expiry on publish. | `image-generation.feature`, `image-review.feature`, `image-batch.feature`: a person gets one or four on the standard lane; an agent gets one on the batch lane and asking for four gets `set_needs_person`; a batch line fails while others succeed; a 24-hour expiry fails retryably; "Make it now" moves to standard; `before_publish` blocks publish on an unreviewed picture and `after_the_fact` does not; no path writes `human-verified` for an agent; the constraint is in every plan; apply refused without alt text or credit. | Backend model + Lambdas + one index, generation off everywhere. | c101a6 (all but the real provider); e4bdd096 acceptance scenarios; supersedes 7c3f6a's storage notes. |
 | 6 | **OpenAI adapter, standard and Batch.** Images endpoints only (`/v1/images/generations`, `/v1/images/edits`), `models.json` for `gpt-image-2.5-flare` (and `-sunburst` declared but not enabled), Batch JSONL submission and output parsing, size and transparency mapping, recorded-response contract tests (no live calls in CI), SSM key from the PPY-6af46b rotation, price entries for both lanes. Then switch on the Machines on Machines trial: `provider: openai`, `model: gpt-image-2.5-flare`, `approved: true`. | `image-provider-openai.feature` with recorded fixtures: one request per candidate; batch lines matched by `custom_id`; error lines and expiry handled per candidate; unsupported size returns `capability_unsupported`; actual model and lane recorded. | Lambda code; trial on MoM only. | c101a6, 7c3f6a, f0af42 (decision recorded). |
 | 7 | **Newsroom generate panel.** The UI in section 8, the review queue, Remove on applied covers, "Make it now", the no-style warning. | `features/newsroom/image-generation.feature`, accessibility checks. | Newsroom UI, all sites (Generate hidden where not configured). | a52989, 956dff. |
@@ -847,9 +887,11 @@ Each PR merges to develop with its Gherkin specs. Deploys follow the batch rule:
 
 ## 10. Questions for Ryan
 
-**Decided on 2026-11-07** (recorded here so implementers don't ask again): OpenAI first, Gemini after; trial of `gpt-image-2.5-flare` on Machines on Machines, Batch where nobody waits, standard where a person waits; generated pictures credited subtly in the credit line; review timing is a per-site setting (`imageReview`), with Machines on Machines, Threat Intelligence and Shipped on `after_the_fact`; no profile means warn and continue; style lives entirely in data; the backend is the one place the style is edited, with repository design files imported and checked for drift; example uploads are in PR 3.
+**Decided on 2026-11-07** (recorded here so implementers don't ask again): OpenAI first, Gemini after; trial of `gpt-image-2.5-flare` on Machines on Machines, Batch where nobody waits, standard where a person waits; generated pictures credited subtly in the credit line; review timing is a per-site setting (`imageReview`), with Machines on Machines, Threat Intelligence and Shipped on `after_the_fact`; no profile means warn and continue; style lives entirely in data; the backend is the one place the style is edited, with repository design files imported and checked for drift; example uploads are in PR 3; each publication defines named image types (with `extends`, display context, allowed sources in order and their own examples), precedence is identity, treatment, use, type, section, Story, brief, and diagrams come from the figure system, never from an image model.
 
 Still open:
 
-1. **When a person in the newsroom says they don't mind waiting, may their set of four also go through Batch at half price?** Recommended: yes, as a "Make them later, half price" button beside Generate, off by default; the tiles show "ready within 24 hours", and the person is told in the newsroom when they are ready (no email or push in this step).
-2. **Should Threat Intelligence and Shipped get visual style profiles before they generate anything, or generate with the warning?** Recommended: they can generate with the warning, but each gets a short profile and a few example pictures in PR 3 alongside Machines on Machines, because without them their images will be unpredictable.
+1. **Are the Machines on Machines starter types in 5.10 right?** Recommended: start with the six as drafted (`cover-diagram`, `inline-diagram`, `cover-photo`, `cover-illustration`, `inline-illustration`, `social-card`); correct the guidance lines, and confirm the smallest card size from the site's card layout before PR 3 writes them.
+2. **May Machines on Machines covers use stock photographs at all?** Its figure README says a relevant, rights-cleared photograph can be a better cover, but its AGENTS.md says cards without an image never draw a stock photo. Recommended: yes, as the `cover-photo` type, second in the cover order after a diagram; drop the type if you would rather covers be drawn or illustrated only.
+3. **When a person in the newsroom says they don't mind waiting, may their set of four also go through Batch at half price?** Section 7.4 already describes this; confirm it. Recommended: yes, as a "Make them later, half price" button beside Generate, off by default; the tiles show "ready within 24 hours", and the person is told in the newsroom when they are ready (no email or push in this step).
+4. **Should Threat Intelligence and Shipped get visual style profiles before they generate anything, or generate with the warning?** Recommended: they can generate with the warning, but each gets a short profile with two or three image types and a few example pictures in PR 3 alongside Machines on Machines, because without them their images will be unpredictable.

@@ -24,10 +24,17 @@
       "text": "Under the new epic PPY-1f68bf. Delivered by build steps 2 (PPY-6e05fd, backend) and 3 (PPY-6d878b, editing, example uploads and the Machines on Machines profile). Decisions 2026-11-07: style guidance lives entirely in data, with only a minimal skeleton prompt in code; no profile means warn and continue; per-site imageReview setting; example images are uploaded as private attachments on the profile.",
       "created_at": "2026-11-07T18:39:22.293046Z",
       "comment_type": "default"
+    },
+    {
+      "id": "a4b8b99c-3e71-41f2-9003-5dae6b5ec40f",
+      "author": "home",
+      "text": "Revised 2026-11-07 after Ryan's complication: a site needs several named image types (Machines on Machines: chunky cover diagrams legible as thumbnails versus technical inline diagrams, and cover versus inline illustrations). The profile now has a publication-defined imageTypes list with extends, display context, allowed sources in order and per-type examples. Diagram types come from the figure system, never an image model. See design section 5.2, 5.3 and 5.10 (a draft Machines on Machines starter set for Ryan to correct).",
+      "created_at": "2026-11-07T19:38:36.385849Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-07T17:48:13.006746Z",
-  "updated_at": "2026-11-07T18:39:22.293259Z",
+  "updated_at": "2026-11-07T19:38:36.386128Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
