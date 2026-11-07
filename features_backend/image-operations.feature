@@ -14,7 +14,7 @@ Feature: One table of image operations that every front end is generated from
 
   Scenario: Each front end covers exactly the operations in the table
     Then the command spec, the MCP tool schema, the TypeScript types, the skill block and the docs each list the same operations as the table, in the same order
-    And the table has the 23 operations the design describes
+    And the table has the 24 operations the design describes
     And the generate operation offers a speed of auto, standard or batch
 
   Scenario Outline: The command and the MCP tool give identical JSON for the same request
@@ -38,6 +38,7 @@ Feature: One table of image operations that every front end is generated from
       | image_prompt_preview         |
       | image_search                 |
       | image_generate               |
+      | image_figure_add             |
       | image_round_get              |
       | image_candidate_get          |
       | image_list                   |
@@ -74,6 +75,20 @@ Feature: One table of image operations that every front end is generated from
     And the MCP tool image_generate is called with the use banner
     Then both answer that the input is invalid, naming the field "use"
     And the answers are identical
+
+  Scenario: A bad image type is refused the same way by the command and the MCP tool
+    When a person runs the command "generate --story story-1 --use cover --brief x --image-type="
+    And the MCP tool image_generate is called with an empty image type
+    Then both answer that the input is invalid, naming the field "imageType"
+    And the answers are identical
+
+  Scenario: Adding a figure needs an image type
+    When the MCP tool image_figure_add is called without an image type
+    Then it answers that the input is invalid, naming the field "imageType"
+
+  Scenario: The image type errors are shared and named by the operations that can give them
+    Then image_type_required, image_type_unknown and source_not_allowed are in the shared error table
+    And image_figure_add names image_type_unknown, source_not_allowed, checks_failed and not_found
 
   Scenario: A request for a property the operation does not have is refused
     When the MCP tool image_round_get is called with an extra property "extra"

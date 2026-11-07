@@ -101,10 +101,10 @@
             ],
             "description": "Where the picture goes: the cover, inline in the body, or a social card."
           },
-          "treatment": {
+          "imageType": {
             "type": "string",
             "minLength": 1,
-            "description": "A treatment from the profile."
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
           }
         },
         "required": [
@@ -147,6 +147,48 @@
           "fieldSources": {
             "type": "object"
           },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageTypeChosenBy": {
+            "type": "string",
+            "enum": [
+              "request",
+              "default-for-use"
+            ],
+            "description": "Whether the caller named the image type or the use's default supplied it."
+          },
+          "availableTypes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "key"
+              ]
+            }
+          },
           "constraints": {
             "type": "array",
             "items": {
@@ -180,6 +222,9 @@
           "layers",
           "effective",
           "fieldSources",
+          "imageType",
+          "imageTypeChosenBy",
+          "availableTypes",
           "constraints",
           "warnings"
         ],
@@ -402,9 +447,10 @@
             "minLength": 1,
             "description": "Why this picture is a good example, or what to avoid."
           },
-          "treatment": {
+          "imageType": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "description": "The image type this example belongs to, or identity for a brand-wide example."
           },
           "sendToProvider": {
             "type": "boolean",
@@ -423,6 +469,7 @@
         },
         "required": [
           "uploadId",
+          "imageType",
           "kind",
           "note",
           "reason",
@@ -572,6 +619,11 @@
               "social"
             ],
             "description": "Where the picture goes: the cover, inline in the body, or a social card."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
           }
         },
         "required": [
@@ -590,6 +642,48 @@
           "searchTarget": {
             "type": "string",
             "minLength": 1
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageTypeChosenBy": {
+            "type": "string",
+            "enum": [
+              "request",
+              "default-for-use"
+            ],
+            "description": "Whether the caller named the image type or the use's default supplied it."
+          },
+          "typeChoices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "key"
+              ]
+            }
           },
           "derivedFrom": {
             "type": "array",
@@ -651,6 +745,11 @@
             ],
             "description": "Where the picture goes: the cover, inline in the body, or a social card."
           },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
+          },
           "brief": {
             "type": "string",
             "minLength": 1,
@@ -665,17 +764,17 @@
             "type": "string",
             "enum": [
               "variations",
-              "treatments"
+              "types"
             ],
-            "description": "Four takes of one treatment, or one take of each treatment the use allows."
+            "description": "Four takes of one image type, or one take of each type the use allows that can be generated."
           },
-          "treatments": {
+          "imageTypes": {
             "type": "array",
             "items": {
               "type": "string",
               "minLength": 1
             },
-            "description": "Treatments to use, from the profile."
+            "description": "Image types to spread across, from the profile."
           },
           "model": {
             "type": "string",
@@ -693,7 +792,7 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "Profile example ids to send as style references. Nothing else is accepted."
+            "description": "Example ids of the chosen image type to send as style references. Nothing else is accepted."
           },
           "speed": {
             "type": "string",
@@ -787,6 +886,20 @@
             "additionalProperties": false,
             "description": "What the picture is for: a Story or a Reference."
           },
+          "use": {
+            "type": "string",
+            "enum": [
+              "cover",
+              "inline",
+              "social"
+            ],
+            "description": "Where the picture goes: the cover, inline in the body, or a social card."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
+          },
           "query": {
             "type": "string",
             "minLength": 1,
@@ -819,6 +932,18 @@
       "outputSchema": {
         "type": "object",
         "properties": {
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageTypeChosenBy": {
+            "type": "string",
+            "enum": [
+              "request",
+              "default-for-use"
+            ],
+            "description": "Whether the caller named the image type or the use's default supplied it."
+          },
           "candidates": {
             "type": "array",
             "items": {
@@ -964,6 +1089,11 @@
             ],
             "description": "Where the picture goes: the cover, inline in the body, or a social card."
           },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
+          },
           "brief": {
             "type": "string",
             "minLength": 1,
@@ -978,17 +1108,17 @@
             "type": "string",
             "enum": [
               "variations",
-              "treatments"
+              "types"
             ],
-            "description": "Four takes of one treatment, or one take of each treatment the use allows."
+            "description": "Four takes of one image type, or one take of each type the use allows that can be generated."
           },
-          "treatments": {
+          "imageTypes": {
             "type": "array",
             "items": {
               "type": "string",
               "minLength": 1
             },
-            "description": "Treatments to use, from the profile."
+            "description": "Image types to spread across, from the profile."
           },
           "model": {
             "type": "string",
@@ -1006,7 +1136,7 @@
               "type": "string",
               "minLength": 1
             },
-            "description": "Profile example ids to send as style references. Nothing else is accepted."
+            "description": "Example ids of the chosen image type to send as style references. Nothing else is accepted."
           },
           "speed": {
             "type": "string",
@@ -1031,6 +1161,18 @@
           "roundId": {
             "type": "string",
             "minLength": 1
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageTypeChosenBy": {
+            "type": "string",
+            "enum": [
+              "request",
+              "default-for-use"
+            ],
+            "description": "Whether the caller named the image type or the use's default supplied it."
           },
           "candidates": {
             "type": "array",
@@ -1062,6 +1204,18 @@
                 "treatment": {
                   "type": "string",
                   "minLength": 1
+                },
+                "imageType": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "generated",
+                    "stock",
+                    "figure"
+                  ]
                 },
                 "lane": {
                   "type": "string",
@@ -1146,6 +1300,143 @@
       }
     },
     {
+      "name": "image_figure_add",
+      "audience": "staff",
+      "description": "Record a figure drawn with the publication's figure system as a picture to preview, review and apply. It draws and generates nothing.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "reference"
+                ]
+              },
+              "lineageId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The lineage id of the Story or Reference."
+              }
+            },
+            "required": [
+              "kind",
+              "lineageId"
+            ],
+            "additionalProperties": false,
+            "description": "What the picture is for: a Story or a Reference."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The image type the figure is for, such as cover-diagram. It must allow the figure-system source."
+          },
+          "uploadIds": {
+            "type": "object",
+            "properties": {
+              "light": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The id of the uploaded light PNG."
+              },
+              "dark": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The id of the uploaded dark PNG."
+              }
+            },
+            "required": [
+              "light"
+            ],
+            "additionalProperties": false,
+            "description": "Pictures already uploaded through the newsroom's upload step."
+          },
+          "figureId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The id of the figure record, once the backend stores figures (PPY-cd4585)."
+          },
+          "figure": {
+            "type": "object",
+            "properties": {
+              "audience": {
+                "type": "string",
+                "minLength": 1
+              },
+              "shows": {
+                "type": "string",
+                "minLength": 1
+              },
+              "complements": {
+                "type": "string",
+                "minLength": 1
+              },
+              "approvedBy": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "audience",
+              "shows",
+              "complements"
+            ],
+            "additionalProperties": false,
+            "description": "The figure.json acceptance fields."
+          }
+        },
+        "required": [
+          "target",
+          "imageType",
+          "figure"
+        ],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "uploadIds"
+            ]
+          },
+          {
+            "required": [
+              "figureId"
+            ]
+          }
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "figure"
+            ]
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "candidateId",
+          "origin",
+          "checks"
+        ]
+      }
+    },
+    {
       "name": "image_round_get",
       "audience": "staff",
       "description": "Read a round of pictures and say whether they are all done.",
@@ -1203,6 +1494,10 @@
             ],
             "description": "Where the picture goes: the cover, inline in the body, or a social card."
           },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
           "brief": {
             "type": "string"
           },
@@ -1236,6 +1531,18 @@
                 "treatment": {
                   "type": "string",
                   "minLength": 1
+                },
+                "imageType": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "generated",
+                    "stock",
+                    "figure"
+                  ]
                 },
                 "lane": {
                   "type": "string",
@@ -1415,6 +1722,10 @@
                   ],
                   "description": "Where the picture goes: the cover, inline in the body, or a social card."
                 },
+                "imageType": {
+                  "type": "string",
+                  "minLength": 1
+                },
                 "brief": {
                   "type": "string"
                 },
@@ -1452,6 +1763,18 @@
                       "treatment": {
                         "type": "string",
                         "minLength": 1
+                      },
+                      "imageType": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "origin": {
+                        "type": "string",
+                        "enum": [
+                          "generated",
+                          "stock",
+                          "figure"
+                        ]
                       },
                       "lane": {
                         "type": "string",
@@ -1587,6 +1910,18 @@
                 "type": "string",
                 "minLength": 1
               },
+              "imageType": {
+                "type": "string",
+                "minLength": 1
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "generated",
+                  "stock",
+                  "figure"
+                ]
+              },
               "lane": {
                 "type": "string",
                 "enum": [
@@ -1709,6 +2044,18 @@
             "type": "string",
             "minLength": 1
           },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageTypeChosenBy": {
+            "type": "string",
+            "enum": [
+              "request",
+              "default-for-use"
+            ],
+            "description": "Whether the caller named the image type or the use's default supplied it."
+          },
           "candidates": {
             "type": "array",
             "items": {
@@ -1739,6 +2086,18 @@
                 "treatment": {
                   "type": "string",
                   "minLength": 1
+                },
+                "imageType": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "generated",
+                    "stock",
+                    "figure"
+                  ]
                 },
                 "lane": {
                   "type": "string",
@@ -2224,6 +2583,11 @@
             ],
             "description": "Where the picture goes: the cover, inline in the body, or a social card."
           },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
+          },
           "alt": {
             "type": "string",
             "minLength": 1,
@@ -2283,6 +2647,10 @@
           },
           "mediaAsset": {
             "type": "object"
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
           },
           "reviewStatus": {
             "type": "string",

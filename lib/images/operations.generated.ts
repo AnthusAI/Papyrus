@@ -15,6 +15,7 @@ export type ImageOperationName =
   | "image_prompt_preview"
   | "image_search"
   | "image_generate"
+  | "image_figure_add"
   | "image_round_get"
   | "image_candidate_get"
   | "image_list"
@@ -37,6 +38,9 @@ export type ImageErrorCode =
   | "set_needs_person"
   | "not_found"
   | "constraint_conflict"
+  | "image_type_required"
+  | "image_type_unknown"
+  | "source_not_allowed"
   | "checks_failed"
   | "generation_not_configured"
   | "capability_unsupported"
@@ -90,8 +94,8 @@ export type ImageProfileResolveInput = {
   sectionId?: string;
   /** Where the picture goes: the cover, inline in the body, or a social card. */
   use: "cover" | "inline" | "social";
-  /** A treatment from the profile. */
-  treatment?: string;
+  /** A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. */
+  imageType?: string;
 };
 
 export type ImageProfileResolveResult = {
@@ -103,6 +107,15 @@ export type ImageProfileResolveResult = {
   }[];
   effective: Record<string, unknown>;
   fieldSources: Record<string, unknown>;
+  imageType: string;
+  /** Whether the caller named the image type or the use's default supplied it. */
+  imageTypeChosenBy: "request" | "default-for-use";
+  availableTypes: {
+    key: string;
+    label?: string;
+    description?: string;
+    sources?: string[];
+  }[];
   constraints: Record<string, unknown>[];
   warnings: {
     code: string;
@@ -170,7 +183,8 @@ export type ImageProfileExampleAddInput = {
   kind: "exemplar" | "negative";
   /** Why this picture is a good example, or what to avoid. */
   note: string;
-  treatment?: string;
+  /** The image type this example belongs to, or identity for a brand-wide example. */
+  imageType: string;
   /** Send it to the image model as a style reference. Default false. */
   sendToProvider?: boolean;
   /** Why, in plain words. It is recorded with who and when. */
@@ -217,11 +231,22 @@ export type ImageBriefDraftInput = {
   };
   /** Where the picture goes: the cover, inline in the body, or a social card. */
   use: "cover" | "inline" | "social";
+  /** A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. */
+  imageType?: string;
 };
 
 export type ImageBriefDraftResult = {
   brief: string;
   searchTarget: string;
+  imageType?: string;
+  /** Whether the caller named the image type or the use's default supplied it. */
+  imageTypeChosenBy?: "request" | "default-for-use";
+  typeChoices?: {
+    key: string;
+    label?: string;
+    description?: string;
+    sources?: string[];
+  }[];
   derivedFrom: string[];
   workedOut: boolean;
 };
@@ -236,19 +261,21 @@ export type ImagePromptPreviewInput = {
   };
   /** Where the picture goes: the cover, inline in the body, or a social card. */
   use: "cover" | "inline" | "social";
+  /** A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. */
+  imageType?: string;
   /** What the picture should show. The publication's style rules are added by the service, never written here. */
   brief: string;
   /** How many to make (default 1). More than 1 is for a person choosing; an agent asking for more gets set_needs_person. */
   count?: number;
-  /** Four takes of one treatment, or one take of each treatment the use allows. */
-  spread?: "variations" | "treatments";
-  /** Treatments to use, from the profile. */
-  treatments?: string[];
+  /** Four takes of one image type, or one take of each type the use allows that can be generated. */
+  spread?: "variations" | "types";
+  /** Image types to spread across, from the profile. */
+  imageTypes?: string[];
   /** A configured, approved model. Recorded as requested and never swapped. */
   model?: string;
   /** Id of a fallback offered in a capability_unsupported error, to use instead. */
   acceptFallback?: string;
-  /** Profile example ids to send as style references. Nothing else is accepted. */
+  /** Example ids of the chosen image type to send as style references. Nothing else is accepted. */
   references?: string[];
   /** Which lane: auto picks by who is asking (a person standard, an agent batch at half price). */
   speed?: "auto" | "standard" | "batch";
@@ -275,6 +302,10 @@ export type ImageSearchInput = {
     /** The lineage id of the Story or Reference. */
     lineageId: string;
   };
+  /** Where the picture goes: the cover, inline in the body, or a social card. */
+  use?: "cover" | "inline" | "social";
+  /** A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. */
+  imageType?: string;
   /** Search words; worked out from the Story when left out. */
   query?: string;
   /** A stock source, for example wikimedia-commons. */
@@ -286,6 +317,9 @@ export type ImageSearchInput = {
 };
 
 export type ImageSearchResult = {
+  imageType?: string;
+  /** Whether the caller named the image type or the use's default supplied it. */
+  imageTypeChosenBy?: "request" | "default-for-use";
   candidates: ({
     /** Opaque reference to pass to image_select or image_apply. */
     candidateRef: string;
@@ -320,19 +354,21 @@ export type ImageGenerateInput = {
   };
   /** Where the picture goes: the cover, inline in the body, or a social card. */
   use: "cover" | "inline" | "social";
+  /** A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. */
+  imageType?: string;
   /** What the picture should show. The publication's style rules are added by the service, never written here. */
   brief: string;
   /** How many to make (default 1). More than 1 is for a person choosing; an agent asking for more gets set_needs_person. */
   count?: number;
-  /** Four takes of one treatment, or one take of each treatment the use allows. */
-  spread?: "variations" | "treatments";
-  /** Treatments to use, from the profile. */
-  treatments?: string[];
+  /** Four takes of one image type, or one take of each type the use allows that can be generated. */
+  spread?: "variations" | "types";
+  /** Image types to spread across, from the profile. */
+  imageTypes?: string[];
   /** A configured, approved model. Recorded as requested and never swapped. */
   model?: string;
   /** Id of a fallback offered in a capability_unsupported error, to use instead. */
   acceptFallback?: string;
-  /** Profile example ids to send as style references. Nothing else is accepted. */
+  /** Example ids of the chosen image type to send as style references. Nothing else is accepted. */
   references?: string[];
   /** Which lane: auto picks by who is asking (a person standard, an agent batch at half price). */
   speed?: "auto" | "standard" | "batch";
@@ -340,11 +376,16 @@ export type ImageGenerateInput = {
 
 export type ImageGenerateResult = {
   roundId: string;
+  imageType?: string;
+  /** Whether the caller named the image type or the use's default supplied it. */
+  imageTypeChosenBy?: "request" | "default-for-use";
   candidates: ({
     id: string;
     position: number;
     status: "queued" | "pending" | "running" | "ready" | "failed" | "rejected" | "applied" | "unapplied" | "expired";
     treatment?: string;
+    imageType?: string;
+    origin?: "generated" | "stock" | "figure";
     lane?: "standard" | "batch";
     reviewStatus?: "unreviewed" | "human-verified";
     /** Short-lived signed address of the picture. */
@@ -366,6 +407,40 @@ export type ImageGenerateResult = {
   };
 };
 
+/** Record a figure drawn with the publication's figure system as a picture to preview, review and apply. It draws and generates nothing. */
+export type ImageFigureAddInput = {
+  /** What the picture is for: a Story or a Reference. */
+  target: {
+    kind: "story" | "reference";
+    /** The lineage id of the Story or Reference. */
+    lineageId: string;
+  };
+  /** The image type the figure is for, such as cover-diagram. It must allow the figure-system source. */
+  imageType: string;
+  /** Pictures already uploaded through the newsroom's upload step. */
+  uploadIds?: {
+    /** The id of the uploaded light PNG. */
+    light: string;
+    /** The id of the uploaded dark PNG. */
+    dark?: string;
+  };
+  /** The id of the figure record, once the backend stores figures (PPY-cd4585). */
+  figureId?: string;
+  /** The figure.json acceptance fields. */
+  figure: {
+    audience: string;
+    shows: string;
+    complements: string;
+    approvedBy?: string;
+  };
+};
+
+export type ImageFigureAddResult = {
+  candidateId: string;
+  origin: "figure";
+  checks: Record<string, unknown>[];
+};
+
 /** Read a round of pictures and say whether they are all done. */
 export type ImageRoundGetInput = {
   roundId: string;
@@ -381,12 +456,15 @@ export type ImageRoundGetResult = {
   };
   /** Where the picture goes: the cover, inline in the body, or a social card. */
   use: "cover" | "inline" | "social";
+  imageType?: string;
   brief?: string;
   candidates: ({
     id: string;
     position: number;
     status: "queued" | "pending" | "running" | "ready" | "failed" | "rejected" | "applied" | "unapplied" | "expired";
     treatment?: string;
+    imageType?: string;
+    origin?: "generated" | "stock" | "figure";
     lane?: "standard" | "batch";
     reviewStatus?: "unreviewed" | "human-verified";
     /** Short-lived signed address of the picture. */
@@ -430,6 +508,7 @@ export type ImageListResult = {
     roundId: string;
     /** Where the picture goes: the cover, inline in the body, or a social card. */
     use?: "cover" | "inline" | "social";
+    imageType?: string;
     brief?: string;
     createdAt?: string;
     candidates: ({
@@ -437,6 +516,8 @@ export type ImageListResult = {
       position: number;
       status: "queued" | "pending" | "running" | "ready" | "failed" | "rejected" | "applied" | "unapplied" | "expired";
       treatment?: string;
+      imageType?: string;
+      origin?: "generated" | "stock" | "figure";
       lane?: "standard" | "batch";
       reviewStatus?: "unreviewed" | "human-verified";
       /** Short-lived signed address of the picture. */
@@ -468,6 +549,8 @@ export type ImageRetryResult = {
     position: number;
     status: "queued" | "pending" | "running" | "ready" | "failed" | "rejected" | "applied" | "unapplied" | "expired";
     treatment?: string;
+    imageType?: string;
+    origin?: "generated" | "stock" | "figure";
     lane?: "standard" | "batch";
     reviewStatus?: "unreviewed" | "human-verified";
     /** Short-lived signed address of the picture. */
@@ -502,11 +585,16 @@ export type ImageIterateInput = {
 
 export type ImageIterateResult = {
   roundId: string;
+  imageType?: string;
+  /** Whether the caller named the image type or the use's default supplied it. */
+  imageTypeChosenBy?: "request" | "default-for-use";
   candidates: ({
     id: string;
     position: number;
     status: "queued" | "pending" | "running" | "ready" | "failed" | "rejected" | "applied" | "unapplied" | "expired";
     treatment?: string;
+    imageType?: string;
+    origin?: "generated" | "stock" | "figure";
     lane?: "standard" | "batch";
     reviewStatus?: "unreviewed" | "human-verified";
     /** Short-lived signed address of the picture. */
@@ -631,6 +719,8 @@ export type ImageApplyInput = {
   };
   /** Where the picture goes: the cover, inline in the body, or a social card. */
   use: "cover" | "inline" | "social";
+  /** A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one. */
+  imageType?: string;
   /** Alt text; the picture's own draft when left out. */
   alt?: string;
   caption?: string;
@@ -646,6 +736,7 @@ export type ImageApplyResult = {
     frontMatter: Record<string, unknown>;
   };
   mediaAsset: Record<string, unknown>;
+  imageType?: string;
   reviewStatus: "unreviewed" | "human-verified";
   reviewRequestId?: string;
   savedVersion?: {
@@ -680,6 +771,7 @@ export interface ImageOperations {
   image_prompt_preview: { input: ImagePromptPreviewInput; result: ImagePromptPreviewResult };
   image_search: { input: ImageSearchInput; result: ImageSearchResult };
   image_generate: { input: ImageGenerateInput; result: ImageGenerateResult };
+  image_figure_add: { input: ImageFigureAddInput; result: ImageFigureAddResult };
   image_round_get: { input: ImageRoundGetInput; result: ImageRoundGetResult };
   image_candidate_get: { input: ImageCandidateGetInput; result: ImageCandidateGetResult };
   image_list: { input: ImageListInput; result: ImageListResult };
@@ -707,6 +799,7 @@ export const IMAGE_OPERATIONS = {
   image_prompt_preview: { effect: "read", agentAllowed: true, command: "papyrus images prompt" },
   image_search: { effect: "read", agentAllowed: true, command: "papyrus images search" },
   image_generate: { effect: "spend", agentAllowed: true, command: "papyrus images generate" },
+  image_figure_add: { effect: "write", agentAllowed: true, command: "papyrus images figure add" },
   image_round_get: { effect: "read", agentAllowed: true, command: "papyrus images round" },
   image_candidate_get: { effect: "read", agentAllowed: true, command: "papyrus images show" },
   image_list: { effect: "read", agentAllowed: true, command: "papyrus images list" },
