@@ -14,6 +14,11 @@ The request is made once, by the event that creates the Reference. Nothing scans
 idempotent: its row id derives from the publication, the corpus and the Reference, and the router drops a request for a Reference that already has a
 prediction (a finite ``predictedAcceptProbability``, as the public pages define it) without calling the Cyclotron.
 
+The same request row also asks for the Reference's enrichment (``predictFor.enrich``): the router captures the text, writes the summary
+(and GROBID fields for a paper) and copies the curation onto the Reference BEFORE it decides, "enrich before decide" as a monitor's item does. One row,
+one key, so a retry of the creation never duplicates either half. ``enrichment_source_id`` keys the separate, enrich-only row the by-hand
+``references queue-enrichment`` backfill writes for a Reference whose prediction row is already settled (``predictFor.enrichOnly``): it decides nothing.
+
 A request that cannot be made is reported by its caller (``PredictionRequest.error``), never swallowed: the Reference exists and stays hidden until
 it has a prediction. A request the router could not complete keeps its row in the lane and is retried with backoff; one it must refuse ends with its
 reason on the ROUTE row and in the router's log and receipt.
@@ -39,6 +44,21 @@ MUTATION = "mutation MonitoringQueueReferencePredictions($input: AWSJSON!) { mon
 def prediction_source_id(endpoint: str, corpus_id: str, reference_id: str) -> str:
     """The request's stable identity (also the Cyclotron item id suffix): one per publication, corpus and Reference."""
     return sha256(f"reference-prediction\n{endpoint}\n{corpus_id}\n{reference_id}".encode()).hexdigest()
+
+
+def enrichment_source_id(endpoint: str, corpus_id: str, reference_id: str) -> str:
+    """The identity of an enrich-only request (the backfill's): one per publication, corpus and Reference, and never equal to ``prediction_source_id``,
+    so a settled prediction row does not hide a Reference that still needs its enrichment."""
+    return sha256(f"reference-enrichment\n{endpoint}\n{corpus_id}\n{reference_id}".encode()).hexdigest()
+
+
+def wants_enrichment(disc: dict[str, Any] | None) -> bool:
+    """True for a request that asks the router to enrich the Reference first (every request made since this was added; an older queued one does not)."""
+    return is_prediction_request(disc) and bool(disc["predictFor"].get("enrich") or disc["predictFor"].get("enrichOnly"))
+
+
+def is_enrich_only(disc: dict[str, Any] | None) -> bool:
+    return is_prediction_request(disc) and bool(disc["predictFor"].get("enrichOnly"))
 
 
 def is_prediction_request(disc: dict[str, Any] | None) -> bool:
@@ -84,12 +104,14 @@ def queue_reference_predictions(store, *, endpoint: str, references: list[dict[s
             raise IntakeError("A Reference id is required for each prediction.")
         source = canonical_source_url(reference.get("sourceUri"))
         title = str(reference.get("title") or source).strip()[:1000] or source
-        source_id = prediction_source_id(endpoint, publication["corpusId"], reference_id)
+        enrich_only = bool(reference.get("enrichOnly"))
+        source_id = (enrichment_source_id if enrich_only else prediction_source_id)(endpoint, publication["corpusId"], reference_id)
         item = SourceItem(source_id, title, source, source, None)
         disc = {"pk": store.pk, "sk": f"DISC#{source_id}#000001", "monitorId": monitor_id, "sourceType": SOURCE_TYPE, "sourceId": source_id,
                 "title": title, "canonicalUrl": source, "sourceItemUrl": source, "sourceUrl": source, "fingerprint": item.fingerprint, "revision": 1,
                 "observedAt": stamp, "eventId": f"reference-prediction-{source_id}", "runId": f"reference-prediction-{source_id[:16]}",
-                "routing": "collected", "predictFor": {"subject": subject, "publicationId": publication["publicationId"], "referenceId": reference_id},
+                "routing": "collected", "predictFor": {"subject": subject, "publicationId": publication["publicationId"], "referenceId": reference_id, "enrich": True,
+                               **({"enrichOnly": True} if enrich_only else {})},
                 "gsi1pk": gsi_partition(monitor_id, LANE), "gsi1sk": f"{stamp}#{source_id}#000001"}
         try:
             store.table.put_item(Item=disc, ConditionExpression="attribute_not_exists(pk)")
@@ -174,6 +196,35 @@ def references_for_prediction(rows: list[dict[str, Any]]) -> list[dict[str, Any]
     return out
 
 
+def references_for_enrichment(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The enrich-only request items (the by-hand backfill) for current, unarchived Reference rows whose content is not captured in full."""
+    from .reference_capture_state import normalize_capture_state
+    out = []
+    for row in rows:
+        if not row or row.get("versionState", "current") != "current" or row.get("curationStatus") == "archived":
+            continue
+        if not row.get("sourceUri") or not row.get("id") or normalize_capture_state(row.get("captureState")) in ("full", "running"):
+            continue
+        out.append({"referenceId": row["id"], "sourceUri": row["sourceUri"], "title": row.get("title") or row["sourceUri"], "enrichOnly": True})
+    return out
+
+
+def videos_needing_local_run(rows: list[dict[str, Any]]) -> int:
+    """How many of these Reference rows (or request items) are the address of one video. The cloud cannot read a video platform's thumbnail or transcript
+    (they refuse cloud addresses), so each of these waits for the local runners (``references capture-transcripts`` and ``capture-thumbnails``)."""
+    from .reference_medium import MEDIUM_VIDEO, medium_of
+    return sum(1 for row in rows if medium_of(row.get("sourceUri")) == MEDIUM_VIDEO)
+
+
+def video_line(prefix: str, count: int) -> str | None:
+    """The one line a creating command prints so nobody has to guess that a video still needs a run on a machine YouTube answers."""
+    if not count:
+        return None
+    noun = "video needs" if count == 1 else "videos need"
+    return (f"{prefix}\tvideos\t{count}\t{count} {noun} a local run: papyrus references capture-thumbnails --write "
+            f"and papyrus references capture-transcripts --write (the cloud cannot read a video platform's picture or transcript)")
+
+
 #: An unpredicted Reference sorts at exactly this score on the prediction index (reference_feed_keys), so reading highest first can stop below it.
 UNPREDICTED_SORT_KEY = "0.500000"
 
@@ -188,6 +239,13 @@ def unpredicted_rows(client, corpus_id: str):
             yield row
 
 
+def feed_rows(client, corpus_id: str):
+    """For the by-hand enrichment backfill: every row of a corpus's feed index (``<corpus>#unrated`` and ``<corpus>#rated``), one partition page at a time.
+    No other partition is touched and no table is scanned; the caller keeps the rows whose content is not captured."""
+    for partition in ("unrated", "rated"):
+        yield from client.iterate_newest_first("referencesByFeedStateAndPrediction", f"{corpus_id}#{partition}")
+
+
 def references_created_by(changes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The prediction items for the References a record-change plan created (an update is a Reference that already existed and is not re-requested)."""
     return references_for_prediction([change["expected"] for change in changes if change.get("modelName") == "Reference" and change.get("action") == "create"])
@@ -200,6 +258,9 @@ def request_for_created(client, changes: list[dict[str, Any]], prefix: str) -> P
         return None
     request = request_predictions(client, wanted)
     print(request_line(prefix, request), flush=True)
+    line = video_line(prefix, videos_needing_local_run(wanted))
+    if line:
+        print(line, flush=True)
     return request
 
 
@@ -236,7 +297,8 @@ def queue_after_intake(result: dict[str, Any], arguments: dict[str, Any], *, env
             raise IntakeError("Cloud predictions are not configured for this publication.")
         endpoint = (env.get("PAPYRUS_GRAPHQL_ENDPOINT") or "").rstrip("/")
         done = queue_reference_predictions(store, endpoint=endpoint, references=wanted, subject="user-intake")
-        return PredictionRequest(requested=done["queued"] + done["alreadyQueued"], detail={k: done[k] for k in ("queued", "alreadyQueued")}).to_json()
+        return PredictionRequest(requested=done["queued"] + done["alreadyQueued"], detail={**{k: done[k] for k in ("queued", "alreadyQueued")},
+                                 "videos": videos_needing_local_run(wanted)}).to_json()   # the CLI says how many of these wait for a local run
     except Exception as error:   # noqa: BLE001 - the Reference exists; say plainly that its prediction was not requested
         message = " ".join(f"{error}".split())[:300]
         print(json.dumps({"referencePrediction": "queue_failed", "references": len(wanted), "reason": message}))
