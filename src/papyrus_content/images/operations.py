@@ -127,6 +127,7 @@ class Operation:
     positional: tuple[str, ...] = ()       # input properties the CLI takes as plain words, in order
     flags: tuple[tuple[str, str], ...] = ()    # (input property, CLI flag name) where the flag is not the property in kebab-case
     file_field: str | None = None          # the property the CLI fills from --file (a JSON or YAML document)
+    picture_field: str | None = None       # the property the CLI fills by uploading the picture --file names (an id the upload step returns)
     notes: str = ""                        # anything a reader needs that the schemas cannot say
 
     @property
@@ -243,30 +244,50 @@ OPERATIONS: tuple[Operation, ...] = (
                                                    "contentHash": "sha256:0f3a"}]}),),
     ),
     Operation(
+        "image_profile_init", ("profile", "init"), "Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing.", "read",
+        obj({"brand": record({"name": text("The publication's name."), "palette": many(record({"name": text(), "hex": text("Like #1f2a44."), "token": text(), "role": text()},
+                                                                                              ("name", "hex")), "The brand colours, if known.")},
+                             (), "What the site's brand files say. Everything in it is optional.")}),
+        record({"document": PROFILE_DOCUMENT, "expectedCurrentVersionId": text("Pass this to image_profile_save when saving the draft."),
+                "notes": many(text(), "What an editor still has to write."), "profileExists": flag()}, ("document", "expectedCurrentVersionId", "notes", "profileExists")),
+        (),
+        (Example({"brand": {"name": "Example Daily", "palette": [{"name": "Ink blue", "hex": "#1f2a44", "token": "brand"}]}},
+                 {"document": {"schemaVersion": 2, "identity": {"palette": [{"name": "Ink blue", "hex": "#1f2a44", "token": "brand"}]}}, "expectedCurrentVersionId": "none",
+                  "notes": ["Write identity.summary and identity.masterPrompt."], "profileExists": False}),),
+        file_field="brand",
+        notes="The draft holds the shape of a profile and the colours the brand names, and no style wording: an editor writes that. Nothing is saved; save the draft "
+              "with image_profile_save after correcting it.",
+    ),
+    Operation(
         "image_profile_example_add", ("profile", "example", "add"), "Add an example or an avoid-this picture to the profile, as a new version.", "write",
-        obj({"uploadId": text("The id of a picture already uploaded through the newsroom's upload step."), "kind": choice("exemplar", "negative"),
+        obj({"attachmentId": text("The id of a picture already uploaded through the newsroom's upload step (PNG, JPEG or WebP, at most 10 MB)."),
+             "kind": choice("exemplar", "negative"),
              "note": text("Why this picture is a good example, or what to avoid."),
              "imageType": text("The image type this example belongs to, or identity for a brand-wide example."),
              "sendToProvider": flag("Send it to the image model as a style reference. Default false."), "reason": REASON,
              "expectedCurrentVersionId": text("The profile's current version id when you read it.")},
-            ("uploadId", "imageType", "kind", "note", "reason", "expectedCurrentVersionId")),
-        record({"attachmentId": text(), "sha256": text(), "versionNumber": whole()}, ("attachmentId", "sha256", "versionNumber")),
+            ("attachmentId", "imageType", "kind", "note", "reason", "expectedCurrentVersionId")),
+        record({"attachmentId": text(), "sha256": text(), "versionNumber": whole(), "imageType": text()}, ("attachmentId", "sha256", "versionNumber")),
         ("human_required", "image_type_unknown", "not_found", "stale_version"),
-        (Example({"uploadId": "upload-1", "imageType": "cover-illustration", "kind": "exemplar", "note": "The calm we want.", "reason": "Cover from the containment Story.",
+        (Example({"attachmentId": "model-attachment-1", "imageType": "cover-illustration", "kind": "exemplar", "note": "The calm we want.", "reason": "Cover from the containment Story.",
                   "expectedCurrentVersionId": "item-editorial-doctrine-visual-style-v3"},
-                 {"attachmentId": "model-attachment-1", "sha256": "sha256:aa10", "versionNumber": 4}),),
-        notes="Only a person may set sendToProvider for a picture that shows identifiable people or logos.",
+                 {"attachmentId": "model-attachment-1", "sha256": "sha256:aa10", "versionNumber": 4, "imageType": "cover-illustration"}),),
+        picture_field="attachmentId",
+        notes="From the command line, --file PICTURE uploads the picture first (the same three steps the newsroom takes) and fills in attachmentId. "
+              "Only a person may set sendToProvider: an agent asking for it gets human_required, because the service cannot tell whether a picture shows identifiable "
+              "people or logos. An example belongs to one image type; a child type does not inherit its parent's examples.",
     ),
     Operation(
         "image_profile_example_remove", ("profile", "example", "remove"), "Remove an example picture from the profile, as a new version.", "write",
-        obj({"attachmentId": text(), "reason": REASON, "expectedCurrentVersionId": text("The profile's current version id when you read it.")},
+        obj({"attachmentId": text(), "imageType": text("Remove it from this image type only (or identity). Left out, it is removed from every list that has it."),
+             "reason": REASON, "expectedCurrentVersionId": text("The profile's current version id when you read it.")},
             ("attachmentId", "reason", "expectedCurrentVersionId")),
-        record({"versionNumber": whole()}, ("versionNumber",)),
+        record({"versionNumber": whole(), "removedFrom": many(text(), "The image types (or identity) it was removed from.")}, ("versionNumber",)),
         ("not_found", "stale_version"),
         (Example({"attachmentId": "model-attachment-1", "reason": "Too photographic.", "expectedCurrentVersionId": "item-editorial-doctrine-visual-style-v4"},
-                 {"versionNumber": 5}),),
+                 {"versionNumber": 5, "removedFrom": ["cover-illustration"]}),),
         positional=("attachmentId",),
-        notes="The file stays for older profile versions.",
+        notes="The file stays for older profile versions, so a picture made from an older version keeps the examples it was made with.",
     ),
     # --- planning
     Operation(

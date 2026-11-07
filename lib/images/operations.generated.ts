@@ -8,6 +8,7 @@ export type ImageOperationName =
   | "image_profile_diff"
   | "image_profile_save"
   | "image_profile_history"
+  | "image_profile_init"
   | "image_profile_example_add"
   | "image_profile_example_remove"
   | "image_capabilities"
@@ -176,10 +177,37 @@ export type ImageProfileHistoryResult = {
   nextToken?: string;
 };
 
+/** Draft a starting style document from the site's brand, for an editor to correct and save. Saves nothing. */
+export type ImageProfileInitInput = {
+  /** What the site's brand files say. Everything in it is optional. */
+  brand?: {
+    /** The publication's name. */
+    name?: string;
+    /** The brand colours, if known. */
+    palette?: {
+      name: string;
+      /** Like #1f2a44. */
+      hex: string;
+      token?: string;
+      role?: string;
+    }[];
+  };
+};
+
+export type ImageProfileInitResult = {
+  /** The visual style document: a full or partial profile (design section 5.2). */
+  document: Record<string, unknown>;
+  /** Pass this to image_profile_save when saving the draft. */
+  expectedCurrentVersionId: string;
+  /** What an editor still has to write. */
+  notes: string[];
+  profileExists: boolean;
+};
+
 /** Add an example or an avoid-this picture to the profile, as a new version. */
 export type ImageProfileExampleAddInput = {
-  /** The id of a picture already uploaded through the newsroom's upload step. */
-  uploadId: string;
+  /** The id of a picture already uploaded through the newsroom's upload step (PNG, JPEG or WebP, at most 10 MB). */
+  attachmentId: string;
   kind: "exemplar" | "negative";
   /** Why this picture is a good example, or what to avoid. */
   note: string;
@@ -197,11 +225,14 @@ export type ImageProfileExampleAddResult = {
   attachmentId: string;
   sha256: string;
   versionNumber: number;
+  imageType?: string;
 };
 
 /** Remove an example picture from the profile, as a new version. */
 export type ImageProfileExampleRemoveInput = {
   attachmentId: string;
+  /** Remove it from this image type only (or identity). Left out, it is removed from every list that has it. */
+  imageType?: string;
   /** Why, in plain words. It is recorded with who and when. */
   reason: string;
   /** The profile's current version id when you read it. */
@@ -210,6 +241,8 @@ export type ImageProfileExampleRemoveInput = {
 
 export type ImageProfileExampleRemoveResult = {
   versionNumber: number;
+  /** The image types (or identity) it was removed from. */
+  removedFrom?: string[];
 };
 
 /** Say which image models this site can use and whether spending is approved. */
@@ -764,6 +797,7 @@ export interface ImageOperations {
   image_profile_diff: { input: ImageProfileDiffInput; result: ImageProfileDiffResult };
   image_profile_save: { input: ImageProfileSaveInput; result: ImageProfileSaveResult };
   image_profile_history: { input: ImageProfileHistoryInput; result: ImageProfileHistoryResult };
+  image_profile_init: { input: ImageProfileInitInput; result: ImageProfileInitResult };
   image_profile_example_add: { input: ImageProfileExampleAddInput; result: ImageProfileExampleAddResult };
   image_profile_example_remove: { input: ImageProfileExampleRemoveInput; result: ImageProfileExampleRemoveResult };
   image_capabilities: { input: ImageCapabilitiesInput; result: ImageCapabilitiesResult };
@@ -792,6 +826,7 @@ export const IMAGE_OPERATIONS = {
   image_profile_diff: { effect: "read", agentAllowed: true, command: "papyrus images profile diff" },
   image_profile_save: { effect: "write", agentAllowed: true, command: "papyrus images profile save" },
   image_profile_history: { effect: "read", agentAllowed: true, command: "papyrus images profile history" },
+  image_profile_init: { effect: "read", agentAllowed: true, command: "papyrus images profile init" },
   image_profile_example_add: { effect: "write", agentAllowed: true, command: "papyrus images profile example add" },
   image_profile_example_remove: { effect: "write", agentAllowed: true, command: "papyrus images profile example remove" },
   image_capabilities: { effect: "read", agentAllowed: true, command: "papyrus images capabilities" },

@@ -9,13 +9,14 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Mapping, TextIO
+from typing import Any, Callable, Mapping, TextIO
 
 from .cli_generated import COMMANDS
 from .handlers import Caller, Handler, Outcome, error_envelope, execute
 
 ACTOR_KIND_VARIABLE = "PAPYRUS_ACTOR_KIND"   # "agent" for procedures, automations and agent shells; anything else is a person (design section 3.6)
 ERROR_EXIT_CODE = 2
+PICTURE_KEY = "_picture"   # parse() keeps the path --file names here for an operation that uploads a picture; command() replaces it with the attachment id
 
 
 def route_tree() -> dict:
@@ -96,6 +97,8 @@ def parse(spec: dict, tokens: list[str]) -> tuple[dict, bool]:
             base = document
         elif flag == "--file" and spec["file"]:
             values[spec["file"]] = _read_document(take(flag, inline), flag)
+        elif flag == "--file" and spec.get("picture"):
+            values[PICTURE_KEY] = take(flag, inline)
         elif flag.startswith("--no-") and flag[5:] in booleans:
             values[booleans[flag[5:]]["field"]] = False
         elif flag in by_flag and by_flag[flag]["kind"] == "boolean":
@@ -118,9 +121,17 @@ def parse(spec: dict, tokens: list[str]) -> tuple[dict, bool]:
     return {**base, **values}, dry_run
 
 
+def signed_in_uploader(path: str, kind: str) -> str:
+    from papyrus_content.graphql_authoring import create_authoring_client
+
+    from .upload import upload_picture
+
+    return upload_picture(create_authoring_client()[0], path, kind)
+
+
 def command(argv: list[str], *, handlers: dict[str, Handler] | None = None, environ: Mapping[str, str] | None = None,
-            stdout: TextIO | None = None) -> int:
-    """Run ``papyrus images <argv>`` and print the JSON envelope. ``handlers`` and ``environ`` are for tests and later front ends."""
+            stdout: TextIO | None = None, uploader: Callable[[str, str], str] | None = None) -> int:
+    """Run ``papyrus images <argv>`` and print the JSON envelope. ``handlers``, ``environ`` and ``uploader`` are for tests and later front ends."""
     out = stdout or sys.stdout
     environ = os.environ if environ is None else environ
 
@@ -141,6 +152,21 @@ def command(argv: list[str], *, handlers: dict[str, Handler] | None = None, envi
     except _BadFlags as bad:
         return finish(error_envelope(spec["op"], "invalid_input", str(bad), details={"path": bad.path}))
     caller = caller_from(environ)
+    picture = arguments.pop(PICTURE_KEY, None)
+    if picture is not None:
+        if dry_run:
+            arguments[spec["picture"]] = "(not uploaded: dry run)"
+        else:
+            from .upload import PictureError, describe_picture
+
+            kind = arguments.get("kind")
+            if kind not in ("exemplar", "negative"):
+                return finish(error_envelope(spec["op"], "invalid_input", "Say whether the picture is an exemplar or a negative (--kind) before uploading it.", details={"path": "kind"}))
+            try:
+                describe_picture(picture, kind)   # refuse a wrong type or size before asking the backend for anything
+                arguments[spec["picture"]] = (uploader or signed_in_uploader)(picture, kind)
+            except PictureError as bad:
+                return finish(error_envelope(spec["op"], "invalid_input", str(bad), details={"path": "file"}))
     if dry_run:
         # Check the input and the caller exactly as a real call would, then stop before the handler: nothing is sent, nothing is spent.
         envelope = execute(spec["op"], arguments, caller, handlers={spec["op"]: _dry_run_handler})
