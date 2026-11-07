@@ -8,7 +8,7 @@ A publication says how its pictures should look once, in one place that editors 
 - Reading and saving are the operations `image_profile_get`, `image_profile_resolve`, `image_profile_diff`, `image_profile_save` and `image_profile_history` (`papyrus images profile ...`). The **document** you read and save is the profile with `imageReview` and `bodyMarkus` beside it.
 - A save lays your document over the current one: objects merge key by key, lists and values replace, `null` removes a key. A save that changes nothing makes no version. The first save passes `none` as the version it expects. `papyrus images profile diff --file F` shows what a save would change, with any change to a binding constraint listed separately, and saves nothing.
 - Every edit records who, when and why, and the older versions stay, so a picture can always be traced to the exact style it was made with. A publication without a profile still works: every answer carries the warning `profile_missing`, and a prompt is only the skeleton and the brief.
-- `NewsroomSection.visualGuidance` (prose) is the section's own layer. A section can also carry `visualStyle` (see below) once the data API that adds the field is deployed.
+- `NewsroomSection.visualGuidance` (prose) is the section's own layer. A section can also carry `visualStyle` (see below): one optional JSON field on `NewsroomSection`, available once the site's data API has been deployed with it.
 
 ## What a profile holds (schemaVersion 2)
 
@@ -59,6 +59,17 @@ The only prompt code is `src/papyrus_content/images/prompt_skeleton.py`: the ord
 - `papyrus editorial context` includes a `visual-style` entry (publication scope, with its version and hash) when the publication has a profile.
 - The `illustrator` context pack has a `visual_style` layer: the summary, what is never shown, the rules that cannot be loosened, and the image types, one plain line each grouped by use, followed by the instruction to choose a type before asking for a picture. The editor pack lists the types only. The reporter and copywriter packs do not have the layer. See [context packs](newsroom-context-packs.md).
 
+## The door: the image-service function
+
+The newsroom and MCP reach the image operations through two GraphQL fields on the site's data API, both for editors and admins only:
+
+- `imageRead(op, input, actorKind)` runs an operation that only reads. `imageWrite(op, input, requestId, actorKind)` runs one that writes or spends. The wrong door is refused with `invalid_input`.
+- The `image-service` function (Python, `src/papyrus_content/image_service.py`) takes who is asking from the identity AppSync verified (name, and whether the caller is in the `admin` group), never from `input`, and repeats the staff-group check. It runs the same handlers as the command line.
+- `requestId` makes a write safe to repeat: the same id from the same person gets the first answer (`repeated: true`) instead of a stale-version refusal.
+- `actorKind: "agent"` declares the caller an agent, which can only make the call stricter (an agent cannot change a binding constraint, even with an admin's token). It rests on agents labelling themselves.
+- The function reaches the site's own data with its role (the schema grants it query and mutate through `allow.resource`); in this step it reads `Item`, `NewsroomSection` and `KnowledgeCorpus` records and writes new profile versions (`Item`). It holds no secret and calls no provider.
+- **Deploying it** needs the site's data API deployed (it adds the function, the two fields and `NewsroomSection.visualStyle`), following the batch rule: one site first, then all. Nothing in the engine deploys by itself.
+
 ## What is not built yet
 
-Example pictures (`image_profile_example_add` and `_remove`) and the Administration screens are the next build step. The `image-service` function that runs these operations for the newsroom and for MCP, and the `visualStyle` field on `NewsroomSection`, are a separate pull request that needs a data API deploy.
+Example pictures (`image_profile_example_add` and `_remove`) and the Administration screens are the next build step. The command line still runs the profile operations itself on the signed-in lane (it does not call the door yet), and on that lane a section's `visualStyle` is not read, so the two can differ for a section that has one until the command line goes through the door.

@@ -103,6 +103,9 @@ class FakeBackend:
     def get_record(self, model: str, record_id: str) -> dict | None:
         return copy.deepcopy(self.sections.get(record_id)) if model == "NewsroomSection" else None
 
+    def get_record_with_fields(self, model: str, record_id: str, extra_fields: str) -> dict | None:
+        return self.get_record(model, record_id)
+
     def safe_list_records(self, model: str) -> list[dict]:
         return copy.deepcopy(list(self.sections.values())) if model == "NewsroomSection" else []
 

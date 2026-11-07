@@ -3,6 +3,8 @@ import { assignmentAction } from "../functions/assignment-action/resource";
 import { categoryAction } from "../functions/category-action/resource";
 import { editorialChecksSchemaDefinitions } from "../functions/editorial-checks/schema";
 import { automationViewSchemaDefinitions } from "../functions/automation-view/schema";
+import { imageService } from "../functions/image-service/resource";
+import { imageServiceSchemaDefinitions } from "../functions/image-service/schema";
 import { proposalActionsSchemaDefinitions } from "../functions/proposal-actions/schema";
 import { messageActionsSchemaDefinitions } from "./message-actions";
 import { profileActionsSchemaDefinitions } from "./profile-actions";
@@ -1570,6 +1572,7 @@ const definitions = {
       killCriteria: a.string(),
       coreConcepts: a.json(),
       visualGuidance: a.string(),
+      visualStyle: a.json(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })
@@ -2625,6 +2628,7 @@ const definitions = {
   ...editorialChecksSchemaDefinitions,
   ...monitoringViewSchemaDefinitions,
   ...automationViewSchemaDefinitions,
+  ...imageServiceSchemaDefinitions,
   ...proposalActionsSchemaDefinitions,
   ...messageActionsSchemaDefinitions,
   ...profileActionsSchemaDefinitions,
@@ -2648,6 +2652,7 @@ function functionGrants(allow: any) {
     allow.resource(assignmentAction).to(["query", "mutate"]),
     allow.resource(categoryAction),
     allow.resource(contentActions),
+    allow.resource(imageService).to(["query", "mutate"]),
     allow.resource(manageUserRole),
     allow.resource(modelAttachmentUpload),
     allow.resource(newsroomSummary),
