@@ -58,6 +58,7 @@ from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .story_order import rank_entries
 from .head import HeadBuilder, PageHead
+from .share_preview import item_share_preview
 from .home_page import HomePageSource
 from .knowledge import DATA_PREFIX, KnowledgeSource
 from .knowledge_lookup import KnowledgeLookup
@@ -653,25 +654,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 pages[paths[1]] = self._home_markdown(title, head.description, item.source_text, page, summary.output_path).encode("utf-8")
             return pages
         entry = self._entry(summary)
-        description = entry.summary_text or lede_of(fragment) or self.standard.identity.description
-        article = entry.type in self.standard.listings.types or entry.type in self.standard.seo.article_types
-        crumbs = self._breadcrumbs(entry)
-        head = PageHead(
-            title=entry.title,
-            path=entry.url,
-            description=description,
-            og_type="article" if article else "website",
-            image=entry.image or first_image_of(fragment),
-            canonical=entry.canonical,
-            published=entry.date,
-            modified=entry.updated,
-            authors=entry.author_details,
-            tags=entry.tags,
-            noindex=entry.noindex,
-            based_on=self._based_on(entry),
-            json_ld_type=self._json_ld_type(entry) if article else None,
-            breadcrumbs=crumbs,
-        )
+        head = item_share_preview(entry, self.standard, self.policy, opening=lede_of(fragment), body_image=first_image_of(fragment)).head
+        crumbs = head.breadcrumbs
         page = self._page("item", head, site, entry=entry, entries=entries, fragment=fragment, crumbs=crumbs)
         pages = {key: self._render(page)}
         if len(paths) > 1:
@@ -682,25 +666,6 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _home_markdown(self, title: str, description: str, source_text: str, page: StandardPage, source: str = "") -> str:
         """The home twin: the home source with its page directives rendered as the page shows them (see :meth:`_page_twin`)."""
         return home_markdown(title, description, self._page_twin(source_text, source, page))
-
-    def _based_on(self, entry: StandardEntry) -> str:
-        """The original this page is based on: the URL in ``seo.isBasedOnField``, only when it is an absolute http(s) URL."""
-        field = self.standard.seo.based_on_field
-        value = entry.data.get(field) if field else None
-        return value.strip() if isinstance(value, str) and value.strip().startswith(("http://", "https://")) else ""
-
-    def _json_ld_type(self, entry: StandardEntry) -> str:
-        mapping = dict(self.standard.seo.json_ld_types)
-        return mapping.get(entry.topic) or mapping.get(entry.type) or self.standard.seo.default_json_ld
-
-    def _breadcrumbs(self, entry: StandardEntry) -> tuple[tuple[str, str], ...]:
-        if not self.standard.breadcrumbs:
-            return ()
-        crumbs = [(self.standard.home_link_label, self.policy.path("/"))]
-        if entry.section is not None and entry.section.listing and entry.section.listing_page:
-            crumbs.append((entry.section.label, self.policy.path(f"/{entry.section.base}/")))
-        crumbs.append((entry.title, entry.url))
-        return tuple(crumbs) if len(crumbs) > 1 else ()
 
     def _dependencies(self, page_id: str = "item") -> tuple[str, ...]:
         """Which entries a page also depends on: ``*``, section names or ``@root``; empty for none.

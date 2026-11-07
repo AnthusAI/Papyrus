@@ -362,6 +362,7 @@ PORTED_COMMANDS = frozenset(
         "stories:next",
         "stories:step",
         "stories:checklist-backfill",
+        "stories:lens-check",
         "stories:outline",
         "stories:draft",
         "stories:create",
@@ -858,6 +859,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_checklist_backfill
 
         stories_checklist_backfill(flags)
+    elif route == "stories:lens-check":
+        from .story_commands import stories_lens_check
+
+        stories_lens_check(flags)
     elif route == "stories:outline":
         from .story_writing import stories_outline
 

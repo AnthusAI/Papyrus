@@ -205,3 +205,9 @@ def json_lenses(context):
     payload = json.loads(context.output)
     assert [row["step"] for row in payload["lenses"]] == list(lenses.LENS_STEP_KEYS)
     assert all(row["audience"] for row in payload["lenses"])
+
+
+@then("the lens text tells the agent to run papyrus stories lens-check for the Story and fix what it can")
+def run_lens_check(context):
+    text = single_lens_text(context)
+    assert "papyrus stories lens-check --story LINEAGE" in text and "fix what you can" in text

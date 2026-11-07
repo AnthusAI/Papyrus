@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -493,6 +494,43 @@ def stories_checklist_backfill(flags: list[str]) -> None:
     with request_meter.sweep("stories-checklist-backfill"):   # a declared sweep: every Story, one stage at a time, in pages
         counts = backfill(client, apply=apply, stages=stages, page_size=int(options.get("page-size") or 50))
     print(f"stories\tchecklist-backfill\t{'write' if apply else 'dry run'}\t" + "\t".join(f"{name} {value}" for name, value in counts.items()))
+
+def stories_lens_check(flags: list[str]) -> None:
+    """papyrus stories lens-check --story <lineage> [--lens people|agents|search|social] [--static <web directory>] [--json]
+
+    Read only; it writes nothing. Runs the checks of the four review lenses that code can run on the Story's current version and prints each finding
+    with its state (Looks fine, Needs a look, Problem, Could not check), plain words and where to look. Three problems must be fixed before a lens
+    step can close as done: an image with no alt text, a third-party image with no credit and a Markdown copy that differs from the source.
+    --static names the site's web directory (it holds projection.json; default PAPYRUS_SITE_STATIC_DIR); without it the checks that need the site's
+    settings say they could not be checked (docs/four-lens-review.md)."""
+    from .audience_lenses import LENS_VERSION, STATE_LABELS
+    from .lens_evidence import blockers, load_site, not_run, run_checks, story_from_row, summarize
+    from .story_reporting import current_story_version
+    from .story_types import SITE_STATIC_DIRECTORY_ENV
+
+    options = parse_options(flags)
+    lineage_id = _required_option(options, "story")
+    lens = normalize_string(options.get("lens"))
+    static = normalize_string(options.get("static")) or os.environ.get(SITE_STATIC_DIRECTORY_ENV, "").strip() or None
+    client, _ = create_authoring_client()
+    story = story_from_row(current_story_version(client, lineage_id))
+    site = load_site(static)
+    findings = run_checks(story, site, lens=lens)
+    counts, problems, skipped = summarize(findings), blockers(findings), not_run(lens)
+    if options.get("json"):
+        print(json.dumps({"ok": True, "story": lineage_id, "versionId": story.version_id, "versionNumber": story.version_number, "lensVersion": LENS_VERSION,
+                          "siteSettingsRead": site is not None, "findings": findings, "counts": counts, "problems": [row["check"] for row in problems], "notRun": skipped}, indent=2))
+        return
+    print(f"stories\tlens-check\t{lineage_id}\tversion {story.version_number}\t{story.version_id}\tlens definition {LENS_VERSION}")
+    labels = dict(STATE_LABELS)
+    labels["not_applicable"] = "Not applicable"
+    for row in findings:
+        print("\t".join(["finding", row["step"], row["check"], labels[row["state"]], row["severity"] or "n/a", row["message"]]))
+    for step, found in counts.items():
+        print("\t".join(["summary", step, *(f"{label}: {found.get(state, 0)}" for state, label in STATE_LABELS)]))
+    for row in problems:
+        print("\t".join(["blocked", row["step"], row["check"], "fix this before the step can close as done", row["message"]]))
+    print(f"notrun\t{len(skipped)} checks were not run (they need a model, the rest of the site or a person): " + ", ".join(row["check"] for row in skipped))
 
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
