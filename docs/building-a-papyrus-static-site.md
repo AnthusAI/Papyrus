@@ -193,6 +193,13 @@ not the production origin is **guarded**: every page gets `<meta name="robots" c
 false` switches it off. A guarded build also never emits Google Analytics: `chrome.ga_measurement_id` and `chrome.consent_mode` (with its
 banner) are dropped from every page, so a staging site does not count visits.
 
+`chrome.consent_mode` also takes the region-aware settings `region_lookup` (off by default; when absent the notice shows to
+everyone, as before), `region_lookup_address` (default `/_papyrus/consent`), `region_lookup_timeout_milliseconds` (default
+1500), `denied_by_default_regions` (replaces the default list of regions that need a notice) and
+`additional_denied_by_default_regions` (adds to it). The default list is a policy choice that the owner owns, not legal
+advice. Turning `region_lookup` on only works once the site's edge answers that address; see
+[region-aware consent](region-aware-consent.md) and `site-hosting.md`, "Consent Mode v2 and the consent banner".
+
 ## The head
 
 One builder writes the head of every page, in this order: font links, icons and manifest, theme colours, feed
