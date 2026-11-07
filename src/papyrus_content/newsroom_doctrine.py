@@ -4,8 +4,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from .env import PAPYRUS_ROOT, resolve_corpora_file
 
 DEFAULT_PUBLICATION_DOCTRINE_PATH = resolve_corpora_file("corpora/example-publication-doctrine.yml")
@@ -38,6 +36,8 @@ _publication_doctrine_seed_cache: dict[str, dict[str, Any]] = {}
 
 
 def load_publication_doctrine_seed(filepath: str | Path | None = None) -> dict[str, Any]:
+    import yaml   # only the seed import needs it, so the standalone functions that read doctrine bundle without PyYAML
+
     resolved = str(Path(filepath or DEFAULT_PUBLICATION_DOCTRINE_PATH).resolve())
     if resolved in _publication_doctrine_seed_cache:
         return _publication_doctrine_seed_cache[resolved]

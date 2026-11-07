@@ -19,6 +19,7 @@ class Caller:
     subject: str = ""
     delegated_by: str | None = None
     is_admin: bool = False   # an admin of this site; only a person who is one may change a binding constraint
+    request_id: str | None = None   # the door's requestId: a write repeated with the same id gives the first answer
 
 
 @dataclass(frozen=True)

@@ -35,6 +35,8 @@ import { defineSiteData } from "./data/resource";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
 import { editorialChecks } from "./functions/editorial-checks/resource";
 import { automationView } from "./functions/automation-view/resource";
+import { imageService } from "./functions/image-service/resource";
+import { wireImageService } from "./functions/image-service/wire";
 import { wireAutomationView } from "./functions/automation-view/wire";
 import { proposalActions } from "./functions/proposal-actions/resource";
 import { wireProposalActions } from "./functions/proposal-actions/wire";
@@ -141,6 +143,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     categoryAction,
     contentActions,
     editorialChecks,
+    imageService,
     data: defineSiteData(pluginDefinitions, resolveExcludedModelGroups(site.excludeModelGroups, process.env)),
     knowledgeQuery,
     manageUserRole,
@@ -873,6 +876,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   wireEditorialChecks(backend);
   wireMonitoringView(backend, emailMonitorId);
   wireAutomationView(backend);
+  wireImageService(backend);
   wireProposalActions(backend);
   wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
 

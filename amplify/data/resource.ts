@@ -1606,6 +1606,7 @@ const schema = a.schema({
       killCriteria: a.string(),
       coreConcepts: a.json(),
       visualGuidance: a.string(),
+      visualStyle: a.json(),
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })

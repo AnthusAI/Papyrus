@@ -81,8 +81,16 @@ def _story_for(client, target: dict) -> dict | None:
     return (current or sorted(versions, key=lambda row: int(row.get("versionNumber") or 0)))[-1]
 
 
-def resolve_for_request(client, arguments: dict, *, operation: str = "resolve", allow_retired: bool = False) -> tuple[dict, list[dict]]:
-    """The resolved style for a request of the shape image_profile_resolve takes, and the warnings the section lookup added."""
+SECTION_STYLE_FIELD = "visualStyle"
+
+
+def resolve_for_request(client, arguments: dict, *, operation: str = "resolve", allow_retired: bool = False,
+                        section_fields: str | None = None) -> tuple[dict, list[dict]]:
+    """The resolved style for a request of the shape image_profile_resolve takes, and the warnings the section lookup added.
+
+    ``section_fields`` names fields to read from the section beyond the fixed list (``visualStyle``, which only a site whose data API has the field can
+    answer): the image-service function, which is deployed with that API, asks for it; the command line on the signed-in lane does not.
+    """
     document, ref, _ = _read_current(client)
     story = _story_for(client, arguments["target"]) if arguments.get("target") else None
     warnings: list[dict] = []
@@ -95,6 +103,8 @@ def resolve_for_request(client, arguments: dict, *, operation: str = "resolve", 
             warnings.append({"code": "section_unknown", "message": str(error)})
         if section is not None:
             _check_tenant(client, section)
+            if section_fields:
+                section = {**section, **(client.get_record_with_fields("NewsroomSection", section.get("storedId") or section["id"], section_fields) or {}), "id": section["id"]}
         elif arguments.get("sectionId"):
             raise ImageOperationError("not_found", f"No section {arguments['sectionId']} in this publication.")
         else:
@@ -118,9 +128,9 @@ def _read_current(client) -> tuple[dict | None, dict | None, dict | None]:
     return (to_document(row), reference(row), row) if row else (None, None, None)
 
 
-def resolve_profile(client, arguments: dict, caller: Caller) -> Outcome:
+def resolve_profile(client, arguments: dict, caller: Caller, section_fields: str | None = None) -> Outcome:
     publication = _publication(client)
-    resolved, warnings = resolve_for_request(client, arguments)
+    resolved, warnings = resolve_for_request(client, arguments, section_fields=section_fields)
     return Outcome(resolved, publication, tuple(warnings))
 
 
@@ -161,8 +171,22 @@ def _require_person_admin(caller: Caller, changes: list[dict]) -> None:
         raise ImageOperationError("not_authorized", "Only an admin may add, change or remove a binding constraint. Nothing was saved.", details={"constraints": ids})
 
 
+def _already_saved(versions: list[dict], caller: Caller) -> dict | None:
+    """The version an earlier try of this same write (the same requestId, the same person) made, so a retry gets the first answer instead of a stale-version refusal."""
+    if not caller.request_id:
+        return None
+    for row in versions:
+        saved = as_object(as_object(row.get("metadata")).get("savedBy"))
+        if saved.get("requestId") == caller.request_id and saved.get("sub") == caller.subject:
+            return row
+    return None
+
+
 def save_profile(client, arguments: dict, caller: Caller) -> Outcome:
     publication = _publication(client)
+    earlier = _already_saved(profile_versions(client), caller)
+    if earlier is not None:
+        return Outcome({"itemId": earlier["id"], "versionNumber": int(earlier.get("versionNumber") or 1), "contentHash": reference(earlier)["contentHash"], "repeated": True}, publication)
     prepared = _prepare(client, arguments)
     merged, row, old = prepared.document, prepared.row, prepared.old
     guard = arguments["expectedCurrentVersionId"]
@@ -178,7 +202,8 @@ def save_profile(client, arguments: dict, caller: Caller) -> Outcome:
         merged["constraints"] = stamp_constraints((old or {}).get("constraints"), merged["constraints"], by=caller.subject, at=now, reason=arguments["reason"])
     if old is not None and not diff_documents(old, merged):
         return Outcome({"itemId": row["id"], "versionNumber": int(row.get("versionNumber") or 1), "contentHash": reference(row)["contentHash"], "unchanged": True}, publication)
-    saved_by = {"sub": caller.subject, "kind": caller.kind, **({"delegatedBy": caller.delegated_by} if caller.delegated_by else {})}
+    saved_by = {"sub": caller.subject, "kind": caller.kind, **({"delegatedBy": caller.delegated_by} if caller.delegated_by else {}),
+                **({"requestId": caller.request_id} if caller.request_id else {})}
     record = next_record(prepared.versions, merged, actor=caller.subject, reason=arguments["reason"], now=now, saved_by=saved_by)
     store_next_version(client, prepared.versions, record)
     return Outcome({"itemId": record["id"], "versionNumber": record["versionNumber"], "contentHash": record["contentHash"]}, publication)
@@ -251,8 +276,15 @@ def signed_in_handlers(client_factory: Callable[[], Any] | None = None) -> dict[
     return {name: wrap(function) for name, function in PROFILE_HANDLERS.items()}
 
 
-def with_client(client, caller_filter: Callable[[Caller], Caller] | None = None) -> dict[str, Handler]:
+def with_client(client, caller_filter: Callable[[Caller], Caller] | None = None, *, section_fields: str | None = None) -> dict[str, Handler]:
     """The same handlers bound to one client (the image-service function and the tests)."""
-    return {name: (lambda arguments, caller, function=function: function(client, arguments, caller_filter(caller) if caller_filter else caller))
-            for name, function in PROFILE_HANDLERS.items()}
+    def bind(name, function):
+        def handler(arguments: dict, caller: Caller) -> Outcome:
+            caller = caller_filter(caller) if caller_filter else caller
+            if name == "image_profile_resolve":
+                return function(client, arguments, caller, section_fields)
+            return function(client, arguments, caller)
+        return handler
+
+    return {name: bind(name, function) for name, function in PROFILE_HANDLERS.items()}
 
