@@ -27,6 +27,7 @@
     "test:public-forms": "tsx scripts/test-public-forms.ts",
     "test:schema-parity": "tsx scripts/test-schema-parity.ts",
     "test:reference-link-resolvers": "tsx --test scripts/test-reference-links.ts && cucumber-js --profile referenceLinkResolvers",
+    "test:image-example-upload": "tsx scripts/test-model-attachment-visual-roles.ts",
     "test:cover-image-picker": "tsx --test scripts/test-stock-images.ts && cucumber-js --profile coverImagePicker && poetry run pytest -q procedures/newsroom/tests/test_stock_cover_credit.py",
     "test:message-hashtags": "tsx --test scripts/test-message-hashtags.ts && cucumber-js --profile messageHashtags",
     "test:section-core-concepts": "tsx --test scripts/test-section-concepts.ts && cucumber-js --profile sectionCoreConcepts",
