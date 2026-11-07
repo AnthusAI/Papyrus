@@ -607,6 +607,18 @@ Private pictures go to `newsroom/image-candidates/<publicationKey>/<roundId>/<ca
 
 **Forcing standard speed.** An editor or operator can override per request (`speed: "standard"` on `image_generate`, CLI `--now`, UI "Make it now" on a pending candidate, which cancels its batch request where OpenAI allows and resubmits standard), or per site (`images.generation.lane: "standard"`, data). Agents may not force standard unless the site setting allows it. The candidate records the reason in `laneReason`.
 
+**Choosing the lane (added after Ryan asked for options).** Three levels, most specific wins:
+
+| Level | Setting | Values |
+| --- | --- | --- |
+| Per request | `speed` on `image_generate` (CLI `--now` or `--later`; UI "Make it now" or "Make them later, half price") | `auto` (default), `standard`, `batch` |
+| Per site (data) | `images.generation.lane` | `auto` (default), `standard` (never batch), `batch` (batch whenever the caller isn't forcing standard) |
+| Default by caller | the service, from who is asking (3.6) | a person gets `standard`, an agent or procedure gets `batch` |
+
+`standard` from an agent is refused unless the site allows it. A person may choose `batch` for a set of four when they don't mind waiting. The candidate records the lane and why (`laneReason`).
+
+**How a Batch result comes back hours later.** Nothing waits on the connection. The candidate sits `pending` with its batch id. A scheduled completion check (`image-batch-check`) reads only the pending rows through the sparse `batchKey` index, so its cost grows with what is pending, never with the size of the table, and it does nothing at all when nothing is pending. For each distinct batch it asks OpenAI for the status. When a batch is done it reads the output file once, matches each line to its candidate by `custom_id`, stores the picture, runs the free checks, drafts the alt text from the brief and sets the candidate `ready`; a failed line fails only that candidate. Then whatever was waiting wakes up: a procedure step resumes through the existing procedure-run wake-up, an editor sees the picture appear in the panel and the review queue, and a failure or a 24-hour expiry leaves the Story's placeholder in place with a note. Check cadence (open, for the OpenAI adapter PR): start at about every 15 minutes and back off to hourly while a batch is still running, reset when a new batch is submitted; the cost of a check is one small lookup per batch. OpenAI may offer completion webhooks for batches; that is not verified, so confirm in the adapter PR whether a webhook can replace the check (it would remove the polling, at the price of one more public endpoint to secure).
+
 **Standard lane steps.**
 
 1. `image_generate` writes the rows `queued` and invokes `image-worker` asynchronously once per candidate.

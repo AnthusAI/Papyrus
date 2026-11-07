@@ -10,9 +10,17 @@
   "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b88d83ba-63ba-47f8-8305-5e6c3559f5cf",
+      "author": "home",
+      "text": "Ryan 2026-11-07 asked for options on using Batch and how results come back hours later. Design section 7.2 now has the lane options (per request speed: auto/standard/batch, per site images.generation.lane, default by caller) and the retrieval path (sparse pending index, scheduled completion check that does nothing when nothing is pending, output file matched by custom_id, wake-up of the waiting step). Open for this story: the check cadence, and whether OpenAI batch completion webhooks can replace the check (not verified).",
+      "created_at": "2026-11-07T18:44:00.486877Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T18:39:03.867082Z",
-  "updated_at": "2026-11-07T18:39:03.867108Z",
+  "updated_at": "2026-11-07T18:44:00.487683Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
