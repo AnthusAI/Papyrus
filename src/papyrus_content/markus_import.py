@@ -622,6 +622,13 @@ def _apply_item(planned: PlannedItem, client) -> None:
         metadata = _parse_json_object(record.get("metadata"))
         metadata["source"] = {"path": planned.source.relative_path, "importedContentHash": planned.content_hash}
         client.update_record("Item", {"id": item_id, "metadata": to_aws_json(metadata)})
+    from .content_item_lifecycle import is_story_item_type
+
+    if is_story_item_type(planned.fields.type):
+        # An imported Story was not written in the newsroom: its checklist is made, every step not applicable ("imported from <source>"), and publishing is not blocked.
+        from .story_checklist import mark_imported_quietly
+
+        mark_imported_quietly(client, (planned.existing or {}).get("lineageId") or item_id, planned.source.relative_path)
     if planned.needs_publish:
         try:
             publish_item(client, item_id, actor=IMPORT_ACTOR, now=None)

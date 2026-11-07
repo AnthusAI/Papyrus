@@ -12,6 +12,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - **Copy a site's data into a new site**: [site-copy.md](site-copy.md), `papyrus ops site copy` (dry run by default; rewrite rules, owners, media, verify).
 - **Re-project or repair a site**: [site-hosting.md](site-hosting.md#operations-runbook), [site-hosting.md](site-hosting.md#projection-lease-one-projection-at-a-time).
 - **Add a site to Hacker News routing**: [monitoring-cloud.md](monitoring-cloud.md), [../AGENTS.md](../AGENTS.md#add-a-site-to-the-hacker-news-routing).
+- **Count, budget and batch AppSync requests**: [request-meter.md](request-meter.md), the per-caller request summary, the budget warning, `--budget`, the whole-table-read ratchet and the 25-to-a-request batched reads.
 - **Register a procedure or an automation**: [procedure-runner.md](procedure-runner.md), [automations.md](automations.md).
 - **Run the weekly knowledge run**: [knowledge-workstation-run.md](knowledge-workstation-run.md), [knowledge-cloud-run.md](knowledge-cloud-run.md).
 - **Review requests and the Notification Center**: [notification-center.md](notification-center.md), [review-requests.md](review-requests.md). The console home is ignore-safe (only a hard gate waits for a person), steering is fed back to the step that raised the request, and marks accompany every colour.
@@ -33,7 +34,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [knowledge-cloud-run.md](knowledge-cloud-run.md): the same run as an unattended weekly job in AWS (EventBridge, Step Functions, Fargate), its AI review, state, alarms and cost.
 - [newsletter.md](newsletter.md): signup capture, the double opt-in `newsletter` plugin with clean `/newsletter/*` pages, branded email theme, roundups, alerts and SES sending (Live on Shipped).
 - [reader-steering.md](reader-steering.md): the `reader-steering` plugin: votes on any subject, ratings, flags, comments, submissions, moderation, snapshots and Proposals (built; reader writes closed in production until Prospectus returns a site subject).
-- [story-procedure.md](story-procedure.md): the one ordered list of steps a Story moves through, who does each, `papyrus stories next`, and the reminders printed after writes.
+- [story-procedure.md](story-procedure.md): the one ordered list of steps a Story moves through, who does each, `papyrus stories next`, the reminders printed after writes, and the per-Story checklist that records what was done, who did it and why a step was skipped (publishing waits for it).
 - [story-illustration-typesetting.md](story-illustration-typesetting.md): the illustration and typesetting stages: what each should produce, who does it, what the CLI does today, and what is not built.
 - [automations.md](automations.md): automation records binding a monitor to a procedure, with `enabled`, limits, cost, history and Run now (PPY-9ff95b slices 1 and 2).
 - [feature-names.md](feature-names.md): the recommended names for the showcase features, what each is and is not, where it lives, and the alternatives considered.
@@ -118,6 +119,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [newsroom-curation-integration.md](newsroom-curation-integration.md): the opt-in References curation seam.
 - [editorial-checks.md](editorial-checks.md): Humanus editorial checks, policies and editor feedback.
 - [editorial-context.md](editorial-context.md): the mission, policy and section guidance that agents and checks read.
+- [images.md](images.md): the image operations (profile, search, generate, review, apply, undo) as commands and MCP tools, generated from one table.
 - [Context packs for newsroom agents](newsroom-context-packs.md): the one pack every agent in a section works from, and how to change it.
 - [Choosing which ideas become Stories](idea-selection.md): the editor agent's picky selection, what recent means and the rate limit.
 - [story-reporting.md](story-reporting.md): story versions, reference links and the reporting trail.

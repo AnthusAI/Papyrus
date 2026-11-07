@@ -18,7 +18,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
 
   Scenario: The layers come in order, most specific first
     When the reporter context pack is built for the Story and the assignment
-    Then the layers are, in order, "assignment, story, process, story_references, related_references, story_conversation, prior_research, section_concepts, concept_references, desk_published, desk_references, publication_published, publication_references"
+    Then the layers are, in order, "assignment, story, process, audience_lenses, story_references, related_references, story_conversation, prior_research, section_concepts, concept_references, desk_published, desk_references, publication_published, publication_references"
     And every layer holds at least one entry
     And the user text shows the editor's direction before the Story's draft and the Story's draft before the section's published record
     And the system text carries the role, the publication policy and the section mission
@@ -239,7 +239,7 @@ Feature: A reporting agent works from a context pack that knows the Story, the e
 
   Scenario: The copywriter's layers put the rules first and the publication's voice before the wider record
     When the copywriter's context pack is built for the Story
-    Then the layers are, in order, "editorial_policies, assignment, story, process, story_references, related_references, story_conversation, prior_research, voice_examples, section_concepts, concept_references, desk_published, desk_references, publication_published, publication_references"
+    Then the layers are, in order, "editorial_policies, assignment, story, process, audience_lenses, story_references, related_references, story_conversation, prior_research, voice_examples, section_concepts, concept_references, desk_published, desk_references, publication_published, publication_references"
     And the system text says it is a copywriter and it writes a draft, never publishing
 
   Scenario: The copywriter reads the rules the draft will be checked against

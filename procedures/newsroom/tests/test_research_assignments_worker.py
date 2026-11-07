@@ -311,6 +311,10 @@ def recorded_fields_of_a_full_run(monkeypatch, tenant_id=None):
 
     def respond(query, variables=None):
         variables = variables or {}
+        if query.lstrip().startswith("query BatchGet"):   # several gets as aliased fields: IAM and the recorder see the real field names
+            fields = re.findall(r"\br\d+:\s*(get\w+)\(", query)
+            recorded.update(("Query", name) for name in fields)
+            return {f"r{n}": stored.get(name[3:], {}).get(variables.get(f"k{n}")) for n, name in enumerate(fields)}
         kind, field = ("Mutation" if query.lstrip().startswith("mutation") else "Query"), tms.GRAPHQL_ROOT.match(query).group(1)
         recorded.add((kind, field))
         write = re.match(r"(create|update)(\w+)$", field)

@@ -6,6 +6,7 @@ import http.client
 import urllib.parse
 from typing import Any, Callable
 
+from . import request_meter
 from .env import graphql_endpoint, graphql_timeout_seconds, site_tenant_id
 from .guest_auth import refuse_guest_auth
 from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, graphql_request_headers
@@ -152,7 +153,7 @@ PUBLISHED_EDITION_ITEM_FIELDS = (
 )
 ITEM_FIELDS = (
     f"{VERSION_FIELDS} id tenantId tenantSlug type status typeStatus stage slug shortSlug section sectionStatus title headline deck body "
-    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata starRating starRatedAt starRatedBy"
+    "byline dateline publishedAt editionDate sortTitle pullQuotes layout editorial updatedAt bodyMarkus bodyIr aliases metadata starRating starRatedAt starRatedBy parentLineageId"
 )
 PUBLISHED_ITEM_FIELDS = (
     "id tenantId tenantSlug sourceItemId itemLineageId versionNumber type status typeStatus slug shortSlug section sectionStatus "
@@ -503,6 +504,13 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "feedStateKey",
         "fields": REFERENCE_FIELDS,
     },
+    "referencesByCorpusAndExternalItem": {
+        "field": "listReferencesByCorpusAndExternalItem",
+        "partitionKey": "corpusId",
+        "partitionType": "ID",
+        "sortKey": "externalItemId",
+        "fields": REFERENCE_FIELDS,
+    },
     "referencesByMediumFeedAndArrival": {
         "field": "listReferencesByMediumFeedAndArrival",
         "partitionKey": "mediumFeedKey",
@@ -528,6 +536,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "partitionKey": "storyLineageId",
         "partitionType": "ID",
         "fields": STORY_VARIATION_FIELDS,
+    },
+    "itemsByParent": {
+        "field": "listItemsByParentAndOrder",
+        "partitionKey": "parentLineageId",
+        "partitionType": "ID",
+        "fields": ITEM_FIELDS,
     },
     "semanticRelationsByNewsroomFeedAndCreatedAt": {
         "field": "listSemanticRelationsByNewsroomFeedAndCreatedAt",
@@ -609,6 +623,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": KNOWLEDGE_RAW_PAYLOAD_FIELDS,
         "partitionType": "ID",
     },
+    "referenceAttachmentsByReferenceVersionAndSortKey": {
+        "field": "listReferenceAttachmentsByReferenceVersionAndSortKey",
+        "partitionKey": "referenceVersionKey",
+        "fields": REFERENCE_ATTACHMENT_FIELDS,
+    },
     "referenceAttachmentsByReferenceLineageAndSortKey": {
         "field": "listReferenceAttachmentsByReferenceLineageAndSortKey",
         "partitionKey": "referenceLineageId",
@@ -618,11 +637,14 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
 }
 
 
-def _index_query(field: str, partition_key: str, fields: str, partition_type: str = "String") -> str:
+def _index_query(field: str, partition_key: str, fields: str, partition_type: str = "String", sort_key: str | None = None) -> str:
     operation = field[0].upper() + field[1:]
+    # `sort_key` narrows the partition to the rows whose sort field equals one value (a key condition, not a filter: only those rows are read).
+    sort_variable = ", $sortEq: ModelStringKeyConditionInput" if sort_key else ""
+    sort_argument = f", {sort_key}: $sortEq" if sort_key else ""
     return f"""
-query {operation}(${partition_key}: {partition_type}!, $limit: Int, $nextToken: String) {{
-  {field}({partition_key}: ${partition_key}, limit: $limit, nextToken: $nextToken) {{
+query {operation}(${partition_key}: {partition_type}!{sort_variable}, $limit: Int, $nextToken: String) {{
+  {field}({partition_key}: ${partition_key}{sort_argument}, limit: $limit, nextToken: $nextToken) {{
     items {{ {fields} }}
     nextToken
   }}
@@ -661,6 +683,23 @@ query {operation}($id: ID!) {{
   {field}(id: $id) {{ {fields} }}
 }}
 """
+
+
+# AppSync bills per request, so reads for many keys ride in one request as aliased fields (the same size as components/news-desk-taxonomy-client.ts).
+ALIAS_BATCH_SIZE = 25
+
+
+def _aliased_get_query(field: str, fields: str, count: int) -> str:
+    variables = ", ".join(f"$k{index}: ID!" for index in range(count))
+    selections = "\n  ".join(f"r{index}: {field}(id: $k{index}) {{ {fields} }}" for index in range(count))
+    return f"query BatchGet{field.removeprefix('get')}({variables}) {{\n  {selections}\n}}"
+
+
+def _aliased_index_query(field: str, partition_key: str, partition_type: str, fields: str, count: int, limit: int) -> str:
+    variables = ", ".join(f"$k{index}: {partition_type}!" for index in range(count))
+    selections = "\n  ".join(
+        f"r{index}: {field}({partition_key}: $k{index}, limit: {int(limit)}) {{ items {{ {fields} }} nextToken }}" for index in range(count))
+    return f"query BatchIndex{field[0].upper() + field[1:]}({variables}) {{\n  {selections}\n}}"
 
 
 def _model_mutations(model_name: str) -> dict[str, str]:
@@ -754,6 +793,7 @@ class PapyrusGraphQLAuthoringClient:
     def _send_graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         payload = json.dumps({"query": query, "variables": variables or {}}).encode("utf-8")
         headers = self._request_headers(payload)
+        aliases = len(re.findall(r"^\s*r\d+:", query, re.MULTILINE)) if query.lstrip().startswith(("query BatchGet", "query BatchIndex")) else 0
         body: dict[str, Any] | None = None
         last_error: Exception | None = None
         from .user_auth_mode import user_auth_requested
@@ -761,6 +801,7 @@ class PapyrusGraphQLAuthoringClient:
         attempts = 1 if user_auth_requested() else 2
         for attempt in range(attempts):
             try:
+                request_meter.record_request(query, aliases=aliases)
                 connection = self._connection or self._open_connection()
                 connection.request("POST", self._endpoint_path, body=payload, headers=headers)
                 response = connection.getresponse()
@@ -872,12 +913,16 @@ class PapyrusGraphQLAuthoringClient:
         return sorted(str(field.get("name")) for field in fields if field.get("name"))
 
     def list_records(self, model_name: str) -> list[dict[str, Any]]:
+        """EVERY row of the model: a whole-table read that costs one request per 100 rows. Outside a named sweep (`request_meter.sweep`)
+        it is logged and counted as an unbounded list; read through an index (`list_by_index`, `index_many`) instead."""
+        request_meter.note_unbounded_list(model_name)
         definition = LIST_DEFINITIONS[model_name]
         query = _list_query(definition["field"], definition["fields"])
         items: list[dict[str, Any]] = []
         next_token = None
         while True:
-            result = self.graphql(query, {"limit": 100, "nextToken": next_token})
+            with request_meter.model(model_name):
+                result = self.graphql(query, {"limit": 100, "nextToken": next_token})
             connection = result.get(definition["field"]) or {}
             items.extend(entry for entry in connection.get("items") or [] if entry)
             next_token = connection.get("nextToken")
@@ -897,7 +942,8 @@ class PapyrusGraphQLAuthoringClient:
     def get_record(self, model_name: str, record_id: str) -> dict[str, Any] | None:
         definition = GET_DEFINITIONS[model_name]
         query = _get_query(definition["field"], definition["fields"])
-        result = self.graphql(query, {"id": self._stored_record_id(model_name, record_id)})
+        with request_meter.model(model_name):
+            result = self.graphql(query, {"id": self._stored_record_id(model_name, record_id)})
         row = result.get(definition["field"])
         if not row_belongs_to_tenant(model_name, self.tenant_id, row):
             return None
@@ -950,38 +996,88 @@ class PapyrusGraphQLAuthoringClient:
             return {}
         if model_name not in LIST_DEFINITIONS:
             raise ValueError(f"Unsupported model for get_records_by_id: {model_name}")
-        # Point lookups avoid scanning entire tables (e.g. thousands of References).
-        if len(unique_ids) <= 100 and model_name in GET_DEFINITIONS:
-            resolved: dict[str, dict[str, Any]] = {}
-            for record_id in unique_ids:
-                row = self.get_record(model_name, record_id)
-                if row:
-                    resolved[record_id] = row
-            return resolved
-        rows = self.list_records(model_name)
+        # Point lookups, 25 to a request: never a read of the whole table (a table of thousands of References).
+        if model_name in GET_DEFINITIONS:
+            return self.get_many(model_name, unique_ids)
+        rows = self.list_records(model_name)   # a model with no get query: the only way left, and an unbounded list
         by_id = {row["id"]: row for row in rows if row.get("id")}
         return {record_id: by_id[record_id] for record_id in unique_ids if record_id in by_id}
 
-    def list_by_index(self, index_name: str, key_value: str, *, limit: int = 100) -> list[dict[str, Any]]:
+    def get_many(self, model_name: str, record_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """`get_record` for many ids with the same result (`{id: row}`, a missing or foreign-tenant row left out), 25 ids to one request."""
+        definition = GET_DEFINITIONS[model_name]
+        unique_ids = [record_id for record_id in dict.fromkeys(record_ids) if record_id]
+        resolved: dict[str, dict[str, Any]] = {}
+        for offset in range(0, len(unique_ids), ALIAS_BATCH_SIZE):
+            chunk = unique_ids[offset:offset + ALIAS_BATCH_SIZE]
+            query = _aliased_get_query(definition["field"], definition["fields"], len(chunk))
+            with request_meter.model(model_name):
+                result = self.graphql(query, {f"k{index}": self._stored_record_id(model_name, record_id) for index, record_id in enumerate(chunk)})
+            for index, record_id in enumerate(chunk):
+                row = result.get(f"r{index}")
+                if row and row_belongs_to_tenant(model_name, self.tenant_id, row):
+                    resolved[record_id] = tenant_row_with_bare_record_id(model_name, self.tenant_id, row)
+        return resolved
+
+    def index_many(self, index_name: str, key_values: list[str], *, limit: int = 100) -> dict[str, list[dict[str, Any]]]:
+        """`list_by_index` for many partition keys with the same rows for each (`{key: rows}`), 25 keys to one request. A key with more
+        than one page is finished on its own, so every key's list is complete."""
+        unique_keys = [key for key in dict.fromkeys(key_values) if key]
+        scoped_name = tenant_scoped_index(self.tenant_id, index_name, "")[0]   # the tenant's own index may be a different one
+        definition = INDEX_DEFINITIONS[scoped_name]
+        partition_type = definition.get("partitionType", "String")
+        results: dict[str, list[dict[str, Any]]] = {}
+        for offset in range(0, len(unique_keys), ALIAS_BATCH_SIZE):
+            chunk = unique_keys[offset:offset + ALIAS_BATCH_SIZE]
+            scoped = [tenant_scoped_index(self.tenant_id, index_name, key)[1] for key in chunk]
+            query = _aliased_index_query(definition["field"], definition["partitionKey"], partition_type, definition["fields"], len(chunk), limit)
+            result = self.graphql(query, {f"k{index}": value for index, value in enumerate(scoped)})
+            for index, key in enumerate(chunk):
+                connection = result.get(f"r{index}") or {}
+                rows = [entry for entry in connection.get("items") or [] if entry]
+                token = connection.get("nextToken")
+                if token:
+                    rows.extend(self._index_pages_after(index_name, key, token, limit=limit))
+                results[key] = rows
+        return results
+
+    def _index_pages_after(self, index_name: str, key_value: str, next_token: str, *, limit: int) -> list[dict[str, Any]]:
         index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
         definition = INDEX_DEFINITIONS[index_name]
+        query = _index_query(definition["field"], definition["partitionKey"], definition["fields"], definition.get("partitionType", "String"))
+        rows: list[dict[str, Any]] = []
+        while next_token:
+            result = self.graphql(query, {definition["partitionKey"]: key_value, "limit": limit, "nextToken": next_token})
+            connection = result.get(definition["field"]) or {}
+            rows.extend(entry for entry in connection.get("items") or [] if entry)
+            next_token = connection.get("nextToken")
+        return rows
+
+    def list_by_index(self, index_name: str, key_value: str, *, limit: int = 100, sort_eq: str | None = None) -> list[dict[str, Any]]:
+        """Every row of one index partition. ``sort_eq`` (for an index whose definition names a ``sortKey``) keeps only the rows with that sort value."""
+        index_name, key_value = tenant_scoped_index(self.tenant_id, index_name, key_value)
+        definition = INDEX_DEFINITIONS[index_name]
+        sort_key = definition.get("sortKey") if sort_eq is not None else None
+        if sort_eq is not None and not sort_key:
+            raise ValueError(f"Index {index_name} has no sort key to match.")
         query = _index_query(
             definition["field"],
             definition["partitionKey"],
             definition["fields"],
             definition.get("partitionType", "String"),
+            sort_key,
         )
         items: list[dict[str, Any]] = []
         next_token = None
         while True:
-            result = self.graphql(
-                query,
-                {
-                    definition["partitionKey"]: key_value,
-                    "limit": limit,
-                    "nextToken": next_token,
-                },
-            )
+            variables = {
+                definition["partitionKey"]: key_value,
+                "limit": limit,
+                "nextToken": next_token,
+            }
+            if sort_key:
+                variables["sortEq"] = {"eq": sort_eq}
+            result = self.graphql(query, variables)
             connection = result.get(definition["field"]) or {}
             items.extend(entry for entry in connection.get("items") or [] if entry)
             next_token = connection.get("nextToken")

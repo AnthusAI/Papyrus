@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
 
+from .audience_lenses import lens_lines, lens_payload, lens_step_states
 from .graphql_authoring import create_authoring_client
 from .newsroom_process import assess, next_lines, print_next_lines, print_reminder, reminder_assessment, step_lines, story_facts, warn_skipped
 from .options import normalize_string, parse_boolean_option, parse_options, parse_repeated_option, resolve_mutation_apply
@@ -417,17 +419,118 @@ def stories_list(flags: list[str]) -> None:
 def stories_next(flags: list[str]) -> None:
     """papyrus stories next --story <lineage> [--json]
 
-    Read only. Prints each step of the Story procedure with its state, then what comes next and any skipped steps (docs/story-procedure.md)."""
+    Read only. Prints each step of the Story procedure with its state, then what comes next and any skipped steps (docs/story-procedure.md), then one
+    `lens` line for each of the four review steps that is not done (docs/four-lens-review.md)."""
     options = parse_options(flags)
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()
     assessment = assess(story_facts(client, lineage_id))
+    from .story_checklist import checklist_lines, progress_text, read_steps, steps_for_display, summary_of
+
+    stored = steps_for_display(read_steps(client, lineage_id), lineage_id)   # one index read by Story lineage
+    states = lens_step_states(client, lineage_id)
     if options.get("json"):
-        print(json.dumps({"ok": True, "story": lineage_id, **assessment}, indent=2))
+        print(json.dumps({"ok": True, "story": lineage_id, **assessment, "lenses": lens_payload(states, lineage=lineage_id),
+                          "checklist": stored, "progress": progress_text(summary_of(stored)) if stored else None}, indent=2))
         return
     print(f"stories\tnext\t{lineage_id}\tstage {assessment['stage']}")
-    for line in step_lines(assessment) + next_lines(assessment):
+    for line in step_lines(assessment) + checklist_lines(stored) + next_lines(assessment) + lens_lines(states, lineage=lineage_id):
         print(line)
+
+
+def stories_step(flags: list[str]) -> None:
+    """papyrus stories step --story <lineage> --step <key> [--state done|skipped|not_applicable|open] [--reason TEXT] [--note TEXT] [--evidence TEXT] [--actor-label NAME] [--agent NAME] [--dry-run]
+
+    Marks one step of the Story's checklist and records who did it and when. A skipped or not-applicable step needs --reason; a review step needs --note
+    (the findings) to be done; only a person reopens a step (--state open). With --note and no --state it adds a note to the step and changes nothing
+    else: notes accumulate (who, when, text), can be added to any step in any state, and are never edited or deleted. --agent NAME says an agent made the change; without it the actor is a person."""
+    from .story_checklist import ACTOR_AGENT, ACTOR_PERSON, ChecklistError, set_step
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories step")
+    lineage_id = _required_option(options, "story")
+    key = _required_option(options, "step")
+    state = normalize_string(options.get("state"))
+    if state is None and not normalize_string(options.get("note")):
+        raise ValueError("--state is required (or --note alone, to add a note without changing the state).")
+    agent = normalize_string(options.get("agent"))
+    actor = {"kind": ACTOR_AGENT if agent else ACTOR_PERSON, "label": agent or normalize_string(options.get("actor-label")) or "papyrus-cli"}
+    if not apply:
+        print(f"stories\tstep\t{lineage_id}\t{key}\t{state or 'note'}\tdry run")
+        return
+    client, _ = create_authoring_client()
+    if state is None:   # a note on its own: the step's state, reason and findings stay as they are
+        from .story_checklist import add_note
+
+        try:
+            row = add_note(client, lineage_id, key, normalize_string(options.get("note")) or "", actor=actor)
+        except ChecklistError as error:
+            raise ValueError(str(error)) from error
+        print(f"stories\tstep\t{lineage_id}\t{row['stepKey']}\tnote\twrite\t{len(row['notes'])} notes")
+        return
+    try:
+        row = set_step(client, lineage_id, key, state, actor=actor, reason=normalize_string(options.get("reason")),
+                       note=normalize_string(options.get("note")), evidence=normalize_string(options.get("evidence")))
+    except ChecklistError as error:
+        raise ValueError(str(error)) from error
+    print(f"stories\tstep\t{lineage_id}\t{row['stepKey']}\t{row['state']}\twrite")
+
+
+def stories_checklist_backfill(flags: list[str]) -> None:
+    """papyrus stories checklist-backfill [--dry-run] [--stage STAGE ...] [--page-size N]
+
+    The one-time sweep that gives every existing Story a checklist, published ones included (docs/story-procedure.md). Steps are marked done where a
+    record proves them (including the publish step of a published Story) and left open otherwise; the four review lenses start open. A Story that
+    already has a full checklist is left alone, so running it again is safe. Paged by stage, newest first. With --dry-run nothing is written and the
+    counts say what would be."""
+    from .story_checklist import backfill
+
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "stories checklist-backfill")
+    stages = tuple(parse_repeated_option(flags, "stage")) or None
+    client, _ = create_authoring_client()
+    from . import request_meter
+
+    with request_meter.sweep("stories-checklist-backfill"):   # a declared sweep: every Story, one stage at a time, in pages
+        counts = backfill(client, apply=apply, stages=stages, page_size=int(options.get("page-size") or 50))
+    print(f"stories\tchecklist-backfill\t{'write' if apply else 'dry run'}\t" + "\t".join(f"{name} {value}" for name, value in counts.items()))
+
+def stories_lens_check(flags: list[str]) -> None:
+    """papyrus stories lens-check --story <lineage> [--lens people|agents|search|social] [--static <web directory>] [--json]
+
+    Read only; it writes nothing. Runs the checks of the four review lenses that code can run on the Story's current version and prints each finding
+    with its state (Looks fine, Needs a look, Problem, Could not check), plain words and where to look. Three problems must be fixed before a lens
+    step can close as done: an image with no alt text, a third-party image with no credit and a Markdown copy that differs from the source.
+    --static names the site's web directory (it holds projection.json; default PAPYRUS_SITE_STATIC_DIR); without it the checks that need the site's
+    settings say they could not be checked (docs/four-lens-review.md)."""
+    from .audience_lenses import LENS_VERSION, STATE_LABELS
+    from .lens_evidence import blockers, load_site, not_run, run_checks, story_from_row, summarize
+    from .story_reporting import current_story_version
+    from .story_types import SITE_STATIC_DIRECTORY_ENV
+
+    options = parse_options(flags)
+    lineage_id = _required_option(options, "story")
+    lens = normalize_string(options.get("lens"))
+    static = normalize_string(options.get("static")) or os.environ.get(SITE_STATIC_DIRECTORY_ENV, "").strip() or None
+    client, _ = create_authoring_client()
+    story = story_from_row(current_story_version(client, lineage_id))
+    site = load_site(static)
+    findings = run_checks(story, site, lens=lens)
+    counts, problems, skipped = summarize(findings), blockers(findings), not_run(lens)
+    if options.get("json"):
+        print(json.dumps({"ok": True, "story": lineage_id, "versionId": story.version_id, "versionNumber": story.version_number, "lensVersion": LENS_VERSION,
+                          "siteSettingsRead": site is not None, "findings": findings, "counts": counts, "problems": [row["check"] for row in problems], "notRun": skipped}, indent=2))
+        return
+    print(f"stories\tlens-check\t{lineage_id}\tversion {story.version_number}\t{story.version_id}\tlens definition {LENS_VERSION}")
+    labels = dict(STATE_LABELS)
+    labels["not_applicable"] = "Not applicable"
+    for row in findings:
+        print("\t".join(["finding", row["step"], row["check"], labels[row["state"]], row["severity"] or "n/a", row["message"]]))
+    for step, found in counts.items():
+        print("\t".join(["summary", step, *(f"{label}: {found.get(state, 0)}" for state, label in STATE_LABELS)]))
+    for row in problems:
+        print("\t".join(["blocked", row["step"], row["check"], "fix this before the step can close as done", row["message"]]))
+    print(f"notrun\t{len(skipped)} checks were not run (they need a model, the rest of the site or a person): " + ", ".join(row["check"] for row in skipped))
 
 
 SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -583,7 +686,7 @@ def stories_move(flags: list[str]) -> None:
         from .story_triggers import deliver_from_environment
 
         deliver_from_environment(client, lineage_id)
-    assessment = reminder_assessment(client, lineage_id)
+    assessment = reminder_assessment(client, lineage_id, sync_checklist=True)
     if assessment is not None and result["changed"] and _moved_forward(result):
         warn_skipped(assessment)
     print_next_lines(assessment)

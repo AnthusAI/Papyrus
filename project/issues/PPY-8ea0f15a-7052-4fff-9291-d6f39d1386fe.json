@@ -7,7 +7,7 @@
   "priority": 1,
   "assignee": null,
   "creator": null,
-  "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "parent": "PPY-dbfcbcb5-8b66-4760-b6db-3eea62a35514",
   "labels": [],
   "dependencies": [
     {
@@ -19,9 +19,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7ae5e720-017a-4545-be7b-0a12fc332e8e",
+      "author": "home",
+      "text": "Build step 8 of the image toolchain, under the new epic PPY-dbfcbc. Generated from the shared operation table; waits for the hosted MCP server (PPY-2bc3e8, PR 1244) to merge.",
+      "created_at": "2026-11-07T18:39:22.132896Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-06T14:42:19.066484Z",
-  "updated_at": "2026-11-06T14:42:39.945450Z",
+  "updated_at": "2026-11-07T18:39:22.133187Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

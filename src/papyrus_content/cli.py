@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from . import request_meter
 from .operator_errors import run_with_operator_error_handling
 from .command_help import HELP_FLAGS, content_command_help, wants_help
 from .accession import (
@@ -130,6 +131,7 @@ from .model_defaults import (
     DEFAULT_REFERENCE_SUMMARY_MODEL,
 )
 from .relations_commands import relations_backfill, relations_import_types
+from .reference_reads import attachments_for_references, reference_by_token, targeted_scope
 from .references_commands import (
     references_attach_extracted_text,
     references_backfill_corpus_storage_paths,
@@ -358,6 +360,9 @@ PORTED_COMMANDS = frozenset(
         "stories:show",
         "stories:list",
         "stories:next",
+        "stories:step",
+        "stories:checklist-backfill",
+        "stories:lens-check",
         "stories:outline",
         "stories:draft",
         "stories:create",
@@ -530,6 +535,7 @@ def main(argv: list[str] | None = None) -> int:
         print_usage()
         return 1
     group, command, *rest = args
+    rest, budget_override = request_meter.split_budget_flag(rest)   # `--budget N` raises this command's request budget (logged)
     def run_dispatch() -> int:
         dispatch(group, command, rest)
         return 0
@@ -537,7 +543,10 @@ def main(argv: list[str] | None = None) -> int:
     install_site_selection()
     install_cli_body_features()
     try:
-        return run_with_operator_error_handling(run_dispatch)
+        # One metered run for the command: its AppSync requests are counted by caller and summarised on stderr when it ends (docs/request-meter.md).
+        with request_meter.run(f"cli:{group} {command}", units=request_meter.cli_units(rest), emit="stderr", budget=budget_override,
+                               sweep=request_meter.is_sweep_command(group, command)):
+            return run_with_operator_error_handling(run_dispatch)
     finally:
         uninstall_cli_body_features()
         uninstall_site_selection()
@@ -842,6 +851,18 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         stories_list(flags)
     elif route == "stories:next":
         stories_next(flags)
+    elif route == "stories:step":
+        from .story_commands import stories_step
+
+        stories_step(flags)
+    elif route == "stories:checklist-backfill":
+        from .story_commands import stories_checklist_backfill
+
+        stories_checklist_backfill(flags)
+    elif route == "stories:lens-check":
+        from .story_commands import stories_lens_check
+
+        stories_lens_check(flags)
     elif route == "stories:outline":
         from .story_writing import stories_outline
 
@@ -1462,8 +1483,7 @@ def references_accession_now(flags: list[str]) -> None:
     if not options.get("reference"):
         raise ValueError("references process-accession-now requires --reference <reference-id>.")
     client, auth = create_authoring_client()
-    references = client.list_records("Reference")
-    reference = find_reference_for_source_accession(references, options["reference"])
+    reference = find_reference_for_source_accession(reference_by_token(client, options["reference"]), options["reference"])
     if not reference:
         raise ValueError(f"Reference {options['reference']} was not found.")
     steering_config = load_steering_config(options.get("config")) or require_steering_config()
@@ -1473,7 +1493,7 @@ def references_accession_now(flags: list[str]) -> None:
         options.get("corpus-key"),
     )
     corpus_id = knowledge_corpus_id(corpus_config)
-    attachments = client.list_records("ReferenceAttachment")
+    attachments = attachments_for_references(client, [reference])
     assignments = client.list_records("Assignment")
     readiness = reference_source_readiness(reference, attachments, None)
     if readiness["state"] != SOURCE_READINESS_STATES["URL_ONLY"]:
@@ -1543,8 +1563,9 @@ def plan_reference_catalog_registration(client, options: dict[str, Any]) -> dict
         persist=bool(options.get("__apply") and catalog_path),
     )
     catalog = {**catalog, "items": catalog_items_with_external_ids(catalog)}
+    existing = None
     if options.get("skip-existing", True) is not False and str(options.get("skip-existing", "true")).lower() != "false":
-        existing = client.list_records("Reference")
+        existing = client.list_records("Reference")   # read once: the identity gate below uses this same listing
         corpus_id = knowledge_corpus_id(corpus_config)
         existing_ids = {
             ref["externalItemId"]
@@ -1567,7 +1588,7 @@ def plan_reference_catalog_registration(client, options: dict[str, Any]) -> dict
     registration_status = normalize_reference_curation_status(options.get("status"), "pending")
     skipping_existing = options.get("skip-existing", True) is not False and str(options.get("skip-existing", "true")).lower() != "false"
     fresh_items, identity_rows = split_by_identity(
-        IdentityIndex(client.list_records("Reference")), catalog_items(catalog), corpus_id=registration_corpus_id, status=registration_status,
+        IdentityIndex(existing if existing is not None else client.list_records("Reference")), catalog_items(catalog), corpus_id=registration_corpus_id, status=registration_status,
         reimport_lineage_of=None if skipping_existing else lambda item: reference_lineage_id_for(
             registration_corpus_id, str(item.get("item_id") or item.get("externalItemId") or item.get("id") or "")))
     if identity_rows:
@@ -1679,9 +1700,9 @@ def fetch_reference_url_text_after_registration(
     )
     if not reference_ids:
         return {"lines": ["references\tprocess-fetch-url-text\tskipped\tno GraphQL Reference changes"]}
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
-    semantic_relations = client.list_records("SemanticRelation")
+    # The References this registration just wrote, and nothing else; the whole tables are read only if a citation graph needs them.
+    scope = targeted_scope(client, reference_ids=reference_ids)
+    references, attachments, semantic_relations = scope["references"], scope["attachments"], scope["relations"]
     corpus_config = result.get("corpusConfig") or {}
     corpus_id = result.get("plan", {}).get("corpusId")
     max_count = normalize_non_negative_integer(options.get("url-text-max-count"), "--url-text-max-count")
@@ -1690,6 +1711,7 @@ def fetch_reference_url_text_after_registration(
     extraction = run_reference_url_text_extraction(
         client=client,
         references=references,
+        all_references=scope["all_references"],
         attachments=attachments,
         semantic_relations=semantic_relations,
         corpus_key_by_id={str(corpus_id or ""): str(corpus_config.get("key") or "")},
@@ -1756,8 +1778,8 @@ def generate_reference_metadata_after_registration(
     )
     if not reference_ids:
         return {"lines": ["references\tprocess-generate-metadata\tskipped\tno GraphQL Reference changes"]}
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
+    scope = targeted_scope(client, reference_ids=reference_ids)
+    references, attachments = scope["references"], scope["attachments"]
     corpus_id = result.get("plan", {}).get("corpusId")
     max_count = normalize_non_negative_integer(options.get("metadata-max-count"), "--metadata-max-count")
     generation = run_reference_metadata_generation_from_extracted_text(

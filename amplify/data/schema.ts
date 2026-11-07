@@ -730,6 +730,13 @@ const definitions = {
     .authorization((allow) => [allow.groups(contentWriteGroups)])
     .handler(functionHandler("contentActions", contentActions)),
 
+  setStoryStep: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(contentWriteGroups)])
+    .handler(functionHandler("contentActions", contentActions)),
+
   addStoryAgentNote: a
     .mutation()
     .arguments({ input: a.json().required() })
@@ -2287,6 +2294,8 @@ const definitions = {
       starRating: a.integer(),
       starRatedAt: a.datetime(),
       starRatedBy: a.string(),
+      /** The Item this one is a child of: a checklist step (type sub-task) names its Story's lineage here (docs/story-procedure.md). */
+      parentLineageId: a.id(),
       tags: a.hasMany("ItemTag", "itemId"),
       mediaAssets: a.hasMany("MediaAsset", "itemId"),
       ...(includeEditions ? { editionItems: a.hasMany("EditionItem", "itemId") } : {}),
@@ -2299,6 +2308,7 @@ const definitions = {
       index("sectionStatus").sortKeys(["publishedAt"]).queryField("listItemsBySectionStatusAndPublishedAt"),
       index("versionState").sortKeys(["updatedAt"]).queryField("listItemsByVersionStateAndUpdatedAt"),
       index("stage").sortKeys(["updatedAt"]).queryField("listItemsByStageAndUpdatedAt"),
+      index("parentLineageId").sortKeys(["sortTitle"]).queryField("listItemsByParentAndOrder"),
     ])
     .authorization((allow) => [
       allow.groups(contentWriteGroups),

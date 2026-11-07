@@ -99,7 +99,9 @@ def promoted_reference_ids(client: Any, records: Iterable[MonitorRecord]) -> set
     """Reference ids of ``records`` that some item already carries in its front matter (``monitorRecord.referenceId``)."""
     wanted = {record.reference_id for record in records}
     found: set[str] = set()
-    for row in client.list_records("Item"):
+    from .content_item_lifecycle import without_sub_tasks
+
+    for row in without_sub_tasks(client.list_records("Item")):
         metadata = row.get("metadata")
         text = str(metadata.get("frontMatterYaml") if isinstance(metadata, dict) else metadata or "")
         if MONITOR_RECORD_KEY in text:

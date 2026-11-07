@@ -15,9 +15,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "973183a2-067b-410e-9c1f-600c770d4d92",
+      "author": "home",
+      "text": "Build step 7 of the image toolchain: the newsroom generate panel uses the shared image operations and the review queue. Overlaps PPY-956dff (the four-option picker); build one panel against the shared operations, not two. See project/wiki/image-toolchain.md sections 8 and 9.",
+      "created_at": "2026-11-07T18:39:21.892851Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-06T14:42:19.206287Z",
-  "updated_at": "2026-11-06T14:42:39.846061Z",
+  "updated_at": "2026-11-07T18:39:21.893066Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

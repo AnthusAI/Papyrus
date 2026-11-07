@@ -1,0 +1,2746 @@
+{
+  "generatedFrom": "src/papyrus_content/images/operations.py",
+  "tools": [
+    {
+      "name": "image_profile_get",
+      "audience": "staff",
+      "description": "Read the publication's visual style profile, the current version or an older one.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "A version number; the current version when left out."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "type": "object",
+            "description": "The visual style document: a full or partial profile (design section 5.2)."
+          },
+          "itemId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "updatedAt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "updatedBy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "contentHash": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "profile",
+          "itemId",
+          "versionNumber",
+          "contentHash"
+        ]
+      }
+    },
+    {
+      "name": "image_profile_resolve",
+      "audience": "staff",
+      "description": "Show the style that would apply to a Story, section and use, with the layer every field came from.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "reference"
+                ]
+              },
+              "lineageId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The lineage id of the Story or Reference."
+              }
+            },
+            "required": [
+              "kind",
+              "lineageId"
+            ],
+            "additionalProperties": false,
+            "description": "What the picture is for: a Story or a Reference."
+          },
+          "sectionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A section id; worked out from the Story when left out."
+          },
+          "use": {
+            "type": "string",
+            "enum": [
+              "cover",
+              "inline",
+              "social"
+            ],
+            "description": "Where the picture goes: the cover, inline in the body, or a social card."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
+          }
+        },
+        "required": [
+          "use"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "resolutionHash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "profile": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Which profile version; null when the publication has none."
+          },
+          "layers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "layer": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "layer"
+              ]
+            }
+          },
+          "effective": {
+            "type": "object"
+          },
+          "fieldSources": {
+            "type": "object"
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageTypeChosenBy": {
+            "type": "string",
+            "enum": [
+              "request",
+              "default-for-use"
+            ],
+            "description": "Whether the caller named the image type or the use's default supplied it."
+          },
+          "availableTypes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "key"
+              ]
+            }
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "resolutionHash",
+          "profile",
+          "layers",
+          "effective",
+          "fieldSources",
+          "imageType",
+          "imageTypeChosenBy",
+          "availableTypes",
+          "constraints",
+          "warnings"
+        ],
+        "description": "The effective guidance. A publication with no profile gets the profile_missing warning, not an error."
+      }
+    },
+    {
+      "name": "image_profile_diff",
+      "audience": "staff",
+      "description": "Show what saving a style document would change, without saving it.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "type": "object",
+            "description": "The visual style document: a full or partial profile (design section 5.2)."
+          }
+        },
+        "required": [
+          "document"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "from": {},
+                "to": {}
+              },
+              "required": [
+                "path"
+              ]
+            }
+          },
+          "constraintChanges": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "wouldCreateVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "changes",
+          "constraintChanges",
+          "wouldCreateVersion"
+        ]
+      }
+    },
+    {
+      "name": "image_profile_save",
+      "audience": "staff",
+      "description": "Save a style document as a new profile version.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "document": {
+            "type": "object",
+            "description": "The visual style document: a full or partial profile (design section 5.2)."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          },
+          "expectedCurrentVersionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The profile's current version id when you read it."
+          }
+        },
+        "required": [
+          "document",
+          "reason",
+          "expectedCurrentVersionId"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "contentHash": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "itemId",
+          "versionNumber",
+          "contentHash"
+        ]
+      }
+    },
+    {
+      "name": "image_profile_history",
+      "audience": "staff",
+      "description": "List the profile's versions, newest first, with who changed it and why.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many versions to return."
+          },
+          "nextToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Pass this to get the next page. Absent when there is no more."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "versions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "versionNumber": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "at": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "by": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "byKind": {
+                  "type": "string",
+                  "enum": [
+                    "human",
+                    "agent"
+                  ]
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "contentHash": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "versionNumber",
+                "at",
+                "by",
+                "byKind",
+                "contentHash"
+              ]
+            }
+          },
+          "nextToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Pass this to get the next page. Absent when there is no more."
+          }
+        },
+        "required": [
+          "versions"
+        ]
+      }
+    },
+    {
+      "name": "image_profile_example_add",
+      "audience": "staff",
+      "description": "Add an example or an avoid-this picture to the profile, as a new version.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "uploadId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The id of a picture already uploaded through the newsroom's upload step."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "exemplar",
+              "negative"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why this picture is a good example, or what to avoid."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The image type this example belongs to, or identity for a brand-wide example."
+          },
+          "sendToProvider": {
+            "type": "boolean",
+            "description": "Send it to the image model as a style reference. Default false."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          },
+          "expectedCurrentVersionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The profile's current version id when you read it."
+          }
+        },
+        "required": [
+          "uploadId",
+          "imageType",
+          "kind",
+          "note",
+          "reason",
+          "expectedCurrentVersionId"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "minLength": 1
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "attachmentId",
+          "sha256",
+          "versionNumber"
+        ]
+      }
+    },
+    {
+      "name": "image_profile_example_remove",
+      "audience": "staff",
+      "description": "Remove an example picture from the profile, as a new version.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          },
+          "expectedCurrentVersionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The profile's current version id when you read it."
+          }
+        },
+        "required": [
+          "attachmentId",
+          "reason",
+          "expectedCurrentVersionId"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "versionNumber"
+        ]
+      }
+    },
+    {
+      "name": "image_capabilities",
+      "audience": "staff",
+      "description": "Say which image models this site can use and whether spending is approved.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "approvedForSpend": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured",
+          "models",
+          "approvedForSpend"
+        ]
+      }
+    },
+    {
+      "name": "image_brief_draft",
+      "audience": "staff",
+      "description": "Work out a starting brief and stock search from a Story's title and deck.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "reference"
+                ]
+              },
+              "lineageId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The lineage id of the Story or Reference."
+              }
+            },
+            "required": [
+              "kind",
+              "lineageId"
+            ],
+            "additionalProperties": false,
+            "description": "What the picture is for: a Story or a Reference."
+          },
+          "use": {
+            "type": "string",
+            "enum": [
+              "cover",
+              "inline",
+              "social"
+            ],
+            "description": "Where the picture goes: the cover, inline in the body, or a social card."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
+          }
+        },
+        "required": [
+          "target",
+          "use"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "brief": {
+            "type": "string",
+            "minLength": 1
+          },
+          "searchTarget": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageTypeChosenBy": {
+            "type": "string",
+            "enum": [
+              "request",
+              "default-for-use"
+            ],
+            "description": "Whether the caller named the image type or the use's default supplied it."
+          },
+          "typeChoices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sources": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "key"
+              ]
+            }
+          },
+          "derivedFrom": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "workedOut": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "brief",
+          "searchTarget",
+          "derivedFrom",
+          "workedOut"
+        ]
+      }
+    },
+    {
+      "name": "image_prompt_preview",
+      "audience": "staff",
+      "description": "Show exactly what would be asked of the image model, and what it would cost, without making anything.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "reference"
+                ]
+              },
+              "lineageId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The lineage id of the Story or Reference."
+              }
+            },
+            "required": [
+              "kind",
+              "lineageId"
+            ],
+            "additionalProperties": false,
+            "description": "What the picture is for: a Story or a Reference."
+          },
+          "use": {
+            "type": "string",
+            "enum": [
+              "cover",
+              "inline",
+              "social"
+            ],
+            "description": "Where the picture goes: the cover, inline in the body, or a social card."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
+          },
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the picture should show. The publication's style rules are added by the service, never written here."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many to make (default 1). More than 1 is for a person choosing; an agent asking for more gets set_needs_person."
+          },
+          "spread": {
+            "type": "string",
+            "enum": [
+              "variations",
+              "types"
+            ],
+            "description": "Four takes of one image type, or one take of each type the use allows that can be generated."
+          },
+          "imageTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Image types to spread across, from the profile."
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A configured, approved model. Recorded as requested and never swapped."
+          },
+          "acceptFallback": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Id of a fallback offered in a capability_unsupported error, to use instead."
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Example ids of the chosen image type to send as style references. Nothing else is accepted."
+          },
+          "speed": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "standard",
+              "batch"
+            ],
+            "description": "Which lane: auto picks by who is asking (a person standard, an agent batch at half price)."
+          }
+        },
+        "required": [
+          "target",
+          "use",
+          "brief"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "plans": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "estimate": {
+            "type": "object",
+            "properties": {
+              "priced": {
+                "type": "boolean",
+                "description": "False means the model has no price on file yet. Unpriced is never free."
+              },
+              "usd": {
+                "type": "number"
+              },
+              "perCandidate": {
+                "type": "number"
+              },
+              "basis": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "priced"
+            ],
+            "description": "What it would cost; spends nothing."
+          },
+          "capabilityCheck": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "plans",
+          "estimate",
+          "capabilityCheck"
+        ]
+      }
+    },
+    {
+      "name": "image_search",
+      "audience": "staff",
+      "description": "Find stock pictures for a Story, four at a time.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "reference"
+                ]
+              },
+              "lineageId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The lineage id of the Story or Reference."
+              }
+            },
+            "required": [
+              "kind",
+              "lineageId"
+            ],
+            "additionalProperties": false,
+            "description": "What the picture is for: a Story or a Reference."
+          },
+          "use": {
+            "type": "string",
+            "enum": [
+              "cover",
+              "inline",
+              "social"
+            ],
+            "description": "Where the picture goes: the cover, inline in the body, or a social card."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Search words; worked out from the Story when left out."
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A stock source, for example wikimedia-commons."
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The nextCursor of the previous page."
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Candidate ids already shown, which never come back."
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageTypeChosenBy": {
+            "type": "string",
+            "enum": [
+              "request",
+              "default-for-use"
+            ],
+            "description": "Whether the caller named the image type or the use's default supplied it."
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "candidateRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Opaque reference to pass to image_select or image_apply."
+                },
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sourceLabel": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": {
+                  "type": "string"
+                },
+                "creator": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "licence": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": []
+                },
+                "sourceUrl": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "imageUrl": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "candidateRef",
+                "id",
+                "source",
+                "title",
+                "creator",
+                "licence",
+                "sourceUrl",
+                "imageUrl"
+              ]
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "searched": {
+            "type": "string",
+            "minLength": 1
+          },
+          "searchedFromStory": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "candidates",
+          "nextCursor",
+          "searched",
+          "searchedFromStory"
+        ]
+      }
+    },
+    {
+      "name": "image_generate",
+      "audience": "staff",
+      "description": "Make pictures from a brief in the publication's style. The pictures arrive later.",
+      "agentAllowed": true,
+      "effect": "spend",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "reference"
+                ]
+              },
+              "lineageId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The lineage id of the Story or Reference."
+              }
+            },
+            "required": [
+              "kind",
+              "lineageId"
+            ],
+            "additionalProperties": false,
+            "description": "What the picture is for: a Story or a Reference."
+          },
+          "use": {
+            "type": "string",
+            "enum": [
+              "cover",
+              "inline",
+              "social"
+            ],
+            "description": "Where the picture goes: the cover, inline in the body, or a social card."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
+          },
+          "brief": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What the picture should show. The publication's style rules are added by the service, never written here."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many to make (default 1). More than 1 is for a person choosing; an agent asking for more gets set_needs_person."
+          },
+          "spread": {
+            "type": "string",
+            "enum": [
+              "variations",
+              "types"
+            ],
+            "description": "Four takes of one image type, or one take of each type the use allows that can be generated."
+          },
+          "imageTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Image types to spread across, from the profile."
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A configured, approved model. Recorded as requested and never swapped."
+          },
+          "acceptFallback": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Id of a fallback offered in a capability_unsupported error, to use instead."
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Example ids of the chosen image type to send as style references. Nothing else is accepted."
+          },
+          "speed": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "standard",
+              "batch"
+            ],
+            "description": "Which lane: auto picks by who is asking (a person standard, an agent batch at half price)."
+          }
+        },
+        "required": [
+          "target",
+          "use",
+          "brief"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "roundId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageTypeChosenBy": {
+            "type": "string",
+            "enum": [
+              "request",
+              "default-for-use"
+            ],
+            "description": "Whether the caller named the image type or the use's default supplied it."
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "position": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "pending",
+                    "running",
+                    "ready",
+                    "failed",
+                    "rejected",
+                    "applied",
+                    "unapplied",
+                    "expired"
+                  ]
+                },
+                "treatment": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "imageType": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "generated",
+                    "stock",
+                    "figure"
+                  ]
+                },
+                "lane": {
+                  "type": "string",
+                  "enum": [
+                    "standard",
+                    "batch"
+                  ]
+                },
+                "reviewStatus": {
+                  "type": "string",
+                  "enum": [
+                    "unreviewed",
+                    "human-verified"
+                  ]
+                },
+                "previewUrl": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Short-lived signed address of the picture."
+                },
+                "retryOf": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "error": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "message": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "retryable": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "position",
+                "status"
+              ]
+            }
+          },
+          "estimate": {
+            "type": "object",
+            "properties": {
+              "priced": {
+                "type": "boolean",
+                "description": "False means the model has no price on file yet. Unpriced is never free."
+              },
+              "usd": {
+                "type": "number"
+              },
+              "perCandidate": {
+                "type": "number"
+              },
+              "basis": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "priced"
+            ],
+            "description": "What it would cost; spends nothing."
+          }
+        },
+        "required": [
+          "roundId",
+          "candidates"
+        ],
+        "description": "Returned at once; the pictures arrive later (image_round_get)."
+      }
+    },
+    {
+      "name": "image_figure_add",
+      "audience": "staff",
+      "description": "Record a figure drawn with the publication's figure system as a picture to preview, review and apply. It draws and generates nothing.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "reference"
+                ]
+              },
+              "lineageId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The lineage id of the Story or Reference."
+              }
+            },
+            "required": [
+              "kind",
+              "lineageId"
+            ],
+            "additionalProperties": false,
+            "description": "What the picture is for: a Story or a Reference."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The image type the figure is for, such as cover-diagram. It must allow the figure-system source."
+          },
+          "uploadIds": {
+            "type": "object",
+            "properties": {
+              "light": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The id of the uploaded light PNG."
+              },
+              "dark": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The id of the uploaded dark PNG."
+              }
+            },
+            "required": [
+              "light"
+            ],
+            "additionalProperties": false,
+            "description": "Pictures already uploaded through the newsroom's upload step."
+          },
+          "figureId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The id of the figure record, once the backend stores figures (PPY-cd4585)."
+          },
+          "figure": {
+            "type": "object",
+            "properties": {
+              "audience": {
+                "type": "string",
+                "minLength": 1
+              },
+              "shows": {
+                "type": "string",
+                "minLength": 1
+              },
+              "complements": {
+                "type": "string",
+                "minLength": 1
+              },
+              "approvedBy": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "audience",
+              "shows",
+              "complements"
+            ],
+            "additionalProperties": false,
+            "description": "The figure.json acceptance fields."
+          }
+        },
+        "required": [
+          "target",
+          "imageType",
+          "figure"
+        ],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "uploadIds"
+            ]
+          },
+          {
+            "required": [
+              "figureId"
+            ]
+          }
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "figure"
+            ]
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "candidateId",
+          "origin",
+          "checks"
+        ]
+      }
+    },
+    {
+      "name": "image_round_get",
+      "audience": "staff",
+      "description": "Read a round of pictures and say whether they are all done.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "roundId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "roundId"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "roundId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "reference"
+                ]
+              },
+              "lineageId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The lineage id of the Story or Reference."
+              }
+            },
+            "required": [
+              "kind",
+              "lineageId"
+            ],
+            "additionalProperties": false,
+            "description": "What the picture is for: a Story or a Reference."
+          },
+          "use": {
+            "type": "string",
+            "enum": [
+              "cover",
+              "inline",
+              "social"
+            ],
+            "description": "Where the picture goes: the cover, inline in the body, or a social card."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "brief": {
+            "type": "string"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "position": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "pending",
+                    "running",
+                    "ready",
+                    "failed",
+                    "rejected",
+                    "applied",
+                    "unapplied",
+                    "expired"
+                  ]
+                },
+                "treatment": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "imageType": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "generated",
+                    "stock",
+                    "figure"
+                  ]
+                },
+                "lane": {
+                  "type": "string",
+                  "enum": [
+                    "standard",
+                    "batch"
+                  ]
+                },
+                "reviewStatus": {
+                  "type": "string",
+                  "enum": [
+                    "unreviewed",
+                    "human-verified"
+                  ]
+                },
+                "previewUrl": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Short-lived signed address of the picture."
+                },
+                "retryOf": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "error": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "message": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "retryable": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "position",
+                "status"
+              ]
+            }
+          },
+          "done": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "roundId",
+          "target",
+          "use",
+          "candidates",
+          "done"
+        ]
+      }
+    },
+    {
+      "name": "image_candidate_get",
+      "audience": "staff",
+      "description": "Read one picture's full record, with a short-lived preview address.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "candidateId"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "candidate": {
+            "type": "object",
+            "description": "The full ImageCandidate record."
+          },
+          "previewUrl": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "candidate"
+        ]
+      }
+    },
+    {
+      "name": "image_list",
+      "audience": "staff",
+      "description": "List the rounds and pictures made for a Story or Reference, newest first.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "reference"
+                ]
+              },
+              "lineageId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The lineage id of the Story or Reference."
+              }
+            },
+            "required": [
+              "kind",
+              "lineageId"
+            ],
+            "additionalProperties": false,
+            "description": "What the picture is for: a Story or a Reference."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "pending",
+              "running",
+              "ready",
+              "failed",
+              "rejected",
+              "applied",
+              "unapplied",
+              "expired"
+            ]
+          },
+          "nextToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Pass this to get the next page. Absent when there is no more."
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "rounds": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "roundId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "use": {
+                  "type": "string",
+                  "enum": [
+                    "cover",
+                    "inline",
+                    "social"
+                  ],
+                  "description": "Where the picture goes: the cover, inline in the body, or a social card."
+                },
+                "imageType": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "brief": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "candidates": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "position": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "queued",
+                          "pending",
+                          "running",
+                          "ready",
+                          "failed",
+                          "rejected",
+                          "applied",
+                          "unapplied",
+                          "expired"
+                        ]
+                      },
+                      "treatment": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "imageType": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "origin": {
+                        "type": "string",
+                        "enum": [
+                          "generated",
+                          "stock",
+                          "figure"
+                        ]
+                      },
+                      "lane": {
+                        "type": "string",
+                        "enum": [
+                          "standard",
+                          "batch"
+                        ]
+                      },
+                      "reviewStatus": {
+                        "type": "string",
+                        "enum": [
+                          "unreviewed",
+                          "human-verified"
+                        ]
+                      },
+                      "previewUrl": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Short-lived signed address of the picture."
+                      },
+                      "retryOf": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "error": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "message": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "retryable": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "code",
+                          "message"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "position",
+                      "status"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "roundId",
+                "candidates"
+              ]
+            }
+          },
+          "nextToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Pass this to get the next page. Absent when there is no more."
+          }
+        },
+        "required": [
+          "rounds"
+        ]
+      }
+    },
+    {
+      "name": "image_retry",
+      "audience": "staff",
+      "description": "Make a new picture to replace one that failed. The ones that worked stay.",
+      "agentAllowed": true,
+      "effect": "spend",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A failed picture."
+          },
+          "speed": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "standard",
+              "batch"
+            ],
+            "description": "Lane for the new picture; a batch failure retries as batch by default."
+          }
+        },
+        "required": [
+          "candidateId"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "roundId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidate": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "position": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "pending",
+                  "running",
+                  "ready",
+                  "failed",
+                  "rejected",
+                  "applied",
+                  "unapplied",
+                  "expired"
+                ]
+              },
+              "treatment": {
+                "type": "string",
+                "minLength": 1
+              },
+              "imageType": {
+                "type": "string",
+                "minLength": 1
+              },
+              "origin": {
+                "type": "string",
+                "enum": [
+                  "generated",
+                  "stock",
+                  "figure"
+                ]
+              },
+              "lane": {
+                "type": "string",
+                "enum": [
+                  "standard",
+                  "batch"
+                ]
+              },
+              "reviewStatus": {
+                "type": "string",
+                "enum": [
+                  "unreviewed",
+                  "human-verified"
+                ]
+              },
+              "previewUrl": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Short-lived signed address of the picture."
+              },
+              "retryOf": {
+                "type": "string",
+                "minLength": 1
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "retryable": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "code",
+                  "message"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "position",
+              "status"
+            ]
+          },
+          "estimate": {
+            "type": "object",
+            "properties": {
+              "priced": {
+                "type": "boolean",
+                "description": "False means the model has no price on file yet. Unpriced is never free."
+              },
+              "usd": {
+                "type": "number"
+              },
+              "perCandidate": {
+                "type": "number"
+              },
+              "basis": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "priced"
+            ],
+            "description": "What it would cost; spends nothing."
+          }
+        },
+        "required": [
+          "roundId",
+          "candidate"
+        ],
+        "description": "The new picture, with retryOf naming the failed one."
+      }
+    },
+    {
+      "name": "image_iterate",
+      "audience": "staff",
+      "description": "Make new pictures from one you have, with an instruction such as 'less busy'.",
+      "agentAllowed": true,
+      "effect": "spend",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "instruction": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What to change, in plain words."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many to make (default 1). More than 1 is for a person choosing."
+          },
+          "useAsReference": {
+            "type": "boolean",
+            "description": "Send the picture to the model as a reference. Default true when the model can edit."
+          }
+        },
+        "required": [
+          "candidateId",
+          "instruction"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "roundId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageTypeChosenBy": {
+            "type": "string",
+            "enum": [
+              "request",
+              "default-for-use"
+            ],
+            "description": "Whether the caller named the image type or the use's default supplied it."
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "position": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "pending",
+                    "running",
+                    "ready",
+                    "failed",
+                    "rejected",
+                    "applied",
+                    "unapplied",
+                    "expired"
+                  ]
+                },
+                "treatment": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "imageType": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "generated",
+                    "stock",
+                    "figure"
+                  ]
+                },
+                "lane": {
+                  "type": "string",
+                  "enum": [
+                    "standard",
+                    "batch"
+                  ]
+                },
+                "reviewStatus": {
+                  "type": "string",
+                  "enum": [
+                    "unreviewed",
+                    "human-verified"
+                  ]
+                },
+                "previewUrl": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Short-lived signed address of the picture."
+                },
+                "retryOf": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "error": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "message": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "retryable": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "position",
+                "status"
+              ]
+            }
+          },
+          "estimate": {
+            "type": "object",
+            "properties": {
+              "priced": {
+                "type": "boolean",
+                "description": "False means the model has no price on file yet. Unpriced is never free."
+              },
+              "usd": {
+                "type": "number"
+              },
+              "perCandidate": {
+                "type": "number"
+              },
+              "basis": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "priced"
+            ],
+            "description": "What it would cost; spends nothing."
+          }
+        },
+        "required": [
+          "roundId",
+          "candidates"
+        ],
+        "description": "Returned at once; the pictures arrive later (image_round_get)."
+      }
+    },
+    {
+      "name": "image_select",
+      "audience": "staff",
+      "description": "Record a picture as the pick. It changes no Story and is not approval.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidateRef": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A stock picture's reference from image_search."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "candidateId"
+            ]
+          },
+          {
+            "required": [
+              "candidateRef"
+            ]
+          }
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selection": {
+            "type": "object",
+            "properties": {
+              "by": {
+                "type": "string",
+                "minLength": 1
+              },
+              "byKind": {
+                "type": "string",
+                "enum": [
+                  "human",
+                  "agent"
+                ]
+              },
+              "delegatedBy": {
+                "type": "string",
+                "minLength": 1
+              },
+              "at": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "by",
+              "byKind",
+              "at",
+              "reason"
+            ]
+          }
+        },
+        "required": [
+          "candidateId",
+          "selection"
+        ]
+      }
+    },
+    {
+      "name": "image_unapply",
+      "audience": "staff",
+      "description": "Undo an applied picture: the Story gets a new version with the old cover or the placeholder back.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "reference"
+                ]
+              },
+              "lineageId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The lineage id of the Story or Reference."
+              }
+            },
+            "required": [
+              "kind",
+              "lineageId"
+            ],
+            "additionalProperties": false,
+            "description": "What the picture is for: a Story or a Reference."
+          },
+          "mediaAssetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expectedCurrentVersionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Story's current version id when you read it. The write is refused with stale_version if the Story has moved on."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          },
+          "save": {
+            "type": "boolean",
+            "description": "Make the new Story version now (default true). The newsroom editor passes false and saves itself."
+          }
+        },
+        "required": [
+          "target",
+          "mediaAssetId",
+          "expectedCurrentVersionId",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "patch": {
+            "type": "object"
+          },
+          "restored": {
+            "type": "string",
+            "enum": [
+              "previous-cover",
+              "placeholder"
+            ]
+          },
+          "savedVersion": {
+            "type": "object",
+            "properties": {
+              "versionId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "versionNumber": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": []
+          }
+        },
+        "required": [
+          "patch",
+          "restored"
+        ]
+      }
+    },
+    {
+      "name": "image_review",
+      "audience": "staff",
+      "description": "Keep or remove a picture that was added without a person looking at it. Only a person may.",
+      "agentAllowed": false,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mediaAssetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "remove"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expectedCurrentVersionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Needed to remove: the Story's current version id when you read it."
+          }
+        },
+        "required": [
+          "mediaAssetId",
+          "decision"
+        ],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "mediaAssetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "remove"
+            ]
+          },
+          "reviewStatus": {
+            "type": "string",
+            "enum": [
+              "unreviewed",
+              "human-verified"
+            ]
+          },
+          "savedVersion": {
+            "type": "object",
+            "properties": {
+              "versionId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "versionNumber": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": []
+          }
+        },
+        "required": [
+          "mediaAssetId",
+          "decision",
+          "reviewStatus"
+        ]
+      }
+    },
+    {
+      "name": "image_review_queue",
+      "audience": "staff",
+      "description": "List the pictures that were added without a person, oldest first.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nextToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Pass this to get the next page. Absent when there is no more."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "mediaAssetId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "target": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "story",
+                        "reference"
+                      ]
+                    },
+                    "lineageId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "The lineage id of the Story or Reference."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "lineageId"
+                  ],
+                  "additionalProperties": false,
+                  "description": "What the picture is for: a Story or a Reference."
+                },
+                "candidateId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "appliedAt": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "appliedBy": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "reviewRequestId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "previewUrl": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "mediaAssetId",
+                "target"
+              ]
+            }
+          },
+          "nextToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Pass this to get the next page. Absent when there is no more."
+          }
+        },
+        "required": [
+          "items"
+        ]
+      }
+    },
+    {
+      "name": "image_apply",
+      "audience": "staff",
+      "description": "Put a picture on a Story: copy it into the site's media and record where it came from. It never publishes.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "candidateRef": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A stock picture's reference from image_search."
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "story",
+                  "reference"
+                ]
+              },
+              "lineageId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The lineage id of the Story or Reference."
+              }
+            },
+            "required": [
+              "kind",
+              "lineageId"
+            ],
+            "additionalProperties": false,
+            "description": "What the picture is for: a Story or a Reference."
+          },
+          "use": {
+            "type": "string",
+            "enum": [
+              "cover",
+              "inline",
+              "social"
+            ],
+            "description": "Where the picture goes: the cover, inline in the body, or a social card."
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A key from the profile's imageTypes, such as cover-illustration. Omit for a cover or social card to get the publication's default; inside the article you must name one."
+          },
+          "alt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Alt text; the picture's own draft when left out."
+          },
+          "caption": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expectedCurrentVersionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The Story's current version id when you read it. The write is refused with stale_version if the Story has moved on."
+          },
+          "save": {
+            "type": "boolean",
+            "description": "Make the new Story version now (default true). The newsroom editor passes false and saves itself."
+          }
+        },
+        "required": [
+          "target",
+          "use",
+          "expectedCurrentVersionId"
+        ],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "candidateId"
+            ]
+          },
+          {
+            "required": [
+              "candidateRef"
+            ]
+          }
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "patch": {
+            "type": "object",
+            "properties": {
+              "bodyDirective": {
+                "type": "string",
+                "minLength": 1
+              },
+              "frontMatter": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "bodyDirective",
+              "frontMatter"
+            ]
+          },
+          "mediaAsset": {
+            "type": "object"
+          },
+          "imageType": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reviewStatus": {
+            "type": "string",
+            "enum": [
+              "unreviewed",
+              "human-verified"
+            ]
+          },
+          "reviewRequestId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "savedVersion": {
+            "type": "object",
+            "properties": {
+              "versionId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "versionNumber": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": []
+          }
+        },
+        "required": [
+          "patch",
+          "mediaAsset",
+          "reviewStatus"
+        ]
+      }
+    },
+    {
+      "name": "image_discard",
+      "audience": "staff",
+      "description": "Reject a picture, or a whole round (which keeps the placeholder). The private file is deleted; the record stays.",
+      "agentAllowed": true,
+      "effect": "write",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "candidateId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "roundId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Why, in plain words. It is recorded with who and when."
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "candidateId"
+            ]
+          },
+          {
+            "required": [
+              "roundId"
+            ]
+          }
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "discarded": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "The ids of the pictures that were discarded."
+          }
+        },
+        "required": [
+          "discarded"
+        ]
+      }
+    }
+  ]
+}

@@ -17,10 +17,17 @@
       "text": "Ryan 2026-11-07: claimed and in progress. Each Story gets four separate checklist items, one per lens (people, AI reader agents, search crawlers, social previews), in the per-Story editorial checklist shown as Kanbus sub-tasks (branch feat/story-checklist). Done needs a findings note; skipped or not applicable needs a reason; an open lens step blocks publishing. Next in this issue: what each lens checks, and the final approval.",
       "created_at": "2026-11-07T16:57:12.282140Z",
       "comment_type": "default"
+    },
+    {
+      "id": "37d4d61c-366e-42a8-adce-6a2b4af3281f",
+      "author": "home",
+      "text": "Steps 1 and 2 of the four-lens review are merged to develop: the lens definitions and agent context layer (AnthusAI/Papyrus#1281) and the lens-check command with the shared share-preview function (#1284). lens-check reads the four review sub-tasks from the Story checklist (#1282). Still to build, from the design in the agent's report: model-judged checks, stored evidence, enforcing 'cannot close as done' for the three error checks, the final review panel with approval, site policy lines, and post-publish checks. Ryan's answers are recorded in the story-checklist notes.",
+      "created_at": "2026-11-07T19:36:22.580268Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-06T20:14:14.871667Z",
-  "updated_at": "2026-11-07T16:57:12.282354Z",
+  "updated_at": "2026-11-07T19:36:22.580537Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

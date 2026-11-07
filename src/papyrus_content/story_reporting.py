@@ -287,6 +287,9 @@ def create_story(client, *, title: str, section_key: str | None, stage: str = "i
         lineage_id=lineage_id, title=title, summary=summary or title, section_key=section_key, stage=stage, actor_label=actor, now=now
     )
     apply_record_changes(client, build_record_changes(client, [{"modelName": "Item", "expected": item}]))
+    from .story_checklist import ensure_for_new_story
+
+    ensure_for_new_story(client, lineage_id)   # every path that makes a Story makes its checklist
     return item
 
 
@@ -320,6 +323,9 @@ def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason:
     moves.append({"at": now, "from": previous, "to": stage, "by": actor, "reason": reason})
     metadata[STAGE_MOVES_KEY] = moves[-MAX_STAGE_MOVES:]
     client.update_record("Item", {"id": latest["id"], "stage": stage, "updatedAt": now, "metadata": to_aws_json(metadata)})
+    from .story_checklist import sync_quietly
+
+    sync_quietly(client, lineage_id)   # a change: the checklist catches up with the template and the evidence
     return {"changed": True, "stage": stage, "from": previous, "itemId": latest["id"]}
 
 

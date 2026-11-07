@@ -41,14 +41,14 @@ def test_filing_the_same_idea_again_finds_the_item_and_changes_nothing():
     first = file_idea_item(client, draft(), now=NOW, source_text_reader=reader)
     second = file_idea_item(client, draft(ideaId="idea-2", runId="run-2"), now=NOW, source_text_reader=reader)
     assert not second["created"] and second["itemId"] == first["itemId"]
-    assert len(client.list_records("Item")) == 1 and len(client.tables["SemanticRelation"]) == 1
+    assert len(without_sub_tasks(client.list_records("Item"))) == 1 and len(client.tables["SemanticRelation"]) == 1
 
 
 def test_a_body_that_copies_the_reference_is_refused_and_nothing_is_written():
     client = backend()
     with pytest.raises(StoryCopiedFromReference):
         file_idea_item(client, draft(body="Our view. " + SOURCE_TEXT + "\n"), now=NOW, source_text_reader=reader)
-    assert client.list_records("Item") == [] and not client.tables.get("SemanticRelation")
+    assert without_sub_tasks(client.list_records("Item")) == [] and not client.tables.get("SemanticRelation")
 
 
 def test_the_store_reads_ideas_as_drafts_and_a_spiked_one_counts_as_declined():
@@ -73,10 +73,10 @@ def test_the_migration_converts_open_proposals_and_skips_decided_covered_and_dup
     dry = migrate(client, proposals, write=False)
     assert [(e["proposalId"], e["action"], e.get("reason")) for e in dry["entries"]] == [
         ("prop-a", "convert", None), ("prop-c", "skip", "decided"), ("prop-d", "convert", None), ("prop-b", "skip", "duplicate")]
-    assert dry["written"] == 0 and client.list_records("Item") == []
+    assert dry["written"] == 0 and without_sub_tasks(client.list_records("Item")) == []
     done = migrate(client, proposals, write=True, source_text_reader=reader, now=NOW)
     assert done["counts"]["convert"] == 1 and done["counts"].get("failed") == 1   # prop-d cites a Reference that does not exist
-    [item] = client.list_records("Item")
+    [item] = without_sub_tasks(client.list_records("Item"))
     assert item["stage"] == "idea" and generated_of(item)["migratedFromProposal"] == "prop-a"
     again = plan(client, proposals)
     assert [e["reason"] for e in again if e["action"] == "skip" and e["proposalId"] in ("prop-a", "prop-b")] == ["already_covered", "already_covered"]
@@ -111,7 +111,7 @@ def test_an_error_violation_refuses_the_filing_and_writes_nothing():
     with pytest.raises(IdeaRefused) as refusal:
         file_idea_item(client, draft(), now=NOW, source_text_reader=reader, gate=gate)
     assert [f["severity"] for f in refusal.value.findings] == ["error"] and "production-claims" in str(refusal.value)
-    assert client.list_records("Item") == [] and gate.recorded == []
+    assert without_sub_tasks(client.list_records("Item")) == [] and gate.recorded == []
 
 
 def test_warnings_are_kept_on_the_item_and_stored_as_its_check_run():
@@ -155,6 +155,7 @@ def test_the_batch_review_lists_clean_ideas_first():
 
 
 from papyrus_content.ideas.labels import decision_of, export_rows, feedback_entries  # noqa: E402
+from papyrus_content.content_item_lifecycle import without_sub_tasks
 
 
 def decided_world():
@@ -170,7 +171,7 @@ def decided_world():
 
 def test_the_first_move_out_of_the_idea_stage_is_the_decision():
     client, accepted, declined, pending = decided_world()
-    items = {row["lineageId"]: row for row in client.list_records("Item")}
+    items = {row["lineageId"]: row for row in without_sub_tasks(client.list_records("Item"))}
     assert decision_of(items[accepted])["label"] == "include" and decision_of(items[declined])["label"] == "exclude" and decision_of(items[pending]) is None
     assert decision_of(items[declined])["reason"].startswith("Too basic")
 

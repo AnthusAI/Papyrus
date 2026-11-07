@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from .content_item_lifecycle import without_sub_tasks
 from .auto_accept import DEFAULT_PRECISION
 from .monitoring_router import human_actor
 from .priming_export import compose_text, iso_day, machine_story_actor, row, scrubbed
@@ -229,7 +230,7 @@ def load_pack_examples(client: Any, corpus_id: str | None = None) -> list[Learni
     from .reference_links import REFERENCE_LINK_FEED_KEY
     from .story_from_reference import _current_versions
 
-    ideas = [(item, generated) for item in _current_versions(client.list_records("Item")) if (generated := generated_of(item)) is not None]
+    ideas = [(item, generated) for item in _current_versions(without_sub_tasks(client.list_records("Item"))) if (generated := generated_of(item)) is not None]
     edges = [{"subject": relation["subjectLineageId"], "object": relation["objectLineageId"],
               "humanDecided": human_actor(str(_metadata(relation).get("decidedBy") or ""))}
              for relation in client.list_by_index(FEED_INDEX, REFERENCE_LINK_FEED_KEY)

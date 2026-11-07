@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "9a536c7e-a9c3-4ed2-909e-cfa15668695f",
+  "issue_id": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-07T18:39:21.560Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Shared image curation and generation for CLI, MCP, and newsroom",
+        "to": "Image operations: one definition behind the CLI, MCP, skill and newsroom"
+      }
+    }
+  }
+}

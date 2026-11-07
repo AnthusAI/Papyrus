@@ -15,9 +15,24 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c6d1cdac-667e-4da4-8b0e-2daab0e2bdc7",
+      "author": "home",
+      "text": "Build step 4 of the image toolchain: search and stock apply through the shared service. The Commons adapter is ported to Python behind image_search, with shared test vectors with the TypeScript code; server-side image_apply and image_unapply reuse the media key rule. See project/wiki/image-toolchain.md section 9.",
+      "created_at": "2026-11-07T18:39:22.053489Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e9f239ce-608b-439f-b5c3-255aa92e3658",
+      "author": "home",
+      "text": "Revised 2026-11-07: this step now also adds image_figure_add for figure-system image types (uploaded light and dark PNG plus figure.json now; the PPY-cd4585 figure record id once it exists), with the thumbnail preview. See project/wiki/image-toolchain.md section 9.",
+      "created_at": "2026-11-07T19:38:36.305360Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-06T14:42:18.621457Z",
-  "updated_at": "2026-11-06T14:42:39.370699Z",
+  "updated_at": "2026-11-07T19:38:36.305607Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

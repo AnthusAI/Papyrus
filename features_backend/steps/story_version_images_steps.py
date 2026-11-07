@@ -245,7 +245,7 @@ def step_save_again(context):
 
 
 def versions(context):
-    return sorted(context.client.tables["Item"].values(), key=lambda row: int(row["versionNumber"]))
+    return sorted((row for row in context.client.tables["Item"].values() if row.get("type") != "sub-task"), key=lambda row: int(row["versionNumber"]))   # the Story's versions, not its checklist steps
 
 
 def new_version(context):
@@ -287,7 +287,7 @@ def step_text_no_dark(context, src):
 @given("the story's address becomes \"{slug}\"")
 @when("the story's address becomes \"{slug}\"")
 def step_address(context, slug):
-    for row in context.client.tables["Item"].values():
+    for row in [row for row in context.client.tables["Item"].values() if row.get("type") != "sub-task"]:
         context.client.update_record("Item", {"id": row["id"], "slug": slug})
 
 

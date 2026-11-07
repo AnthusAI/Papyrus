@@ -11,7 +11,7 @@ item version id is not a lineage). Read the story's current version, its linked
 References (`papyrus stories show --story LINEAGE`), and any reporting packets.
 Do not substitute assumptions for missing reporting.
 
-The order of the steps for a Story, and what comes next, is defined once in [docs/story-procedure.md](../../../docs/story-procedure.md); run `papyrus stories next --story LINEAGE` to see it.
+The order of the steps for a Story, and what comes next, is defined once in [docs/story-procedure.md](../../../docs/story-procedure.md); run `papyrus stories next --story LINEAGE` to see it. Every Story has a checklist made from it: record a step you skip or find not applicable with `papyrus stories step --story LINEAGE --step KEY --state skipped|not_applicable --reason "why" --agent NAME` (a skip without a reason is refused), and a review step is done only with a findings note. An open required step blocks publishing.
 
 ## Fetch guidance first
 

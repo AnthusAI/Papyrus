@@ -9,6 +9,7 @@ REQUIRES_CYCLOTRON_TAG = "requires-cyclotron"
 CYCLOTRON_MODULE = "decision_flywheel"
 OPERATOR_TAG = "operator"
 WORK_IN_PROGRESS_TAG = "wip"
+CHECKLIST_GATE_TAG = "checklist-gate"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OPERATOR_FIXTURE_ROOT = REPO_ROOT / "features_backend" / "fixtures" / "operator-cli"
 
@@ -33,6 +34,12 @@ def before_scenario(context, scenario):
     from papyrus_content import multi_search_research
 
     multi_search_research.fetch_source = lambda url: None     # no scenario reaches the network; one that reads pages passes its own reader
+    if CHECKLIST_GATE_TAG not in scenario.effective_tags:
+        # Publishing refuses while a required checklist step is open (docs/story-procedure.md). Scenarios about something else publish Stories freely;
+        # only the features tagged @checklist-gate exercise the rule, with the real checklist.
+        from unittest import mock
+
+        mock.patch("papyrus_content.story_checklist.require_checklist_closed", lambda client, item: None).start()
     if WORK_IN_PROGRESS_TAG in scenario.effective_tags:
         scenario.skip("work in progress: waits for a task that has not landed")
         return

@@ -20,6 +20,7 @@ from papyrus_content.story_from_reference import (
 )
 from papyrus_content.story_reporting import stories_based_on_reference, link_reference_to_story, story_references
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient
+from papyrus_content.content_item_lifecycle import without_sub_tasks
 
 NOW = "2026-10-29T12:00:00Z"
 ARTICLE_URL = "https://blog.example.com/clef-decision-models"
@@ -237,5 +238,5 @@ def test_stories_create_links_each_reference_as_based_on(monkeypatch, capsys):
     monkeypatch.setattr(story_commands, "create_authoring_client", lambda: (client, {}))
     monkeypatch.setattr("papyrus_content.story_triggers.deliver_from_environment", lambda *a, **k: None)
     story_commands.stories_create(["--title", "From a reference", "--section", "articles", "--reference", "reference-clef-v1"])
-    [lineage] = {row["lineageId"] for row in client.tables["Item"].values()}
+    [lineage] = {row["lineageId"] for row in without_sub_tasks(client.tables["Item"].values())}
     assert [(row["referenceLineageId"], row["role"]) for row in story_references(client, lineage)] == [("reference-clef", "based_on")]

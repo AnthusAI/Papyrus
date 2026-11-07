@@ -74,7 +74,7 @@ def test_the_ideas_context_does_not_offer_a_type_shaped_value_as_a_section():
 
 
 def test_every_type_outside_the_system_set_is_a_story_type():
-    assert SYSTEM_ITEM_TYPES == ("wiki_page", "doctrine", "page")
+    assert SYSTEM_ITEM_TYPES == ("wiki_page", "doctrine", "page", "sub-task")
     assert all(is_story_item_type(name) for name in ("article", "post", "guide", "case_study", "untyped", "newsletter_issue"))
     assert not any(is_story_item_type(name) for name in (*SYSTEM_ITEM_TYPES, "", None))
 

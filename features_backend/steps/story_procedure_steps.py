@@ -222,6 +222,8 @@ def run_command(context, command, flags):
         "stories link-reference": story_commands.stories_link_reference,
         "stories assign-research": story_commands.stories_assign_research,
         "stories create": story_commands.stories_create,
+        "stories step": story_commands.stories_step,
+        "stories checklist-backfill": story_commands.stories_checklist_backfill,
     }
     out, err = io.StringIO(), io.StringIO()
     context.succeeded, context.error = True, None
