@@ -48,6 +48,7 @@ from .assignment_executors import execute_assignment_by_type
 from .reference_attachments import build_extracted_text_attachment_plans
 from .reference_citation_resolution import build_reference_citation_resolution_records
 from .reference_exports import build_reference_analysis_manifest, build_reference_scope_training_export
+from .reference_reads import announce_full_read, attachments_for_references, reference_by_token, subject_relations_for_references, targeted_scope
 from .reference_url_text import (
     build_reference_citation_count_records,
     run_reference_identifier_dedupe,
@@ -338,6 +339,7 @@ def references_list_predictions(flags: list[str]) -> None:
         else None
     )
     client, _ = create_authoring_client()
+    announce_full_read("references\tlist-predictions", "SemanticRelation, Reference", why="lists predictions across every Reference")
     relations = client.list_records("SemanticRelation")
     references = client.list_records("Reference")
     categories = client.list_records("Category")
@@ -862,10 +864,9 @@ def references_label(flags: list[str]) -> None:
     category_set = client.get_record("CategorySet", options["category-set"])
     if not category_set:
         raise ValueError(f"CategorySet {options['category-set']} was not found.")
-    references = client.list_records("Reference")
     categories = client.list_records("Category")
-    relations = client.list_records("SemanticRelation")
-    reference = resolve_reference_for_label(references, options["reference"])
+    reference = resolve_reference_for_label(reference_by_token(client, options["reference"]), options["reference"])
+    relations = subject_relations_for_references(client, [reference])   # find_current_authoritative_label only looks at this Reference's relations
     category = resolve_category_in_set(
         [entry for entry in categories if entry.get("categorySetId") == category_set["id"]],
         options["category"],
@@ -915,7 +916,7 @@ def references_promote(flags: list[str]) -> None:
     section = validate_section(options.get("section"))
     apply = resolve_mutation_apply(options, "references promote")
     client, _ = create_authoring_client()
-    row = client.get_record("Reference", token) or resolve_reference_any(client.list_records("Reference"), token)
+    row = client.get_record("Reference", token) or resolve_reference_any(reference_by_token(client, token), token)
     record, _missing = record_of(row)
     item_id = promotion_item_id(record, section)
     print(f"references\tpromote\t{record.reference_id}\t{record.model_id}\t{section}\t{item_id}\t{'write' if apply else 'dry run'}")
@@ -948,10 +949,17 @@ def references_unlabel(flags: list[str]) -> None:
 def references_labels(flags: list[str]) -> None:
     options = parse_options(flags)
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
     categories = client.list_records("Category")
-    relations = client.list_records("SemanticRelation")
-    reference = resolve_reference_any(references, options["reference"]) if options.get("reference") else None
+    if options.get("reference"):
+        # One Reference: its rows and its own relations; build_label_rows keeps only that Reference's labels anyway.
+        references = reference_by_token(client, options["reference"])
+        reference = resolve_reference_any(references, options["reference"])
+        relations = subject_relations_for_references(client, [reference])
+    else:
+        announce_full_read("references\tlabels", "Reference, SemanticRelation", why="lists the labels of every Reference")
+        references = client.list_records("Reference")
+        relations = client.list_records("SemanticRelation")
+        reference = None
     category = None
     if options.get("category"):
         candidates = (
@@ -1277,8 +1285,13 @@ def references_find_url_text(flags: list[str]) -> None:
     pdf_only = parse_boolean_option(options.get("pdf-only"), False, "--pdf-only")
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
+    scope = targeted_scope(client, reference_ids=reference_ids, external_item_ids=external_item_ids, corpus_id=corpus_id)
+    if scope:
+        references, attachments = scope["references"], scope["attachments"]
+    else:
+        announce_full_read("references\tfind-fetch-url-text", "Reference, ReferenceAttachment", why="no --reference or --external-item-id: sweeps the corpus")
+        references = client.list_records("Reference")
+        attachments = client.list_records("ReferenceAttachment")
     result = run_reference_source_find(
         client=client,
         references=references,
@@ -1345,6 +1358,26 @@ def references_find_url_text(flags: list[str]) -> None:
     )
 
 
+def _read_references_for(client: Any, command: str, reference_ids: set[str], external_item_ids: set[str], corpus_id: str | None, *,
+                         attachments: bool = True) -> tuple[list[dict[str, Any]], list[dict[str, Any]] | None, dict[str, Any] | None]:
+    """The References (and their attachments) a "process" command works on: the named ones by index, else the whole tables with a note saying so."""
+    scope = targeted_scope(client, reference_ids=reference_ids, external_item_ids=external_item_ids, corpus_id=corpus_id)
+    if scope:
+        return scope["references"], scope["attachments"] if attachments else None, scope
+    announce_full_read(f"references\t{command}", "Reference, ReferenceAttachment" if attachments else "Reference",
+                       why="no --reference or --external-item-id: sweeps the corpus")
+    return client.list_records("Reference"), client.list_records("ReferenceAttachment") if attachments else None, None
+
+
+def _could_have_duplicates(references: list[dict[str, Any]], corpus_id: str | None, curation_status: str,
+                           reference_ids: set[str], external_item_ids: set[str]) -> bool:
+    """Whether two or more of the named References are in scope: identifier dedupe only merges References that are all named."""
+    from .reference_url_text import _iter_candidate_references
+    candidates = _iter_candidate_references(references=references, corpus_id=corpus_id, curation_status=curation_status,
+                                            reference_ids=reference_ids, external_item_ids=external_item_ids)
+    return len({str(row.get("lineageId") or row.get("id")) for row in candidates}) >= 2
+
+
 def references_fetch_url_text(flags: list[str]) -> None:
     options = parse_options(flags)
     _require_reference_process_runtime("references process-fetch-url-text")
@@ -1383,12 +1416,20 @@ def references_fetch_url_text(flags: list[str]) -> None:
         ) from error
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
-    semantic_relations = client.list_records("SemanticRelation")
+    scope = targeted_scope(client, reference_ids=reference_ids, external_item_ids=external_item_ids, corpus_id=corpus_id)
+    if scope:
+        # Named References: read those rows and their attachments by index. The whole Reference and relation tables are read only if a
+        # citation graph or a duplicate merge needs them (DeferredRows).
+        references, attachments, semantic_relations = scope["references"], scope["attachments"], scope["relations"]
+    else:
+        announce_full_read("references\tprocess-fetch-url-text", "Reference, ReferenceAttachment, SemanticRelation", why="no --reference or --external-item-id: sweeps the corpus")
+        references = client.list_records("Reference")
+        attachments = client.list_records("ReferenceAttachment")
+        semantic_relations = client.list_records("SemanticRelation")
     result = run_reference_url_text_extraction(
         client=client,
         references=references,
+        all_references=scope["all_references"] if scope else None,
         attachments=attachments,
         semantic_relations=semantic_relations,
         corpus_key_by_id=corpus_key_by_id,
@@ -1417,19 +1458,24 @@ def references_fetch_url_text(flags: list[str]) -> None:
         }
     )
     touched_reference_ids = {reference_id for reference_id in touched_reference_ids if reference_id}
-    dedupe = run_reference_identifier_dedupe(
-        client=client,
-        references=client.list_records("Reference"),
-        attachments=attachments,
-        semantic_relations=client.list_records("SemanticRelation"),
-        corpus_id=corpus_id,
-        reference_ids=reference_ids or None,
-        external_item_ids=external_item_ids or None,
-        curation_status=curation_status,
-        touched_reference_ids=touched_reference_ids or None,
-        force=force,
-        apply=apply,
-    )
+    if scope and not _could_have_duplicates(scope["references"], corpus_id, curation_status, reference_ids, external_item_ids):
+        # One named Reference has no duplicate among the named ones: nothing to merge, nothing to read.
+        dedupe = {"records": [], "items": [], "changes": [], "changeCount": 0, "duplicateGroupCount": 0, "referencesMergedCount": 0,
+                  "relationsRewiredCount": 0, "losersBlockedCount": 0}
+    else:
+        dedupe = run_reference_identifier_dedupe(
+            client=client,
+            references=scope["all_references"] if scope else client.list_records("Reference"),
+            attachments=attachments,
+            semantic_relations=scope["relations"] if scope else client.list_records("SemanticRelation"),
+            corpus_id=corpus_id,
+            reference_ids=reference_ids or None,
+            external_item_ids=external_item_ids or None,
+            curation_status=curation_status,
+            touched_reference_ids=touched_reference_ids or None,
+            force=force,
+            apply=apply,
+        )
 
     print(f"references\tprocess-fetch-url-text\tcorpus\t{corpus_id or 'all'}")
     print(f"references\tprocess-fetch-url-text\tstatus\t{curation_status}")
@@ -1636,22 +1682,31 @@ def references_process_dedupe_identifiers(flags: list[str]) -> None:
     print_limit = print_limit if print_limit is not None else 25
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
-    semantic_relations = client.list_records("SemanticRelation")
-    dedupe = run_reference_identifier_dedupe(
-        client=client,
-        references=references,
-        attachments=attachments,
-        semantic_relations=semantic_relations,
-        corpus_id=corpus_id,
-        reference_ids=reference_ids or None,
-        external_item_ids=external_item_ids or None,
-        curation_status=curation_status,
-        touched_reference_ids=None,
-        force=force,
-        apply=apply,
-    )
+    scope = targeted_scope(client, reference_ids=reference_ids, external_item_ids=external_item_ids, corpus_id=corpus_id)
+    if scope and not _could_have_duplicates(scope["references"], corpus_id, curation_status, reference_ids, external_item_ids):
+        # Identifier dedupe only merges References that are all named; fewer than two are in scope, so there is nothing to find or read.
+        dedupe = {"duplicateGroupCount": 0, "referencesMergedCount": 0, "relationsRewiredCount": 0, "losersBlockedCount": 0, "changes": [], "changeCount": 0, "items": []}
+    else:
+        if scope:
+            references, attachments, semantic_relations = scope["all_references"], scope["attachments"], scope["relations"]
+        else:
+            announce_full_read("references\tprocess-dedupe-identifiers", "Reference, ReferenceAttachment, SemanticRelation", why="finds duplicates across the corpus")
+            references = client.list_records("Reference")
+            attachments = client.list_records("ReferenceAttachment")
+            semantic_relations = client.list_records("SemanticRelation")
+        dedupe = run_reference_identifier_dedupe(
+            client=client,
+            references=references,
+            attachments=attachments,
+            semantic_relations=semantic_relations,
+            corpus_id=corpus_id,
+            reference_ids=reference_ids or None,
+            external_item_ids=external_item_ids or None,
+            curation_status=curation_status,
+            touched_reference_ids=None,
+            force=force,
+            apply=apply,
+        )
 
     print(f"references\tprocess-dedupe-identifiers\tcorpus\t{corpus_id or 'all'}")
     print(f"references\tprocess-dedupe-identifiers\tstatus\t{curation_status}")
@@ -1710,7 +1765,7 @@ def references_process_resolve_citation_stubs(flags: list[str]) -> None:
     print_limit = print_limit if print_limit is not None else 25
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
+    references, _attachments, _scope = _read_references_for(client, "find-resolve-citation-stubs", reference_ids, external_item_ids, corpus_id, attachments=False)
     resolved = build_reference_citation_resolution_records(
         references=references,
         corpus_id=corpus_id,
@@ -1791,8 +1846,7 @@ def references_filter_extracted_text(flags: list[str]) -> None:
     metadata_model = normalize_string(options.get("metadata-model")) or DEFAULT_REFERENCE_SUMMARY_MODEL
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
+    references, attachments, scope = _read_references_for(client, "process-filter-text", reference_ids, external_item_ids, corpus_id)
     result = run_reference_extracted_text_filtering(
         client=client,
         references=references,
@@ -1884,7 +1938,10 @@ def references_filter_extracted_text(flags: list[str]) -> None:
     if not processed_reference_ids:
         print("references\tprocess-generate-metadata\tskipped\tno references processed by filter step")
         return
-    refreshed_attachments = client.list_records("ReferenceAttachment")
+    refreshed_attachments = (
+        attachments_for_references(client, [row for row in references if row.get("id") in processed_reference_ids or row.get("lineageId") in processed_reference_ids])
+        if scope else client.list_records("ReferenceAttachment")
+    )
     generation = run_reference_metadata_generation_from_extracted_text(
         references=references,
         attachments=refreshed_attachments,
@@ -1922,8 +1979,7 @@ def references_generate_metadata_from_text(flags: list[str]) -> None:
     bucket = normalize_string(options.get("bucket"))
 
     client, _ = create_authoring_client()
-    references = client.list_records("Reference")
-    attachments = client.list_records("ReferenceAttachment")
+    references, attachments, _scope = _read_references_for(client, "process-generate-metadata", reference_ids, external_item_ids, corpus_id)
     result = run_reference_metadata_generation_from_extracted_text(
         references=references,
         attachments=attachments,

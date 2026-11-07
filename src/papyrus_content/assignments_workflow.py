@@ -2498,14 +2498,14 @@ def list_assignments_for_object(client: PapyrusGraphQLAuthoringClient, options: 
     state_key = f"{kind}#{lineage}#current"
     relations = [
         relation
-        for relation in client.list_records("SemanticRelation")
+        for relation in client.list_semantic_relations_by_object_state(state_key)   # the object-state index: this object's relations only
         if relation.get("relationState") == "current"
         and relation.get("objectStateKey") == state_key
         and relation.get("subjectKind") == "assignment"
         and (relation.get("relationTypeKey") or relation.get("predicate")) == "requests_work_on"
     ]
     assignment_ids = {relation["subjectId"] for relation in relations}
-    assignments = [row for row in client.list_records("Assignment") if row.get("id") in assignment_ids]
+    assignments = list(client.get_records_by_id("Assignment", sorted(assignment_ids)).values())
     assignments.sort(key=assignment_sort_key)
     for assignment in assignments:
         print(f"{assignment.get('status')}\t{assignment.get('id')}\t{assignment.get('assignmentTypeKey')}\t{assignment.get('title')}")
