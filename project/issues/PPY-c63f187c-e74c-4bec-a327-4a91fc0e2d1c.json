@@ -17,10 +17,17 @@
       "text": "Decided by Ryan 2026-11-03: the public wiki may show counts based on accepted References, labelled 'sources tracked', without quoting any Reference text. Bulk imports count for little or nothing there (PPY-94eef8).",
       "created_at": "2026-11-04T02:55:42.072737Z",
       "comment_type": "default"
+    },
+    {
+      "id": "3b558ca3-dbec-4d23-a3d9-410388e5ac4f",
+      "author": "home",
+      "text": "2026-11-07 Machines on Machines editorial dogfood: after adding the first new concepts, the live /wiki/ list placed zero-displayed-association entries such as Acoustic geolocation and AI agent above Confinement problem and Containment with one association; the order appears alphabetical. Ryan explicitly wants more-associated concepts first and publication-wide concepts rather than section grouping. Please ensure ranking happens globally before pagination with a deterministic tie-break; counts and sort must use the same definition.\n\nThe publication hook in AnthusAI/Machines-on-Machines origin/main web/hooks.py calculates _wiki_associations as snapshot neighbouring concepts plus published entries whose hashtag tags match the concept name; it does not directly count the current Story-to-concept or accepted Reference-to-concept links just added in Papyrus. As of this observation, the live AI agent card displayed no count despite confirmed story and reference links in the backend. Investigate whether the missing counts are a stale snapshot/projection, the hashtag-only implementation, or both; do not assume they are already synchronized. Clarify which public-safe associations count, deduplicate distinct records, exclude unpublished material, rejected relations and cross-tenant records, and distinguish related concepts, stories and accepted sources when useful. Validate visible counts, links and global ranking after snapshot/projection refresh; ensure one new relationship does not require republishing an unrelated Story. This is observed on the site plus source inspection, not yet a root-cause proof.\n",
+      "created_at": "2026-11-07T18:33:02.411383Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-04T02:52:48.744123Z",
-  "updated_at": "2026-11-04T02:55:42.073295Z",
+  "updated_at": "2026-11-07T18:33:02.412245Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
