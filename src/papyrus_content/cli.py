@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from . import request_meter
 from .operator_errors import run_with_operator_error_handling
 from .command_help import HELP_FLAGS, content_command_help, wants_help
 from .accession import (
@@ -529,6 +530,7 @@ def main(argv: list[str] | None = None) -> int:
         print_usage()
         return 1
     group, command, *rest = args
+    rest, budget_override = request_meter.split_budget_flag(rest)   # `--budget N` raises this command's request budget (logged)
     def run_dispatch() -> int:
         dispatch(group, command, rest)
         return 0
@@ -536,7 +538,10 @@ def main(argv: list[str] | None = None) -> int:
     install_site_selection()
     install_cli_body_features()
     try:
-        return run_with_operator_error_handling(run_dispatch)
+        # One metered run for the command: its AppSync requests are counted by caller and summarised on stderr when it ends (docs/request-meter.md).
+        with request_meter.run(f"cli:{group} {command}", units=request_meter.cli_units(rest), emit="stderr", budget=budget_override,
+                               sweep=request_meter.is_sweep_command(group, command)):
+            return run_with_operator_error_handling(run_dispatch)
     finally:
         uninstall_cli_body_features()
         uninstall_site_selection()
