@@ -235,6 +235,54 @@ collector discovers (title, URL)
 * **Editor corrections** (section 4) remain a per-Reference new version. Sending a correction back as a new item revision, so the
   lab decides again on the corrected text, is intended later and deliberately not built.
 
+## 2b. A Reference created by hand is enriched before it is predicted (PPY-d683da, PPY-47e246)
+
+Until 2026-11-06 only a monitor's items and the References an editor selected from an email ran the stages above. A Reference created through
+`papyrus references create-from-catalog` (signed in, or with AWS credentials), the Newsroom's Add dialog, chat, `papyrus references import` or a research
+packet got a prediction request and nothing else: no captured text, no summary, no picture of its own, and nothing caught up later. Ten Machines on Machines
+References had to be captured by hand for that reason. Now the request that asks for the prediction also asks for the enrichment (`predictFor.enrich`, one
+row, keyed by `prediction_source_id`, so a retried creation adds nothing), and the router's five minute `email-references` task runs the existing stages first.
+
+| Path | What creates it | What triggers the follow-up | What runs in the cloud | What is local only |
+| --- | --- | --- | --- | --- |
+| Monitor item | the router's delivery | the item's `ENRICH#` row, then `papyrus.reference.curate` fills gaps | capture, summary, GROBID, preview, prediction | video transcript and thumbnail |
+| Email selection | `deliver` for an editor-selected candidate | the same, in the `email-references` lane | as above | as above |
+| `create-from-catalog`, signed in | `intakePendingReferences` (Lambda) | `queue_after_intake` queues the one request | capture, summary, GROBID if configured, curation copied onto the existing Reference, then the prediction | video transcript and thumbnail |
+| `create-from-catalog` and `import`, AWS credentials | the CLI writes the plan | `request_for_created` queues the one request; the CLI attaches the link preview | as above | as above |
+| Add dialog | `intakePendingReferences` | as the signed-in CLI | as above | as above |
+| Chat, research packet, email submission | `papyrus_reference_create`, `assignments_workflow`, `email_submissions` | `request_predictions` queues the one request | as above | as above |
+
+What the router does for such a request (`Router.enrich_created_reference`): reads the Reference (missing, archived, superseded or a different address:
+skipped, and the prediction request is refused with its own reason); skips it when `captureState` is already `full` (a person's or an earlier capture's text is
+never replaced; a curation card that exists is kept by `copy_curation`); otherwise runs `enrichment_for` (capture, summary, GROBID where configured, with its
+three-attempt retry) and copies the curation onto the **existing** Reference with `monitoring_enrichment.copy_curation`, labelled `origin.completenessChecked =
+false` with a note that the extraction is automated and not checked for completeness (the way a `correctReferenceCapture` note labels an agent's text). The text
+is stored where the curation pipeline stores it, a `curation-text.md` ModelAttachment and the card (the same family `correctReferenceCapture` writes), not a
+`ReferenceAttachment` of role `extracted_text`; whether the knowledge query reads it is PPY-caa222, which this change does not touch. Then the prediction decides
+on the enriched summary and text ("enrich before decide", 2a). The outcome is kept on the request's ROUTE row as `enrichment` with a distinct `state`:
+
+| State | Meaning | Visible where | Retried |
+| --- | --- | --- | --- |
+| (no `enrichment`, request still in the lane) | queued but not run yet, or waiting for a transient retry | the `reference-predictions` lane, `enrichmentWaiting` in the receipt | on the next 5 minute run, three attempts in all |
+| `enriched` | text, summary and card written | the card; `referencesEnriched` | no |
+| `kept` / `already_captured` | a card or text a person supplied stands | ROUTE row | no |
+| `oversized` | the source is over the reader's size limit (`capture.reason = too_large`) | the card (`capture_failed`), `enrichmentFailed`, the log line `referenceEnrichment` | no: final; paste the text in the newsroom |
+| `blocked` | the source refused or is not text | the same | no: final |
+| `capture_failed` | any other capture failure | the same | only a transient one, up to the attempt limit |
+| `copy_failed` | the card could not be written | ROUTE row `curationCopy`, `curationCopyFailed` | the request is not retried; run the backfill |
+| `stateRepaired` flag | the stored `captureState` or `contentNeededKey` disagreed with what the Reference holds and was corrected | ROUTE row | n/a |
+| never queued | created before this change, or by a path that was not asking | `references queue-enrichment --dry-run` counts them | queue it by hand |
+
+An enrichment failure never blocks the prediction and one Reference never stops the others. A video is enriched as far as the cloud can (YouTube refuses cloud
+addresses for transcripts and thumbnails), `sync_capture_state` leaves it `thin` or `none` with its `contentNeededKey`, and the router counts it as
+`videosNeedLocalRun`. The creating command says so: `N videos need a local run: papyrus references capture-thumbnails --write and papyrus references
+capture-transcripts --write`. Requests queued before this change carry no `enrich` flag and are decided as they were.
+
+**References created before this change need a one-time backfill.** `papyrus references queue-enrichment --site KEY` (or `--corpus-key KEY[,KEY...]`; add
+`--dry-run` to see the counts) queues one enrich-only request (`enrichment_source_id`, `predictFor.enrichOnly`) for each current, unarchived Reference of the corpus
+whose content is not captured in full. It reads the corpus's feed index (`referencesByFeedStateAndPrediction`, both partitions), writes only queue rows, and is
+idempotent. It is a write to production data, so the owner approves it; this change does not run it.
+
 ## 3. Where the outputs are (for the UI)
 
 All additive; no model, field or enum changed.
@@ -459,7 +507,7 @@ YouTube blocks the addresses cloud functions run on, so transcripts are captured
 * **Which videos**: the content-needed index ([reference feed indexes](reference-feed-indexes.md#the-content-needed-index)): `<corpus>#video#needs_content#<status>`, accepted and pending by default, merged newest first. Never a scan; a captured video and a settled one are not in it.
 * **How it saves**: the `correctReferenceCapture` action, as the signed-in caller (the editor on the edit is you), the same path as the capture panel. The transcript goes in as `text` with the assessment `incomplete` (the cloud capture it replaces was) and a note naming the command, so it is stored as `curation-edit-NNNN-text`, the state becomes `full` and the video leaves the list. A video with no captions (or private, removed or restricted) is recorded with the new `captureReason` argument (`no_transcript`, `unavailable`; `unsupported_platform` for a video site with no reader): it goes on the card as `capture.textReason`, the Reference's `captureReason` is set, the key leaves the index so the next run does not ask again, and the video stays `thin` in the To capture queue for a person, with the reason in words. The action takes exactly these arguments and no more; the editor is never a field of the request.
 * **Politeness and stopping**: `--pace` seconds between YouTube requests (default 3), each video asked once per run. If YouTube refuses the connection it waits 60 seconds, then 300, and stops with exit status 3 saying the command needs a non-cloud connection (and, when a cloud environment variable is set, that this looks like a cloud machine). A video it could not read for another reason is reported and left for the next run. A transcript above 900,000 bytes is reported and left (the data API's request limit).
-* **After a transcript is saved**: the same as after a pasted text. The summary is marked `stale`; the next `papyrus references curate` run (or the `papyrus.reference.curate` procedure where a router triggers it) rewrites it from the transcript, and the knowledge snapshot and suggestion vectors read the summary and the text from there. The worker needs no model, so it only prints a reminder; **nothing schedules that curation run today**.
+* **After a transcript is saved**: the same as after a pasted text. The summary is marked `stale`; the next `papyrus references curate` run (or the `papyrus.reference.curate` procedure where a router triggers it) rewrites it from the transcript, and the knowledge snapshot and suggestion vectors read the summary and the text from there. The worker needs no model, so it only prints a reminder; **nothing schedules that curation run today** (the router's enrichment of a Reference created by hand, section 2b, is separate: it runs on creation, not after a transcript).
 * **The text is a third party's.** It is stored as the Reference's text and read as data by every step that follows (summary, vectors, search, reporter packs). Nothing the worker does executes or interprets it.
 
 ## 4e. Video thumbnails (2026-11-04)

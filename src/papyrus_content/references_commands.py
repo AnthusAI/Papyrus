@@ -488,6 +488,38 @@ def references_queue_predictions(flags: list[str]) -> None:
         raise ValueError("Some predictions were not requested; see the NOT-REQUESTED lines above.")
 
 
+def references_queue_enrichment(flags: list[str]) -> None:
+    """``papyrus references queue-enrichment (--site KEY | --corpus-key KEY[,KEY...]) [--dry-run]``.
+
+    By hand, once, for the References created before every creation path asked for enrichment: queues one enrich-only request per current Reference whose
+    content is not captured in full (src/papyrus_content/reference_prediction_queue.py, ``enrichment_source_id``). The router's ``email-references`` task
+    then captures the text, writes the summary (and GROBID fields for a paper) and copies the curation onto the EXISTING Reference, exactly as it does for
+    a new one; it decides nothing and creates nothing. It reads each corpus's feed index and writes nothing to a Reference. A Reference already queued is
+    left alone, so a second run adds nothing. A video the cloud cannot fully capture is left for ``capture-thumbnails`` and ``capture-transcripts``, and
+    the counts say how many. ``--dry-run`` prints the counts and queues nothing. Writing queue rows in production is for the owner to approve; nothing schedules this."""
+    from .reference_feed_backfill import corpus_ids_for
+    from .reference_prediction_queue import feed_rows, references_for_enrichment, request_line, request_predictions, video_line, videos_needing_local_run
+    options = parse_options(flags)
+    apply = resolve_mutation_apply(options, "references queue-enrichment")
+    client, _ = create_authoring_client()
+    corpus_ids = corpus_ids_for(client, site=normalize_string(options.get("site")), corpus_keys=normalize_string(options.get("corpus-key")), all_corpora=False)
+    failed = False
+    for corpus_id in corpus_ids:
+        rows = list(feed_rows(client, corpus_id))
+        wanted = references_for_enrichment(rows)
+        prefix = f"references\tqueue-enrichment\t{corpus_id}"
+        print(f"{prefix}\tread\t{len(rows)}\tneeding-enrichment\t{len(wanted)}\t{'queue' if apply else 'dry-run'}")
+        line = video_line(prefix, videos_needing_local_run(wanted))
+        if line:
+            print(line)
+        for start in range(0, len(wanted) if apply else 0, REQUEST_CHUNK):
+            request = request_predictions(client, wanted[start:start + REQUEST_CHUNK])
+            print(request_line(prefix, request).replace("\tprediction\t", "\tenrichment\t"))
+            failed = failed or not request.ok
+    if failed:
+        raise ValueError("Some enrichments were not requested; see the NOT-REQUESTED lines above.")
+
+
 def references_backfill_medium(flags: list[str]) -> None:
     """``papyrus references backfill-medium (--site KEY | --corpus-key KEY[,KEY...] | --all-corpora) [--write]``.
 

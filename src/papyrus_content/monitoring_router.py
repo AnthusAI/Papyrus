@@ -74,7 +74,7 @@ from .research_assignments_worker import run_research_assignments, validate_rese
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_enrichment import Enricher, copy_curation, decision_inputs, enrich_item, enrich_sk, new_row
-from .reference_prediction_queue import LANE as PREDICTION_LANE, SOURCE_TYPE as PREDICTION_SOURCE, has_real_prediction, is_prediction_request
+from .reference_prediction_queue import LANE as PREDICTION_LANE, SOURCE_TYPE as PREDICTION_SOURCE, has_real_prediction, is_enrich_only, is_prediction_request, wants_enrichment
 from .reference_capture import SHORT_BODY_CHARACTERS
 from .monitoring_feed import FEED_HOSTS
 from .monitoring_huggingface import hf_accepts, validate_rule
@@ -1118,6 +1118,25 @@ def new_route(monitor_id: str, disc: dict) -> dict:
             "fingerprint": disc["fingerprint"], "itemId": item_id_for(monitor_id, disc["sourceId"])}
 
 
+#: Stored on the Reference's curation card by the enrichment of an existing Reference: the text is automated and its completeness is not checked.
+ENRICHMENT_NOTE = "Captured automatically when the Reference was added (Papyrus enrichment); completeness not independently checked."
+BLOCKED_REASONS = frozenset({"blocked", "forbidden", "paywalled", "unsupported_media", "robots"})
+
+
+def enrichment_state(capture: dict, copied: str | None) -> str:
+    """The distinct state of an enrichment, so nobody reads one word for five different situations: ``enriched``; ``kept`` (a card already existed,
+    a correction wins); ``oversized`` (the source is over the reader's size limit: final, no retry); ``blocked`` (the source refused or is not text: final);
+    ``capture_failed`` (any other failure, with its reason on the card); ``copy_failed`` (the card could not be written)."""
+    if (copied or "").startswith("failed"):
+        return "copy_failed"
+    if copied == "kept":
+        return "kept"
+    if capture.get("status") != "completed":
+        reason = str(capture.get("reason") or "")
+        return "oversized" if reason == "too_large" else "blocked" if reason in BLOCKED_REASONS else "capture_failed"
+    return "enriched"
+
+
 def short(error: Exception) -> str:
     return f"{type(error).__name__}: {str(error)[:300]}"
 
@@ -1307,7 +1326,8 @@ class Router:
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
                        "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureDeferred": 0, "procedureRetried": 0,
                        "enriched": 0, "enrichmentWaiting": 0, "curationCopied": 0, "curationCopyFailed": 0, "shortBodies": 0,
-                       "predicted": 0, "predictionFailed": 0, "predictionSkipped": 0, "predictionsWaiting": 0}
+                       "predicted": 0, "predictionFailed": 0, "predictionSkipped": 0, "predictionsWaiting": 0,
+                       "referencesEnriched": 0, "enrichmentFailed": 0, "videosNeedLocalRun": 0}
         self._parks: dict = {}
         self._automation_rows: dict = {}
 
@@ -1470,8 +1490,10 @@ class Router:
         """Enrich the item once, before anything is posted. Returns its decision inputs, or None when enrichment is off or the item
         was posted before it existed. Raises EnrichmentPending while an attempt is waiting to be retried or this run is out of time:
         the item is simply picked up again next run (enrichment is attempted, then the decision proceeds with whatever exists)."""
-        if self.enricher is None or self.config["mode"] != "live" or is_prediction_request(disc):
-            return None   # a prediction request decides on the Reference's title and address: no page fetch, no summary model (reference_prediction_queue.py)
+        if self.enricher is None or self.config["mode"] != "live" or (is_prediction_request(disc) and not wants_enrichment(disc)):
+            return None   # a prediction request queued before enrichment existed decides on the Reference's title and address alone (reference_prediction_queue.py)
+        if (route.get("enrichment") or {}).get("status") == "skipped":
+            return None   # enrich_created_reference decided not to enrich this Reference (a person's text stands): decide on what exists
         if self.inputs_for(disc) is not None:
             return self.inputs_for(disc)
         if (route.get("combinedJob") or {}).get("requestId") or route.get("jobs"):
@@ -1494,7 +1516,79 @@ class Router:
         self.counts["shortBodies"] += 0 < body_length < SHORT_BODY_CHARACTERS   # a statistic, not a gate
         return inputs
 
-    def copy_curation(self, publication: dict, disc: dict, result: dict) -> str | None:
+    def enrich_created_reference(self, publication: dict, disc: dict, route: dict) -> dict:
+        """Enrich a Reference that already exists, once, before its prediction (reference_prediction_queue.py, `predictFor.enrich`).
+
+        The same stages a monitor's item gets (`enrichment_for`: capture, summary, GROBID where configured) run on the request's address, then the
+        existing `copy_curation` writes the result onto the EXISTING Reference, and its link preview is attached. The outcome is kept on the ROUTE
+        row (`enrichment`), so a retry never repeats it, and a failure is recorded there, on the Reference's curation card (`capture_failed` with its
+        reason) and in the log; it never blocks the prediction. Raises EnrichmentPending while an attempt waits to be retried: the request keeps its
+        place in the lane. A video is also checked for the local runners' index (`needsLocalRun`): the cloud cannot read its picture or transcript."""
+        if route.get("enrichment"):
+            return route["enrichment"]
+        reference_id = disc["predictFor"]["referenceId"]
+        outcome: dict[str, Any] = {"referenceId": reference_id}
+        client = self.client(publication)
+        reference = client.get_record("Reference", reference_id)
+        if (not reference or reference.get("corpusId") != publication["corpusId"] or reference.get("sourceUri") != disc["canonicalUrl"]
+                or reference.get("versionState", "current") != "current" or reference.get("curationStatus") == "archived"):
+            outcome.update(status="skipped", reason="reference_unavailable", state="unavailable")   # prediction_needed finishes the request with its own reason
+            route["enrichment"] = outcome
+            self.save(route)
+            return outcome
+        if reference.get("captureState") == "full":   # a person (or an earlier capture) supplied the text: it is never replaced
+            outcome.update(status="skipped", reason="already_captured", state="already_captured")
+            route["enrichment"] = outcome
+            self.save(route)
+            return outcome
+        if self.enricher is None or self.config["mode"] != "live":
+            outcome.update(status="skipped", reason="enrichment_not_configured", state="not_run")   # the router has no bucket here: say so, and decide as before
+        else:
+            self.enrichment_for(disc, route)   # raises EnrichmentPending: retried by the next run, with the row's own backoff
+            row = self.store.get_any(self.monitor_id, enrich_sk(disc)) or {}
+            outcome.update(status=row.get("status") or "unknown", attempts=row.get("attempts"))
+            copied = self.copy_curation(publication, disc, {"referenceId": reference_id}, note=ENRICHMENT_NOTE)
+            outcome["curationCopy"] = copied
+            capture = (row.get("curation") or {}).get("capture") or {}
+            outcome["state"] = enrichment_state(capture, copied)
+            self.attach_preview(publication, disc, {"referenceId": reference_id})   # never raises
+            failure = (copied or "").startswith("failed") or row.get("status") == "capture_failed"
+            if failure:
+                outcome["failed"] = (copied if (copied or "").startswith("failed") else str(capture.get("reason") or "capture_failed"))[:300]
+                self.counts["enrichmentFailed"] += 1
+                print(json.dumps({"referenceEnrichment": "failed", "referenceId": reference_id, "reason": outcome["failed"],
+                                  "publicationId": publication["publicationId"]}))
+            else:
+                self.counts["referencesEnriched"] += 1
+        try:
+            outcome.update(self.local_run_check(client, reference_id))
+        except Exception as error:  # noqa: BLE001 - the index check is bookkeeping; the enrichment above stands
+            outcome["localRunCheck"] = f"failed: {short(error)}"
+        route["enrichment"] = outcome
+        self.save(route)
+        return outcome
+
+    def local_run_check(self, client, reference_id: str) -> dict:
+        """Make the Reference's stored capture state agree with what it now holds (`sync_capture_state`): a state/index inconsistency is repaired and
+        reported (`stateRepaired`), never left. A video the cloud could not fully capture must be in the content-needed index the local runners read
+        (`captureState` thin or none, with its `contentNeededKey`); it is reported as `needsLocalRun`."""
+        from .reference_capture_state import normalize_capture_state, sync_capture_state
+        from .reference_medium import MEDIUM_VIDEO, medium_of
+        reference = client.get_record("Reference", reference_id)
+        if not reference:
+            return {}
+        found: dict = {}
+        before = (reference.get("captureState"), reference.get("contentNeededKey"))
+        sync_capture_state(client, reference)   # updates `reference` in place when it writes
+        if (reference.get("captureState"), reference.get("contentNeededKey")) != before:
+            found["stateRepaired"] = True
+        if medium_of(reference.get("sourceUri")) != MEDIUM_VIDEO:
+            return found
+        self.counts["videosNeedLocalRun"] += 1   # the cloud never fetches a video platform's thumbnail or transcript
+        return {**found, "needsLocalRun": True, "captureState": normalize_capture_state(reference.get("captureState")),
+                "hasThumbnail": bool(reference.get("thumbnailPath"))}
+
+    def copy_curation(self, publication: dict, disc: dict, result: dict, note: str | None = None) -> str | None:
         """Give the delivered Reference the item's curation (the card and bodies the editor sees). Never fails the delivery: a
         Reference without it is filled in by the post-delivery curation procedure."""
         if self.enricher is None:
@@ -1505,7 +1599,7 @@ class Router:
         try:
             client = self.client(publication)
             reference = client.get_record("Reference", result["referenceId"])
-            outcome = copy_curation(client, reference, row, self.enricher.texts, datetime.fromtimestamp(self.now, timezone.utc))
+            outcome = copy_curation(client, reference, row, self.enricher.texts, datetime.fromtimestamp(self.now, timezone.utc), note=note)
         except Exception as error:
             self.counts["curationCopyFailed"] += 1
             return f"failed: {short(error)}"
@@ -2259,6 +2353,14 @@ class Router:
                     self.finish(disc, route, "refused", "the publication is no longer configured")
                     return
                 self.active_publications = [publication]
+                if wants_enrichment(disc):
+                    enrichment = self.enrich_created_reference(publication, disc, route)   # BEFORE the decision; raises EnrichmentPending
+                    if is_enrich_only(disc):   # the backfill's request: nothing to decide, the Reference was predicted before
+                        if enrichment.get("reason") == "reference_unavailable":
+                            self.finish(disc, route, "refused", "the Reference is missing, archived or does not match the request")
+                        else:
+                            self.finish(disc, route, "routed", "the Reference was enriched")
+                        return
                 if not route.get("decision") and not self.prediction_needed(publication, disc, route):
                     return
             if disc.get("sourceType") == "email":
