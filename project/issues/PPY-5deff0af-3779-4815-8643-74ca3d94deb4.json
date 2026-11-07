@@ -1,0 +1,24 @@
+{
+  "id": "PPY-5deff0af-3779-4815-8643-74ca3d94deb4",
+  "title": "M1: Model language versions, provenance and editorial scope",
+  "description": "As an editor, I want each content item to have a stable identity and versioned language renditions, so source relationships, authorship and approvals remain accurate.\n\nDefine supported locales and a publication default; original writing language per item; source version and content hash for each rendition; status and history for generated, edited and approved text; translation versus explicitly adapted content; human edit protection. Apply to Reference, Item/Story, SemanticNode/Concept, NewsroomSection and public page metadata, retaining one shared evidence graph, concept identity and lifecycle. Include language-specific section guidance and editorial policy overlays while keeping canonical mission and doctrine in backend data. Decide how original language differs from a later editorial source language.\n\nAcceptance: original and translated versions remain linked to the same item; a localized concept name and aliases resolve to the shared concept; provenance distinguishes drafted, translated, edited and approved actions for the exact rendition; correcting or changing a source marks dependent renditions stale without losing manual edits. Gherkin scenarios and tests cover identity, version transitions and backward compatibility of existing single-language sites.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-82f150e8-9010-4a9f-949e-71168ffdbdc0",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T16:00:12.159105Z",
+  "updated_at": "2026-11-07T16:00:12.159142Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6-sol"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
