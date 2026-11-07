@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1e0c202f-d2c2-49fd-8836-abee2da9c455",
+  "issue_id": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-06T14:41:50.042Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Shared image curation and generation for CLI, MCP, and newsroom",
+    "description": "Provide one publication-neutral Papyrus image workflow used by the newsroom, command line and authenticated MCP. Build on the existing Wikimedia picker and stock and generation initiatives rather than duplicate them. Support source search and four-candidate rounds, generation through a configurable provider, selection, provenance and application to Stories and References. Preserve publication policy and the current editor workflow. Deliver observable parity, authorization, tests and documentation. Coordinate with the in-progress MCP implementation before integration; do not choose or invoke a paid model without the owner decision recorded in PPY-ff3780.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-5c9e9a69-b793-4e6b-b748-a8df631a16d0",
+    "labels": []
+  }
+}

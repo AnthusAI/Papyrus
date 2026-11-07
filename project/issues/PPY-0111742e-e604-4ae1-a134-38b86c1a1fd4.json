@@ -1,0 +1,33 @@
+{
+  "id": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+  "title": "Shared image curation and generation for CLI, MCP, and newsroom",
+  "description": "Provide one publication-neutral Papyrus image workflow used by the newsroom, command line and authenticated MCP. Build on the existing Wikimedia picker and stock and generation initiatives rather than duplicate them. Support source search and four-candidate rounds, generation through a configurable provider, selection, provenance and application to Stories and References. Preserve publication policy and the current editor workflow. Deliver observable parity, authorization, tests and documentation. Coordinate with the in-progress MCP implementation before integration; do not choose or invoke a paid model without the owner decision recorded in PPY-ff3780.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5c9e9a69-b793-4e6b-b748-a8df631a16d0",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-74ef89b9-b85e-4bfa-b174-34d812df9bfe",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "79e4569f-302c-4260-8bc4-4f23bf2ee183",
+      "author": "home",
+      "text": "Planning branch: codex/PPY-011174-image-curation; draft PR: https://github.com/AnthusAI/Papyrus/pull/1268. Based on origin/develop cc6ef2c9. MCP server implementation is on origin/feature/PPY-2bc3e8-authenticated-mcp (draft PR #1244), not yet on develop. Planning only; no behavior implemented or runtime checks run.",
+      "created_at": "2026-11-06T14:44:41.229727Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-06T14:41:50.042100Z",
+  "updated_at": "2026-11-06T14:44:41.229944Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
