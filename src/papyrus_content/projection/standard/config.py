@@ -17,6 +17,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from ...home_page.ordering import BUCKETS
+from ...markus_renderer.video import PROVIDERS as EMBED_PROVIDERS, VideoRendering
 from ...home_page.settings import HomePageSettings, home_page_settings_from_mapping
 from .grouping import valid_group_by
 from .redirects import RedirectRule, rule_from_mapping
@@ -26,7 +27,7 @@ from ...story_types import story_types_from_mapping
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes",
+    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage", "storyTypes", "embeds",
 )
 NO_BUCKET = "none"
 #: The buckets Stories rank inside (``story_order.py``): the References' two (``day``, ``week``), and ``none`` for plain newest first.
@@ -36,6 +37,30 @@ URL_STYLES = ("html", "directory", "clean")
 SITEMAP_STYLES = ("single", "index")
 FEED_FORMATS = ("rss", "atom")
 SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9\-_/]*$")
+
+
+def embeds_from_mapping(value: object) -> VideoRendering:
+    """The ``embeds`` key: ``{"enabled": false, "providers": ["youtube"]}``. Off unless a site turns it on, so a site that never mentions it is unchanged.
+
+    There is deliberately no ``clickToPlay``: a video always loads its player only after a click, because a player loaded with the page would
+    contact the provider before the reader chose to."""
+    if value is None:
+        return VideoRendering()
+    if not isinstance(value, Mapping):
+        raise ValueError('embeds must be an object such as {"enabled": true, "providers": ["youtube"]}')
+    if "clickToPlay" in value:
+        raise ValueError("embeds.clickToPlay is not a setting: a video always loads its player only after a click, so the page never contacts the provider on load")
+    _only(value, {"enabled", "providers"}, "embeds")
+    enabled = value.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise ValueError("embeds.enabled must be true or false")
+    providers = value.get("providers", list(EMBED_PROVIDERS))
+    if not isinstance(providers, list) or not providers or not all(isinstance(name, str) for name in providers):
+        raise ValueError(f"embeds.providers must be a non-empty list of provider names from {list(EMBED_PROVIDERS)}")
+    unknown = [name for name in providers if name not in EMBED_PROVIDERS]
+    if unknown:
+        raise ValueError(f"embeds.providers names unsupported provider(s) {', '.join(map(repr, unknown))}; allowed: {', '.join(EMBED_PROVIDERS)}")
+    return VideoRendering(enabled=enabled, providers=tuple(dict.fromkeys(providers)))
 
 
 def _only(mapping: Mapping, allowed: tuple[str, ...] | set[str], where: str) -> None:
@@ -438,6 +463,7 @@ class StandardSettings:
     agents: AgentSettings = field(default_factory=AgentSettings)
     page_actions: PageActionSettings = field(default_factory=PageActionSettings)
     mermaid: bool = True                      # ```mermaid blocks render as diagrams (self-hosted script, loaded only on pages that have one)
+    embeds: VideoRendering = field(default_factory=VideoRendering)   # the ``embeds`` key: whether ``::video`` plays (default off: a plain link)
     wiki: WikiSettings = field(default_factory=WikiSettings)
     home_page: HomePageSettings | None = None   # the ``homePage`` key; None means the site has no home-page behaviour
 
@@ -1003,6 +1029,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         agents=agents,
         page_actions=page_actions,
         mermaid=bool(mermaid_raw.get("enabled", True)),
+        embeds=embeds_from_mapping(raw.get("embeds")),
         wiki=wiki,
         home_page=home_page,
     )

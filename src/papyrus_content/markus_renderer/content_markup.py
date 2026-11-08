@@ -1,4 +1,4 @@
-"""Papyrus-layer content markup: ``::image{}``, ``[@key]``, ``::citations{}``.
+"""Papyrus-layer content markup: ``::image{}``, ``::video{}``, ``[@key]``, ``::citations{}``.
 
 Why a Papyrus layer at all
 --------------------------
@@ -30,10 +30,11 @@ from __future__ import annotations
 import html
 import re
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from .citations import CitationCollector, CitationRendering
 from .images import ImageBuilder, ImagePipeline, ImageRequest
+from .video import VideoRendering, VideoRequest, parse_video, provider_of, render_video
 
 #: Deliberately alphanumeric: Markdown cannot style it, Markus's typography
 #: pass cannot rewrite it, and HTML escaping cannot alter it.
@@ -46,6 +47,7 @@ _TOKEN_RE = re.compile(r"PAPYRUSMARKUP(\d{5})END")
 # attribute value is not supported (quote-aware block scanning would be, but
 # nothing in the corpus needs it).
 _IMAGE_DIRECTIVE_RE = re.compile(r"^[ \t]*::image\{(?P<attrs>[^}]*)\}[ \t]*$", re.M)
+_VIDEO_DIRECTIVE_RE = re.compile(r"^[ \t]*::video\{(?P<attrs>[^}]*)\}[ \t]*$", re.M)
 _CITATIONS_DIRECTIVE_RE = re.compile(
     r"^[ \t]*::citations(?:\{(?P<attrs>[^}]*)\})?[ \t]*$", re.M
 )
@@ -64,6 +66,10 @@ _LONE_IMG_PARAGRAPH_RE = re.compile(
 
 class ContentMarkupError(RuntimeError):
     """Raised for malformed Papyrus content markup."""
+
+
+class VideoMarkupError(ContentMarkupError):
+    """Raised for a malformed ``::video{...}`` (save reports it as ``video-attrs``)."""
 
 
 def parse_attrs(raw: str) -> dict[str, str]:
@@ -131,6 +137,7 @@ class PreparedPage:
 
     markdown: str
     images: dict[str, ImageRequest] = field(default_factory=dict)
+    videos: dict[str, VideoRequest] = field(default_factory=dict)
     citation_keys: dict[str, list[str]] = field(default_factory=dict)
     citation_lists: dict[str, str | None] = field(default_factory=dict)
     entries: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -138,11 +145,11 @@ class PreparedPage:
     @property
     def block_tokens(self) -> set[str]:
         """Tokens that stood alone on their own line in the source."""
-        return set(self.images) | set(self.citation_lists)
+        return set(self.images) | set(self.videos) | set(self.citation_lists)
 
     @property
     def touched(self) -> bool:
-        return bool(self.images or self.citation_keys or self.citation_lists)
+        return bool(self.images or self.videos or self.citation_keys or self.citation_lists)
 
 
 def _mask_code(body: str) -> tuple[str, list[str]]:
@@ -196,12 +203,15 @@ def prepare_page(
     *,
     images: ImagePipeline | None,
     citations: CitationRendering | None,
+    videos: VideoRendering | None = None,
 ) -> PreparedPage:
     """Lower Papyrus markup in ``text`` to sentinels.
 
-    Returns the page unchanged when neither capability is enabled.
+    Returns the page unchanged when no capability is enabled. ``videos`` lowers ``::video{}`` only when its ``enabled`` is true, and then only
+    the ones whose address is of an allowed provider; every other ``::video`` stays as written for the site's hooks.
     """
-    if images is None and citations is None:
+    handles_videos = videos is not None and videos.enabled   # with embeds off core does not read ::video: it is exactly as it was
+    if images is None and citations is None and not handles_videos:
         return PreparedPage(markdown=text)
 
     front_matter, body = split_front_matter(text)
@@ -256,6 +266,22 @@ def prepare_page(
             return token
 
         masked = _IMAGE_DIRECTIVE_RE.sub(lower_image, masked)
+
+    if handles_videos:
+
+        def lower_video(match: re.Match[str]) -> str:
+            # Only an address of an allowed provider is core's. Any other ::video (a site's own Instagram embed, say) is left as written.
+            if provider_of(parse_attrs(match.group("attrs")).get("src", "")) not in videos.providers:
+                return match.group(0)
+            try:
+                request = parse_video(parse_attrs(match.group("attrs")), match.group(0))
+            except ValueError as error:
+                raise VideoMarkupError(str(error)) from None
+            token = next_token()
+            page.videos[token] = request
+            return token
+
+        masked = _VIDEO_DIRECTIVE_RE.sub(lower_video, masked)
 
     if citations is not None:
 
@@ -351,8 +377,12 @@ def resolve_fragment(
     depth: int = 0,
     image_builder: ImageBuilder | None = None,
     citations: CitationRendering | None = None,
+    videos: VideoRendering | None = None,
+    video_poster: Callable[[VideoRequest, int], str | None] | None = None,
 ) -> str:
-    """Substitute real HTML for the sentinels in a converted fragment."""
+    """Substitute real HTML for the sentinels in a converted fragment.
+
+    ``video_poster(request, depth)`` finds the markup of a video's own poster in the site's storage, or ``None`` when the copy is missing."""
     if image_builder is not None and image_builder.pipeline.upgrade_plain_images:
         fragment = upgrade_plain_images(fragment, image_builder, depth=depth)
 
@@ -373,8 +403,10 @@ def resolve_fragment(
         CitationCollector(page.entries, citations) if citations is not None else None
     )
     list_placeholders: dict[str, str] = {}
+    video_style_emitted = False
 
     def substitute(match: re.Match[str]) -> str:
+        nonlocal video_style_emitted
         token = match.group(0)
         if token in page.images:
             if image_builder is None:
@@ -383,6 +415,14 @@ def resolve_fragment(
                     "(pass images=ImagePipeline(...) to build_markus_site)"
                 )
             return image_builder.render(page.images[token], depth=depth)
+        if token in page.videos:
+            request = page.videos[token]
+            rendering = videos if videos is not None else VideoRendering()
+            pipeline = image_builder.pipeline if image_builder is not None else ImagePipeline()
+            poster = video_poster(request, depth) if rendering.enabled and video_poster is not None else None
+            html_text = render_video(request, rendering, poster=poster, classes=pipeline.classes_for(request.layout), with_style=not video_style_emitted)
+            video_style_emitted = video_style_emitted or rendering.enabled
+            return html_text
         if collector is not None and token in page.citation_keys:
             rendered = [collector.marker_html(key) for key in page.citation_keys[token]]
             return "".join(bit for bit in rendered if bit)

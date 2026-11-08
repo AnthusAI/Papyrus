@@ -138,10 +138,10 @@ def person_approves(context):
     assert "Only a person gives the final approval" in single_lens_text(context)
 
 
-@then("the lens text names the three problems that must be fixed before a step can close")
-def three_problems(context):
+@then("the lens text names the four problems that must be fixed before a step can close")
+def four_problems(context):
     text = single_lens_text(context)
-    for phrase in ("no alt text", "third-party image with no credit", "Markdown copy that differs"):
+    for phrase in ("no alt text", "third-party image with no credit", "video with no title or no credit", "Markdown copy that differs"):
         assert phrase in text, phrase
 
 

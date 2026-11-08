@@ -207,6 +207,13 @@ def media_key(path: str) -> str:
     return "media/" + path
 
 
+def media_key_for_path(path: str) -> str:
+    """``media/<path>`` for a poster path under ``assets/video-posters/`` (a story's video poster; the video id is the name, so the path holds no ``..``)."""
+    if not re.fullmatch(r"assets/video-posters/[\w-]{11}\.jpg", path):
+        raise ValueError(f"not a video poster path: {path!r}")
+    return "media/" + path
+
+
 def stored_request(reference: Mapping[str, Any], thumbnail: Thumbnail) -> dict[str, Any]:
     return {"state": "stored", "path": source_path(reference, thumbnail), "sha256": thumbnail.sha256, "width": thumbnail.width, "height": thumbnail.height,
             "mediaType": thumbnail.media_type, "platform": thumbnail.platform, "sourceUrl": thumbnail.source_url}

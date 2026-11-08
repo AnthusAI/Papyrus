@@ -94,6 +94,7 @@ def derive_markus_action(arguments: dict) -> dict:
         "features": site_body_features().to_dict(),
         "bodyIrBytes": len(json.dumps(derivation.body_ir, separators=(",", ":")).encode("utf-8")),
         "errors": [],
+        "warnings": [body_error.to_dict() for body_error in derivation.warnings],   # e.g. an equation shown as TeX, or a video on a site with embeds off
     }
     if arguments.get("includeIr") is True:
         response["bodyIr"] = derivation.body_ir

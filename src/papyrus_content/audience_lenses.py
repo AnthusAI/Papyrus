@@ -98,6 +98,10 @@ PEOPLE = Lens(
         _c("P13", "Every claim a model wrote has been fact-checked", AUTO, WARN, "claims held, by group, or that the draft check has not run", (_CW, _RP)),
         _c("P14", "The Story is fair, engaging and worth reading", HUMAN, None, "the person's findings note", (_ED,)),
         _c("P15", "The readability is typical for this site", AUTO, INFO, "the Story's value against the site's own median and spread"),
+        _c("P16", "Every video has a title (its accessible name) and a credit", AUTO, ERROR,
+           "each video, its title and credit, and whatever is missing", (_CW, _ED, _RP), built=True),
+        _c("P17", "Every video has a caption", AUTO, WARN, "the videos with no caption", (_CW, _ED), built=True),
+        _c("P18", "A video plays on this site: the site has video embeds on", AUTO, WARN, "the site's embeds setting", (_ED,), built=True),
     ),
 )
 
@@ -124,6 +128,7 @@ READER_AGENTS = Lens(
         _c("A12", "After publishing: the Markdown copy is served and the page links to it", AUTO, WARN, "the addresses fetched, their status and content type"),
         _c("A13", "The site is live and open to readers", AUTO, INFO, "whether the site asks readers to stay away", built=True),
         _c("A14", "The Story does not claim access to a source it did not read", HUMAN, None, "the person's findings note", (_RP,)),
+        _c("A15", "A credited video is one of the Story's citations", AUTO, WARN, "the credited videos whose address is not among the citations", (_CW, _RP), built=True),
     ),
 )
 
@@ -223,7 +228,7 @@ TRADE_OFFS = ("The lenses can pull against each other. Accuracy and natural writ
 AGENT_DUTY = ("These review steps are mainly for agents to do before a person reviews the Story, so obvious problems are fixed before any human time is "
               "spent. An agent may complete a lens step, and it is recorded under the agent's name. Only a person gives the final approval.")
 
-MUST_FIX = ("Three problems must be fixed before a step can be closed as done: an image with no alt text, a third-party image with no credit, and a "
+MUST_FIX = ("Four problems must be fixed before a step can be closed as done: an image with no alt text, a third-party image with no credit, a video with no title or no credit, and a "
             "Markdown copy that differs from the Story's source. Sites that publish without a person's approval depend on these checks even more.")
 
 

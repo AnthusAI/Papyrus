@@ -21,8 +21,9 @@ from typing import Any, Mapping
 
 from . import audience_lenses as lenses
 from .audience_lenses import CONCERN, ERROR, NOT_APPLICABLE, NOT_ASSESSABLE, PASS, PROBLEM
-from .markus_renderer.content_markup import _IMAGE_DIRECTIVE_RE, parse_attrs
+from .markus_renderer.content_markup import _IMAGE_DIRECTIVE_RE, _VIDEO_DIRECTIVE_RE, parse_attrs
 from .markus_renderer.derive import compose_source
+from .markus_renderer.video import provider_of, video_id_of
 from .projection.public_data import SUMMARY_FIELD_NAMES
 from .projection.source import summary_from_row
 from .projection.standard import blocks
@@ -157,6 +158,28 @@ def images_of(masked_body: str) -> list[Image]:
     return sorted(found, key=lambda image: image.line)
 
 
+@dataclass(frozen=True)
+class Video:
+    """One ``::video{...}`` as written, before any check of it."""
+
+    line: int
+    src: str
+    title: str
+    caption: str
+    credit: str
+
+
+def videos_of(masked_body: str) -> list[Video]:
+    found = []
+    for match in _VIDEO_DIRECTIVE_RE.finditer(masked_body):
+        attributes = parse_attrs(match.group("attrs"))
+        if provider_of(attributes.get("src", "")) is None:
+            continue   # another provider's address (a site's own Instagram embed) is not core's: no check applies to it
+        found.append(Video(masked_body.count("\n", 0, match.start()) + 1, attributes.get("src", "").strip(), " ".join(attributes.get("title", "").split()),
+                           " ".join(attributes.get("caption", "").split()), " ".join(attributes.get("credit", "").split())))
+    return found
+
+
 def headings_of(masked_body: str) -> list[tuple[int, int, str]]:
     return [(number, len(match.group(1)), match.group(2).strip()) for number, line in enumerate(masked_body.split("\n"), start=1) if (match := HEADING.match(line))]
 
@@ -236,6 +259,9 @@ class Facts:
             except ValueError:
                 pass
         self.images = images_of(self.masked)
+        self.all_videos = videos_of(self.masked)
+        # Core handles a video only on a site whose embeds are on (or when the site is not known here); on any other site a ::video is the site's own.
+        self.videos = self.all_videos if (not self.known or self.standard.embeds.enabled) else []
         self.headings = headings_of(self.masked)
         self.opening = opening_of(self.masked)
         body_image = next((image.src for image in self.images if image.src), None)
@@ -399,6 +425,8 @@ def check_p10(facts: Facts) -> list[dict[str, Any]]:
         rows.append(row)
         if not third and not image.credit.strip():
             unknown.append(row)
+    for video in facts.videos:   # a video's poster is a picture the Story shows that someone else made: it counts as a third-party picture
+        rows.append({"line": video.line, "src": video.src, "thirdParty": True, "origin": "a video's poster (the video's own thumbnail)", "credit": video.credit or None})
     if cover_src and cover_image and not any(image.src.lstrip("/") == cover_src for image in facts.images):
         rows.append({"line": None, "src": "/" + cover_src, "thirdParty": True, "origin": "the stock cover record (front matter only)", "credit": None})
     uncredited = [row for row in rows if row["thirdParty"] and not row["credit"]]
@@ -412,6 +440,79 @@ def check_p10(facts: Facts) -> list[dict[str, Any]]:
     else:
         results = [finding(key, PASS, "Every third-party picture is credited.", images=rows) for key in ("P10", "C6")]
     return results
+
+
+def check_p16(facts: Facts) -> dict[str, Any]:
+    if not facts.videos:
+        return finding("P16", NOT_APPLICABLE, "The Story has no videos.")
+    rows, problems = [], []
+    for video in facts.videos:
+        missing = [name for name, value in (("title", video.title), ("credit", video.credit)) if not value]
+        try:
+            video_id_of(video.src)
+            address = True
+        except ValueError:
+            address = False
+        rows.append({"line": video.line, "src": video.src, "title": short(video.title, 60), "credit": video.credit or None, "missing": missing, "supportedAddress": address})
+        if missing or not address:
+            what = [f"no {name}" for name in missing] + ([] if address else ["an address that is not a supported video provider"])
+            problems.append(f"line {video.line} has " + " and ".join(what))
+    if problems:
+        return finding("P16", CONCERN, f"{many(len(problems), 'video')} to fix: " + "; ".join(problems) + ". The title is the player's accessible name and every video is credited.", videos=rows)
+    return finding("P16", PASS, f"All {many(len(rows), 'video')} have a title and a credit.", videos=rows)
+
+
+def check_p17(facts: Facts) -> dict[str, Any]:
+    if not facts.videos:
+        return finding("P17", NOT_APPLICABLE, "The Story has no videos.")
+    bare = [video for video in facts.videos if not video.caption]
+    rows = [{"line": video.line, "src": video.src, "caption": short(video.caption, 60) or None} for video in facts.videos]
+    if bare:
+        return finding("P17", CONCERN, f"{many(len(bare), 'video')} with no caption: " + "; ".join(f"line {video.line}" for video in bare) + ". A caption says what the reader will see before they press play.", videos=rows)
+    return finding("P17", PASS, f"All {many(len(rows), 'video')} have a caption.", videos=rows)
+
+
+def check_p18(facts: Facts) -> dict[str, Any]:
+    if not facts.all_videos:
+        return finding("P18", NOT_APPLICABLE, "The Story has no YouTube videos.")
+    if not facts.known:
+        return _unknown_site("P18")
+    embeds = facts.standard.embeds
+    if not embeds.enabled:
+        return finding("P18", CONCERN, "This site has video embeds off (projection.json \"embeds\": {\"enabled\": false}), so Papyrus does not show these YouTube videos as players. "
+                       "Turn embeds on, or the site's own code has to show them.", embeds=False)
+    return finding("P18", PASS, "This site has video embeds on, so each video is a click-to-play poster.", embeds=True, providers=list(embeds.providers))
+
+
+def _cited_video_ids(facts: Facts) -> set[str]:
+    entries = facts.front_matter.get("citations")
+    found = set()
+    for entry in entries.values() if isinstance(entries, dict) else ():
+        if isinstance(entry, dict):
+            try:
+                found.add(video_id_of(str(entry.get("URL") or entry.get("url") or "")))
+            except ValueError:
+                pass
+    return found
+
+
+def check_a15(facts: Facts) -> dict[str, Any]:
+    if not facts.videos:
+        return finding("A15", NOT_APPLICABLE, "The Story has no videos.")
+    cited = _cited_video_ids(facts)
+    uncited = []
+    for video in facts.videos:
+        try:
+            identifier = video_id_of(video.src)
+        except ValueError:
+            continue
+        if video.credit and identifier not in cited:
+            uncited.append({"line": video.line, "src": video.src})
+    evidence = {"uncited": uncited, "citedVideoIds": sorted(cited)}
+    if uncited:
+        return finding("A15", CONCERN, f"{many(len(uncited), 'credited video')} not among the Story's citations: " + "; ".join(f"line {row['line']} ({short(row['src'], 60)})" for row in uncited)
+                       + ". If the Story uses the video as evidence, add its address to the front-matter citations and cite it with [@key].", **evidence)
+    return finding("A15", PASS, "Every credited video is one of the Story's citations.", **evidence)
 
 
 # --- AI reader agents ----------------------------------------------------------------------------------------------------------------
@@ -685,7 +786,7 @@ PAGE_CHECKS = ("A1", "A2", "A3", "A4", "S2", "C2", "S4", "S5", "S6", "S7", "C1",
 def run_checks(story: LensStory, site: LensSite | None, *, lens: str | None = None) -> list[dict[str, Any]]:
     """Every deterministic finding for one Story version, in the order of the lenses; ``lens`` limits them to one lens (a key or a step)."""
     facts = Facts(story, site)
-    found = [check_p1(facts), check_p2(facts), *check_p6(facts), *check_p7(facts), check_p8(facts), *check_p10(facts), check_a5(facts), check_a8(facts),
+    found = [check_p1(facts), check_p2(facts), *check_p6(facts), *check_p7(facts), check_p8(facts), *check_p10(facts), check_p16(facts), check_p17(facts), check_p18(facts), check_a5(facts), check_a15(facts), check_a8(facts),
              check_a11(facts), check_a13(facts), check_s1(facts)]
     if facts.entry is None:
         reason = "The Story has no page of its own under this site's settings, so its search, share and Markdown checks were not run."
