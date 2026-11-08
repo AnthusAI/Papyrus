@@ -1,0 +1,325 @@
+{
+  "generatedFrom": "src/papyrus_content/topics/operations.py",
+  "tools": [
+    {
+      "name": "topics_model",
+      "audience": "staff",
+      "description": "Find the topics in the References of the last 7, 14 or 28 days, by their source date, and say which are rising or falling.",
+      "agentAllowed": true,
+      "effect": "read",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "window": {
+            "type": "string",
+            "enum": [
+              "7d",
+              "14d",
+              "28d"
+            ],
+            "description": "How far back to look, counted from asOf on each Reference's source date. Default 14d."
+          },
+          "asOf": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The last day of the window, YYYY-MM-DD (UTC). Default today."
+          },
+          "section": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Only References filed under this section (its id, slug or name)."
+          },
+          "monitor": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Only References this monitor delivered, for example hn."
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "accepted",
+                "rejected"
+              ]
+            },
+            "description": "Which votes to include. Default pending and accepted; rejected only when asked for."
+          },
+          "minClusterSize": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The fewest References in a topic. Default scales with the number of References: the square root, never under 3."
+          },
+          "compareTo": {
+            "type": "string",
+            "enum": [
+              "previous",
+              "none"
+            ],
+            "description": "previous (the default): also read the window just before and mark each topic rising, falling, steady or new. none: this window only."
+          },
+          "maxReferences": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "A safety stop. Reading ends at this many References, and the result and the log say so. Never a quiet cap; omit it to read the window."
+          },
+          "representatives": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many representative References to show per topic. Default 3."
+          },
+          "refresh": {
+            "type": "boolean",
+            "description": "Model again even when the same question was answered before on the same References."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "savedId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Keeps this run. The same question on the same References gives the same id."
+          },
+          "cached": {
+            "type": "boolean",
+            "description": "True when an earlier answer was found and nothing was modeled."
+          },
+          "engine": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "version": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "name",
+              "version"
+            ]
+          },
+          "window": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "minLength": 1,
+                "description": "First day, included (UTC)."
+              },
+              "end": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Last day, included (UTC)."
+              },
+              "days": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "start",
+              "end",
+              "days"
+            ]
+          },
+          "compareTo": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "start": {
+                "type": "string",
+                "minLength": 1,
+                "description": "First day, included (UTC)."
+              },
+              "end": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Last day, included (UTC)."
+              },
+              "days": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "start",
+              "end",
+              "days"
+            ],
+            "description": "The previous window, or null when no comparison was asked for."
+          },
+          "filters": {
+            "type": "object",
+            "properties": {
+              "section": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "monitor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "states": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": [
+              "states"
+            ]
+          },
+          "referencesInWindow": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "References read and modeled in the window."
+          },
+          "referencesInPreviousWindow": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "minClusterSize": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "unassigned": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "References in the window that fit no topic."
+          },
+          "legend": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "What each trend mark means."
+          },
+          "topics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "topicId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "A short id inside this run, such as t1."
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The three best terms, joined."
+                },
+                "terms": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": "The top terms, best first."
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "How many References of the window are in the topic."
+                },
+                "previousCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "How many References of the previous window are in it. Present when a comparison was made."
+                },
+                "trend": {
+                  "type": "string",
+                  "enum": [
+                    "rising",
+                    "falling",
+                    "steady",
+                    "new"
+                  ]
+                },
+                "mark": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The trend as a mark: \u25b2 rising, \u25bc falling, = steady, + new. Never colour alone."
+                },
+                "references": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "lineageId": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "sourceUri": {
+                        "type": "string"
+                      },
+                      "sourcePublishedAt": {
+                        "type": "string"
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "pending",
+                          "accepted",
+                          "rejected"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "lineageId",
+                      "title"
+                    ]
+                  },
+                  "description": "A few representative References, the newest first."
+                }
+              },
+              "required": [
+                "topicId",
+                "label",
+                "terms",
+                "count",
+                "references"
+              ]
+            },
+            "description": "Biggest first."
+          }
+        },
+        "required": [
+          "savedId",
+          "cached",
+          "window",
+          "referencesInWindow",
+          "minClusterSize",
+          "unassigned",
+          "topics"
+        ]
+      }
+    }
+  ]
+}

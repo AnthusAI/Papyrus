@@ -34,6 +34,7 @@ def _leaves(names) -> Tree:
 def route_tree() -> Tree:
     from papyrus.operator.group_commands import PROCEDURES_COMMANDS, REPORTING_COMMANDS, RESEARCH_COMMANDS, SECTIONS_COMMANDS
     from papyrus_content.images.cli import route_tree as images_route_tree
+    from papyrus_content.topics.cli import route_tree as topics_route_tree
 
     knowledge_names = ported_commands("knowledge")
     knowledge: Tree = _leaves(KNOWLEDGE_EXTRAS)
@@ -65,6 +66,7 @@ def route_tree() -> Tree:
         "editorial": _leaves({*ported_commands("editorial"), "context"}),
         "monitors": {},
         "images": images_route_tree(),
+        "topics": topics_route_tree(),
     }
     for group in CONTENT_GROUPS:
         tree[group] = _leaves(ported_commands(group))
@@ -136,6 +138,12 @@ def _command_text(path: list[str]) -> str:
         from papyrus_content.images.cli import usage_for
 
         found = usage_for(path[1:])
+        if found:
+            return found
+    if path[0] == "topics":
+        from papyrus_content.topics.cli import usage_for as topics_usage_for
+
+        found = topics_usage_for(path[1:])
         if found:
             return found
 

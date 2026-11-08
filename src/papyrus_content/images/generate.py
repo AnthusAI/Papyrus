@@ -109,8 +109,7 @@ def cli_command(item: Operation) -> dict:
                 entry["enum"] = schema["enum"]
             flags.append(entry)
         # other objects are given with --input-file
-    words = " ".join(item.cli)
-    parts = [f"papyrus images {words}"] + [f"<{kebab(field)}>" if field in required else f"[{kebab(field)}]" for field in item.positional]
+    parts = [item.command] + [f"<{kebab(field)}>" if field in required else f"[{kebab(field)}]" for field in item.positional]
     if item.file_field:
         parts.append("--file PATH")
     seen_target = False

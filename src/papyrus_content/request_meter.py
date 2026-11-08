@@ -50,6 +50,7 @@ BUDGETS: dict[str, tuple[int, int]] = {
     "lambda:monitor-collector": (300, 8),
     "lambda:procedure-runner": (300, 8),
     "stage:": (300, 8),
+    "cli:topics": (200, 1),                    # a window read is one request per page of 100 rows and declares each row it read as a unit
     "cli:": DEFAULT_BUDGET,
 }
 
