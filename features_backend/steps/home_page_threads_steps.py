@@ -21,6 +21,8 @@ from procedures.newsroom.tests.reader_privacy import scan_files  # noqa: E402
 from procedures.newsroom.tests.standard_frontend_support import FIXTURES, ProjectedSite  # noqa: E402
 
 SITE_DIRECTORY = FIXTURES / "home-page"
+SECTION_PAGES = REPO_ROOT / "features_backend" / "fixtures" / "home-page" / "section-pages"   # only these scenarios place them; the recorded home-page fixture stays as it was
+SECTION_PAGE_IDS = {"threads-tools": "Threads of one section.", "threads-plants": "Threads of a section only a Story is filed under."}
 REFERENCES_FIXTURE = REPO_ROOT / "features_backend" / "fixtures" / "home-page" / "references.json"
 THREADS_FIXTURE = REPO_ROOT / "features_backend" / "fixtures" / "home-page" / "threads.json"
 THREADS_KEY = "_data/home-page/threads.json"
@@ -93,6 +95,7 @@ class ThreadsClient:
 def project_site(context, *, settings: dict | None = None, threads: dict | None = None) -> None:
     settings = settings if settings is not None else settings_copy()
     extra_files = {f"pages/{path.name}": path.read_bytes() for path in sorted((SITE_DIRECTORY / "pages").glob("*.md"))}
+    extra_files.update({f"pages/{path.name}": path.read_bytes() for path in sorted(SECTION_PAGES.glob("*.md"))})
     context.build_error = None
     try:
         context.site = ProjectedSite(settings=settings, content=SITE_DIRECTORY / "content", extra_files=extra_files)
@@ -108,6 +111,8 @@ def project_site(context, *, settings: dict | None = None, threads: dict | None 
 def settings_copy() -> dict:
     settings = copy.deepcopy(json.loads((SITE_DIRECTORY / "projection.json").read_text(encoding="utf-8")))
     settings["homePage"]["threads"] = {"enabled": True}
+    for page_id, description in SECTION_PAGE_IDS.items():
+        settings["pages"].append({"id": page_id, "path": page_id, "title": page_id.replace("-", " ").title(), "description": description, "dependsOn": [], "source": f"pages/{page_id}.md"})
     return settings
 
 
@@ -232,6 +237,7 @@ def projected_with_attribute(context, attribute: str) -> None:
     attributes = {"select": "recent", "count": "3", "layout": "list", name: value.strip('"')}
     line = "::include{kind=\"threads\" " + " ".join(f'{key}="{given}"' for key, given in attributes.items()) + "}"
     extra_files = {f"pages/{path.name}": path.read_bytes() for path in sorted((SITE_DIRECTORY / "pages").glob("*.md"))}
+    extra_files.update({f"pages/{path.name}": path.read_bytes() for path in sorted(SECTION_PAGES.glob("*.md"))})
     extra_files["pages/threads-list.md"] = ('::band{size="bare"}\n' + line + "\n").encode("utf-8")
     context.build_error = None
     try:

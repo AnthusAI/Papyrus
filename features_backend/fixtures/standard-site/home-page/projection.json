@@ -90,22 +90,6 @@
       "source": "pages/threads-list.md"
     },
     {
-      "id": "threads-tools",
-      "path": "threads-tools",
-      "title": "Threads Tools",
-      "description": "Threads of one section.",
-      "dependsOn": [],
-      "source": "pages/threads-tools.md"
-    },
-    {
-      "id": "threads-plants",
-      "path": "threads-plants",
-      "title": "Threads Plants",
-      "description": "Threads of a section only a Story is filed under.",
-      "dependsOn": [],
-      "source": "pages/threads-plants.md"
-    },
-    {
       "id": "threads-grid",
       "path": "threads-grid",
       "title": "Threads Grid",
