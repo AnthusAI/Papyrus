@@ -22,6 +22,7 @@ from papyrus_content.projection.runtime import (
     DEAD_LETTER_QUEUE_ENV,
     EDGE_DISTRIBUTION_ENV,
     context_from_environment,
+    targeted_invalidation,
     projection_configured,
     public_item_url,
     render_body_preflight,
@@ -179,6 +180,10 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     if report.unpurged:
         response["edgePurged"] = False
         schedule_unpurged_invalidation(report.unpurged)
+    if report.invalidation_capped:
+        # targeted mode, over publication.cache.maxInvalidationPaths: the first paths were purged, the rest are named and not retried (never a wildcard)
+        response["edgePurged"] = False
+        response["invalidationCapped"] = report.invalidation_capped
     if report.follow_up_item_pages:
         schedule_projection_task({"task": "item-pages", "exceptItemId": item_id}, "follow-up")
     if report.ok and published_item_id:
@@ -258,6 +263,8 @@ def run_deploy_render_task(client) -> dict:
     ensure_publication_from_environment(client)
     ensure_default_editorial_policies(client)
     context = projection_context(client)
+    if targeted_invalidation(os.environ):
+        context.invalidate = None  # cache.invalidation "targeted": a deploy never purges; pages age out with the HTML lifetime (PPY-2745c1)
     report = deploy_render(context)
     print(drift_metric_line(report))
     if report.render.unpurged:

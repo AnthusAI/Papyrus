@@ -32,6 +32,7 @@ from urllib.parse import quote
 from dataclasses import dataclass, field
 from typing import Callable
 
+from ..edge_invalidation import InvalidationCapped
 from .lease import ProjectionLease
 from .item_state import (
     ITEM_STATE_PREFIX,
@@ -309,6 +310,9 @@ def _finish(context: ProjectionContext, report: ProjectionReport) -> ProjectionR
     if context.invalidate is not None and touched:
         try:
             report.invalidated = context.invalidate(touched)
+        except InvalidationCapped as capped:  # targeted mode: purged up to the cap, never a wildcard; reported, not retried
+            report.invalidated = capped.invalidated
+            report.invalidation_capped = capped.skipped
         except Exception as error:  # noqa: BLE001 - the pages are written and live at the origin; the purge is retried
             report.unpurged = touched
             LOGGER.warning("edge invalidation failed for %s paths: %s: %s", len(touched), type(error).__name__, error)

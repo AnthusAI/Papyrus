@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
 
-from ..edge_invalidation import invalidate_distribution
+from ..edge_invalidation import InvalidationCapped, invalidate_distribution, invalidate_exact_paths
 from ..page_refresh.paths import paths_for_page_keys
 
 STATE_PREFIX = "_papyrus/"
@@ -248,6 +248,27 @@ class CloudFrontInvalidator:
 
     def invalidate(self, keys: list[str]) -> list[str]:
         return invalidate_distribution(self._distribution_id, invalidation_paths_for(keys), self._cloudfront)
+
+
+class TargetedCloudFrontInvalidator:
+    """``cache.invalidation: "targeted"``: purge exactly the pages a publish wrote, in both URL forms, and never collapse to ``/*``.
+
+    More than ``cap`` paths (``publication.cache.maxInvalidationPaths``) purge the first ``cap`` and raise ``InvalidationCapped`` naming the rest.
+    """
+
+    def __init__(self, distribution_id: str, cap: int, cloudfront_client: Any = None) -> None:
+        self._distribution_id = distribution_id
+        self._cap = cap
+        self._cloudfront = cloudfront_client
+
+    def invalidate(self, keys: list[str]) -> list[str]:
+        paths = invalidation_paths_for(keys)
+        listed, skipped = paths[: self._cap], paths[self._cap :]
+        if listed:
+            invalidate_exact_paths(self._distribution_id, listed, self._cloudfront)
+        if skipped:
+            raise InvalidationCapped(listed, skipped, self._cap)
+        return listed
 
 
 class RedirectStore(Protocol):
