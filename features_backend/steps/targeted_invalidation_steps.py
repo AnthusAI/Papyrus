@@ -71,7 +71,7 @@ def all_site(context) -> None:
 @when("one story is published with a new version")
 def one_story(context) -> None:
     work = tempfile.TemporaryDirectory()
-    context.tmp_dirs.append(work)
+    context.tmp_dirs.append(work.name)
     site = Site("feed", Path(work.name))
     for number in range(5):
         add_item(site, f"item-{number}", f"seed-{number}", date=f"2026-01-{number + 1:02d}")
