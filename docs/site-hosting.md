@@ -1009,6 +1009,32 @@ What an editor can expect from a Save of a live item, as measured on the product
 
 Say "seconds", not "instant". Browsers always revalidate HTML (`max-age=0`).
 
+### What `content publish` reports, and its exit codes
+
+`papyrus ops content publish --id ID [--verify] [--verify-seconds N] [--json]` reports four stages on their own (PPY-f3b296). A purge or a check that fails never looks like a failed write.
+
+| Stage | Statuses | What it means |
+| --- | --- | --- |
+| `saved` | `ok` | The data is published (version number). Failing here means nothing is live. |
+| `projected` | `ok`, `scheduled`, `still-running`, `timed-out`, `failed`, `skipped`, `not-applicable` | The page is built. `pages` lists the page keys written. `still-running` is not a failure: the client stopped waiting while the page-building function was still working. `scheduled` is the operator (IAM) lane, which hands the work to the function and cannot see the result. |
+| `invalidated` | `ok`, `skipped`, `capped`, `failed`, `unknown` | The edge cache was told to drop the old page. `paths` were purged, `skippedPaths` were not (targeted mode over its cap). `skipped` is the site's own setting. |
+| `verified` | `current`, `stale`, `not-checked` | The public URL was fetched and its `papyrus-source-version` marker compared with the published version, with the same check `update-live` uses. Without `--verify` it is one fetch, and `stale` is only information (a site that lets pages age out is expected to be stale for a while). With `--verify` the command waits up to `--verify-seconds` (default 60) for the new version and `stale` is a failure. |
+
+`--json` prints the same `stages`, plus `ok`, `exitCode`, `failedStage`, `verdict` (the words `update-live` uses) and, on a failure, `dataPublished`, `pagePublished` and `retry`.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Every stage that ran worked |
+| 1 | The data could not be saved or published (any `PublishError` other than the checklist) |
+| 2 | The request could not run (bad flags, unknown story) |
+| 3 | `checklist-open`: a required checklist step is open. `--json` lists them as `openSteps: [{"key", "label"}]`; the text output prints one `open step:` line each |
+| 4 | The page could not be built (`failed`, or the function's own `timed-out`; running the command again is safe) |
+| 5 | The page is still being built and was not confirmed (not a failure; run it again, or add `--verify`, which changes nothing already done) |
+| 6 | The edge cache was not (fully) purged: refused, failed, or over the cap. The page is written |
+| 7 | With `--verify`, the public page still showed an older version when the wait ended |
+
+A script must check the exit code, not look for a marker in the text. The first failed stage, in the order saved, projected, invalidated, verified, decides the code. The call that builds the page now waits up to 120 s by default (`PAPYRUS_PROJECTION_TIMEOUT_SECONDS`) instead of the ordinary 30 s. Re-running a publish is safe: published data is not rewritten when unchanged and the pages are rebuilt from it. There is no job id to poll yet (that needs a backend change); `--verify` polls the public page instead, which needs the page address the signed-in lane reports.
+
 ### Refreshing pages on demand
 
 The edge keeps a page for the cache lifetime (one hour, `s-maxage=3600`, on the production sites; `publication.cache`), and that stays the default. For the moments an edit must be visible now, explicit operations exist (PPY-105508). They are one definition (`src/papyrus_content/page_refresh/operations.py`) behind the command line, the MCP tools and the `refreshSitePages` mutation, so the three cannot differ.

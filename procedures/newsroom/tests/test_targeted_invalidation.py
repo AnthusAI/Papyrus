@@ -124,6 +124,21 @@ class HandlerTests(unittest.TestCase):
         self.assertIs(response["edgePurged"], False)
         self.assertEqual(response["invalidationCapped"], ["/index.html"])
         scheduled.assert_not_called()
+        self.assertEqual(response["invalidation"]["status"], "capped")
+        self.assertEqual(response["invalidation"]["skippedPaths"], ["/index.html"])
+        self.assertEqual(response["itemPaths"], ["a/index.html"])
+
+    def test_a_site_without_an_invalidator_reports_the_purge_as_skipped(self) -> None:
+        from papyrus_content.projection.model import ProjectionReport
+
+        report = ProjectionReport(written=["a/index.html"], item_paths=["a/index.html"])
+        context = mock.Mock()
+        context.invalidate = None
+        with mock.patch.object(handler, "projection_configured", return_value=True), mock.patch.object(handler, "project", return_value=report), mock.patch.object(
+            handler, "projection_context", return_value=context
+        ):
+            response = handler.project_item_action(object(), "item", unpublished=False)
+        self.assertEqual(response["invalidation"]["status"], "skipped")
 
 
 class SinglePublishTests(unittest.TestCase):

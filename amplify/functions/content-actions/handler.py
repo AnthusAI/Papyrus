@@ -79,7 +79,10 @@ def failure_response(error: PublishError) -> dict:
         errors = [body_error.to_dict() for body_error in error.errors]
     else:
         errors = [{"code": error.code, "message": error.message, "line": None}]
-    return {"ok": False, "errors": errors}
+    response = {"ok": False, "errors": errors}
+    if error.details:
+        response["details"] = error.details   # e.g. {"openSteps": [{"key", "label"}]} for checklist-open
+    return response
 
 
 def derive_markus_action(arguments: dict) -> dict:
@@ -158,13 +161,14 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     task = {"task": "item", "itemId": item_id, "unpublished": unpublished}
     if published_item_id:
         task[PUBLISHED_TASK_KEY] = {"publishedItemId": published_item_id}
+    context = projection_context(client)
     try:
-        report = project(projection_context(client), item_id, unpublished=unpublished)
+        report = project(context, item_id, unpublished=unpublished)
     except Exception as error:  # noqa: BLE001 - a projection failure never fails the save
         message = f"{type(error).__name__}: {error}"
         schedule_projection_task(task, message)
         return {**liveness, "projected": False, "paths": [], "error": message}
-    response = {"projected": report.ok, "paths": [*report.written, *report.deleted]}
+    response = {"projected": report.ok, "paths": [*report.written, *report.deleted], "itemPaths": list(report.item_paths), "invalidation": invalidation_outcome(context, report)}
     if not unpublished:
         response["live"] = report.ok
         url = public_item_url(os.environ, report.item_paths)
@@ -189,6 +193,18 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     if report.ok and published_item_id:
         announce_published(item_id, published_item_id)
     return response
+
+
+def invalidation_outcome(context, report) -> dict:
+    """What the edge purge of this projection did, as its own outcome (PPY-2745c1): ``ok``, ``skipped`` (the site's setting or no distribution),
+    ``failed`` (retried by the function) or ``capped`` (targeted mode over its cap; the rest is named, never a wildcard)."""
+    if context.invalidate is None:
+        return {"status": "skipped", "reason": "this site does not invalidate on publish (publication.cache.invalidation is off, or it has no CloudFront distribution)", "paths": []}
+    if report.unpurged:
+        return {"status": "failed", "reason": "the purge was refused or failed; the function retries it", "paths": [], "unpurgedKeys": list(report.unpurged)}
+    if report.invalidation_capped:
+        return {"status": "capped", "reason": "more paths than publication.cache.maxInvalidationPaths; the first were purged, the rest were not", "paths": list(report.invalidated), "skippedPaths": list(report.invalidation_capped)}
+    return {"status": "ok", "paths": list(report.invalidated)}
 
 
 def schedule_unpurged_invalidation(keys: list[str]) -> None:
