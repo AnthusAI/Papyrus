@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
 
 from ..edge_invalidation import invalidate_distribution
+from ..page_refresh.paths import paths_for_page_keys
 
 STATE_PREFIX = "_papyrus/"
 HEAD_WORKERS = 16
@@ -231,14 +232,9 @@ def request_paths_for_key(key: str) -> tuple[str, ...]:
     return ("/" + key,)
 
 
-def invalidation_paths_for(keys: list[str]) -> list[str]:
-    paths: list[str] = []
-    for key in keys:
-        paths.append("/" + key)
-        if PurePosixPath(key).name == "index.html":
-            directory = str(PurePosixPath(key).parent)
-            paths.append("/" if directory == "." else f"/{directory}/")
-    return list(dict.fromkeys(paths))
+def invalidation_paths_for(keys: list[str], url_style: str = "html") -> list[str]:
+    """The request paths to invalidate for written page keys, every form a page is cached under (``page_refresh/paths.py``)."""
+    return paths_for_page_keys(keys, url_style)
 
 
 class CloudFrontInvalidator:

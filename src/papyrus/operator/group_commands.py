@@ -45,6 +45,8 @@ COMMAND_USAGE = {
   ("stories", "assign-research"): "--story LINEAGE --direction TEXT|--direction-file FILE [--type research.multi] [--title TEXT] [--dry-run]  (an idea Story moves to the assignment stage; the run opens and reads the sources it finds, and its packet lists any it could not open)",
   ("assignments", "fact-check"): "--message RESEARCH_PACKET_MESSAGE_ID [--judge true|false] [--format text|json]  (read only; --judge true makes one model call per claim)",
   ("assignments", "context-pack"): "--story LINEAGE [--assignment ID] [--direction TEXT] [--format text|json] [--max-characters N]  (read only)",
+  ("content", "refresh"): "--path PATH [--path PATH ...] | --story LINEAGE | --indexes  [--dry-run] [--json]  (purge pages at the edge now: both URL forms and the Markdown twin; never the whole site)",
+  ("content", "rerender"): "--story LINEAGE | --indexes | --all  [--no-invalidate] [--dry-run] [--json]  (rebuild pages from the deployed hooks, then purge what was written)",
   ("stories", "list"): "[--stage STAGE] [--section ID|SLUG|NAME] [--limit N]  (read only; prints the lineage ids stories show takes)",
   ("stories", "show"): "--story LINEAGE  (read only; prints its References by lineage id, which references show accepts)",
   ("assignments", "show"): "--assignment ID  (read only; status, type, section, Story and events)",

@@ -966,7 +966,7 @@ A site that serves media as they were uploaded (no image pipeline, pages that re
 - **Targeted invalidation, one call per run.** After the writes, the projection makes one invalidation call (each `index.html` page in its `/x/index.html` and `/x/` forms), with exponential back-off when CloudFront throttles. Up to 10 distinct paths are listed exactly. More than 10, which is every full render and every site-wide follow-up, becomes a single `/*`: CloudFront bills a wildcard as one path, while listing a few hundred pages cost about $65 in 20 days. Callers still cannot pass a wildcard themselves; only this size rule chooses it. The first 1,000 paths a month are free, then $0.005 per path.
 - **Redirect writes.** A full render reads the KeyValueStore once and writes only redirects whose target changed, 50 keys per `UpdateKeys` call, and new-page redirect checks use one listing instead of a read per path when more than 10 paths are checked.
 - **Failure.** A failed purge does not make the item not live; the response says `edgePurged: false` and the function schedules an asynchronous `invalidate` task for the unpurged keys. If that keeps failing, Lambda sends it to the dead letter queue.
-- **Fallback.** `cache: { invalidation: "off" }` removes the invalidation call and its IAM statement and shortens the HTML lifetime to 60 seconds (or `htmlSMaxAgeSeconds`).
+- **Fallback.** `cache: { invalidation: "off" }` stops a Save from invalidating and shortens the HTML lifetime to 60 seconds (or `htmlSMaxAgeSeconds`). The `cloudfront:CreateInvalidation` statement and the path alarm stay, because an editor's explicit [page refresh](#refreshing-pages-on-demand) always invalidates when asked.
 - **Alarm.** Each invalidation call writes a CloudWatch embedded metric (`Papyrus/Edge` `InvalidatedPaths`, dimension `DistributionId`). The stack alarms when a week sums to 230 paths or more, which is the pace of the 1,000 free paths a month (CloudWatch cannot alarm across more than seven days).
 
 ### Serving a projection under a host site's path
@@ -1005,6 +1005,33 @@ What an editor can expect from a Save of a live item, as measured on the product
 | Pretext site, publish to visible | up to about two minutes (see [Hosting Pretext, for contrast](#hosting-pretext-for-contrast)) |
 
 Say "seconds", not "instant". Browsers always revalidate HTML (`max-age=0`).
+
+### Refreshing pages on demand
+
+The edge keeps a page for the cache lifetime (one hour, `s-maxage=3600`, on the production sites; `publication.cache`), and that stays the default. For the moments an edit must be visible now, four explicit operations exist (PPY-105508). They are one definition (`src/papyrus_content/page_refresh/operations.py`) behind the command line, the MCP tools and the `refreshSitePages` mutation, so the three cannot differ.
+
+| MCP tool | Command (`papyrus ops content ...`) | What it does |
+| --- | --- | --- |
+| `site_refresh_pages` | `refresh --path /articles/my-story/ [--path ...]` | Purges each page under every URL form it is cached under, and its Markdown twin. |
+| `site_refresh_story` | `refresh --story LINEAGE` | Purges the Story's page and twin, and every index page that lists it: the home page, its list page and its section page, and the pages of their paging that show it (videos, findings and the like only when the Story is in them). |
+| `site_refresh_indexes` | `refresh --indexes` | Purges the home page, every list page and every section page, with paging, archives, tag pages and twins. No Story page. |
+| `site_rerender_pages` | `rerender --story LINEAGE`, `rerender --indexes` or `rerender --all` | Rebuilds pages from the hooks and templates the site has deployed now, without a content change, then purges what it wrote. |
+
+**Why every form.** CloudFront caches by the address a reader asked for, so `/dir/` and `/dir/index.html` are two cache entries for one page, and a `urls.style: clean` site also answers `/x` for `x.html`. Purging one form left the other stale in the 2026-11-08 sessions (the reverse happened in another). Every page is purged as `/dir/`, `/dir/index.html` and `/dir/index.md`; a page file `x.html` as `/x.html`, `/x` and `/x.md`. A bare path such as `/about` covers both the clean page and the directory page. Which index pages list a Story is read from the site's own projection plan (`index_page_keys` and `listing_keys_of` on the standard projector), so it follows the site's `projection.json` (sections, paging, collections, tags, archives, `urls.basePath`) and is not written for any one site. A projector without a plan (the generic Markus projector) refreshes the pages it generates.
+
+**Rules.**
+
+- Exact paths only. The refresh operations never send a wildcard and never collapse a long list to `/*` the way the publish path does (more than 10 paths). A `*` in a requested path is refused. More than 3,000 paths go in several requests. There is no whole-site purge operation; if one is ever added it will be a separate, clearly named flag.
+- An explicit refresh always invalidates when asked, whatever `publication.cache.invalidation` is. That setting only decides whether a Save purges.
+- Cost: the first 1,000 paths a month are free, then 0.005 USD each. Every result prints the count and the most it can cost (the month's use so far is not known to the command). A story refresh is typically 10 to 20 paths; a full index refresh a few dozen; `rerender --all` is every page of the site, so use `--dry-run` first.
+- `--dry-run` prints the paths (for a re-render, the pages it would write) and invalidates nothing. The mutating commands write by default, like the other `ops content` commands.
+- A re-render writes pages that exist in the deployed hooks' output and purges only the `.html` and `.md` pages it wrote or deleted. `--no-invalidate` skips the purge. A hooks or template change in Git reaches existing pages only through a re-render (or a publish of each Story).
+
+**What it reports.** Writes and purges are separate outcomes: `rendered.ok` (re-render only; the pages written) and `invalidation.ok` with `status` (`invalidated`, `failed`, `dry-run`, `not-requested`, `scheduled`), the exact `paths`, `count`, `cost`, and for each request the CloudFront invalidation `id` and `status`. `ok` is true only when everything requested worked. The command exits 1 when the invalidation or the re-render failed, and 2 when the request cannot run (an unknown Story, a wildcard, a site that does not project pages). `--json` prints the same result an MCP tool returns.
+
+**Two lanes.** An operator with AWS credentials runs the operation in the process (the distribution comes from `PAPYRUS_EDGE_DISTRIBUTION_ID`, or `--distribution-id`; the CLI does not print the monthly-alarm metric line). A signed-in editor has no AWS credentials, so the command asks the `refreshSitePages` mutation (the same editor groups as `publishItem`), which runs the operation in the `content-actions` function with its own CloudFront rights. A re-render of the index pages or the whole site can outlast one request, so from the editor lane it is scheduled as an asynchronous task (`page-refresh-rerender`) that re-renders and then purges what it wrote; the answer says `scheduled` and the outcome is in the function's log (a failure goes to the dead letter queue). `rerender --story` and the three purges run in the request.
+
+**What needs deploying.** The `refreshSitePages` mutation, the function code and, for a site whose `cache.invalidation` is `off`, the kept `cloudfront:CreateInvalidation` statement and path alarm are a backend change: each site's backend deploys with the engine version that carries them. Until then the operator lane works on its own with AWS credentials.
 
 ### Operations runbook
 

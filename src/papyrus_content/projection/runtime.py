@@ -146,7 +146,9 @@ def context_from_environment(
     s3_client: Any = None,
     cloudfront_client: Any = None,
     kvs_client: Any = None,
+    force_invalidation: bool = False,
 ) -> ProjectionContext:
+    """``force_invalidation`` keeps the edge invalidator even when the site's ``cache.invalidation`` is ``off``: an explicit refresh purges what it wrote."""
     environment = os.environ if environ is None else environ
     bucket = (environment.get(SITE_BUCKET_ENV) or "").strip()
     if not bucket:
@@ -155,7 +157,7 @@ def context_from_environment(
     kvs_arn = (environment.get(REDIRECTS_KVS_ENV) or "").strip()
     invalidator = (
         CloudFrontInvalidator(distribution_id, cloudfront_client)
-        if distribution_id and invalidation_enabled(environment)
+        if distribution_id and (force_invalidation or invalidation_enabled(environment))
         else None
     )
     source = PublishedContentSource(client)

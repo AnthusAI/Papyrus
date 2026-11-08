@@ -92,22 +92,76 @@ def invalidate_distribution(
 
 def _create_invalidation_with_retries(
     cloudfront_client: Any, distribution_id: str, batch: list[str], sleep: Callable[[float], None]
-) -> None:
+) -> dict[str, Any]:
+    """Create one invalidation; returns the service's invalidation record (``Id``, ``Status``), ``{}`` when the client returns none."""
     caller_reference = uuid.uuid4().hex
     for attempt in range(MAXIMUM_ATTEMPTS):
         try:
-            cloudfront_client.create_invalidation(
+            response = cloudfront_client.create_invalidation(
                 DistributionId=distribution_id,
                 InvalidationBatch={
                     "Paths": {"Quantity": len(batch), "Items": batch},
                     "CallerReference": caller_reference,
                 },
             )
-            return
+            record = (response or {}).get("Invalidation") if isinstance(response, dict) else None
+            return record if isinstance(record, dict) else {}
         except Exception as error:  # noqa: BLE001 - only throttling is retried; the caller reports anything else
             if _error_code(error) not in THROTTLED_ERROR_CODES or attempt == MAXIMUM_ATTEMPTS - 1:
                 raise
             sleep(FIRST_RETRY_DELAY_SECONDS * (2**attempt))
+    return {}
+
+
+# CloudFront accepts at most 3,000 paths in one invalidation request.
+MAXIMUM_PATHS_PER_REQUEST = 3000
+FREE_PATHS_PER_MONTH = 1000
+USD_PER_PATH_AFTER_FREE = 0.005
+
+
+def invalidation_cost_note(path_count: int) -> dict[str, Any]:
+    """What these paths cost at most: the first 1,000 a month are free, then 0.005 USD each. The month's use so far is not known here."""
+    return {
+        "paths": path_count,
+        "freePathsPerMonth": FREE_PATHS_PER_MONTH,
+        "usdPerPathAfterFree": USD_PER_PATH_AFTER_FREE,
+        "usdAtMost": round(path_count * USD_PER_PATH_AFTER_FREE, 4),
+    }
+
+
+def invalidate_exact_paths(
+    distribution_id: str,
+    paths: Sequence[str],
+    cloudfront_client: Any = None,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+    emit_metric: bool = True,
+) -> list[dict[str, Any]]:
+    """Invalidate exactly these paths, never a wildcard and never collapsed to ``/*`` however many there are.
+
+    Used by the explicit page-refresh operations. Up to 3,000 paths go in each request; returns one ``{"id", "status", "paths"}`` per request.
+    ``emit_metric`` writes the monthly-alarm metric line to standard output, which only a Lambda's log wants. Raises ``WholeSiteInvalidationRefused`` for a wildcard. A failure raises, after the requests already made are in the error's ``made`` list.
+    """
+    unique = list(dict.fromkeys(encoded_path(path) for path in paths))
+    refuse_wildcards(unique)
+    if not unique:
+        return []
+    if cloudfront_client is None:
+        import boto3
+
+        cloudfront_client = boto3.client("cloudfront")
+    made: list[dict[str, Any]] = []
+    for start in range(0, len(unique), MAXIMUM_PATHS_PER_REQUEST):
+        batch = unique[start : start + MAXIMUM_PATHS_PER_REQUEST]
+        try:
+            record = _create_invalidation_with_retries(cloudfront_client, distribution_id, batch, sleep)
+        except Exception as error:
+            error.made = made  # type: ignore[attr-defined]
+            raise
+        made.append({"id": record.get("Id"), "status": record.get("Status"), "paths": len(batch)})
+        if emit_metric:
+            emit_invalidated_paths_metric(distribution_id, len(batch))
+    return made
 
 
 REVALIDATE_DISTRIBUTION_IDS_ENV = "PAPYRUS_REVALIDATE_DISTRIBUTION_IDS"

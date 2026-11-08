@@ -51,7 +51,8 @@ export function s3ProjectionPolicyStatements(input: S3ProjectionSettingsInput): 
     { actions: ["s3:PutObject", "s3:DeleteObject", "s3:GetObject"], resources: [`${input.bucketArn}/*`] },
     { actions: ["s3:ListBucket"], resources: [input.bucketArn] },
   ];
-  if (input.distributionArn !== undefined && input.cache?.invalidation !== "off") {
+  // Kept even when cache.invalidation is "off": that setting only stops a Save purging; an editor's explicit page refresh (PPY-105508) always may.
+  if (input.distributionArn !== undefined) {
     statements.push({ actions: ["cloudfront:CreateInvalidation"], resources: [input.distributionArn] });
   }
   statements.push(

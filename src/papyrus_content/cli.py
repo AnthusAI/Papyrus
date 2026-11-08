@@ -259,6 +259,8 @@ PORTED_COMMANDS = frozenset(
         "content:copy-backend",
         "content:upload-preview",
         "content:project",
+        "content:refresh",
+        "content:rerender",
         *(f"knowledge:{name}" for name in (*KNOWLEDGE_COMMANDS, *WIKI_COMMANDS)),
         "content:renditions",
         "corpora:status",
@@ -598,6 +600,12 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_upload_preview(flags)
     elif route == "content:project":
         content_project(flags)
+    elif route == "content:refresh":
+        from .page_refresh.cli import content_refresh
+        content_refresh(flags)
+    elif route == "content:rerender":
+        from .page_refresh.cli import content_rerender
+        content_rerender(flags)
     elif group == "knowledge":
         {**KNOWLEDGE_COMMANDS, **WIKI_COMMANDS}[command](flags)
     elif route == "content:renditions":
