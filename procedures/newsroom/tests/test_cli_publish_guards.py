@@ -34,18 +34,34 @@ IAM_LANE = {**USER_LANE, "PAPYRUS_GRAPHQL_AUTH": "iam"}
 class MutationClient(FakeAuthoringClient):
     """A fake that also answers the newsroom's publish and unpublish mutations."""
 
-    def __init__(self, response=None, error: Exception | None = None) -> None:
+    def __init__(self, response=None, error: Exception | None = None, job_states: list[dict] | None = None) -> None:
         super().__init__()
         self.mutations: list[tuple[str, dict]] = []
         self.response = {"ok": True, "changed": False, "projected": True, "live": True, "url": "https://site.example/hello/"} if response is None else response
         self.error = error
+        self.job_states = list(job_states or [])
 
     def graphql(self, query, variables=None):
         name = "unpublishItem" if "unpublishItem" in query else "publishItem"
-        self.mutations.append((name, json.loads(variables["input"])))
+        payload = json.loads(variables["input"])
+        self.mutations.append((name, payload))
         if self.error:
             raise self.error
+        if payload.get("jobStatus"):
+            return {name: json.dumps({"ok": True, "projection": self.job_states.pop(0)})}
         return {name: json.dumps(self.response)}
+
+
+def job_client(slug: str = "hello") -> MutationClient:
+    """A newsroom whose publishItem starts a background build (job-1), then answers two jobStatus questions: running, then done."""
+    return saved(MutationClient(
+        {"ok": True, "changed": False, "url": "https://site.example/hello/", "projection": {"jobId": "job-1", "state": "queued"}},
+        job_states=[{"jobId": "job-1", "state": "running"}, {"jobId": "job-1", "state": "done", "paths": ["/hello/"]}],
+    ), slug=slug)
+
+
+ASYNC_PUBLISH = ("publishItem", {"id": ITEM, "async": True})
+JOB_STATUS = ("publishItem", {"id": ITEM, "jobStatus": True})
 
 
 def saved(client: FakeAuthoringClient, slug: str = "hello") -> FakeAuthoringClient:
@@ -75,12 +91,35 @@ class SignedInProjectionTests(unittest.TestCase):
         client = saved(MutationClient())
         out, _err, code, invoke = run(content_publish, client, ["--id", ITEM, "--json"], USER_LANE)
         self.assertEqual(code, 0)
-        self.assertEqual(client.mutations, [("publishItem", {"id": ITEM})])
+        self.assertEqual(client.mutations, [ASYNC_PUBLISH])
         invoke.assert_not_called()
         payload = json.loads(out)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["projection"]["via"], "publishItem mutation")
         self.assertEqual(client.get_record("Item", ITEM)["status"], "published")
+
+    def test_publish_starts_a_background_build_and_asks_about_the_job_until_it_is_done(self) -> None:
+        client = job_client()
+        with mock.patch("time.sleep") as sleep:
+            out, _err, code, invoke = run(content_publish, client, ["--id", ITEM, "--json"], USER_LANE)
+        self.assertEqual(code, 0)
+        self.assertEqual(client.mutations, [ASYNC_PUBLISH, JOB_STATUS, JOB_STATUS])
+        self.assertEqual(sleep.call_count, 2)
+        invoke.assert_not_called()
+        projection = json.loads(out)["projection"]
+        self.assertEqual((projection["via"], projection["jobId"], projection["jobState"]), ("publishItem job", "job-1", "done"))
+        self.assertEqual(projection["url"], "https://site.example/hello/")
+
+    def test_a_failed_job_exits_non_zero_with_the_retry(self) -> None:
+        client = saved(MutationClient(
+            {"ok": True, "projection": {"jobId": "job-2", "state": "running"}},
+            job_states=[{"jobId": "job-2", "state": "failed", "error": "bucket denied"}],
+        ))
+        with mock.patch("time.sleep"):
+            _out, err, code, _invoke = run(content_publish, client, ["--id", ITEM], USER_LANE)
+        self.assertEqual(code, 4)
+        self.assertIn("bucket denied", err)
+        self.assertIn(f"papyrus ops content publish --id {ITEM}", err)
 
     def test_unpublish_asks_the_unpublish_mutation(self) -> None:
         client = saved(MutationClient())
@@ -216,17 +255,28 @@ class StoriesMoveWarningTests(unittest.TestCase):
 
 
 class SetSlugProjectionTests(unittest.TestCase):
-    def test_signed_in_set_slug_projects_through_the_mutation(self) -> None:
-        client = saved(MutationClient(), slug=PLACEHOLDER)
+    """A slug change republishes the page under its new path, a full build like a publish, so it uses the same background job and must not time out."""
+
+    def set_slug(self, client):
         publish_item(client, ITEM, actor="t", now=NOW)
         out = io.StringIO()
         with mock.patch.dict("os.environ", USER_LANE), \
                 mock.patch("papyrus_content.story_commands.create_authoring_client", return_value=(client, {})), \
                 mock.patch("papyrus_content.projection_trigger._invoke_lambda") as invoke, \
+                mock.patch("time.sleep"), \
                 contextlib.redirect_stdout(out):
             stories_set_slug(["--story", ITEM, "--slug", "real-slug", "--force"])
         invoke.assert_not_called()
-        self.assertEqual(client.mutations, [("publishItem", {"id": ITEM})])
+        return client
+
+    def test_signed_in_set_slug_projects_through_the_mutation(self) -> None:
+        client = self.set_slug(saved(MutationClient(), slug=PLACEHOLDER))
+        self.assertEqual(client.mutations, [ASYNC_PUBLISH])
+
+    def test_set_slug_waits_for_the_background_build_like_a_publish(self) -> None:
+        client = self.set_slug(job_client(slug=PLACEHOLDER))
+        self.assertEqual(client.mutations, [ASYNC_PUBLISH, JOB_STATUS, JOB_STATUS])
+        self.assertEqual(client.job_states, [])
 
 
 if __name__ == "__main__":
