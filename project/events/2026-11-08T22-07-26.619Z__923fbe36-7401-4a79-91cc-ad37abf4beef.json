@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "923fbe36-7401-4a79-91cc-ad37abf4beef",
+  "issue_id": "PPY-cc6a0fae-3c66-4dde-b3b3-a9259aa402f0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T22:07:26.619Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Checklist steps skipped for one edit keep that edit's reason when carried onto later versions",
+    "description": "Found 2026-11-08: a bulk run skipped the open review steps on 76 legacy published stories with the reason 'Legacy story published before the checklist; this edit only removes an AI-drafted disclaimer'. The skipped state (with that reason) is carried forward onto later versions, so papyrus stories next now shows it for stories whose later edits were NOT disclaimer removals: the reason is false for them. Each skip must record the version it was made for and the kind of change (text unchanged, picture only, text edited); a carried-forward skip is shown as 'skipped on vN: <reason>' and a later text edit reopens the steps whose lens reads text (see PPY-a2c230 for the scoping rules), instead of silently inheriting. Gherkin: skip recorded with its version, carried forward label, reopened by a text edit, not reopened by a picture-only edit. Also consider a command to list stories whose open or skipped steps carry a reason from an older version.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-959e413e-13c6-4d29-b429-9ef49d3e7ddc",
+    "labels": []
+  }
+}

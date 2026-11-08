@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6d34f1bc-1e27-4b05-b16f-5edb62aacf5c",
+  "issue_id": "PPY-d89268a7-ca69-44aa-a1a6-3e97fda34c1f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T22:07:26.492Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "papyrus stories set-stars: rate a Story from the CLI and MCP like references set-stars",
+    "description": "From the Anthus news desk editing session 2026-11-08: there is no CLI command to rate a Story. The editor had to call the setItemStars mutation by hand through the CLI's Python client (it works and returned stars 5). Add papyrus stories set-stars --story LINEAGE --stars 1-5|clear (--dry-run, --json), mirroring references set-stars, and a matching MCP tool (one definition behind both), recording who and when. Gherkin: set, change, clear, invalid value, dry run writes nothing, MCP matches CLI.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-0111742e-e604-4ae1-a134-38b86c1a1fd4",
+    "labels": []
+  }
+}
