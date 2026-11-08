@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "d5f2c618-f6dd-4ca8-922a-cca28eb3e998",
+  "issue_id": "PPY-752480c1-0ceb-4176-ac1f-9035d7085b39",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:45.119Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Same rule as PPY-ce6207 for: Message (newsroomFeedKey, status, messageKind, messageDomain, semanticLayer, searchVisibility, responseTarget; threadId and authorSub are ids), MessageThread (newsroomFeedKey, threadKind, status, primaryAnchorKey; sectionId from PR #1298 is a tenant-scoped section key already), ModelAttachment (role), Assignment (newsroomFeedKey \"assignment#<status>\", queueStatusKey, assignmentTypeKey, status, sectionStatusKey, sectionKey, sectionQueueStatusKey), AssignmentEvent (eventType, queueKey), ProcedureDefinition (procedureKey, enabledStatus, newsroomFeedKey), ProcedureVersion (status), ProcedureRun (runStatus, newsroomFeedKey), Automation, ReviewRequest, ReviewReadMark, ReviewRecipientRule, StoryVariation, Proposal (state), EditorialPolicy, EditorialCheckSettings, EditorialFeedback, EditorialCheckRun. The forum pages (the conversations redesign) and the threads include read through these indexes, so the projection's thread queries move to the prefixed keys in the same change.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/assignments.py, assignments_workflow.py, accession.py, message writers, story/procedure modules, home_page thread export; amplify/data/message-actions.ts; amplify/functions/procedure-action, assignment-action, editorial-checks, proposal-actions; newsroom components reading these indexes.\n\nAcceptance (Gherkin feature file: features_backend/tenant-workflow-keys.feature):\nScenario: The assignment queue shows only the tenant's work\n    Given open assignments in \"alpha\" and \"beta\"\n    When an \"alpha\" editor opens the queue\n    Then only \"alpha\" assignments are read and shown\n\nScenario: A forum page lists only its tenant's threads\n    Given threads in \"alpha\" and \"beta\"\n    When alpha's forum page is projected\n    Then it contains no \"beta\" thread\n\nDependencies: blocked by PPY-cd5926, PPY-94d609. Blocks PPY-bdc4ee, PPY-8f9462. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-5e0259.\n\nTesting: pytest; Behave; projection golden render of the forum page with two tenants.\nRollout: As PPY-ce6207: dual-read, backfill, then single read. No new index except as listed in PPY-1ce06f.\nRisk and mitigation: Risk: Message is high-volume and many writers set newsroomFeedKey directly. Mitigation: one helper builds the key, and a lint forbids string literals for these fields.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

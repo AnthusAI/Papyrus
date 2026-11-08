@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "4e3e3066-9652-4c4c-baca-4c8ec1ea1b68",
+  "issue_id": "PPY-82de5876-dc01-4894-b1d7-fb7a90c188da",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:45.972Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Every tenant gets <site>.<platform domain> on day one (owner decision 3 recommends apyr.us, whose zone is in papyrus-production). One wildcard ACM certificate and one wildcard alias record point at the shared distribution; specific names already in use (p.apyr.us) keep their own distributions, which CloudFront allows. A reserved-names list (newsroom, www, api, mail, admin, our product names, existing tenant ids) is refused.\n\nTouches (verified at origin/develop 23fabe1d): the shared edge template (certificate, alias), Route 53 zone apyr.us, TenantDomain rows (PPY-31c45c), provisioning (PPY-70a429).\n\nAcceptance (Gherkin feature file: features_backend/default-subdomain.feature):\nScenario: A new tenant is reachable at its subdomain\n    Given tenant \"harbour-news\" is provisioned\n    When \"https://harbour-news.apyr.us/\" is requested\n    Then its starter site is served over HTTPS\n\nScenario: A reserved name is refused\n    When a tenant asks for \"newsroom\"\n    Then provisioning refuses it and suggests another\n\nDependencies: blocked by PPY-3bbbf9, PPY-31c45c. Blocks PPY-966722, PPY-70a429. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-fea16f.\n\nTesting: Behave against staging with a staging wildcard domain.\nRollout: Shared stack; DNS change approved by Ryan.\nRisk and mitigation: Risk: the wildcard shadows a future product subdomain. Mitigation: a specific record always wins; the reserved list is data.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

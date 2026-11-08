@@ -1,0 +1,32 @@
+{
+  "id": "PPY-203ce2b7-7c67-4699-8c35-081da06a91d7",
+  "title": "Workers, agents and operators act for one named tenant; IAM is for platform staff only",
+  "description": "Outcome: IAM-signed callers bypass every Cognito rule: the operator lane (PAPYRUS_GRAPHQL_AUTH=iam), the monitoring router (its publication entry names tenantId and appsyncEndpoint, AGENTS.md \"monitoring\"), cloud knowledge runs and Batch jobs, the procedure runner and scheduled tasks. On a shared stack: (1) background work that belongs to a tenant runs with an explicit tenant and is audited (who, which tenant, which operation) in a structured log; (2) agents acting for a customer use that customer's signed-in session (remote login, docs/cli-login.md), not an IAM role; (3) the IAM role that can cross tenants is a named platform-operator role, used only by platform staff and the provisioning and deletion workflows; (4) the CLI warns before any cross-tenant operation and refuses without --tenant.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content graphql client (IAM lane), monitoring router config (docs/monitoring-cloud.md), cloud knowledge run stack, procedure runner (docs/procedure-runner.md), src/papyrus/operator, docs/cli-login.md, docs/operator-cli.md.\n\nAcceptance (Gherkin feature file: features_backend/tenant-worker-scope.feature):\nScenario: A monitor delivery lands only in its tenant\n    Given a monitor configured for \"alpha\"\n    When it delivers 30 References\n    Then every Reference row carries tenantId \"alpha\" and corpus ids of \"alpha\"\n    And an audit line names the monitor, the tenant and the count\n\nScenario: The operator CLI refuses a tenant-less write on a shared stack\n    Given the platform operator signed in with IAM\n    When they run a write command without --tenant\n    Then it exits with code 2 and writes nothing\n\nDependencies: blocked by PPY-7dc463. Blocks PPY-bdc4ee, PPY-0c4b55. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-5e0259.\n\nTesting: Behave for the router and CLI against a sandbox; a CI grep that every IAM lane passes a tenant.\nRollout: Ships with the shared stack; dedicated stacks keep today's single-tenant lanes.\nRisk and mitigation: Risk: a scheduled job written later forgets the tenant. Mitigation: the tenant client refuses tenant-less writes when the stack's tenancy mode is shared.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: changes: who may use IAM on the shared stack (IAM policies).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-7dc4633f-740e-4a88-a901-9fa4dbbc89ab",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-5e0259bf-c578-47b1-8ca2-13328c612089",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:18.932447Z",
+  "updated_at": "2026-11-08T18:46:52.285283Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

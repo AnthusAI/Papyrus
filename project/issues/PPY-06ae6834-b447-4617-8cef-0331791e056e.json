@@ -1,0 +1,40 @@
+{
+  "id": "PPY-06ae6834-b447-4617-8cef-0331791e056e",
+  "title": "Tenant rules on every tenant model, added beside today's group rules (stage 1, additive)",
+  "description": "Outcome: Every tenant-owned model gets rules that grant an operation only to a session whose role claim names the row's tenant, in the form proven by the spike. Today's rules (allow.groups(contentWriteGroups), allow.group(\"editor\"), allow.groups(categoryWriteGroups), allow.group(adminGroup)) stay, so nothing changes for anyone yet; this release only makes the tenant rules exist and testable. tenantId becomes immutable after create (field-level rule or resolver check, as the spike found). Identity models that span sites (UserProfile, UserIdentity, PublicHandleClaim) are not tenant models and keep owner/admin rules.\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts (46 models in buildBaseDefinitions), amplify/functions/editorial-checks/schema.ts (EditorialPolicy, EditorialCheckSettings, EditorialFeedback, EditorialCheckRun), amplify/functions/proposal-actions/schema.ts (Proposal), amplify/plugins/reader-steering/schema.ts (8 Reader* and ModerationAction models, staff rules), amplify/plugins/signup/schema.ts (SignupEntry), scripts/test-schema-parity.ts.\n\nAcceptance (Gherkin feature file: features_backend/tenant-rules-additive.feature):\nScenario: The tenant rule admits the right tenant's editor\n    Given an editor session acting for \"alpha\" with no Cognito group\n    When it reads and updates an \"alpha\" Item\n    Then both succeed\n\nScenario: Group members keep today's access during stage 1\n    Given a dedicated site whose editors are in the \"editor\" group\n    When an editor saves a story\n    Then it succeeds exactly as before\n\nDependencies: blocked by PPY-9f3de0, PPY-0bb0fd, PPY-94d609. Blocks PPY-baa75d, PPY-bdc4ee, PPY-13fbea. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-5e0259.\n\nTesting: Schema parity test lists every rule; Behave against a sandbox with both rule kinds; the adversarial suite (PPY-29f730) starts running here in report-only mode.\nRollout: One release for every site (rules are not indexes, so no staging by table). No behaviour change because the group rules still grant.\nRisk and mitigation: Risk: Amplify rules are OR-ed, so stage 1 gives no isolation at all; someone may believe it does. Mitigation: the feature file and the release note say so; isolation is claimed only after PPY-bdc4ee.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: changes: adds tenant rules to 55 models (additive).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-9f3de056-b9e3-45e8-92ee-c71395ae25d4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-0bb0fdef-dcfd-4110-a77c-328834d4977c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-94d60950-f4c8-4434-89f4-cfe3c967df99",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-5e0259bf-c578-47b1-8ca2-13328c612089",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:18.573082Z",
+  "updated_at": "2026-11-08T18:46:51.390736Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

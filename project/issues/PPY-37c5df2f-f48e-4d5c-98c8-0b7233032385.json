@@ -1,0 +1,28 @@
+{
+  "id": "PPY-37c5df2f-f48e-4d5c-98c8-0b7233032385",
+  "title": "M2 Tenant data foundations (additive only)",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M0; can overlap M1.\nExit criteria: PPY-94d609, PPY-31c45c, PPY-c020ce, PPY-9f929e, PPY-ce6207, PPY-752480, PPY-f60a1e, PPY-ef2c57, PPY-8f9462, PPY-0bb0fd, PPY-06ae68, PPY-7dc463 released; adopt-tenant-data dry run on a Pilobolus copy reports zero tenant-less rows after apply.\nCustomer-visible: Nothing (dedicated sites behave exactly as before).\nIndex-adding deploys in this milestone: New tables only (Tenant, TenantMembership, TenantDomain, SiteDocumentVersion, TenantUsageCounter) plus PPY-1ce06f: one tenantId index on each listed table, all in one release (different tables), never on Reference.\nContains: PPY-94d609, PPY-31c45c, PPY-c020ce, PPY-9f929e, PPY-ce6207, PPY-752480, PPY-f60a1e, PPY-ef2c57, PPY-1ce06f, PPY-8f9462, PPY-0bb0fd, PPY-06ae68, PPY-7dc463\nFollows: M0.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-f0508e58-5142-4378-80b5-f4a0ba718563",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:26.643494Z",
+  "updated_at": "2026-11-08T18:47:13.529357Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

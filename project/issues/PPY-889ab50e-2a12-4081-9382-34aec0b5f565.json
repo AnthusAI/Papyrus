@@ -1,0 +1,32 @@
+{
+  "id": "PPY-889ab50e-2a12-4081-9382-34aec0b5f565",
+  "title": "Model spend is checked before and recorded after every call, with a hard ceiling per tenant",
+  "description": "Outcome: One spend gate that every model call path goes through: the procedure runner and agents, editorial checks (Humanus), Cyclotron decisions and retrains, image generation (image-service), transcripts, AI moderation and submission extraction (reader-steering), web search. Before: Prospectus quota check for the tenant's Account (a cheap read; 402 quota_exhausted means do not start). Expensive batch work reserves its estimate and settles. After: record the actual items in a batch. A refusal shows the plain message \"This site has used this week's budget; it resets <time>\" and records nothing. Fail closed: if Prospectus cannot answer, model work does not start (serving pages never depends on this).\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/model_cost.py, new src/papyrus_content/spend_gate.py, the model-calling modules (procedure runner, editorial checks, cyclotron, web_search.py, image generation in amplify/functions/image-service, reader-steering moderation in amplify/plugins/reader-steering/function), lib/ twin for TypeScript functions.\n\nAcceptance (Gherkin feature file: features_backend/model-spend-ceiling.feature):\nScenario: A tenant over its weekly budget cannot start model work\n    Given Prospectus answers quota_exhausted for alpha's Account\n    When an editor asks for an editorial check\n    Then no model is called and the editor sees when the budget resets\n\nScenario: Serving is not affected by the budget\n    Given alpha's budget is exhausted\n    When a reader opens alpha's home page\n    Then it is served normally\n\nDependencies: blocked by PPY-3fd951. Blocks PPY-1f83a6. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-ea3f08.\n\nTesting: Behave with a fake quota server; a CI grep that every model client is constructed through the gate.\nRollout: Shared stack first; dedicated customers billed by usage get it too.\nRisk and mitigation: Risk: a code path calls a model directly and spends unmetered. Mitigation: the model clients are only constructible through the gate (factory), and the CI grep fails on direct construction.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-3fd9519a-4f79-4772-be6a-57208051148d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ea3f085a-0b23-45a8-b00f-bfb9673b868b",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:23.070882Z",
+  "updated_at": "2026-11-08T18:47:04.783789Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

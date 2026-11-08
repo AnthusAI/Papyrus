@@ -13,9 +13,17 @@
     "threat-intelligence"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "accd087f-b416-4ae2-b2d0-0b2d97e97e67",
+      "author": "home",
+      "text": "Exact steps in PPY-e51189.",
+      "created_at": "2026-11-08T18:48:45.464126Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T23:32:39.123073Z",
-  "updated_at": "2026-11-07T23:32:39.123110Z",
+  "updated_at": "2026-11-08T18:48:45.464339Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

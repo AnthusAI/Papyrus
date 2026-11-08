@@ -1,0 +1,40 @@
+{
+  "id": "PPY-ca247b81-70a5-4441-9cdd-a566317c4b50",
+  "title": "Freshness on the shared stack: TTL by default, targeted per-tenant purges with a per-call cap, never a wildcard",
+  "description": "Outcome: Implements PPY-05ebd5 for the shared stack. Today a publish that touches more than 10 paths becomes one \"/*\" invalidation (docs/site-hosting.md, \"Targeted invalidation, one call per run\"); on a shared distribution \"/*\" would empty every tenant's cache. On the shared stack: (1) default consistency is the TTL (one hour, s-maxage=3600; owner rule), with no purge on save; (2) explicit update-live and refresh calls (src/papyrus_content/page_refresh) purge exact paths for that tenant only (scoped per PPY-3b3cc3), keep the 25-path per-call cap and the dry run above 5 paths; (3) the publish path never collapses to a wildcard; (4) each purged path is metered to the tenant (PPY-3fd951); (5) the weekly path alarm (Papyrus/Edge InvalidatedPaths) gets a tenant dimension. The 1,000 free paths a month are per AWS account, so they are not promised to any tenant.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/page_refresh/service.py and operations.py (guard, _invalidate), src/papyrus_content/edge_invalidation.py, the projection's publish invalidation, amplify/publication/invalidation-alarm.ts, amplify/revalidate-invalidation-settings.ts, docs/site-hosting.md.\n\nAcceptance (Gherkin feature file: features_backend/shared-stack-freshness.feature):\nScenario: A save does not purge on the shared stack\n    Given \"alpha\" saves a published story\n    When the projection writes the page\n    Then no invalidation is requested and the page is fresh at the edge within the TTL\n\nScenario: An explicit update-live purges only the tenant's exact paths\n    Given \"alpha\" runs update-live for a story touching 8 paths\n    When it confirms the dry run\n    Then 8 exact paths of alpha are purged, metered to alpha, and no wildcard is sent\n\nScenario: A large publish never becomes a wildcard\n    Given a publish on the shared stack touching 40 paths\n    When it finishes\n    Then no \"/*\" invalidation is sent\n\nDependencies: blocked by PPY-3b3cc3, PPY-3bbbf9. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-05ebd5, PPY-409932.\n\nTesting: pytest on the guard and the path builder; a staging CloudTrail check that no wildcard invalidation was made.\nRollout: Shared stack only; dedicated sites keep their setting.\nRisk and mitigation: Risk: tenants expect instant updates. Mitigation: the newsroom says 'live within an hour; Update live now for urgent changes' and update-live is one button.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-3b3cc320-6ca0-4fd7-adc4-3be1a2b5f201",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3bbbf9e2-2ddf-4c10-b19e-e7b65f36f5a3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-05ebd546-059c-4742-918c-fdfb3290023b",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:21.732327Z",
+  "updated_at": "2026-11-08T18:47:00.153519Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

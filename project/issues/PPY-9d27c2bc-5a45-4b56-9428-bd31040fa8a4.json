@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "56d6233c-7f3e-4043-9907-fd676ec2f72b",
+      "author": "home",
+      "text": "Part of milestone M0 (PPY-f0508e).",
+      "created_at": "2026-11-08T18:48:46.346714Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:25.847627Z",
-  "updated_at": "2026-11-07T21:42:25.847682Z",
+  "updated_at": "2026-11-08T18:48:46.347012Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

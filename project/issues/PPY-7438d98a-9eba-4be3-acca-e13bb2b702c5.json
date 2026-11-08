@@ -1,0 +1,32 @@
+{
+  "id": "PPY-7438d98a-9eba-4be3-acca-e13bb2b702c5",
+  "title": "Runbooks for the shared tier's incidents",
+  "description": "Outcome: Written and rehearsed in staging before TI moves: (1) suspected cross-tenant leak: freeze writes, collect evidence, notify; (2) a bad release on the shared stack: roll back the deploy (rules and code) and what cannot be rolled back (data migrations); (3) wrong host routing in the KeyValueStore; (4) certificate or custom-domain failure; (5) runaway spend or request burst by one tenant; (6) abuse takedown; (7) projection backlog in the queue; (8) Prospectus unavailable: what fails closed (model spend, provisioning) and what keeps working (serving, editing); (9) restore one tenant's data: point-in-time restore works per table, so restore into new tables and copy only that tenant's rows back with copy-backend; (10) wrongful suspension reversal.\n\nTouches (verified at origin/develop 23fabe1d): new docs/runbooks/shared-tier/*.md, docs/operator-alerts.md.\n\nAcceptance (Gherkin feature file: none (runbooks); rehearsal evidence on the issue):\nScenario: One tenant's data is restored without touching others\n    Given \"alpha\" deleted 20 stories by mistake an hour ago\n    When the operator follows the restore runbook\n    Then alpha's stories are back and no other tenant's rows changed\n\nDependencies: blocked by PPY-daf673, PPY-8f9462. Blocks PPY-e51189. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Each runbook rehearsed once in staging.\nRollout: Docs.\nRisk and mitigation: Risk: the per-tenant restore is slow for large tables. Mitigation: measured during the rehearsal and stated.\n\nReleasable on its own: not applicable (docs).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-daf67362-ce52-43f0-98f7-8558ff1affd9",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8f9462c3-2ffd-4e71-8044-cadcc254586f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:26.134870Z",
+  "updated_at": "2026-11-08T18:47:12.925248Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

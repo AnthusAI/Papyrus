@@ -1,0 +1,52 @@
+{
+  "id": "PPY-e511893a-f11c-4ba1-9534-cbbb9ca666d5",
+  "title": "TI cut-over runbook: freeze, final copy, switch the hostname, verify, keep rollback for 14 days",
+  "description": "Outcome: Extends PPY-9378c7 with exact steps. Day -1: lower the TTL of the threat-intelligence.anth.us alias record to 60 s; announce the freeze. Day 0: (1) put TI's newsroom in read-only (banner); (2) final copy-backend --stamp-tenant --apply twice, the second run must change nothing; (3) add threat-intelligence.anth.us as a custom domain of the tenant (anth.us zone is in papyrus-production), certificate issued, KVS entry written; (4) switch the alias from TI's distribution (E20NJAIXZ1WKWD) to the shared distribution; (5) verify: update-live on one story, 50 sampled URLs, sitemap, feeds, Markdown twins, a monitor delivery; (6) open the tenant's newsroom on the shared host to TI's editors. Rollback (any time in 14 days): switch the alias back, lift TI's old read-only, and copy any edits made on the shared stack back with copy-backend in reverse (rehearsed in PPY-e1d26f). No blanket invalidation at any step.\n\nTouches (verified at origin/develop 23fabe1d): TI edge (infra/edge/threat-intelligence-amplify-origin.yaml pattern), Route 53 anth.us zone, the shared edge, copy-backend, docs runbook page.\n\nAcceptance (Gherkin feature file: features_backend/ti-cutover.feature):\nScenario: A bad cut-over can be reversed without losing edits\n    Given TI has run on the shared stack for 2 days with 3 new stories\n    When the operator rolls back\n    Then readers see the old site within the TTL with the 3 stories, and no URL errors\n\nDependencies: blocked by PPY-e1d26f, PPY-966722, PPY-f7ce77, PPY-7438d9, PPY-7e396d. Blocks PPY-16f13a. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-9378c7, PPY-32b4c5.\n\nTesting: The rehearsal ran the same steps against staging; the verification list is a script.\nRollout: Production, with Ryan's go-ahead on the day (production DNS and data).\nRisk and mitigation: Risk: DNS change on a shared root zone. Mitigation: alias switch inside our own zone (not an Amplify domain association), TTL lowered a day ahead, old distribution untouched for 14 days.\n\nReleasable on its own: no (an operation, not a release).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-fe8bc69c-453f-45f8-938d-eaabb8a366a8",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-e1d26fa2-6008-40d6-a6a1-4be875bd55b3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-966722d1-be19-4f15-ab38-c1c3dbe8c7d3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-f7ce7774-4c44-4b37-bd33-442ccca41f89",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-7438d98a-9eba-4be3-acca-e13bb2b702c5",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-7e396d14-7708-4a39-ba87-16b54803f544",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-9378c7d2-b2a7-4a65-84e9-ea50ea3d5be2",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-32b4c5ea-3445-40e9-8c12-f57568afe88e",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:24.538486Z",
+  "updated_at": "2026-11-08T18:47:08.995325Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

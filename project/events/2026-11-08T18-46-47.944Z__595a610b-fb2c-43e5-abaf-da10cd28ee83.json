@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "595a610b-fb2c-43e5-abaf-da10cd28ee83",
+  "issue_id": "PPY-b213401d-8cc0-4ca5-8c5e-0f4433798960",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:47.944Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: A tenant picks a home template instead of writing a home page: each template is a Markus page with ::include blocks (latest stories, findings by section, talking now, concepts) from the block catalogue. MoM's pages/home.md is the model for the 'publication' template; a quieter 'blog' template serves Pilobolus-like sites. Blocks read from indexes (PPY-7f1e54), never from whole-corpus files.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/projection/standard (home page and includes), new templates under src/papyrus_content/starter/home/, docs/home-page.md.\n\nAcceptance (Gherkin feature file: features_backend/home-templates.feature):\nScenario: Choosing a template changes the home page only\n    Given \"alpha\" switches from \"publication\" to \"blog\"\n    When the home page is projected\n    Then it uses the blog template and no other page changed\n\nDependencies: blocked by PPY-1252ce. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Golden renders of each template with two brand packs.\nRollout: Releasable alone.\nRisk and mitigation: Risk: a template depends on a block that reads the whole corpus. Mitigation: blocked by PPY-7f1e54 for any References block.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

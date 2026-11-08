@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "068ac0ea-0a2d-47e4-9c70-c62ea9d9f4df",
+  "issue_id": "PPY-bdc4ee0b-6e4e-48c5-ab83-cb91f203cefa",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:44.494Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: On a stack whose tenancy mode is shared, the global group rules are not synthesised: a Cognito group no longer grants anything on a tenant model; only tenant role claims do. A platform-operator group keeps read access for support, logged. This is the release that makes tenant isolation real. Dedicated stacks keep both rule kinds until they have adopted their fixed tenant (PPY-13fbea); then they drop group rules too (owner decision 7), so both tiers end on one rule set.\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts (contentWriteGroups, categoryWriteGroups, adminGroup usages behind the tenancy mode), function and plugin schema files as in PPY-06ae68, amplify/site-backend-config.ts (tenancy mode), docs/multi-tenancy.md (rewritten by PPY-bd73b2).\n\nAcceptance (Gherkin feature file: features_backend/tenant-rules-enforced.feature):\nScenario: A Cognito group alone grants nothing on the shared stack\n    Given a user in the \"editor\" group with no tenant claim\n    When they list Items\n    Then they get no rows\n\nScenario: The adversarial suite passes with group rules removed\n    Given the shared stack in staging\n    When the adversarial suite runs\n    Then every case passes\n\nDependencies: blocked by PPY-06ae68, PPY-7dc463, PPY-98eaee, PPY-203ce2, PPY-baa75d, PPY-e01d82, PPY-29f730, PPY-8f9462, PPY-ce6207, PPY-752480, PPY-f60a1e, PPY-ef2c57. Blocks PPY-b99fc0, PPY-d7274f, PPY-e1d26f, PPY-bd73b2. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-5e0259.\n\nTesting: The adversarial suite in blocking mode, twice on staging; the newsroom smoke tests with tenant claims only.\nRollout: Shared stack only, after security review gate 1 (PPY-3ff465). Not releasable before every tenant row is backfilled, or editors lose their rows.\nRisk and mitigation: Risk: a forgotten row without tenantId becomes invisible (data looks lost). Mitigation: adopt-tenant-data dry run must report zero rows without tenant on the stack before this deploys; rollback is redeploying the previous version (rules only, no data change).\n\nReleasable on its own: no (needs the backfill and every A task).\nDynamoDB index: none.\nAppSync authorisation: changes: BREAKING, removes global group rules on the shared stack.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

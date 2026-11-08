@@ -1,0 +1,28 @@
+{
+  "id": "PPY-cf9039f1-fbd0-4ec0-9aa4-abadba8c51b5",
+  "title": "M8 First outside paying tenant",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M7; Stripe live in Prospectus (Prospectus scope).\nExit criteria: Security gate 2 (external review) passed; terms with the ownership statement (PPY-2f1bb2) and acceptable use; PPY-bd73b2 and the p.apyr.us pages (PPY-c7244c) published; one outside tenant live and billed by usage.\nCustomer-visible: Public sign-up on p.apyr.us.\nIndex-adding deploys in this milestone: None.\nContains: PPY-bd73b2, PPY-2f1bb2, PPY-c7244c, PPY-3ff465 (gate 2)\nFollows: M7.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-dad077d6-3bf9-470d-8535-37cb0bcbf88e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:27.396755Z",
+  "updated_at": "2026-11-08T18:47:14.650597Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

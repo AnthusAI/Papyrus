@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d9b4fd51-62b4-40d6-b62e-5aa9a4d892d7",
+      "author": "home",
+      "text": "Reached at milestone M7 (PPY-dad077) through PPY-70a429, PPY-3aa10f, PPY-810f42 and the Prospectus changes from PPY-6d9a6d.",
+      "created_at": "2026-11-08T18:48:44.460402Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:49.263434Z",
-  "updated_at": "2026-11-07T21:42:49.263481Z",
+  "updated_at": "2026-11-08T18:48:44.460690Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

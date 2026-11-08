@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "f70caf82-1da7-4082-bee4-511ad94beb37",
+  "issue_id": "PPY-91fb6809-4acb-417c-bd12-3d8f06ae7e29",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:47.854Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: An admin sees a change before saving it: a previewSitePage query renders one page (home, a section, a story) from the unsaved SiteConfig and BrandPack drafts, without writing to S3, and returns HTML shown in a sandboxed frame. Uses the same renderer as publishing, so the preview is exact.\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts (new custom query previewSitePage, additive), amplify/functions/content-actions/handler.py, app/newsroom site settings and onboarding components.\n\nAcceptance (Gherkin feature file: features/site-settings-preview.feature):\nScenario: The preview shows an unsaved colour\n    Given an admin changes the brand colour without saving\n    When the preview refreshes\n    Then the preview page uses the new colour and the public site is unchanged\n\nDependencies: blocked by PPY-413576. Blocks PPY-810f42. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Browser test; pytest that preview writes nothing.\nRollout: Releasable alone.\nRisk and mitigation: Risk: preview becomes a cheap way to run heavy renders. Mitigation: one page per call, metered as function time (PPY-3fd951).\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: changes: adds one query (tenant admin claim).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

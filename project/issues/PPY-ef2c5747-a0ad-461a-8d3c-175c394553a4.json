@@ -1,0 +1,36 @@
+{
+  "id": "PPY-ef2c5747-a0ad-461a-8d3c-175c394553a4",
+  "title": "Plugin models, the tables outside AppSync and the vector index carry the tenant",
+  "description": "Outcome: Reader-steering models (ReaderProfile, ReaderHandle, ReaderVote, ReaderFlag, ReaderComment, ReaderSubmission, ReaderReport, ModerationAction) and SignupEntry get tenant-prefixed ids and keys (a vote id becomes \"<tenant>#<subjectKey>#<readerId>#<dimension>\"). Tables outside AppSync: NewsletterTable (pk/sk, amplify/plugins/newsletter/papyrus.plugin.ts) gets \"<tenant>#\" in pk; ReferenceWordTable (partition \"shard\", amplify/functions/reference-word-index/wire.ts) gets the tenant in the shard; PublicFormsLimits, PapyrusReaderRateWindows and PapyrusSignupRateCounters get the tenant in their keys; the remote-login Transactions and ChallengeThrottle tables (amplify/cli-login/remote-login.ts) record the tenant the login is for. The S3 Vectors knowledge index (site-backend.ts, deriveKnowledgeVectorIndexName) either gets one index per tenant or a mandatory tenant metadata filter (decided in this task with a measured query). The projection lock table key moves to \"<bucket>#<tenant>\" in PPY-994bd0.\n\nTouches (verified at origin/develop 23fabe1d): amplify/plugins/reader-steering/schema.ts and function/, amplify/plugins/signup/, amplify/plugins/newsletter/papyrus.plugin.ts and ops, amplify/functions/reference-word-index/, amplify/functions/public-forms/wire.ts, amplify/cli-login/remote-login.ts, amplify/site-backend.ts (vector index), src/papyrus_knowledge_query.\n\nAcceptance (Gherkin feature file: features_backend/tenant-plugin-keys.feature):\nScenario: A title-word search returns only the tenant's References\n    Given the word \"ransomware\" in titles of \"alpha\" and \"beta\"\n    When \"alpha\" searches it\n    Then only \"alpha\" References return\n\nScenario: A reader's vote on one site is not visible on another\n    Given a reader votes on alpha's story\n    When beta's snapshot runs\n    Then beta's files contain no trace of the vote\n\nDependencies: blocked by PPY-cd5926, PPY-94d609. Blocks PPY-bdc4ee, PPY-8f9462, PPY-6b084f, PPY-5219fc, PPY-1f83a6. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-e277e3.\n\nTesting: pytest and TS tests per table; the adversarial suite's search and reader cases.\nRollout: Per plugin; dual-read then backfill. The vector index decision may need a re-index of each tenant's vectors (a sweep, metered).\nRisk and mitigation: Risk: the vector filter is skipped by a query path. Mitigation: one query function adds the filter; a test calls every path with a foreign tenant.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-cd5926d8-9eb1-4574-bf56-f419053b9d30",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-94d60950-f4c8-4434-89f4-cfe3c967df99",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e277e373-2ce4-48ef-848a-6284c2afd065",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:20.533363Z",
+  "updated_at": "2026-11-08T18:46:56.731862Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

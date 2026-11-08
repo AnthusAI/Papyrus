@@ -13,9 +13,17 @@
     "threat-intelligence"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3823cbc4-4d96-4a0e-a314-a0f3ef7abcb5",
+      "author": "home",
+      "text": "Shared-stack move tasks: PPY-e1d26f (rehearsal with full URL parity), PPY-e51189 (runbook with rollback for 14 days), PPY-0c4b55 (monitors, Cyclotron, editors, agents), PPY-16f13a (definition of done and retirement of TI's dedicated backend). Earliest milestone: M5 (PPY-486592).",
+      "created_at": "2026-11-08T18:48:45.285335Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T23:32:38.009019Z",
-  "updated_at": "2026-11-07T23:32:38.009256Z",
+  "updated_at": "2026-11-08T18:48:45.285565Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

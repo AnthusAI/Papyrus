@@ -1,0 +1,32 @@
+{
+  "id": "PPY-dad077d6-3bf9-470d-8535-37cb0bcbf88e",
+  "title": "M7 Provisioning, onboarding, lifecycle, export and deletion; reader features for tenants",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M5, M6; the Prospectus changes named by PPY-6d9a6d deployed.\nExit criteria: PPY-70a429, PPY-3aa10f, PPY-810f42, PPY-2321aa, PPY-d7274f, PPY-e882ee, PPY-62f10d, PPY-6b084f, PPY-5219fc, PPY-d0a3d5, PPY-1f83a6, PPY-d7c279; in staging a paid sign-up reaches a live site and an admin sign-in with no human step (PPY-e54eca).\nCustomer-visible: Staging sign-up flow; internal tenants can be created by us in production.\nIndex-adding deploys in this milestone: None.\nContains: PPY-70a429, PPY-3aa10f, PPY-810f42, PPY-2321aa, PPY-d7274f, PPY-e882ee, PPY-62f10d, PPY-6b084f, PPY-5219fc, PPY-d0a3d5, PPY-1f83a6, PPY-d7c279, PPY-e54eca\nFollows: M5, M6.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-48659296-6f90-4549-85f6-4599a2e31371",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-a36a7a7d-a40d-467b-b3da-9348565fbc9e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:27.274241Z",
+  "updated_at": "2026-11-08T18:47:14.510757Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

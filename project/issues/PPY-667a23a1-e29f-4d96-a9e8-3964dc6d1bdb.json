@@ -1,0 +1,32 @@
+{
+  "id": "PPY-667a23a1-e29f-4d96-a9e8-3964dc6d1bdb",
+  "title": "M4 Shared serving and site as data",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M3; front-end track done (PPY-7e396d brand-neutral acceptance passes).\nExit criteria: PPY-99e309, PPY-3bbbf9, PPY-82de58, PPY-ca247b, PPY-130eb2, PPY-1252ce, PPY-e572de, PPY-413576, PPY-994bd0; two internal tenants served by host on staging, created by API only (PPY-d63ce1 done-when); load test PPY-4a79f9 passes; runbooks PPY-7438d9 rehearsed.\nCustomer-visible: Internal test tenants on *.apyr.us (staging).\nIndex-adding deploys in this milestone: None.\nContains: PPY-99e309, PPY-3bbbf9, PPY-82de58, PPY-ca247b, PPY-130eb2, PPY-1252ce, PPY-e572de, PPY-413576, PPY-994bd0, PPY-4a79f9, PPY-7438d9, PPY-7e396d\nFollows: M3, M1.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-6cb791aa-03c1-4804-9626-35a9707148dc",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-b5fab67c-3fbf-4b1d-83ad-01a2f8d5338b",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:26.893643Z",
+  "updated_at": "2026-11-08T18:47:13.948728Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

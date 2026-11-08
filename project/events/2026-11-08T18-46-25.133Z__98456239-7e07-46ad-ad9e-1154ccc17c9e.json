@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "98456239-7e07-46ad-ad9e-1154ccc17c9e",
+  "issue_id": "PPY-297ebefd-58f9-49aa-b7c1-03105269ef06",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:25.133Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Managed upgrades for dedicated customers: a Papyrus-operated pipeline into the customer's account",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

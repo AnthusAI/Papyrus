@@ -1,0 +1,23 @@
+{
+  "id": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+  "title": "Data model for many tenants: model-by-model changes and staged index deploys",
+  "description": "Why: 55 of the 60 data models have no tenantId today (only Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection carry one; verified at origin/develop 23fabe1d (2026-11-08)). Six DynamoDB tables outside AppSync (newsletter, title-word index, public-form limits, reader and signup rate counters, remote-login) and the S3 Vectors index also have no tenant in their keys. This epic adds the tenant to every tenant-owned row and key, adds the new models a shared tier needs, and plans every index change around the one-new-index-per-table-per-deploy rule.\n\nAnswer to \"does multi-tenant need big API schema changes?\": no big change to the shape of existing queries and mutations. The changes are (1) additive: an optional tenantId on 55 models, six new models created as new tables, a few new operations; (2) a data change, not a schema change: index key VALUES that are global today get a \"<tenant>#\" prefix, so no new index is needed for them (Reference already has 15 indexes, 16 with PR #1239, against a default limit of 20 per table, so \"one tenant index per existing index\" is impossible anyway); (3) a few new indexes, one per table, only on tables where no index can reach all of one tenant's rows (decided by the inventory task); (4) two breaking steps, staged last: the authorisation rules (epic PPY-e0c34a) and making tenantId required on the shared stack. Full table: docs/plans/multi-tenant-architecture.md.\n\nDone when: every tenant-owned row and key carries its tenant on the shared stack, adopt-tenant-data and copy-backend cover every model, and the GSI ledger check guards every release. Ends with a p.apyr.us page (via PPY-02227e).",
+  "type": "epic",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:17.739061Z",
+  "updated_at": "2026-11-08T18:46:43.232357Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

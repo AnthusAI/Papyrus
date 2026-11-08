@@ -1,0 +1,28 @@
+{
+  "id": "PPY-6cb791aa-03c1-4804-9626-35a9707148dc",
+  "title": "M3 Isolation enforced on the staging shared stack",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M2.\nExit criteria: PPY-daf673 (staging), PPY-98eaee, PPY-203ce2, PPY-baa75d, PPY-e01d82, PPY-29f730 blocking, PPY-bdc4ee, PPY-b99fc0; suite green twice; security gate 1 (PPY-3ff465) signed off; PPY-f7ce77 active.\nCustomer-visible: Nothing external.\nIndex-adding deploys in this milestone: None.\nContains: PPY-daf673, PPY-98eaee, PPY-203ce2, PPY-baa75d, PPY-e01d82, PPY-29f730, PPY-bdc4ee, PPY-b99fc0, PPY-3ff465, PPY-f7ce77\nFollows: M2.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-37c5df2f-f48e-4d5c-98c8-0b7233032385",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:26.769233Z",
+  "updated_at": "2026-11-08T18:47:13.671867Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "57788bb7-3582-4f7a-ba74-dbffc3b51037",
+  "issue_id": "PPY-3aa10fde-ea1d-437c-b0f5-6fb8e38630b0",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:46.502Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: A new tenant opens a working, presentable site: the publication preset with a neutral brand pack that passes the validator, three sections, a home page from the default home template, an about page, and two sample stories labelled as samples (the deploy-incrementally-with-placeholders rule) that the onboarding offers to delete. The template is versioned data in core, not code per tenant.\n\nTouches (verified at origin/develop 23fabe1d): new src/papyrus_content/starter/ (SiteConfig, BrandPack, pages, sample stories as Markus), the brand pack validator (PPY-88a883), home templates (PPY-b21340).\n\nAcceptance (Gherkin feature file: features_backend/starter-site.feature):\nScenario: A new site passes every platform policy check\n    Given a tenant created from the starter template\n    When its site is projected and checked\n    Then the brand pack passes the validator and the browser policy checks pass in light and dark\n\nDependencies: blocked by PPY-1252ce, PPY-e572de. Blocks PPY-70a429. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Golden render of the starter site; browser matrix (PPY-a526ee).\nRollout: Data only.\nRisk and mitigation: Low. Risk: sample stories left live look like real reporting. Mitigation: a visible sample label and a reminder in the newsroom until deleted.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

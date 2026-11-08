@@ -1,0 +1,36 @@
+{
+  "id": "PPY-966722d1-be19-4f15-ab38-c1c3dbe8c7d3",
+  "title": "Custom domains: ownership check, certificate, routing and renewal",
+  "description": "Outcome: Implements PPY-ba92b7 (custom domains are in every plan). A tenant admin adds a hostname; Papyrus shows the DNS records to create (validation and the CNAME to the shared distribution); a workflow polls with backoff, requests the certificate (per PPY-3b3cc3: a distribution tenant's managed certificate, or an ACM certificate attached to the shared distribution), writes the KVS host entry when the certificate is issued, and moves TenantDomain to active. Removal deletes the KVS entry first. Apex domains get guidance (ALIAS/ANAME or a www redirect). Amplify domain associations are not used (they are throttled and refuse cross-account hostnames; memory notes on Amplify domain throttle).\n\nTouches (verified at origin/develop 23fabe1d): new amplify/functions/tenant-domains/ (workflow), TenantDomain model, the shared edge template, app/newsroom settings page for domains, docs (p.apyr.us page via PPY-c7244c).\n\nAcceptance (Gherkin feature file: features_backend/custom-domain.feature):\nScenario: A verified custom domain serves the tenant\n    Given \"alpha\" adds \"news.alpha.example\" and creates the shown records\n    When the workflow sees the records and the certificate is issued\n    Then the domain serves alpha's site over HTTPS and TenantDomain is active\n\nScenario: A domain already used by another tenant is refused\n    Given \"news.alpha.example\" is active for \"alpha\"\n    When \"beta\" adds it\n    Then it is refused without revealing which tenant holds it\n\nDependencies: blocked by PPY-82de58, PPY-3b3cc3. Blocks PPY-e51189. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-ba92b7.\n\nTesting: Behave with a test domain we own in staging.\nRollout: After the subdomain launch; behind the custom-domain entitlement (present in every plan).\nRisk and mitigation: Risk: certificate quotas per account. Mitigation: the spike records the quota; the workflow alarms at 80% of it.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-82de5876-dc01-4894-b1d7-fb7a90c188da",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3b3cc320-6ca0-4fd7-adc4-3be1a2b5f201",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ba92b799-b418-457f-919a-5e6dedd49186",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:21.614818Z",
+  "updated_at": "2026-11-08T18:46:59.693264Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

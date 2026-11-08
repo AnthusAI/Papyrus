@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "da6274a0-37f2-4714-9140-a9ea9c45f20a",
+      "author": "home",
+      "text": "Implemented by tasks PPY-0bb0fd, PPY-06ae68, PPY-7dc463, PPY-98eaee, PPY-203ce2, PPY-29f730 and PPY-bdc4ee (plan of 2026-11-08). The cross-tenant suite is PPY-29f730; the release gate is PPY-f7ce77.",
+      "created_at": "2026-11-08T18:48:43.551944Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:47.795313Z",
-  "updated_at": "2026-11-07T21:42:47.795340Z",
+  "updated_at": "2026-11-08T18:48:43.552156Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

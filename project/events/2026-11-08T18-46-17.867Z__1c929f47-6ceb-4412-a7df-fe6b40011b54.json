@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "1c929f47-6ceb-4412-a7df-fe6b40011b54",
+  "issue_id": "PPY-cada527f-f3dc-480c-8445-0fb0be9f87c4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:17.867Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Provisioning and tenant lifecycle: paid sign-up to live site, suspension, export and deletion",
+    "description": "(being written)",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

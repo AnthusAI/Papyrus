@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f5292336-9261-485e-adf4-244f4cd30926",
+      "author": "home",
+      "text": "Implemented on the shared stack by PPY-ca247b. Finding: today a publish touching more than 10 paths becomes one '/*' invalidation (docs/site-hosting.md); on a shared distribution that would empty every tenant's cache, so the shared stack never collapses to a wildcard. Whether a purge can be limited to one tenant is question 1 of PPY-3b3cc3.",
+      "created_at": "2026-11-08T18:48:43.818275Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:48.160614Z",
-  "updated_at": "2026-11-07T21:42:48.160644Z",
+  "updated_at": "2026-11-08T18:48:43.818479Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

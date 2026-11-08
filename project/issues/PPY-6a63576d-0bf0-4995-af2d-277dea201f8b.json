@@ -1,0 +1,31 @@
+{
+  "id": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "title": "Milestones: the multi-tenant plan in releasable steps M0 to M8",
+  "description": "The order in which the initiative PPY-25ffa3 ships, as releasable milestones. Each child task is one milestone with entry and exit criteria, what is customer-visible, and the index deploys it contains. The full table is in the comment on PPY-25ffa3 and in docs/plans/multi-tenant-architecture.md.\n\nEarliest milestone at which Threat Intelligence can run on the shared stack: M5 (needs M3 isolation enforced, M4 shared serving and site as data, and the brand-neutral acceptance test PPY-7e396d).\nFirst outside paying tenant: M8.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "628db650-c425-44ff-9593-b9fc3e69c24b",
+      "author": "home",
+      "text": "Milestones (epic PPY-6a6357; one task per milestone):\n\n| Milestone | Entry | Exit | Customer-visible | Index deploys |\n|---|---|---|---|---|\n| M0 Decisions and spikes (PPY-f0508e) | plan on the board | owner decisions answered; spikes PPY-9f3de0, PPY-3b3cc3, PPY-6d9a6d closed; PPY-9d27c2 done; PPY-cd5926, PPY-8f2c4f | nothing | none |\n| M1 Cost fixes + standard layout track (PPY-b5fab6) | M0 | PPY-7f1e54 B and C rolled out, PPY-ee02b8 closed (incl. ReferenceIntake scan), PPY-d647ee, PPY-3fd0aa at 1 tenant; front-end track PPY-c446fe, PPY-2a44b2, PPY-31efef | lower cost; sites unchanged or better | Reference.publicFeedKey (PR #1239), per site, alone |\n| M2 Tenant data foundations, additive (PPY-37c5df) | M0 (overlaps M1) | tenantId everywhere, new models, tenant keys, adoption tools, claims, tenant rules beside group rules, functions take tenant from caller | nothing | new tables only + PPY-1ce06f (one tenantId index per listed table, one release, never Reference) |\n| M3 Isolation enforced on staging shared stack (PPY-6cb791) | M2 | PPY-daf673 staging, storage, workers, no guest API, no subscriptions, suite blocking, group rules removed (PPY-bdc4ee), tenantId required; security gate 1; release gate on | nothing external | none |\n| M4 Shared serving + site as data (PPY-667a23) | M3, M1, PPY-7e396d passed | bucket prefixes, host routing, subdomains, freshness rules, shared newsroom host, SiteConfig/BrandPack/render from store, fair queue; two API-created test tenants served; load test passed; runbooks rehearsed | internal test tenants on staging | none |\n| M5 TI on the shared stack (PPY-486592) | M4 + TI custom domain | rehearsal, cut-over, ops move, 14 days green | TI readers: no change; TI editors: shared newsroom | none |\n| M6 Metering + spend ceilings (PPY-a36a7a) | M4 (parallel to M5) | metering events, spend gate, platform usage report, adaptive throttling, cost model | operators only | none |\n| M7 Provisioning, lifecycle, export/delete, reader features (PPY-dad077) | M5, M6, Prospectus changes deployed | paid sign-up to live site with no human step in staging (PPY-e54eca) | staging sign-up | none |\n| M8 First outside paying tenant (PPY-cf9039) | M7, Stripe live in Prospectus | external security review; terms + ownership statement; docs and p.apyr.us pages | public sign-up | none |\n\nEarliest milestone at which Threat Intelligence runs on the shared stack: M5. Parallel and outside the milestones: dedicated sites adopt their fixed tenant one at a time (PPY-13fbea); managed upgrades (PPY-297ebe); Distinctive Mark's staged upgrade.",
+      "created_at": "2026-11-08T18:48:43.366880Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-08T18:46:17.993849Z",
+  "updated_at": "2026-11-08T18:48:43.367099Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

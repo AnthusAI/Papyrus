@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "82bcd9ca-461f-4ee1-979e-b153a94137f5",
+  "issue_id": "PPY-f60a1e84-b635-460f-8d19-45b557b5e5a7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:20.411Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Content, edition and category models carry their tenant in every key",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

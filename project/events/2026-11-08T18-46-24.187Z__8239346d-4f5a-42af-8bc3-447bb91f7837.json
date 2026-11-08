@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "8239346d-4f5a-42af-8bc3-447bb91f7837",
+  "issue_id": "PPY-b213401d-8cc0-4ca5-8c5e-0f4433798960",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:24.187Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Home templates as data: two or three vetted home pages built from includes",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

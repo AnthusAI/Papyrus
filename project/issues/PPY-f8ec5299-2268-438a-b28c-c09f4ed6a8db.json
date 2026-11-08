@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "24bac5c5-f750-4d98-9a88-f79473f89ab9",
+      "author": "home",
+      "text": "Workstream (f) tasks: PPY-1252ce (SiteConfig schema and the v1 surface; lists what customers cannot set), PPY-e572de (brand pack storage, allowed fonts, per-tenant brand stylesheet), PPY-413576 (render from the store; hooks refused on the shared stack), PPY-91fb68 (live preview), PPY-b21340 (home templates), PPY-272c84 (MoM-shaped fixture; MoM stays dedicated). Catalogue rows are models PPY-c020ce. Retiring the 75% scaler stays in PPY-2a44b2.",
+      "created_at": "2026-11-08T18:48:44.914765Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:25.717779Z",
-  "updated_at": "2026-11-07T21:42:25.717811Z",
+  "updated_at": "2026-11-08T18:48:44.915077Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

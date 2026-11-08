@@ -1,0 +1,28 @@
+{
+  "id": "PPY-91fb6809-4acb-417c-bd12-3d8f06ae7e29",
+  "title": "Live preview of site settings and brand in the newsroom",
+  "description": "Outcome: An admin sees a change before saving it: a previewSitePage query renders one page (home, a section, a story) from the unsaved SiteConfig and BrandPack drafts, without writing to S3, and returns HTML shown in a sandboxed frame. Uses the same renderer as publishing, so the preview is exact.\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts (new custom query previewSitePage, additive), amplify/functions/content-actions/handler.py, app/newsroom site settings and onboarding components.\n\nAcceptance (Gherkin feature file: features/site-settings-preview.feature):\nScenario: The preview shows an unsaved colour\n    Given an admin changes the brand colour without saving\n    When the preview refreshes\n    Then the preview page uses the new colour and the public site is unchanged\n\nDependencies: blocked by PPY-413576. Blocks PPY-810f42. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Browser test; pytest that preview writes nothing.\nRollout: Releasable alone.\nRisk and mitigation: Risk: preview becomes a cheap way to run heavy renders. Mitigation: one page per call, metered as function time (PPY-3fd951).\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: changes: adds one query (tenant admin claim).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-4135762a-5ff9-4015-9858-3304d316e47e",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:24.063396Z",
+  "updated_at": "2026-11-08T18:47:07.066942Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

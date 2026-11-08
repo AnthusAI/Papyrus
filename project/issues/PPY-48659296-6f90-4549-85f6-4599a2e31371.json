@@ -1,0 +1,28 @@
+{
+  "id": "PPY-48659296-6f90-4549-85f6-4599a2e31371",
+  "title": "M5 Threat Intelligence runs on the shared stack (earliest point for TI)",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M4; PPY-966722 for threat-intelligence.anth.us.\nExit criteria: PPY-e1d26f, PPY-e51189, PPY-0c4b55 done; 14 days green (PPY-16f13a).\nCustomer-visible: TI readers: no visible change (URL parity). TI editors: the shared newsroom host.\nIndex-adding deploys in this milestone: None.\nContains: PPY-e1d26f, PPY-966722, PPY-e51189, PPY-0c4b55, PPY-16f13a, PPY-32b4c5\nFollows: M4.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-667a23a1-e29f-4d96-a9e8-3964dc6d1bdb",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:27.023278Z",
+  "updated_at": "2026-11-08T18:47:14.088358Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

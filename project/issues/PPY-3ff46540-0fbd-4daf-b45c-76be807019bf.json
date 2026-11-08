@@ -1,0 +1,28 @@
+{
+  "id": "PPY-3ff46540-0fbd-4daf-b45c-76be807019bf",
+  "title": "Security review gates: threat model, internal review before isolation is claimed, external review before outside tenants",
+  "description": "Outcome: Gate 1 (before PPY-bdc4ee reaches production and before TI moves): a written threat model (who can reach what, with the adversarial suite as evidence), reviewed by a second agent with no anchoring and by Ryan. Gate 2 (before the first outside tenant, M8): an external review or penetration test of the shared stack (AppSync rules, functions, storage, edge, reader API, provisioning), findings fixed or accepted in writing.\n\nTouches (verified at origin/develop 23fabe1d): new docs/security/shared-tier-threat-model.md, the adversarial suite report.\n\nAcceptance (Gherkin feature file: none (review gates); evidence is features_backend/tenant-isolation-adversarial.feature):\nScenario: Isolation is not claimed before the review\n    Given the threat model is not signed off\n    When a release would remove the group rules on production\n    Then the release is held\n\nDependencies: blocked by PPY-29f730. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Review.\nRollout: Gates.\nRisk and mitigation: Risk: the external review finds a design-level flaw late. Mitigation: gate 1 happens early, on the design and the suite, not only the code.\n\nReleasable on its own: not applicable (gate).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-29f730c8-b64a-4b37-988d-e169c6d7a762",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:26.010108Z",
+  "updated_at": "2026-11-08T18:47:12.655354Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "bcbccdba-fd9c-431b-81f3-bad4a37290b8",
+      "author": "home",
+      "text": "The database-backed store is PPY-c020ce (catalogue rows, documents in S3) with PPY-1252ce; the shared renderer reading it is PPY-413576. Verified: content-actions is built with the site's web/ bundled in (amplify/functions/content-actions/resource.ts setSiteFilesForContentActionsBundle; site-backend.ts line 125), which the memo marked as inferred.",
+      "created_at": "2026-11-08T18:48:45.012490Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:25.973476Z",
-  "updated_at": "2026-11-07T21:42:25.973506Z",
+  "updated_at": "2026-11-08T18:48:45.012763Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

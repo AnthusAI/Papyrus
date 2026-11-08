@@ -1,0 +1,32 @@
+{
+  "id": "PPY-daf67362-ce52-43f0-98f7-8558ff1affd9",
+  "title": "Stand up the shared stack: one backend deployed in shared tenancy mode, in its own AWS account",
+  "description": "Outcome: Deploy the same Papyrus backend artefact once with tenancy mode \"shared\" (owner decision 2 recommends its own AWS account, e.g. papyrus-shared, rather than papyrus-production where every dedicated site and Prospectus live: separate Lambda concurrency quota, blast radius and a clean cost line). Uses the bootstrap stage (PAPYRUS_BOOTSTRAP_STAGE=1, OPTIONAL_MODEL_GROUPS) for the first create, which keeps under CloudFormation's 2,500-resource limit. No site files are bundled into content-actions (python-bundle siteFiles empty); configuration comes from the site store. A staging copy of the shared stack is where every release lands first (PPY-1192d3).\n\nTouches (verified at origin/develop 23fabe1d): amplify/site-backend.ts, amplify/site-backend-config.ts (tenancy mode), amplify/data/schema.ts (OPTIONAL_MODEL_GROUPS, bootstrap), amplify/functions/content-actions/resource.ts (setSiteFilesForContentActionsBundle), infra/amplify-app-shell (a shell for the shared newsroom app), docs/site-hosting.md.\n\nAcceptance (Gherkin feature file: features_backend/shared-stack-bootstrap.feature):\nScenario: The shared stack starts empty and serves no site\n    Given a fresh shared stack\n    When any host is requested\n    Then the edge answers 404 and the API holds no tenant rows\n\nDependencies: blocked by PPY-7dc463. Blocks PPY-99e309, PPY-130eb2, PPY-49d059, PPY-f7ce77, PPY-7438d9. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-fea16f.\n\nTesting: Synth tests for tenancy mode; a sandbox deploy; Amplify job log read before any retry (AGENTS.md rule).\nRollout: Staging first, then production of the shared stack. Needs Ryan's approval for the new account and the deploy (no production AWS action from planning).\nRisk and mitigation: Risk: a new account means new SSO, SES, Google OAuth client and DNS delegation steps. Mitigation: a runbook listing each, done once in staging first.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: changes: a new deployment with shared-mode rules.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-7dc4633f-740e-4a88-a901-9fa4dbbc89ab",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-fea16f70-ec54-434b-8909-f6fa754b2dd3",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:21.148813Z",
+  "updated_at": "2026-11-08T18:46:58.353041Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
