@@ -94,6 +94,14 @@ def _match(rows: list[Mapping[str, Any]], text: str) -> Mapping[str, Any] | None
         raise SectionError(f"{error} Use the qualified form <publication>#<slug>.") from None
 
 
+SECTIONS_BY_STATE = "newsroomSectionsByEnabledStatus"
+
+
+def sections_of(client: Any) -> list[Mapping[str, Any]]:
+    """Every section, enabled first then disabled, through the enabled-status index: two partition reads, never a table scan."""
+    return [*client.list_by_index(SECTIONS_BY_STATE, "enabled"), *client.list_by_index(SECTIONS_BY_STATE, "disabled")]
+
+
 def current_reference_row(rows: list[Mapping[str, Any]]) -> Mapping[str, Any]:
     """The working row of a lineage: the one marked current, else the highest version."""
     marked = [row for row in rows if row.get("versionState") == "current"]
@@ -133,7 +141,7 @@ def set_reference_section(client: Any, *, reference: Any, section: Any = None, c
     status = str(row.get("curationStatus") or "pending")
     chosen = None
     if wants_section:
-        rows = client.list_records("NewsroomSection")
+        rows = sections_of(client)
         chosen = resolve_section(rows, section)
         if status != "accepted":
             raise ValueError(f"A section can be set only on an accepted Reference; {token} is {status}. Accept it first, or use --clear.")

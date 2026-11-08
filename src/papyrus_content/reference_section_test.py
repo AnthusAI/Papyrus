@@ -33,11 +33,9 @@ class FakeClient:
         return copy.deepcopy(self.rows.get(record_id)) if model == "Reference" else None
 
     def list_by_index(self, index, key, **_):
+        if index == "newsroomSectionsByEnabledStatus":
+            return [copy.deepcopy(row) for row in SECTIONS if row["enabledStatus"] == key]
         return [copy.deepcopy(row) for row in self.rows.values() if row["lineageId"] == key]
-
-    def list_records(self, model):
-        assert model == "NewsroomSection"
-        return copy.deepcopy(SECTIONS)
 
     def graphql(self, query, variables):
         self.sent.append((query, variables))
