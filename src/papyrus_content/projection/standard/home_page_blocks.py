@@ -33,7 +33,7 @@ LEAD_CLASS = "papyrus-has-lead"   # a counted list whose first card is the best,
 REFERENCES_LEAD_CLASS = "home-page-has-lead"
 IMAGES = ("none", "any")
 THREADS_KIND = "threads"
-THREADS_ATTRIBUTES = {"select", "count", "layout", "heading", "empty"}
+THREADS_ATTRIBUTES = {"select", "count", "layout", "heading", "empty", "section"}
 THREAD_SELECTIONS = ("recent",)
 THREAD_LAYOUTS = ("list", "grid")
 THREAD_LEDGER_PREFIX = "thread:"
@@ -290,9 +290,10 @@ def render_threads_markdown(
     ledger: PageLedger,
     settings: HomePageSettings,
     thread_href: Callable[[str], str] | None = None,
+    section_labels: Mapping[str, str] | None = None,
 ) -> str:
     """What :func:`render_threads` places, for the Markdown twin: one list item per conversation, its title linked to its page when the site has one."""
-    chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings))
+    chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings), section_labels)
     if not chosen:
         return attributes.get("empty", "")
     lines = [f"## {attributes['heading']}", ""] if attributes.get("heading") else []
@@ -317,9 +318,13 @@ def check_threads(attributes: Mapping, source: str) -> None:
         raise ValueError(f"{source}: ::include threads layout must be one of {', '.join(THREAD_LAYOUTS)}, got {attributes['layout']!r}")
 
 
-def select_threads(document: Mapping | None, attributes: Mapping, ledger: PageLedger, default_count: int = DEFAULT_COUNT) -> list[Mapping[str, Any]]:
-    """The threads one include places: most recently active first, minus what the page already shows, up to ``count``; each one is claimed in the ledger."""
+def select_threads(
+    document: Mapping | None, attributes: Mapping, ledger: PageLedger, default_count: int = DEFAULT_COUNT, section_labels: Mapping[str, str] | None = None,
+) -> list[Mapping[str, Any]]:
+    """The threads one include places: with ``section``, only that section's; most recently active first, minus what the page already shows, up to ``count``; each one is claimed in the ledger."""
     candidates = [thread for thread in (document or {}).get("threads") or [] if isinstance(thread, Mapping) and thread.get("key")]
+    if attributes.get("section"):
+        candidates = [thread for thread in candidates if _in_section(thread, attributes["section"], section_labels or {})]
     candidates.sort(key=lambda thread: _text(thread, "key"))
     candidates.sort(key=lambda thread: _text(thread, "lastAt"), reverse=True)
     count = int(attributes["count"]) if "count" in attributes else default_count
@@ -332,9 +337,12 @@ def select_threads(document: Mapping | None, attributes: Mapping, ledger: PageLe
     return chosen
 
 
-def render_threads(attributes: Mapping, source_doc: Mapping | None, ledger: PageLedger, settings: HomePageSettings, thread_href: Callable[[str], str] | None = None) -> str:
+def render_threads(
+    attributes: Mapping, source_doc: Mapping | None, ledger: PageLedger, settings: HomePageSettings, thread_href: Callable[[str], str] | None = None,
+    section_labels: Mapping[str, str] | None = None,
+) -> str:
     ledger.home_page_used = True
-    chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings))
+    chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings), section_labels)
     empty = attributes.get("empty", "")
     if not chosen:
         return f'<p class="home-page-empty">{esc(empty)}</p>' if empty else ""

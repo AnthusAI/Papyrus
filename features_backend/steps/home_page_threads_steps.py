@@ -52,6 +52,7 @@ class ThreadsClient:
         self.references = json.loads(REFERENCES_FIXTURE.read_text(encoding="utf-8"))
         self.threads = threads
         self.site_client = site_client
+        self.story_sections: dict[str, str] = {}
         self.profile_reads: list[str] = []
 
     def rows(self) -> list[dict]:
@@ -72,7 +73,10 @@ class ThreadsClient:
         if model_name == "UserProfile":
             self.profile_reads.append(record_id)
             return self.threads["profiles"].get(record_id)
-        return self.site_client.get_record(model_name, record_id)
+        row = self.site_client.get_record(model_name, record_id)
+        if model_name == "PublishedItem" and row and row.get("itemLineageId") in self.story_sections:
+            return {**row, "section": self.story_sections[row["itemLineageId"]]}
+        return row
 
     def list_semantic_relations_by_subject_state(self, subject_state_key: str) -> list[dict]:
         lineage = subject_state_key.removeprefix("reference#").removesuffix("#current")
@@ -488,7 +492,7 @@ def no_thread_file(context) -> None:
 def thread_file_shape(context, title: str, count: int) -> None:
     summary = thread_titled(context, title)
     document = thread_file(context, summary["key"])
-    assert list(document) == ["key", "title", "anchor", "messages"], list(document)
+    assert [name for name in document if name != "section"] == ["key", "title", "anchor", "messages"], list(document)   # "section" is optional
     assert document["title"] == title and document["anchor"] == summary["anchor"]
     ordered = [message["at"] for message in document["messages"]]
     assert len(ordered) == count and ordered == sorted(ordered), ordered
@@ -646,3 +650,47 @@ def scanner_clean_on_thread_pages(context) -> None:
     files = {key: body for key, body in context.site.tree.items() if key.startswith(f"{THREAD_BASE}/")}
     assert len(files) >= 8, sorted(files)
     assert scan_files(files, []) == {}, scan_files(files, [])
+
+
+@given('the Story "{title}" is filed under the section "{section}"')
+def story_filed_under(context, title: str, section: str) -> None:
+    lineage = {"Fungi Underground": "item-fungi"}[title]
+    context.client.story_sections[lineage] = section
+
+
+def thread_entry(context, title: str) -> dict:
+    return thread_titled(context, title)
+
+
+@then('the thread "{title}" is in the section "{section}"')
+def thread_in_section(context, title: str, section: str) -> None:
+    entry = thread_entry(context, title)
+    assert entry.get("section") == section, entry
+    assert thread_file(context, entry["key"]).get("section") == section
+
+
+@then('the thread "{title}" has no section')
+def thread_without_section(context, title: str) -> None:
+    entry = thread_entry(context, title)
+    assert "section" not in entry, entry
+    assert "section" not in thread_file(context, entry["key"])
+
+
+@then("no published file names a section by its id")
+def no_section_id(context) -> None:
+    for name, body in published_files(context).items():
+        assert b"record-017" not in body and b"record-004" not in body and b"sectionId" not in body, name
+
+
+def twin_titles(context, path: str) -> list[str]:
+    found = []
+    for line in context.site.text(path).splitlines():
+        match = re.match(r"^- (?:\[(?P<linked>[^\]]*)\]\([^)]*\)|(?P<plain>.*?)) \(\d+ messages?\)$", line)
+        if match:
+            found.append(match["linked"] or match["plain"])
+    return found
+
+
+@then('the Markdown twin "{path}" lists {titles}')
+def twin_lists(context, path: str, titles: str) -> None:
+    assert twin_titles(context, path) == quoted(titles), twin_titles(context, path)
