@@ -1045,6 +1045,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return home_page_blocks.render_threads_markdown(
                 attributes, self._home_page.threads(), ledger, self.standard.home_page,
                 (lambda key: self._twin_url(self._thread_href(key))) if self._forum() is not None else None,
+                {section.name: section.label for section in self.standard.sections},
             )
         return page_twin.markup_markdown(self._include(attributes, page, source), self._twin_url)
 
@@ -1754,7 +1755,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 paged_list=self._paged_list_for_include(attributes, page, source), as_of=self._as_of,
             )
         if kind == "threads":
-            return home_page_blocks.render_threads(attributes, self._home_page.threads(), page.ledger, self.standard.home_page, self._thread_href if self._forum() is not None else None)
+            return home_page_blocks.render_threads(
+                attributes, self._home_page.threads(), page.ledger, self.standard.home_page, self._thread_href if self._forum() is not None else None,
+                {section.name: section.label for section in self.standard.sections},
+            )
         if knowledge_blocks.is_knowledge_block(attributes):
             return knowledge_blocks.render_block(attributes, self._knowledge, source)
         if self.hooks.block is None:

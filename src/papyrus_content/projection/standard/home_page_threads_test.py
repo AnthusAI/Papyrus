@@ -61,3 +61,37 @@ def test_story_anchors_link_only_to_safe_addresses():
 
 def test_counts_are_singular_or_plural():
     assert parts.message_count_text(1) == "1 message" and parts.message_count_text(2) == "2 messages"
+
+
+SECTIONED = {"threads": [{**thread("a", "2026-10-01T00:00:00Z"), "section": "Tools"}, {**thread("b", "2026-10-03T00:00:00Z"), "section": "Articles"}, thread("c", "2026-10-02T00:00:00Z")]}
+
+
+def test_the_section_attribute_keeps_only_that_sections_threads_ignoring_case():
+    assert [entry["key"] for entry in blocks.select_threads(SECTIONED, {"select": "recent", "section": "tOOls"}, PageLedger())] == ["a"]
+
+
+def test_the_section_attribute_also_matches_a_configured_sections_label():
+    chosen = blocks.select_threads(SECTIONED, {"select": "recent", "section": "articles-name"}, PageLedger(), section_labels={"articles-name": "Articles"})
+    assert [entry["key"] for entry in chosen] == ["b"]
+
+
+def test_without_a_section_attribute_every_thread_is_chosen_as_before():
+    assert [entry["key"] for entry in blocks.select_threads(SECTIONED, {"select": "recent"}, PageLedger())] == ["b", "c", "a"]
+
+
+def test_a_section_with_no_threads_claims_nothing_in_the_ledger():
+    ledger = PageLedger()
+    assert blocks.select_threads(SECTIONED, {"select": "recent", "section": "Nowhere"}, ledger) == []
+    assert ledger.seen == set()
+
+
+def test_the_twin_lists_exactly_what_the_page_lists():
+    attributes = {"select": "recent", "section": "Tools"}
+    page = blocks.render_threads(attributes, SECTIONED, PageLedger(), HomePageSettings())
+    twin = blocks.render_threads_markdown(attributes, SECTIONED, PageLedger(), HomePageSettings())
+    assert "Title a" in page and "Title b" not in page and "Title c" not in page
+    assert "Title a" in twin and "Title b" not in twin and "Title c" not in twin
+
+
+def test_check_threads_accepts_the_section_attribute():
+    blocks.check_threads({"select": "recent", "section": "Tools"}, "pages/x.md")

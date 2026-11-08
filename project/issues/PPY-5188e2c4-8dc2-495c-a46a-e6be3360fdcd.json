@@ -17,10 +17,24 @@
       "text": "Cause found 2026-11-04: the change fails with GraphQL request failed: Not Authorized to access updateSemanticRelation on type Mutation, exit 2, for a signed-in editor. My earlier description said the exit looked clean; that was wrong, my output filter hid the error. The command also prints its write line before the failure, as in PPY-49708a. This affects the draft step's cited marks on any Reference research already linked. Fix: allow the editor groups to update SemanticRelation, or route this through a mutation they may call.",
       "created_at": "2026-11-04T12:53:59.020474Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c9d64920-28c5-4067-a6ba-34c09f8816ca",
+      "author": "home",
+      "text": "Related to the 2026-11-08 editing-session report that the CLI was denied updating three existing associations from consulted to cited; see PPY-409932 children for the cache and publish issues filed the same day.",
+      "created_at": "2026-11-08T16:40:55.492909Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "b053a6cb-1ebd-4c52-9ae9-7eb799206505",
+      "author": "home",
+      "text": "Related to the 2026-11-08 editing-session report that the CLI was denied updating three existing associations from consulted to cited; the cache and publish issues filed the same day are under PPY-409932.",
+      "created_at": "2026-11-08T16:41:02.920199Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-04T12:19:08.308142Z",
-  "updated_at": "2026-11-04T12:53:59.020731Z",
+  "updated_at": "2026-11-08T16:41:02.920424Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

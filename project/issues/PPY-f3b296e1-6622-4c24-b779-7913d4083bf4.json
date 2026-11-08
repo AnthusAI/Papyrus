@@ -1,0 +1,22 @@
+{
+  "id": "PPY-f3b296e1-6622-4c24-b779-7913d4083bf4",
+  "title": "Publish reports separate stages: saved, projected, cache invalidated, publicly verified",
+  "description": "From an editing session 2026-11-08: papyrus ops content publish wrote the published data but timed out projecting the page; a retry succeeded, and even then CloudFront kept serving the old page. The command should report four separate stages: saved (data), projected (page written), cache invalidated (with the ids and paths), and publicly verified (fetch the live URL and compare, after the invalidation completes or on request). Offer targeted invalidation of the changed page. Builds on PPY-2745c1 (targeted invalidation), PPY-4611d5 (timeout) and PPY-105508 (refresh operations).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4099327a-88da-40e0-a298-1aa7998d9164",
+  "labels": [
+    "static-projection"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T17:09:03.655632Z",
+  "updated_at": "2026-11-08T17:09:03.655704Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -17,7 +17,7 @@ from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from ..public_text import PRIVATE_SHAPES
-from .export import KEY_LENGTH, public_key
+from .export import KEY_LENGTH, public_key, section_labels_of
 from .handles import public_author
 
 if TYPE_CHECKING:
@@ -115,18 +115,51 @@ def public_thread(
     anchor: Mapping[str, str],
     handles: HandleLookup,
     settings: HomePageSettings,
+    section: str | None = None,
 ) -> dict[str, Any] | None:
-    """The public form of a thread: its title, anchor and its public Messages in sequence; ``None`` when none is public."""
+    """The public form of a thread: its title, anchor, optional section title and its public Messages in sequence; ``None`` when none is public."""
     ordered = sorted(messages, key=lambda row: (row.get("sequenceNumber") is None, row.get("sequenceNumber") or 0, str(row.get("createdAt") or "")))
     public = [message for message in (public_message(row, handles, settings) for row in ordered) if message is not None]
     if not public:
         return None
-    return {
+    entry: dict[str, Any] = {
         "key": opaque_key(str(thread["id"])),
         "title": clean_text(thread.get("title")) or anchor["title"],
         "anchor": dict(anchor),
-        "messages": public,
     }
+    if section:
+        entry["section"] = section
+    entry["messages"] = public
+    return entry
+
+
+class SectionLookup:
+    """The section title of a thread, as text only (never an id).
+
+    An explicit ``sectionId`` on the thread wins when it names a section that exists; otherwise a Reference thread takes its Reference's
+    section title (the one already in ``references.json``) and a Story thread takes its Story's section. The section list is read once per
+    run, and only when some thread names a section explicitly.
+    """
+
+    def __init__(self, client: Any, reference_sections: Mapping[str, str] | None) -> None:
+        self._client = client
+        self._reference_sections = reference_sections or {}
+        self._titles: Mapping[str, str] | None = None
+
+    def title_of_id(self, section_id: Any) -> str | None:
+        if not section_id:
+            return None
+        if self._titles is None:
+            self._titles = section_labels_of(self._client)
+        return clean_text(self._titles.get(str(section_id)))
+
+    def of(self, thread: Mapping[str, Any], anchor: Mapping[str, str], story_section: str | None) -> str | None:
+        explicit = self.title_of_id(thread.get("sectionId"))
+        if explicit:
+            return explicit
+        if anchor["kind"] == "reference":
+            return clean_text(self._reference_sections.get(anchor["key"]))
+        return clean_text(story_section)
 
 
 def collect_threads(
@@ -135,13 +168,16 @@ def collect_threads(
     settings: HomePageSettings,
     *,
     story_anchor: StoryAnchor | None = None,
+    reference_sections: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """The public threads of the site, most recently active first.
 
     ``public_references`` maps the public key of every Reference in the snapshot to its title; ``story_anchor`` turns a Story's lineage id
-    into ``{"url", "title"}`` when that Story is published and has a page, and into ``None`` otherwise.
+    into ``{"url", "title"}`` (and ``"section"``, the Story's section title, when it has one) when that Story is published and has a page,
+    and into ``None`` otherwise. ``reference_sections`` maps a public Reference key to its section title.
     """
     handles = HandleLookup(client)
+    sections = SectionLookup(client, reference_sections)
     found: list[dict[str, Any]] = []
     for kind in PUBLIC_THREAD_KINDS:
         for thread in client.list_by_index("messageThreadsByKindAndUpdatedAt", kind):
@@ -151,7 +187,10 @@ def collect_threads(
             if anchor is None:
                 continue
             messages = client.list_by_index("messagesByThreadAndSequence", str(thread["id"]))
-            public = public_thread(thread, [row for row in messages if row], anchor, handles, settings)
+            story_section = None
+            if anchor["kind"] == "story" and story_anchor is not None:
+                story_section = (story_anchor(str(thread["primaryAnchorKey"]).removeprefix(STORY_ANCHOR_PREFIX)) or {}).get("section")
+            public = public_thread(thread, [row for row in messages if row], anchor, handles, settings, sections.of(thread, anchor, story_section))
             if public is not None:
                 found.append(public)
     return sorted(found, key=lambda entry: (entry["messages"][-1]["at"] or "", entry["key"]), reverse=True)

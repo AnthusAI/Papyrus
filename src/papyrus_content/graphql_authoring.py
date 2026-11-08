@@ -95,7 +95,7 @@ MESSAGE_FIELDS = (
 MESSAGE_THREAD_FIELDS = (
     "id threadKind status title summary primaryAnchorKind primaryAnchorId primaryAnchorLineageId primaryAnchorKey "
     "createdBySub createdByUserProfileId createdByLabel messageCount lastMessageId lastMessageAt contextDigest "
-    "activeResponseMessageId responseLockOwner responseLockExpiresAt metadata createdAt updatedAt newsroomFeedKey"
+    "activeResponseMessageId responseLockOwner responseLockExpiresAt metadata createdAt updatedAt newsroomFeedKey sectionId"
 )
 PROCEDURE_DEFINITION_FIELDS = (
     "id procedureKey title category description enabled enabledStatus currentVersionId createdBy createdAt "

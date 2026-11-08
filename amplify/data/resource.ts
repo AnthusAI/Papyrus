@@ -2180,6 +2180,8 @@ const schema = a.schema({
       createdAt: a.datetime().required(),
       updatedAt: a.datetime().required(),
       newsroomFeedKey: a.string(),
+      // The section the conversation is filed under, set by an editor; empty means the anchor's own section (its Reference's or Story's).
+      sectionId: a.id(),
     })
     .secondaryIndexes((index) => [
       index("newsroomFeedKey").sortKeys(["updatedAt"]).queryField("listMessageThreadsByNewsroomFeedAndUpdatedAt"),

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b5cb8e79-71ba-4307-bd0d-bec9373a11d0",
+  "title": "references set-section: change an accepted Reference's section without touching its acceptance, note, feedback or rating (CLI and MCP)",
+  "description": "To assign an accepted Reference to a section an editor had to approve it again and repeat its existing acceptance note to keep it. Add papyrus references set-section --reference LINEAGE --section NAME-OR-SLUG (and --clear), and a matching MCP tool, that changes only the section (curationSectionId) and records who changed it and when, leaving the acceptance decision, its note, feedback and star rating untouched. Accept a section slug such as security, or the full machines-on-machines#security, and say clearly in the error which forms are accepted. Section tagging also drives the videos page grouping and section pages on Machines on Machines, so this is how editors tag videos. Gherkin: section changes, acceptance and rating unchanged, slug and qualified forms, unknown section is a clear error.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e6e82b61-7bde-4bc3-be9f-a1855419d3ab",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T17:09:04.126087Z",
+  "updated_at": "2026-11-08T17:09:04.126126Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
