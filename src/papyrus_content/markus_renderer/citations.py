@@ -60,6 +60,16 @@ from typing import Any, Callable, Mapping
 CitationFormatter = Callable[[Mapping[str, Any]], str]
 
 
+#: How the bibliography links a source (``projection.json`` ``citations.links``).
+#: ``external`` is the original behaviour: the source's own URL is a link. ``internal`` links a source only to the
+#: site's own page for it (the entry's ``internalUrl``, a path on this site), else plain text. ``none`` is plain text.
+LINK_MODES = ("external", "internal", "none")
+DEFAULT_LINK_MODE = "external"
+#: CSL-JSON fields that carry an outbound address; left out of an entry that must not show or link one.
+INTERNAL_URL_FIELD = "internalUrl"
+_OUTBOUND_FIELDS = ("URL", "url", "DOI", "doi")
+
+
 class CitationError(RuntimeError):
     """Raised for an unknown citation key or an unsupported format."""
 
@@ -324,6 +334,12 @@ class CitationRendering:
     #: Fail the build on a ``[@key]`` with no matching ``citations:`` entry.
     #: Off leaves the raw text in place.
     strict: bool = True
+    #: ``external`` | ``internal`` | ``none``: see ``LINK_MODES``.
+    links: str = DEFAULT_LINK_MODE
+
+    def __post_init__(self) -> None:
+        if self.links not in LINK_MODES:
+            raise CitationError(f"Unknown citation links mode {self.links!r}. Known modes: {', '.join(LINK_MODES)}.")
 
     def formatter(self, name: str) -> CitationFormatter:
         if name in self.formatters:
@@ -368,14 +384,30 @@ class CitationCollector:
             f'<a href="{html.escape(href, quote=True)}">{number}</a></span>'
         )
 
+    @staticmethod
+    def _plain_item(entry: Mapping[str, Any], formatter: CitationFormatter, mode: str, page: str) -> str:
+        """An entry with no outbound address: title, publisher and date as text; with ``internal``, linked to the
+        site's own page for it when the entry names one (``internalUrl``, a path on this site, never an address)."""
+        stripped = {k: v for k, v in entry.items() if k not in _OUTBOUND_FIELDS}
+        text = html.escape(formatter(stripped), quote=False)
+        if mode == "internal" and page.startswith("/") and not page.startswith("//") and "://" not in page:
+            return f'<a href="{html.escape(page, quote=True)}">{text}</a>'
+        return text
+
     def list_html(self, *, fmt: str | None = None) -> str:
         """The end-of-article bibliography, in first-reference order."""
         if not self._order:
             return ""
         formatter = self.config.formatter(fmt or self.config.default_format)
+        mode = self.config.links
         items: list[str] = []
         for index, key in enumerate(self._order, start=1):
-            entry = self.entries[key]
+            entry = {k: v for k, v in self.entries[key].items() if k != INTERNAL_URL_FIELD}
+            page = str(self.entries[key].get(INTERNAL_URL_FIELD) or "").strip()
+            anchor = html.escape(f"{self.config.anchor_prefix}{index}", quote=True)
+            if mode != "external":
+                items.append(f'<li id="{anchor}">{self._plain_item(entry, formatter, mode, page)}</li>')
+                continue
             text = formatter(entry)
             url = str(entry.get("URL") or entry.get("url") or "").strip()
             if url:
@@ -391,7 +423,6 @@ class CitationCollector:
                     f'<a href="{safe}" target="_blank" '
                     f'rel="noopener noreferrer">{html.escape(url, quote=False)}</a>'
                 )
-            anchor = html.escape(f"{self.config.anchor_prefix}{index}", quote=True)
             items.append(f'<li id="{anchor}">{body}</li>')
         klass = html.escape(self.config.list_class, quote=True)
         return f'<ol class="{klass}">' + "".join(items) + "</ol>"

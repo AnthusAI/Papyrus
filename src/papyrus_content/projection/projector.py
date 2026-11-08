@@ -11,7 +11,7 @@ from pathlib import Path, PurePosixPath
 from typing import Protocol
 
 from ..markus_renderer.build import DEFAULT_THEME, render_fragment_text
-from ..markus_renderer.citations import CitationRendering
+from ..markus_renderer.citations import DEFAULT_LINK_MODE, LINK_MODES, CitationRendering
 from ..markus_renderer.content_markup import prepare_page
 from ..markus_renderer.images import ImagePipelineError, dark_sibling_candidates
 from ..markus_renderer.convert import convert_text_in_process
@@ -105,10 +105,23 @@ class MarkusProjectorSettings:
     theme: str | None = DEFAULT_THEME
     sections: tuple[str, ...] = ()
     citations: bool = True            # ``citations: false`` turns [@key] and ::citations off
+    citation_links: str = "external"  # ``citations: {"links": "external" | "internal" | "none"}``: how the bibliography links a source
     chrome: SiteChrome = DEFAULT_CHROME
     images: RenditionSettings | None = DEFAULT_IMAGE_SETTINGS   # ``images: false`` turns ::image off; an object declares the pipeline
     public_data: PublicDataSettings | None = None
     plugins: tuple[str, ...] = ()
+
+
+def citation_links_from_setting(value: object) -> str:
+    """``citations`` is ``true``/``false`` or ``{"links": "external" | "internal" | "none"}``; the links mode (default external)."""
+    if value is None or isinstance(value, bool):
+        return DEFAULT_LINK_MODE
+    if isinstance(value, dict) and set(value) <= {"links"}:
+        links = value.get("links", DEFAULT_LINK_MODE)
+        if links in LINK_MODES:
+            return links
+        raise ValueError(f'projection.json "citations.links" must be one of {", ".join(LINK_MODES)}, not {links!r}')
+    raise ValueError('projection.json "citations" must be true, false or {"links": "external" | "internal" | "none"}')
 
 
 def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
@@ -118,8 +131,7 @@ def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
     unknown = set(raw) - allowed
     if unknown:
         raise ValueError(f"Unknown projection settings: {', '.join(sorted(unknown))}")
-    if raw.get("citations") is not None and not isinstance(raw["citations"], bool):
-        raise ValueError('projection.json "citations" must be true or false')
+    citation_links = citation_links_from_setting(raw.get("citations"))
     chrome_raw = dict(raw.get("chrome") or {})
     unknown_chrome = set(chrome_raw) - CHROME_FIELD_NAMES
     if unknown_chrome:
@@ -133,6 +145,7 @@ def settings_from_mapping(raw: dict) -> MarkusProjectorSettings:
         theme=raw["theme"] if "theme" in raw else DEFAULT_THEME,
         sections=tuple(raw.get("sections") or ()),
         citations=raw.get("citations") is not False,
+        citation_links=citation_links,
         chrome=SiteChrome(**chrome_raw),
         images=images_from_projection(raw),
         public_data=public_data_settings_from_mapping(raw[PUBLIC_DATA_SETTINGS_KEY]) if PUBLIC_DATA_SETTINGS_KEY in raw else None,
@@ -192,7 +205,7 @@ class MarkusSiteProjector:
         self.version = static_version(self._static_files)
         # The registry save validates with (``derive_body``), so a directive one accepts the other renders.
         self._convert_text = convert_text or (lambda text: convert_text_in_process(text, theme=settings.theme, registry=papyrus_registry()))
-        self._citations = CitationRendering() if settings.citations else None
+        self._citations = CitationRendering(links=settings.citation_links) if settings.citations else None
         self._renditions = renditions
 
     @classmethod

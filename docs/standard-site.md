@@ -477,7 +477,8 @@ Tests: `features_backend/reference-medium.feature` (the page lists only accepted
 ### Images and citations
 
 Every site has `::image{...}` (responsive pictures from renditions), `[@key]` and `::citations` without declaring anything in
-`web/projection.json`. A site opts out with `"images": false` or `"citations": false`, and configures pictures by declaring
+`web/projection.json`. A site opts out with `"images": false` or `"citations": false`, sets `"citations": {"links": "external" | "internal" | "none"}` to change how
+the bibliography links a source (default `external`; see [markus-content-markup.md](markus-content-markup.md#how-the-bibliography-links-a-source)), and configures pictures by declaring
 `"images": { ... }` (`widths`, `formats`, `quality`, `layouts`, `gatsby_parity`, `listing_max_width`; Anth.us declares
 `gatsby_parity`, `placeholder` and `listing_max_width` only to match its earlier Gatsby site). With nothing declared the
 renditions are the pipeline defaults: widths 480, 768, 1024, 1366 and 1920, WebP, a 1024 px fallback, lazy loading, no

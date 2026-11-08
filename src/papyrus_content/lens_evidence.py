@@ -517,9 +517,9 @@ def check_a5(facts: Facts) -> dict[str, Any]:
             uncited.append({"line": line, "start": short(text, 60), "terms": terms})
     problems = []
     if unresolved:
-        problems.append("These citations match no entry in the Story's citations: " + ", ".join(unresolved) + ".")
+        problems.append("These citation markers have no entry in the Story's citations, so they cannot be numbered: " + ", ".join(f"[@{key}]" for key in unresolved) + ".")
     if cited and not listed:
-        problems.append("The Story cites References but does not list them on the page (no ::citations block).")
+        problems.append(f"The Story has citation markers ({', '.join('[@' + key + ']' for key in sorted(set(cited)))}) but no ::citations{{}} line to say where the bibliography goes, so the page adds the bibliography at the end; put ::citations{{}} where you want it.")
     if uncited:
         problems.append(f"{many(len(uncited), 'paragraph')} with names, numbers or quotations {'cites' if len(uncited) == 1 else 'cite'} nothing: " + "; ".join(f"line {row['line']}" for row in uncited) + ".")
     evidence = {"cited": sorted(set(cited)), "unresolved": unresolved, "listedOnPage": listed, "uncited": uncited}

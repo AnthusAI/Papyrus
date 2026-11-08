@@ -417,9 +417,38 @@ instead).
 </ol>
 ```
 
-Omit `::citations{}` and no list is rendered — the inline markers still get
-numbers, they just link to anchors that are not on the page. That matches what
-the Gatsby site did for the one article with no `<CitationsList>`.
+Omit `::citations{}` and Papyrus **appends the bibliography at the end of the
+article** (inside the `<article>`, formatted as `::citations` would be), so a
+marker never links to an anchor that is not on the page (PPY-21bb36). The Gatsby
+site left such markers pointing nowhere; that parity is deliberately dropped. A
+body with no `[@key]` marker gets no list. The Story checklist's citation check
+(A5 in [four-lens-review.md](four-lens-review.md)) tells the editor before
+publishing, in plain words, which markers have no `::citations{}` line and which
+keys are not among the Story's entries.
+
+### How the bibliography links a source
+
+A publication chooses in `web/projection.json`:
+
+```json
+{ "citations": { "links": "internal" } }
+```
+
+`citations` is `true` / `false` (as before: `false` turns citations off) or an
+object with one key, `links`:
+
+| `links` | Bibliography entry |
+| --- | --- |
+| `external` (default; also what `true` or no setting gives) | The formatted entry plus the source's own URL as a link, exactly as above. Output is byte-identical to before. |
+| `internal` | No outside address, linked or printed. An entry is linked only to the site's own page for it when its CSL-JSON carries `internalUrl` (a path starting with `/` on this site), otherwise it is plain text. |
+| `none` | Plain text: title, publisher and date. No link of any kind in the list. |
+
+`URL` and `DOI` are left out of the entry text for `internal` and `none`. An
+`internalUrl` that is an address (`https://...`, `//...`, `javascript:`) is never
+linked. The inline markers link to `#citation-N` on the same page in every mode,
+which is not an outbound link. Today the engine publishes no page per Reference,
+so no entry carries `internalUrl` yet and `internal` renders plain text until a
+site's Stories add one. Machines on Machines sets `internal`.
 
 ### Formatting
 

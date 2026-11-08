@@ -218,7 +218,7 @@ Feature: papyrus stories lens-check reports what code can check about a Story fo
     When the lens checks run
     Then the finding "A5" is a "concern"
     And the finding "A5" says "missing"
-    And the finding "A5" says "does not list them"
+    And the finding "A5" says "no ::citations{} line"
     And the finding "A5" says "cites nothing"
 
   Scenario: Weak link text and pictures of tables are reported as information
