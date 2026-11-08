@@ -136,4 +136,18 @@ const document = load([again]);
 vm.runInNewContext(SCRIPT, { document });
 assert.equal(again.querySelector("button").listeners.click.length, 1);
 
+// Each provider's own player address is accepted; a look-alike address on the same host is not.
+for (const address of ["https://player.vimeo.com/video/76979871?autoplay=1&dnt=1", "https://www.instagram.com/p/C0abcDEfghI/embed/"]) {
+  const other = player(address);
+  load([other]);
+  other.querySelector("button").dispatch("click");
+  assert.equal(other.frames().length, 1, address);
+}
+for (const address of ["https://player.vimeo.com.evil.example/video/1", "https://www.instagram.com/accounts/login/", "https://vimeo.com/76979871"]) {
+  const other = player(address);
+  load([other]);
+  other.querySelector("button").dispatch("click");
+  assert.equal(other.frames().length, 0, address);
+}
+
 console.log("papyrus-video-v1.js: ok");

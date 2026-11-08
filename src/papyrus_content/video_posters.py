@@ -1,7 +1,7 @@
 """`papyrus stories capture-video-posters`: put our own copy of each ``::video`` thumbnail in the site's media storage.
 
-A ``::video{...}`` is a click-to-play poster (``markus_renderer/video.py``). The poster must be ours: the page makes no request to YouTube or Google
-before a click, so it cannot hot-link ``img.youtube.com``. The projector reads the poster like any stored picture, from
+A ``::video{...}`` is a click-to-play poster (``markus_renderer/video.py``). The poster must be ours: the page makes no request to the video provider
+before a click, so it cannot hot-link its thumbnail host. A video may instead name its own ``poster=`` (a picture already in the site's storage). The projector reads the poster like any stored picture, from
 ``media/assets/video-posters/<video id>.jpg`` and its renditions (the renditions function makes them when the object lands, the same one that
 serves story pictures). Until the copy exists the page shows a flat placeholder with the video's title.
 
@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from .markus_renderer.content_markup import _VIDEO_DIRECTIVE_RE, parse_attrs
-from .markus_renderer.video import VideoRequest, parse_video, provider_of
+from .markus_renderer.video import REGISTRY, VideoRequest, parse_video, provider_of
 from .options import normalize_string, parse_options, resolve_mutation_apply
 from .reference_thumbnails import NoThumbnail, Thumbnail, Unreachable, fetch_thumbnail, media_key_for_path
 
@@ -45,13 +45,13 @@ def videos_in(body: str) -> tuple[list[VideoRequest], list[str]]:
     for match in _VIDEO_DIRECTIVE_RE.finditer("\n".join(kept)):
         attributes = parse_attrs(match.group("attrs"))
         if provider_of(attributes.get("src", "")) is None:
-            continue   # not a YouTube address: a site's own embed, not core's
+            continue   # not an address of a registered provider: a site's own embed, not core's
         try:
             request = parse_video(attributes, match.group(0))
         except ValueError as error:
             problems.append(str(error))
             continue
-        found.setdefault(request.video_id, request)
+        found.setdefault((request.provider, request.video_id), request)
     return list(found.values()), problems
 
 
@@ -60,7 +60,12 @@ def poster_media_key(request: VideoRequest) -> str:
 
 
 def capture(request: VideoRequest, store: Any, *, fetch: Callable[[str], Thumbnail] = fetch_thumbnail, write: bool = True) -> tuple[str, str]:
-    """``(outcome, detail)`` for one video: ``already_have``, ``would_fetch``, ``stored``, ``none`` (YouTube has no picture) or ``failed`` (try again later)."""
+    """``(outcome, detail)`` for one video: ``already_have``, ``would_fetch``, ``stored``, ``none`` (the provider has no picture), ``own_poster`` (the
+    author named ``poster=``), ``needs_poster`` (the provider has no thumbnail to copy: the author gives ``poster=``) or ``failed`` (try again later)."""
+    if request.poster:
+        return "own_poster", request.poster
+    if not request.spec.thumbnail:
+        return "needs_poster", f'{request.spec.label} has no thumbnail to copy; add poster="/assets/<picture>.jpg" to the ::video line'
     key = poster_media_key(request)
     if store is not None and store.exists(key):
         return "already_have", request.poster_source
@@ -73,7 +78,7 @@ def capture(request: VideoRequest, store: Any, *, fetch: Callable[[str], Thumbna
     except Unreachable as reason:
         return "failed", f"{str(reason)[:160]}; left for the next run"
     if thumbnail.extension != "jpg":
-        return "none", f"YouTube gave a {thumbnail.media_type} picture, and the poster is a JPEG"
+        return "none", f"{request.spec.label} gave a {thumbnail.media_type} picture, and the poster is a JPEG"
     with tempfile.TemporaryDirectory() as folder:
         local = Path(folder) / "poster.jpg"
         local.write_bytes(thumbnail.data)
@@ -85,9 +90,9 @@ def stories_capture_video_posters(flags: list[str], *, client: Any = None, store
                                   fetch: Callable[[str], Thumbnail] = fetch_thumbnail) -> int:
     """papyrus stories capture-video-posters --story <lineage> [--bucket NAME] [--identity-pool-id ID] [--dry-run]
 
-    Copies the thumbnail of every YouTube video in the Story's current text into the site's media storage, where the page reads its poster from.
-    Run it where YouTube answers (a home or office network, not a cloud machine), signed in as an editor or admin; no AWS credentials. Writes by
-    default; --dry-run lists what it would fetch and contacts nobody. Exit status 3 when YouTube kept refusing this connection."""
+    Copies the thumbnail of every YouTube or Vimeo video (a provider with a thumbnail; Instagram has none, so its ``::video`` names ``poster=``) in the Story's current text into the site's media storage, where the page reads its poster from.
+    Run it where the provider answers (a home or office network, not a cloud machine), signed in as an editor or admin; no AWS credentials. Writes by
+    default; --dry-run lists what it would fetch and contacts nobody. Exit status 3 when the provider kept refusing this connection."""
     out = out or sys.stdout
     options = parse_options(flags)
     lineage = normalize_string(options.get("story"))
@@ -114,10 +119,10 @@ def stories_capture_video_posters(flags: list[str], *, client: Any = None, store
     for request in requests:
         outcome, detail = capture(request, store, fetch=fetch, write=write)
         counts[outcome] = counts.get(outcome, 0) + 1
-        print("\t".join(["stories", "capture-video-posters", outcome, request.video_id, request.title[:80], detail]), file=out, flush=True)
+        print("\t".join(["stories", "capture-video-posters", outcome, f"{request.provider}:{request.video_id}", request.title[:80], detail]), file=out, flush=True)
         unreachable_in_a_row = unreachable_in_a_row + 1 if outcome == "failed" else 0
         if unreachable_in_a_row >= STOP_AFTER_UNREACHABLE:
-            print("YouTube did not answer from this connection several times in a row. Run this where YouTube answers (a home or office network, not a cloud machine).", file=sys.stderr)
+            print("The video provider did not answer from this connection several times in a row. Run this where it answers (a home or office network, not a cloud machine).", file=sys.stderr)
             return EXIT_BLOCKED
     summary = ", ".join(f"{name} {count}" for name, count in sorted(counts.items())) or "no videos"
     print(f"stories\tcapture-video-posters\tdone\t{summary}", file=out)

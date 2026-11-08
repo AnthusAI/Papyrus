@@ -23,7 +23,7 @@ from papyrus_content import lens_evidence as evidence  # noqa: E402
 from papyrus_content.markus_renderer.body_features import BodyFeatures  # noqa: E402
 from papyrus_content.markus_renderer.content_markup import parse_attrs  # noqa: E402
 from papyrus_content.markus_renderer.derive import derive_body  # noqa: E402
-from papyrus_content.markus_renderer.video import parse_video  # noqa: E402
+from papyrus_content.markus_renderer.video import REGISTRY, parse_video  # noqa: E402
 from papyrus_content.projection.directory_source import DirectoryContentSource  # noqa: E402
 from papyrus_content.projection.engine import ProjectionContext, project_all  # noqa: E402
 from papyrus_content.projection.standard.config import standard_settings_from_mapping  # noqa: E402
@@ -40,7 +40,9 @@ VIDEO = "UytYrhYLOKI"
 SITE = {"name": "Example", "productionUrl": "https://example.org"}
 IMAGES = {"formats": ["webp"], "widths": [200, 400]}
 FORBIDDEN_HOSTS = ("ytimg", "img.youtube.com", "googlevideo", "ggpht", "google.com", "googleapis", "gstatic", "doubleclick", "i.ytimg")
-PROVIDER_ADDRESS = re.compile(r"https?://[^\s\"'<>]*(?:youtube|youtu\.be|google)[^\s\"'<>]*", re.I)
+PROVIDER_ADDRESS = re.compile(
+    r"https?://(?:[\w-]+\.)*(?:youtube(?:-nocookie)?\.com|youtu\.be|vimeo\.com|instagram\.com|ytimg\.com|google\w*\.com)[^\s\"'<>]*", re.I
+)
 
 
 def jpeg(size=(480, 360)) -> bytes:
@@ -80,6 +82,18 @@ def video_is(context, identifier):
     assert context.video.video_id == identifier
 
 
+@then('the provider is "{provider}" and the video is "{identifier}"')
+def provider_and_video(context, provider, identifier):
+    assert context.refusal is None, context.refusal
+    assert (context.video.provider, context.video.video_id) == (provider, identifier), context.video
+
+
+@then('the poster is "{path}"')
+def poster_is(context, path):
+    assert context.refusal is None, context.refusal
+    assert context.video.poster == path and context.video.poster_source == path.lstrip("/"), context.video
+
+
 @then('the address of the video on the page is "{address}"')
 def watch_address(context, address):
     assert context.video.watch_url == address
@@ -114,7 +128,7 @@ def save_story(context, state):
     context.derivation = derive_body(None, context.text.strip() + "\n", features)
 
 
-@then("the save succeeds")
+@then("the video save succeeds")
 def save_ok(context):
     assert context.derivation.ok, [error.message for error in context.derivation.errors]
 
@@ -153,16 +167,20 @@ def save_warns(context, text):
 class VideoSite:
     """A one-Story site projected by the standard front end, with the rendition store standing in for the site bucket."""
 
-    def __init__(self, embeds, body, poster):
+    def __init__(self, embeds, body, poster, hooks=None):
         self.work = Path(tempfile.mkdtemp(prefix="video-embed-"))
         settings = {"site": dict(SITE), "images": dict(IMAGES), "media": {"originals": True}}
         if embeds is not None:
             settings["embeds"] = embeds
         content = write_items(self.work / "content", [item("a", body=body)])
-        static = static_directory(self.work, settings)
+        extra = None
+        if hooks is not None:
+            settings["hooks"] = "hooks.py"
+            extra = {"hooks.py": hooks}
+        static = static_directory(self.work, settings, extra)
         store = DirectoryRenditionStore(self.work / "store")
-        if poster:
-            make_renditions(images_from_projection(settings), store, f"assets/video-posters/{VIDEO}.jpg", jpeg())
+        for path in ([f"assets/video-posters/youtube-{VIDEO}.jpg"] if poster is True else list(poster or [])):
+            make_renditions(images_from_projection(settings), store, path, jpeg())
         projector = StandardMarkusProjector.from_static_directory(static, renditions=store, environ={"PAPYRUS_SITE_PUBLIC_URL": ""})
         self.out = self.work / "out"
         report = project_all(ProjectionContext(source=DirectoryContentSource(content), projector=projector, writer=LocalDirectoryWriter(self.out), keep_state=False))
@@ -176,8 +194,8 @@ class VideoSite:
         return (self.out / key).read_text(encoding="utf-8")
 
 
-def _site(context, embeds, body, poster) -> VideoSite:
-    site = VideoSite(embeds, body, poster)
+def _site(context, embeds, body, poster, hooks=None) -> VideoSite:
+    site = VideoSite(embeds, body, poster, hooks)
     context.add_cleanup(shutil.rmtree, site.work, True)
     return site
 
@@ -185,22 +203,48 @@ def _site(context, embeds, body, poster) -> VideoSite:
 @given("a site with embeds on that has the poster of \"{identifier}\" in its storage")
 def site_on_with_poster(context, identifier):
     assert identifier == VIDEO
-    context.embeds, context.poster = {"enabled": True}, True
+    context.embeds, context.poster, context.hooks = {"providers": ["youtube"]}, True, None
 
 
 @given("a site with embeds on that has no poster for \"{identifier}\" in its storage")
 def site_on_without_poster(context, identifier):
-    context.embeds, context.poster = {"enabled": True}, False
+    context.embeds, context.poster, context.hooks = {"providers": ["youtube"]}, False, None
 
 
 @given("a site with embeds off")
 def site_off(context):
-    context.embeds, context.poster = {"enabled": False}, True
+    context.embeds, context.poster, context.hooks = None, True, None
+
+
+@given("a site with embeds that list no provider")
+def site_lists_none(context):
+    context.embeds, context.poster, context.hooks = {"providers": []}, True, None
+
+
+@given("a site with embeds off and the Pilobolus hook for Instagram lines")
+def site_off_with_hook(context):
+    context.embeds, context.poster = None, True
+    context.hooks = (REPO_ROOT / "features_backend" / "fixtures" / "video-embed" / "pilobolus-instagram" / "hooks.py").read_bytes()
+
+
+@given('a site whose embeds list "{names}" and that has the poster "{name}" in its storage')
+def site_lists_with_poster(context, names, name):
+    context.embeds, context.poster, context.hooks = {"providers": names.split(",")}, [f"assets/video-posters/{name}.jpg"], None
+
+
+@given('a site whose embeds list "{names}" and that has the picture "{path}" in its storage')
+def site_lists_with_picture(context, names, path):
+    context.embeds, context.poster, context.hooks = {"providers": names.split(",")}, [path.lstrip("/")], None
+
+
+@given('a site whose embeds list "{names}" and that has no pictures in its storage')
+def site_lists_without_pictures(context, names):
+    context.embeds, context.poster, context.hooks = {"providers": names.split(",")}, [], None
 
 
 @when("the Story is projected:")
 def project_story(context):
-    context.site = _site(context, context.embeds, context.text.strip() + "\n", context.poster)
+    context.site = _site(context, context.embeds, context.text.strip() + "\n", context.poster, context.hooks)
     context.html = context.site.text("a.html")
 
 
@@ -246,7 +290,17 @@ def no_frame(context):
 
 @then("the player's address is kept as data for the script: the privacy-enhanced address with autoplay, the start time 90 and no related videos")
 def embed_data(context):
-    assert f'data-embed="https://www.youtube-nocookie.com/embed/{VIDEO}?autoplay=1&amp;start=90&amp;rel=0"' in context.html
+    assert f'data-embed="https://www.youtube-nocookie.com/embed/{VIDEO}?autoplay=1&amp;rel=0&amp;start=90"' in context.html
+
+
+@then('the player\'s address is kept as data for the script: "{address}"')
+def embed_data_is(context, address):
+    assert f'data-embed="{address}"' in context.html, re.findall(r'data-embed="[^"]*"', context.html)
+
+
+@then("the stock rules give an Instagram player a portrait ratio")
+def portrait(context):
+    assert '.papyrus-video-player[data-provider="instagram"]{aspect-ratio:4 / 5}' in _style(context)
 
 
 @then("the page loads the video script")
@@ -297,7 +351,7 @@ def flat_button(context):
     rule = re.search(r"\.papyrus-video-play\{[^}]*\}", css).group(0)
     assert "border:0" in rule and "var(--papyrus-media-play-ink" in rule
     assert "var(--papyrus-media-play-bg" in css and "box-shadow" not in css
-    assert not re.search(r"border:\s*\d", css) and "border-color" not in css
+    assert not re.search(r"border:\s*[1-9]", css) and "border-color" not in css
 
 
 @then("the button is a real button element and the poster link is hidden once the script has made the button available")
@@ -327,18 +381,28 @@ def two_videos(context, count):
     assert context.html.count("/_plugins/papyrus-video-v1.js") == 1
 
 
-@then('the page has the line "{line}" with the title linked to the video')
-def fallback_line(context, line):
-    match = re.search(r'<p class="papyrus-video-fallback">(.*?)</p>', context.html, re.S)
-    assert match, "no fallback line"
+@then('the page has the line "{line}" with the title linked to "{address}"')
+def fallback_line(context, line, address):
+    match = re.search(r'<p class="papyrus-video-line">(.*?)</p>', context.html, re.S)
+    assert match, "no plain linked credit line"
     text = re.sub(r"<[^>]+>", "", match.group(1))
     assert text == line, text
-    assert f'<a href="https://www.youtube.com/watch?v={VIDEO}" rel="noopener noreferrer">Aircraft demonstration</a>' in match.group(1)
+    assert re.search(rf'<a href="{re.escape(address)}" rel="noopener noreferrer">[^<]+</a>', match.group(1)), match.group(1)
+
+
+@then("the page has none of Papyrus's video markup")
+def left_alone(context):
+    assert "papyrus-video" not in context.html, "Papyrus drew a video on a site that lists no provider"
+
+
+@then("the page holds the site's own Instagram embed")
+def own_embed(context):
+    assert '<div class="pilo-instagram"><blockquote class="instagram-media"' in context.html, context.html
 
 
 @then("the page has no button and no frame")
 def no_button(context):
-    assert "<button" not in context.html and "<iframe" not in context.html.lower() and "data-papyrus-video=" not in context.html
+    assert 'class="papyrus-video-play"' not in context.html and "<iframe" not in context.html.lower() and "data-papyrus-video=" not in context.html
 
 
 @then("the page loads no video script")
@@ -355,11 +419,11 @@ def nothing_published(context):
 STORY = "Words only.\n"
 
 
-@given("the same Story on a site with no embeds setting and on a site with embeds off")
+@given("the same Story on a site with no embeds setting and on a site with embeds that list no provider")
 def same_story_two_sites(context):
-    body = '::video{src="https://youtu.be/UytYrhYLOKI" title="T" credit="C"}\n'
+    body = '::video{src="https://youtu.be/UytYrhYLOKI" title="T"}\n'
     context.first = _site(context, None, body, True)
-    context.second = _site(context, {"enabled": False}, body, True)
+    context.second = _site(context, {"providers": []}, body, True)
 
 
 @then("the two sites publish identical files")
@@ -369,8 +433,8 @@ def identical(context):
 
 @given("the same Story without a video on a site with embeds off and on a site with embeds on")
 def same_story_without_video(context):
-    context.first = _site(context, {"enabled": False}, STORY, True)
-    context.second = _site(context, {"enabled": True}, STORY, True)
+    context.first = _site(context, {"providers": []}, STORY, True)
+    context.second = _site(context, {"providers": ["youtube"]}, STORY, True)
 
 
 @then("every page of the two sites is identical")
@@ -414,8 +478,9 @@ def policy_fragment(context, policy):
 @then("the fragment allows no script, image, style, connect or default source")
 def only_frames(context):
     text = context.site.text("_config/content-security-policy.txt")
-    assert [part.split()[0] for part in text.strip().split(";")] == ["frame-src"]
-    assert text.count("https://") == 1
+    parts = text.strip().split(";")
+    assert [part.split()[0] for part in parts] == ["frame-src"]
+    assert all(word.startswith("https://") and word.count("/") == 2 for word in parts[0].split()[1:]), text
 
 
 # ------------------------------------------------------------------ the script
@@ -425,10 +490,19 @@ def run_script(context):
     context.script = subprocess.run(["node", str(REPO_ROOT / "scripts" / "test-papyrus-video.cjs")], capture_output=True, text=True, cwd=REPO_ROOT)
 
 
-@then("it passes: nothing is framed before a click, a click, Enter and Space each frame the player once, the start time is kept and an address that is not the privacy-enhanced player is refused")
+@then("it passes: nothing is framed before a click, a click, Enter and Space each frame the player once, the start time is kept and an address that is not a registered provider's player is refused")
 def script_passes(context):
     assert context.script.returncode == 0, context.script.stdout + context.script.stderr
     assert "papyrus-video-v1.js: ok" in context.script.stdout
+
+
+@then("the script accepts exactly the player addresses of the registry")
+def script_prefixes(context):
+    from papyrus_content.projection.standard.projector import ASSET_DIRECTORY
+
+    script = (ASSET_DIRECTORY / "papyrus-video.js").read_text(encoding="utf-8")
+    listed = re.search(r"EMBED_PREFIXES = \[(.*?)\];", script, re.S).group(1)
+    assert re.findall(r'"([^"]+)"', listed) == [spec.embed_prefix for spec in REGISTRY.values()]
 
 
 # ------------------------------------------------------------------ the checks
@@ -438,10 +512,10 @@ FRONT = "title: Board refuses\nsummary: The board refused it.\ndate: 2026-03-03\
 CITATION = "citations:\n  demo:\n    type: webpage\n    title: The demonstration\n    URL: {url}\n"
 
 
-def _lens_site(embeds_on: bool | None):
+def _lens_site(providers: list[str] | None):
     raw = {"site": {"name": "Example", "productionUrl": ORIGIN}, "seo": {"publisherName": "Example"}}
-    if embeds_on is not None:
-        raw["embeds"] = {"enabled": embeds_on}
+    if providers is not None:
+        raw["embeds"] = {"providers": providers}
     standard = standard_settings_from_mapping(raw)
     return evidence.LensSite(standard, resolve_environment(standard, {"PAPYRUS_SITE_PUBLIC_URL": ORIGIN}))
 
@@ -455,22 +529,27 @@ def _run_checks(context, body, *, site, cites=None):
 
 @when("the lens checks run on a Story with this body:")
 def checks_plain(context):
-    _run_checks(context, context.text, site=_lens_site(None))
+    _run_checks(context, context.text, site=_lens_site(["youtube"]))
 
 
 @when("the lens checks run on a Story with this body on a site with embeds {state}:")
 def checks_on_site(context, state):
-    _run_checks(context, context.text, site=_lens_site(state == "on"))
+    _run_checks(context, context.text, site=_lens_site(["youtube"] if state == "on" else []))
+
+
+@when('the lens checks run on a Story with this body on a site that lists "{names}":')
+def checks_on_listing_site(context, names):
+    _run_checks(context, context.text, site=_lens_site(names.split(",")))
 
 
 @when('the lens checks run on a Story that cites the video "{url}" with this body:')
 def checks_cited(context, url):
-    _run_checks(context, context.text, site=_lens_site(None), cites=url)
+    _run_checks(context, context.text, site=_lens_site(["youtube"]), cites=url)
 
 
 @when('the lens checks run on a Story that cites the video "{url}" with this body on a site with embeds on:')
 def checks_cited_on_site(context, url):
-    _run_checks(context, context.text, site=_lens_site(True), cites=url)
+    _run_checks(context, context.text, site=_lens_site(["youtube"]), cites=url)
 
 
 @then("the check {key} looks fine")
@@ -551,7 +630,7 @@ def story_real(context, identifier):
 
 @given('a Story whose current text has a video "{identifier}" whose poster is already stored')
 def story_stored(context, identifier):
-    _story(context, _video_line(identifier) + "\n", youtube="real", existing={f"media/assets/video-posters/{identifier}.jpg"})
+    _story(context, _video_line(identifier) + "\n", youtube="real", existing={f"media/assets/video-posters/youtube-{identifier}.jpg"})
 
 
 @given('a Story whose current text has a video "{identifier}" and YouTube answers with a grey stand-in')
@@ -607,7 +686,27 @@ def says_stored(context):
     assert "\tstored\t" in context.output and context.status == 0, context.output
 
 
-@then("YouTube was not asked")
+@given('a Story whose current text has an Instagram video "{identifier}" with no poster')
+def story_instagram(context, identifier):
+    _story(context, f'::video{{src="https://www.instagram.com/reel/{identifier}/" title="A reel" credit="Example Troupe"}}\n', youtube="real")
+
+
+@given('a Story whose current text has a YouTube video "{identifier}" that names its own poster')
+def story_own_poster(context, identifier):
+    _story(context, f'::video{{src="https://youtu.be/{identifier}" title="A film" credit="Example" poster="/assets/own.jpg"}}\n', youtube="real")
+
+
+@then("the command says the video needs a poster")
+def says_needs(context):
+    assert "\tneeds_poster\t" in context.output, context.output
+
+
+@then("the command says the video has its own poster")
+def says_own(context):
+    assert "\town_poster\t" in context.output, context.output
+
+
+@then("the video provider was not asked")
 def not_asked(context):
     assert context.asked == [], context.asked
 

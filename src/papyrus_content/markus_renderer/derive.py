@@ -18,7 +18,7 @@ from .equations import equation_problems
 from .content_markup import ContentMarkupError, VideoMarkupError, prepare_page, read_citation_entries
 from .images import ImagePipeline, ImagePipelineError, assert_safe_asset_src
 from .security import assert_supported_markus_version
-from .video import VideoRendering
+from .video import PROVIDERS, VideoRendering
 
 BODY_IR_SCHEMA_VERSION = 1
 MAX_BODY_IR_BYTES = 300_000
@@ -104,8 +104,8 @@ def derive_body(front_matter_yaml: str | None, body_markus: str, features: BodyF
     citations = CitationRendering()
     try:
         # Always read the image markup, to say what a body asks of the site; only an enabled feature is lowered below.
-        # A ::video is read only on a site whose embeds are on, and only an allowed provider's address; anything else reaches the site's hooks as before.
-        videos = VideoRendering(enabled=True) if features.video_embeds and "::video{" in source else None
+        # A ::video is read only on a site whose embeds are on, and only a registered provider's address; anything else reaches the site's hooks as before.
+        videos = VideoRendering(providers=PROVIDERS) if features.video_embeds and "::video{" in source else None
         requested = prepare_page(source, images=ImagePipeline(), citations=None, videos=videos)
         prepared = prepare_page(
             source,
@@ -185,12 +185,14 @@ def derive_body(front_matter_yaml: str | None, body_markus: str, features: BodyF
                     "videos": {
                         token: {
                             "src": request.src,
+                            "provider": request.provider,
                             "videoId": request.video_id,
                             "title": request.title,
                             "caption": request.caption,
                             "credit": request.credit,
                             "start": request.start,
                             "layout": request.layout,
+                            "poster": request.poster,
                         }
                         for token, request in prepared.videos.items()
                     }

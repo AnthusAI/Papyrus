@@ -34,7 +34,7 @@ from typing import Any, Callable, Mapping
 
 from .citations import CitationCollector, CitationRendering
 from .images import ImageBuilder, ImagePipeline, ImageRequest
-from .video import VideoRendering, VideoRequest, parse_video, provider_of, render_video
+from .video import VideoRendering, VideoRequest, parse_video, provider_of, render_plain, render_video
 
 #: Deliberately alphanumeric: Markdown cannot style it, Markus's typography
 #: pass cannot rewrite it, and HTML escaping cannot alter it.
@@ -207,10 +207,10 @@ def prepare_page(
 ) -> PreparedPage:
     """Lower Papyrus markup in ``text`` to sentinels.
 
-    Returns the page unchanged when no capability is enabled. ``videos`` lowers ``::video{}`` only when its ``enabled`` is true, and then only
-    the ones whose address is of an allowed provider; every other ``::video`` stays as written for the site's hooks.
+    Returns the page unchanged when no capability is enabled. ``videos`` lowers ``::video{}`` only when it lists a provider, and then only
+    the ones whose address is of a provider in the registry; every other ``::video`` stays as written for the site's hooks.
     """
-    handles_videos = videos is not None and videos.enabled   # with embeds off core does not read ::video: it is exactly as it was
+    handles_videos = videos is not None and videos.enabled   # with no provider listed core does not read ::video: it is exactly as it was
     if images is None and citations is None and not handles_videos:
         return PreparedPage(markdown=text)
 
@@ -270,8 +270,8 @@ def prepare_page(
     if handles_videos:
 
         def lower_video(match: re.Match[str]) -> str:
-            # Only an address of an allowed provider is core's. Any other ::video (a site's own Instagram embed, say) is left as written.
-            if provider_of(parse_attrs(match.group("attrs")).get("src", "")) not in videos.providers:
+            # Only an address of a registered provider is core's. Any other ::video (a site's own embed of some other service) is left as written.
+            if provider_of(parse_attrs(match.group("attrs")).get("src", "")) is None:
                 return match.group(0)
             try:
                 request = parse_video(parse_attrs(match.group("attrs")), match.group(0))
@@ -419,9 +419,11 @@ def resolve_fragment(
             request = page.videos[token]
             rendering = videos if videos is not None else VideoRendering()
             pipeline = image_builder.pipeline if image_builder is not None else ImagePipeline()
-            poster = video_poster(request, depth) if rendering.enabled and video_poster is not None else None
+            if request.provider not in rendering.providers:   # embeds are on but this provider is not listed: the plain linked credit line
+                return render_plain(request)
+            poster = video_poster(request, depth) if video_poster is not None and request.has_poster_source else None
             html_text = render_video(request, rendering, poster=poster, classes=pipeline.classes_for(request.layout), with_style=not video_style_emitted)
-            video_style_emitted = video_style_emitted or rendering.enabled
+            video_style_emitted = True
             return html_text
         if collector is not None and token in page.citation_keys:
             rendered = [collector.marker_html(key) for key in page.citation_keys[token]]

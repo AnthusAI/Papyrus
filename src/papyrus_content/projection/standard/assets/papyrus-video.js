@@ -1,17 +1,30 @@
 /* papyrus-video-v1.js: the click-to-play video player of a Papyrus site.
  *
  * The page holds a poster (our own copy of the thumbnail), a plain link to the video, and a button. Nothing on the page contacts the video
- * provider. This script reveals the button; on a click, Enter or Space it swaps the poster for the provider's privacy-enhanced player. It
- * only ever creates a frame for an address that starts with the privacy-enhanced embed address, and it creates it once per player.
+ * provider. This script reveals the button; on a click, Enter or Space it swaps the poster for the provider's player. It
+ * only ever creates a frame for an address that starts with the player address of a provider it knows, and it creates it once per player.
  */
 (function () {
   "use strict";
-  var EMBED_PREFIX = "https://www.youtube-nocookie.com/embed/";
+  // The only frame addresses this script will create: the player address of each provider in markus_renderer/video.py REGISTRY (a test compares the two lists).
+  // A site's Content-Security-Policy fragment (_config/content-security-policy.txt) narrows these further to the providers the site lists.
+  var EMBED_PREFIXES = [
+    "https://www.youtube-nocookie.com/embed/",
+    "https://player.vimeo.com/video/",
+    "https://www.instagram.com/p/"
+  ];
+
+  function allowed(address) {
+    for (var index = 0; index < EMBED_PREFIXES.length; index += 1) {
+      if (address.indexOf(EMBED_PREFIXES[index]) === 0) return true;
+    }
+    return false;
+  }
 
   function play(player) {
     if (player.getAttribute("data-playing") === "true") return;
     var address = player.getAttribute("data-embed") || "";
-    if (address.indexOf(EMBED_PREFIX) !== 0) return;
+    if (!allowed(address)) return;
     player.setAttribute("data-playing", "true");
     var frame = document.createElement("iframe");
     frame.setAttribute("src", address);

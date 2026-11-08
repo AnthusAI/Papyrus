@@ -23,7 +23,7 @@ from . import audience_lenses as lenses
 from .audience_lenses import CONCERN, ERROR, NOT_APPLICABLE, NOT_ASSESSABLE, PASS, PROBLEM
 from .markus_renderer.content_markup import _IMAGE_DIRECTIVE_RE, _VIDEO_DIRECTIVE_RE, parse_attrs
 from .markus_renderer.derive import compose_source
-from .markus_renderer.video import provider_of, video_id_of
+from .markus_renderer.video import REGISTRY, parse_address, provider_of
 from .projection.public_data import SUMMARY_FIELD_NAMES
 from .projection.source import summary_from_row
 from .projection.standard import blocks
@@ -167,6 +167,7 @@ class Video:
     title: str
     caption: str
     credit: str
+    poster: str = ""
 
 
 def videos_of(masked_body: str) -> list[Video]:
@@ -174,9 +175,9 @@ def videos_of(masked_body: str) -> list[Video]:
     for match in _VIDEO_DIRECTIVE_RE.finditer(masked_body):
         attributes = parse_attrs(match.group("attrs"))
         if provider_of(attributes.get("src", "")) is None:
-            continue   # another provider's address (a site's own Instagram embed) is not core's: no check applies to it
+            continue   # an address of no registered provider (a site's own embed) is not core's: no check applies to it
         found.append(Video(masked_body.count("\n", 0, match.start()) + 1, attributes.get("src", "").strip(), " ".join(attributes.get("title", "").split()),
-                           " ".join(attributes.get("caption", "").split()), " ".join(attributes.get("credit", "").split())))
+                           " ".join(attributes.get("caption", "").split()), " ".join(attributes.get("credit", "").split()), attributes.get("poster", "").strip()))
     return found
 
 
@@ -449,7 +450,7 @@ def check_p16(facts: Facts) -> dict[str, Any]:
     for video in facts.videos:
         missing = [name for name, value in (("title", video.title), ("credit", video.credit)) if not value]
         try:
-            video_id_of(video.src)
+            parse_address(video.src)
             address = True
         except ValueError:
             address = False
@@ -474,23 +475,39 @@ def check_p17(facts: Facts) -> dict[str, Any]:
 
 def check_p18(facts: Facts) -> dict[str, Any]:
     if not facts.all_videos:
-        return finding("P18", NOT_APPLICABLE, "The Story has no YouTube videos.")
+        return finding("P18", NOT_APPLICABLE, "The Story has no videos.")
     if not facts.known:
         return _unknown_site("P18")
     embeds = facts.standard.embeds
     if not embeds.enabled:
-        return finding("P18", CONCERN, "This site has video embeds off (projection.json \"embeds\": {\"enabled\": false}), so Papyrus does not show these YouTube videos as players. "
-                       "Turn embeds on, or the site's own code has to show them.", embeds=False)
-    return finding("P18", PASS, "This site has video embeds on, so each video is a click-to-play poster.", embeds=True, providers=list(embeds.providers))
+        return finding("P18", CONCERN, "This site lists no video provider (projection.json \"embeds\": {\"providers\": []}), so Papyrus leaves these videos to the site's own code. "
+                       "List the providers that should play, for example \"embeds\": {\"providers\": [\"youtube\"]}.", embeds=False)
+    unlisted, no_poster = [], []
+    for video in facts.all_videos:
+        name = provider_of(video.src)
+        if name is None:
+            continue
+        if name not in embeds.providers:
+            unlisted.append(f"line {video.line} ({REGISTRY[name].label})")
+        elif not REGISTRY[name].thumbnail and not video.poster:
+            no_poster.append(f"line {video.line} ({REGISTRY[name].label})")
+    if unlisted or no_poster:
+        said = []
+        if unlisted:
+            said.append("not a provider this site lists, so each shows as a plain linked credit line: " + "; ".join(unlisted))
+        if no_poster:
+            said.append("has no thumbnail to copy and no poster= (it shows a placeholder): " + "; ".join(no_poster))
+        return finding("P18", CONCERN, "Some videos will not play as a click-to-play poster. " + ". ".join(said) + ".", embeds=True, providers=list(embeds.providers))
+    return finding("P18", PASS, "This site lists the provider of each video, so each is a click-to-play poster.", embeds=True, providers=list(embeds.providers))
 
 
-def _cited_video_ids(facts: Facts) -> set[str]:
+def _cited_video_ids(facts: Facts) -> set[tuple[str, str]]:
     entries = facts.front_matter.get("citations")
     found = set()
     for entry in entries.values() if isinstance(entries, dict) else ():
         if isinstance(entry, dict):
             try:
-                found.add(video_id_of(str(entry.get("URL") or entry.get("url") or "")))
+                found.add(parse_address(str(entry.get("URL") or entry.get("url") or "")))
             except ValueError:
                 pass
     return found
@@ -503,12 +520,12 @@ def check_a15(facts: Facts) -> dict[str, Any]:
     uncited = []
     for video in facts.videos:
         try:
-            identifier = video_id_of(video.src)
+            identifier = parse_address(video.src)
         except ValueError:
             continue
         if video.credit and identifier not in cited:
             uncited.append({"line": video.line, "src": video.src})
-    evidence = {"uncited": uncited, "citedVideoIds": sorted(cited)}
+    evidence = {"uncited": uncited, "citedVideoIds": sorted(f"{name}:{found}" for name, found in cited)}
     if uncited:
         return finding("A15", CONCERN, f"{many(len(uncited), 'credited video')} not among the Story's citations: " + "; ".join(f"line {row['line']} ({short(row['src'], 60)})" for row in uncited)
                        + ". If the Story uses the video as evidence, add its address to the front-matter citations and cite it with [@key].", **evidence)

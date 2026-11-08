@@ -82,7 +82,7 @@ Audience: people reading or skimming the page.
 | P15 | The readability is typical for this site | checked by code | info | the Story's value against the site's own median and spread | not yet |
 | P16 | Every video has a title (its accessible name) and a credit | checked by code | error | each video, its title and credit, and whatever is missing | yes |
 | P17 | Every video has a caption | checked by code | warn | the videos with no caption | yes |
-| P18 | A video plays on this site: the site has video embeds on | checked by code | warn | the site's embeds setting | yes |
+| P18 | A video plays on this site: the site lists its provider | checked by code | warn | the site's embeds setting, each video's provider and its poster | yes |
 
 ### Reviewed for AI reader agents (`review_reader_agents`)
 

@@ -101,7 +101,7 @@ PEOPLE = Lens(
         _c("P16", "Every video has a title (its accessible name) and a credit", AUTO, ERROR,
            "each video, its title and credit, and whatever is missing", (_CW, _ED, _RP), built=True),
         _c("P17", "Every video has a caption", AUTO, WARN, "the videos with no caption", (_CW, _ED), built=True),
-        _c("P18", "A video plays on this site: the site has video embeds on", AUTO, WARN, "the site's embeds setting", (_ED,), built=True),
+        _c("P18", "A video plays on this site: the site lists its provider", AUTO, WARN, "the site's embeds setting, each video's provider and its poster", (_ED,), built=True),
     ),
 )
 

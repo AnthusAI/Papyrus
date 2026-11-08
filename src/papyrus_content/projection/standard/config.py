@@ -40,27 +40,27 @@ SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9\-_/]*$")
 
 
 def embeds_from_mapping(value: object) -> VideoRendering:
-    """The ``embeds`` key: ``{"enabled": false, "providers": ["youtube"]}``. Off unless a site turns it on, so a site that never mentions it is unchanged.
+    """The ``embeds`` key: ``{"providers": ["youtube", "vimeo"]}``. The providers whose ``::video`` plays; none by default, and with none the feature is not there at all.
+
+    A site that never mentions ``embeds``, or lists no provider, is exactly as it was: core does not read ``::video``. With a provider listed, a ``::video`` of
+    a provider that is known but not listed shows as a plain linked credit line.
 
     There is deliberately no ``clickToPlay``: a video always loads its player only after a click, because a player loaded with the page would
     contact the provider before the reader chose to."""
     if value is None:
         return VideoRendering()
     if not isinstance(value, Mapping):
-        raise ValueError('embeds must be an object such as {"enabled": true, "providers": ["youtube"]}')
+        raise ValueError('embeds must be an object such as {"providers": ["youtube"]}')
     if "clickToPlay" in value:
         raise ValueError("embeds.clickToPlay is not a setting: a video always loads its player only after a click, so the page never contacts the provider on load")
-    _only(value, {"enabled", "providers"}, "embeds")
-    enabled = value.get("enabled", False)
-    if not isinstance(enabled, bool):
-        raise ValueError("embeds.enabled must be true or false")
-    providers = value.get("providers", list(EMBED_PROVIDERS))
-    if not isinstance(providers, list) or not providers or not all(isinstance(name, str) for name in providers):
-        raise ValueError(f"embeds.providers must be a non-empty list of provider names from {list(EMBED_PROVIDERS)}")
+    _only(value, {"providers"}, "embeds")
+    providers = value.get("providers", [])
+    if not isinstance(providers, list) or not all(isinstance(name, str) for name in providers):
+        raise ValueError(f"embeds.providers must be a list of provider names from {list(EMBED_PROVIDERS)}; it is empty (nothing plays) by default")
     unknown = [name for name in providers if name not in EMBED_PROVIDERS]
     if unknown:
         raise ValueError(f"embeds.providers names unsupported provider(s) {', '.join(map(repr, unknown))}; allowed: {', '.join(EMBED_PROVIDERS)}")
-    return VideoRendering(enabled=enabled, providers=tuple(dict.fromkeys(providers)))
+    return VideoRendering(providers=tuple(dict.fromkeys(providers)))
 
 
 def _only(mapping: Mapping, allowed: tuple[str, ...] | set[str], where: str) -> None:
@@ -463,7 +463,7 @@ class StandardSettings:
     agents: AgentSettings = field(default_factory=AgentSettings)
     page_actions: PageActionSettings = field(default_factory=PageActionSettings)
     mermaid: bool = True                      # ```mermaid blocks render as diagrams (self-hosted script, loaded only on pages that have one)
-    embeds: VideoRendering = field(default_factory=VideoRendering)   # the ``embeds`` key: whether ``::video`` plays (default off: a plain link)
+    embeds: VideoRendering = field(default_factory=VideoRendering)   # the ``embeds`` key: the providers whose ``::video`` plays (default none: ``::video`` is not core's)
     wiki: WikiSettings = field(default_factory=WikiSettings)
     home_page: HomePageSettings | None = None   # the ``homePage`` key; None means the site has no home-page behaviour
 

@@ -208,8 +208,8 @@ def media_key(path: str) -> str:
 
 
 def media_key_for_path(path: str) -> str:
-    """``media/<path>`` for a poster path under ``assets/video-posters/`` (a story's video poster; the video id is the name, so the path holds no ``..``)."""
-    if not re.fullmatch(r"assets/video-posters/[\w-]{11}\.jpg", path):
+    """``media/<path>`` for a poster path under ``assets/video-posters/`` (a story's video poster; the provider and video id are the name, so the path holds no ``..``)."""
+    if not re.fullmatch(r"assets/video-posters/[a-z]+-[\w-]{4,30}\.jpg", path):
         raise ValueError(f"not a video poster path: {path!r}")
     return "media/" + path
 
