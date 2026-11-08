@@ -1245,6 +1245,13 @@ of `ConsentModeSettings` fields; `{}` takes every default.
   `footer_html` (the script unhides it, so it never shows without JS), or add a footer link whose href is `#cookie-settings` (for the standard front end's `footer.columns`, which cannot carry attributes), or call
   `window.papyrusOpenConsentChoices()`.
 - `analytics_only: true` (off by default) keeps `ad_storage`, `ad_user_data` and `ad_personalization` denied after every choice: Accept all grants only `analytics_storage`, and the default banner text says the cookies are not used for advertising. Use it for sites that run no advertising.
+- **Region-aware notice (opt-in).** `region_lookup: true` skips the banner for visitors who do not need it; see
+  [region-aware consent](region-aware-consent.md). Settings: `region_lookup` (default `false`: the banner shows to everyone
+  without a stored choice, exactly as above), `region_lookup_address` (default `/_papyrus/consent`, a site-absolute path),
+  `region_lookup_timeout_milliseconds` (default 1500, 100 to 10000), `denied_by_default_regions` (replaces the shipped list)
+  and `additional_denied_by_default_regions` (adds to it). Every region must be an ISO 3166 code; with `region_lookup` on it
+  must be a two-letter country code, because the edge decides by country. A wrong value fails the projection with a message
+  naming the setting.
 - Banner wording (`banner_heading`, `banner_message`, `accept_label`,
   `reject_label`, `banner_region_label`, `privacy_policy_url`,
   `privacy_policy_label`) is plain text, HTML-escaped on output. The shipped
