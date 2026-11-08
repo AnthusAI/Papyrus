@@ -274,6 +274,15 @@ const schema = a.schema({
     reasonCode: a.string(),
   }),
 
+  ReferenceSectionActionResult: a.customType({
+    ok: a.boolean().required(),
+    referenceId: a.id().required(),
+    sectionId: a.id(),
+    previousSectionId: a.id(),
+    changed: a.boolean().required(),
+    status: a.string().required(),
+  }),
+
   ReferenceStarsActionResult: a.customType({
     ok: a.boolean().required(),
     referenceId: a.id().required(),
@@ -491,6 +500,19 @@ const schema = a.schema({
     .returns(a.ref("ReferenceStarsActionResult"))
     .authorization((allow) => [
       allow.authenticated("identityPool"),
+      allow.groups(categoryWriteGroups),
+    ])
+    .handler(functionHandler("categoryAction", categoryAction)),
+
+  setReferenceSection: a
+    .mutation()
+    .arguments({
+      referenceId: a.id().required(),
+      sectionId: a.id(),
+      agentLabel: a.string(),
+    })
+    .returns(a.ref("ReferenceSectionActionResult"))
+    .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
     .handler(functionHandler("categoryAction", categoryAction)),
@@ -1951,6 +1973,8 @@ const schema = a.schema({
       curationReasonCode: a.string(),
       curationActorKind: a.string(),
       curationSectionId: a.string(),
+      curationSectionUpdatedAt: a.datetime(),   // when and by whom the section was last set on its own (`setReferenceSection`); the vote's own fields do not move
+      curationSectionUpdatedBy: a.string(),
       curationShareable: a.boolean(),
       curationDelegation: a.json(),
       curationDecisionRelationId: a.string(),

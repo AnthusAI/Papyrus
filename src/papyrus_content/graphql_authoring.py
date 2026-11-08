@@ -488,6 +488,11 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": ASSIGNMENT_EVENT_FIELDS,
         "partitionType": "ID",
     },
+    "newsroomSectionsByEnabledStatus": {   # the sections of one state ("enabled" or "disabled"): a small partition, read without scanning the table
+        "field": "listNewsroomSectionsByEnabledStatusAndSortOrder",
+        "partitionKey": "enabledStatus",
+        "fields": NEWSROOM_SECTION_FIELDS,
+    },
     "referencesByLineageAndVersion": {
         "field": "listReferencesByLineageAndVersion",
         "partitionKey": "lineageId",
