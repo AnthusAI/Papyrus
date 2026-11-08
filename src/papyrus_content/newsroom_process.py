@@ -156,8 +156,12 @@ def _state_of(step: Step, facts: dict[str, Any]) -> str:
     if step.key == "choose":
         return DONE if stage != "idea" else NOT_DONE
     if step.key == "direction":
+        if facts.get("assignmentsUnknown"):
+            return UNKNOWN
         return DONE if any(a["hasDirection"] for a in facts["assignments"]) else NOT_DONE
     if step.key == "research":
+        if facts.get("assignmentsUnknown"):
+            return UNKNOWN
         return DONE if any(a["hasResearchPacket"] for a in facts["assignments"]) else NOT_DONE
     if step.key == "outline":
         return DONE if outline else NOT_DONE

@@ -42,6 +42,7 @@ import { editOriginOfIdentity } from "../shared/edit-origin";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
+type AgentReferenceCurationHandler = Schema["agentReviewReferenceCuration"]["functionHandler"];
 type CreateCurationDelegationHandler = Schema["createCurationDelegation"]["functionHandler"];
 type RevokeCurationDelegationHandler = Schema["revokeCurationDelegation"]["functionHandler"];
 type ListCurationDelegationsHandler = Schema["listCurationDelegations"]["functionHandler"];
@@ -53,6 +54,7 @@ type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functio
 type ReferenceStarsHandler = Schema["setReferenceStars"]["functionHandler"];
 type RecordDelegatedStarsHandler = Schema["recordDelegatedStars"]["functionHandler"];
 type ItemStarsHandler = Schema["setItemStars"]["functionHandler"];
+type AgentItemStarsHandler = Schema["agentSetItemStars"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
 type ReferenceNoteHandler = Schema["createReferenceNote"]["functionHandler"];
 type MoveReferenceCorpusHandler = Schema["moveReferenceCorpus"]["functionHandler"];
@@ -82,6 +84,7 @@ type CategoryActionEvent =
   | Parameters<CreateEditorConceptHandler>[0]
   | Parameters<ReviewHandler>[0]
   | Parameters<ReferenceCurationHandler>[0]
+  | Parameters<AgentReferenceCurationHandler>[0]
   | Parameters<CreateCurationDelegationHandler>[0]
   | Parameters<RevokeCurationDelegationHandler>[0]
   | Parameters<ListCurationDelegationsHandler>[0]
@@ -93,6 +96,7 @@ type CategoryActionEvent =
   | Parameters<RecordDelegatedStarsHandler>[0]
   | Parameters<ReferenceStarsHandler>[0]
   | Parameters<ItemStarsHandler>[0]
+  | Parameters<AgentItemStarsHandler>[0]
   | Parameters<ReferenceQualityHandler>[0]
   | Parameters<ReferenceNoteHandler>[0]
   | Parameters<MoveReferenceCorpusHandler>[0]
@@ -165,6 +169,12 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "linkMessageHashtags") return linkMessageHashtagsAction(event as Parameters<LinkMessageHashtagsHandler>[0]);
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
+  if (fieldName === "agentReviewReferenceCuration") {
+    if (process.env.PAPYRUS_MCP_REFERENCE_SINGLE_TENANT !== "true") throw new Error("Reference agent decisions are not enabled for this backend.");
+    const agentEvent = event as Parameters<AgentReferenceCurationHandler>[0];
+    const { lineageId, expectedRevision } = agentEvent.arguments;
+    return reviewReferenceCuration(agentEvent as unknown as Parameters<ReferenceCurationHandler>[0], null, { lineageId, expectedRevision });
+  }
   if (fieldName === "createCurationDelegation") return createCurationDelegation(event as Parameters<CreateCurationDelegationHandler>[0]);
   if (fieldName === "revokeCurationDelegation") return revokeCurationDelegation(event as Parameters<RevokeCurationDelegationHandler>[0]);
   if (fieldName === "listCurationDelegations") return listCurationDelegations(event as Parameters<ListCurationDelegationsHandler>[0]);
@@ -176,6 +186,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "recordDelegatedStars") return recordDelegatedStars(event as Parameters<RecordDelegatedStarsHandler>[0]);
   if (fieldName === "setReferenceStars") return setReferenceStars(event as Parameters<ReferenceStarsHandler>[0]);
   if (fieldName === "setItemStars") return setItemStars(event as Parameters<ItemStarsHandler>[0]);
+  if (fieldName === "agentSetItemStars") return agentSetItemStars(event as Parameters<AgentItemStarsHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
   if (fieldName === "createReferenceNote") return createReferenceNote(event as Parameters<ReferenceNoteHandler>[0]);
   if (fieldName === "moveReferenceCorpus") return moveReferenceCorpus(event as Parameters<MoveReferenceCorpusHandler>[0]);
@@ -253,6 +264,7 @@ async function reviewSteeringProposal(event: Parameters<ReviewHandler>[0]) {
 async function reviewReferenceCuration(
   event: Parameters<ReferenceCurationHandler>[0],
   delegation: { delegationId: string; relayedBy: string; instruction: string } | null = null,
+  agentCondition: { lineageId: string; expectedRevision: string } | null = null,
 ) {
   if (!delegation && getIdentitySub(event)) requireEditorGroups(event, "accept, reject or rate");   // a person's session, CLI or Newsroom; operators on AWS credentials have no sub
   const client = await getDataClient();
@@ -269,12 +281,20 @@ async function reviewReferenceCuration(
     throw new Error("A rejection needs a reason: say why in your own words, or send a reasonCode.");
   }
   const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
+  if (agentCondition && (reference.lineageId !== agentCondition.lineageId || reference.versionState !== "current" || reference.updatedAt !== agentCondition.expectedRevision)) {
+    throw new Error("stale_revision: The Reference changed. Refresh the card and try again.");
+  }
+  if (agentCondition) {
+    const current = (await listReferenceVersionsByLineage(client, agentCondition.lineageId)).filter((row) => row.versionState === "current");
+    if (current.length !== 1 || current[0].id !== referenceId) throw new Error("stale_revision: The Reference has moved or has ambiguous current versions.");
+    // A concurrent version creator can still insert a second current row after this read. Closing that window requires a lineage-level transaction.
+  }
   const requestedSectionId = normalizeOptionalString(event.arguments.sectionId);
   const sectionRecord = requestedSectionId
     ? (await client.models.NewsroomSection.get({ id: requestedSectionId })).data ?? null
     : null;
   const sectionId = validatedCurationSectionId(requestedSectionId, action, sectionRecord);
-  const now = new Date().toISOString();
+  const now = nextReferenceRevision(reference.updatedAt);
   const actorSub = normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event);
   const actorLabel = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event);
   const person = actorLabel ?? actorSub ?? "Papyrus newsroom";
@@ -286,7 +306,7 @@ async function reviewReferenceCuration(
   // The vote is recorded on the Reference itself: its status, who set it and the note, plus the details of the vote.
   // Messages come only from people, so a vote writes no Message and no comment relation.
   await requireDataResult(
-    client.models.Reference.update({
+    updateReferenceCuration(client, {
       id: referenceId,
       curationStatus: nextStatus,
       curationStatusKey: `${normalizeRequiredString(reference.corpusId, "reference.corpusId")}#${nextStatus}`,
@@ -294,8 +314,8 @@ async function reviewReferenceCuration(
       curationStatusUpdatedBy: actor,
       curationStatusReason: note,
       ...referenceVoteFields({
-        // A signed-in editor or admin session votes as that person, from the CLI or the Newsroom: an agent acting through the session acts for them.
-        actorKind: delegation ? "human" : curationActorKind(event.identity),
+        // MCP decisions are agent decisions; a signed-in CLI or Newsroom session votes as its editor, unless relayed under delegation.
+        actorKind: delegation ? "human" : agentCondition ? "agent" : curationActorKind(event.identity),
         reasonCode,
         sectionId,
         shareable: event.arguments.shareable ?? null,
@@ -309,7 +329,7 @@ async function reviewReferenceCuration(
       ...referenceMediumKeyPatch(reference, { curationStatus: nextStatus }),
       ...referencePublicKeyPatch(reference, { curationStatus: nextStatus }),   // a vote moves the row into or out of the public index; names nothing for an ordinary row
       updatedAt: now,
-    }),
+    }, agentCondition),
     "update Reference curation status",
   );
 
@@ -327,6 +347,34 @@ async function reviewReferenceCuration(
     status: nextStatus,
     reasonCode,
   };
+}
+
+/** Each Reference vote or star advances the revision, even within the same millisecond. */
+function nextReferenceRevision(previous: unknown, requested: string = new Date().toISOString()): string {
+  const previousMs = typeof previous === "string" ? Date.parse(previous) : NaN;
+  const requestedMs = Date.parse(requested);
+  return new Date(Math.max(requestedMs, Number.isFinite(previousMs) ? previousMs + 1 : 0)).toISOString();
+}
+
+/** Use the generated AppSync conditional mutation; the model convenience client omits conditions. */
+async function updateReferenceCuration(client: DataClient, input: Record<string, unknown>, condition: { lineageId: string; expectedRevision: string } | null) {
+  if (!condition) return client.models.Reference.update(input as Parameters<DataClient["models"]["Reference"]["update"]>[0]);
+  const query = `mutation AgentConditionalReference($input: UpdateReferenceInput!, $condition: ModelReferenceConditionInput) {
+    updateReference(input: $input, condition: $condition) { id }
+  }`;
+  let result;
+  try {
+    result = await client.graphql({ query, variables: { input, condition: {
+      lineageId: { eq: condition.lineageId }, versionState: { eq: "current" }, updatedAt: { eq: condition.expectedRevision },
+    } } });
+  } catch (error) {
+    if (String(error).includes("ConditionalCheckFailed")) throw new Error("stale_revision: The Reference changed. Refresh the card and try again.");
+    throw error;
+  }
+  if ((result as { errors?: { message?: string }[] }).errors?.some((error) => error.message?.includes("ConditionalCheckFailed")))
+    throw new Error("stale_revision: The Reference changed. Refresh the card and try again.");
+  return { data: (result as { data?: { updateReference?: { id: string } } }).data?.updateReference ?? null,
+    errors: (result as { errors?: { message: string }[] }).errors };
 }
 
 function curationCaller(event: { identity?: unknown }): CurationCaller {
@@ -623,13 +671,15 @@ async function writeReferenceStars(
     acceptOnRating: (referenceId: string, stars: number) => Promise<{ status: string }>;
   },
 ) {
-  const { referenceId, stars, actor, now } = input;
+  const { referenceId, stars, actor } = input;
   const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
+  const now = nextReferenceRevision(reference.updatedAt, input.now);
   await requireDataResult(
     client.models.Reference.update({
       id: referenceId,
       ...referenceStarFields(stars, actor, now),
       starFeedKey: starFeedKeyFor(normalizeOptionalString(reference.corpusId), stars),
+      updatedAt: now,
       ...(normalizeOptionalString(reference.feedArrivalAt) ? {} : { feedArrivalAt: referenceFeedArrivalAt(reference as Parameters<typeof referenceFeedArrivalAt>[0]) }),
     }),
     "update Reference stars",
@@ -680,11 +730,56 @@ async function setItemStars(event: Parameters<ItemStarsHandler>[0]) {
     normalizeOptionalString((event.arguments as { agentLabel?: string | null }).agentLabel),
   );
   await requireDataResult(
-    client.models.Item.update({ id: newest.id, ...referenceStarFields(stars, actor, now) }),
+    client.models.Item.update({ id: newest.id, ...referenceStarFields(stars, actor, now), starRevision: randomUUID() }),
     "update Story stars",
   );
   await requestStoryStarsProjection(newest.id);
   return { ok: true, itemId: newest.id, lineageId, stars };
+}
+
+/** Agent rating with an atomic condition on the exact Story card, never an assertion of a person's judgement. */
+async function agentSetItemStars(event: Parameters<AgentItemStarsHandler>[0]) {
+  const caller = curationCaller(event);
+  if (caller.lane === "cli-session" || caller.lane === "iam" || caller.lane === "unreadable-client-session")
+    throw new Error("This session cannot rate Stories through this action.");
+  const sub = normalizeRequiredString(getIdentitySub(event), "identity.sub");
+  const itemId = normalizeRequiredString(event.arguments.itemId, "itemId");
+  const lineageId = normalizeRequiredString(event.arguments.lineageId, "lineageId");
+  const updatedAt = normalizeRequiredString(event.arguments.expectedUpdatedAt, "expectedUpdatedAt");
+  const starRevision = normalizeOptionalString(event.arguments.expectedStarRevision);
+  const stars = normalizeReferenceStars(event.arguments.stars);
+  const client = await getDataClient();
+  const item = await getRequiredRecord(client.models.Item, itemId, "Item");
+  const tenant = (process.env.PAPYRUS_TENANT_ID ?? "").trim() || null;
+  if ((normalizeOptionalString(item.tenantId) ?? null) !== tenant) throw new Error("Story is outside this site's scope.");
+  if (!isStoryItemType(normalizeOptionalString(item.type) ?? "")) throw new Error("Only Stories can be rated.");
+  if (item.lineageId !== lineageId || item.versionState !== "current" || item.updatedAt !== updatedAt || (item.starRevision ?? null) !== starRevision)
+    throw new Error("stale_revision: The Story changed. Refresh the card and try again.");
+  const page = await client.models.Item.listItemsByLineageAndVersion({ lineageId }, { limit: 200 });
+  if (page.errors?.length) throw new Error("Could not read the Story's versions.");
+  const current = (page.data ?? []).filter((row) => row?.versionState === "current" && (normalizeOptionalString(row.tenantId) ?? null) === tenant);
+  if (page.nextToken || current.length !== 1 || current[0].id !== itemId)
+    throw new Error("stale_revision: The Story has moved or has ambiguous current versions.");
+  const now = new Date().toISOString();
+  const input = { id: itemId, ...referenceStarFields(stars, `agent:${sub}`, now), starRevision: randomUUID() };
+  const condition = { lineageId: { eq: lineageId }, versionState: { eq: "current" }, updatedAt: { eq: updatedAt },
+    starRevision: starRevision === null ? { attributeExists: false } : { eq: starRevision },
+    tenantId: tenant === null ? { attributeExists: false } : { eq: tenant } };
+  const query = `mutation AgentConditionalStoryStars($input: UpdateItemInput!, $condition: ModelItemConditionInput) {
+    updateItem(input: $input, condition: $condition) { id }
+  }`;
+  let result;
+  try { result = await client.graphql({ query, variables: { input, condition } }); }
+  catch (error) {
+    if (String(error).includes("ConditionalCheckFailed")) throw new Error("stale_revision: The Story changed. Refresh the card and try again.");
+    throw error;
+  }
+  const response = result as { data?: { updateItem?: { id: string } }; errors?: { message?: string }[] };
+  if (response.errors?.some((error) => error.message?.includes("ConditionalCheckFailed"))) throw new Error("stale_revision: The Story changed. Refresh the card and try again.");
+  assertNoDataErrors(response.errors, "rate Story");
+  if (!response.data?.updateItem) throw new Error("The site did not confirm the Story rating.");
+  await requestStoryStarsProjection(itemId);
+  return { ok: true, itemId, lineageId, stars };
 }
 
 const STORY_STARS_PROJECTION_TASK = "story-stars";

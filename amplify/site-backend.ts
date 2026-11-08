@@ -30,6 +30,9 @@ import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFr
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, trustClientOnIdentityPool } from "./auth/prospectus-google-client";
 import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
+import { addMcpOAuth, planMcpOAuth } from "./mcp-oauth/resource";
+import { addMcpTools, mcpBrowserOptions, readerPublication } from "./mcp-tools/resource";
+import { storyPublicationRequestsAvailable, wireMcpStoryTables } from "./mcp-tools/story-availability";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
 import { isBootstrapStage, resolveExcludedModelGroups } from "./data/schema";
@@ -195,6 +198,19 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
       prospectusGoogleOnlyClient.ref,
     );
   }
+
+  const mcpPlan = planMcpOAuth(featureFlags.mcp, process.env);
+  const mcpOAuth = mcpPlan ? addMcpOAuth(backend.createStack("McpOAuth"), mcpPlan) : undefined;
+  const readerResource = (backend as unknown as { readerActions?: { resources: { lambda: LambdaFunction } } }).readerActions;
+  const mcpTools = mcpPlan ? addMcpTools(backend.createStack("McpTools"), mcpPlan, {
+    endpoint: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
+    tenant: (process.env.PAPYRUS_TENANT_ID ?? "").trim(),
+    publication: readerPublication((process.env.PAPYRUS_SITE_ORIGIN ?? "").trim()),
+    reader: readerResource?.resources.lambda,
+    referenceSingleTenant: (process.env.PAPYRUS_MCP_REFERENCE_SINGLE_TENANT ?? "").trim() === "true",
+    storyPublishRequests: storyPublicationRequestsAvailable(backend.data.resources.tables),
+    storyDrafts: Boolean(backend.data.resources.tables.Item),
+  }) : undefined;
 
   const cliEnrollmentPlan = cliRemoteLoginPlan
     ? planCliEnrollment(process.env.PAPYRUS_ENABLE_CLI_ENROLLMENT?.trim() === "true")
@@ -468,6 +484,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   grantNewsroomReadWrite(backend.newsroomSummary.resources.lambda as LambdaFunction);
   const contentActionsLambda = backend.contentActions.resources.lambda as LambdaFunction;
   grantNewsroomReadWriteDelete(contentActionsLambda);
+  // Missing optional model groups leave no corresponding DynamoDB table.
+  wireMcpStoryTables(contentActionsLambda, backend.data.resources.tables);
   // A backend whose editorial records (sections, doctrine, stories) carry a tenant (one copied with --stamp-tenant) is read and written as that tenant:
   // the editorial check refuses a record whose tenant differs from the Lambda's, so without this a story on such a backend cannot be created or edited.
   // Set PAPYRUS_TENANT_ID on the site's build (docs/multi-tenancy.md); a site with no tenant sets nothing and is unchanged.
@@ -478,6 +496,11 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     for (const tenantLambda of [contentActionsLambda, backend.categoryAction.resources.lambda, backend.assignmentAction.resources.lambda, backend.newsroomSummary.resources.lambda, backend.editorialChecks.resources.lambda]) {
       (tenantLambda as LambdaFunction).addEnvironment("PAPYRUS_TENANT_ID", backendTenantId);
     }
+  }
+  // Explicit operator attestation; never enable Reference decisions on a tenant-scoped backend.
+  if ((process.env.PAPYRUS_MCP_REFERENCE_SINGLE_TENANT ?? "").trim() === "true") {
+    if (backendTenantId) throw new Error("MCP Reference decisions require a dedicated backend without PAPYRUS_TENANT_ID.");
+    (backend.categoryAction.resources.lambda as LambdaFunction).addEnvironment("PAPYRUS_MCP_REFERENCE_SINGLE_TENANT", "true");
   }
   // The CLI's own sign-in client, so the curation delegation routes can tell a CLI session from the Newsroom's: a token's client is signed by
   // Cognito, so an agent working in an editor's CLI session can ask for a delegation but cannot approve it. Without this variable (the CLI is on the
@@ -828,6 +851,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   backend.addOutput({
     custom: {
       publicForms: { endpoint: publicFormsEndpoint },
+      ...(mcpOAuth ? { mcpOAuth } : {}),
+      ...(mcpTools ? { mcpTools: { ...mcpTools, ...mcpBrowserOptions(process.env) } } : {}),
       // Lets the operator CLI re-project on publish without PAPYRUS_PUBLICATION_KIND / PAPYRUS_CONTENT_ACTIONS_FUNCTION (PPY-0c0b75).
       publication:
         s3ProjectionPublication !== undefined
