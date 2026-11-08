@@ -11,7 +11,7 @@ export type S3ProjectionSettingsInput = {
   distributionArn?: string;
   distributionId?: string;
   publicHostName?: string;
-  cache?: { htmlSMaxAgeSeconds?: number; invalidation?: "targeted" | "off"; maxInvalidationPaths?: number };
+  cache?: { htmlSMaxAgeSeconds?: number; invalidation?: "targeted" | "off" | "all"; maxInvalidationPaths?: number };
   projector?: string;
   staticDir?: string;
 };
@@ -41,7 +41,8 @@ export function s3ProjectionEnvironment(input: S3ProjectionSettingsInput): Recor
   if (input.cache?.htmlSMaxAgeSeconds !== undefined) environment.PAPYRUS_HTML_S_MAXAGE_SECONDS = String(input.cache.htmlSMaxAgeSeconds);
   if (input.cache?.maxInvalidationPaths !== undefined) environment.PAPYRUS_INVALIDATION_MAX_PATHS = String(input.cache.maxInvalidationPaths);
   if (input.cache?.invalidation === "off") environment.PAPYRUS_EDGE_INVALIDATION = "off";
-  if (input.cache?.invalidation === "targeted") environment.PAPYRUS_EDGE_INVALIDATION = "targeted";
+  // "targeted" is the default (unset). "all" is the old collapse-to-/* purge: billable and discouraged.
+  if (input.cache?.invalidation === "all") environment.PAPYRUS_EDGE_INVALIDATION = "all";
   if (input.publicHostName !== undefined) environment.PAPYRUS_SITE_PUBLIC_URL = `https://${input.publicHostName}`;
   if (input.projector !== undefined) environment.PAPYRUS_SITE_PROJECTOR = S3_PROJECTION_PROJECTOR_MODULE;
   if (input.staticDir !== undefined) environment.PAPYRUS_SITE_STATIC_DIR = S3_PROJECTION_STATIC_DIRECTORY;

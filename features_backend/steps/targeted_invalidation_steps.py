@@ -57,8 +57,15 @@ def targeted_site(context, cap: int) -> None:
 @given("a site that has not set the cache invalidation")
 def default_site(context) -> None:
     context.edge = Edge()
-    context.invalidator = CloudFrontInvalidator("EDIST", context.edge)
+    context.invalidator = TargetedCloudFrontInvalidator("EDIST", 25, context.edge)
     context.environment_value = None
+
+
+@given('a site that set the cache invalidation to "all"')
+def all_site(context) -> None:
+    context.edge = Edge()
+    context.invalidator = CloudFrontInvalidator("EDIST", context.edge)
+    context.environment_value = "all"
 
 
 @when("one story is published with a new version")
@@ -80,6 +87,32 @@ def many_pages(context, count: int) -> None:
     quiet(_finish, type("Ctx", (), {"invalidate": context.invalidator.invalidate})(), context.report)
 
 
+@when("a publish writes the story page and {count:d} listing pages")
+def story_and_listings(context, count: int) -> None:
+    keys = [f"articles/p{number}/index.html" for number in range(count)] + ["articles/hello/index.html", "articles/hello/index.md"]
+    context.report = ProjectionReport(written=keys, item_paths=["articles/hello/index.html", "articles/hello/index.md"])
+    quiet(_finish, type("Ctx", (), {"invalidate": context.invalidator.invalidate})(), context.report)
+
+
+@then("the first paths purged are the story page and its twin")
+def story_first(context) -> None:
+    assert context.edge.paths[:3] == ["/articles/hello/index.html", "/articles/hello/", "/articles/hello/index.md"], context.edge.paths
+
+
+@when("the whole site is rendered")
+def whole_site(context) -> None:
+    handler = handler_module()
+    ctx = mock.Mock()
+    ctx.invalidate = context.invalidator.invalidate
+    report = mock.Mock(ok=True, unpurged=[], written=[], deleted=[], follow_up_item_pages=False)
+    with mock.patch.dict("os.environ", {}, clear=False), mock.patch.object(handler, "create_authoring_client", return_value=(object(), {})), mock.patch.object(
+        handler, "projection_context", return_value=ctx
+    ), mock.patch.object(handler, "project_all", return_value=report) as run:
+        handler._run_projection_task({"task": "all"})
+    if run.call_args.args[0].invalidate is not None:
+        run.call_args.args[0].invalidate(["articles/a/index.html"])
+
+
 @when("the site is rendered by a deploy")
 def deploy(context) -> None:
     handler = handler_module()
@@ -88,7 +121,7 @@ def deploy(context) -> None:
     report = mock.Mock(ok=True)
     report.render.unpurged = []
     report.to_dict.return_value = {}
-    with mock.patch.dict(handler.os.environ, {"PAPYRUS_EDGE_INVALIDATION": context.environment_value}), mock.patch.object(handler, "ensure_publication_from_environment"), mock.patch.object(
+    with mock.patch.dict(handler.os.environ, {"PAPYRUS_EDGE_INVALIDATION": context.environment_value or ""}), mock.patch.object(handler, "ensure_publication_from_environment"), mock.patch.object(
         handler, "ensure_default_editorial_policies"
     ), mock.patch.object(handler, "projection_context", return_value=ctx), mock.patch.object(handler, "drift_metric_line", return_value=""), mock.patch.object(
         handler, "deploy_render"

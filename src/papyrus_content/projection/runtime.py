@@ -35,6 +35,7 @@ HTML_S_MAXAGE_ENV = "PAPYRUS_HTML_S_MAXAGE_SECONDS"
 EDGE_INVALIDATION_ENV = "PAPYRUS_EDGE_INVALIDATION"
 EDGE_INVALIDATION_OFF = "off"
 EDGE_INVALIDATION_TARGETED = "targeted"
+EDGE_INVALIDATION_ALL = "all"
 PUBLIC_URL_ENV = "PAPYRUS_SITE_PUBLIC_URL"
 SITE_PROJECTOR_ENV = "PAPYRUS_SITE_PROJECTOR"
 SITE_STATIC_DIRECTORY_ENV = "PAPYRUS_SITE_STATIC_DIR"
@@ -136,8 +137,10 @@ def invalidation_enabled(environment: Mapping[str, str]) -> bool:
 
 
 def targeted_invalidation(environment: Mapping[str, str]) -> bool:
-    """``publication.cache.invalidation: "targeted"``: a single-story publish or save purges exactly what it wrote; a deploy never purges (PPY-2745c1)."""
-    return (environment.get(EDGE_INVALIDATION_ENV) or "").strip().lower() == EDGE_INVALIDATION_TARGETED
+    """The default (PPY-2745c1): ``publication.cache.invalidation`` unset or ``"targeted"``. A single-story publish or save purges exactly the pages it wrote
+    (both URL forms, never ``/*``, capped at ``maxInvalidationPaths``); a deploy never purges. ``"off"`` purges nothing; ``"all"`` is the old billable
+    collapse-to-``/*`` behaviour, discouraged."""
+    return (environment.get(EDGE_INVALIDATION_ENV) or "").strip().lower() not in (EDGE_INVALIDATION_OFF, EDGE_INVALIDATION_ALL)
 
 
 def html_s_maxage_seconds(environment: Mapping[str, str]) -> int:

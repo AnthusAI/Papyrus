@@ -307,6 +307,8 @@ def _release_redirects_for_new_pages(context: ProjectionContext, report: Project
 
 def _finish(context: ProjectionContext, report: ProjectionReport) -> ProjectionReport:
     touched = [key for key in [*report.written, *report.deleted] if not key.startswith(STATE_PREFIX)]
+    own = set(report.item_paths)
+    touched.sort(key=lambda key: key not in own)   # the story's own pages first, so a capped purge never leaves them for last (stable: listings keep their order)
     if context.invalidate is not None and touched:
         try:
             report.invalidated = context.invalidate(touched)

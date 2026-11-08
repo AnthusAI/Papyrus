@@ -84,9 +84,29 @@ class TargetedInvalidatorTests(unittest.TestCase):
             quiet(context.invalidate, ["a/index.html", "b/index.html"])
         self.assertEqual(len(client.paths), 3)
 
-    def test_without_the_setting_the_mode_is_not_targeted(self) -> None:
-        self.assertFalse(targeted_invalidation({}))
+    def test_targeted_is_the_default_and_off_and_all_stay_selectable(self) -> None:
+        self.assertTrue(targeted_invalidation({}))
+        self.assertTrue(targeted_invalidation({"PAPYRUS_EDGE_INVALIDATION": "targeted"}))
         self.assertFalse(targeted_invalidation({"PAPYRUS_EDGE_INVALIDATION": "off"}))
+        self.assertFalse(targeted_invalidation({"PAPYRUS_EDGE_INVALIDATION": "all"}))
+
+    def test_an_unset_site_gets_the_targeted_invalidator_and_all_gets_the_collapsing_one(self) -> None:
+        base = {"PAPYRUS_SITE_BUCKET": "b", "PAPYRUS_EDGE_DISTRIBUTION_ID": "E"}
+        made = {}
+        for name, extra in (("default", {}), ("all", {"PAPYRUS_EDGE_INVALIDATION": "all"}), ("off", {"PAPYRUS_EDGE_INVALIDATION": "off"})):
+            client = RecordingCloudFront()
+            with mock.patch("papyrus_content.projection.runtime.load_projector"), mock.patch("papyrus_content.projection.runtime.S3PageWriter"), mock.patch(
+                "papyrus_content.projection.runtime.star_store_from_environment"
+            ), mock.patch("papyrus_content.projection.runtime.lease_from_environment"):
+                context = context_from_environment(None, {**base, **extra}, s3_client=object(), cloudfront_client=client)
+            made[name] = (context.invalidate, client)
+        self.assertIsNone(made["off"][0])
+        keys = [f"articles/{number}.html" for number in range(400)]
+        with self.assertRaises(InvalidationCapped):
+            quiet(made["default"][0], keys)
+        self.assertEqual(len(made["default"][1].paths), 25)
+        quiet(made["all"][0], keys)
+        self.assertEqual(made["all"][1].paths, ["/*"])
 
 
 class HandlerTests(unittest.TestCase):
@@ -107,10 +127,25 @@ class HandlerTests(unittest.TestCase):
     def test_a_deploy_never_invalidates_in_targeted_mode(self) -> None:
         self.assertIsNone(self.run_deploy_render({"PAPYRUS_EDGE_INVALIDATION": "targeted"}).invalidate)
 
-    def test_a_deploy_keeps_its_behaviour_when_the_site_has_not_opted_in(self) -> None:
+    def test_a_deploy_never_invalidates_by_default_either(self) -> None:
         with mock.patch.dict(handler.os.environ, {}, clear=False):
             handler.os.environ.pop("PAPYRUS_EDGE_INVALIDATION", None)
-            self.assertIsNotNone(self.run_deploy_render({}).invalidate)
+            self.assertIsNone(self.run_deploy_render({}).invalidate)
+
+    def test_a_site_set_to_all_keeps_the_legacy_deploy_purge(self) -> None:
+        self.assertIsNotNone(self.run_deploy_render({"PAPYRUS_EDGE_INVALIDATION": "all"}).invalidate)
+
+    def test_the_all_and_item_pages_tasks_never_purge_in_targeted_mode(self) -> None:
+        for task, engine_function in (({"task": "all"}, "project_all"), ({"task": "item-pages", "exceptItemId": "x"}, "project_item_pages")):
+            context = mock.Mock()
+            context.invalidate = lambda keys: keys
+            report = mock.Mock(ok=True, unpurged=[], written=[], deleted=[], follow_up_item_pages=False)
+            with mock.patch.dict(handler.os.environ, {}, clear=False), mock.patch.object(handler, "create_authoring_client", return_value=(object(), {})), mock.patch.object(
+                handler, "projection_context", return_value=context
+            ), mock.patch.object(handler, engine_function, return_value=report) as run:
+                handler.os.environ.pop("PAPYRUS_EDGE_INVALIDATION", None)
+                handler._run_projection_task(task)
+            self.assertIsNone(run.call_args.args[0].invalidate, task)
 
     def test_a_capped_publish_response_names_the_skipped_paths(self) -> None:
         from papyrus_content.projection.model import ProjectionReport
@@ -139,6 +174,21 @@ class HandlerTests(unittest.TestCase):
         ):
             response = handler.project_item_action(object(), "item", unpublished=False)
         self.assertEqual(response["invalidation"]["status"], "skipped")
+
+
+class PrioritisationTests(unittest.TestCase):
+    def test_a_capped_purge_takes_the_story_pages_before_the_listings(self) -> None:
+        from papyrus_content.projection.engine import _finish
+        from papyrus_content.projection.model import ProjectionReport
+
+        client = RecordingCloudFront()
+        listings = [f"articles/page/{number}/index.html" for number in range(10)]
+        report = ProjectionReport(written=[*listings, "index.html", "articles/hello/index.html", "articles/hello/index.md"], item_paths=["articles/hello/index.html", "articles/hello/index.md"])
+        quiet(_finish, mock.Mock(invalidate=TargetedCloudFrontInvalidator("E", 6, client).invalidate), report)
+        self.assertEqual(client.paths[:3], ["/articles/hello/index.html", "/articles/hello/", "/articles/hello/index.md"])
+        self.assertEqual(len(client.paths), 6)
+        self.assertTrue(report.invalidation_capped)
+        self.assertTrue(set(report.invalidation_capped).isdisjoint(client.paths))
 
 
 class SinglePublishTests(unittest.TestCase):

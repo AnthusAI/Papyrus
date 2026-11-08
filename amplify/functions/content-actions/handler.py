@@ -150,6 +150,14 @@ def projection_context(client):
     return context
 
 
+def bulk_projection_context(client):
+    """The context for a deploy-time or whole-site render: in targeted mode (the default) it never purges, however few pages it wrote."""
+    context = projection_context(client)
+    if targeted_invalidation(os.environ):
+        context.invalidate = None
+    return context
+
+
 def project_item_action(client, item_id: str, *, unpublished: bool, published_item_id: str | None = None) -> dict:
     """Project one item. ``published_item_id`` is passed only for a real publish: the alert is announced once the page
     is live, here when the projection succeeds, or by the scheduled retry (which carries the same marker) when it did not."""
@@ -280,7 +288,7 @@ def run_deploy_render_task(client) -> dict:
     ensure_default_editorial_policies(client)
     context = projection_context(client)
     if targeted_invalidation(os.environ):
-        context.invalidate = None  # cache.invalidation "targeted": a deploy never purges; pages age out with the HTML lifetime (PPY-2745c1)
+        context.invalidate = None  # the default, "targeted": a deploy never purges; pages age out with the HTML lifetime (PPY-2745c1)
     report = deploy_render(context)
     print(drift_metric_line(report))
     if report.render.unpurged:
@@ -325,13 +333,13 @@ def run_projection_task(task: dict) -> dict:
 def _run_projection_task(task: dict) -> dict:
     client, _claims = create_authoring_client()
     if task.get("task") == "item-pages":
-        report = project_item_pages(projection_context(client), except_item_id=task.get("exceptItemId"))
+        report = project_item_pages(bulk_projection_context(client), except_item_id=task.get("exceptItemId"))
     elif task.get("task") == "item":
         report = project(projection_context(client), task["itemId"], unpublished=bool(task.get("unpublished")))
         if report.follow_up_item_pages:
             schedule_projection_task({"task": "item-pages", "exceptItemId": task["itemId"]}, "follow-up")
     elif task.get("task") == "all":
-        report = project_all(projection_context(client))
+        report = project_all(bulk_projection_context(client))
     elif task.get("task") == "deploy-render":
         return run_deploy_render_task(client)
     elif task.get("task") == READER_SNAPSHOT_TASK:
