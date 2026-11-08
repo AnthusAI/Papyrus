@@ -10,9 +10,24 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "4371d589-ccb5-4ee2-b35a-a26bd5504344",
+      "author": "home",
+      "text": "Branch feat/thread-sections, PR https://github.com/AnthusAI/Papyrus/pull/1298. Behave home-page features 150 scenarios pass, pytest 213 pass, schema parity ok, typecheck ok. Not merged, not released.",
+      "created_at": "2026-11-08T16:36:15.305128Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "bd178dc7-f11d-41f1-b1dc-7af8dfaea566",
+      "author": "home",
+      "text": "Branch feat/thread-sections, PR https://github.com/AnthusAI/Papyrus/pull/1298. Behave home-page features 150 scenarios pass, pytest 213 pass, schema parity ok, typecheck ok. Not merged, not released.",
+      "created_at": "2026-11-08T16:36:19.068156Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T16:32:30.689882Z",
-  "updated_at": "2026-11-08T16:32:34.282596Z",
+  "updated_at": "2026-11-08T16:36:19.068371Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
