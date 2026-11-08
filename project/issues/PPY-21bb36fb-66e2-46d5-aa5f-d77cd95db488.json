@@ -17,10 +17,17 @@
       "text": "Branch fix/PPY-21bb36-citations, PR https://github.com/AnthusAI/Papyrus/pull/1303 (not merged, not released). Verified: test_citation_links.py 22 passed; behave citation-links, lens-check, section-fronts (existing fixtures byte-identical), markus-derive, markus-export, audience-lenses green. Not verified: unrelated suites that need latex2mathml, decision_flywheel, tsx, amplify_outputs.json. Deploy: engine release, then MoM version bump + citations.links=internal in its projection.json.",
       "created_at": "2026-11-08T17:39:43.488240Z",
       "comment_type": "default"
+    },
+    {
+      "id": "6d0476c2-3a61-446d-a62c-515c52aec4b9",
+      "author": "home",
+      "text": "Branch fix/PPY-21bb36-citations, PR https://github.com/AnthusAI/Papyrus/pull/1303 (not merged, not released). Verified: test_citation_links.py 22 passed; behave citation-links, lens-check, section-fronts (existing fixtures byte-identical), markus-derive, markus-export, audience-lenses green. Not verified: unrelated suites needing latex2mathml, decision_flywheel, tsx, amplify_outputs.json. Deploy: engine release, then MoM version bump + citations.links=internal in its projection.json.",
+      "created_at": "2026-11-08T17:39:50.180500Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T17:09:04.008357Z",
-  "updated_at": "2026-11-08T17:39:43.488820Z",
+  "updated_at": "2026-11-08T17:39:50.180745Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
