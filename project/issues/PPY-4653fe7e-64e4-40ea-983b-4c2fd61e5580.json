@@ -1,0 +1,23 @@
+{
+  "id": "PPY-4653fe7e-64e4-40ea-983b-4c2fd61e5580",
+  "title": "Message threads carry an optional section; threads include filters by section",
+  "description": "Thread entries in threads.json and per-thread files get an optional section title (derived from the Reference or Story, overridden by MessageThread.sectionId). ::include{kind=threads section=...} filters; the Markdown twin applies the same filter. Docs in docs/home-page.md.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T16:32:30.689882Z",
+  "updated_at": "2026-11-08T16:32:34.282596Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
