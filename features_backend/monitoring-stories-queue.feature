@@ -79,3 +79,28 @@ Feature: The daily monitor-stories run plans the day's drafting and a queue does
     Given the story index answers nothing for a story created a moment ago
     When an idea is filed for the Reference "reference-clef"
     Then the idea is filed and linked to "reference-clef" and no "No story found for lineage" error is raised
+
+  Scenario: A step on a site with many other Items never lists them
+    Given 3 accepted References for the queued run
+    And the site holds 120 other Items in every stage, and refuses to list a table
+    When the router plans its daily monitor stories
+    And the story worker takes every step off the queue and files for real
+    Then 3 ideas are filed as Items at the idea stage
+    And no step read a whole table
+    And the worker logs that the plan finished with 3 drafted and no failed step
+
+  Scenario: A step completes with a worker role that has no permission to list Items
+    Given 2 accepted References for the queued run
+    And the site holds 120 other Items in every stage, and refuses to list a table
+    When the router plans its daily monitor stories
+    And the story worker takes every step off the queue and files for real
+    Then every field the steps asked of the site is granted to the story worker's role
+    And the story worker's role grants no listing of Items or of review requests
+
+  Scenario: The plan reads the existing ideas once and shares them with its steps
+    Given 2 accepted References for the queued run
+    And the site holds 120 other Items in every stage, and refuses to list a table
+    When the router plans its daily monitor stories
+    And the story worker takes every step off the queue and files for real
+    Then the plan's head row holds the existing ideas
+    And no step asked for the site's stories by stage
