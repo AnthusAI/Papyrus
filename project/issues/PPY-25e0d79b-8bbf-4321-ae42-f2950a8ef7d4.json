@@ -1,0 +1,28 @@
+{
+  "id": "PPY-25e0d79b-8bbf-4321-ae42-f2950a8ef7d4",
+  "title": "Report Papyrus cost through Prospectus cost accounting on our sites and the design partner's three sites",
+  "description": "Outcome: Ryan (2026-11-08): BUILD cost accounting (Prospectus docs/COST_ACCOUNTING.md, epic kanbus-bb0b6c) and test it on our own sites and on a design partner's three new sites launching soon. Papyrus's part, following the Prospectus attribution convention: app = papyrus, deployment = site id, the Account UUID per site; model tokens as namespaced kinds (openai.tokens.input, openai.tokens.output, jev.tokens, ...) with no dollars; usage batched off the request path to the Prospectus SQS queue through the shared sender library; every AWS resource tagged anthus:app, anthus:account (or 'shared' on the shared stack, split by reported usage) and anthus:deployment, by a CDK aspect in amplify/site-backend.ts, with CI failing an untagged taggable resource. Dedicated sites need only the tags plus model token reports; the shared stack also reports per-tenant usage of shared resources (PPY-49d059). This replaces calling the quota usage route directly, which is live for Babulus only today.\n\nTouches (verified at origin/develop 23fabe1d): amplify/site-backend.ts (tagging aspect), src/papyrus_content/model_cost.py and the model-calling modules, new src/papyrus_content/metering.py using the Prospectus sender library (Python twin if the library is TypeScript only), each site's infra/site.json (Account UUID), CI check for tags.\n\nAcceptance (Gherkin feature file: features_backend/cost-accounting-reports.feature):\nScenario: A model call on a dedicated site reaches the cost ledger once\n    Given a design-partner site with its Account UUID and deployment id\n    When an editorial check makes two model calls and the batch is retried\n    Then the Prospectus queue receives the token items once, attributed to app papyrus, that Account and that deployment\n\nScenario: An untagged resource fails CI\n    Given a stack with a table missing anthus:account\n    When CI synthesises it\n    Then the build fails naming the resource\n\nDependencies: blocked by nothing. Blocks PPY-8a3c6a, PPY-37f2ec. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-ea3f08.\n\nTesting: Unit tests of batching; synth test for tags; compare the ledger with Cost Explorer for one site for a week.\nRollout: Our dedicated sites first (one site under test, then the batch), then the design partner's sites at launch.\nRisk and mitigation: Risk: the sender library is not ready when the design partner launches. Mitigation: tags first (Cost Explorer works from day one on dedicated stacks), token reports when the library lands.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-ea3f085a-0b23-45a8-b00f-bfb9673b868b",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T21:17:57.288541Z",
+  "updated_at": "2026-11-08T21:18:00.049057Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

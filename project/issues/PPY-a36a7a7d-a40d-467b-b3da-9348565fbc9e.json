@@ -16,11 +16,23 @@
     {
       "target": "PPY-667a23a1-e29f-4d96-a9e8-3964dc6d1bdb",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-25e0d79b-8bbf-4321-ae42-f2950a8ef7d4",
+      "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "caccb980-009b-456c-be33-36b5d32400b7",
+      "author": "home",
+      "text": "Now depends on PPY-25e0d7: usage goes through the Prospectus SQS sender library with the attribution convention app=papyrus, deployment=site id, Account UUID per site; shared resources tagged anthus:account=shared and split by reported usage.",
+      "created_at": "2026-11-08T21:19:02.164335Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:27.149295Z",
-  "updated_at": "2026-11-08T18:47:14.228979Z",
+  "updated_at": "2026-11-08T21:19:02.164562Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

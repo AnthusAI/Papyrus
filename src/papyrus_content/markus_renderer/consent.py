@@ -23,11 +23,22 @@ _CONSENT_SAFE_URL_PATTERN = re.compile(r"(?:https?://|/(?!/))[^\s\"'<>]*")
 
 MILLISECONDS_PER_DAY = 86_400_000
 
+# POLICY CHOICE, NOT LEGAL ADVICE. This is the default list of regions where a visitor must be asked before analytics
+# or advertising cookies are used: the EU 27, the other EEA states (IS, LI, NO), the United Kingdom (GB) and
+# Switzerland (CH), as ISO 3166-1 alpha-2 codes. Which regions need a notice is a decision that the site owner (or
+# their legal adviser) owns; it changes as laws change and it must be reviewed, not trusted. A site replaces it with
+# ``denied_by_default_regions`` or extends it with ``additional_denied_by_default_regions``. This is the single
+# definition: the browser script, the Google ``region`` parameter and the edge function generator all read it.
 CONSENT_DENIED_BY_DEFAULT_REGIONS: tuple[str, ...] = (
     "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR",
     "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK",
     "SI", "ES", "SE", "IS", "LI", "NO", "GB", "CH",
 )
+
+DEFAULT_REGION_LOOKUP_ADDRESS = "/_papyrus/consent"
+DEFAULT_REGION_LOOKUP_TIMEOUT_MILLISECONDS = 1500
+_REGION_LOOKUP_ADDRESS_PATTERN = re.compile(r"/(?!/)[A-Za-z0-9._~!$&()*+,;=:@%/-]*")
+_COUNTRY_PATTERN = re.compile(r"[A-Z]{2}")
 
 CONSENT_REOPEN_ATTRIBUTE = "data-papyrus-consent-reopen"
 CONSENT_BANNER_ELEMENT_ID = "papyrus-consent-banner"
@@ -59,6 +70,13 @@ class ConsentModeSettings:
     banner_region_label: str = "Cookie consent"
     privacy_policy_url: str | None = None
     privacy_policy_label: str = "Privacy policy"
+    region_lookup: bool = False
+    """Off by default: the banner then shows to everyone without a stored choice, exactly as before. When true the page
+    asks ``region_lookup_address`` once, and only a visitor outside the notice regions skips the banner."""
+    region_lookup_address: str = DEFAULT_REGION_LOOKUP_ADDRESS
+    region_lookup_timeout_milliseconds: int = DEFAULT_REGION_LOOKUP_TIMEOUT_MILLISECONDS
+    additional_denied_by_default_regions: tuple[str, ...] = ()
+    """Regions added to ``denied_by_default_regions`` (which replaces the shipped list when given)."""
     analytics_only: bool = False
     """Off by default. When true, Accept grants only ``analytics_storage``: ``ad_storage``, ``ad_user_data`` and
     ``ad_personalization`` stay denied after every choice, and the default banner text does not mention advertising."""
@@ -68,13 +86,37 @@ class ConsentModeSettings:
             raise ValueError(f"consent analytics_only must be true or false, got {self.analytics_only!r}")
         if self.analytics_only and self.banner_message == DEFAULT_BANNER_MESSAGE:
             object.__setattr__(self, "banner_message", ANALYTICS_ONLY_BANNER_MESSAGE)
-        regions = tuple(self.denied_by_default_regions)
+        for name in ("region_lookup",):
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(f"consent {name} must be true or false, got {getattr(self, name)!r}")
+        if not isinstance(self.region_lookup_address, str) or not _REGION_LOOKUP_ADDRESS_PATTERN.fullmatch(
+            self.region_lookup_address
+        ):
+            raise ValueError(
+                "consent region_lookup_address must be a site-absolute path like '/_papyrus/consent', "
+                f"got {self.region_lookup_address!r}"
+            )
+        timeout = self.region_lookup_timeout_milliseconds
+        if isinstance(timeout, bool) or not isinstance(timeout, int) or not 100 <= timeout <= 10_000:
+            raise ValueError(
+                f"consent region_lookup_timeout_milliseconds must be between 100 and 10000, got {timeout!r}"
+            )
+        added = tuple(self.additional_denied_by_default_regions)
+        regions = tuple(dict.fromkeys(tuple(self.denied_by_default_regions) + added))
+        object.__setattr__(self, "additional_denied_by_default_regions", added)
         object.__setattr__(self, "denied_by_default_regions", regions)
         for region in regions:
             if not isinstance(region, str) or not _CONSENT_REGION_PATTERN.fullmatch(region):
                 raise ValueError(
                     f"consent region must be an ISO 3166 code like 'DE' or 'US-CA', got {region!r}"
                 )
+        if self.region_lookup:
+            for region in regions:
+                if not _COUNTRY_PATTERN.fullmatch(region):
+                    raise ValueError(
+                        "consent region_lookup decides by country, so every notice region must be a two-letter "
+                        f"country code, got {region!r}"
+                    )
         for name in ("wait_for_update_milliseconds", "policy_version", "retention_days"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -106,8 +148,11 @@ def consent_mode_from_mapping(raw: Mapping[str, object]) -> ConsentModeSettings:
     if unknown:
         raise ValueError(f"Unknown consent_mode settings: {', '.join(sorted(unknown))}")
     values = dict(raw)
-    if "denied_by_default_regions" in values:
-        values["denied_by_default_regions"] = tuple(values["denied_by_default_regions"])
+    for list_name in ("denied_by_default_regions", "additional_denied_by_default_regions"):
+        if list_name in values:
+            if isinstance(values[list_name], (str, bytes)) or not isinstance(values[list_name], (list, tuple)):
+                raise ValueError(f"consent {list_name} must be a list of region codes")
+            values[list_name] = tuple(values[list_name])
     return ConsentModeSettings(**values)
 
 
@@ -125,10 +170,42 @@ def _javascript_literal(value: object) -> str:
     )
 
 
+# The decision, as a pure function of the edge answer. The notice is skipped only for an answer that says, in so many
+# words, ``notice: false`` for a two-letter country. Anything else (no answer, a string, an array, a missing or empty
+# country, ``notice`` absent or not a boolean) needs the notice: the site fails closed.
+CONSENT_NOTICE_DECISION_JS = (
+    "function(a){return!(a&&typeof a==='object'&&a.notice===false"
+    "&&typeof a.country==='string'&&/^[A-Z]{2}$/.test(a.country))}"
+)
+
+
+def render_region_lookup_script(settings: ConsentModeSettings) -> str:
+    """Runs inside the defaults script, after ``c.read``. Asks the site's own edge address once, only with no stored
+    choice, never waits for it, and never stores, logs or forwards the answer."""
+    return (
+        f"c.needsNotice={CONSENT_NOTICE_DECISION_JS};\n"
+        "c.lookup=!stored;c.notice=null;c.showNotice=null;\n"
+        "c.settle=function(a){if(c.notice!==null)return;c.notice=c.needsNotice(a);"
+        "if(c.notice){if(c.showNotice)c.showNotice();return}"
+        "if(c.read())return;"  # a choice made while the lookup was pending always wins
+        "gtag('consent','update',{analytics_storage:'granted'})};\n"
+        "if(c.lookup){try{var k=new AbortController(),"
+        f"t=setTimeout(function(){{c.settle(null);k.abort()}},{settings.region_lookup_timeout_milliseconds});"
+        f"fetch({_javascript_literal(settings.region_lookup_address)},"
+        "{method:'GET',credentials:'omit',cache:'no-store',referrer:'',referrerPolicy:'no-referrer',"
+        "headers:{accept:'application/json'},signal:k.signal})"
+        ".then(function(r){if(!r.ok)throw 0;return r.json()})"
+        ".then(function(a){clearTimeout(t);c.settle(a)},function(){clearTimeout(t);c.settle(null)})}"
+        "catch(e){c.settle(null)}}\n"
+    )
+
+
 def render_consent_defaults_script(settings: ConsentModeSettings, *, site_name: str) -> str:
     wait = settings.wait_for_update_milliseconds
     regional_default = ""
-    if settings.denied_by_default_regions:
+    # With the lookup on, the global default below already denies everything (fail closed), so the region-scoped
+    # default would repeat it; without the lookup the region-scoped default is what protects regulated visitors.
+    if settings.denied_by_default_regions and not settings.region_lookup:
         regional_default = (
             "gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',"
             "ad_personalization:'denied',analytics_storage:'denied',"
@@ -138,7 +215,8 @@ def render_consent_defaults_script(settings: ConsentModeSettings, *, site_name: 
     return (
         regional_default
         + "gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',"
-        f"ad_personalization:'denied',analytics_storage:'granted',wait_for_update:{wait}}});\n"
+        f"ad_personalization:'denied',analytics_storage:'{'denied' if settings.region_lookup else 'granted'}',"
+        f"wait_for_update:{wait}}});\n"
         "gtag('set','ads_data_redaction',true);\n"
         "gtag('set','url_passthrough',false);\n"
         "(function(){var c=window.papyrusConsent={"
@@ -159,7 +237,9 @@ def render_consent_defaults_script(settings: ConsentModeSettings, *, site_name: 
         +
         "c.save=function(granted){try{localStorage.setItem(c.key,JSON.stringify("
         "{version:c.version,savedAt:Date.now(),granted:granted}))}catch(e){}};\n"
-        "var stored=c.read();if(stored)c.apply(stored.granted)})();\n"
+        "var stored=c.read();if(stored)c.apply(stored.granted);\n"
+        + (render_region_lookup_script(settings) if settings.region_lookup else "")
+        + "})();\n"
     )
 
 
@@ -215,5 +295,10 @@ def render_consent_banner(settings: ConsentModeSettings) -> str:
         "c.apply(g);c.save(g);b.hidden=true});"
         "for(var i=0;i<r.length;i++){r[i].hidden=false;"
         "r[i].addEventListener('click',function(e){e.preventDefault();c.openChoices()})}"
-        "if(!c.read())b.hidden=false})();</script>"
+        + (
+            "if(!c.read()){if(c.lookup){c.showNotice=function(){if(!c.read())b.hidden=false};"
+            "if(c.notice===true)c.showNotice()}else b.hidden=false}})();</script>"
+            if settings.region_lookup
+            else "if(!c.read())b.hidden=false})();</script>"
+        )
     )

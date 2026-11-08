@@ -30,9 +30,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "5a4ec576-6c32-4742-986f-4f85bd1d5740",
+      "author": "home",
+      "text": "Sign-in for the shared tier is one pool and one shared Google client (PPY-fdbbd7); a later bring-your-own client (PPY-496c0b) means one person can have two Cognito subs, so TenantMembership should resolve through UserProfile/UserIdentity, not a single sub.",
+      "created_at": "2026-11-08T21:19:03.443739Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:18.460528Z",
-  "updated_at": "2026-11-08T18:46:50.883883Z",
+  "updated_at": "2026-11-08T21:19:03.443964Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

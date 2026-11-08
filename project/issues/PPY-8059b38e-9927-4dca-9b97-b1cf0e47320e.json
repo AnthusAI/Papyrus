@@ -1,0 +1,20 @@
+{
+  "id": "PPY-8059b38e-9927-4dca-9b97-b1cf0e47320e",
+  "title": "Typed extraction: add a general-concept page type (neural network, transformer, ...)",
+  "description": "11-08: the first Machines on Machines knowledge run retired 35 editor-concept pages (neural network, transformer, large language model, backpropagation, reinforcement learning, hallucination, AI alignment...) because typed extraction has no general-concept page type. Ryan accepted the retirements; these pages will not come back by tagging alone. Add a concept page type so general concepts mentioned in two or more documents get pages.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T20:58:20.298366Z",
+  "updated_at": "2026-11-08T20:58:20.298660Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

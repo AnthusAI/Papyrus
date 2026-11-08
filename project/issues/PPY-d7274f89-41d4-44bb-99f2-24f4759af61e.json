@@ -32,11 +32,23 @@
     {
       "target": "PPY-bd1c6ead-eeb8-4ef4-8831-87cc59190a9b",
       "type": "relates-to"
+    },
+    {
+      "target": "PPY-6cb44bde-fb62-4382-8798-031ae9f44fee",
+      "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "4a7dfc48-9090-4929-ad9a-f300abd86fa3",
+      "author": "home",
+      "text": "Ryan accepted the rule (2026-11-08): past due 14 days -> read-only editing, public site up; cancelled -> deleted after 30 days, export throughout. Needs Prospectus to revise kanbus-8e3174 and build kanbus-6efecd: PPY-6cb44b (now a blocker).",
+      "created_at": "2026-11-08T21:19:02.529852Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:22.581683Z",
-  "updated_at": "2026-11-08T18:47:03.333766Z",
+  "updated_at": "2026-11-08T21:19:02.530175Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

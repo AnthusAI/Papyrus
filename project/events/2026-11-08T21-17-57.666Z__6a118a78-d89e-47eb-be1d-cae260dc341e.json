@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "6a118a78-d89e-47eb-be1d-cae260dc341e",
+  "issue_id": "PPY-496c0bd9-fad2-4ade-8491-b5010e1f9157",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:17:57.666Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Bring-your-own Google client: a tenant sets its own client id and secret; we fall back to the shared one",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

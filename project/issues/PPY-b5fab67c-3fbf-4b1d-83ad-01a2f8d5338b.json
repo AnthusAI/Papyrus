@@ -18,9 +18,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "90cffd42-1dca-4c05-af1e-98d3143852ea",
+      "author": "home",
+      "text": "Adds in parallel: PPY-25e0d7 cost accounting on our dedicated sites, then the design partner's three sites.",
+      "created_at": "2026-11-08T21:19:01.988682Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:26.516174Z",
-  "updated_at": "2026-11-08T18:47:13.386289Z",
+  "updated_at": "2026-11-08T21:19:01.989003Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

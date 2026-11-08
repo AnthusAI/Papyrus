@@ -19,10 +19,17 @@
       "text": "Workstream (e), metering and cost control, tasks: PPY-6d9a6d (what Prospectus must add), PPY-3fd951 (metering event catalogue), PPY-889ab5 (spend gate with hard ceiling), PPY-49d059 (daily shared-resource report), PPY-994bd0 (per-tenant lease and fair queue), PPY-f40a02 (adaptive noisy-neighbour limits), PPY-d7c279 (acceptable use and takedown).\n\nProspectus as read 2026-11-08 (develop 8b8e6b8): quota check/usage/reservation routes are built (docs/QUOTA.md); cost accounting in microdollars with per-deployment attribution and a usage-based split of shared resources is agreed, not built (docs/COST_ACCOUNTING.md); billing lines are per product per Account with interval plans, 'pricing out of scope', Stripe not built, and no automatic suspension (docs/BILLING.md); products are one reviewed entry per site in accounts/papyrus-sites.json, which blocks self-serve sign-up until a shared 'papyrus' product with deployments exists.",
       "created_at": "2026-11-08T18:48:44.549398Z",
       "comment_type": "default"
+    },
+    {
+      "id": "9a7c4c10-d3e3-4ed3-b172-8d17301e0036",
+      "author": "home",
+      "text": "New tasks (Ryan 2026-11-08): PPY-966ef5 one papyrus product with data deployments, PPY-6cb44b lifecycle events and revised decision 7, PPY-8a3c6a overage billing, PPY-25e0d7 cost accounting on our sites and the design partner's sites.",
+      "created_at": "2026-11-08T21:19:03.167998Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-07T21:42:48.896313Z",
-  "updated_at": "2026-11-08T18:48:44.549633Z",
+  "updated_at": "2026-11-08T21:19:03.168300Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

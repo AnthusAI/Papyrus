@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "3c8f773d-2b6e-493e-ac24-37b9e8f88bbe",
+  "issue_id": "PPY-37f2ecb6-f3b3-4702-970d-132d0a7b4e5e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:17:57.791Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Design partner's three new sites: launch as dedicated now, move to the shared tier after M7",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

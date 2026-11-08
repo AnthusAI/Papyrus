@@ -44,11 +44,23 @@
     {
       "target": "PPY-e54ecaba-80a3-467c-9e79-00cad5016a00",
       "type": "relates-to"
+    },
+    {
+      "target": "PPY-966ef544-07bb-4129-91e5-36fe9e681c95",
+      "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0a164cf6-e6e6-44b0-9e27-5eaf472358b3",
+      "author": "home",
+      "text": "Owner decision A (2026-11-08): provisioning must be a data change only. Now blocked by PPY-966ef5 (Prospectus deployment created by API, no file entry, no deploy); its controls are reviewed in PPY-1da916.",
+      "created_at": "2026-11-08T21:19:02.438614Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:22.081743Z",
-  "updated_at": "2026-11-08T18:47:01.692017Z",
+  "updated_at": "2026-11-08T21:19:02.438912Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

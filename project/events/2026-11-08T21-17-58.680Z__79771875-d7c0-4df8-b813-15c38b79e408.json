@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "79771875-d7c0-4df8-b813-15c38b79e408",
+  "issue_id": "PPY-37f2ecb6-f3b3-4702-970d-132d0a7b4e5e",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T21:17:58.680Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: The design partner launches three sites soon; the shared tier cannot take outside tenants before M7 (data-driven provisioning) and M8 (external review). Recommendation: launch them now as dedicated sites with today's process (a reviewed Prospectus product entry and a deploy per site is an accepted exception to decision A until the shared tier exists), tagged and reporting through cost accounting from day one (PPY-25e0d7), so they are the real-world test Ryan asked for; then move each to the shared tier with the TI runbook once M7 is done. Alternative (not recommended): wait for M7. Needs Ryan's confirmation and the partner's consent to the later move.\n\nTouches (verified at origin/develop 23fabe1d): each new site's repository and infra/site.json (Account UUID, tags), Prospectus accounts/papyrus-sites.json (three entries), the TI runbook (PPY-e51189) for the later move.\n\nAcceptance (Gherkin feature file: none (decision and launch); cost reports use features_backend/cost-accounting-reports.feature):\nScenario: The partner's sites report real cost from launch\n    Given the three sites launched dedicated with tags and token reports\n    When a week has passed\n    Then Prospectus's ledger shows each site's cost by category and day\n\nDependencies: blocked by PPY-25e0d7. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-259a3f.\n\nTesting: The cost-ledger check after one week.\nRollout: Now (dedicated); shared-tier move after M7.\nRisk and mitigation: Risk: three more dedicated sites to migrate later. Mitigation: they start on current Papyrus with their fixed tenant set, so the move is a copy, not an adoption.\n\nReleasable on its own: not applicable (decision).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}
