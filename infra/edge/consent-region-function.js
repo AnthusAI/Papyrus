@@ -16,9 +16,13 @@
 var NOTICE_COUNTRIES = ["AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE","IS","LI","NO","GB","CH"];
 // END GENERATED NOTICE COUNTRIES
 
+var NON_COUNTRY_CODES = ['XX', 'ZZ', 'AP', 'EU', 'UN'];
+
 function consentAnswer(countryHeader, noticeCountries) {
   var country = typeof countryHeader === 'string' ? countryHeader.toUpperCase() : '';
-  if (!/^[A-Z]{2}$/.test(country)) country = ''; // absent, malformed, or a non-country marker such as T1: unknown
+  // absent, malformed, a non-country marker such as T1 (Tor) or A1/A2, or an ISO user-assigned/reserved code that
+  // geolocation databases use for "unknown" (XX, ZZ, AP, EU, UN): unknown, so the notice is shown
+  if (!/^[A-Z]{2}$/.test(country) || NON_COUNTRY_CODES.indexOf(country) !== -1) country = '';
   return { country: country, notice: country === '' || noticeCountries.indexOf(country) !== -1 };
 }
 

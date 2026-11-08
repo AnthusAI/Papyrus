@@ -26,7 +26,7 @@ test('the answer is never cached and is JSON', () => {
 });
 
 test('a missing, empty, malformed or non-country header fails closed', () => {
-  for (const headers of [{}, { 'cloudfront-viewer-country': { value: '' } }, { 'cloudfront-viewer-country': { value: 'Germany' } }, { 'cloudfront-viewer-country': { value: 'T1' } }, { 'cloudfront-viewer-country': { value: 'XX1' } }]) {
+  for (const headers of [{}, { 'cloudfront-viewer-country': { value: '' } }, { 'cloudfront-viewer-country': { value: 'Germany' } }, { 'cloudfront-viewer-country': { value: 'T1' } }, { 'cloudfront-viewer-country': { value: 'XX1' } }, { 'cloudfront-viewer-country': { value: 'XX' } }, { 'cloudfront-viewer-country': { value: 'ZZ' } }, { 'cloudfront-viewer-country': { value: 'EU' } }]) {
     assert.deepEqual(answer(handler(event(headers))), { country: '', notice: true }, JSON.stringify(headers));
   }
 });
