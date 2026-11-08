@@ -99,7 +99,7 @@ def build(context):
     context.add_cleanup(context.site.cleanup)
 
 
-@when("the site is projected")
+@when("the filtered references site is projected")
 def _(context):
     build(context)
 

@@ -10,26 +10,26 @@ Feature: A references include can say none of, and several sections, and the fil
   Scenario: A paged list of References with no section of the site's
     Given a snapshot of 200 accepted References, 150 filed under "Agents" or "Science", 50 with no section and 5 filed under "Papyrus"
     And a page with a paged references include with notSection "Agents|Science", a first page of 24 and the id "unheaded"
-    When the site is projected
+    When the filtered references site is projected
     Then the page and the data files of the "unheaded" list together hold exactly the 55 References not filed under Agents or Science, each once
     And no data file of the "unheaded" list is empty
 
   Scenario: Findings that are not videos
     Given a snapshot of accepted videos and accepted articles
     And a page with a references include with notMedium "video" and a count of 6
-    When the site is projected
+    When the filtered references site is projected
     Then no card on the page is a video and the page shows 6 cards
 
   Scenario: Several sections
     Given a snapshot of accepted References in "Agents", "Science" and "Art"
     And a page with a references include with section "Agents|Science" and a count of 50
-    When the site is projected
+    When the filtered references site is projected
     Then the page shows the Agents and Science References and no Art Reference
 
   Scenario: The Markdown twin lists what the page lists
     Given a snapshot of accepted References in "Agents", "Science" and "Art"
     And a page with a references include with section "Agents|Science" and a count of 50
-    When the site is projected
+    When the filtered references site is projected
     Then the Markdown twin of the page lists the same References as the page
 
   Scenario: medium and notMedium together is a build error that names the page
@@ -45,5 +45,5 @@ Feature: A references include can say none of, and several sections, and the fil
   Scenario: A page with none of the new attributes is drawn as before
     Given a snapshot of accepted References in "Agents", "Science" and "Art"
     And a page with a paged references include with section "Art" and no id
-    When the site is projected
+    When the filtered references site is projected
     Then the list is named "recent-art" and shows only the Art References
