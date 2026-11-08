@@ -17,7 +17,7 @@ from typing import Any
 
 import yaml
 
-from ..content_item_lifecycle import without_sub_tasks
+from ..content_item_lifecycle import CONTENT_ITEM_STAGES, SUB_TASK_ITEM_TYPE, without_sub_tasks
 from ..ids import hash_short
 from ..machine_writes import machine_write
 from ..publishing import ItemFields, item_id_for, save_item, utc_now_iso
@@ -30,6 +30,7 @@ from ..story_reporting import BASED_ON, current_reference, link_reference_to_sto
 GENERATED_KEY = "generated"
 IDEA_STAGE = "idea"
 SPIKED_STAGE = "spiked"
+IDEA_ROW_STAGES = tuple(stage for stage in CONTENT_ITEM_STAGES if stage != "published")   # a story is read here while it can still be an idea, in work, held or spiked
 DEFAULT_ACTOR = "AI"
 KIND = "items"
 
@@ -156,7 +157,7 @@ def file_idea_item(
             check_body_against_references(client, body, references, source_text_reader)
         section = section_id_of(client, draft.get("section"))
         for superseded in draft.get("supersedes") or []:
-            if client.get_record("Item", f"{superseded}-v1") is None and not any((row.get("lineageId") or row["id"]) == superseded for row in client.list_records("Item")):
+            if client.get_record("Item", f"{superseded}-v1") is None and not client.list_by_index("itemsByLineageAndVersion", superseded):
                 raise ValueError(f"supersedes names {superseded}, which is not an Item lineage.")
         if gate is not None:
             result = gate.check(body, section)
@@ -195,10 +196,17 @@ def file_idea_item(
 
 
 def idea_rows(client: Any) -> list[dict[str, Any]]:
-    """Every generated story (current version of each Item lineage that records a ``generated`` origin), in the shape of a Proposal row: the
-    pipeline's dedupe reads ``id``, ``title``, ``summary``, ``targets``, ``state`` (``declined`` for a spiked idea) and ``createdAt``."""
+    """Every generated story that is still in play (current version of each Item lineage that records a ``generated`` origin), in the shape of a Proposal row: the
+    pipeline's dedupe reads ``id``, ``title``, ``summary``, ``targets``, ``state`` (``declined`` for a spiked idea) and ``createdAt``.
+
+    It reads the stage indexes (``itemsByStage``), one partition for each stage a story can be in before it is published, and then the rows of those stories by id: never
+    the whole Item table. A generated story that was published is not read again here; its Reference is covered by the ``based_on`` link (``promoted_reference_ids``) and
+    its title is among the publication's recent stories."""
+    listed = [row for stage in IDEA_ROW_STAGES for row in client.list_by_index("itemsByStage", stage)]
+    ids = list(dict.fromkeys(row["id"] for row in listed if row.get("versionState", "current") == "current" and row.get("type") != SUB_TASK_ITEM_TYPE))
+    found = client.get_records_by_id("Item", ids) if ids else {}
     rows = []
-    for item in _current_versions(without_sub_tasks(client.list_records("Item"))):
+    for item in _current_versions(without_sub_tasks(list(found.values()))):
         generated = generated_of(item)
         if generated is None:
             continue
@@ -217,8 +225,9 @@ class ItemStore:
     kind = KIND
 
     def __init__(self, client: Any, *, actor: str = DEFAULT_ACTOR, source_text_reader: SourceTextReader | None = None, legacy: Callable[[], list[dict[str, Any]]] | None = None,
-                 gate: Gate | None = None, run_id: str | None = None) -> None:
+                 gate: Gate | None = None, run_id: str | None = None, drafts: list[dict[str, Any]] | None = None) -> None:
         self.client = client
+        self.drafts = drafts   # the existing ideas a queued step was handed by its plan: with them, ``story_drafts`` reads nothing
         self.gate = gate
         self.run_id = run_id  # the knowledge run, when one is filing: recorded on each idea Item (machine_writes.py)
         self.actor = actor
@@ -244,6 +253,8 @@ class ItemStore:
 
     def story_drafts(self) -> list[dict[str, Any]]:
         """The generated ideas, plus the story draft Proposals filed before ideas became Items when they can be read (they still count as drafted)."""
+        if self.drafts is not None:
+            return list(self.drafts)
         rows = idea_rows(self.client)
         if self.legacy is not None:
             try:

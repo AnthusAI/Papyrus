@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "9cda807f-5cfc-4657-8271-dd3598026c68",
+  "issue_id": "PPY-02492c4d-499e-4252-b4cb-9e674253c052",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T23:32:38.498Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Redirects and URL stability",
+    "description": "Keep every live URL or 301 it as data (existing aliases kept), with a before-and-after sitemap comparison using the PPY-bcfd2d parity method.\nScenario: No live URL is lost\n  Given the sitemap and alias list before the change\n  When the new site is built\n  Then every old URL returns 200 or a 301 to its successor, and the new sitemap contains every canonical URL\n\nDepends on: PPY-bcfd2d.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-fe8bc69c-453f-45f8-938d-eaabb8a366a8",
+    "labels": [
+      "standard-frontend-plan",
+      "threat-intelligence"
+    ]
+  }
+}

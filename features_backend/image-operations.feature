@@ -5,8 +5,9 @@ Feature: One table of image operations that every front end is generated from
   The papyrus images commands, the MCP tool schema, the newsroom's TypeScript types, the reference block in the image-work skill and docs/images.md are all
   generated from that table by one script, so an agent reading the skill, a person using the command and the newsroom calling the service cannot disagree.
   Both the command and the MCP tool only turn what they are given into the operation's input and pass it to the same function, which checks who is asking
-  and whether the input fits and then calls the operation's handler. This first step builds the table, the generators and the checks. Every handler
-  still answers that it is not built yet, and nothing here calls a model, an image provider or AWS.
+  and whether the input fits and then calls the operation's handler. This first step builds the table, the generators and the checks. Handlers are built
+  one step at a time: the style profile operations are built (features_backend/image-profile.feature), and every other handler still answers that it is not
+  built yet. Nothing here calls a model, an image provider or AWS.
 
   Scenario: The generated files are exactly what the table produces
     Then the generated command spec, MCP schema, TypeScript types, skill reference block and docs are all current
@@ -94,7 +95,7 @@ Feature: One table of image operations that every front end is generated from
     When the MCP tool image_round_get is called with an extra property "extra"
     Then it answers that the input is invalid, naming the field "extra"
 
-  Scenario: Until its build step, every operation says it is not built yet
-    When every operation is run with its example input and the default handlers
+  Scenario: Until its build step, every operation that is not built says so
+    When every operation that is not built is run with its example input and the default handlers
     Then each answers not_implemented and names its operation
     And the command exits with the error code

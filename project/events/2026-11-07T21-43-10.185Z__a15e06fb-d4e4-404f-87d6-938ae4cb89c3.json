@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "a15e06fb-d4e4-404f-87d6-938ae4cb89c3",
+  "issue_id": "PPY-a526ee1a-2060-4d6d-b2a0-370cbcda8a76",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:10.185Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Browser matrix: 375, 820 and 1440 px across brand packs, light and dark",
+    "description": "Acceptance:\nScenario: Floors and ratio hold in the browser\n  Given two brand packs\n  When screenshots and computed sizes are taken at three widths in light and dark\n  Then text floors, the image ratio and contrast checks pass",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

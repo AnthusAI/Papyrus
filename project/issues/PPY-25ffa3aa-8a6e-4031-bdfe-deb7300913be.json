@@ -1,0 +1,22 @@
+{
+  "id": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "title": "Standard publication front end in core, and a multi-tenant Papyrus service",
+  "description": "Planning only (drafted 2026-11-07 from the design memo `standard-frontend-memo.md`; Ryan's decisions of 2026-11-07 are binding). Successor to the closed initiative PPY-bcfd2d: the projector is shared; this initiative promotes the publication layer above it (layout, cards, nav, design tokens, brand) into Papyrus core and runs it for many tenants.\n\nDecisions that shape every child:\n1. Multi-tenant SaaS is the default tier. This reverses \"a separate backend per site\" (docs/standard-site.md section 0) for the default tier only. A dedicated AWS-account deployment stays an option: the same artefact with one fixed tenant, one front-end codebase for both.\n2. One set of design tokens authored natively at the sizes people see. No multiplier, no dual stylesheet; the scaler is retired.\n3. One ordering rule for every list: rolling seven-day buckets, newest bucket first; quality within a bucket; the most recent wins a tie; sections are placed by their best item under the same rule.\n4. Threat Intelligence goes first and must run with no site hooks and no change to Machines on Machines code.\n6. Shared-plan tenants never run their own code. Hooks exist only on dedicated deployments, and every hook in use is a tracked gap to promote into core.\n7. v1 customisation: name, logo, colours (light and dark), allow-listed fonts, sections, nav, home template. Text floors, one image ratio on a 4px rhythm, contrast, no borders and colour-safe marks are platform policy for every tenant.\n8-10. No free plan and no trial. Custom domains are in every plan. Pricing is by usage metered through Prospectus (the Anthus CRM and central account service, with its billing model in Prospectus docs/BILLING.md); no per-seat or per-agent pricing.\n11. Tenants own 100% of their content; our code is open; our value is operating and improving it. Said in strong plain language in terms, docs and p.apyr.us.\n13-14. Shipped, Anth.us and Machines on Machines stay dedicated for now. Threat Intelligence is not in that list: it is the first tenant of the shared stack, once it passes the brand-neutral acceptance test on the standard layout and real tenant authorisation has landed (our own pre-production site, so the safe first tenant). Distinctive Mark is dedicated pending its upgrade (open question, not decided by Ryan). Papyrus manages upgrades for dedicated customers; people who clone and run it themselves are on their own.\n\nStanding rules: no arbitrary caps; indexes over scans; derived work computed once on change; DynamoDB is the card catalogue and text lives in S3 (never text in DynamoDB); CloudFront purging costs money, so sites are eventually consistent with a TTL; one new GSI per table per release; Gherkin for every behaviour change; every feature epic ends with p.apyr.us documentation.\n\nExisting issues linked, not duplicated: PPY-bcfd2d (closed predecessor), PPY-6a3735 (section names), PPY-c63f18 (concept ranking), PPY-3d26a0 (recency buckets), PPY-7f1e54 and PPY-ee02b8 (whole-corpus reads), PPY-409932 (cache strategy), PPY-1f68bf (image style profiles), PPY-1b83d3 (home page), PPY-49e9b5 and PPY-77bb3b (reader voting and steering), PPY-2bc3e8 (hosted MCP), PPY-a1e75a (Prospectus waits).\n\nDone when: Threat Intelligence runs on the standard layout with no hooks, a staging tenant is served from the shared stack, a paid sign-up reaches a live site with no human step, and the docs state tenant ownership plainly.\n\nScenario: A second brand runs on the standard layout\n  Given Threat Intelligence has only a brand pack, sections and pages\n  When it is built with the shared Gherkin suite\n  Then it passes with no site Python or CSS and no Machines on Machines file changed",
+  "type": "initiative",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:04.349393Z",
+  "updated_at": "2026-11-07T21:42:04.349440Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

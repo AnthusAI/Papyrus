@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "51186b90-ecd7-4bd3-8b55-7e93c85462e3",
+  "issue_id": "PPY-02227e22-29ee-45dd-93aa-1e2bfc1b1b49",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:10.555Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Documentation on p.apyr.us and the tenant ownership statement",
+    "description": "Why: standing rule: every Papyrus feature epic ends with p.apyr.us documentation. Plus a plain statement of who owns what.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

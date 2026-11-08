@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "b269e6a0-e16e-4a8e-816d-fc944947bf40",
+  "issue_id": "PPY-d2cab9fe-4bed-4cee-8abb-41224cbf290f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-07T21:43:09.698Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Upgrade planner and version policy for dedicated customers",
+    "description": "What: `papyrus upgrade plan` lists and runs the index-bearing releases in order, one new index per table per deploy, with a verification step after each. Policy: Papyrus manages upgrades for dedicated customers; self-hosters are on their own; one version number (the engine's); deprecated options warn for two minors, then error. First real case: Distinctive-web (see its board).\nAcceptance:\nScenario: A plan splits two index releases into two deploys\n  Given a site two releases behind, each adding one index to the same table\n  When the plan is made\n  Then it lists two separate deploys",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
+    "labels": [
+      "standard-frontend-plan"
+    ]
+  }
+}

@@ -48,7 +48,12 @@ class FakeSignalClient:
     def list_records(self, model: str) -> list[dict[str, Any]]:
         return {"MessageThread": self.threads, "Item": self.items}.get(model, [])
 
+    def get_records_by_id(self, model: str, ids: list[str]) -> dict[str, dict[str, Any]]:
+        return {row["id"]: row for row in self.items if row["id"] in ids}
+
     def list_by_index(self, index: str, key: str) -> list[dict[str, Any]]:
+        if index == "itemsByStage":
+            return [row for row in self.items if row.get("stage") == key]
         corpus, _, status = key.rpartition("#")
         return [row for row in self.references if row["corpusId"] == corpus and row["curationStatus"] == status]
 

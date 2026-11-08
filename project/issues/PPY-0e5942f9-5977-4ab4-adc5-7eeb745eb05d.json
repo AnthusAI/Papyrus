@@ -1,0 +1,22 @@
+{
+  "id": "PPY-0e5942f9-5977-4ab4-adc5-7eeb745eb05d",
+  "title": "Abuse control for reader writes: one shared rate rule, adaptive per tenant",
+  "description": "What: one shared WAF rate rule plus per-tenant limits learned from the tenant's own traffic (scan statistic), not fixed caps; alarms to the operator.\nAcceptance:\nScenario: A burst from one source is slowed without blocking normal readers",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:43:09.076494Z",
+  "updated_at": "2026-11-07T21:43:09.076529Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

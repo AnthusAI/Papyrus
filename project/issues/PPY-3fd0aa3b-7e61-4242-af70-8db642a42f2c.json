@@ -1,0 +1,22 @@
+{
+  "id": "PPY-3fd0aa3b-7e61-4242-af70-8db642a42f2c",
+  "title": "Per-tenant call-count gate for derived work",
+  "description": "What: a CI test that proves one change costs calls proportional to the change, at 200 and 5,000 rows, and at 1 and 50 tenants. Rule: derived work is computed once on change. Covers the intake scan and the reader snapshot read; links PPY-ee02b8 and PPY-7f1e54 for the home-page snapshot.\nAcceptance:\nScenario: Cost does not grow with corpus or tenant count\n  Given 5,000 References across 50 tenants\n  When one Reference changes\n  Then the number of AppSync calls equals the count for 200 References",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:48.040435Z",
+  "updated_at": "2026-11-07T21:42:48.040463Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

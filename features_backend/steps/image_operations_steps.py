@@ -175,10 +175,12 @@ def step_invalid_one(context, field):
     assert context.mcp_answer["error"]["code"] == "invalid_input" and context.mcp_answer["error"]["details"]["path"] == field
 
 
-@when("every operation is run with its example input and the default handlers")
+@when("every operation that is not built is run with its example input and the default handlers")
 def step_all_default(context):
-    context.answers = [(item, mcp.call_image_tool(item.name, item.examples[0].input, Caller())) for item in OPERATIONS]
-    run_command(context, "profile get")
+    from papyrus_content.images.profile_handlers import PROFILE_HANDLERS   # the style profile operations are built (step 2)
+
+    context.answers = [(item, mcp.call_image_tool(item.name, item.examples[0].input, Caller())) for item in OPERATIONS if item.name not in PROFILE_HANDLERS]
+    run_command(context, "round round-1")
 
 
 @then("each answers not_implemented and names its operation")

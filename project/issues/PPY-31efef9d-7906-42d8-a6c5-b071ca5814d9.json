@@ -1,0 +1,22 @@
+{
+  "id": "PPY-31efef9d-7906-42d8-a6c5-b071ca5814d9",
+  "title": "Core card set, publication layout and brand pack",
+  "description": "Why: MoM's cards and layout live in about 940 lines of web/hooks.py and mom_components.py. A second consumer (Threat Intelligence) needs them without copying. Promote one implementation of the cards, the \"publication\" layout preset and the brand pack format into core. Promote only what Threat Intelligence also needs; MoM's experiments stay in hooks until a second consumer wants them.\nDone when: MoM runs on the preset plus a brand pack with hooks reduced to ornaments. Ends with a p.apyr.us reference page for the brand pack.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:25.199209Z",
+  "updated_at": "2026-11-07T21:42:25.199239Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -7,7 +7,8 @@ stopped was read again, in full, the next day. Now the day's task is only the PL
    step with everything the draft needs, ONE ROW EACH in the router's table (``STORYPLAN#<publication>#<plan>#E#<n>``: the pack, or the item with its
    connections), stores what the steps share in a head row (the context the single-item writer is shown, the ideas that already exist, the plan's size), and sends
    one message per step to the story queue, a FIFO queue with the publication as the message group, so a publication's steps run one at a time, in order.
-2. ``run_step`` is the queue's worker, one step per invocation, well inside the Lambda limit. It reads its row and the head, drafts through the same
+2. ``run_step`` is the queue's worker, one step per invocation, well inside the Lambda limit. It reads its row and the head (the existing ideas are in the head, and
+   the step's ``ItemStore`` is handed them, so it never lists the site's Items), drafts through the same
    ``draft_monitor_stories`` (``prepared=``) with the retry memory, the point check, the dedupe and the Humanus gate as before, files what it keeps at once, records
    the outcome in a DONE row (``STORYDONE#<publication>#<plan>#<n>``) and adds the ideas to the plan's one review request. A failure that says nothing about the
    Reference (a model error, a filing error) is raised, so SQS tries the step again and, after the last try, parks it in the dead-letter queue, whose alarm tells a
@@ -74,6 +75,11 @@ def done_prefix(publication_id: str, plan_id: str) -> str:
 
 def done_key(publication_id: str, plan_id: str, number: int) -> str:
     return f"{done_prefix(publication_id, plan_id)}{number:05d}"
+
+
+def flag_key(publication_id: str) -> str:
+    """The row that remembers the publication's curation flag, so the step that finishes a plan reads it by id and does not list the review requests."""
+    return f"STATE#storyCuration#{publication_id}"
 
 
 def encode(value: Any) -> str:
@@ -322,7 +328,7 @@ def run_step(
     try:
         run = draft_monitor_stories(
             client=client, site=publication_id, corpus_key=publication["corpusKey"], context=context, json_store=None,
-            idea_store=ItemStore(client, gate=gate), review_client=None, transport=transport, limit=None, dry_run=False, now=moment,
+            idea_store=ItemStore(client, gate=gate, drafts=proposals), review_client=None, transport=transport, limit=None, dry_run=False, now=moment,
             fetch=fetch or monitor_stories.fetch_source, explorer=explorer, out_of_time=None, maximum_cost_usd=MAXIMUM_STEP_COST_USD, read_workers=1,
             signal_run=stub, knowledge=knowledge, retry_memory=router_retry_memory(store, monitor_id, publication_id), suggestions_waiting=bool(head_row.get("suggestionsWaiting")),
             count_pending=False, run_id=plan_id, prepared=prepared, threshold=float(head_row["duplicateThreshold"]) if head_row.get("duplicateThreshold") is not None else None)
@@ -356,6 +362,16 @@ def record_done(store: Any, monitor_id: str, publication_id: str, plan_id: str, 
 # --- the end of a plan --------------------------------------------------------------------------------------------------------
 
 
+def known_open_flags(store: Any, monitor_id: str, publication_id: str, client: Any) -> list[dict[str, Any]]:
+    """The publication's open curation flag, read by the id the last plan stored (none when no plan raised one, or when it has been answered)."""
+    from .. import review_requests
+
+    remembered = store.get_any(monitor_id, flag_key(publication_id))
+    row = client.get_record("ReviewRequest", remembered["requestId"]) if remembered and remembered.get("requestId") else None
+    request = review_requests.read_review(row) if row else None
+    return [request] if request and request["state"] == "open" else []
+
+
 def finish_if_complete(store: Any, monitor_id: str, publication: Mapping[str, Any], plan_id: str, *, client: Any, now: datetime, emit: Callable[[str], None] = print) -> dict[str, Any] | None:
     """When every step has a DONE row: the plan's one log line and its curation flag, once. Returns the summary, or None (not complete, or another step finished it)."""
     from .monitor_stories import iso
@@ -382,7 +398,9 @@ def finish_if_complete(store: Any, monitor_id: str, publication: Mapping[str, An
     rated = rated_without_ideas(covered_run, head.get("ratings") or [], candidate_lineages=head.get("candidateLineages") or [])
     flag_run = {"runId": plan_id, "drafts": drafted, "skipped": skipped, "invalid": invalid, "inputs": inputs, "ratedNoIdea": rated,
                 "stoppedBy": "file_error" if any(row.get("fileErrors") for row in rows) and not drafted else None, "suggestionsWaiting": bool(head.get("suggestionsWaiting"))}
-    flag = settle_curation_flag(client, flag_run, publication_id)
+    flag = settle_curation_flag(client, flag_run, publication_id, open_flags=known_open_flags(store, monitor_id, publication_id, client))
+    if flag.get("status") == "raised" and flag.get("requestId"):
+        store.put_any(monitor_id, {"pk": f"MONITOR#{monitor_id}", "sk": flag_key(publication_id), "requestId": flag["requestId"]})
     summary = {
         "publicationId": publication_id, "planId": plan_id, "status": "complete" if not failed else "complete_with_failures", "steps": int(head["total"]), "drafted": len(drafted),
         "failedSteps": len(failed), "skipped": len(skipped), "failedTheCheck": len(invalid), "nothingToAdd": sum(row.get("reason") == connection_rules.NOTHING_TO_ADD for row in skipped),

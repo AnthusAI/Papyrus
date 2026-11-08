@@ -1,0 +1,22 @@
+{
+  "id": "PPY-f06abdb5-6537-4ed5-abdd-7c33d8c8e2a3",
+  "title": "Author the token set natively at final sizes in core (no multiplier, no dual stylesheet)",
+  "description": "What: one token file (type scale, spacing on a 4px rhythm, one image ratio, text floors as tokens) per breakpoint class, in the sizes people see; core emits one stylesheet. No scale factor appears anywhere.\nAcceptance:\nScenario: One stylesheet at every width\n  Given the shared tokens\n  When a site is built\n  Then one stylesheet is emitted and no generated scaled copy exists\nScenario: Text never falls below its floor\n  Given any breakpoint\n  When computed font sizes are read in the browser\n  Then every text role is at or above its floor token",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2a44b217-dae4-4d20-9792-cb51a3a1017e",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:24.815037Z",
+  "updated_at": "2026-11-07T21:42:24.815064Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

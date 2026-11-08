@@ -1,0 +1,22 @@
+{
+  "id": "PPY-1192d3af-422b-4168-ac23-7d09b2748abc",
+  "title": "Staging tenant on the shared stack; every release lands there first",
+  "description": "Acceptance:\nScenario: A release is verified on staging before the shared stack\nThis staging tenant is separate from Threat Intelligence, which is the first real tenant of the shared stack.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-84abde41-2012-4b90-8be3-26329bc0ac4e",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:43:10.309881Z",
+  "updated_at": "2026-11-07T21:43:10.309937Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

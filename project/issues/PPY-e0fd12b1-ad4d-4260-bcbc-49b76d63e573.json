@@ -1,0 +1,22 @@
+{
+  "id": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+  "title": "Plans, usage metering and billing through Prospectus",
+  "description": "Why: only people who will pay get a site: no free plan, no trial. Price is by usage (only cost matters), metered and billed through Prospectus, the Anthus CRM and central account service (repository Prospectus; docs/BILLING.md for the billing model, docs/QUOTA.md for the weekly usage quota). No per-seat and no per-agent pricing. Custom domains are in every plan. Consumes the Prospectus work already listed in PPY-a1e75a.\nDone when: in staging, sign-up to paid live site has no human step.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+  "labels": [
+    "standard-frontend-plan"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-07T21:42:48.896313Z",
+  "updated_at": "2026-11-07T21:42:48.896350Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

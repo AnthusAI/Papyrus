@@ -55,3 +55,7 @@ This wiring covers the Papyrus sweep request constructors. A separately composed
 - `node --import tsx scripts/test-editorial-context-api.ts`
 
 These use synthetic scoped records/local files and no cloud writes or model calls. End-to-end live worker execution requires the separately available Tactus runtime, approved procedure synchronization and the selected publication's authoring environment. It has not been implied by unit tests.
+
+## The image style
+
+A publication may also have a visual style profile, a third kind of doctrine next to the mission and the policy (slug `editorial-doctrine-visual-style`). It is optional: a publication without one has no such entry, and nothing is refused. `papyrus editorial context` includes it as a `visual-style` entry at publication scope, with its version and content hash, so the context hash changes when the style does. The entry lists the image types, one plain line each. Context packs do not add it to the system text; the illustrator and editor packs carry it as their own layer ([context packs](newsroom-context-packs.md)). What the profile holds and how it resolves is in [image style profiles](image-style-profiles.md).
