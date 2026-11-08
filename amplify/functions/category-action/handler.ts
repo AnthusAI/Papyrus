@@ -51,6 +51,7 @@ type DenyCurationDelegationHandler = Schema["denyCurationDelegation"]["functionH
 type GetCurationDelegationStatusHandler = Schema["getCurationDelegationStatus"]["functionHandler"];
 type RecordDelegatedCurationHandler = Schema["recordDelegatedCuration"]["functionHandler"];
 type ReferenceStarsHandler = Schema["setReferenceStars"]["functionHandler"];
+type ReferenceSectionHandler = Schema["setReferenceSection"]["functionHandler"];
 type RecordDelegatedStarsHandler = Schema["recordDelegatedStars"]["functionHandler"];
 type ItemStarsHandler = Schema["setItemStars"]["functionHandler"];
 type ReferenceQualityHandler = Schema["setReferenceQualityRating"]["functionHandler"];
@@ -174,6 +175,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (fieldName === "getCurationDelegationStatus") return getCurationDelegationStatusAction(event as Parameters<GetCurationDelegationStatusHandler>[0]);
   if (fieldName === "recordDelegatedCuration") return recordDelegatedCuration(event as Parameters<RecordDelegatedCurationHandler>[0]);
   if (fieldName === "recordDelegatedStars") return recordDelegatedStars(event as Parameters<RecordDelegatedStarsHandler>[0]);
+  if (fieldName === "setReferenceSection") return setReferenceSection(event as Parameters<ReferenceSectionHandler>[0]);
   if (fieldName === "setReferenceStars") return setReferenceStars(event as Parameters<ReferenceStarsHandler>[0]);
   if (fieldName === "setItemStars") return setItemStars(event as Parameters<ItemStarsHandler>[0]);
   if (fieldName === "setReferenceQualityRating") return setReferenceQualityRating(event as Parameters<ReferenceQualityHandler>[0]);
@@ -610,6 +612,42 @@ async function setReferenceStars(event: Parameters<ReferenceStarsHandler>[0]) {
       arguments: { referenceId, action: "accept", note: starsAcceptNote(stars), actorSub: event.arguments.actorSub, actorLabel: event.arguments.actorLabel },
     } as unknown as Parameters<ReferenceCurationHandler>[0]),
   });
+}
+
+/**
+ * Changes only a Reference's Section (`curationSectionId`) and records who and when (`curationSectionUpdatedBy`, `curationSectionUpdatedAt`).
+ * It leaves the vote alone: the status, who voted and when, the note, the actor kind, the feedback and the star rating are not written, so the
+ * Cyclotron's vote id is unchanged and nothing is re-handed-off. The home page's Reference stream already watches `curationSectionId`, so the
+ * snapshot is re-triggered the way an accept does it (docs/home-page.md, Freshness). A Section can be set only on an accepted Reference and must be
+ * an enabled `NewsroomSection`; an empty `sectionId` clears it. A signed-in session must be an editor or admin; an operator on AWS credentials
+ * (the IAM lane, decided by IAM policy) is recorded by role session, never by a name it sends.
+ */
+async function setReferenceSection(event: Parameters<ReferenceSectionHandler>[0]) {
+  if (getIdentitySub(event)) requireEditorGroups(event, "set a section");
+  const client = await getDataClient();
+  const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
+  const requestedSectionId = normalizeOptionalString(event.arguments.sectionId);
+  const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
+  const status = normalizeOptionalString(reference.curationStatus) ?? "pending";
+  const previousSectionId = normalizeOptionalString(reference.curationSectionId);
+  if (requestedSectionId && status !== "accepted") {
+    throw new Error(`A section can be set only on an accepted Reference; this one is ${status}.`);
+  }
+  const sectionRecord = requestedSectionId
+    ? (await client.models.NewsroomSection.get({ id: requestedSectionId })).data ?? null
+    : null;
+  const sectionId = validatedCurationSectionId(requestedSectionId, "accept", sectionRecord);
+  if (sectionId === previousSectionId) return { ok: true, referenceId, sectionId, previousSectionId, changed: false, status };
+  const now = new Date().toISOString();
+  const person = getIdentitySub(event)
+    ? (getIdentityLabel(event) ?? getIdentitySub(event) ?? "Papyrus newsroom")
+    : `Papyrus operator (${normalizeOptionalString(String((event.identity as { userArn?: unknown } | null | undefined)?.userArn ?? "").split("/").pop()) ?? "AWS credentials"})`;
+  const actor = withViaNote(person, event, normalizeOptionalString((event.arguments as { agentLabel?: string | null }).agentLabel));
+  await requireDataResult(
+    client.models.Reference.update({ id: referenceId, curationSectionId: sectionId, curationSectionUpdatedAt: now, curationSectionUpdatedBy: actor }),
+    "update Reference section",
+  );
+  return { ok: true, referenceId, sectionId, previousSectionId, changed: true, status };
 }
 
 function starsAcceptNote(stars: number): string {
@@ -1233,6 +1271,8 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       curationReasonCode: normalizeOptionalString(current.curationReasonCode),
       curationActorKind: normalizeOptionalString(current.curationActorKind),
       curationSectionId: normalizeOptionalString(current.curationSectionId),
+      curationSectionUpdatedAt: normalizeOptionalString(current.curationSectionUpdatedAt),
+      curationSectionUpdatedBy: normalizeOptionalString(current.curationSectionUpdatedBy),
       curationShareable: typeof current.curationShareable === "boolean" ? current.curationShareable : null,
       curationDelegation: current.curationDelegation ?? null,
       curationDecisionRelationId: normalizeOptionalString(current.curationDecisionRelationId),

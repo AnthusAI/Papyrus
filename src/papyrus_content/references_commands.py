@@ -261,6 +261,33 @@ def references_set_stars_on_behalf_of(flags: list[str], *, graphql: Any = None) 
           f"{recorded.get('status') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
 
 
+def references_set_section(flags: list[str], *, client: Any = None) -> None:
+    """papyrus references set-section --reference <lineage id> (--section <name|slug|publication#slug> | --clear) [--agent <your name>] [--dry-run] [--json]
+
+    Changes only the Reference's section and records who changed it and when. The acceptance, its note, the feedback and the star rating are not touched,
+    so there is nothing to approve again. A section is named by display name, slug (for example security) or the qualified form machines-on-machines#security;
+    an unknown or disabled one is an error that lists the accepted forms and the sections available. --clear removes the section. It writes unless you pass
+    --dry-run, which reads the Reference and the sections, prints the change it would make, and writes nothing. Run it signed in (papyrus login, editor or admin)
+    or with an operator's AWS credentials (PAPYRUS_GRAPHQL_AUTH=iam).
+    """
+    from .reference_section import format_line, set_reference_section
+
+    options = parse_options(flags)
+    if options.get("help"):
+        print(references_set_section.__doc__)
+        return
+    apply = resolve_mutation_apply(options, "references set-section")
+    if client is None:
+        client = create_authoring_client()[0]
+    result = set_reference_section(
+        client, reference=options.get("reference") or options.get("reference-id"), section=options.get("section"),
+        clear=parse_boolean_option(options.get("clear"), False, "--clear"), dry_run=not apply, agent_label=_agent_option(options))
+    if parse_boolean_option(options.get("json"), False, "--json"):
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(format_line(result))
+
+
 DELEGATION_REQUEST_POLL_INTERVAL_SECONDS = 5.0
 DELEGATION_REQUEST_WAIT_TIMEOUT_SECONDS = 660.0
 
