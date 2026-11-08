@@ -85,4 +85,6 @@ After a successful write (never on `--dry-run`), the checklist is brought up to 
 
 The draft moves a Story to copywriting if it was earlier, marks the References it cites and runs the check every save runs. A draft that cites a key it was not given, or cites nothing when the Story has References, is refused and saves nothing. Whether its claims are true of their sources is the fact check that follows, which is not built yet.
 
+A body with `[@key]` markers and no `::citations{}` line is flagged by the review check A5 (a warning, to be mentioned in the review step's note), naming the markers; the page appends the bibliography so no marker links to a missing anchor ([markus markup](markus-content-markup.md#the-bibliography)). A marker whose key is not among the Story's entries is flagged the same way and is refused when the Story is saved.
+
 Every pack also says where the Story is in this procedure, so an agent knows what came before it and what comes after, whatever started it.
