@@ -12,9 +12,17 @@
     "static-projection"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ce89681e-c032-47a2-b8cf-b094645cd772",
+      "author": "home",
+      "text": "Branch feature/PPY-105508-page-refresh. Built: update-live (one command for the editing loop), refresh --path/--story/--indexes, rerender --story/--indexes/--all, inspect-page (+ --fix), source-version marker on stored item pages, per-call cap 25 (publication.cache.maxInvalidationPaths) refused with --force-paths N, dry-run first above 5 paths (--run), no wildcard, invalidation only through the content-actions function (refreshSitePages mutation / direct invoke), AGENTS.md rule against raw aws cloudfront create-invalidation. Verification: pytest test_page_refresh.py 48 passed; behave page-refresh, page-refresh-editor-lane, page-inspect 39 scenarios passed; operator-cli, projection features, test-s3-projection-publication, schema-parity ok. Needs deploy: content-actions function + refreshSitePages mutation per site. Not verified: nothing run against real AWS.",
+      "created_at": "2026-11-08T17:27:18.735017Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T16:40:45.105092Z",
-  "updated_at": "2026-11-08T17:07:32.330876Z",
+  "updated_at": "2026-11-08T17:27:18.735678Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

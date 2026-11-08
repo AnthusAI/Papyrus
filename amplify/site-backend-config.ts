@@ -36,6 +36,8 @@ export type PapyrusPublicationCacheConfig = {
   htmlSMaxAgeSeconds?: number;
   /** `targeted` (default): purge exactly the written paths after each projection. `off`: rely on the short lifetime alone. */
   invalidation?: "targeted" | "off";
+  /** Most paths one explicit page-refresh call may invalidate (default 25). A larger call is refused unless the caller names `--force-paths N`. */
+  maxInvalidationPaths?: number;
 };
 
 export const MAXIMUM_HTML_S_MAXAGE_SECONDS = 86400;
@@ -124,6 +126,10 @@ export function validatePublicationConfig(publication: unknown): string[] {
     const lifetime = cache.htmlSMaxAgeSeconds;
     if (lifetime !== undefined && (!Number.isInteger(lifetime) || lifetime < 0 || lifetime > MAXIMUM_HTML_S_MAXAGE_SECONDS)) {
       problems.push(`publication.cache.htmlSMaxAgeSeconds must be an integer from 0 to ${MAXIMUM_HTML_S_MAXAGE_SECONDS}`);
+    }
+    for (const name of ["maxInvalidationPaths"] as const) {
+      const value = cache[name];
+      if (value !== undefined && (!Number.isInteger(value) || value < 1)) problems.push(`publication.cache.${name} must be a positive integer`);
     }
     if (cache.invalidation !== undefined && cache.invalidation !== "targeted" && cache.invalidation !== "off") {
       problems.push('publication.cache.invalidation must be "targeted" or "off"');

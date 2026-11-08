@@ -7,7 +7,9 @@ description: Use when an edit must be visible on a Papyrus site now instead of a
 
 Papyrus sites keep a page at the edge for the cache lifetime (an hour by default). That stays. This skill is for the moments an edit has to be seen now, through the `papyrus ops content refresh` and `rerender` commands or the `site_*` MCP tools. They are the same operations, with the same input and the same JSON result (`docs/site-hosting.md`, "Refreshing pages on demand").
 
-Pick the smallest operation that covers the edit, and look before you purge:
+The one command for the editing loop is `papyrus ops content update-live --story LINEAGE` (`site_update_live`): it re-projects the Story, purges exactly its pages and the index pages that list it (both URL forms), and checks the live page shows the new version. Start with it. The first call is a dry run that lists the paths; read the list, then repeat it with `--run`.
+
+For anything else, pick the smallest operation that covers the edit, and look before you purge:
 
 | Need | MCP tool | Command |
 | --- | --- | --- |
@@ -18,6 +20,8 @@ Pick the smallest operation that covers the edit, and look before you purge:
 
 Rules:
 
+- NEVER run `aws cloudfront create-invalidation` yourself, in any form. It bypasses the cap and the dry-run rule, and once purged 625 paths (about 3 USD) for one stale article. All invalidation goes through these tools.
+- The cap is 25 paths per call. A refusal names `--force-paths N`; that flag is for a person who has read the list, never something to add on your own because a call was refused. `--indexes`, `--all` and a re-render never imply it.
 - Run with `dryRun: true` (`--dry-run`) first when you are unsure: it prints the exact paths and the most they can cost, and changes nothing.
 - A page is purged under every URL form it is cached under (`/dir/`, `/dir/index.html`) and as its Markdown twin. Do not purge one form by hand and call it done.
 - Never ask for a wildcard or the whole site. A path with `*` is refused. `rerender --all` rewrites every page and purges them all by name: dry-run it and say how many paths it is before running it.

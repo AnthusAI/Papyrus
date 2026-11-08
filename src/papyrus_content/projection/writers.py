@@ -75,6 +75,7 @@ class StoredObject:
     etag: str | None = None
     version: int | None = None
     inputs: str | None = None
+    last_modified: str | None = None   # ISO time the store wrote it (S3 LastModified), where the store says
 
 
 def body_etag(body: bytes) -> str:
@@ -133,6 +134,8 @@ class LocalDirectoryWriter:
 
 
 class S3PageWriter:
+    source_markers = True   # item pages end with the papyrus-source-version marker (page_refresh/marker.py)
+
     def __init__(
         self, bucket: str, s3_client: Any = None, html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS
     ) -> None:
@@ -156,6 +159,7 @@ class S3PageWriter:
             etag=str(headers.get("ETag", "")).strip('"') or None,
             version=int(version) if version not in (None, "") else None,
             inputs=metadata.get(INPUTS_METADATA_KEY),
+            last_modified=headers["LastModified"].isoformat() if hasattr(headers.get("LastModified"), "isoformat") else None,
         )
 
     def head(self, key: str) -> StoredObject | None:

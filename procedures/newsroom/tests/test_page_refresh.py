@@ -204,7 +204,7 @@ def test_no_distribution_is_a_failed_invalidation_not_a_silent_skip():
 def test_a_rerender_reports_what_it_wrote_separately_from_the_purge(site):
     built, context = site
     cloudfront = FakeCloudFront()
-    result = service_for(context, cloudfront).rerender("indexes")
+    result = service_for(context, cloudfront).rerender("indexes", confirm=True)
     assert result["rendered"]["ok"] and result["rendered"]["count"] > 0
     assert "articles/index.html" in result["rendered"]["written"]
     assert (built.out / "articles" / "index.html").exists()
@@ -217,14 +217,14 @@ def test_a_rerender_purges_exactly_the_pages_even_when_the_engine_would_have_gon
     _built, context = site
     cloudfront = FakeCloudFront()
     context.invalidate = lambda keys: ["/*"]          # what a big engine run does; the operation must not use it
-    result = service_for(context, cloudfront).rerender("all")
+    result = service_for(context, cloudfront).rerender("all", confirm=True, force_paths=500)
     assert result["invalidation"]["count"] > 10
     assert all("/*" not in call["InvalidationBatch"]["Paths"]["Items"] for call in cloudfront.calls)
 
 
 def test_a_story_rerender_writes_that_storys_pages(site):
     built, context = site
-    result = service_for(context).rerender("story", lineage="file:articles/a2.md")
+    result = service_for(context).rerender("story", lineage="file:articles/a2.md", confirm=True)
     assert "articles/a2/index.html" in result["rendered"]["written"]
     assert "/articles/a2/" in result["invalidation"]["paths"] and "/articles/a2/index.html" in result["invalidation"]["paths"]
 
@@ -232,7 +232,7 @@ def test_a_story_rerender_writes_that_storys_pages(site):
 def test_rerender_dry_run_writes_nothing_and_lists_the_pages(site):
     built, context = site
     cloudfront = FakeCloudFront()
-    result = service_for(context, cloudfront).rerender("all", dry_run=True)
+    result = service_for(context, cloudfront).rerender("all", dry_run=True, force_paths=500)
     assert result["rendered"]["dryRun"] and "articles/a1/index.html" in result["rendered"]["wouldWrite"]
     assert cloudfront.calls == [] and not (built.out / "index.html").exists()
 
@@ -240,13 +240,13 @@ def test_rerender_dry_run_writes_nothing_and_lists_the_pages(site):
 def test_rerender_without_invalidation_still_reports_the_write(site):
     _built, context = site
     cloudfront = FakeCloudFront()
-    result = service_for(context, cloudfront).rerender("indexes", invalidate=False)
+    result = service_for(context, cloudfront).rerender("indexes", invalidate=False, confirm=True)
     assert result["rendered"]["ok"] and result["invalidation"]["status"] == "not-requested" and cloudfront.calls == []
 
 
 def test_a_failed_purge_after_a_good_render_is_reported_apart(site):
     _built, context = site
-    result = service_for(context, FakeCloudFront(fail_after=0)).rerender("indexes")
+    result = service_for(context, FakeCloudFront(fail_after=0)).rerender("indexes", confirm=True)
     assert result["rendered"]["ok"] is True and result["invalidation"]["ok"] is False and result["ok"] is False
 
 
@@ -255,7 +255,7 @@ def test_a_failed_purge_after_a_good_render_is_reported_apart(site):
 
 def test_the_mcp_tools_are_the_operation_table():
     assert set(page_refresh_tools()) == {operation.name for operation in OPERATIONS} == {
-        "site_refresh_pages", "site_refresh_story", "site_refresh_indexes", "site_rerender_pages",
+        "site_refresh_pages", "site_refresh_story", "site_refresh_indexes", "site_rerender_pages", "site_update_live", "site_inspect",
     }
     assert set(page_refresh_descriptions()) == set(page_refresh_tools())
     assert all(audience == "staff" for audience, _schema in page_refresh_tools().values())
@@ -272,3 +272,221 @@ def test_a_tool_call_validates_its_input_and_returns_the_same_json_as_the_comman
     assert call_page_refresh_tool("site_rerender_pages", {"scope": "story"}, service)["error"]["code"] == "invalid_input"
     assert call_page_refresh_tool("site_rerender_pages", {"scope": "everything"}, service)["error"]["code"] == "invalid_input"
     assert call_page_refresh_tool("nope", {}, service)["error"]["code"] == "unknown_operation"
+
+
+# ------------------------------------------------------------------ the guard: cap and dry-run-first
+
+
+from papyrus_content.page_refresh.budget import Budget  # noqa: E402
+
+
+def many_pages(count):
+    return [f"/articles/story-{n}/" for n in range(count)]
+
+
+def test_a_call_over_the_cap_is_refused_naming_the_override():
+    cloudfront = FakeCloudFront()
+    result = RefreshService("EDIST", cloudfront=cloudfront).refresh_pages(many_pages(10), confirm=True)   # 30 paths, cap 25
+    assert result["ok"] is False and result["error"]["code"] == "over_path_cap"
+    assert "--force-paths 30" in result["error"]["message"] and "maxInvalidationPaths" in result["error"]["message"]
+    assert result["invalidation"]["status"] == "refused" and cloudfront.calls == []
+
+
+def test_the_override_is_explicit_and_must_cover_the_count():
+    cloudfront = FakeCloudFront()
+    service = RefreshService("EDIST", cloudfront=cloudfront)
+    assert service.refresh_pages(many_pages(10), confirm=True, force_paths=29)["error"]["code"] == "over_path_cap"
+    assert service.refresh_pages(many_pages(10), confirm=True, force_paths=30)["ok"] is True
+    assert len(cloudfront.calls) == 1
+
+
+def test_the_cap_is_a_site_setting():
+    service = RefreshService("EDIST", cloudfront=FakeCloudFront(), budget=Budget(path_cap=6))
+    assert service.refresh_pages(many_pages(3), confirm=True)["error"]["code"] == "over_path_cap"
+
+
+def test_more_than_five_paths_is_a_dry_run_until_confirmed():
+    cloudfront = FakeCloudFront()
+    service = RefreshService("EDIST", cloudfront=cloudfront)
+    first = service.refresh_pages(many_pages(3))          # 9 paths
+    assert first["ok"] and first["dryRun"] and first["needsRun"] and cloudfront.calls == [] and "--run" in first["hint"]
+    assert len(first["invalidation"]["paths"]) == 9
+    second = service.refresh_pages(many_pages(3), confirm=True)
+    assert second["invalidation"]["status"] == "invalidated" and len(cloudfront.calls) == 1
+
+
+def test_five_paths_or_fewer_runs_at_once():
+    cloudfront = FakeCloudFront()
+    assert RefreshService("EDIST", cloudfront=cloudfront).refresh_pages(["/a/"])["invalidation"]["status"] == "invalidated"
+
+
+# ------------------------------------------------------------------ update-live: the whole loop
+
+
+class FakeEdge:
+    """What the public site serves: a page that ends with the source-version marker of the version the edge holds."""
+
+    def __init__(self, version):
+        self.version, self.fetched = version, []
+
+    def __call__(self, url):
+        self.fetched.append(url)
+        return 200, {"age": "12", "x-cache": "Hit from cloudfront"}, f"<html>page</html>\n<!-- papyrus-source-version: {self.version} -->\n".encode()
+
+
+def live_service(context, edge, cloudfront=None):
+    service = service_for(context, cloudfront)
+    service.public_url, service.fetch = "https://site.example", edge
+    return service
+
+
+def test_update_live_is_a_dry_run_first_because_a_story_touches_more_than_five_paths(site):
+    _built, context = site
+    cloudfront = FakeCloudFront()
+    result = live_service(context, FakeEdge(1), cloudfront).update_live("file:articles/a1.md")
+    assert result["dryRun"] and result["needsRun"] and cloudfront.calls == []
+    assert "/articles/a1/" in result["invalidation"]["paths"] and "/" in result["invalidation"]["paths"]
+
+
+def test_update_live_projects_purges_exactly_and_verifies_the_live_version(site):
+    built, context = site
+    cloudfront, edge = FakeCloudFront(), FakeEdge(1)
+    result = live_service(context, edge, cloudfront).update_live("file:articles/a1.md", confirm=True, verify_seconds=0)
+    assert (built.out / "articles" / "a1" / "index.html").exists()
+    assert result["rendered"]["ok"] and result["invalidation"]["status"] == "invalidated"
+    assert not any("*" in path for path in result["invalidation"]["paths"])
+    assert {"/articles/a1/", "/articles/a1/index.html", "/articles/a1/index.md", "/", "/articles/"} <= set(result["invalidation"]["paths"])
+    assert result["verification"]["current"] is True and result["verdict"].startswith("LIVE")
+    assert result["ok"] and set(edge.fetched) == {"https://site.example/articles/a1/index.html", "https://site.example/articles/a1/"}
+
+
+def test_update_live_says_the_edge_is_stale_when_the_public_page_is_an_old_version(site):
+    _built, context = site
+    result = live_service(context, FakeEdge(0), FakeCloudFront()).update_live("file:articles/a1.md", confirm=True, verify_seconds=0)
+    assert result["verification"]["current"] is False and "STALE" in result["verdict"] and result["ok"] is False
+
+
+def test_update_live_over_the_cap_writes_nothing(site):
+    built, context = site
+    service = live_service(context, FakeEdge(1), FakeCloudFront())
+    service.budget = Budget(path_cap=4)
+    result = service.update_live("file:articles/a1.md", confirm=True)
+    assert result["error"]["code"] == "over_path_cap" and not (built.out / "articles").exists()
+
+
+def test_the_source_version_marker_round_trips():
+    from papyrus_content.page_refresh.marker import source_version_of, with_source_version
+
+    marked = with_source_version("a/index.html", b"<html></html>\n", 7)
+    assert source_version_of(marked) == 7 and with_source_version("a/index.html", marked, 8).count(b"papyrus-source-version") == 1
+    assert with_source_version("a.css", b"x", 7) == b"x" and source_version_of(b"<html></html>") is None
+
+
+# ------------------------------------------------------------------ inspect: the verdict, stage by stage
+
+
+import datetime as dt  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+from papyrus_content.projection.model import ItemSummary, SiteIndex  # noqa: E402
+from papyrus_content.projection.writers import StoredObject  # noqa: E402
+
+LINEAGE = "lineage-containment"
+KEYS = ("articles/containment/index.html", "articles/containment/index.md")
+
+
+class InspectClient:
+    def __init__(self, published=7, versions=7):
+        self.rows = [{"versionNumber": n, "versionState": "current" if n == versions else "superseded", "stage": "published" if n == versions else "copywriting", "authorLabel": "AI", "versionCreatedAt": f"2026-11-08T1{n % 10}:00:00Z"} for n in range(1, versions + 1)]
+        self.published = published
+
+    def list_by_index(self, name, key, **_):
+        return self.rows
+
+    def get_record(self, model, ident):
+        return {"versionNumber": self.published, "publishedAt": "2026-11-08T17:06:41Z"} if self.published else None
+
+
+class InspectWriter:
+    def __init__(self, version=7, modified="2026-11-08T17:07:42+00:00"):
+        self.version, self.modified = version, modified
+
+    def head(self, key):
+        return StoredObject(key=key, version=self.version, last_modified=self.modified)
+
+    def get(self, key):
+        return f"<html></html>\n<!-- papyrus-source-version: {self.version} -->\n".encode()
+
+
+class StubProjector:
+    def item_page_paths(self, summary):
+        return KEYS
+
+
+def inspect_service(client=None, writer=None, edge=None):
+    summary = ItemSummary("item-1", "article", "articles", "containment", "articles/containment.md", 7, "T", None, {}, (), None, lineage_id=LINEAGE)
+    context = SimpleNamespace(source=SimpleNamespace(site_index=lambda: SiteIndex(items=(summary,), load_item=None), _client=client or InspectClient()), projector=StubProjector(), writer=writer or InspectWriter())
+    service = RefreshService("EDIST", context=lambda: context, cloudfront=FakeCloudFront(), sleep=lambda _s: None, emit_metric=False, public_url="https://site.example")
+    service.fetch = edge or (lambda url: (200, {"age": "3169", "last-modified": "Sun, 08 Nov 2026 16:11:36 GMT", "etag": '"abc"', "x-cache": "Hit from cloudfront", "cache-control": "public, max-age=0, s-maxage=3600"}, b"<html></html>"))
+    return service, context
+
+
+NOW = dt.datetime(2026, 11, 8, 18, 4, 25, tzinfo=dt.timezone.utc)
+
+
+def test_inspect_the_real_case_published_v7_stored_from_v7_edge_cached_before_that():
+    service, _ = inspect_service()
+    report = service.inspect(lineage=LINEAGE, now=NOW)
+    assert report["verdictCode"] == "edge-stale" and report["ok"] is False
+    assert "version 7" in report["verdict"] and "3169" in report["verdict"] and "16:11:36" in report["verdict"] and "refresh --path" in report["verdict"]
+    assert [v["version"] for v in report["record"]["versions"]] == [1, 2, 3, 4, 5, 6, 7]
+    assert report["record"]["published"] == {"version": 7, "publishedAt": "2026-11-08T17:06:41Z"}
+    assert report["projected"]["pages"]["articles/containment/index.html"]["sourceVersion"] == 7
+    seen = report["edge"]["urls"]["/articles/containment/"]
+    assert (seen["status"], seen["age"], seen["etag"], seen["xCache"], seen["sMaxAge"]) == (200, "3169", '"abc"', "Hit from cloudfront", "3600")
+
+
+def test_inspect_finds_the_edge_serving_an_older_version_by_its_marker():
+    service, _ = inspect_service(edge=lambda url: (200, {"age": "5"}, b"<!-- papyrus-source-version: 6 -->\n"))
+    report = service.inspect(path="/articles/containment/", now=NOW)
+    assert report["verdictCode"] == "edge-stale" and "serves version 6" in report["verdict"]
+
+
+def test_inspect_says_everything_is_current_when_the_edge_serves_the_published_version():
+    service, _ = inspect_service(edge=lambda url: (200, {"age": "2"}, b"<!-- papyrus-source-version: 7 -->\n"))
+    report = service.inspect(lineage=LINEAGE, now=NOW)
+    assert report["verdictCode"] == "current" and report["ok"] is True
+
+
+def test_inspect_finds_a_published_page_that_was_never_re_projected():
+    service, _ = inspect_service(writer=InspectWriter(version=6))
+    report = service.inspect(lineage=LINEAGE, now=NOW)
+    assert report["verdictCode"] == "never-reprojected" and "rendered from 6" in report["verdict"] and "update-live" in report["verdict"]
+
+
+def test_inspect_says_not_published_when_there_is_no_published_pointer():
+    service, _ = inspect_service(client=InspectClient(published=None))
+    report = service.inspect(lineage=LINEAGE, now=NOW)
+    assert report["verdictCode"] == "not-published" and report["record"]["published"] is None
+
+
+def test_inspect_fix_purges_the_exact_stale_paths_then_looks_again():
+    calls = []
+    service, _ = inspect_service()
+    original = service.cloudfront.create_invalidation
+
+    def create(**arguments):
+        calls.append(arguments)
+        service.fetch = lambda url: (200, {"age": "1"}, b"<!-- papyrus-source-version: 7 -->\n")
+        return original(**arguments)
+
+    service.cloudfront.create_invalidation = create
+    report = service.inspect(lineage=LINEAGE, fix=True, now=NOW)
+    assert calls and set(calls[0]["InvalidationBatch"]["Paths"]["Items"]) == {"/articles/containment/index.html", "/articles/containment/", "/articles/containment/index.md"}
+    assert report["verdictCode"] == "current" and report["fix"]["ran"] is True
+
+
+def test_inspect_without_fix_changes_nothing():
+    service, _ = inspect_service()
+    service.inspect(lineage=LINEAGE, now=NOW)
+    assert service.cloudfront.calls == []
