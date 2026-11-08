@@ -12,9 +12,17 @@
     "static-projection"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2cae3c17-3ff7-4bba-bc2f-bc29d1b4cd77",
+      "author": "home",
+      "text": "Branch feature/PPY-2745c1-publish-stages, PR https://github.com/AnthusAI/Papyrus/pull/1304 (stacked on #1302). Verified with fakes only (pytest + behave, see PR); nothing run against real AWS. Needs deploy: content-actions function per site.",
+      "created_at": "2026-11-08T17:45:30.879373Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T16:40:45.345188Z",
-  "updated_at": "2026-11-08T16:40:45.345229Z",
+  "updated_at": "2026-11-08T17:45:30.879604Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
