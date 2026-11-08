@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "8bec049b-0ab1-434f-9238-2034ba1315a6",
+  "issue_id": "PPY-8a3c6a79-a65d-46f9-82dd-5a9319c77e59",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T21:17:57.165Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Usage billing beyond the weekly quota: what a tenant pays when it uses more (commercial and engineering)",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

@@ -24,11 +24,23 @@
     {
       "target": "PPY-ea3f085a-0b23-45a8-b00f-bfb9673b868b",
       "type": "relates-to"
+    },
+    {
+      "target": "PPY-25e0d79b-8bbf-4321-ae42-f2950a8ef7d4",
+      "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2d6f1641-1cbb-4ba3-8fb2-fed0b144052d",
+      "author": "home",
+      "text": "Transport changed: Papyrus sends usage through the Prospectus cost-accounting SQS queue via the shared sender library (PPY-25e0d7, now a blocker), using app=papyrus, deployment=site id and namespaced token kinds without dollars. The quota check stays the pre-flight gate in PPY-889ab5 once quota is live for Papyrus.",
+      "created_at": "2026-11-08T21:19:02.709471Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:22.948886Z",
-  "updated_at": "2026-11-08T18:47:04.544901Z",
+  "updated_at": "2026-11-08T21:19:02.709686Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

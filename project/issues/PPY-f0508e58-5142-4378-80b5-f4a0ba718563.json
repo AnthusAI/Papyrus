@@ -13,9 +13,17 @@
     "multi-tenant"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b5c0b0c0-f29b-474e-bb06-0c264671c662",
+      "author": "home",
+      "text": "Adds (Ryan 2026-11-08): file the Prospectus asks PPY-966ef5, PPY-6cb44b, PPY-8a3c6a, and confirm the design-partner launch path PPY-37f2ec.",
+      "created_at": "2026-11-08T21:19:01.895294Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:26.388881Z",
-  "updated_at": "2026-11-08T18:46:49.541397Z",
+  "updated_at": "2026-11-08T21:19:01.895506Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

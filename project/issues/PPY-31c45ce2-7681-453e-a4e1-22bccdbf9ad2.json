@@ -18,9 +18,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "df878225-d427-4ab0-a831-b3253d683a8c",
+      "author": "home",
+      "text": "TenantMembership should carry userProfileId as the stable person key (a person may sign in through the shared Google client and a tenant's own client, giving two subs; see PPY-496c0b and spike PPY-8eca5b). Keep the userSub index for the token Lambda, resolving sub -> UserProfile through UserIdentity.",
+      "created_at": "2026-11-08T21:19:03.534948Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:19.782251Z",
-  "updated_at": "2026-11-08T18:46:54.770011Z",
+  "updated_at": "2026-11-08T21:19:03.535202Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

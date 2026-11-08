@@ -22,9 +22,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "63237bdd-b9c3-4c61-af8a-542defce2d10",
+      "author": "home",
+      "text": "The weekly quota is live for Babulus only today; Papyrus needs to be enrolled with quota: true in Prospectus. Overage (keep working past 100%, billed) is PPY-8a3c6a.",
+      "created_at": "2026-11-08T21:19:02.891020Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:23.070882Z",
-  "updated_at": "2026-11-08T18:47:04.783789Z",
+  "updated_at": "2026-11-08T21:19:02.891272Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

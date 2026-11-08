@@ -20,11 +20,31 @@
     {
       "target": "PPY-a36a7a7d-a40d-467b-b3da-9348565fbc9e",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1da9160d-f86a-4430-9f2e-e366393c1e14",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-966ef544-07bb-4129-91e5-36fe9e681c95",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-6cb44bde-fb62-4382-8798-031ae9f44fee",
+      "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "75521085-f8bc-4baa-a323-7552efcc2c0e",
+      "author": "home",
+      "text": "Now also blocked by PPY-966ef5 (data-driven Prospectus deployments), PPY-6cb44b (lifecycle events and the revised decision) and PPY-1da916 (security review of data-driven provisioning). Earliest shared-tier launch of a design-partner site.",
+      "created_at": "2026-11-08T21:19:02.253239Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T18:46:27.274241Z",
-  "updated_at": "2026-11-08T18:47:14.510757Z",
+  "updated_at": "2026-11-08T21:19:02.253443Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
