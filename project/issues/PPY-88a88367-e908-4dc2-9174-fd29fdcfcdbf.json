@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "9fc965a0-02da-4dad-9445-1acca75f1f79",
+      "author": "home",
+      "text": "Storage, fonts and the per-tenant stylesheet are PPY-e572de; the starter brand pack is PPY-3aa10f.",
+      "created_at": "2026-11-08T18:48:45.195037Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:25.588935Z",
-  "updated_at": "2026-11-07T21:42:25.588964Z",
+  "updated_at": "2026-11-08T18:48:45.195279Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0f3487fb-af84-430e-a419-3be19e034071",
+      "author": "home",
+      "text": "Implemented by PPY-daf673, PPY-99e309, PPY-3bbbf9 and PPY-82de58; TI's move is PPY-e1d26f then PPY-e51189.",
+      "created_at": "2026-11-08T18:48:44.002286Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:48.406622Z",
-  "updated_at": "2026-11-07T21:42:48.406654Z",
+  "updated_at": "2026-11-08T18:48:44.002492Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

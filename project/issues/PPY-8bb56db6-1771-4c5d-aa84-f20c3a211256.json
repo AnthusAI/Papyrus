@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "d4755204-afbf-49a4-b60d-80bb95419617",
+      "author": "home",
+      "text": "Implemented by PPY-70a429 with PPY-3aa10f. Plan note: a tenant is a site owned by a Prospectus Account (one Account may own several sites), not the Account itself; lib/tenant-keys.ts tenantIdForProspectusAccount currently maps tenant = account and changes in PPY-0bb0fd (owner decision 1 in the design note).",
+      "created_at": "2026-11-08T18:48:44.185827Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:48.650211Z",
-  "updated_at": "2026-11-07T21:42:48.650241Z",
+  "updated_at": "2026-11-08T18:48:44.186053Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

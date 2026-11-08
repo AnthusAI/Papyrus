@@ -60,11 +60,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 class PublishError(Exception):
-    def __init__(self, code: str, message: str = "", errors: list[BodyError] | None = None):
+    def __init__(self, code: str, message: str = "", errors: list[BodyError] | None = None, details: dict[str, Any] | None = None):
         super().__init__(message or code)
         self.code = code
         self.message = message or code
         self.errors = list(errors or [])
+        self.details = dict(details or {})   # machine-readable extras, e.g. {"openSteps": [{"key", "label"}]} for checklist-open
 
 
 def item_id_for(section: str | None, slug: str) -> str:
@@ -370,7 +371,7 @@ def publish_item(
     try:
         require_checklist_closed(client, item)   # every required step done, or skipped / not applicable with a recorded reason
     except ChecklistError as error:
-        raise PublishError("checklist-open", str(error)) from error
+        raise PublishError("checklist-open", str(error), details={"openSteps": error.open_steps}) from error
     ensure_publish_approval(client, item, approved_by=approved_by, actor=actor)
     if already_projected:
         version_number = existing.get("versionNumber") or 1

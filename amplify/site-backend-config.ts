@@ -35,7 +35,9 @@ export type PapyrusPublicationCacheConfig = {
   /** Shared-cache lifetime (seconds) of projected HTML. Default 300 with targeted invalidation, 60 with `invalidation: "off"`. */
   htmlSMaxAgeSeconds?: number;
   /** `targeted` (default): purge exactly the written paths after each projection. `off`: rely on the short lifetime alone. */
-  invalidation?: "targeted" | "off";
+  invalidation?: "targeted" | "off" | "all";
+  /** Most paths one explicit page-refresh call may invalidate (default 25). A larger call is refused unless the caller names `--force-paths N`. */
+  maxInvalidationPaths?: number;
 };
 
 export const MAXIMUM_HTML_S_MAXAGE_SECONDS = 86400;
@@ -125,8 +127,12 @@ export function validatePublicationConfig(publication: unknown): string[] {
     if (lifetime !== undefined && (!Number.isInteger(lifetime) || lifetime < 0 || lifetime > MAXIMUM_HTML_S_MAXAGE_SECONDS)) {
       problems.push(`publication.cache.htmlSMaxAgeSeconds must be an integer from 0 to ${MAXIMUM_HTML_S_MAXAGE_SECONDS}`);
     }
-    if (cache.invalidation !== undefined && cache.invalidation !== "targeted" && cache.invalidation !== "off") {
-      problems.push('publication.cache.invalidation must be "targeted" or "off"');
+    for (const name of ["maxInvalidationPaths"] as const) {
+      const value = cache[name];
+      if (value !== undefined && (!Number.isInteger(value) || value < 1)) problems.push(`publication.cache.${name} must be a positive integer`);
+    }
+    if (cache.invalidation !== undefined && cache.invalidation !== "targeted" && cache.invalidation !== "off" && cache.invalidation !== "all") {
+      problems.push('publication.cache.invalidation must be "targeted" (the default), "off" or "all" (billable, discouraged)');
     }
   }
   const distribution = config.distribution;

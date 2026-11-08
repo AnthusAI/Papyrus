@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "f63e8c76-b68b-49fd-879d-ab722dad073f",
+  "issue_id": "PPY-04ce84e0-a035-4ba0-ac7a-ee4282a9f879",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:21.970Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cost model per tenant, measured on staging",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

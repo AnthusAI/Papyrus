@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import re
 from typing import Any
 
+from .operator_errors import GraphQLTimeoutError
 from .publish_alerts import PUBLISHED_TASK_KEY
 from .projection.runtime import PUBLICATION_KIND_ENV, S3_PROJECTION_KIND, projection_configured
 
 CONTENT_ACTIONS_FUNCTION_ENV = "PAPYRUS_CONTENT_ACTIONS_FUNCTION"
+PROJECTION_TIMEOUT_ENV = "PAPYRUS_PROJECTION_TIMEOUT_SECONDS"
+# The page-building function runs up to about 75 s on a large site; the ordinary 30 s GraphQL timeout gave up while it was still writing (PPY-4611d5).
+DEFAULT_PROJECTION_TIMEOUT_SECONDS = 120.0
+SERVER_TIMEOUT = re.compile(r"execution timed out|task timed out|timed out after|Lambda:ExecutionTimeout", re.IGNORECASE)
 PROJECT_ALL_COMMAND = "papyrus ops content project --all"
 SKIP_LINE = f"projection skipped (--no-trigger); run `{PROJECT_ALL_COMMAND}` later to project the published pages"
 
@@ -123,6 +130,16 @@ def retry_command(item_id: str, *, unpublished: bool) -> str:
     return f"papyrus ops content {'unpublish' if unpublished else 'publish'} --id {item_id}"
 
 
+def projection_timeout_seconds(environment: Any = None) -> float:
+    """How long the signed-in lane waits for the page-building mutation (``PAPYRUS_PROJECTION_TIMEOUT_SECONDS``, default 120 s); never less than the client's own timeout."""
+    raw = ((os.environ if environment is None else environment).get(PROJECTION_TIMEOUT_ENV) or "").strip()
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_PROJECTION_TIMEOUT_SECONDS
+    return value if value > 0 else DEFAULT_PROJECTION_TIMEOUT_SECONDS
+
+
 def trigger_projection_as_user(client, task: dict[str, Any]) -> dict[str, Any]:
     """The signed-in lane has no AWS credentials, so it cannot invoke the content-actions function the way the IAM lane does.
 
@@ -132,36 +149,52 @@ def trigger_projection_as_user(client, task: dict[str, Any]) -> dict[str, Any]:
     function itself too. Never raises.
     """
     mutation = "unpublishItem" if task.get("unpublished") else "publishItem"
+    retry = retry_command(task["itemId"], unpublished=bool(task.get("unpublished")))
+    long_call = getattr(client, "long_call", None)
     try:
-        data = client.graphql(
-            f"mutation Project($input: AWSJSON!) {{ {mutation}(input: $input) }}",
-            {"input": json.dumps({"id": task["itemId"]})},
-        )
+        with (long_call(projection_timeout_seconds()) if callable(long_call) else contextlib.nullcontext()):
+            data = client.graphql(
+                f"mutation Project($input: AWSJSON!) {{ {mutation}(input: $input) }}",
+                {"input": json.dumps({"id": task["itemId"]})},
+            )
         response = data.get(mutation)
         response = json.loads(response) if isinstance(response, str) else (response or {})
         # The function answers ``projected`` only for a site that projects its pages, so this is how the signed-in lane learns which kind it is.
         projects = "projected" in response
+        details = {key: response[key] for key in ("paths", "itemPaths", "invalidation", "edgePurged", "invalidationCapped") if key in response}
         if response.get("ok") is False:
             errors = "; ".join(str(entry.get("message") or entry) for entry in response.get("errors") or [])
-            return {"ok": False, "error": errors or f"{mutation} refused the request", "retry": retry_command(task["itemId"], unpublished=bool(task.get("unpublished")))}
+            return {"ok": False, "status": "failed", "error": errors or f"{mutation} refused the request", "retry": retry}
         if response.get("projected") is False:
             return {
                 "ok": False,
+                "status": "failed",
                 "error": response.get("error") or "the newsroom could not project the page",
                 "projectsPages": True,
-                "retry": retry_command(task["itemId"], unpublished=bool(task.get("unpublished"))),
+                "retry": retry,
+                **details,
             }
-        outcome: dict[str, Any] = {"ok": True, "ran": task["task"], "via": f"{mutation} mutation"}
+        outcome: dict[str, Any] = {"ok": True, "status": "projected", "ran": task["task"], "via": f"{mutation} mutation", **details}
         if projects:
             outcome["projectsPages"] = True
         if response.get("url"):
             outcome["url"] = response["url"]
         return outcome
+    except GraphQLTimeoutError as error:
+        # The client stopped waiting; the function may still be writing the pages, and running the same command again is safe (it changes nothing already done).
+        return {
+            "ok": None,
+            "status": "still-running",
+            "error": f"{error}. The data is saved; the page-building function may still be running, which is not a failure",
+            "retry": retry,
+        }
     except Exception as error:  # noqa: BLE001
+        timed_out = bool(SERVER_TIMEOUT.search(str(error)))
         return {
             "ok": False,
-            "error": f"{type(error).__name__}: {error}",
-            "retry": retry_command(task["itemId"], unpublished=bool(task.get("unpublished"))),
+            "status": "timed-out" if timed_out else "failed",
+            "error": f"{type(error).__name__}: {error}" + (". The function ran out of time; running the same command again is safe and finishes what is left" if timed_out else ""),
+            "retry": retry,
         }
 
 

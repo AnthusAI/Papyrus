@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "ca23ac9f-079a-4ee5-b1f7-cfde06d68f57",
+  "issue_id": "PPY-b99fc0e8-3ca4-41f2-bf2e-24b6a8b7d5cd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:20.898Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "tenantId required on the shared stack (stage 3, breaking data contract)",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

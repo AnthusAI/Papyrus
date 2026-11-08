@@ -1,0 +1,40 @@
+{
+  "id": "PPY-0bb0fdef-dcfd-4110-a77c-328834d4977c",
+  "title": "A signed-in session acts for one tenant, carried as role claims in the token",
+  "description": "Outcome: Every newsroom or CLI session acts for exactly one tenant (one site). A Cognito pre-token-generation Lambda reads the person's TenantMembership row for the tenant they selected and writes one claim per role they hold for it (papyrus_tenant_admin / _editor / _curator / _member = the tenant id). Switching tenant re-issues the tokens. Prospectus holds who belongs to an Account; TenantMembership holds the role on a site and is only granted to Account members (checked at grant time and removed on a Prospectus membership-removed event). The token Lambda reads only the local table, so sign-in never waits on Prospectus. A person with no membership gets no tenant claim and sees nothing. Today the newsroom already carries a \"selected account\" in the sealed Prospectus cookie (lib/prospectus-tenant.ts) and maps tenant = account (lib/tenant-keys.ts tenantIdForProspectusAccount); this task changes the mapping to tenant = site owned by an account (owner decision 1 in the design note).\n\nTouches (verified at origin/develop 23fabe1d): amplify/auth/resource.ts (defineSiteAuth: add triggers.preTokenGeneration; groups admin/editor/curator stay for the transition), new amplify/functions/tenant-claims/ (handler + resource), TenantMembership model (task PPY-31c45c), lib/prospectus-tenant.ts, lib/tenant-keys.ts, the newsroom tenant switcher (app/newsroom), the CLI's signed-in lane (docs/cli-login.md: the site file tenant).\n\nAcceptance (Gherkin feature file: features_backend/tenant-session-claims.feature):\nScenario: A member of two sites acts for one at a time\n    Given Ada is an editor of \"alpha\" and a member of \"beta\"\n    When she signs in and selects \"alpha\"\n    Then her token carries papyrus_tenant_editor \"alpha\" and no claim for \"beta\"\n    When she switches to \"beta\"\n    Then her token carries papyrus_tenant_member \"beta\" and no editor claim\n\nScenario: A person with no membership has no tenant\n    Given Bo has a Google account and no TenantMembership\n    When he signs in to the newsroom\n    Then his token has no tenant claim and every tenant model returns nothing\n\nScenario: A removed member loses access at the next token refresh\n    Given Ada is removed from the Account that owns \"alpha\"\n    When her token is next refreshed\n    Then it carries no \"alpha\" claim\n\nDependencies: blocked by PPY-9f3de0, PPY-31c45c. Blocks PPY-06ae68, PPY-7dc463, PPY-98eaee, PPY-130eb2, PPY-70a429, PPY-d7274f. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-5e0259, PPY-ed33f4.\n\nTesting: Unit tests of the claim builder; Behave against a sandbox user pool; Google sign-in only (never create Cognito password users, even in a sandbox).\nRollout: Ships dark: the claims are added beside the existing groups and no rule reads them until PPY-06ae68. Dedicated sites get the claims for their fixed tenant.\nRisk and mitigation: Risk: token refresh lag keeps a removed member in for up to the token lifetime (one hour). Mitigation: removal also revokes the person's refresh tokens (AdminUserGlobalSignOut) and the runbook says so.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: changes: adds claims to every token (no rule reads them yet).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-9f3de056-b9e3-45e8-92ee-c71395ae25d4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-31c45ce2-7681-453e-a4e1-22bccdbf9ad2",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-5e0259bf-c578-47b1-8ca2-13328c612089",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-ed33f40e-c5ce-40b7-9ba4-4ee0ef0d7995",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:18.460528Z",
+  "updated_at": "2026-11-08T18:46:50.883883Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

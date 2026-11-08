@@ -539,3 +539,16 @@ disabled section is refused before anything is written, and a section on a
 reject, reopen or archive is refused. The id is stored as `sectionId` in the
 `curationSectionId` on the Reference beside `curationActorKind`. Only an accept that the signed-in
 person made, or that the person delegated, counts as their section label.
+
+### Changing only the section (`references set-section`)
+
+To put an accepted Reference in a section, or move or clear it, without voting again (no repeated acceptance note):
+
+```bash
+papyrus references set-section --reference <lineage id> --section security [--agent <your name>] [--dry-run] [--json]
+papyrus references set-section --reference <lineage id> --clear
+```
+
+It changes only `curationSectionId`, and records who and when in `curationSectionUpdatedBy` and `curationSectionUpdatedAt`. The acceptance (status, who voted and when, the note, the actor kind), the feedback and the star rating are not written, so the Cyclotron sees no new vote. `--section` takes a display name (`Security`), a slug (`security`) or the qualified form `machines-on-machines#security`; a name that is not an enabled section is an error that lists the accepted forms and the sections available, and nothing is written. A section can be set only on an accepted Reference; `--clear` works on any. Like the other commands it writes unless `--dry-run`, which reads the Reference and the sections, prints the change and sends nothing. A signed-in editor or admin session records the person (`<person> via cli (<agent>)`); an operator on `PAPYRUS_GRAPHQL_AUTH=iam` is recorded as `Papyrus operator (<role session>)`, never by a name it sends. The writer is the `setReferenceSection` mutation (`amplify/functions/category-action`, editor and admin groups, and IAM principals by IAM policy like the other curation mutations).
+
+The MCP tool `reference_set_section` (`lineageId`, `section` or `clear`, optional `dryRun`) is the same operation: `src/papyrus_content/reference_section.py` holds the one definition (`set_reference_section`), the CLI prints it as a line or `--json`, and the tool returns that JSON. Its `TOOLS` and `DESCRIPTIONS` entries have the shape of the MCP server's tables, as the image operations do; the server (the `feature/PPY-2bc3e8-authenticated-mcp` branch) adds them with `TOOLS.update(...)` when it merges. A change of section moves the Reference on the home page and on the videos grouping through the Reference stream, which already watches `curationSectionId` ([home page, Freshness](home-page.md#freshness)). Specs: `features_backend/reference-set-section.feature`, `scripts/test-reference-section.ts` (the function), `src/papyrus_content/reference_section_test.py`; `npm run test:reference-section`. Deploy: the backend (a new mutation and two optional `Reference` fields); no IAM change, no index change.

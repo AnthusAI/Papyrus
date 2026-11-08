@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "8b721e3e-cc73-4a93-b67a-7fcf297331f4",
+  "issue_id": "PPY-bd73b259-340d-4e2b-ad05-31ada3010a74",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:49.451Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: docs/multi-tenancy.md says plainly that tenancy is scoping, not authorisation. When isolation is enforced, rewrite it: the tenant model, how a session carries a tenant, the rules, storage, the edge, workers and operators, adoption, and what dedicated sites do. Update docs/standard-site.md section 0 (PPY-9d27c2), docs/site-hosting.md (shared stack), docs/cli-login.md (the multi-tenant warning), and the p.apyr.us pages (PPY-c7244c) including the ownership statement (PPY-2f1bb2).\n\nTouches (verified at origin/develop 23fabe1d): docs/multi-tenancy.md, docs/standard-site.md, docs/site-hosting.md, docs/cli-login.md, Papyrus-web pages.\n\nAcceptance (Gherkin feature file: none (docs); checked by the docs link test):\nScenario: The docs describe enforced isolation\n    Given isolation is enforced on the shared stack\n    Then docs/multi-tenancy.md no longer says 'scoping, not authorization' and names the rules and the suite\n\nDependencies: blocked by PPY-bdc4ee. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-9d27c2, PPY-c7244c.\n\nTesting: Docs link check.\nRollout: With the release that enforces isolation.\nRisk and mitigation: Low.\n\nReleasable on its own: yes (docs).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

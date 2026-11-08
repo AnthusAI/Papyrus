@@ -71,7 +71,11 @@ PUBLISH_KEY = "publish"
 
 
 class ChecklistError(ValueError):
-    """A change to a checklist step that the rules refuse."""
+    """A change to a checklist step that the rules refuse. ``open_steps`` lists the steps that block a publish: ``[{"key", "label"}]`` (PPY-0515e1)."""
+
+    def __init__(self, message: str = "", open_steps: list[dict[str, str]] | None = None) -> None:
+        super().__init__(message)
+        self.open_steps = list(open_steps or [])
 
 
 def template_steps() -> list:
@@ -433,9 +437,11 @@ def require_checklist_closed(client, item: dict[str, Any]) -> None:
     blocking = open_required(rows)
     if blocking:
         lines = [f"{STEP_BY_KEY[row['stepKey']].title} ({row['stepKey']})" for row in blocking]
+        open_steps = [{"key": row["stepKey"], "label": STEP_BY_KEY[row["stepKey"]].title} for row in blocking]
         raise ChecklistError(
             "Publishing is blocked: these required steps are open: " + "; ".join(lines) + ". Mark each done, skipped with a reason or "
-            f"not applicable with a reason: papyrus stories step --story {lineage} --step <step> --state <state> --reason <why>."
+            f"not applicable with a reason: papyrus stories step --story {lineage} --step <step> --state <state> --reason <why>.",
+            open_steps,
         )
 
 

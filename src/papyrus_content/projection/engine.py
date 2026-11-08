@@ -32,6 +32,7 @@ from urllib.parse import quote
 from dataclasses import dataclass, field
 from typing import Callable
 
+from ..edge_invalidation import InvalidationCapped
 from .lease import ProjectionLease
 from .item_state import (
     ITEM_STATE_PREFIX,
@@ -45,6 +46,7 @@ from .model import ItemSummary, ProjectionReport, SiteIndex, site_signature
 from .plugins import PLUGIN_PAGE_PREFIXES, is_plugin_runtime_key
 from .projector import SiteProjector, normalized_redirect_source
 from .source import ProjectionSourceError, PublishedContentSource, replace_item
+from ..page_refresh.marker import with_source_version
 from .writers import STATE_PREFIX, PageWriter, RedirectStore, StoredObject, body_etag, request_paths_for_key
 
 LOGGER = logging.getLogger("papyrus.projection")
@@ -172,12 +174,17 @@ def _versions_by_page(context: ProjectionContext, site: SiteIndex) -> dict[str, 
     return versions
 
 
+def _marked(context: ProjectionContext, key: str, body: bytes, version: int | None) -> bytes:
+    """A site store (S3) gets the source-version marker; a local directory is the full build, byte for byte, and gets none."""
+    return with_source_version(key, body, version) if getattr(context.writer, "source_markers", False) else body
+
+
 def _write_item_pages(
     context: ProjectionContext, report: ProjectionReport, pages: dict[str, bytes], versions: dict[str, int | None]
 ) -> None:
     for key in _page_order(pages):
         context.renew_lease()
-        context.writer.put(key, pages[key], version=versions.get(key))
+        context.writer.put(key, _marked(context, key, pages[key], versions.get(key)), version=versions.get(key))
         report.written.append(key)
 
 
@@ -300,9 +307,14 @@ def _release_redirects_for_new_pages(context: ProjectionContext, report: Project
 
 def _finish(context: ProjectionContext, report: ProjectionReport) -> ProjectionReport:
     touched = [key for key in [*report.written, *report.deleted] if not key.startswith(STATE_PREFIX)]
+    own = set(report.item_paths)
+    touched.sort(key=lambda key: key not in own)   # the story's own pages first, so a capped purge never leaves them for last (stable: listings keep their order)
     if context.invalidate is not None and touched:
         try:
             report.invalidated = context.invalidate(touched)
+        except InvalidationCapped as capped:  # targeted mode: purged up to the cap, never a wildcard; reported, not retried
+            report.invalidated = capped.invalidated
+            report.invalidation_capped = capped.skipped
         except Exception as error:  # noqa: BLE001 - the pages are written and live at the origin; the purge is retried
             report.unpurged = touched
             LOGGER.warning("edge invalidation failed for %s paths: %s: %s", len(touched), type(error).__name__, error)
@@ -716,7 +728,7 @@ def project_item_pages(
         if item.summary.item_id == except_item_id:
             continue
         pages = projector.item_pages(item, site)
-        different = {key: body for key, body in pages.items() if stored.get(key) != body_etag(body)}
+        different = {key: body for key, body in pages.items() if stored.get(key) != body_etag(_marked(context, key, body, item.summary.version_number))}
         _write_item_pages(context, report, different, {key: item.summary.version_number for key in different})
     return _finish(context, report) if finish else report
 

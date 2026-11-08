@@ -13,9 +13,17 @@
     "threat-intelligence"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "526677f6-9045-4550-947b-88e8b0c0bff3",
+      "author": "home",
+      "text": "Detailed by PPY-e1d26f, PPY-e51189, PPY-0c4b55 and PPY-16f13a. TI's rows carry no tenant today (its infra/site.json sets no PAPYRUS_TENANT_ID), so the move is a copy-backend --stamp-tenant of every model (PPY-8f9462).",
+      "created_at": "2026-11-08T18:48:45.378661Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T23:32:38.997074Z",
-  "updated_at": "2026-11-07T23:32:38.997104Z",
+  "updated_at": "2026-11-08T18:48:45.378887Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -76,12 +76,18 @@ const cachedEnvironment = s3ProjectionEnvironment({
 });
 assert.equal(cachedEnvironment.PAPYRUS_HTML_S_MAXAGE_SECONDS, "120");
 assert.equal(cachedEnvironment.PAPYRUS_EDGE_INVALIDATION, "off");
+// "off" stops a Save purging, but an editor's explicit page refresh (PPY-105508) still needs the permission.
 assert.equal(
   s3ProjectionPolicyStatements({ ...settingsInput, bucketName: "b", distributionArn: edgeArn, cache: { invalidation: "off" } }).some((statement) =>
     statement.actions.includes("cloudfront:CreateInvalidation")),
-  false,
+  true,
 );
 assert.equal(s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn }).PAPYRUS_EDGE_INVALIDATION, undefined);
+// "targeted" is the default (PPY-2745c1) and sets nothing; "all" is the explicit, billable legacy mode; the per-call cap travels either way.
+const targetedEnvironment = s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn, cache: { invalidation: "targeted", maxInvalidationPaths: 12 } });
+assert.equal(targetedEnvironment.PAPYRUS_EDGE_INVALIDATION, undefined);
+assert.equal(s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn, cache: { invalidation: "all" } }).PAPYRUS_EDGE_INVALIDATION, "all");
+assert.equal(targetedEnvironment.PAPYRUS_INVALIDATION_MAX_PATHS, "12");
 assert.deepEqual(
   s3ProjectionEnvironment({
     ...settingsInput,
@@ -264,12 +270,12 @@ function oacStatements(template: Template) {
 
 {
   const { template, publication } = synthesize({ kind: "s3-projection", edgeDistributionArn: edgeArn, cache: { invalidation: "off", htmlSMaxAgeSeconds: 60 } });
-  template.resourceCountIs("AWS::CloudWatch::Alarm", 0);
+  template.resourceCountIs("AWS::CloudWatch::Alarm", 1);
   assert.equal(publication.environment.PAPYRUS_EDGE_INVALIDATION, "off");
   assert.equal(publication.environment.PAPYRUS_HTML_S_MAXAGE_SECONDS, "60");
   const stack = Stack.of(publication.bucket);
   const rendered = JSON.stringify(publication.policyStatements.map((statement) => stack.resolve(statement.toStatementJson())));
-  assert.ok(!rendered.includes("cloudfront:CreateInvalidation"));
+  assert.ok(rendered.includes("cloudfront:CreateInvalidation"));   // explicit page refreshes (PPY-105508)
 }
 
 {

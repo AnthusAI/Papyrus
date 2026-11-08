@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "4133a58b-d1e6-48a1-b604-1fe224f3ec54",
+  "issue_id": "PPY-bdc4ee0b-6e4e-48c5-ab83-cb91f203cefa",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:19.417Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Remove the global group rules on the shared stack (stage 2, breaking authorisation change)",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

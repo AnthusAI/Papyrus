@@ -1,0 +1,32 @@
+{
+  "id": "PPY-1252ceae-7c20-426b-bccd-8970e7950fa0",
+  "title": "SiteConfig document: the shared-tier part of projection.json, as a versioned schema",
+  "description": "Outcome: Define the SiteConfig document a tenant can set, as a JSON schema derived from the validated projection.json settings (src/papyrus_content/projection/standard/config.py; unknown keys are already errors). v1 surface (owner decision 7): site name, tagline, purpose line, sections (name, description, slug), nav order, home template id, footer links, analytics id, consent region policy, feature blocks on or off (findings, videos, conversations, concepts, reader votes). Not settable in v1 on the shared tier: hooks, arbitrary CSS, sizes, spacing, image ratio, borders, urls.style, urls.basePath, pattern redirects, the image pipeline, cache settings, plugins (those are entitlements), citations.links (fixed default). A dedicated site's projection.json is a superset and is converted with one function, so both tiers run one schema.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content/projection/standard/config.py, new src/papyrus_content/site_config/ (schema JSON + converter), lib/site-config.ts (TypeScript validator for the newsroom), docs/building-a-papyrus-static-site.md.\n\nAcceptance (Gherkin feature file: features_backend/site-config-schema.feature):\nScenario: A setting outside the v1 surface is refused for a shared tenant\n    Given a shared tenant's SiteConfig with a custom CSS file\n    When it is validated\n    Then it is refused naming the setting\n\nScenario: TI's projection.json converts to a valid SiteConfig\n    Given Threat Intelligence's web/projection.json\n    When it is converted\n    Then the result validates and renders the same pages\n\nDependencies: blocked by PPY-c020ce. Blocks PPY-3aa10f, PPY-413576, PPY-b21340, PPY-272c84, PPY-d0a3d5. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-f0ae90.\n\nTesting: pytest and TS tests share one vector file; golden renders of TI and MoM via the converter.\nRollout: Releasable alone (schema and converter).\nRisk and mitigation: Risk: knob sprawl. Mitigation: a setting enters the schema only when a second site needs it (memo rule), each with a Gherkin scenario.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f8ec5299-2268-438a-b28c-c09f4ed6a8db",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-c020ce4b-3eb9-4046-9bc3-d1f0555a0bb7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-f0ae906c-b578-4247-8fa7-5159e21c15c4",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:23.692597Z",
+  "updated_at": "2026-11-08T18:47:06.135312Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

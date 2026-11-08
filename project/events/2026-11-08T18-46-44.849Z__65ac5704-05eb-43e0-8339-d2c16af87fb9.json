@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "65ac5704-05eb-43e0-8339-d2c16af87fb9",
+  "issue_id": "PPY-c020ce4b-3eb9-4046-9bc3-d1f0555a0bb7",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:44.849Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: The site's configuration becomes data: the SiteConfig document, the BrandPack, the nav, and authored pages that are not Items. DynamoDB holds only the catalogue (standing rule: never text in DynamoDB). SiteDocument: id \"<tenant>#<kind>\" (kind: site | brand | nav), tenantId, kind, currentVersion, s3Key, sha256, schemaVersion, updatedBy, updatedAt. SiteDocumentVersion: id \"<tenant>#<kind>#<version>\", documentId, version, s3Key, sha256, createdBy, createdAt, note; index documentId sorted by version. Bodies at tenants/<tenant>/site/<kind>/<version>.json. A save writes a new version object, then moves currentVersion with a conditional update, so a half-written save is never live. Dedicated sites seed these from their repository files at deploy (the file-seeded store of PPY-f0ae90).\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts, amplify/data/resource.ts, src/papyrus_content (new site_store module, used by PPY-f0ae90), amplify/storage paths (tenants/<t>/site/).\n\nAcceptance (Gherkin feature file: features_backend/site-documents.feature):\nScenario: A brand change is a new version\n    Given \"alpha\" has brand version 3\n    When an admin saves new colours\n    Then version 4 is written to S3 and SiteDocument points at it only after the object exists\n\nScenario: An older version can be restored\n    Given \"alpha\" has brand versions 1 to 4\n    When an admin restores version 2\n    Then version 5 is written with version 2's content\n\nDependencies: blocked by PPY-31c45c. Blocks PPY-70a429, PPY-1252ce, PPY-e572de. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-f0ae90.\n\nTesting: pytest for the store (moto for S3), Behave in a sandbox.\nRollout: Releasable alone. Index: new tables only.\nRisk and mitigation: Risk: the store and S3 disagree after a crash. Mitigation: the row moves only after the object exists; an orphan object is harmless and listed by a repair command.\n\nReleasable on its own: yes.\nDynamoDB index: new tables only: SiteDocumentVersion (documentId + version).\nAppSync authorisation: changes: new models (tenant admin write via claims).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

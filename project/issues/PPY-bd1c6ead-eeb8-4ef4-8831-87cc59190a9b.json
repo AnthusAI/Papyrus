@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3cb97be6-c577-4191-9f21-0c045057b2f3",
+      "author": "home",
+      "text": "Implemented by PPY-d7274f (state applied through token claims). Prospectus billing today never suspends an entitlement on its own (Prospectus docs/BILLING.md); whether past due suspends automatically is owner decision 5 in the design note, asked of Prospectus in PPY-6d9a6d.",
+      "created_at": "2026-11-08T18:48:44.370590Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:49.388714Z",
-  "updated_at": "2026-11-07T21:42:49.388750Z",
+  "updated_at": "2026-11-08T18:48:44.370868Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

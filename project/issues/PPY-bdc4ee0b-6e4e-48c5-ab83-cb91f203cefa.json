@@ -1,0 +1,76 @@
+{
+  "id": "PPY-bdc4ee0b-6e4e-48c5-ab83-cb91f203cefa",
+  "title": "Remove the global group rules on the shared stack (stage 2, breaking authorisation change)",
+  "description": "Outcome: On a stack whose tenancy mode is shared, the global group rules are not synthesised: a Cognito group no longer grants anything on a tenant model; only tenant role claims do. A platform-operator group keeps read access for support, logged. This is the release that makes tenant isolation real. Dedicated stacks keep both rule kinds until they have adopted their fixed tenant (PPY-13fbea); then they drop group rules too (owner decision 7), so both tiers end on one rule set.\n\nTouches (verified at origin/develop 23fabe1d): amplify/data/schema.ts (contentWriteGroups, categoryWriteGroups, adminGroup usages behind the tenancy mode), function and plugin schema files as in PPY-06ae68, amplify/site-backend-config.ts (tenancy mode), docs/multi-tenancy.md (rewritten by PPY-bd73b2).\n\nAcceptance (Gherkin feature file: features_backend/tenant-rules-enforced.feature):\nScenario: A Cognito group alone grants nothing on the shared stack\n    Given a user in the \"editor\" group with no tenant claim\n    When they list Items\n    Then they get no rows\n\nScenario: The adversarial suite passes with group rules removed\n    Given the shared stack in staging\n    When the adversarial suite runs\n    Then every case passes\n\nDependencies: blocked by PPY-06ae68, PPY-7dc463, PPY-98eaee, PPY-203ce2, PPY-baa75d, PPY-e01d82, PPY-29f730, PPY-8f9462, PPY-ce6207, PPY-752480, PPY-f60a1e, PPY-ef2c57. Blocks PPY-b99fc0, PPY-d7274f, PPY-e1d26f, PPY-bd73b2. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-5e0259.\n\nTesting: The adversarial suite in blocking mode, twice on staging; the newsroom smoke tests with tenant claims only.\nRollout: Shared stack only, after security review gate 1 (PPY-3ff465). Not releasable before every tenant row is backfilled, or editors lose their rows.\nRisk and mitigation: Risk: a forgotten row without tenantId becomes invisible (data looks lost). Mitigation: adopt-tenant-data dry run must report zero rows without tenant on the stack before this deploys; rollback is redeploying the previous version (rules only, no data change).\n\nReleasable on its own: no (needs the backfill and every A task).\nDynamoDB index: none.\nAppSync authorisation: changes: BREAKING, removes global group rules on the shared stack.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0c34aeb-9eac-4c95-9903-0fdc77e19540",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-06ae6834-b447-4617-8cef-0331791e056e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-7dc4633f-740e-4a88-a901-9fa4dbbc89ab",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-98eaeeba-0b2e-48d0-ab08-e6c78858f920",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-203ce2b7-7c67-4699-8c35-081da06a91d7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-baa75de7-d23f-44cb-baba-3ce6beb5600a",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e01d8265-67b7-45c9-9804-4a2f789c476d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-29f730c8-b64a-4b37-988d-e169c6d7a762",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8f9462c3-2ffd-4e71-8044-cadcc254586f",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ce620713-6b27-4a64-8d5f-9201e76c9f6e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-752480c1-0ceb-4176-ac1f-9035d7085b39",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-f60a1e84-b635-460f-8d19-45b557b5e5a7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ef2c5747-a0ad-461a-8d3c-175c394553a4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-5e0259bf-c578-47b1-8ca2-13328c612089",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:19.417902Z",
+  "updated_at": "2026-11-08T18:46:54.423703Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

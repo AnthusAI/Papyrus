@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "30f81402-8b5c-483f-bdd6-a20adeae1ccf",
+  "issue_id": "PPY-6b084fe1-4eb2-4c1a-a2f8-2b2d611cf8f5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:25.257Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reader writes take the tenant from the site the reader is on, never from the browser",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

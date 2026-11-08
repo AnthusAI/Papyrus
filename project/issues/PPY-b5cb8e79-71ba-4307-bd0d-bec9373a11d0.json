@@ -3,16 +3,31 @@
   "title": "references set-section: change an accepted Reference's section without touching its acceptance, note, feedback or rating (CLI and MCP)",
   "description": "To assign an accepted Reference to a section an editor had to approve it again and repeat its existing acceptance note to keep it. Add papyrus references set-section --reference LINEAGE --section NAME-OR-SLUG (and --clear), and a matching MCP tool, that changes only the section (curationSectionId) and records who changed it and when, leaving the acceptance decision, its note, feedback and star rating untouched. Accept a section slug such as security, or the full machines-on-machines#security, and say clearly in the error which forms are accepted. Section tagging also drives the videos page grouping and section pages on Machines on Machines, so this is how editors tag videos. Gherkin: section changes, acceptance and rating unchanged, slug and qualified forms, unknown section is a clear error.",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-e6e82b61-7bde-4bc3-be9f-a1855419d3ab",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c6d43f5b-9dc4-44bd-9dc8-e9a528b332e9",
+      "author": "home",
+      "text": "Branch feature/PPY-b5cb8e-set-section. Built: papyrus references set-section and MCP tool reference_set_section (one definition in src/papyrus_content/reference_section.py), setReferenceSection mutation in category-action, Reference fields curationSectionUpdatedAt/By. Verified offline: scripts/test-reference-section.ts, behave features_backend/reference-set-section.feature (8 scenarios), pytest reference_section_test.py, test:schema-parity. Needs a backend deploy (new mutation + 2 optional Reference fields); no IAM or index change. PR to follow.",
+      "created_at": "2026-11-08T17:22:35.120937Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "ca7af14d-10e4-471d-b0ad-22bb83a7eba0",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/1300 opened against develop (not merged).",
+      "created_at": "2026-11-08T17:22:57.073640Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-08T17:09:04.126087Z",
-  "updated_at": "2026-11-08T17:09:04.126126Z",
+  "updated_at": "2026-11-08T17:22:57.074352Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "2c971619-6ee2-4366-b279-83a29c9be3ce",
+  "issue_id": "PPY-15945ed9-f72a-4e9c-8559-25e194bd8557",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:17.739Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Data model for many tenants: model-by-model changes and staged index deploys",
+    "description": "(being written)",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 0,
+    "assignee": null,
+    "parent": "PPY-25ffa3aa-8a6e-4031-bdfe-deb7300913be",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "fb7a9b44-c781-4e13-ae0c-309d943d418c",
+  "issue_id": "PPY-4a79f900-8843-4125-a9e4-e2093cd51311",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:49.181Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Before TI moves: 50 synthetic tenants on staging, each with stories and References; readers hitting home, section and story pages through the edge; editors publishing; monitors delivering 30 References a run; one tenant doing a full re-render. Measure: p95 publish-to-live, AppSync requests per change (must stay proportional to the change; PPY-3fd0aa), Lambda concurrency, queue wait per tenant, edge hit ratio, cost per tenant per day. The home page must use the index-backed blocks (PPY-7f1e54), not the whole-corpus snapshot (PPY-ee02b8).\n\nTouches (verified at origin/develop 23fabe1d): a load script (k6 or Python) under scripts/load/, staging shared stack, request meter, CloudWatch dashboards.\n\nAcceptance (Gherkin feature file: features_backend/shared-stack-load.feature):\nScenario: One noisy tenant does not slow the others\n    Given 50 tenants and one running a full re-render\n    When the other tenants publish\n    Then their p95 publish-to-live stays within the agreed bound and AppSync calls per change do not grow with tenant count\n\nDependencies: blocked by PPY-3bbbf9, PPY-994bd0, PPY-413576, PPY-7f1e54. Blocks PPY-04ce84. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: It is the test; results on this issue.\nRollout: Staging.\nRisk and mitigation: Risk: the load test costs money. Mitigation: a bounded run with a stated budget, approved beforehand.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

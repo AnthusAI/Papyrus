@@ -1,0 +1,36 @@
+{
+  "id": "PPY-49d05950-d253-4872-b703-65d5ea70be6a",
+  "title": "Platform usage per tenant: daily report of shared-resource use (Lambda, AppSync, DynamoDB, S3, CloudFront)",
+  "description": "Outcome: Prospectus splits a shared resource's daily cost by each customer's reported usage (docs/COST_ACCOUNTING.md, source 2). Papyrus reports per tenant per day: function GB-seconds (from structured invocation logs with the tenant), AppSync requests (request meter), estimated DynamoDB units, S3 bytes per prefix (S3 Inventory, daily, no listing), CloudFront requests and bytes per host, invalidation paths and emails. One daily job, computed once, from counters and logs, never from reading content tables. Every resource of the shared stack is tagged anthus:app=papyrus and anthus:account=shared (a CDK aspect, per the tagging standard).\n\nTouches (verified at origin/develop 23fabe1d): a daily job (EventBridge schedule + Lambda) in the shared stack, the CDK tagging aspect in amplify/site-backend.ts, src/papyrus_content/metering.py, S3 Inventory configuration on the shared bucket, CloudFront logging configuration.\n\nAcceptance (Gherkin feature file: features_backend/platform-usage-report.feature):\nScenario: The daily report reads counters, not content\n    Given 50 tenants used the stack yesterday\n    When the daily report runs\n    Then it reads the usage counters, the inventory file and the logs, sends one batch per tenant, and reads no content table\n\nDependencies: blocked by PPY-3fd951, PPY-daf673, PPY-99e309. Blocks PPY-04ce84. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Behave with fixtures for inventory and logs; request meter assertion.\nRollout: Shared stack; report-only until Prospectus cost accounting is built.\nRisk and mitigation: Risk: CloudFront logs per host are costly at scale. Mitigation: use the per-tenant metrics the spike finds, or sampled logs, and say which.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-3fd9519a-4f79-4772-be6a-57208051148d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-daf67362-ce52-43f0-98f7-8558ff1affd9",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-99e30994-968c-437a-90f2-2ece44c660a6",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:23.193074Z",
+  "updated_at": "2026-11-08T18:47:05.210102Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

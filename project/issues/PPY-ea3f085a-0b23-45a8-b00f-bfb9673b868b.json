@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "81028513-c12f-4e44-8d25-cbcbdecb317d",
+      "author": "home",
+      "text": "Implemented by PPY-9f929e (counters), PPY-3fd951 (what is reported) and PPY-889ab5 (model spend at the point of call).",
+      "created_at": "2026-11-08T18:48:44.642086Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:49.017472Z",
-  "updated_at": "2026-11-07T21:42:49.017513Z",
+  "updated_at": "2026-11-08T18:48:44.642326Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

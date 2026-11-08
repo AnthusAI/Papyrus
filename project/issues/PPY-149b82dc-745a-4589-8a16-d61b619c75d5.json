@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "bb0c4d4e-c8b6-4426-b6ed-589e1d264ba9",
+      "author": "home",
+      "text": "Shared-tier 'what must be true' tasks: PPY-6b084f (tenant from the host), PPY-5219fc (reader identity per site), PPY-d0a3d5 (consent and analytics per tenant), PPY-1f83a6 (moderation per tenant). Reader rows get tenant keys in PPY-ef2c57.",
+      "created_at": "2026-11-08T18:48:45.814801Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:43:08.703948Z",
-  "updated_at": "2026-11-07T21:43:08.703974Z",
+  "updated_at": "2026-11-08T18:48:45.815151Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

@@ -1,0 +1,32 @@
+{
+  "id": "PPY-130eb239-e6c7-4f83-b018-52c358fc4012",
+  "title": "One newsroom host for every shared-tier tenant",
+  "description": "Outcome: The shared tier runs one newsroom app (the Shadcn /newsroom app, AGENTS.md) at one host, for example newsroom.apyr.us, with a tenant switcher. Reasons: a Cognito app client accepts at most 100 callback URLs, so sign-in cannot live on every tenant's domain; one Google OAuth client; one Amplify app to build (builds cost money). A tenant's own domain answers /newsroom with a redirect to the shared host with the tenant preselected. Staging previews (editor/admin only) work through the shared host.\n\nTouches (verified at origin/develop 23fabe1d): app/newsroom, middleware.ts, amplify/auth/resource.ts (redirect URLs), amplify/auth/redirect-urls.ts, infra/amplify-app-shell, lib/prospectus-tenant.ts, the edge function (the /newsroom redirect).\n\nAcceptance (Gherkin feature file: features/shared-newsroom-host.feature):\nScenario: An editor reaches their tenant's newsroom from the site\n    Given Ada edits \"alpha\" at \"alpha.apyr.us\"\n    When she opens \"alpha.apyr.us/newsroom\"\n    Then she is sent to the shared newsroom with \"alpha\" selected after Google sign-in\n\nDependencies: blocked by PPY-0bb0fd, PPY-daf673. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Browser tests with two tenants; Google sign-in only.\nRollout: Shared stack only.\nRisk and mitigation: Risk: phishing look-alikes of the shared host. Mitigation: one well-known host, documented; no sign-in form on tenant domains.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged (uses the claims of PPY-0bb0fd).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-0bb0fdef-dcfd-4110-a77c-328834d4977c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-daf67362-ce52-43f0-98f7-8558ff1affd9",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:21.854641Z",
+  "updated_at": "2026-11-08T18:47:00.421824Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

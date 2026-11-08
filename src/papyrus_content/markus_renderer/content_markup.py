@@ -398,4 +398,10 @@ def resolve_fragment(
     for token, fmt in list_placeholders.items():
         fragment = fragment.replace(token, collector.list_html(fmt=fmt))  # type: ignore[union-attr]
 
+    if collector is not None and page.citation_keys and not page.citation_lists:
+        # Inside the document, before its closing tag, where a ``::citations{}`` line at the end would have put it.
+        closing = fragment.rfind("</article>")
+        bibliography = collector.list_html()
+        fragment = fragment + bibliography if closing < 0 else fragment[:closing] + bibliography + "\n" + fragment[closing:]
+
     return fragment

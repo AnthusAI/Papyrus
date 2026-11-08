@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f4d08bd1-e1a4-439f-8481-7c510b8613cb",
+      "author": "home",
+      "text": "Governance tasks for the shared tier: PPY-f7ce77 (release gate on the adversarial suite), PPY-4a79f9 (load test with the index-backed home page), PPY-3ff465 (security review gates), PPY-7438d9 (incident runbooks).",
+      "created_at": "2026-11-08T18:48:45.901269Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:43:09.943621Z",
-  "updated_at": "2026-11-07T21:43:09.943647Z",
+  "updated_at": "2026-11-08T18:48:45.901471Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

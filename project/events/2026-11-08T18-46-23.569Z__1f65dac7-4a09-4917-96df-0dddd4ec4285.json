@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "1f65dac7-4a09-4917-96df-0dddd4ec4285",
+  "issue_id": "PPY-d7c279db-41a0-4d83-bcf9-557609f66587",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:23.569Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Abuse controls for tenants: acceptable use, takedown, outbound mail and monitor fan-out",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-e0fd12b1-ad4d-4260-bcbc-49b76d63e573",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

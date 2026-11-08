@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "42522371-0cb8-47d3-891a-ecd651b01620",
+  "issue_id": "PPY-f60a1e84-b635-460f-8d19-45b557b5e5a7",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:45.209Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: Item, PublishedItem, MediaAsset, PublishedMediaAsset and NewsroomSection already have tenant-prefixed keys (docs/multi-tenancy.md). Extend the same rule to Tag (slug, type), ItemTag (itemId, tagId are ids), Edition (slug, status, versionState), EditionItem, PublishedEdition (slug, status), PublishedEditionItem, PublishedCategorySet (status, classifierId), PublishedCategory (categoryKey, parentCategoryKey). The projection's readers for tags, editions and categories move to the prefixed values.\n\nTouches (verified at origin/develop 23fabe1d): src/papyrus_content (tag, edition and category writers and the projection source: projection/source.py, standard listings and tags), lib/ twins, models Tag, ItemTag, Edition, EditionItem, PublishedEdition, PublishedEditionItem, PublishedCategorySet, PublishedCategory.\n\nAcceptance (Gherkin feature file: features_backend/tenant-content-keys.feature):\nScenario: Two tenants can use the same tag slug\n    Given \"alpha\" and \"beta\" both tag a story \"security\"\n    When each site's tag page is projected\n    Then each lists only its own stories\n\nDependencies: blocked by PPY-cd5926, PPY-94d609. Blocks PPY-bdc4ee, PPY-8f9462. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-5e0259.\n\nTesting: pytest; projection golden renders with two tenants sharing slugs.\nRollout: As PPY-ce6207.\nRisk and mitigation: Risk: the editions group is optional and missing on some sites. Mitigation: the change respects OPTIONAL_MODEL_GROUPS (no reader assumes editions exist).\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

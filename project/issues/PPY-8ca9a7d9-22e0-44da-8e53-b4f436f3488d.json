@@ -1,0 +1,32 @@
+{
+  "id": "PPY-8ca9a7d9-22e0-44da-8e53-b4f436f3488d",
+  "title": "Which of our sites follow TI onto the shared tier, and which stay dedicated",
+  "description": "Outcome: A decision record for Ryan with a recommended order once TI is done: Pilobolus (pre-production, a blog without sections) second; then the small product and marketing sites that already fit the preset; DataParade (served under a host site's path) after base-path support on the shared stack. Stay dedicated for now (owner decision 13): Shipped (product-shaped hooks), Anth.us (production; never touched without instruction), Machines on Machines (design reference, most active newsroom). Distinctive Mark: dedicated until its staged upgrade is done (its own board), then decide. Each move reuses the TI runbook.\n\nTouches (verified at origin/develop 23fabe1d): docs/plans/multi-tenant-architecture.md, existing PPY-259a3f (plan moving our dedicated sites).\n\nAcceptance (Gherkin feature file: none (decision record)):\nScenario: Every site has a stated tier\n    Given the list of our Papyrus sites\n    When the decision is recorded\n    Then each site is shared-next, shared-later or dedicated, with a reason\n\nDependencies: blocked by PPY-16f13a. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-259a3f.\n\nTesting: None.\nRollout: Decision only.\nRisk and mitigation: Low.\n\nReleasable on its own: not applicable (decision).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-4f5fb1ec-29bb-426d-9d12-511fd1e45923",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-16f13a94-103c-4220-aeeb-d90708bbb7ed",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-259a3f97-6488-4b7e-b739-cc34491989e7",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:24.890310Z",
+  "updated_at": "2026-11-08T18:47:09.923425Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "event_id": "b62b3c97-bf99-418e-8c54-f096220ba43a",
+  "issue_id": "PPY-966722d1-be19-4f15-ab38-c1c3dbe8c7d3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-08T18:46:21.614Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Custom domains: ownership check, certificate, routing and renewal",
+    "description": "(being written)",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d63ce199-90f6-4e2e-97ac-798ccd86fe5b",
+    "labels": [
+      "standard-frontend-plan",
+      "multi-tenant"
+    ]
+  }
+}

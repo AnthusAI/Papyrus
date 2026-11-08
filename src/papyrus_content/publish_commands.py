@@ -19,6 +19,18 @@ from .projection_trigger import (
     trigger_projection,
     trigger_projection_as_user,
 )
+from .publish_stages import (
+    DEFAULT_VERIFY_SECONDS,
+    EXIT_CHECKLIST_OPEN,
+    EXIT_OK,
+    EXIT_SAVE_FAILED,
+    exit_code_of,
+    invalidated_stage,
+    projected_stage,
+    settle_late_projection,
+    verdict_for,
+    verified_stage,
+)
 from .publishing import DryRunClient, PublishError, publish_item, unpublish_item
 from .rebuild_trigger import (
     DEFAULT_READER_BRANCH,
@@ -99,6 +111,22 @@ def run_site_triggers(client, options: dict[str, Any], result, *, unpublished: b
     return triggers
 
 
+def _verify_seconds(options: dict[str, Any]) -> float:
+    raw = normalize_string(options.get("verify-seconds"))
+    return float(raw) if raw and raw.replace(".", "", 1).isdigit() else float(DEFAULT_VERIFY_SECONDS)
+
+
+def _stage_lines(stages: dict[str, dict[str, Any]]) -> list[str]:
+    saved, projected, invalidated, verified = stages["saved"], stages["projected"], stages["invalidated"], stages["verified"]
+    pages = len(projected.get("pages") or [])
+    lines = [f"  saved: ok (published version {saved.get('versionNumber')})"]
+    lines.append(f"  projected: {projected['status']}" + (f", {pages} pages written" if pages else "") + (f" ({projected['error']})" if projected.get("error") else ""))
+    lines.append(f"  cache invalidated: {invalidated['status']}" + (f", {len(invalidated.get('paths') or [])} paths" if invalidated.get("paths") else "")
+                 + (f", {len(invalidated['skippedPaths'])} NOT purged" if invalidated.get("skippedPaths") else ""))
+    lines.append(f"  publicly verified: {verified['status']}" + (f" ({verified['reason']})" if verified.get("reason") else ""))
+    return lines
+
+
 def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublished: bool = False) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, label)
@@ -120,17 +148,38 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
             "code": error.code,
             "message": error.message,
             "errors": [entry.to_dict() for entry in error.errors],
+            **error.details,   # checklist-open: "openSteps": [{"key", "label"}]
         }
-        print(json.dumps(payload, indent=2) if options.get("json") else f"{label} failed [{error.code}]: {error.message}")
-        raise SystemExit(1)
+        exit_code = EXIT_CHECKLIST_OPEN if error.code == "checklist-open" else EXIT_SAVE_FAILED
+        payload.update({"stage": "saved", "exitCode": exit_code})
+        if options.get("json"):
+            print(json.dumps(payload, indent=2))
+        else:
+            print(f"{label} failed [{error.code}]: {error.message}")
+            for step in error.details.get("openSteps") or []:
+                print(f"  open step: {step['key']}: {step['label']}")
+        raise SystemExit(exit_code)
     planned = [] if apply else target.planned
     triggers: dict[str, Any] = {}
     if apply and (result.changed or projection_enabled() or projection_unknown()):
         triggers = run_site_triggers(client, options, result, unpublished=unpublished)
     projection = triggers.get("projection") or {}
-    page_failed = projection.get("ok") is False
+    stages: dict[str, dict[str, Any]] = {"saved": {"status": "ok", "changed": result.changed, "versionNumber": result.version_number, "dryRun": not apply}}
+    verify = bool(options.get("verify")) and apply and not unpublished
+    if apply:
+        stages["projected"] = projected_stage(projection)
+        stages["invalidated"] = invalidated_stage(projection)
+        stages["verified"] = (
+            verified_stage(projection, result.version_number, wait=verify, seconds=_verify_seconds(options))
+            if not unpublished and projection.get("ok") is not False
+            else {"status": "not-checked", "reason": "unpublish, or the page was not built"}
+        )
+        settle_late_projection(stages)
+        exit_code, failed_stage = exit_code_of(stages, verify=verify)
+    else:
+        exit_code, failed_stage = EXIT_OK, "ok"
     payload = {
-        "ok": not page_failed,
+        "ok": exit_code == EXIT_OK,
         "dryRun": not apply,
         "changed": result.changed,
         "itemId": result.item_id,
@@ -139,19 +188,35 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
         "planned": planned,
         **triggers,
     }
+    if apply:
+        payload.update({"stages": stages, "exitCode": exit_code, "failedStage": failed_stage, "verdict": verdict_for(stages)})
     failure = None
-    if page_failed:
+    if exit_code != EXIT_OK:
         retry = retry_command(result.item_id, unpublished=unpublished)
-        failure = (
-            f"{label} FAILED to project the page: the data is {'unpublished' if unpublished else 'published'} but the page "
-            f"is not {'removed' if unpublished else 'live'} ({projection.get('error') or 'unknown error'}). "
-            f"Retry with: {retry}"
-        )
-        payload.update({"dataPublished": not unpublished, "pagePublished": False, "retry": retry, "message": failure})
+        payload.update({"dataPublished": not unpublished, "pagePublished": stages["projected"]["status"] == "ok", "retry": retry})
+        verb = "unpublished" if unpublished else "published"
+        if failed_stage == "projection-failed":
+            failure = (
+                f"{label} FAILED to project the page: the data is {verb} but the page "
+                f"is not {'removed' if unpublished else 'live'} ({stages['projected'].get('error') or 'unknown error'}). Retry with: {retry}"
+            )
+        elif failed_stage == "projection-running":
+            failure = (
+                f"{label} STILL RUNNING: the data is {verb} and the server has not yet confirmed the page ({stages['projected'].get('error') or 'no answer yet'}). "
+                f"This is not a failure. Check with: {retry} --verify (running it again changes nothing already done)"
+            )
+        elif failed_stage == "invalidation-failed":
+            failure = (
+                f"{label}: the page is written but the edge cache was NOT fully purged ({stages['invalidated']['status']}: "
+                f"{stages['invalidated'].get('reason') or 'no reason given'}). The old page can show until it expires. Not a write failure."
+            )
+        else:
+            failure = f"{label}: the page is written and purged but the public URL still shows an older version after waiting ({stages['verified'].get('expectedVersion')} expected)."
+        payload["message"] = failure
     if options.get("json"):
         print(json.dumps(payload, indent=2))
         if failure:
-            raise SystemExit(1)
+            raise SystemExit(exit_code)
         return
     state = "changed" if result.changed else "unchanged"
     print(f"{label}: {result.item_id} {state} (published version {result.version_number})")
@@ -162,9 +227,12 @@ def _run(flags: list[str], label: str, action: Callable[..., Any], *, unpublishe
             print(f"  {SKIP_LINE}")
         else:
             print(f"  {key}: {json.dumps(outcome)}")
+    if apply:
+        for line in _stage_lines(stages):
+            print(line)
     if failure:
         print(failure, file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(exit_code)
 
 
 def content_publish(flags: list[str]) -> None:

@@ -12,9 +12,17 @@
     "standard-frontend-plan"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "73dd2bea-1354-49c6-9ffb-33ee55c1f999",
+      "author": "home",
+      "text": "Built by PPY-0bb0fd (where the tenant comes from), PPY-7dc463 (functions) and PPY-413576 (rendering).",
+      "created_at": "2026-11-08T18:48:45.105074Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-11-07T21:42:26.098404Z",
-  "updated_at": "2026-11-07T21:42:26.098431Z",
+  "updated_at": "2026-11-08T18:48:45.105385Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

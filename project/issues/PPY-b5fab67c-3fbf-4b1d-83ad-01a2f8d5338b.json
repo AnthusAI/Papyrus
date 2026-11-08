@@ -1,0 +1,28 @@
+{
+  "id": "PPY-b5fab67c-3fbf-4b1d-83ad-01a2f8d5338b",
+  "title": "M1 Cost fixes that would multiply by tenants, and the standard layout track",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M0.\nExit criteria: PPY-7f1e54 stages B and C merged and rolled out (MoM first); PPY-ee02b8 closed including ReferenceIntake's whole-table list; PPY-d647ee incremental reader snapshot; PPY-3fd0aa call-count test at 1 tenant. In parallel (front-end track): PPY-c446fe ordering rule, PPY-2a44b2 native tokens, PPY-31efef cards, preset and brand pack.\nCustomer-visible: Lower cost on our sites; MoM and TI look unchanged or better.\nIndex-adding deploys in this milestone: Reference.publicFeedKey (PR #1239), per site, alone, after stage A and the backfill.\nContains: PPY-7f1e54, PPY-ee02b8, PPY-d647ee, PPY-3fd0aa, PPY-c446fe, PPY-2a44b2, PPY-31efef\nFollows: M0.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-f0508e58-5142-4378-80b5-f4a0ba718563",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:26.516174Z",
+  "updated_at": "2026-11-08T18:47:13.386289Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,32 @@
+{
+  "id": "PPY-1f83a6f3-3d35-43e3-a8b1-403c08b12c9f",
+  "title": "Moderation per tenant",
+  "description": "Outcome: What must be true: each tenant's moderation queue holds only its readers' items; its editors decide; AI moderation runs under the tenant's spend ceiling (PPY-889ab5); a platform takedown (PPY-d7c279) is separate from tenant moderation; reports and bans are per tenant.\n\nTouches (verified at origin/develop 23fabe1d): amplify/plugins/reader-steering (ReaderComment, ReaderReport, ModerationAction, moderation worker), the newsroom moderation panel.\n\nAcceptance (Gherkin feature file: features_backend/tenant-moderation.feature):\nScenario: A tenant's moderators see only their own queue\n    Given hidden comments in \"alpha\" and \"beta\"\n    When an \"alpha\" editor opens moderation\n    Then only alpha's comments are listed\n\nDependencies: blocked by PPY-ef2c57, PPY-889ab5. Blocks nothing in this plan yet. (Also recorded as kbs dependencies.)\nImplements or extends: -.\n\nTesting: Behave; adversarial suite.\nRollout: With reader features on the shared stack.\nRisk and mitigation: Low once keys and rules hold.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-149b82dc-745a-4589-8a16-d61b619c75d5",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-ef2c5747-a0ad-461a-8d3c-175c394553a4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-889ab50e-2a12-4081-9382-34aec0b5f565",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:25.634384Z",
+  "updated_at": "2026-11-08T18:47:11.598047Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

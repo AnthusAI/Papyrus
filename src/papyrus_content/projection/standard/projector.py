@@ -202,6 +202,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         self.policy = UrlPolicy(standard)
         self.head = HeadBuilder(standard, self.environment)
         self._plan_cache: tuple[object, dict] | None = None
+        #: ``key -> (page id, item ids it lists)`` of the generated listing pages, kept beside the plan (``listing_keys_of``, ``index_page_keys``).
+        self._plan_meta: dict[str, tuple[str, frozenset[str]]] = {}
         self._shared_fingerprint = digest_of(
             [dataclasses.asdict(standard), self.environment.fingerprint(), repr(settings.chrome), hooks.fingerprint, self.version, prerendered_bytes.decode("utf-8", "replace")]
         )
@@ -719,16 +721,20 @@ class StandardMarkusProjector(MarkusSiteProjector):
         listed = [entry for entry in entries if entry.listed]
         summaries = site.items
         plan: dict[str, tuple[str, Callable[[], bytes]]] = {}
+        meta: dict[str, tuple[str, frozenset[str]]] = {}
         shared = self._shared()
 
         page_inputs = self._page_inputs(site)
 
-        def add(key: str, page_id: str, digest_input, build_page: Callable[[], StandardPage], markdown: bool = True) -> None:
+        def add(key: str, page_id: str, digest_input, build_page: Callable[[], StandardPage], markdown: bool = True, members=()) -> None:
+            listed_ids = frozenset(entry.item_id for entry in members)
+            meta[key] = (page_id, listed_ids)
             dependency = self._dependency_digest(entries, page_id)
             digest = digest_of([shared, key, digest_input, dependency, page_inputs])
             plan[key] = (digest, lambda: self._render(build_page()))
             twin = md_key(key) if markdown and self.standard.agents.markdown else None
             if twin:
+                meta[twin] = (page_id, listed_ids)
                 plan[twin] = (digest_of([digest, "markdown"]), lambda: self._markdown_for(build_page()).encode("utf-8"))
 
         # home
@@ -750,6 +756,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     site, entries=tuple(listed), listing=ListingView("", self.standard.home_link_label, home_entries, tuple(listed), 1, 1, root=self.policy.root),
                     home_sections=home_blocks,
                 ),
+                members=home_entries,
             )
 
         # listings: one flat listing, or one per section that has something to list
@@ -765,6 +772,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                         f"listing:{section_name}",
                         self._section_index_inputs(section_config, view, entries, summaries, listing_groups),
                         self._section_index_builder(section_config, view, site, listed, listing_groups),
+                        members=view.entries,
                     )
                     continue
                 intro = self._intro(summaries, section_name) if view.page == 1 else None
@@ -773,6 +781,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     f"listing:{section_name or 'flat'}",
                     [self._fingerprints(view.entries), view.page, view.pages, len(view.featured), self._intro_fingerprint(intro)],
                     self._listing_builder("listing", view, site, listed, intro),
+                    members=view.entries,
                 )
 
         # collections: listings selected by tag or section, not by CMS section
@@ -789,6 +798,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     f"listing:{collection.id}",
                     [self._fingerprints(view.entries, full=True), view.page, view.pages, len(view.featured), self._fingerprints(view.drafts, full=True)],
                     self._listing_builder("listing", view, site, listed),
+                    members=(*view.entries, *view.drafts),
                 )
 
         # archives: one page per month (or year) that has entries
@@ -811,6 +821,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                         ),
                         site, entries=tuple(listed), listing=view,
                     ),
+                    members=view.entries,
                 )
 
         # tags
@@ -828,7 +839,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     continue
                 for view in self._paginate(self.policy.tag_base(slug), tag, self._ranked(found), None, tag=tag):
                     key = self.policy.listing_key(view.base, view.page)
-                    add(key, "tag", [self._fingerprints(view.entries), view.page, view.pages], self._listing_builder("tag", view, site, listed))
+                    add(key, "tag", [self._fingerprints(view.entries), view.page, view.pages], self._listing_builder("tag", view, site, listed), members=view.entries)
 
         # showcase (logo wall)
         wall = self.standard.showcase
@@ -932,7 +943,30 @@ class StandardMarkusProjector(MarkusSiteProjector):
             plan[key] = (hashlib.sha256(body).hexdigest()[:16], lambda body=body: body)
         self._add_llms_files(plan, site, entries, listed)
         self._plan_cache = (site.items, plan)
+        self._plan_meta = meta
         return plan
+
+    # ------------------------------------------------------------------ which pages list what (the page-refresh operations)
+
+    INDEX_PAGE_IDS = ("home", "listing:", "archive:", "tags", "tag")
+
+    def index_page_keys(self, site: SiteIndex) -> list[str]:
+        """The keys of the home page, every list page and every section page (and their Markdown twins), read from the plan the site is projected with.
+
+        Covers paging, archives and tag pages. An authored home (a Story or page file) is not in the plan, so its key is added."""
+        self._plan(site)
+        keys = {key for key, (page_id, _members) in self._plan_meta.items() if page_id == "home" or page_id.startswith(self.INDEX_PAGE_IDS[1:])}
+        return self._with_home(sorted(keys), site)
+
+    def listing_keys_of(self, site: SiteIndex, item_id: str) -> list[str]:
+        """The keys of the index pages that list this item: the home page, and every list, section, archive and tag page (twins included) that shows it."""
+        self._plan(site)
+        keys = {key for key, (page_id, members) in self._plan_meta.items() if item_id in members and page_id != "not_found"}
+        return self._with_home(sorted(keys), site)
+
+    def _with_home(self, keys: list[str], site: SiteIndex) -> list[str]:
+        home = self._with_markdown((self.policy.key(HOME_PAGE_PATH),), noindex=False)
+        return sorted({*keys, *home})
 
     # ------------------------------------------------------------------ agent-readable files
 

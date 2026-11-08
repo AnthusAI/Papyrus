@@ -147,7 +147,7 @@ def exits_ok(context) -> None:
 
 @then("the command exits with an error")
 def exits_error(context) -> None:
-    assert context.exit_code == 1, (context.exit_code, context.stdout, context.stderr)
+    assert context.exit_code not in (0, None), (context.exit_code, context.stdout, context.stderr)
 
 
 @then("the output says the data is published but the page is not")
@@ -221,3 +221,8 @@ def stage_unchanged(context) -> None:
 @then("no publish warning is printed")
 def no_warning(context) -> None:
     assert context.stderr == ""
+
+
+@then("the command exits with code {code:d}")
+def exits_with_code(context, code: int) -> None:
+    assert context.exit_code == code, (context.exit_code, context.stdout, context.stderr)

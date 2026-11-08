@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "9f6474ac-2f21-406f-bdfa-6c565b9f088b",
+  "issue_id": "PPY-29f730c8-b64a-4b37-988d-e169c6d7a762",
+  "event_type": "field_updated",
+  "occurred_at": "2026-11-08T18:46:44.402Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "(being written)",
+        "to": "Outcome: One suite that tries every way tenant A could see or change tenant B's data, run against a sandbox or staging shared stack with two seeded tenants. Generated from schema.ts and the function list, so a new model, index, query, mutation or function without a case fails CI. Cases: every model x {get, list, list by each index, create with foreign tenantId, update to foreign tenantId, delete}; every custom query and mutation with foreign ids; subscriptions; S3 (presign foreign key, direct identity-pool access, rendition paths); knowledge search (knowledge-query, the S3 Vectors index, the title-word table); snapshot and projection outputs (no foreign rows in tenant files); the edge (Host header spoofing, unknown host, path traversal into another prefix); the reader API (forged Origin, foreign subject ids); exports (an export of A contains nothing of B); CLI with a token for A and --tenant B.\n\nTouches (verified at origin/develop 23fabe1d): new features_backend/tenant-isolation-adversarial.feature and its steps (features_backend/steps/), a generator script under scripts/ reading amplify/data/schema.ts and amplify/functions/*/resource.ts, seed fixtures for two tenants.\n\nAcceptance (Gherkin feature file: features_backend/tenant-isolation-adversarial.feature):\nScenario Outline: Tenant A cannot reach tenant B through any model operation\n    Given editor sessions for \"alpha\" and \"beta\" on the shared stack\n    When the \"alpha\" session performs <operation> on a \"beta\" <model>\n    Then it is denied or returns nothing of \"beta\"\n    Examples: generated from the schema\n\nScenario: A model with no isolation case fails the build\n    Given a new model is added to schema.ts without a generated case\n    When CI runs\n    Then the suite fails naming the model\n\nDependencies: blocked by PPY-9f3de0. Blocks PPY-bdc4ee, PPY-f7ce77, PPY-3ff465. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-5e0259.\n\nTesting: It is the test. Runs in report-only mode from PPY-06ae68, blocking from PPY-bdc4ee.\nRollout: Lives in CI; the gate itself is PPY-f7ce77.\nRisk and mitigation: Risk: the suite gives false confidence because it only checks what it knows. Mitigation: generation from the schema and the function list, plus the external security review (PPY-3ff465).\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture)."
+      }
+    }
+  }
+}

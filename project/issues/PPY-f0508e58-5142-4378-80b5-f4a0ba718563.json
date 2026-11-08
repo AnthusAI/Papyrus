@@ -1,0 +1,23 @@
+{
+  "id": "PPY-f0508e58-5142-4378-80b5-f4a0ba718563",
+  "title": "M0 Decisions and spikes",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: This plan on the board; the design note PR open.\nExit criteria: Owner decisions in the design note answered; spikes PPY-9f3de0, PPY-3b3cc3, PPY-6d9a6d closed with findings; PPY-9d27c2 (record the reversal) done.\nCustomer-visible: Nothing.\nIndex-adding deploys in this milestone: None.\nContains: PPY-9f3de0, PPY-3b3cc3, PPY-6d9a6d, PPY-9d27c2, PPY-cd5926, PPY-8f2c4f\nFollows: nothing.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6a63576d-0bf0-4995-af2d-277dea201f8b",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:26.388881Z",
+  "updated_at": "2026-11-08T18:46:49.541397Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

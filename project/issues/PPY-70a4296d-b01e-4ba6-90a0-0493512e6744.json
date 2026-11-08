@@ -1,0 +1,56 @@
+{
+  "id": "PPY-70a4296d-b01e-4ba6-90a0-0493512e6744",
+  "title": "Provisioning workflow: a paid entitlement creates the tenant, idempotently",
+  "description": "Outcome: Implements PPY-8bb56d. When Prospectus says an Account holds a paid shared-tier site (the event or route named by PPY-6d9a6d), one workflow, keyed by a replay id, creates: the Tenant row (state active), the first TenantMembership (the buyer as admin), the TenantDomain for the chosen subdomain and its KVS entry, the default SiteDocuments from the starter template (PPY-3aa10f), the tenant's NewsroomSections, its canonical KnowledgeCorpus (\"<tenant>.canonical\"), its Cyclotron id (\"<cyclotronId>-<tenant>\", docs/multi-tenancy.md \"Site cyclotron\"), zeroed usage counters, and queues the first full projection. Each step is idempotent; a failure resumes from the last finished step. Payment comes first: no tenant exists before it.\n\nTouches (verified at origin/develop 23fabe1d): new amplify/functions/tenant-provisioning/ (a Step Functions state machine or a resumable Lambda), src/papyrus_content/tenancy.py, the Prospectus events consumer (amplify/plugins/prospectus-events/, as specified in PPY-a1e75a part C).\n\nAcceptance (Gherkin feature file: features_backend/tenant-provisioning.feature):\nScenario: A paid sign-up creates one tenant even when the event repeats\n    Given Prospectus sends the paid-site event for \"harbour-news\" twice\n    When provisioning runs\n    Then one Tenant, one admin membership and one subdomain exist and the first projection was queued once\n\nScenario: A half-finished provisioning resumes\n    Given provisioning stopped after creating the sections\n    When the event is delivered again\n    Then it continues from the corpus step and finishes\n\nDependencies: blocked by PPY-6d9a6d, PPY-31c45c, PPY-c020ce, PPY-3aa10f, PPY-82de58, PPY-0bb0fd. Blocks PPY-810f42. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-8bb56d, PPY-e54eca.\n\nTesting: Behave with a fake Prospectus event source; staging end to end.\nRollout: Staging first; production only for internal tenants until M8.\nRisk and mitigation: Risk: a tenant is created without payment through a replayed or forged event. Mitigation: the consumer verifies the event's signature or source and re-reads the entitlement from Prospectus before creating.\n\nReleasable on its own: yes.\nDynamoDB index: none.\nAppSync authorisation: unchanged (runs with the platform provisioning role).\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-cada527f-f3dc-480c-8445-0fb0be9f87c4",
+  "labels": [
+    "standard-frontend-plan",
+    "multi-tenant"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-6d9a6d92-e01e-4ea7-9ba5-8cbf2fff936c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-31c45ce2-7681-453e-a4e1-22bccdbf9ad2",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-c020ce4b-3eb9-4046-9bc3-d1f0555a0bb7",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3aa10fde-ea1d-437c-b0f5-6fb8e38630b0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-82de5876-dc01-4894-b1d7-fb7a90c188da",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-0bb0fdef-dcfd-4110-a77c-328834d4977c",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8bb56db6-1771-4c5d-aa84-f20c3a211256",
+      "type": "relates-to"
+    },
+    {
+      "target": "PPY-e54ecaba-80a3-467c-9e79-00cad5016a00",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-11-08T18:46:22.081743Z",
+  "updated_at": "2026-11-08T18:47:01.692017Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
