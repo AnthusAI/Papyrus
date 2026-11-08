@@ -83,6 +83,11 @@ assert.equal(
   true,
 );
 assert.equal(s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn }).PAPYRUS_EDGE_INVALIDATION, undefined);
+// "targeted" is the default (PPY-2745c1) and sets nothing; "all" is the explicit, billable legacy mode; the per-call cap travels either way.
+const targetedEnvironment = s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn, cache: { invalidation: "targeted", maxInvalidationPaths: 12 } });
+assert.equal(targetedEnvironment.PAPYRUS_EDGE_INVALIDATION, undefined);
+assert.equal(s3ProjectionEnvironment({ ...settingsInput, distributionArn: edgeArn, cache: { invalidation: "all" } }).PAPYRUS_EDGE_INVALIDATION, "all");
+assert.equal(targetedEnvironment.PAPYRUS_INVALIDATION_MAX_PATHS, "12");
 assert.deepEqual(
   s3ProjectionEnvironment({
     ...settingsInput,

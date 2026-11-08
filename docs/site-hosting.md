@@ -925,7 +925,7 @@ backend: {
     staticDir: "web/static",                       // optional, relative directory in the site repo
     edgeDistributionArn: "arn:aws:cloudfront::111122223333:distribution/EEXAMPLE12345", // optional; or set PAPYRUS_EDGE_DISTRIBUTION_ARN on the Amplify branch and leave this out
     distribution: { create: false },               // or { create: true, aliases, certificateArn | acm }
-    cache: { htmlSMaxAgeSeconds: 300, invalidation: "targeted" }, // optional; these are the defaults ("off" and 60 s for the no-invalidation fallback)
+    cache: { htmlSMaxAgeSeconds: 300, invalidation: "targeted" }, // optional; "targeted" is the default (also "off", and "all": billable, discouraged); 300 s, or 60 s with "off"
     retainBucketOnDelete: true,                    // default; false destroys the bucket with the stack
   },
 }
@@ -946,6 +946,9 @@ The environment contract with the Python side:
 | `PAPYRUS_EDGE_DISTRIBUTION_ID` | a distribution is created or `edgeDistributionArn` is given |
 | `PAPYRUS_HTML_S_MAXAGE_SECONDS` | `cache.htmlSMaxAgeSeconds` is set |
 | `PAPYRUS_EDGE_INVALIDATION=off` | `cache.invalidation` is `"off"` |
+| `PAPYRUS_EDGE_INVALIDATION=all` | `cache.invalidation` is `"all"` (the old collapse-to-`/*` purge; billable, discouraged) |
+| (unset) | `cache.invalidation` is unset or `"targeted"`: the default, below |
+| `PAPYRUS_INVALIDATION_MAX_PATHS` | `cache.maxInvalidationPaths` is set (the per-call cap, default 25) |
 | `PAPYRUS_SITE_PUBLIC_URL` | a distribution is created (first alias, else its domain name) |
 | `PAPYRUS_SITE_PROJECTOR=site_projector` | `projector` is set |
 | `PAPYRUS_SITE_STATIC_DIR=/var/task/site_static` | `staticDir` is set |
@@ -963,8 +966,9 @@ A site that serves media as they were uploaded (no image pipeline, pages that re
 ### Edge caching and invalidation
 
 - **Cache-Control per object.** HTML and every other file a projection can rewrite (`sitemap`, `robots.txt`, unhashed CSS and JS, JSON) get `public, max-age=0, s-maxage=300, stale-while-revalidate=60`: the browser always revalidates, the edge keeps a page for at most five minutes even if a purge is lost. Renditions under `assets/responsive/` (except `.meta.json`), `_next/static/` and file names that end in an eight-or-more-digit hex content hash get `public, max-age=31536000, immutable`.
-- **Targeted invalidation, one call per run.** After the writes, the projection makes one invalidation call (each `index.html` page in its `/x/index.html` and `/x/` forms), with exponential back-off when CloudFront throttles. Up to 10 distinct paths are listed exactly. More than 10, which is every full render and every site-wide follow-up, becomes a single `/*`: CloudFront bills a wildcard as one path, while listing a few hundred pages cost about $65 in 20 days. Callers still cannot pass a wildcard themselves; only this size rule chooses it. The first 1,000 paths a month are free, then $0.005 per path.
+- **`cache.invalidation: "all"` (legacy, billable, discouraged).** After the writes, the projection makes one invalidation call (each `index.html` page in its `/x/index.html` and `/x/` forms), with exponential back-off when CloudFront throttles. Up to 10 distinct paths are listed exactly. More than 10, which is every full render and every site-wide follow-up, becomes a single `/*`: CloudFront bills a wildcard as one path, while listing a few hundred pages cost about $65 in 20 days. Callers still cannot pass a wildcard themselves; only this size rule chooses it. The first 1,000 paths a month are free, then $0.005 per path. A site gets this only by setting `"all"`.
 - **Redirect writes.** A full render reads the KeyValueStore once and writes only redirects whose target changed, 50 keys per `UpdateKeys` call, and new-page redirect checks use one listing instead of a read per path when more than 10 paths are checked.
+- **`cache.invalidation: "targeted"` (the default, PPY-2745c1).** A site that leaves `cache.invalidation` unset, or sets `"targeted"`, purges on a single-story publish or save exactly the pages that publish wrote: the Story's page and Markdown twin first, then the home, list and section pages that list it, each under both URL forms (`/dir/` and `/dir/index.html`; with `urls.style: clean` also `/x`), from the same path code as the [page refresh](#refreshing-pages-on-demand) (`invalidation_paths_for`, `page_refresh/paths.py`). It **never collapses to `/*`**, whatever the count; it is **capped** at `publication.cache.maxInvalidationPaths` (default 25) paths per call, and above the cap the story's pages and then the listings are purged up to the cap and the rest are returned as `invalidationCapped` (with `edgePurged: false`), not retried and not a failed write. A **deploy never purges**, and neither do the whole-site render (`all`) and the follow-up render of other pages (`item-pages`): pages age out with the HTML lifetime (300 s), or use a [page refresh](#refreshing-pages-on-demand). A typical publish touches under 10 paths, so the cost is a few tenths of a cent beyond the free 1,000 paths a month. `"off"` purges nothing on a Save (60 s HTML lifetime); `"all"` restores the old behaviour above.
 - **Failure.** A failed purge does not make the item not live; the response says `edgePurged: false` and the function schedules an asynchronous `invalidate` task for the unpurged keys. If that keeps failing, Lambda sends it to the dead letter queue.
 - **Fallback.** `cache: { invalidation: "off" }` stops a Save from invalidating and shortens the HTML lifetime to 60 seconds (or `htmlSMaxAgeSeconds`). The `cloudfront:CreateInvalidation` statement and the path alarm stay, because an editor's explicit [page refresh](#refreshing-pages-on-demand) always invalidates when asked.
 - **Alarm.** Each invalidation call writes a CloudWatch embedded metric (`Papyrus/Edge` `InvalidatedPaths`, dimension `DistributionId`). The stack alarms when a week sums to 230 paths or more, which is the pace of the 1,000 free paths a month (CloudWatch cannot alarm across more than seven days).
@@ -1006,6 +1010,32 @@ What an editor can expect from a Save of a live item, as measured on the product
 
 Say "seconds", not "instant". Browsers always revalidate HTML (`max-age=0`).
 
+### What `content publish` reports, and its exit codes
+
+`papyrus ops content publish --id ID [--verify] [--verify-seconds N] [--json]` reports four stages on their own (PPY-f3b296). A purge or a check that fails never looks like a failed write.
+
+| Stage | Statuses | What it means |
+| --- | --- | --- |
+| `saved` | `ok` | The data is published (version number). Failing here means nothing is live. |
+| `projected` | `ok`, `scheduled`, `still-running`, `timed-out`, `failed`, `skipped`, `not-applicable` | The page is built. `pages` lists the page keys written. `still-running` is not a failure: the client stopped waiting while the page-building function was still working. `scheduled` is the operator (IAM) lane, which hands the work to the function and cannot see the result. |
+| `invalidated` | `ok`, `skipped`, `capped`, `failed`, `unknown` | The edge cache was told to drop the old page. `paths` were purged, `skippedPaths` were not (targeted mode over its cap). `skipped` is the site's own setting. |
+| `verified` | `current`, `stale`, `not-checked` | The public URL was fetched and its `papyrus-source-version` marker compared with the published version, with the same check `update-live` uses. Without `--verify` it is one fetch, and `stale` is only information (a site that lets pages age out is expected to be stale for a while). With `--verify` the command waits up to `--verify-seconds` (default 60) for the new version and `stale` is a failure. |
+
+`--json` prints the same `stages`, plus `ok`, `exitCode`, `failedStage`, `verdict` (the words `update-live` uses) and, on a failure, `dataPublished`, `pagePublished` and `retry`.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Every stage that ran worked |
+| 1 | The data could not be saved or published (any `PublishError` other than the checklist) |
+| 2 | The request could not run (bad flags, unknown story) |
+| 3 | `checklist-open`: a required checklist step is open. `--json` lists them as `openSteps: [{"key", "label"}]`; the text output prints one `open step:` line each |
+| 4 | The page could not be built (`failed`, or the function's own `timed-out`; running the command again is safe) |
+| 5 | The page is still being built and was not confirmed (not a failure; run it again, or add `--verify`, which changes nothing already done) |
+| 6 | The edge cache was not (fully) purged: refused, failed, or over the cap. The page is written |
+| 7 | With `--verify`, the public page still showed an older version when the wait ended |
+
+A script must check the exit code, not look for a marker in the text. The first failed stage, in the order saved, projected, invalidated, verified, decides the code. The call that builds the page now waits up to 120 s by default (`PAPYRUS_PROJECTION_TIMEOUT_SECONDS`) instead of the ordinary 30 s. Re-running a publish is safe: published data is not rewritten when unchanged and the pages are rebuilt from it. There is no job id to poll yet (that needs a backend change); `--verify` polls the public page instead, which needs the page address the signed-in lane reports.
+
 ### Refreshing pages on demand
 
 The edge keeps a page for the cache lifetime (one hour, `s-maxage=3600`, on the production sites; `publication.cache`), and that stays the default. For the moments an edit must be visible now, explicit operations exist (PPY-105508). They are one definition (`src/papyrus_content/page_refresh/operations.py`) behind the command line, the MCP tools and the `refreshSitePages` mutation, so the three cannot differ.
@@ -1025,7 +1055,7 @@ The edge keeps a page for the cache lifetime (one hour, `s-maxage=3600`, on the 
 
 - **Hard cap per call: 25 paths** (`publication.cache.maxInvalidationPaths`, per site). Above it the call is refused before anything is written, and the message names the flag: `--force-paths N` (`forcePaths` in the MCP tools). Nothing implies it: `--indexes`, `--all` and a re-render never raise the cap, so a site with more index pages than the cap refuses `--indexes` until someone forces it by number, after reading the list.
 - **Dry run first above 5 paths.** More than 5 paths is a dry run that prints the exact list until a second call adds `--run` (`confirm: true`). `--dry-run` forces a dry run at any size.
-- **No wildcard.** Exact paths only; a `*` in a requested path is refused, and a long list is never collapsed to `/*` (the publish path does that above 10 paths, these operations never do). There is no whole-site purge operation. If one is ever added it needs its own, clearly named force flag.
+- **No wildcard.** Exact paths only; a `*` in a requested path is refused, and a long list is never collapsed to `/*` (only a site set to `"all"` does that above 10 paths; these operations never do). There is no whole-site purge operation. If one is ever added it needs its own, clearly named force flag.
 - **Invalidation goes through the `content-actions` function**, not through the caller's AWS credentials. The signed-in command asks the `refreshSitePages` mutation (same editor groups as `publishItem`); the operator command invokes the function directly. Neither lane needs `cloudfront:CreateInvalidation`, and the function is where the cap and the dry-run rule live. A raw `aws cloudfront create-invalidation` bypasses the guard (this is what once purged 625 paths for one stale article): never use it, and agents are told never to.
 - An explicit refresh invalidates when asked, whatever `publication.cache.invalidation` is. That setting only decides whether a Save purges.
 - Cost: the first 1,000 paths a month are free, then 0.005 USD each. Every result prints the count and the most it can cost. The month's use so far is not tracked.

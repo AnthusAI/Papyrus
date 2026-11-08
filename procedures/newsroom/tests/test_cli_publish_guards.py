@@ -100,7 +100,7 @@ class SignedInProjectionTests(unittest.TestCase):
     def test_projection_the_newsroom_could_not_finish_exits_non_zero(self) -> None:
         client = saved(MutationClient({"ok": True, "projected": False, "error": "bucket denied"}))
         out, err, code, _invoke = run(content_publish, client, ["--id", ITEM], USER_LANE)
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 4)
         self.assertIn("data is published but the page is not live", err)
         self.assertIn("bucket denied", err)
         self.assertIn(f"papyrus ops content publish --id {ITEM}", err)
@@ -129,21 +129,21 @@ class FailedProjectionTests(unittest.TestCase):
 
     def test_text_output_says_data_published_page_not_and_gives_the_retry(self) -> None:
         client, out, err, code = self.failing(["--id", ITEM])
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 4)
         self.assertIn("changed", out)
         self.assertIn("the data is published but the page is not live", err)
         self.assertIn(f"Retry with: papyrus ops content publish --id {ITEM}", err)
 
     def test_json_output_carries_the_same_facts(self) -> None:
         _client, out, _err, code = self.failing(["--id", ITEM, "--json"])
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 4)
         payload = json.loads(out)
         self.assertEqual((payload["ok"], payload["dataPublished"], payload["pagePublished"]), (False, True, False))
         self.assertEqual(payload["retry"], f"papyrus ops content publish --id {ITEM}")
 
     def test_unpublish_failure_names_the_unpublish_retry(self) -> None:
         _client, _out, err, code = self.failing(["--id", ITEM], content_unpublish)
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 4)
         self.assertIn(f"papyrus ops content unpublish --id {ITEM}", err)
 
     def test_no_trigger_is_still_a_success(self) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import http.client
@@ -10,7 +11,7 @@ from . import request_meter
 from .env import graphql_endpoint, graphql_timeout_seconds, site_tenant_id
 from .guest_auth import refuse_guest_auth
 from .graphql_http import CREDENTIAL_REJECTION_STATUS_CODES, graphql_request_headers
-from .operator_errors import GraphQLRequestError, credential_recovery_guidance
+from .operator_errors import GraphQLRequestError, GraphQLTimeoutError, credential_recovery_guidance
 from .tenancy import (
     TENANT_MODELS,
     TenantError,
@@ -824,6 +825,8 @@ class PapyrusGraphQLAuthoringClient:
                 if attempt == attempts - 1:
                     if isinstance(error, GraphQLRequestError):
                         raise
+                    if isinstance(error, TimeoutError):
+                        raise GraphQLTimeoutError(f"GraphQL request failed: {error}") from error
                     raise GraphQLRequestError(f"GraphQL request failed: {error}") from error
                 continue
         if body is None:
@@ -837,6 +840,18 @@ class PapyrusGraphQLAuthoringClient:
         if not isinstance(data, dict):
             raise GraphQLRequestError("GraphQL response did not include data.")
         return data
+
+    @contextlib.contextmanager
+    def long_call(self, seconds: float):
+        """Wait up to ``seconds`` (never less than the client's own timeout) for the answers inside the block, e.g. a page-building mutation."""
+        previous = self.timeout_seconds
+        self.timeout_seconds = max(previous, seconds)
+        self._reset_connection()
+        try:
+            yield
+        finally:
+            self.timeout_seconds = previous
+            self._reset_connection()
 
     def _open_connection(self) -> http.client.HTTPSConnection:
         connection = http.client.HTTPSConnection(

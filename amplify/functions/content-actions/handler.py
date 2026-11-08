@@ -22,6 +22,7 @@ from papyrus_content.projection.runtime import (
     DEAD_LETTER_QUEUE_ENV,
     EDGE_DISTRIBUTION_ENV,
     context_from_environment,
+    targeted_invalidation,
     projection_configured,
     public_item_url,
     render_body_preflight,
@@ -78,7 +79,10 @@ def failure_response(error: PublishError) -> dict:
         errors = [body_error.to_dict() for body_error in error.errors]
     else:
         errors = [{"code": error.code, "message": error.message, "line": None}]
-    return {"ok": False, "errors": errors}
+    response = {"ok": False, "errors": errors}
+    if error.details:
+        response["details"] = error.details   # e.g. {"openSteps": [{"key", "label"}]} for checklist-open
+    return response
 
 
 def derive_markus_action(arguments: dict) -> dict:
@@ -146,6 +150,14 @@ def projection_context(client):
     return context
 
 
+def bulk_projection_context(client):
+    """The context for a deploy-time or whole-site render: in targeted mode (the default) it never purges, however few pages it wrote."""
+    context = projection_context(client)
+    if targeted_invalidation(os.environ):
+        context.invalidate = None
+    return context
+
+
 def project_item_action(client, item_id: str, *, unpublished: bool, published_item_id: str | None = None) -> dict:
     """Project one item. ``published_item_id`` is passed only for a real publish: the alert is announced once the page
     is live, here when the projection succeeds, or by the scheduled retry (which carries the same marker) when it did not."""
@@ -157,13 +169,14 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     task = {"task": "item", "itemId": item_id, "unpublished": unpublished}
     if published_item_id:
         task[PUBLISHED_TASK_KEY] = {"publishedItemId": published_item_id}
+    context = projection_context(client)
     try:
-        report = project(projection_context(client), item_id, unpublished=unpublished)
+        report = project(context, item_id, unpublished=unpublished)
     except Exception as error:  # noqa: BLE001 - a projection failure never fails the save
         message = f"{type(error).__name__}: {error}"
         schedule_projection_task(task, message)
         return {**liveness, "projected": False, "paths": [], "error": message}
-    response = {"projected": report.ok, "paths": [*report.written, *report.deleted]}
+    response = {"projected": report.ok, "paths": [*report.written, *report.deleted], "itemPaths": list(report.item_paths), "invalidation": invalidation_outcome(context, report)}
     if not unpublished:
         response["live"] = report.ok
         url = public_item_url(os.environ, report.item_paths)
@@ -179,11 +192,27 @@ def project_item_action(client, item_id: str, *, unpublished: bool, published_it
     if report.unpurged:
         response["edgePurged"] = False
         schedule_unpurged_invalidation(report.unpurged)
+    if report.invalidation_capped:
+        # targeted mode, over publication.cache.maxInvalidationPaths: the first paths were purged, the rest are named and not retried (never a wildcard)
+        response["edgePurged"] = False
+        response["invalidationCapped"] = report.invalidation_capped
     if report.follow_up_item_pages:
         schedule_projection_task({"task": "item-pages", "exceptItemId": item_id}, "follow-up")
     if report.ok and published_item_id:
         announce_published(item_id, published_item_id)
     return response
+
+
+def invalidation_outcome(context, report) -> dict:
+    """What the edge purge of this projection did, as its own outcome (PPY-2745c1): ``ok``, ``skipped`` (the site's setting or no distribution),
+    ``failed`` (retried by the function) or ``capped`` (targeted mode over its cap; the rest is named, never a wildcard)."""
+    if context.invalidate is None:
+        return {"status": "skipped", "reason": "this site does not invalidate on publish (publication.cache.invalidation is off, or it has no CloudFront distribution)", "paths": []}
+    if report.unpurged:
+        return {"status": "failed", "reason": "the purge was refused or failed; the function retries it", "paths": [], "unpurgedKeys": list(report.unpurged)}
+    if report.invalidation_capped:
+        return {"status": "capped", "reason": "more paths than publication.cache.maxInvalidationPaths; the first were purged, the rest were not", "paths": list(report.invalidated), "skippedPaths": list(report.invalidation_capped)}
+    return {"status": "ok", "paths": list(report.invalidated)}
 
 
 def schedule_unpurged_invalidation(keys: list[str]) -> None:
@@ -258,6 +287,8 @@ def run_deploy_render_task(client) -> dict:
     ensure_publication_from_environment(client)
     ensure_default_editorial_policies(client)
     context = projection_context(client)
+    if targeted_invalidation(os.environ):
+        context.invalidate = None  # the default, "targeted": a deploy never purges; pages age out with the HTML lifetime (PPY-2745c1)
     report = deploy_render(context)
     print(drift_metric_line(report))
     if report.render.unpurged:
@@ -302,13 +333,13 @@ def run_projection_task(task: dict) -> dict:
 def _run_projection_task(task: dict) -> dict:
     client, _claims = create_authoring_client()
     if task.get("task") == "item-pages":
-        report = project_item_pages(projection_context(client), except_item_id=task.get("exceptItemId"))
+        report = project_item_pages(bulk_projection_context(client), except_item_id=task.get("exceptItemId"))
     elif task.get("task") == "item":
         report = project(projection_context(client), task["itemId"], unpublished=bool(task.get("unpublished")))
         if report.follow_up_item_pages:
             schedule_projection_task({"task": "item-pages", "exceptItemId": task["itemId"]}, "follow-up")
     elif task.get("task") == "all":
-        report = project_all(projection_context(client))
+        report = project_all(bulk_projection_context(client))
     elif task.get("task") == "deploy-render":
         return run_deploy_render_task(client)
     elif task.get("task") == READER_SNAPSHOT_TASK:

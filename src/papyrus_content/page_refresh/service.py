@@ -174,25 +174,11 @@ class RefreshService:
 
     def _verify(self, own_keys: list[str], version: int | None, seconds: int) -> dict[str, Any]:
         """Fetch the story's public page under both URL forms until each shows ``version`` in its source-version marker, or the time is up."""
-        from .marker import source_version_of
-
         if not self.public_url:
             return {"checked": False, "reason": "this site has no public URL configured (PAPYRUS_SITE_PUBLIC_URL)"}
         html_keys = [key for key in own_keys if key.endswith(".html")][:1]
         urls = [self.public_url.rstrip("/") + path for path in paths_for_page_keys(html_keys) if not path.endswith(".md")]
-        deadline = time.monotonic() + max(0, seconds)
-        seen: dict[str, Any] = {}
-        while True:
-            for url in urls:
-                try:
-                    status, headers, body = self.fetch(url)
-                    seen[url] = {"status": status, "sourceVersion": source_version_of(body), "age": headers.get("age"), "xCache": headers.get("x-cache")}
-                except Exception as error:  # noqa: BLE001 - a fetch failure is evidence, not a crash
-                    seen[url] = {"status": None, "error": f"{type(error).__name__}: {error}"}
-            current = all(entry.get("status") == 200 and entry.get("sourceVersion") == version for entry in seen.values())
-            if current or time.monotonic() >= deadline:
-                return {"checked": True, "expectedVersion": version, "current": current, "urls": seen}
-            self.sleep(5)
+        return verify_public_urls(urls, version, seconds, fetch=self.fetch, sleep=self.sleep)
 
     # ------------------------------------------------------------------ inspect: what is wrong with a page, stage by stage
 
@@ -345,6 +331,28 @@ class RefreshService:
         except Exception as error:  # noqa: BLE001 - reported as the invalidation's outcome, separate from any write
             return {**base, "ok": False, "status": "failed", "requests": list(getattr(error, "made", [])), "error": f"{type(error).__name__}: {error}"}
         return {**base, "ok": True, "status": "invalidated", "requests": made, "distributionId": self.distribution_id}
+
+
+def verify_public_urls(urls: Sequence[str], version: int | None, seconds: float, *, fetch: Callable = _fetch, sleep: Callable[[float], None] = time.sleep) -> dict[str, Any]:
+    """Fetch these public URLs until each shows ``version`` in its source-version marker, or ``seconds`` pass. The one check ``update-live`` and
+    ``content publish --verify`` share (PPY-f3b296); ``current`` is true only when every URL answered 200 with that version."""
+    from .marker import source_version_of
+
+    if not urls:
+        return {"checked": False, "reason": "there is no public page URL to check"}
+    deadline = time.monotonic() + max(0, seconds)
+    seen: dict[str, Any] = {}
+    while True:
+        for url in urls:
+            try:
+                status, headers, body = fetch(url)
+                seen[url] = {"status": status, "sourceVersion": source_version_of(body), "age": headers.get("age"), "xCache": headers.get("x-cache")}
+            except Exception as error:  # noqa: BLE001 - a fetch failure is evidence, not a crash
+                seen[url] = {"status": None, "error": f"{type(error).__name__}: {error}"}
+        current = all(entry.get("status") == 200 and entry.get("sourceVersion") == version for entry in seen.values())
+        if current or time.monotonic() >= deadline:
+            return {"checked": True, "expectedVersion": version, "current": current, "urls": seen}
+        sleep(5)
 
 
 def verdict_of(rendered: dict, invalidation: dict, verification: dict) -> str:
