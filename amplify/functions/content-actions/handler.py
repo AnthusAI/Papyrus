@@ -11,12 +11,16 @@ from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
 from papyrus_content.projection.lease import ProjectionLeaseHeld
 from papyrus_content.projection.engine import project, project_all, project_item_pages
+from papyrus_content.page_refresh.operations import BY_NAME as PAGE_REFRESH_OPERATIONS, run_operation as run_page_refresh, validate as validate_page_refresh
+from papyrus_content.page_refresh.budget import DRY_RUN_ABOVE, budget_from_environment
+from papyrus_content.page_refresh.service import RefreshError, RefreshService
 from papyrus_content.home_page.runtime import stores_for as home_page_stores_for
 from papyrus_content.home_page.task import TASK_NAME as HOME_PAGE_SNAPSHOT_TASK, home_page_settings_of, run_home_page_snapshot
 from papyrus_content.projection.story_stars_task import TASK_NAME as STORY_STARS_TASK, run_story_stars_task
 from papyrus_content.reader_steering.task import TASK_NAME as READER_SNAPSHOT_TASK, run_reader_snapshot
 from papyrus_content.projection.runtime import (
     DEAD_LETTER_QUEUE_ENV,
+    EDGE_DISTRIBUTION_ENV,
     context_from_environment,
     projection_configured,
     public_item_url,
@@ -186,6 +190,60 @@ def schedule_unpurged_invalidation(keys: list[str]) -> None:
     schedule_projection_task({"task": "invalidate", "keys": keys}, "edge invalidation failed")
 
 
+PAGE_REFRESH_RERENDER_TASK = "page-refresh-rerender"
+
+
+def refresh_service(client, who: str = "content-actions") -> RefreshService:
+    """The page-refresh operations (``papyrus_content/page_refresh``) over this site's projection context and CloudFront distribution.
+
+    This function is the only place the operations purge: it enforces the per-call path cap and dry-run-first. A caller never needs ``cloudfront:CreateInvalidation`` itself."""
+    return RefreshService(
+        distribution_id=(os.environ.get(EDGE_DISTRIBUTION_ENV) or "").strip() or None,
+        context=lambda: projection_context(client),
+        budget=budget_from_environment(os.environ),
+        public_url=(os.environ.get("PAPYRUS_SITE_PUBLIC_URL") or "").strip() or None,
+    )
+
+
+def refresh_site_pages_action(arguments: dict, who: str = "content-actions") -> dict:
+    """An editor's or agent's page refresh (PPY-105508): the operations the CLI and the MCP tools run, here with the function's own AWS rights.
+
+    Purging is quick and runs now. A re-render of every index page or of the whole site can outlast the request, so once it has passed the
+    guard it is scheduled as an asynchronous task that re-renders and then purges what it wrote; the answer says so.
+    """
+    name = str(arguments.get("operation") or "")
+    inputs = {key: value for key, value in arguments.items() if key != "operation"}
+    if not projection_configured():
+        return {"ok": False, "operation": name, "error": {"code": "not_projected", "message": "This site does not project its pages to S3, so there is no edge cache to refresh from here."}}
+    operation = PAGE_REFRESH_OPERATIONS.get(name)
+    if operation is None:
+        return run_page_refresh(name, inputs, refresh_service(None, who))
+    try:
+        validate_page_refresh(operation, inputs)
+    except RefreshError as error:
+        return {"ok": False, "operation": name, "error": {"code": error.code, "message": error.message}}
+    client, _claims = create_authoring_client()
+    service = refresh_service(client, who)
+    if name == "site_rerender_pages" and inputs["scope"] != "story" and not inputs.get("dryRun"):
+        checked = run_page_refresh(name, {**inputs, "dryRun": True}, service)   # the guard first: nothing is scheduled that would be refused or is only a preview
+        guard = (checked.get("invalidation") or {}).get("guard") or {}
+        if checked.get("error") or not checked.get("ok"):
+            return checked
+        if guard.get("refusal"):
+            return {**checked, "ok": False, "dryRun": False, "error": guard["refusal"]}
+        if not inputs.get("confirm") and checked["invalidation"]["count"] > DRY_RUN_ABOVE:
+            return {**checked, "needsRun": True, "hint": "This was a dry run: more than 5 paths need a second, explicit call. Repeat the same request with --run (confirm: true) to do it."}
+        task = {"task": PAGE_REFRESH_RERENDER_TASK, "scope": inputs["scope"], "invalidate": inputs.get("invalidate", True), "forcePaths": inputs.get("forcePaths"), "who": who}
+        if not schedule_projection_task(task, "page refresh"):
+            return {"ok": False, "operation": name, "error": {"code": "not_scheduled", "message": "The re-render could not be scheduled; nothing was written."}}
+        return {
+            "ok": True, "operation": name, "dryRun": False, "target": {"scope": inputs["scope"]}, "scheduled": True,
+            "rendered": {"ok": None, "scheduled": True, "count": 0, "errors": []},
+            "invalidation": {"ok": True, "status": "scheduled" if inputs.get("invalidate", True) is not False else "not-requested", "paths": checked["invalidation"]["paths"], "count": checked["invalidation"]["count"], "requests": [], "cost": checked["invalidation"]["cost"]},
+        }
+    return run_page_refresh(name, inputs, service)
+
+
 def ensure_default_editorial_policies(client) -> None:
     """A deployed site starts with working editorial policies. Never fails the deploy: a problem is logged."""
     try:
@@ -261,6 +319,11 @@ def _run_projection_task(task: dict) -> dict:
         result = run_story_stars_task(projection_context(client), client, task)
         if result.get("errors"):
             raise ProjectionTaskFailed("; ".join(result["errors"]))
+        return result
+    elif task.get("task") == PAGE_REFRESH_RERENDER_TASK:
+        result = refresh_service(client, task.get("who") or "scheduled").rerender(task["scope"], lineage=task.get("storyLineageId"), invalidate=task.get("invalidate", True) is not False, confirm=True, force_paths=task.get("forcePaths"))
+        if not result["ok"]:
+            raise ProjectionTaskFailed(json.dumps({"rendered": result.get("rendered"), "invalidation": {key: result["invalidation"].get(key) for key in ("status", "error")}}))
         return result
     elif task.get("task") == "invalidate":
         invalidate = projection_context(client).invalidate
@@ -517,6 +580,8 @@ def create_story_from_reference_action(arguments: dict, actor: str) -> dict:
 def handler(event, context):
     if PROJECTION_TASK_KEY in event:
         return run_projection_task(event[PROJECTION_TASK_KEY])
+    if "refreshSitePages" in event:   # a direct invocation by an operator's profile: the operator lane needs no CloudFront rights of its own
+        return refresh_site_pages_action(event["refreshSitePages"], str(event.get("who") or "operator"))
     field = event["fieldName"]
     arguments = parse_input(event["arguments"]["input"])
     actor = actor_from_event(event)
@@ -564,6 +629,8 @@ def handler(event, context):
             return unpublish_item_action(arguments, actor)
         if field == "suggestReferenceLinks":
             return suggest_reference_links_action(arguments)
+        if field == "refreshSitePages":
+            return refresh_site_pages_action(arguments, actor)
         if field == "requestStagingBuild":
             return request_staging_build_action()
     except PublishError as error:

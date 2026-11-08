@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
 
 from ..edge_invalidation import invalidate_distribution
+from ..page_refresh.paths import paths_for_page_keys
 
 STATE_PREFIX = "_papyrus/"
 HEAD_WORKERS = 16
@@ -74,6 +75,7 @@ class StoredObject:
     etag: str | None = None
     version: int | None = None
     inputs: str | None = None
+    last_modified: str | None = None   # ISO time the store wrote it (S3 LastModified), where the store says
 
 
 def body_etag(body: bytes) -> str:
@@ -132,6 +134,8 @@ class LocalDirectoryWriter:
 
 
 class S3PageWriter:
+    source_markers = True   # item pages end with the papyrus-source-version marker (page_refresh/marker.py)
+
     def __init__(
         self, bucket: str, s3_client: Any = None, html_s_maxage_seconds: int = DEFAULT_HTML_S_MAXAGE_SECONDS
     ) -> None:
@@ -155,6 +159,7 @@ class S3PageWriter:
             etag=str(headers.get("ETag", "")).strip('"') or None,
             version=int(version) if version not in (None, "") else None,
             inputs=metadata.get(INPUTS_METADATA_KEY),
+            last_modified=headers["LastModified"].isoformat() if hasattr(headers.get("LastModified"), "isoformat") else None,
         )
 
     def head(self, key: str) -> StoredObject | None:
@@ -231,14 +236,9 @@ def request_paths_for_key(key: str) -> tuple[str, ...]:
     return ("/" + key,)
 
 
-def invalidation_paths_for(keys: list[str]) -> list[str]:
-    paths: list[str] = []
-    for key in keys:
-        paths.append("/" + key)
-        if PurePosixPath(key).name == "index.html":
-            directory = str(PurePosixPath(key).parent)
-            paths.append("/" if directory == "." else f"/{directory}/")
-    return list(dict.fromkeys(paths))
+def invalidation_paths_for(keys: list[str], url_style: str = "html") -> list[str]:
+    """The request paths to invalidate for written page keys, every form a page is cached under (``page_refresh/paths.py``)."""
+    return paths_for_page_keys(keys, url_style)
 
 
 class CloudFrontInvalidator:

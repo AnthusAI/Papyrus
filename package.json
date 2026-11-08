@@ -147,6 +147,7 @@
     "test:site-backend-synth": "tsx scripts/test-site-backend-synth.ts",
     "test:scheduled-job-synth": "tsx scripts/test-scheduled-job-synth.ts",
     "test:reader-cache-lifetime": "tsx scripts/test-reader-cache-lifetime.ts",
+    "test:page-refresh": "poetry run pytest -q procedures/newsroom/tests/test_page_refresh.py && poetry run behave features_backend/page-inspect.feature features_backend/page-refresh.feature features_backend/page-refresh-editor-lane.feature",
     "test:s3-projection-publication": "tsx scripts/test-s3-projection-publication.ts",
     "test:renditions-function": "tsx scripts/test-renditions-function.ts",
     "test:redirect-and-index-function": "node scripts/test-redirect-and-index-function.mjs",

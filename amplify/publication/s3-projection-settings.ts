@@ -11,7 +11,7 @@ export type S3ProjectionSettingsInput = {
   distributionArn?: string;
   distributionId?: string;
   publicHostName?: string;
-  cache?: { htmlSMaxAgeSeconds?: number; invalidation?: "targeted" | "off" };
+  cache?: { htmlSMaxAgeSeconds?: number; invalidation?: "targeted" | "off"; maxInvalidationPaths?: number };
   projector?: string;
   staticDir?: string;
 };
@@ -39,6 +39,7 @@ export function s3ProjectionEnvironment(input: S3ProjectionSettingsInput): Recor
   environment.PAPYRUS_REDIRECTS_KVS_ARN = input.keyValueStoreArn;
   environment.PAPYRUS_PROJECTION_DLQ_URL = input.deadLetterQueueUrl;
   if (input.cache?.htmlSMaxAgeSeconds !== undefined) environment.PAPYRUS_HTML_S_MAXAGE_SECONDS = String(input.cache.htmlSMaxAgeSeconds);
+  if (input.cache?.maxInvalidationPaths !== undefined) environment.PAPYRUS_INVALIDATION_MAX_PATHS = String(input.cache.maxInvalidationPaths);
   if (input.cache?.invalidation === "off") environment.PAPYRUS_EDGE_INVALIDATION = "off";
   if (input.publicHostName !== undefined) environment.PAPYRUS_SITE_PUBLIC_URL = `https://${input.publicHostName}`;
   if (input.projector !== undefined) environment.PAPYRUS_SITE_PROJECTOR = S3_PROJECTION_PROJECTOR_MODULE;
@@ -51,7 +52,8 @@ export function s3ProjectionPolicyStatements(input: S3ProjectionSettingsInput): 
     { actions: ["s3:PutObject", "s3:DeleteObject", "s3:GetObject"], resources: [`${input.bucketArn}/*`] },
     { actions: ["s3:ListBucket"], resources: [input.bucketArn] },
   ];
-  if (input.distributionArn !== undefined && input.cache?.invalidation !== "off") {
+  // Kept even when cache.invalidation is "off": that setting only stops a Save purging; an editor's explicit page refresh (PPY-105508) always may.
+  if (input.distributionArn !== undefined) {
     statements.push({ actions: ["cloudfront:CreateInvalidation"], resources: [input.distributionArn] });
   }
   statements.push(
