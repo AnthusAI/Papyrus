@@ -168,6 +168,8 @@ check itself is unchanged.
 
 ## Creating stories and discovering commands
 
+`papyrus stories link-story --story LINEAGE|SLUG --to LINEAGE|SLUG [--to ...] [--note TEXT] [--dry-run] [--json]` links a story to related stories for its Related block with the one official `related_to` relation (no relation can be chosen); a link in either direction counts as the same link, so repeating writes nothing, and a target that is not published yet is warned about. `stories show` lists a story's related stories (and any item-to-item relation under a non-official name). It writes unless `--dry-run`. See [Linking stories to each other](story-reporting.md#linking-stories-to-each-other).
+
 `papyrus items link-references --site KEY [--role consulted|cited|based_on] [--json] [--dry-run]` links the stories whose text already links to a Reference's address to that Reference (see [Stories based on a Reference](reference-curation-pipeline.md#6a-stories-based-on-a-reference-core-rules)); it writes unless `--dry-run`.
 
 `papyrus references duplicates [--format text|json] [--groups] [--skip-text-hashes]` is a read-only report of duplicate References in the publication the CLI is configured for. It groups current References that share an identity key (canonical URL, arXiv id, DOI, captured-text hash; [the identity gate](automated-processes.md#reference-identity-the-one-gate-for-every-path-that-creates-a-reference)) and counts same-title groups as candidates, never as duplicates. `--format json` prints the counts and every group's members; `--groups` adds them to the text output; `--skip-text-hashes` skips reading the attachments. It writes nothing. Spec: `features_backend/reference-identity.feature`.

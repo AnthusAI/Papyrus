@@ -200,6 +200,38 @@ answers with a message that says to use the IAM lane until it is deployed ([spec
 shows each reference with its role, note and the person or agent who attached it, and marks a reference "in the text" when
 the latest draft's citations include its citation key.
 
+## Linking stories to each other
+
+A story's Related block lists other stories that go with it (an article to related articles, a larger story to several posts). The link is one
+`SemanticRelation` of type `related_to` between two stories (Items), subject to object, metadata `kind: story.link` with `addedBy`, `addedAt` and an
+optional `note`. **This is the only supported way to write one, and the public page reads exactly this relation**: the name lives in one constant
+(`STORY_LINK_RELATION` in `src/papyrus_content/story_links.py`) that the writer, `stories show` and the tests all use. `SemanticRelation.predicate` is a
+free string in the schema, so the guard is in our writers: no command, tool or argument can choose another relation name (`--relation related_to` is
+tolerated, any other value is refused with the allowed value), and `link_stories` refuses to write any other predicate or a record without the seeded
+relation type. A story-to-story relation someone writes by hand under another name is never shown as Related; `stories show` lists it as an
+`unofficial-relation` line (`stories show --json` as `unofficialRelations`) so it is visible instead of silently ignored.
+
+```bash
+papyrus stories link-story --story <lineage-or-slug> --to <lineage-or-slug> [--to <...>] [--note TEXT] [--dry-run] [--json]
+```
+
+Both ends must be existing stories (any story type, article or post; not a wiki page or doctrine), a story cannot be linked to itself, and everything
+is checked before anything is written. `related_to` is symmetric, so A to B and B to A are the same link: if either direction exists the line says
+`exists` and nothing is written, so repeating is safe. Each target prints its title, type and stage; a target that is not published yet gets a warning
+(not an error) because the public block shows published stories only. Who added it is taken from the sign-in session exactly as for `link-reference`
+(`--author-label` ignored when signed in, required on the IAM lane); the `write` line prints only after the save, and `--dry-run` prints `dry run`.
+`papyrus stories show` lists the related stories from either end (`related` lines: lineage id, title, type, stage, note).
+
+Agents use the same code through `papyrus_link_stories(story, related_to_stories[], author_label, note?)` (a Tactus tool in
+`papyrus_newsroom/tactus_tools.py`, available to every procedure that loads the `papyrus` toolset) and the MCP-shaped `papyrus_link_stories`
+(`story_signals_mcp.py`, `additionalProperties: false`, no relation field). Neither has any field for a relation type.
+
+**Removing a link is not a command.** The editor and administrator groups can create a `SemanticRelation` but never update or delete one, so removal
+needs a backend change: a `status` (or `relationState: retired`) field written through a new route like `setStoryReferenceRole`
+(a mutation on the `category-action` Lambda, editor and admin groups, refusing any relation that is not a `story.link`), a reader that skips
+retired links, and an `unlink-story` command that calls it. Today an operator on the IAM lane (`PAPYRUS_GRAPHQL_AUTH=iam`) can delete the row, or an
+editor can ask an operator to; there is no editor-side retirement. Spec: `features_backend/story-links.feature`.
+
 ## Notes: people write Messages, agents write agent notes
 
 Messages come only from people. A person's note is a `Message`, and the newsroom, not the caller, says who wrote it. An AI agent never

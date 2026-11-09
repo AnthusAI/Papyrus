@@ -125,6 +125,20 @@ def papyrus_link_story_reference(story: str, reference: str, role: str, author_l
     return link_reference_to_story(client, story, reference, role=role, actor=author_label, note=note or None, citation_key=citation_key or None)
 
 
+def papyrus_link_stories(story: str, related_to_stories: Any, author_label: str, note: str = "") -> dict:
+    """Link a story to other stories for its Related block: pass the story (lineage id or slug) and related_to_stories (a list, or comma separated), each a lineage id or slug.
+    There is no relation to choose. Every one must be an existing story and none the story itself; a link that exists in either direction is left alone.
+    Returns one row per target with its title, type, stage, outcome (write or exists) and a warning when it is not published yet."""
+
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.story_links import link_story_set, resolve_link_targets
+
+    targets = related_to_stories.split(",") if isinstance(related_to_stories, str) else list(related_to_stories or [])
+    client, _ = create_authoring_client()
+    resolved, others = resolve_link_targets(client, story, targets)
+    return {"story": resolved.get("lineageId") or resolved["id"], "links": link_story_set(client, resolved, others, actor=author_label, note=note or None)}
+
+
 def papyrus_find_or_register_source(url: str, title: str, corpus: str, author_label: str, media_type: str = "text/html", rationale: str = "") -> dict:
     """Return the publication's Reference for a source URL (an opinion PDF, a notice, an article),
     registering it as pending in the corpus when it is new. Use its id with papyrus_link_story_reference."""
