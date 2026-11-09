@@ -219,8 +219,8 @@ Roles: `consulted`, `cited`, `based_on`. `stories create --reference ID` links `
 **Lane:** editor. **Version:** 5.100.0.
 
 ```sh
-papyrus references set-stars --reference REFERENCE_ID --stars 4 --agent "news desk" --dry-run
-papyrus stories set-stars --story LINEAGE --stars 4 --agent "news desk" --dry-run
+papyrus references set-stars --reference REFERENCE_ID --stars 4 --agent "editor agent" --dry-run
+papyrus stories set-stars --story LINEAGE --stars 4 --agent "editor agent" --dry-run
 ```
 
 `--stars` is 1 to 5, `clear` for a Reference, `0` for a Story. The rating is recorded as the signed-in person's, with a note that it came through the CLI. It does not accept or reject.
@@ -322,7 +322,7 @@ papyrus stories lens-check --story LINEAGE --static web
 papyrus stories check-links --story LINEAGE
 papyrus references check-links --reference REFERENCE_ID
 papyrus stories next --story LINEAGE
-papyrus stories step --story LINEAGE --step copy_edit --state done --note "Checked against the house rules" --agent "news desk" --dry-run
+papyrus stories step --story LINEAGE --step copy_edit --state done --note "Checked against the house rules" --agent "editor agent" --dry-run
 ```
 
 - `check-version` runs the editorial rules on a saved version and stores the result with it. `lens-check` prints `finding LENS RULE STATE ...` rows; four problems must be fixed before a lens step can close (image without alt text, third-party image without credit, video without title or credit, Markdown copy that differs from the source). `--static` is the site's web directory (default `PAPYRUS_SITE_STATIC_DIR`).
