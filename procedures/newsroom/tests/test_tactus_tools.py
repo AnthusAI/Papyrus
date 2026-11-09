@@ -43,10 +43,12 @@ class TactusToolsModuleTests(unittest.TestCase):
                 "papyrus_link_stories",
                 "papyrus_link_story_reference",
                 "papyrus_record_editor_review",
+                "papyrus_related_concepts",
                 "papyrus_save_story_version",
                 "papyrus_set_story_slug",
                 "papyrus_story_version",
                 "papyrus_story_versions",
+                "papyrus_suggest_links",
             ],
         )
 

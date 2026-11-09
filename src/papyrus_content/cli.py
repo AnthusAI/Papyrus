@@ -365,6 +365,8 @@ PORTED_COMMANDS = frozenset(
         "stories:versions",
         "stories:link-reference",
         "stories:link-story",
+        "stories:suggest-links",
+        "relations:related",
         "stories:note",
         "stories:agent-note",
         "stories:show",
@@ -869,6 +871,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         getattr(concept_tags_commands, route.replace(":", "_").replace("-", "_"))(flags)
     elif route == "stories:link-story":
         stories_link_story(flags)
+    elif route in ("stories:suggest-links", "relations:related"):
+        from . import link_suggestions_commands
+
+        (link_suggestions_commands.stories_suggest_links if route == "stories:suggest-links" else link_suggestions_commands.relations_related)(flags)
     elif route == "stories:note":
         stories_note(flags)
     elif route == "stories:agent-note":
