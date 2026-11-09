@@ -57,7 +57,7 @@ def _link_concept(flags: list[str], group: str, target_kind: str, target_flag: s
         page = "public page" if row["publicPage"] else "no public page"
         print("\t".join([group, "link-concept", row["target"], str(row["nodeKey"]), row["name"], page, row["outcome"]]))
         if row.get("legacy"):
-            print(f"{group}\tlink-concept\twarning\t{row['name']} is already tagged with the legacy related_to; nothing was written (migrate later).", file=sys.stderr)
+            print(f"{group}\tlink-concept\twarning\t{row['name']} is already tagged with the legacy related_to; nothing was written (`papyrus relations migrate-concept-tags` moves it to tagged_with).", file=sys.stderr)
         if row.get("warning"):
             print(f"{group}\tlink-concept\twarning\t{row['warning']}", file=sys.stderr)
 
@@ -86,21 +86,28 @@ def references_link_concept(flags: list[str]) -> None:
     _link_concept(flags, "references", "reference", "reference")
 
 
-def _print_findings(group: str, checked: int, findings: list[dict], as_json: bool, label: str) -> None:
+def _print_findings(group: str, checked: int, findings: list[dict], as_json: bool, label: str, *, legacy_only: bool = False) -> None:
+    legacy = [f for f in findings if f["problem"] == "legacy: migrate"]
+    if legacy_only:
+        findings = legacy
     if as_json:
-        print(json.dumps({"ok": True, "checked": checked, "problems": len(findings), "findings": findings}, indent=2))
+        print(json.dumps({"ok": True, "checked": checked, "problems": len(findings), "legacy": len(legacy), "findings": findings}, indent=2))
         return
     for f in findings:
         print("\t".join([group, "check-links", str(f["owner"]), f["problem"], str(f["predicate"]), str(f["state"]), str(f["object"]), f["detail"], str(f["relationId"])]))
+    if legacy_only:
+        print(f"{group}\tcheck-links\t{len(legacy)} legacy related_to tag(s) still to migrate across {checked} {label}")
+        return
     print(f"{group}\tcheck-links\t{len(findings)} problem(s) across {checked} {label}")
 
 
 def stories_check_links(flags: list[str]) -> None:
-    """papyrus stories check-links [--story <lineage|slug>] [--json]
+    """papyrus stories check-links [--story <lineage|slug>] [--legacy-only] [--json]
 
     Read only. Lists, for the published stories (or one story), every story-to-story and story-to-concept relation that is not the official shape: a wrong predicate or
     kind, a state that is not current, a concept that is missing, not accepted or has no public page, a story target that is not published, a legacy related_to tag
-    ("legacy: migrate"), and duplicate pairs. Fixing is out of scope. Cost: one read of the published-story summaries, then three index reads per story (25 keys to a request)
+    ("legacy: migrate"; a row `papyrus relations migrate-concept-tags` has retired is `superseded` and is not read), and duplicate pairs. `--legacy-only` lists only the
+    legacy tags and ends with their count. Fixing is out of scope. Cost: one read of the published-story summaries, then three index reads per story (25 keys to a request)
     and one batched read of the concepts they name."""
     options = parse_options(flags)
     client, _ = create_authoring_client()
@@ -112,11 +119,11 @@ def stories_check_links(flags: list[str]) -> None:
         lineages = [found.get("lineageId") or found["id"]]
     else:
         lineages = sorted({str(row["itemLineageId"]) for row in client.list_published_item_summaries() if row.get("itemLineageId") and row.get("type") not in SYSTEM_ITEM_TYPES})
-    _print_findings("stories", len(lineages), audit_story_links(client, lineages), bool(options.get("json")), "stories")
+    _print_findings("stories", len(lineages), audit_story_links(client, lineages), bool(options.get("json")), "stories", legacy_only=bool(options.get("legacy-only")))
 
 
 def references_check_links(flags: list[str]) -> None:
-    """papyrus references check-links (--reference <id|lineage> | --corpus-id ID) [--json]
+    """papyrus references check-links (--reference <id|lineage> | --corpus-id ID) [--legacy-only] [--json]
 
     Read only. The same audit for Reference-to-concept relations. With --corpus-id it checks the corpus's accepted References, read through the
     referencesByCurationStatusKey index; the relations come from the subject-state index (three keys per Reference, 25 keys to a request), the concepts from one batched
@@ -137,4 +144,4 @@ def references_check_links(flags: list[str]) -> None:
                            if row.get("versionState", "current") == "current"})
     else:
         raise ValueError("references check-links needs --reference ID or --corpus-id ID.")
-    _print_findings("references", len(lineages), audit_reference_links(client, lineages), bool(options.get("json")), "References")
+    _print_findings("references", len(lineages), audit_reference_links(client, lineages), bool(options.get("json")), "References", legacy_only=bool(options.get("legacy-only")))

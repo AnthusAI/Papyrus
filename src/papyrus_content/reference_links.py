@@ -60,6 +60,9 @@ def _state_keys(subject_kind: str, subject_lineage_id: str, object_kind: str, ob
     }
 
 
+relation_state_keys = _state_keys   # the four state keys of an edge, for the one migration that rewrites them (concept_tag_migration.py)
+
+
 def _stored_metadata(row: dict[str, Any] | None) -> dict[str, Any]:
     if not row:
         return {}

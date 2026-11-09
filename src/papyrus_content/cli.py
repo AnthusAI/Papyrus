@@ -449,6 +449,7 @@ PORTED_COMMANDS = frozenset(
         "newsroom:purge-planning",
         "relations:import-types",
         "relations:backfill",
+        "relations:migrate-concept-tags",
         "ontology:preflight",
         "ontology:rank",
         "ontology:status",
@@ -1047,6 +1048,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         relations_import_types(flags)
     elif route == "relations:backfill":
         relations_backfill(flags)
+    elif route == "relations:migrate-concept-tags":
+        from .relations_commands import relations_migrate_concept_tags
+
+        relations_migrate_concept_tags(flags)
     elif route.startswith("ontology:"):
         from .ontology_enrichment import (
             ontology_associate,
