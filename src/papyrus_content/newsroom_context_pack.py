@@ -930,8 +930,9 @@ def section_concepts_layer(situation: Situation) -> tuple[list[Entry], str | Non
 
 
 def concept_reference_candidates(situation: Situation) -> list[tuple[dict[str, Any], list[str]]]:
-    """Accepted References tagged with (related_to) or mentioning (mentions) a core concept, best first, each with the labels of the concepts."""
-    from .concept_link_predicates import RELATED_TO, is_reference_concept_link
+    """Accepted References tagged with (tagged_with, or the legacy related_to) or mentioning (mentions) a core concept, best first, each with the labels of the concepts."""
+    from .concept_link_predicates import is_reference_concept_link
+    from .reference_links import CONCEPT_TAG_PREDICATES
     from .section_concepts import concept_label
 
     accepted = {str(row.get("lineageId") or row["id"]): row for row in situation.accepted_references()}
@@ -943,7 +944,7 @@ def concept_reference_candidates(situation: Situation) -> list[tuple[dict[str, A
             reference = str(relation.get("subjectLineageId") or "")
             if (is_reference_concept_link(relation.get("predicate"), relation.get("subjectKind"), relation.get("objectKind")) and reference in accepted
                     and reference not in attached):
-                way = "tagged" if relation["predicate"] == RELATED_TO else "mentioned"
+                way = "tagged" if relation["predicate"] in CONCEPT_TAG_PREDICATES else "mentioned"
                 labels.setdefault(reference, {}).setdefault(concept_label(node), way)
                 if way == "tagged":
                     labels[reference][concept_label(node)] = way

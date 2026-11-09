@@ -33,6 +33,14 @@ TOOLS_TABLE: dict[str, tuple[str, dict, str]] = {
         "note": _STR, "dryRun": {"type": "boolean"}}, ("story", "see_also_stories")),
         "Links a story to other stories for its See also block. Every one must be an existing story and none the story itself; a link that exists in either direction is left alone. "
         "Returns each target's title, type, stage, outcome (write, exists or dry run) and a warning when it is not published yet (the public block shows published stories only)."),
+    "papyrus_link_concepts": ("staff", _closed({
+        "target_kind": {"type": "string", "enum": ["story", "reference"]},
+        "target": {"type": "string", "description": "a story's lineage id or slug, or a Reference id"},
+        "concepts": {"type": "array", "items": _STR, "minItems": 1, "description": "exact node keys, hashtags, names or aliases of EXISTING accepted concepts"},
+        "note": _STR, "dryRun": {"type": "boolean"}}, ("target_kind", "target", "concepts")),
+        "Tags a story or a Reference with existing accepted concepts. Matching is exact (node key, hashtag, name or alias, case-insensitive); a concept is never created; an unknown name "
+        "returns the closest accepted concepts, an ambiguous one its node keys. Existing tags (also the older related_to, or mentions) are left alone and a rejected tag stays rejected. "
+        "Returns each concept's outcome and whether it has a public wiki page (a warning says when it does not). No field chooses a relation or a state."),
 }
 
 
@@ -69,4 +77,12 @@ def call_story_signal_tool(name: str, arguments: dict[str, Any], client, actor: 
         story, others = resolve_link_targets(client, args["story"], list(args["see_also_stories"]))
         rows = link_story_set(client, story, others, actor=actor, provenance="derived", note=args.get("note") or None, apply=not args.get("dryRun"))
         return {"story": story.get("lineageId") or story["id"], "dryRun": bool(args.get("dryRun")), "links": rows}
+    if name == "papyrus_link_concepts":
+        from .concept_tags import tag_with_concepts
+
+        unknown = set(args) - {"target_kind", "target", "concepts", "note", "dryRun"}
+        if unknown:
+            raise ValueError(f"Unknown argument(s) for papyrus_link_concepts: {', '.join(sorted(unknown))}. There is no relation or state to choose.")
+        return tag_with_concepts(client, args["target_kind"], args["target"], list(args["concepts"]), actor=actor, provenance="derived", note=args.get("note") or None,
+                                 apply=not args.get("dryRun"))
     raise ValueError(f"Unknown story tool {name}.")

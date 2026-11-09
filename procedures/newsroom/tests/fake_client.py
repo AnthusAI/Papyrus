@@ -22,6 +22,7 @@ INDEX_MODELS = {
     "assignmentsByItemLineageAndCreatedAt": "Assignment",
     "itemsByParent": "Item",
     "itemsByStage": "Item",
+    "publishedItemsByTypeStatus": "PublishedItem",
 }
 
 

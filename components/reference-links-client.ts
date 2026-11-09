@@ -94,7 +94,7 @@ export function createNetworkReferenceLinksStore(): ReferenceLinksStore {
     },
     async listForReference(referenceLineageId) {
       const relations = (await relationsAround("reference", referenceLineageId, "both")) as RelationRow[];
-      const candidates = relations.filter(row => row.predicate === "related_to");
+      const candidates = relations.filter(row => row.predicate === "related_to" || (row.predicate === "tagged_with" && row.objectKind === "semanticNode"));
       const conceptIds: string[] = [];
       const referenceIds: string[] = [];
       for (const row of candidates) {

@@ -226,7 +226,7 @@ is checked before anything is written. `see_also` is symmetric, so A to B and B 
 
 Agents use the same code through `papyrus_link_stories(story, see_also_stories[], author_label, note?)` (a Tactus tool in
 `papyrus_newsroom/tactus_tools.py`, available to every procedure that loads the `papyrus` toolset) and the MCP-shaped `papyrus_link_stories`
-(`story_signals_mcp.py`, `additionalProperties: false`, no relation field). Neither has any field for a relation type.
+(`story_signals_mcp.py`, `additionalProperties: false`, no relation field). Neither has any field for a relation type. No server registers the MCP-shaped table today.
 
 **Deploy.** `see_also` is a new seeded relation type. A site accepts the row without it (`relationTypeId` is a plain id and `predicate` a free string), but its relation-type table should hold it: on each site run `papyrus relations import-types --config corpora/papyrus-semantic-relation-types.yml` (an idempotent upsert of the seeds; the CLI must be the release that carries the new seed). No schema change, no backfill (no `see_also` row exists yet).
 
@@ -235,6 +235,39 @@ needs a backend change: a `status` (or `relationState: retired`) field written t
 (a mutation on the `category-action` Lambda, editor and admin groups, refusing any relation that is not an `item.link`), a reader that skips
 retired links, and an `unlink-story` command that calls it. Today an operator on the IAM lane (`PAPYRUS_GRAPHQL_AUTH=iam`) can delete the row, or an
 editor can ask an operator to; there is no editor-side retirement. Spec: `features_backend/story-links.feature`.
+
+## Tagging with concepts
+
+A story or a Reference is tagged with a concept by one edge: `tagged_with` (label "tagged with"), from the story or Reference to a `SemanticNode` whose status is
+`accepted`, `relationState` `current`, metadata `kind` `item.concept` (stories) or `reference.concept` (References), `provenance` `human` (a signed-in person) or
+`derived` (an agent), `addedBy`, `addedAt` and an optional `note`. The writers are `link_item_concept` and `link_concept` in `reference_links.py`; the row id is
+deterministic (it includes the predicate), so a repeat is the same row. `mentions` stays for concepts the enrichment found in text. `related_to` was the tag's name
+before 2026-11-09: rows under it still exist (the console, the suggestion pipeline and the idea pack builder still write them), so every reader accepts both
+(`CONCEPT_TAG_PREDICATES`; the one place to rename again), and the audit lists the old ones as "legacy: migrate". The migration is not built.
+
+```bash
+papyrus stories link-concept --story <lineage-or-slug> --concept <name|#hashtag|nodeKey> [--concept ...] [--note TEXT] [--dry-run] [--json]
+papyrus references link-concept --reference <id> --concept <name|#hashtag|nodeKey> [--concept ...] [--note TEXT] [--dry-run] [--json]
+```
+
+These are rigid on purpose, because an outside agent uses them. No option or field chooses a predicate, a state or a new concept (`--predicate`, `--relation`,
+`--state` and `--create` are refused). A concept is never created: it must already be an accepted SemanticNode, found by exact node key, exact hashtag (the part after
+`--`) or exact name or alias, ignoring case, never fuzzily. An unknown name is an error listing the closest accepted concepts; a name several kinds share
+(`task--translation`, `concept--translation`) is an error listing them, and a node key picks one; a concept that is rejected or suggested is refused. Every concept is
+checked before anything is written. A tag that already exists in any accepted form (`tagged_with`, the older `related_to`, or a `mentions`) is reported as `exists` and
+nothing is written; a tag a person rejected stays rejected (the line says `rejected`; only the newsroom reinstates it). Each line says whether the concept has a public
+wiki page (a published wiki page whose `entityKey` is the concept's slug, the part after `editor_concept--`, or its whole node key) and warns when it has none: the
+story page links a concept only once a page exists. Who added it comes from the sign-in as for `link-reference` (`human`); on the IAM lane `--author-label` is required
+(`derived`). The agent tool is `papyrus_link_concepts(target_kind, target, concepts[], author_label, note?)` (Tactus, `tactus_tools.py`; `target_kind` is `story` or
+`reference`) and the MCP-shaped entry of the same name in `story_signals_mcp.py`. The older `papyrus references link --concept` (editors; it can create a concept and
+writes `related_to` through the site's `createReferenceLink`) is not the agent route.
+
+`papyrus stories check-links [--story ...] [--json]` and `papyrus references check-links (--reference ID | --corpus-id ID) [--json]` are read only audits. They list every
+story-to-story, story-to-concept and Reference-to-concept relation that is not the official shape: a wrong predicate or kind, a state that is not `current`, a concept that
+is missing, not accepted or without a public page, a story target that is not published, a legacy `related_to` tag, and duplicate pairs. `mentions` to an accepted
+concept is an accepted shape. Fixing is out of scope. Cost: the stories audit reads the published-story summaries once, then three index reads per story (25 keys to a
+request) and one batched concept read; the References audit reads the corpus's accepted References through `referencesByCurationStatusKey` and the same three index reads
+per Reference (827 References: about 100 relation requests), with no table scan. Specs: `features_backend/concept-tags.feature`.
 
 ## Notes: people write Messages, agents write agent notes
 

@@ -257,13 +257,16 @@ export function relatedEntriesFromRelations(input: {
   return entries;
 }
 
-/** References a person linked to a concept: current related_to rows from a Reference with provenance human. */
+/** The predicates that tag a Reference with a concept: `tagged_with`, and `related_to`, its name before 2026-11-09 (rows are not migrated yet). The Python side is CONCEPT_TAG_PREDICATES in reference_links.py. */
+export const CONCEPT_TAG_PREDICATES: readonly string[] = ["tagged_with", "related_to"];
+
+/** References a person linked to a concept: current tag rows (tagged_with or the older related_to) from a Reference with provenance human. */
 export function editorLinkedReferenceLineages(conceptLineageId: string, relations: readonly RelationRow[]): Array<{ relationId: string; lineageId: string; explanation: LinkExplanation | null }> {
   const found: Array<{ relationId: string; lineageId: string; explanation: LinkExplanation | null }> = [];
   const seen = new Set<string>();
   for (const row of relations) {
     if (seen.has(row.id)) continue;
-    if (row.relationState !== "current" || row.predicate !== "related_to") continue;
+    if (row.relationState !== "current" || !CONCEPT_TAG_PREDICATES.includes(row.predicate)) continue;
     if (row.subjectKind !== "reference" || row.objectKind !== "semanticNode" || row.objectLineageId !== conceptLineageId) continue;
     if (relationMetadata(row).provenance !== "human") continue;
     seen.add(row.id);
