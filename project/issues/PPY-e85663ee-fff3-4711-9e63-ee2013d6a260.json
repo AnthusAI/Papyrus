@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e85663ee-fff3-4711-9e63-ee2013d6a260",
+  "title": "Suggest related content from shared concepts: papyrus stories suggest-links, agent tool, story-checklist step",
+  "description": "Ryan 2026-11-09: find associated articles, posts and References by walking each of a story's concepts and collecting what else carries them, programmatically, to save LLM tokens. Read-only command (stories suggest-links --story X [--limit N] [--json]) and agent tool (papyrus_suggest_links): collect the story's concepts (curated tags first, accepted mentions second), reverse-lookup items and accepted References per concept through the existing indexes (semanticRelationsByObjectState; no scans), score with rarity (IDF) so hub concepts count less, curated over mentions, recency; exclude self, existing see_also links, already cited or consulted References, unpublished or non-accepted; output top few per kind with shared concept names as evidence. A reverse mode lists older stories that should now link to a new story. Add a 'related content' step to the story checklist procedure (run suggest-links, link the good ones, record skips with reasons). Later option: a derived Related block fed by the same engine, explicit see_also links always outranking it. Build after the related-References PR (shared files: reference_links.py, story commands).",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-11-09T18:52:20.282737Z",
+  "updated_at": "2026-11-09T18:52:20.282822Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
