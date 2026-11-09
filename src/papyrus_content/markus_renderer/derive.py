@@ -15,9 +15,10 @@ from typing import Any
 from .body_features import CITATIONS_OFF, IMAGES_OFF, BodyFeatures, current_body_features
 from .citations import CitationCollector, CitationError, CitationRendering
 from .equations import equation_problems
-from .content_markup import ContentMarkupError, prepare_page, read_citation_entries
+from .content_markup import ContentMarkupError, VideoMarkupError, prepare_page, read_citation_entries
 from .images import ImagePipeline, ImagePipelineError, assert_safe_asset_src
 from .security import assert_supported_markus_version
+from .video import PROVIDERS, VideoRendering
 
 BODY_IR_SCHEMA_VERSION = 1
 MAX_BODY_IR_BYTES = 300_000
@@ -103,12 +104,17 @@ def derive_body(front_matter_yaml: str | None, body_markus: str, features: BodyF
     citations = CitationRendering()
     try:
         # Always read the image markup, to say what a body asks of the site; only an enabled feature is lowered below.
-        requested = prepare_page(source, images=ImagePipeline(), citations=None)
+        # A ::video is read only on a site whose embeds are on, and only a registered provider's address; anything else reaches the site's hooks as before.
+        videos = VideoRendering(providers=PROVIDERS) if features.video_embeds and "::video{" in source else None
+        requested = prepare_page(source, images=ImagePipeline(), citations=None, videos=videos)
         prepared = prepare_page(
             source,
             images=ImagePipeline() if features.images else None,
             citations=citations if features.citations else None,
+            videos=videos,
         )
+    except VideoMarkupError as exc:
+        return _failure(BodyError("video-attrs", str(exc)))
     except ContentMarkupError as exc:
         return _failure(BodyError("image-attrs", str(exc)))
 
@@ -174,6 +180,26 @@ def derive_body(front_matter_yaml: str | None, body_markus: str, features: BodyF
                 }
                 for token, request in prepared.images.items()
             },
+            **(
+                {
+                    "videos": {
+                        token: {
+                            "src": request.src,
+                            "provider": request.provider,
+                            "videoId": request.video_id,
+                            "title": request.title,
+                            "caption": request.caption,
+                            "credit": request.credit,
+                            "start": request.start,
+                            "layout": request.layout,
+                            "poster": request.poster,
+                        }
+                        for token, request in prepared.videos.items()
+                    }
+                }
+                if prepared.videos
+                else {}
+            ),
             "citations": {token: list(keys) for token, keys in prepared.citation_keys.items()},
             "citationLists": dict(prepared.citation_lists),
             "entries": entries,

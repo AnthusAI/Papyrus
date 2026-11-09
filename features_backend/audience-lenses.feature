@@ -20,8 +20,8 @@ Feature: One definition of the four lenses a Story is reviewed through
     And every check made by code, the decision model or the writing model has a severity of info, warn or error
     And every check made by the decision model has a question
 
-  Scenario: Exactly three failures are errors
-    Then the checks whose default severity is error are "P7, P10, A2, C6"
+  Scenario: Exactly four failures are errors
+    Then the checks whose default severity is error are "P7, P10, P16, A2, C6"
     And the checks P10 and C6 report the same fact and mirror each other
 
   Scenario: The documentation table is the definition and nothing else
@@ -48,7 +48,7 @@ Feature: One definition of the four lenses a Story is reviewed through
     When the copywriter's context pack is built for the Story
     Then the lens text says an agent may complete a lens step
     And the lens text says only a person gives the final approval
-    And the lens text names the three problems that must be fixed before a step can close
+    And the lens text names the four problems that must be fixed before a step can close
 
   Scenario: Agents are told to run lens-check and fix what they can
     Given a newsroom with a publication policy, a section "law-policy" and a Story "story-1" in it

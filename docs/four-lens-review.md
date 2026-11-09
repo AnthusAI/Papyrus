@@ -43,7 +43,7 @@ blocked	review_people	P7	fix this before the step can close as done	1 of 1 image
 notrun	28 checks were not run (they need a model, the rest of the site or a person): P3, P4, ...
 ```
 
-The three error-level problems (P7, P10 with its mirror C6, A2) are reported as `Problem` and `blocked`. Refusing to close the step while one stands, and the "done, accepted risk" way round it, belong to the checklist and the final review, not to this command. A check that could not be made is never a pass. The preview and Markdown copy the checks judge are built by the projector's own functions (`projection/standard/share_preview.py`, `item_markdown`), so a check never judges a stand-in. Where the check works from the Story's Markus source (the opening paragraph, the first picture) it is an approximation of what the page renders; the description tier (the Story's dek, its first paragraph or the site description) is the same.
+The error-level problems (P7, P10 with its mirror C6, P16 for a video with no title or credit, A2) are reported as `Problem` and `blocked`. Refusing to close the step while one stands, and the "done, accepted risk" way round it, belong to the checklist and the final review, not to this command. A check that could not be made is never a pass. The preview and Markdown copy the checks judge are built by the projector's own functions (`projection/standard/share_preview.py`, `item_markdown`), so a check never judges a stand-in. Where the check works from the Story's Markus source (the opening paragraph, the first picture) it is an approximation of what the page renders; the description tier (the Story's dek, its first paragraph or the site description) is the same.
 
 What it does not do yet: the model-judged checks, comparing a title with the site's other titles (there is no title index), links in from the rest of the site, the picture file's size, the editorial check (P11), the fact check (P13) and the checks after publishing. They are listed in `notRun`.
 
@@ -80,6 +80,9 @@ Audience: people reading or skimming the page.
 | P13 | Every claim a model wrote has been fact-checked | checked by code | warn | claims held, by group, or that the draft check has not run | not yet |
 | P14 | The Story is fair, engaging and worth reading | a person decides | n/a | the person's findings note | not yet |
 | P15 | The readability is typical for this site | checked by code | info | the Story's value against the site's own median and spread | not yet |
+| P16 | Every video has a title (its accessible name) and a credit | checked by code | error | each video, its title and credit, and whatever is missing | yes |
+| P17 | Every video has a caption | checked by code | warn | the videos with no caption | yes |
+| P18 | A video plays on this site: the site lists its provider | checked by code | warn | the site's embeds setting, each video's provider and its poster | yes |
 
 ### Reviewed for AI reader agents (`review_reader_agents`)
 
@@ -103,6 +106,7 @@ Audience: AI agents that read the page for a person.
 | A12 | After publishing: the Markdown copy is served and the page links to it | checked by code | warn | the addresses fetched, their status and content type | not yet |
 | A13 | The site is live and open to readers | checked by code | info | whether the site asks readers to stay away | yes |
 | A14 | The Story does not claim access to a source it did not read | a person decides | n/a | the person's findings note | not yet |
+| A15 | A credited video is one of the Story's citations | checked by code | warn | the credited videos whose address is not among the citations | yes |
 
 ### Reviewed for search (`review_search`)
 
