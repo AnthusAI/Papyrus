@@ -27,13 +27,18 @@ def manual_command(lineage: str) -> str:
     return f"papyrus ops content rerender --story {lineage} --no-invalidate"
 
 
-def request_story_rerender(client, lineage: str) -> dict[str, Any]:
+def request_story_rerender(client, lineage: str, *, signed_in: bool = False) -> dict[str, Any]:
     """One story's page re-rendered with no invalidation, over the same two lanes as ``papyrus ops content rerender``. Returns the operation's result."""
     from .page_refresh.cli import operation_for, run_operator, run_signed_in
     from .user_auth_mode import user_auth_requested
 
     name, arguments = operation_for([], parse_options(["--story", lineage, "--no-invalidate", "true"]), rerender=True)
-    return run_signed_in(client, name, arguments) if user_auth_requested() else run_operator(name, arguments)
+    return run_signed_in(client, name, arguments) if signed_in or user_auth_requested() else run_operator(name, arguments)
+
+
+def signed_in_request(client, lineage: str) -> dict[str, Any]:
+    """The request for the agent tools running as a signed-in editor (the MCP server): always the ``refreshSitePages`` lane."""
+    return request_story_rerender(client, lineage, signed_in=True)
 
 
 def is_published(client, lineage: str) -> bool:
