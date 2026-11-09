@@ -22,7 +22,6 @@ from .reference_suggestions import CONCEPT_VECTOR_KINDS, S3_VECTORS_MAX_TOP_K
 from .section_concepts import concept_label, current_concept_nodes, name_part
 
 DUPLICATE_COSINE = 0.92   # concept cards at least this similar are flagged as likely duplicates (the same idea filed twice under different ids)
-STALE_SHARE = 0.05        # more than this share of the accepted concepts without a concept_card vector means the index is stale
 CARD_PREFIX = "concept_card-"
 REINDEX_COMMAND = ("AWS_PROFILE=<profile> PYTHONPATH=src python -m papyrus_newsroom knowledge-vector-index --action sync"
                    "   # writes a concept_card vector for every accepted concept (concept cards are on by default)")
@@ -89,13 +88,14 @@ def index_health(provider: Any, nodes: list[dict[str, Any]]) -> dict[str, Any]:
     with_vector = sum(1 for key in keys if key in present)
     if total and with_vector == 0:
         status = "empty"
-    elif total and (total - with_vector) / total > STALE_SHARE:
-        status = "stale"
+    elif with_vector < total:
+        status = "stale"   # any accepted concept without a card cannot be found by meaning, so even one is said aloud
     else:
         status = "ok"
-    result = {"acceptedConcepts": total, "withVector": with_vector, "missing": total - with_vector, "status": status}
+    absent = [concept_label(node) for node, key in zip(nodes, keys) if key not in present]
+    result = {"acceptedConcepts": total, "withVector": with_vector, "missing": total - with_vector, "missingExamples": absent[:5], "status": status}
     if status != "ok":
-        word = "has no concept vectors at all" if status == "empty" else f"is missing a concept vector for {total - with_vector} of {total} accepted concepts"
+        word = "has no concept vectors at all" if status == "empty" else f"is missing a concept vector for {total - with_vector} of {total} accepted concepts (for example {', '.join(absent[:5])})"
         result["message"] = f"The concept index {word}, so search by meaning is {'unavailable' if status == 'empty' else 'incomplete'}; name matches still work. Rebuild it with: {REINDEX_COMMAND}"
     return result
 
