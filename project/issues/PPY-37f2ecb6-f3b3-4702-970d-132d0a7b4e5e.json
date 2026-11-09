@@ -1,7 +1,7 @@
 {
   "id": "PPY-37f2ecb6-f3b3-4702-970d-132d0a7b4e5e",
-  "title": "Design partner's three sites: go live after M7, first as dedicated sites, then move to the shared tier",
-  "description": "Outcome: As briefed 2026-11-08: the design partner's three new sites launch after M7, first as dedicated sites, and move to the shared tier afterwards. They are also the outside test of Prospectus cost accounting (PPY-25e0d7). The board carried a conflicting, unexecuted draft (\"shared tier at M7, no dedicated launch\"), so decision D1 in the design note asks Ryan to confirm; the path to M7 (PPY-e38a2d) is the same either way.\n\nPlan of record:\n1. Dedicated launch: each site gets today's per-site Prospectus registry entry (accounts/papyrus-sites.json, which Prospectus keeps for dedicated sites; kanbus-b770c2) and its own Papyrus backend; every resource tagged with anthus:app=papyrus, anthus:account=<partner Account UUID>, anthus:deployment=<site id> through the Prospectus @anthus/cost-accounting package; model tokens reported through the usage sender from day one. Note for D1: a dedicated launch does not technically need M7, so it could happen earlier.\n2. Move to the shared tier once the readiness checklist below is true on production, one site first, then the other two, reusing the TI runbook (copy-backend --stamp-tenant PPY-8f9462, rehearsal, alias switch, 14-day rollback).\n\nReadiness checklist for the move (M7's exit criteria): (1) isolation enforced, adversarial suite green on the release (PPY-bdc4ee, PPY-f7ce77), gate 1 signed off (PPY-3ff465); (2) TI cut over and serving correctly (PPY-e51189); (3) a site is created by a data change only: Prospectus deployment records by API (kanbus-271b4a; Papyrus side PPY-966ef5), provisioning PPY-70a429, starter template PPY-3aa10f; (4) both provisioning security reviews passed (PPY-1da916, Prospectus kanbus-fa72e8); (5) shared sign-in with the shared Google client on newsroom.p.apyr.us, token bound to the deployment (PPY-fdbbd7, kanbus-3e5e82); (6) each site reachable at <site>.p.apyr.us and at a custom domain if the partner brings one (PPY-82de58, PPY-966722, kanbus-6daa8f); (7) lifecycle and read-only rule wired (PPY-6cb44b, PPY-d7274f), export and deletion work (PPY-e882ee, PPY-62f10d); (8) metering and spend ceilings live, usage attributed per site (PPY-3fd951, PPY-889ab5, PPY-49d059, PPY-25e0d7); (9) runbooks rehearsed (PPY-7438d9).\n\nAcceptance (Gherkin feature file: features_backend/tenant-provisioning.feature and features_backend/cost-accounting-reports.feature, run for each partner site):\nScenario: A partner's dedicated site reports its cost from day one\n    Given a partner site launched as a dedicated site with its Account UUID and deployment id\n    When it has served and run model work for a day\n    Then the Prospectus ledger shows that day's cost for app papyrus, that Account and that deployment, and no resource is untagged\n\nScenario: A partner site moves to the shared tier without losing anything\n    Given every item of the readiness checklist is done on production\n    When the site is copied into its shared-tier tenant and its hostname switched\n    Then every URL answers as before, its admins sign in with Google on newsroom.p.apyr.us, and the copy's second run changes nothing\n\nDependencies: blocked by PPY-25e0d7 and M7 (PPY-dad077) for the move. Implements or extends: PPY-259a3f.\n\nTesting: cost ledger compared with Cost Explorer for one partner site for a week; URL parity check at the move.\nRollout: dedicated launch per site; move one site first, then two.\nRisk and mitigation: Risk: schedule pressure to skip the checklist. Mitigation: the checklist is the gate; time is saved on the critical path, never on the gate.\n\nReleasable on its own: not applicable (launch).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
+  "title": "Launch the design partner's three sites directly as shared-tier tenant deployments at M7 (never dedicated)",
+  "description": "Outcome: Ryan (2026-11-08, repeated): the design partner's three new sites launch DIRECTLY on the shared multi-tenant tier at M7, as tenant deployments created by data. They never start as dedicated sites; there is no dedicated launch, no later move and no migration runbook for them. Their launch is the M7 date, which is why the critical-path plan PPY-e38a2d exists. They are also the outside test of Prospectus cost accounting on the shared tier (PPY-25e0d7, kanbus-f45f7f).\n\nLaunch steps (each a data change, no code edit, no deploy): (1) an operator creates the partner's Account in Prospectus (if new) and three deployments of product papyrus through the Prospectus API (kanbus-271b4a); (2) Papyrus provisions each tenant from its deployment record (PPY-70a429) with the starter template (PPY-3aa10f); (3) the operator or the partner's admin sets each site's SiteConfig and BrandPack (name, logo, colours light and dark, allowed fonts, sections, nav, home template) through the site store (PPY-1252ce, PPY-c020ce, PPY-e572de) on the publication preset (PPY-cf7e6e); (4) the partner's admins sign in with Google on newsroom.p.apyr.us (PPY-fdbbd7, kanbus-3e5e82); (5) each site serves at <site>.p.apyr.us, and at its custom domain if the partner brings one (PPY-82de58, PPY-966722, kanbus-6daa8f). One site first, then the other two.\n\nReadiness checklist (all true on production before the first partner deployment is created; these are M7's gates): (1) isolation enforced on the shared stack, adversarial suite green on the release (PPY-bdc4ee, PPY-f7ce77), security gate 1 signed off (PPY-3ff465) and, by default (decision D22), the external review done; (2) TI cut over and serving correctly from the shared stack (PPY-e51189); (3) data-only provisioning works on production (PPY-966ef5, PPY-70a429, PPY-e54eca); (4) both provisioning security reviews passed (PPY-1da916, Prospectus kanbus-fa72e8); (5) shared sign-in with the one shared Google client, token bound to the deployment (PPY-fdbbd7); (6) branding and layout as data (PPY-cf7e6e, PPY-1252ce, PPY-e572de, PPY-413576, PPY-3aa10f); (7) lifecycle and read-only rule wired (PPY-6cb44b, PPY-d7274f), export and deletion work (PPY-e882ee, PPY-62f10d); (8) cost accounting basics: shared stack tagged, model tokens and per-tenant shared usage reported to Prospectus, spend ceiling on (PPY-25e0d7, PPY-3fd951, PPY-49d059, PPY-889ab5); (9) runbooks rehearsed (PPY-7438d9).\n\nAcceptance (Gherkin feature file: features_backend/tenant-provisioning.feature and features_backend/cost-accounting-reports.feature, run for each partner site):\nScenario: A partner site goes live on the shared tier by a data change only\n    Given every item of the readiness checklist is done on production\n    When the operator creates the partner's deployment \"<site>\" of product papyrus in Prospectus\n    Then the tenant is provisioned, its brand and sections are set as data, its admins sign in with Google on newsroom.p.apyr.us, and it serves at <site>.p.apyr.us with no code change or deploy\n\nScenario: A partner site's cost is attributed to its deployment\n    Given a partner site that served pages and ran model work for a day on the shared stack\n    When Prospectus imports and splits the day's shared cost\n    Then the ledger shows that day's cost for app papyrus, the partner's Account and that deployment\n\nDependencies: blocked by the readiness tasks above (recorded as kbs dependencies). Blocks M7 (PPY-dad077), which closes when the three sites are live.\n\nTesting: the scenarios on production per site; ledger compared with the per-tenant usage report for the first week.\nRollout: one site first, then two.\nRisk and mitigation: Risk: schedule pressure to launch before isolation is proven. Mitigation: the checklist is the gate; time is saved on the critical path, never on the gate.\n\nReleasable on its own: not applicable (launch).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "task",
   "status": "open",
   "priority": 0,
@@ -22,13 +22,77 @@
       "type": "relates-to"
     },
     {
-      "target": "PPY-dad077d6-3bf9-470d-8535-37cb0bcbf88e",
+      "target": "PPY-a36a7a7d-a40d-467b-b3da-9348565fbc9e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-1da9160d-f86a-4430-9f2e-e366393c1e14",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-966ef544-07bb-4129-91e5-36fe9e681c95",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-6cb44bde-fb62-4382-8798-031ae9f44fee",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e511893a-f11c-4ba1-9534-cbbb9ca666d5",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-70a4296d-b01e-4ba6-90a0-0493512e6744",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3aa10fde-ea1d-437c-b0f5-6fb8e38630b0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-fdbbd71b-20b0-496d-af0b-0bf7dbcb89b0",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-82de5876-dc01-4894-b1d7-fb7a90c188da",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-d7274f89-41d4-44bb-99f2-24f4759af61e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e882eeb3-7cf8-4ed7-86e6-08362de7f22e",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-62f10d4c-b26c-4222-aea4-3027bc3dabb1",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3ff46540-0fbd-4daf-b45c-76be807019bf",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-bdc4ee0b-6e4e-48c5-ab83-cb91f203cefa",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e54ecaba-80a3-467c-9e79-00cad5016a00",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e572de82-352c-4456-9232-6594f3f49bc4",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-cf7e6ef6-91ea-4beb-8730-f4c7318edb63",
       "type": "blocked-by"
     }
   ],
   "comments": [],
   "created_at": "2026-11-08T21:17:57.791487Z",
-  "updated_at": "2026-11-09T00:20:19.057008Z",
+  "updated_at": "2026-11-09T00:29:59.227589Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
