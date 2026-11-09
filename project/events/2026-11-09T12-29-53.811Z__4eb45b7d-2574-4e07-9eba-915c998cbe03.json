@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4eb45b7d-2574-4e07-9eba-915c998cbe03",
+  "issue_id": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-09T12:29:53.811Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Surfable site: concepts, citation links and a page for every Reference",
+    "description": "Ryan 2026-11-09: keep readers on our site. (1) A Concepts row on story pages, above the references. (2) The end-of-page citation list links to our own post when a published post is based_on that Reference, else to our own Reference page, else out; every outside link carries the Lucide external-link icon and opens in a new tab. (3) A public page for each accepted Reference: our summary, source and date, credited image, concepts, the stories based on or citing it, and a clear read-the-original link. (4) Later, optional: wide-screen split view with the original, only for sources that allow framing (record frameability at ingestion), never the default. Measured 2026-11-09 (MoM): 54 articles, 68 posts; 36/54 articles and 25/68 posts link a public concept page via mentions/related_to relations (not front matter); 35 public concept pages vs 196 accepted entities; 827 accepted References, 388 with a summary, 229 with concept links; 248 distinct cited URLs, 162 match an accepted Reference, only 24 of those have a post based on them.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

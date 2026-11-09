@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9ab6b998-9f3e-42f4-a478-965f90828265",
+  "issue_id": "PPY-1c68d250-8e63-4d92-8d5f-f6036a4afcf5",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-09T12:30:09.969Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Citation list links to our post, else our Reference page, else out; external-link icon",
+    "description": "Citation entries get an internal URL from the Reference-to-post map (based_on, published posts only, newest). Default links mode uses it; outside links open in a new tab with the Lucide external-link icon. Rebuild affected pages when a post is published or withdrawn. Measured: 24 of 162 matched citations have a post today.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+    "labels": []
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7317f440-fcc8-4734-b5a0-3dab18d8b5ae",
+  "issue_id": "PPY-13fb8aa8-9cf6-4ffe-9ff2-6af17457e204",
+  "event_type": "issue_created",
+  "occurred_at": "2026-11-09T12:30:10.081Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A public page for each accepted Reference",
+    "description": "Our summary, source and date, credited image, concepts, stories based on or citing it, and a read-the-original link with the icon. Start with References that have a summary (388 of 827). Never the source's captured text. Decide indexing: noindex thin pages. Includes the citation fallback to these pages.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+    "labels": []
+  }
+}
