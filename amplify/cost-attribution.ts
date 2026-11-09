@@ -1,67 +1,69 @@
-import { Aspects, Aws, CfnResource, Stack, TagManager, Token, type IAspect } from "aws-cdk-lib";
+import { Aws, Stack, Token } from "aws-cdk-lib";
 import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
-import type { IConstruct } from "constructs";
-import { costTags, COSTED_RESOURCE_TYPES } from "./vendor/anthus-cost-accounting/tags";
-import { applyCostTags, OWNER, type CostTagConfiguration } from "./vendor/anthus-cost-accounting/cdk";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { applyCostTagWaves, costTagWave } from "./cost-tag-waves";
+import { costTags } from "./vendor/anthus-cost-accounting/tags";
+import { OWNER, type CostTagConfiguration } from "./vendor/anthus-cost-accounting/cdk";
 
 /**
  * Prospectus cost accounting in a site's Amplify backend (Prospectus docs/COST_ACCOUNTING.md).
  *
- * Opt-in. Tagging touches every resource, including about sixty DynamoDB table stacks, and CloudFormation refuses one
- * operation that updates that many (5.99.0 rolled the Machines on Machines data stack back). A site that does not set
- * the Amplify branch variable `PAPYRUS_COST_TAGS=on` gets exactly the backend it had before cost accounting: no tags,
- * no usage environment, no new IAM statements, and no PAPYRUS_SITE_ID needed.
+ * Every resource is tagged account `owner`, app `papyrus` and the site ID as the deployment; Prospectus finds the
+ * owning Account from the papyrus-<site> entitlement. The tags arrive in waves (amplify/cost-tag-waves.ts), because
+ * tagging a whole backend at once is more than CloudFormation takes in one operation (Papyrus 5.99.0 rolled Machines on
+ * Machines back). `papyrus-infra backend-deploy` sets PAPYRUS_COST_TAG_WAVE for each pass; a build that runs
+ * `ampx pipeline-deploy` directly sets nothing and gets exactly the backend it had before cost accounting: no tags, no
+ * usage environment, no new IAM statements.
  *
- * When it is on, every resource is tagged account `owner`, app `papyrus` and the site ID as the deployment;
- * Prospectus finds the owning Account from the papyrus-<site> entitlement. The site ID comes from the branch variable
- * `PAPYRUS_SITE_ID`, which the app-shell stack sets for a site with `costAccounting: true`
- * (infra/amplify-app-shell/lib/cost-attribution.ts). A build without it fails the synth: an untagged backend would be
- * charged to nobody.
+ * The site ID is the `siteId` of the site's own infra/site.json (the build runs at the site repository's root), so no
+ * branch variable has to be set. A PAPYRUS_SITE_ID in the environment is used where there is no site.json (a sandbox,
+ * the engine's own synth) and must agree with it where there is one.
  */
-
-/** The switch: only the exact value "on" enables cost accounting. */
-export const COST_TAGS_VARIABLE = "PAPYRUS_COST_TAGS";
 
 const SITE_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 /** The Prospectus usage queues live in us-east-1 (the package's PROSPECTUS_REGION). */
 export const PROSPECTUS_USAGE_REGION = "us-east-1";
 
-export type SiteCostAttribution = CostTagConfiguration & { deployment: string };
+export type SiteCostAttribution = CostTagConfiguration & { deployment: string; wave: number };
 
-/** The site's cost attribution, or null when the site has not opted in (`PAPYRUS_COST_TAGS` is not exactly "on"). */
-export function siteCostAttribution(env: Record<string, string | undefined> = process.env): SiteCostAttribution | null {
-  if (env[COST_TAGS_VARIABLE] !== "on") return null;
-  const siteId = env.PAPYRUS_SITE_ID?.trim() ?? "";
-  if (!siteId) {
-    throw new Error(
-      "The site backend needs PAPYRUS_SITE_ID to tag its resources for cost accounting (anthus:deployment). The app-shell " +
-        "stack sets it as an Amplify branch variable; for a sandbox, export it. Refusing to synthesize an untagged backend.",
-    );
-  }
-  if (!SITE_ID.test(siteId)) throw new Error("PAPYRUS_SITE_ID must be lower-case letters, digits and hyphens.");
-  return { account: OWNER, app: "papyrus", deployment: siteId };
+/** The `siteId` of the site.json under `root`, or undefined when there is none. */
+export function siteIdFromSiteJson(root: string): string | undefined {
+  const file = path.join(root, "infra", "site.json");
+  if (!existsSync(file)) return undefined;
+  const siteId = (JSON.parse(readFileSync(file, "utf8")) as { siteId?: unknown }).siteId;
+  if (typeof siteId !== "string" || !siteId.trim()) throw new Error(`${file} has no siteId.`);
+  return siteId.trim();
 }
 
-/** Tags every resource in the backend (all nested stacks) with the site's cost attribution. */
-export function applySiteBackendCostTags(scope: IConstruct, attribution: SiteCostAttribution): void {
-  applyCostTags(scope, attribution);
-  Aspects.of(scope).add(new TagUntaggableCostedResources(costTags(attribution)));
+/** The site's cost attribution, or null when the build did not ask for a cost tag wave. */
+export function siteCostAttribution(env: Record<string, string | undefined> = process.env, root = process.cwd()): SiteCostAttribution | null {
+  const wave = costTagWave(env);
+  if (wave === null) return null;
+  const fromSiteJson = siteIdFromSiteJson(root);
+  const fromEnvironment = env.PAPYRUS_SITE_ID?.trim() || undefined;
+  if (fromSiteJson && fromEnvironment && fromSiteJson !== fromEnvironment) {
+    throw new Error(`PAPYRUS_SITE_ID is ${fromEnvironment} but infra/site.json says ${fromSiteJson}; they name the same site.`);
+  }
+  const siteId = fromSiteJson ?? fromEnvironment;
+  if (!siteId) {
+    throw new Error(
+      "The site backend needs its site ID to tag its resources for cost accounting (anthus:deployment): the siteId of " +
+        "infra/site.json, or PAPYRUS_SITE_ID where there is no site.json. Refusing to synthesize an untagged backend.",
+    );
+  }
+  if (!SITE_ID.test(siteId)) throw new Error("The site ID must be lower-case letters, digits and hyphens.");
+  return { account: OWNER, app: "papyrus", deployment: siteId, wave };
 }
 
 /**
- * The Tags aspect reaches only constructs with a TagManager. CDK writes some costed resources as raw CfnResources
- * (the custom-resource provider Lambda and role behind `autoDeleteObjects`, for one), so their tags are written directly.
+ * Tags the backend's resources, in every nested stack, up to the build's wave. `first` names stacks that change in
+ * the first pass anyway (the usage senders'), so their tags arrive in the same operation.
  */
-class TagUntaggableCostedResources implements IAspect {
-  constructor(private readonly tags: Record<string, string>) {}
-
-  visit(node: IConstruct): void {
-    if (!CfnResource.isCfnResource(node) || TagManager.isTaggable(node)) return;
-    // The package's list includes IAM roles: a role's tags decide which usage queue it may send to.
-    if (!(COSTED_RESOURCE_TYPES as readonly string[]).includes(node.cfnResourceType)) return;
-    node.addPropertyOverride("Tags", Object.entries(this.tags).map(([Key, Value]) => ({ Key, Value })));
-  }
+export function applySiteBackendCostTags(scope: Stack, attribution: SiteCostAttribution, first: Stack[] = []): void {
+  const { wave, ...configuration } = attribution;
+  applyCostTagWaves(scope, costTags(configuration), wave, first);
 }
 
 /** The Prospectus product a dedicated site sends usage as. The shared tier will send as `papyrus` (kanbus-f45f7f; not built). */

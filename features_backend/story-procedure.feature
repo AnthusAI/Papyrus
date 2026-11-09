@@ -140,7 +140,7 @@ Feature: One definition of the Story procedure
     And the current version is number 3 and the outline marker is on version 2
     And a finished check of the current version with no violation
     When the procedure is assessed
-    Then the next step is "review_people"
+    Then the next step is "related_content"
 
   Scenario: The four review lenses are live steps that no record proves
     Given a Story at the "copywriting" stage
@@ -172,7 +172,7 @@ Feature: One definition of the Story procedure
   Scenario: Stories next prints every step with its state and then what comes next
     Given a Story at the "idea" stage
     When I run "stories next" with "--story story-1"
-    Then the procedure output has a step line for each of the 15 steps
+    Then the procedure output has a step line for each of the 16 steps
     And the procedure output has a "next" line for "choose"
 
   Scenario: A step that is off or not built says so instead of offering a command

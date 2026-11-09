@@ -100,29 +100,49 @@ def resolve_concept_exact(nodes: list[dict[str, Any]], text: str) -> dict[str, A
     raise ValueError(f"No accepted concept is named {text!r} (exact node key, hashtag, name or alias only; a concept is never created here)." + hint)
 
 
-def concept_page_keys(client) -> set[str]:
-    """The ``entityKey`` of every published wiki page: one index read of the site's published wiki pages."""
+def _entity_key(row: dict[str, Any]) -> str | None:
     import yaml
+
+    metadata = row.get("metadata")
+    metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
+    raw = metadata.get("frontMatterYaml")
+    try:
+        front = yaml.safe_load(raw) if isinstance(raw, str) and raw.strip() else {}
+    except yaml.YAMLError:
+        front = {}
+    key = (front or {}).get("entityKey") if isinstance(front, dict) else None
+    return str(key) if key else None
+
+
+def concept_page_keys(client) -> set[str]:
+    """The ``entityKey`` of every published wiki page (the bare concept slug, as ``projection/site_relations.py`` reads it).
+
+    Two sources, because the ``wiki_page#published`` index can come back empty on a site whose pages are published: that index, and the published-item summaries
+    (one listing, the same source the projector takes ``entityKey`` from) filtered to ``wiki_page`` items. A page's slug is a last resort for its key."""
+    from . import request_meter
 
     keys: set[str] = set()
     for row in client.list_by_index("publishedItemsByTypeStatus", WIKI_PAGE_STATUS_KEY):
-        metadata = row.get("metadata")
-        metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
-        raw = metadata.get("frontMatterYaml")
-        try:
-            front = yaml.safe_load(raw) if isinstance(raw, str) and raw.strip() else {}
-        except yaml.YAMLError:
-            front = {}
-        key = (front or {}).get("entityKey") if isinstance(front, dict) else None
+        key = _entity_key(row)
         if key:
-            keys.add(str(key))
+            keys.add(key)
+    if not keys and hasattr(client, "list_published_item_summaries"):
+        with request_meter.sweep("concept-wiki-pages"):
+            summaries = client.list_published_item_summaries()
+        for row in summaries:
+            if row.get("type") == "wiki_page":
+                key = _entity_key(row) or row.get("slug")
+                if key:
+                    keys.add(str(key))
     return keys
 
 
 def has_public_page(node: dict[str, Any], page_keys: set[str]) -> bool:
+    """A concept has a public page when a published wiki page's ``entityKey`` is the part of its node key after ``--`` (or the whole key)."""
+    from .projection.site_relations import concept_slug
+
     key = str(node.get("nodeKey") or "")
-    slug = key[len(EDITOR_CONCEPT_PREFIX):] if key.startswith(EDITOR_CONCEPT_PREFIX) else key
-    return slug in page_keys or key in page_keys
+    return (concept_slug(key) or key) in page_keys or key in page_keys
 
 
 def _existing_tag(client, state_kind: str, lineage: str, node: dict[str, Any]) -> dict[str, Any] | None:

@@ -15,6 +15,14 @@ A new `see_also` or concept link only shows on a story's page once that page is 
 
 `page.concept_links`, `page.related_references` and `page.related_stories` are fields of `StandardPage` on item pages (empty on wiki pages). A hook takes `page` and draws them.
 
+## Finding what to link
+
+The links above are written by people or agents; the candidates come from the same relations. `papyrus stories suggest-links --story S` (read only, no model call)
+starts from the Story's concept edges (`tagged_with`, `related_to`, accepted `mentions`), adds the concepts near them (confirmed `concept.link` rows, then co-occurrence
+on published Stories and accepted References), scans the carriers of those concepts, and prints a ranked **See also** / **Posts** / **Related findings** list with the
+shared concepts and the ready `link-story` command. It leaves out what the page already shows (`see_also` in either direction, `uses_evidence` and `see_also` References).
+`papyrus knowledge concepts search "text"` finds a concept to tag with when the story has none. See [Suggesting related content](story-reporting.md#suggesting-related-content).
+
 ## What the read costs
 
 It is bounded and indexed; nothing scans a table. For N published Stories: `ceil(N/25)` requests on `semanticRelationsBySubjectState` (the Stories'

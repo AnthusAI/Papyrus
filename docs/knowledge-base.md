@@ -8,6 +8,10 @@ Status words used here: Live, Beta, Not built yet.
 
 `/newsroom/concepts` is a wiki of concepts for editors. It sits in the newsroom, so it is for signed-in editors and not for the public. Each page is a concept: an entity in the knowledge graph that the newsroom has reported on, researched or cited. A page shows what it is, what it connects to and the references behind it. The front page is an ordinary content item with the slug `wiki-index`, and it lists recently edited concepts and all concepts. Code: `lib/wiki.ts`.
 
+## Searching concepts (Live)
+
+`papyrus knowledge concepts search "free text"` finds accepted concepts by meaning, from the `concept_card` and `ontology_concept_profile` vectors only; the order is relevance, never how many stories carry a concept, and a typed exact name comes first. `papyrus knowledge concepts related --concept NAME` shows the concepts near one concept, and `papyrus stories suggest-links` uses both hops to rank related content for a story. Search reports a concept index that is empty or missing concepts and the `knowledge-vector-index --action sync` command that rebuilds it, and flags likely duplicates (the same name filed twice). Details: [Suggesting related content](story-reporting.md#suggesting-related-content).
+
 ## Public wiki (Beta)
 
 Accepted entities and beats become pages of a public, read-only wiki: `papyrus knowledge wiki sync` makes draft pages, `papyrus knowledge wiki publish` stamps and publishes them. Every page says who last put it in front of readers. See [public-wiki.md](public-wiki.md).

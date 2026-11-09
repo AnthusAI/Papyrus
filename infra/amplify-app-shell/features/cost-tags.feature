@@ -10,22 +10,61 @@ Feature: Every Papyrus stack tags its resources for Prospectus cost accounting
   CDK stacks, and the same four tags written into the CloudFormation templates. These scenarios are verified by
   scripts/test-cost-tags.ts and infra/amplify-app-shell/lib/cost-tags.test.ts, which CI runs with npm test.
 
-  Cost accounting is opt-in. Tagging every resource updates every DynamoDB table, and a site backend with about sixty
-  table stacks cannot take that in one CloudFormation operation (Papyrus 5.99.0 rolled Machines on Machines back). A site
-  turns it on with site.json "costAccounting": true (default false), which sets the Amplify branch variables
-  PAPYRUS_COST_TAGS=on and PAPYRUS_SITE_ID. Every scenario below that tags a site's stacks is about a site that did.
+  A site backend is tagged in waves. CloudFormation refuses a stack operation, nested stacks included, that involves
+  more than 2,500 resources, and a site backend has more (2,918 on Machines on Machines); tagging it all at once updated
+  61 of 62 stacks and rolled back (Papyrus 5.99.0). The backend splits its stacks into waves of at most 1,800 resources,
+  counting each stack it tags and every parent stack above them. The site's build runs papyrus-infra backend-deploy,
+  which first deploys the release alone, at the wave the stack already has, then adds one wave per deploy while the
+  build has time (Amplify stops a build after 30 minutes unless _BUILD_TIMEOUT says otherwise); the next build adds the
+  rest. The usage senders arrive with the first wave. The site ID is the siteId of the site's own infra/site.json.
+  Nothing is set by hand. Verified by scripts/test-cost-tags.ts and scripts/test-backend-deploy.mjs.
 
-  Scenario: A site that has not opted in is deployed with no tag changes
-    Given a site whose site.json does not set costAccounting
-    When its app-shell stack, private chat stack and site backend are synthesized
-    Then no template has an anthus: tag, no DynamoDB table has a Tags property and no function has PAPYRUS_SITE_ID or PROSPECTUS_USAGE_QUEUE_URL
+  Scenario: A build that runs ampx pipeline-deploy directly is deployed with no tag changes
+    Given a site backend built without PAPYRUS_COST_TAG_WAVE
+    When it is synthesized
+    Then no template has an anthus: tag and no function has PAPYRUS_SITE_ID or PROSPECTUS_USAGE_QUEUE_URL
     And no role may send usage to a Prospectus queue
-    And the branch carries neither PAPYRUS_COST_TAGS nor PAPYRUS_SITE_ID
-    And the backend synthesizes without PAPYRUS_SITE_ID
+    And the root stack has no PapyrusCostTagWave output
 
-  Scenario: Only the exact value "on" turns the backend's cost accounting on
-    Given PAPYRUS_SITE_ID is set but PAPYRUS_COST_TAGS is "ON", "true", "1" or empty
-    Then the backend has no cost attribution
+  Scenario: The backend takes its site ID from the site's own site.json
+    Given a site repository whose infra/site.json has siteId "dataparade"
+    When backend-deploy asks for a cost tag wave
+    Then the backend is tagged with deployment "dataparade" without any branch variable
+    And a PAPYRUS_SITE_ID that names a different site fails the synth
+    And with neither a site.json nor PAPYRUS_SITE_ID the synth fails rather than leaving the resources untagged
+    And the old PAPYRUS_COST_TAGS switch does nothing
+
+  Scenario: No wave's operation goes over CloudFormation's limit
+    Given a site backend with more resources than one operation may involve
+    When its stacks are planned into cost tag waves
+    Then every stack is in exactly one wave and each wave costs at most 1,800 resources, counting the parent stacks it updates
+    And a stack too big for the budget gets a wave of its own, and one past 2,500 cannot be planned
+    And the first wave's real template change, compared with the untagged backend, is under 2,500 resources and no more than the plan counted
+    And the usage senders' stacks are in the first wave, because wiring the senders changes them anyway
+
+  Scenario: The release is deployed alone, then the cost tags in waves
+    Given a site whose backend has no cost tags yet and whose plan has 3 waves
+    When its Amplify build runs papyrus-infra backend-deploy with time for every pass
+    Then it deploys the release with no wave, then waves 1, 2 and 3, each one ampx pipeline-deploy
+    And it stops when the root stack output PapyrusCostTagWave says "complete"
+
+  Scenario: A wave starts only if it fits in the build
+    Given a build with 20 minutes for deploying and passes that take 10 minutes each
+    When papyrus-infra backend-deploy runs for a site with no cost tags and 3 waves
+    Then it deploys the release and wave 1, and leaves waves 2 and 3 for the following builds
+    And the next build deploys the release at wave 1, then wave 2, and the one after deploys wave 2 again, then wave 3
+    And the deploy time is Amplify's build timeout (30 minutes, or _BUILD_TIMEOUT) less 10 minutes for the rest of the build
+
+  Scenario: Once the tags are complete a deploy is one pass
+    Given a site whose root stack output PapyrusCostTagWave is "complete"
+    When its build runs papyrus-infra backend-deploy
+    Then it runs ampx pipeline-deploy once, with every stack tagged
+
+  Scenario: A build that failed part-way resumes without removing tags
+    Given a site whose root stack output PapyrusCostTagWave is "2/4"
+    When its build runs papyrus-infra backend-deploy
+    Then it deploys the release at wave 2, then waves 3 and 4, never wave 1, which would take wave 2's tags off again
+    And a failed pass fails the build, and the next build resumes from the wave the stack kept
 
   Scenario: An untagged costed resource fails CI
     Given a stack with a table that has no anthus: tags
@@ -33,20 +72,23 @@ Feature: Every Papyrus stack tags its resources for Prospectus cost accounting
     Then the check fails naming the table and the missing tags
 
   Scenario: A dedicated site's stacks are tagged with its site ID and account "owner"
-    Given any example site with costAccounting true
+    Given any example site, whose costAccounting defaults to true
     When its app-shell stack, its private chat stack and its knowledge-run stack are synthesized
     Then every costed resource carries account "owner", app "papyrus", deployment the site ID and cost key "owner/papyrus/<site>"
 
-  Scenario: The site backend is tagged in every nested stack
-    Given the app-shell stack sets PAPYRUS_COST_TAGS "on" and PAPYRUS_SITE_ID on the site's Amplify branches
-    When the site backend is synthesized
-    Then every costed resource in every nested stack carries cost key "owner/papyrus/<site>"
-    And a costed resource CDK writes without tag support, such as the bucket auto-delete provider, is tagged too
+  Scenario: The app shell sets no cost variables, and a site may turn its own stacks' tags off
+    Given any example site
+    When its app-shell stack is synthesized
+    Then its production branch carries neither PAPYRUS_COST_TAGS nor PAPYRUS_SITE_ID
+    And with site.json costAccounting false its app-shell and chat stacks have no anthus: tag
+    And its generated production build spec deploys the backend with npx papyrus-infra backend-deploy
 
-  Scenario: A backend build that opted in without its site ID is refused
-    Given an Amplify build with PAPYRUS_COST_TAGS "on" and no PAPYRUS_SITE_ID
+  Scenario: The site backend is tagged in every nested stack once every wave is deployed
+    Given backend-deploy has deployed every wave for site "dataparade"
     When the site backend is synthesized
-    Then the synth fails saying the app-shell stack sets it, rather than leaving the resources untagged
+    Then every costed resource in every nested stack carries cost key "owner/papyrus/dataparade"
+    And a costed resource CDK writes without tag support, such as the bucket auto-delete provider, is tagged too
+    And the root stack output PapyrusCostTagWave is "complete"
 
   Scenario: Resources that serve every site are tagged shared
     When the monitoring, procedure runner, email submission and projection lease stacks are read
