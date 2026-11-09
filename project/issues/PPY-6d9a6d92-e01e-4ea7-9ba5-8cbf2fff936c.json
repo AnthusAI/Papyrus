@@ -3,7 +3,7 @@
   "title": "Spike (2 days): what Prospectus must add before a shared-tier site can be sold with no human step",
   "description": "Outcome: Answer, with the Prospectus session (tell it before anything merges there; its approval is needed for Prospectus changes), what Prospectus offers today and what it must add. Read so far (Prospectus develop 8b8e6b8, 2026-11-07): products are a reviewed file per site (accounts/papyrus-sites.json: one Cognito client, issuer and review id per Papyrus site); billing lines are per product per account with interval plans and \"pricing out of scope\" (docs/BILLING.md); Stripe is not built; billing \"never grants, disables or suspends an entitlement\" (no automatic suspension); the weekly quota with check, usage and reservation routes is built (docs/QUOTA.md); cost accounting in microdollars with per-deployment attribution and a split of shared resources by reported usage is agreed but not built (docs/COST_ACCOUNTING.md); lifecycle events (kanbus-6efecd) are a wait. Questions: (1) one \"papyrus\" product with one deployment per site instead of a product per site? (2) usage-priced plans and how metered usage becomes invoice lines; (3) an event when a payment fails and when an account cancels, and whether a past-due account is suspended automatically (owner decision); (4) does the per-deployment cost ledger accept Papyrus's daily per-tenant usage report for shared resources; (5) pairwise reader identity per site when every site shares one product. Output: a list of Prospectus issues (kanbus ids) with owners, and an update to the Papyrus wait task PPY-a1e75a.\n\nTouches (verified at origin/develop 23fabe1d): Read-only: the Prospectus repository (develop) docs/BILLING.md, docs/QUOTA.md, docs/COST_ACCOUNTING.md, docs/ARCHITECTURE.md, accounts/papyrus-sites.json; Papyrus lib/tenant-keys.ts (tenantIdForProspectusAccount), lib/prospectus-tenant.ts.\n\nAcceptance (Gherkin feature file: none (spike); produces the inputs for features_backend/tenant-provisioning.feature):\nScenario: Every Prospectus dependency of the shared tier is named\n    Given the five questions above\n    When the spike closes\n    Then each has an answer and, where Prospectus must change, a kanbus issue id\n\nDependencies: blocked by nothing. Blocks PPY-70a429, PPY-2321aa, PPY-d7274f, PPY-3fd951, PPY-5219fc. (Also recorded as kbs dependencies.)\nImplements or extends: PPY-a1e75a.\n\nTesting: None (reading and conversation).\nRollout: None.\nRisk and mitigation: Risk: Papyrus builds provisioning against a Prospectus contract that changes. Mitigation: every Papyrus task that calls Prospectus waits on a named, deployed Prospectus route (same rule as PPY-a1e75a).\n\nReleasable on its own: not applicable (spike).\nDynamoDB index: none.\nAppSync authorisation: unchanged.\nDesign note: docs/plans/multi-tenant-architecture.md (PR on branch docs/multi-tenant-architecture).",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -32,11 +32,18 @@
       "text": "Answers from the Prospectus session (2026-11-08): each site today is product 'papyrus-<site>' with its own pool, client and compute role in accounts/papyrus-sites.json (cap about 40); no self-serve provisioning API; no invite by email (kanbus-59284c, kanbus-4c99c6, kanbus-b09c91, kanbus-db57cb); no lifecycle events (kanbus-6efecd); billing is a plan per deployment, not usage; the weekly quota service is live for Babulus only; cost accounting is designed (docs/COST_ACCOUNTING.md, epic kanbus-bb0b6c: private real-dollar cost per Account/app/deployment/category/day, usage batched to an SQS queue by a shared sender library, anthus:app/anthus:account/anthus:deployment tags, daily Cost Explorer import) and Ryan said build it and test it on our sites and the design partner's three new sites. Ryan decided (2026-11-08): one 'papyrus' product with tenant deployments created by API as data (question 1 answered yes); the lifecycle rule is accepted (question 3); overage billing is wanted. Filed: PPY-966ef5, PPY-6cb44b, PPY-8a3c6a, PPY-25e0d7. Remaining open: question 5 (pairwise reader subjects per deployment).",
       "created_at": "2026-11-08T21:19:02.343508Z",
       "comment_type": "default"
+    },
+    {
+      "id": "2c02328e-5b86-4c08-b110-1ceb4552762d",
+      "author": "home",
+      "text": "Answered 2026-11-08 from the Prospectus board (develop a329ee1), so this spike closes:\n(1) One papyrus product with a deployment per site: yes, epic kanbus-b770c2 (kanbus-271b4a records and API; dedicated sites keep the per-site registry).\n(2) Usage-priced plans: the quota now runs on real cost in microdollars, weekly budget = monthly amount / 4 (kanbus-c7be53, merged); usage beyond the quota has no Prospectus design yet (Papyrus PPY-8a3c6a, off the M7 path).\n(3) Payment-failed, past-due and cancellation events and automatic access change: yes; decision 7 superseded in Prospectus docs/BILLING.md; standing derived (kanbus-b19d5a) and published through kanbus-6efecd.\n(4) Shared-resource split by Papyrus's per-tenant usage: yes, kanbus-f45f7f (one papyrus queue, ledger checks deployment ownership) on top of the merged ledger kanbus-6efec6.\n(5) Pairwise reader identity per site with one product: yes, reader subjects become pairwise per deployment (kanbus-3e5e82).\nRemaining asks moved to PPY-966ef5: deployment.changed event, changed-since list cursor, single-writer rules for deployments and hostnames.",
+      "created_at": "2026-11-09T00:20:34.709700Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-11-08T18:49:37.935833Z",
-  "updated_at": "2026-11-08T21:19:02.343738Z",
-  "closed_at": null,
+  "updated_at": "2026-11-09T00:20:34.803214Z",
+  "closed_at": "2026-11-09T00:20:34.803187Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

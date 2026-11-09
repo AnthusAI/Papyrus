@@ -1,7 +1,7 @@
 {
   "id": "PPY-a36a7a7d-a40d-467b-b3da-9348565fbc9e",
   "title": "M6 Metering and spend ceilings",
-  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3).\n\nEntry criteria: M4 (can run alongside M5); Prospectus quota routes (built) and the item kinds in its rate table.\nExit criteria: PPY-3fd951, PPY-889ab5, PPY-49d059, PPY-f40a02; operator view of cost per tenant; PPY-04ce84 written with measured numbers.\nCustomer-visible: Internal only (operators).\nIndex-adding deploys in this milestone: None.\nContains: PPY-3fd951, PPY-889ab5, PPY-49d059, PPY-f40a02, PPY-04ce84\nFollows: M4.",
+  "description": "Milestone of epic PPY-6a6357 (initiative PPY-25ffa3). Critical-path plan: PPY-e38a2d. Design note: docs/plans/multi-tenant-architecture.md (PR #1305).\n\nEntry criteria: M4 (runs alongside M5); Prospectus cost accounting: usage queue for product papyrus enabled (kanbus-71ff98, flag on with Ryan's approval), shared-tier ledger checks (kanbus-f45f7f), quota on real cost (kanbus-c7be53, merged); the @anthus/cost-accounting package vendored and a Python sender twin available.\nExit criteria: PPY-25e0d7 (our dedicated sites tagged and reporting), PPY-3fd951, PPY-889ab5, PPY-49d059, PPY-f40a02; operator view of cost per tenant; PPY-04ce84 written with measured numbers.\nCustomer-visible: Internal only (operators). Customers see percent of weekly quota only, never dollars.\nIndex-adding deploys in this milestone: None.\nContains: PPY-25e0d7, PPY-f98e05, PPY-3fd951, PPY-889ab5, PPY-49d059, PPY-f40a02, PPY-04ce84\nNot gating: PPY-8a3c6a usage billing beyond the quota (commercial; after M7).\nFollows: M4.\n\nAcceptance (Gherkin):\nScenario: An untagged resource fails CI (features_backend/cost-accounting-reports.feature, PPY-f98e05)\nScenario: A model call on a dedicated site reaches the cost ledger once (same file, PPY-25e0d7)\nScenario: A model call is reported once to the tenant's Account (features_backend/metering-events.feature, PPY-3fd951)\nScenario: An unknown item kind is noticed, not free (same file)\nScenario: A tenant over its weekly budget cannot start model work (features_backend/model-spend-ceiling.feature, PPY-889ab5)\nScenario: Serving is not affected by the budget (same file)\nScenario: The daily report reads counters, not content (features_backend/platform-usage-report.feature, PPY-49d059)\nScenario: A burst far outside a tenant's normal rate is slowed and reported (features_backend/tenant-adaptive-throttle.feature, PPY-f40a02)\nScenario: The model explains a month of a small tenant (PPY-04ce84)\n\nAcceptance checks:\n1. For one dedicated site, a week of Prospectus ledger totals by category is within an agreed tolerance of Cost Explorer and the OpenAI usage report (tolerance recorded on PPY-25e0d7).\n2. Prospectus refusal log shows no unknown Papyrus item kinds for 7 days.\n3. Shared-stack usage per tenant sums to the shared cost line with unattributed overhead reported, not hidden.",
   "type": "task",
   "status": "open",
   "priority": 1,
@@ -32,7 +32,7 @@
     }
   ],
   "created_at": "2026-11-08T18:46:27.149295Z",
-  "updated_at": "2026-11-08T21:19:02.164562Z",
+  "updated_at": "2026-11-09T00:20:16.251253Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
