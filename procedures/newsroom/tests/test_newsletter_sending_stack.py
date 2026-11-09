@@ -47,7 +47,11 @@ def test_parameters(template):
     params = template["Parameters"]
     assert set(params) == {
         "SiteId", "SendingDomain", "HostedZoneId", "MailFromSubdomain", "DmarcPolicy", "CreateDmarcRecord", "EventTransport",
+        "CostAccount",
     }
+    # Prospectus cost accounting: a site's stack is charged to its owner, the operator stack is shared (docs/cost-accounting.md).
+    assert params["CostAccount"]["AllowedValues"] == ["owner", "shared"]
+    assert params["CostAccount"]["Default"] == "owner"
     assert params["MailFromSubdomain"]["Default"] == "bounce"
     assert params["DmarcPolicy"]["AllowedValues"] == ["none", "quarantine", "reject"]
     assert params["DmarcPolicy"]["Default"] == "quarantine"
