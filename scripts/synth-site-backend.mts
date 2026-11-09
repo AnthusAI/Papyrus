@@ -23,9 +23,9 @@ process.env.AWS_BRANCH = "synth";
 process.env.AWS_APP_ID = "dsynthapp0001";
 process.env.CDK_DEFAULT_ACCOUNT = "123456789012";
 process.env.CDK_DEFAULT_REGION = "us-east-1";
-// Cost accounting is opt-in (amplify/cost-attribution.ts): only with PAPYRUS_COST_TAGS=on does the backend need, and
-// get, the site ID the app shell sets on a real branch.
-if (process.env.PAPYRUS_COST_TAGS === "on") process.env.PAPYRUS_SITE_ID ??= "synth";
+// Cost tags come only with a wave (PAPYRUS_COST_TAG_WAVE, amplify/cost-tag-waves.ts). The engine has no infra/site.json,
+// so a synth that asks for a wave names its site here.
+if (process.env.PAPYRUS_COST_TAG_WAVE) process.env.PAPYRUS_SITE_ID ??= "synth";
 rmSync(process.env.CDK_OUTDIR, { recursive: true, force: true });
 mkdirSync(process.env.CDK_OUTDIR, { recursive: true });
 

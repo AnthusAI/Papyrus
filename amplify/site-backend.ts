@@ -85,8 +85,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   // `papyrus.config.ts`'s default export. Backend options live under `backend`;
   // the default brand id namespaces account-global resources.
   const site = { brandId: papyrusSite.defaultBrand, ...papyrusSite.backend };
-  // Prospectus cost accounting is opt-in (PAPYRUS_COST_TAGS=on on the branch). Null leaves the backend untouched; on
-  // without the site ID the app shell sets fails the synth.
+  // Prospectus cost accounting: on when `papyrus-infra backend-deploy` asks for a cost tag wave (PAPYRUS_COST_TAG_WAVE).
+  // Null, from a plain `ampx pipeline-deploy`, leaves the backend untouched.
   const costAttribution = siteCostAttribution();
   const knowledgeVectorDimension = 1536;
   const knowledgeEmbeddingModel = "text-embedding-3-small";
@@ -165,8 +165,6 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     storage,
   });
 
-  // Every resource in every backend stack carries the anthus: cost tags (Prospectus reads cost by them).
-  if (costAttribution) applySiteBackendCostTags(backend.stack, costAttribution);
   enablePointInTimeRecoveryOnDataTables(backend.data.resources.cfnResources.amplifyDynamoDbTables);
 
   if (authConfig.disableGoogleOAuth !== true) {
@@ -882,8 +880,12 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   wireEditorialChecks(backend);
   // The functions that call models report their tokens to the site's Prospectus usage queue.
   if (costAttribution) {
-    wireSiteUsageSender(backend.editorialChecks.resources.lambda as LambdaFunction, costAttribution);
+    const editorialChecksLambda = backend.editorialChecks.resources.lambda as LambdaFunction;
+    wireSiteUsageSender(editorialChecksLambda, costAttribution);
     wireSiteUsageSender(knowledgeQueryLambda, costAttribution);
+    // Every resource in every backend stack carries the anthus: cost tags (Prospectus reads cost by them), in waves that
+    // each fit one CloudFormation operation; the usage senders' stacks change in the first pass, so they go first.
+    applySiteBackendCostTags(backend.stack, costAttribution, [Stack.of(editorialChecksLambda), Stack.of(knowledgeQueryLambda)]);
   }
   wireMonitoringView(backend, emailMonitorId);
   wireAutomationView(backend);

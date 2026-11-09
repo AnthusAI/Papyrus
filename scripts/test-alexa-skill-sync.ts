@@ -302,7 +302,7 @@ const behaviours: Record<string, () => void | Promise<void>> = {
   "site build runs the sync after the backend deploy": () => {
     const config = parseSiteConfig(JSON.parse(readFileSync(path.join(here, "../infra/amplify-app-shell/examples/pilobol-us.site.json"), "utf8")));
     const spec = cmsProductionBuildSpec(config);
-    const deploy = spec.indexOf("ampx pipeline-deploy");
+    const deploy = spec.indexOf("papyrus-infra backend-deploy");
     const sync = spec.indexOf("papyrus-app alexa-sync");
     assert.ok(deploy > -1 && sync > deploy, "the sync follows the backend deploy");
     assert.match(spec, /alexa-sync \|\| echo/, "a failed sync never fails the build");
