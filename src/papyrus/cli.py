@@ -302,9 +302,21 @@ def main(argv: list[str] | None = None) -> int:
 
     site_selection.install()
     try:
-        return run_with_operator_error_handling(lambda: _run_with_arguments(argv))
+        return run_with_operator_error_handling(lambda: _run_printing_usage_on_error(argv))
     finally:
         site_selection.uninstall()
+
+
+def _run_printing_usage_on_error(argv: list[str] | None) -> int:
+    """Run the command; when it fails for missing or wrong arguments, print its usage ahead of the error (a bare command shows its usage)."""
+    from papyrus.operator.help_dispatch import print_usage_for_error
+
+    args = list(argv if argv is not None else sys.argv[1:])
+    try:
+        return _run_with_arguments(args)
+    except ValueError as error:
+        print_usage_for_error(args, error)
+        raise
 
 
 def _run_with_arguments(argv: list[str] | None) -> int:
@@ -320,10 +332,20 @@ def _run_with_arguments(argv: list[str] | None) -> int:
     help_status = answer_help(args)
     if help_status is not None:
         return help_status
+    from papyrus.operator.help_dispatch import bare_invocation_error
+
+    bare = bare_invocation_error(args)
+    if bare:
+        raise ValueError(bare)   # `_run_printing_usage_on_error` prints the usage first
     if args[0] == "--version":
         from papyrus import __version__
 
         print(__version__)
+        return 0
+
+    if args[0] == "guide":
+        from papyrus_content.agent_guide import guide_command
+        guide_command(args[1:])
         return 0
 
     if args[0] == "doctor":

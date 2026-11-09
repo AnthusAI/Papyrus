@@ -7,7 +7,10 @@ VERSION = "0.1.0"
 TOP_LEVEL_HELP = """\
 Usage: papyrus [--help] [--version] [--backend local|cloud] <group> <command> [options]
 
+Agents: run `papyrus guide` (or `papyrus guide --list`) for task-first recipes with exact syntax. Every command has `--help`.
+
 Operator groups:
+  guide         Print the agent CLI guide (papyrus guide --list; papyrus guide TASK)
   references    List or show references (local pod or cloud GraphQL); search them by words and meaning (signed in)
   monitors      Monitoring state (overview, page; signed in, read-only) and Hacker News worker checkpoints
   assignments   List newsroom assignments (cloud) or pod stories (local)
@@ -155,29 +158,18 @@ def build_editorial_parser() -> argparse.ArgumentParser:
 
 
 def print_group_help(group: str) -> None:
-  builders = {
-    "references": build_references_parser,
-    "assignments": build_assignments_parser,
-    "knowledge": build_knowledge_parser,
-    "editorial": build_editorial_parser,
-  }
-  builder = builders.get(group)
-  if builder is None:
-    from papyrus.operator.group_commands import generic_group_help
+  """`papyrus <group>`: every command of the group with a one-line description (from the usage table), the useful ones first."""
+  from papyrus.operator.help_dispatch import group_text, route_tree
 
-    text = generic_group_help(group)
-    print(text if text is not None else TOP_LEVEL_HELP)
+  node = route_tree().get(group)
+  if node is None:
+    print(TOP_LEVEL_HELP)
     return
-  parser = builder()
   if group == "assignments":
     print("Cloud rows are GraphQL Assignment work records (kind: newsroom-assignment).")
     print("Local rows are Kanbus pod stories (kind: pod-story).")
-    print("Use kbs for board columns, transitions, and workflow state.")
-  parser.print_help()
-  # The parser describes some of the group's commands; the rest are routed elsewhere, so list them too.
-  from papyrus.operator.help_dispatch import route_tree
-
-  described = {name for action in parser._actions for name in (getattr(action, "choices", None) or {})}
-  others = [name for name in route_tree().get(group, {}) if name not in described]
-  if others:
-    print("\nOther commands: " + ", ".join(others))
+    print("Use kbs for board columns, transitions, and workflow state.\n")
+  if group == "references":
+    print("Agents filing and linking References: `papyrus guide find`, `papyrus guide file-reference`, `papyrus guide tag-and-link`.")
+    print("`register` is for the local pod only; it does not file a Reference on a site.\n")
+  print(group_text([group], node))
