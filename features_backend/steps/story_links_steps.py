@@ -108,7 +108,7 @@ def _line_only_an(context, outcome, title, other):
     _line_only(context, outcome, title, other)
 
 
-@then('it warned that "{title}" is not published yet and the public Related block shows published stories only')
+@then('it warned that "{title}" is not published yet and the public See also block shows published stories only')
 def _warned(context, title):
     assert f"{title} is not published yet" in context.err and "shows published stories only" in context.err, context.err
 
@@ -143,7 +143,7 @@ def _related(context, title, kind, stage, note):
 @then("the written link is the one official relation {name}, with its seeded relation type")
 def _official(context, name):
     rows = _relations(context)
-    assert rows and all((r["predicate"], r["relationTypeKey"], r["relationTypeId"]) == (name, name, "semantic-relation-type-related-to") for r in rows), rows
+    assert rows and all((r["predicate"], r["relationTypeKey"], r["relationTypeId"]) == (name, name, "semantic-relation-type-see-also") for r in rows), rows
 
 
 @given('someone wrote a link from "{one}" to "{other}" by hand under the name "{name}"')

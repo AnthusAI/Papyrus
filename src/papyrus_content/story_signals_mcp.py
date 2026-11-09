@@ -28,10 +28,10 @@ TOOLS_TABLE: dict[str, tuple[str, dict, str]] = {
                           "Sets the editor's rating of a Story, 1 to 5 (0 clears it), through the newsroom's setItemStars, which re-renders the listings whose order changed."),
     # No field names a relation: the one official type (story_links.STORY_LINK_RELATION) is written by the code, and additionalProperties is false.
     "papyrus_link_stories": ("staff", _closed({
-        "story": {"type": "string", "description": "lineage id or slug of the story that gets the Related block"},
-        "related_to_stories": {"type": "array", "items": _STR, "minItems": 1, "description": "lineage ids or slugs of the stories it goes with"},
-        "note": _STR, "dryRun": {"type": "boolean"}}, ("story", "related_to_stories")),
-        "Links a story to other stories for its Related block. Every one must be an existing story and none the story itself; a link that exists in either direction is left alone. "
+        "story": {"type": "string", "description": "lineage id or slug of the story that gets the See also block"},
+        "see_also_stories": {"type": "array", "items": _STR, "minItems": 1, "description": "lineage ids or slugs of the stories it goes with"},
+        "note": _STR, "dryRun": {"type": "boolean"}}, ("story", "see_also_stories")),
+        "Links a story to other stories for its See also block. Every one must be an existing story and none the story itself; a link that exists in either direction is left alone. "
         "Returns each target's title, type, stage, outcome (write, exists or dry run) and a warning when it is not published yet (the public block shows published stories only)."),
 }
 
@@ -63,10 +63,10 @@ def call_story_signal_tool(name: str, arguments: dict[str, Any], client, actor: 
     if name == "papyrus_link_stories":
         from .story_links import link_story_set, resolve_link_targets
 
-        unknown = set(args) - {"story", "related_to_stories", "note", "dryRun"}
+        unknown = set(args) - {"story", "see_also_stories", "note", "dryRun"}
         if unknown:
             raise ValueError(f"Unknown argument(s) for papyrus_link_stories: {', '.join(sorted(unknown))}. There is no relation to choose.")
-        story, others = resolve_link_targets(client, args["story"], list(args["related_to_stories"]))
+        story, others = resolve_link_targets(client, args["story"], list(args["see_also_stories"]))
         rows = link_story_set(client, story, others, actor=actor, provenance="derived", note=args.get("note") or None, apply=not args.get("dryRun"))
         return {"story": story.get("lineageId") or story["id"], "dryRun": bool(args.get("dryRun")), "links": rows}
     raise ValueError(f"Unknown story tool {name}.")

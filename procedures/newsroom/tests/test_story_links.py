@@ -1,4 +1,4 @@
-"""`papyrus stories link-story`: related_to links between stories, symmetric, create-only, listed by `stories show`."""
+"""`papyrus stories link-story`: see_also links between stories, symmetric, create-only, listed by `stories show`."""
 from __future__ import annotations
 
 import inspect
@@ -41,14 +41,14 @@ class LinkStoryTests(unittest.TestCase):
         out, err, failure = link(client, "--story", "item-big", "--to", "item-post-1", "--to", "post-2", "--note", "goes with")
         self.assertIsNone(failure, err)
         lines = [line.split("\t") for line in out.splitlines()]
-        self.assertEqual(lines[0], ["stories", "link-story", "item-big", "item-post-1", "related_to", "First post", "type post", "stage published", "write"])
-        self.assertEqual(lines[1][3:], ["item-post-2", "related_to", "Second post", "type post", "stage draft", "write"])
+        self.assertEqual(lines[0], ["stories", "link-story", "item-big", "item-post-1", "see_also", "First post", "type post", "stage published", "write"])
+        self.assertEqual(lines[1][3:], ["item-post-2", "see_also", "Second post", "type post", "stage draft", "write"])
         self.assertIn("Second post is not published yet", err)
         self.assertNotIn("First post is not", err)
         rows = list(client.tables["SemanticRelation"].values())
         self.assertEqual(len(rows), 2)
         meta = json.loads(rows[0]["metadata"])
-        self.assertEqual((meta["addedBy"], meta["note"], rows[0]["predicate"]), ("Grace Editor", "goes with", "related_to"))
+        self.assertEqual((meta["addedBy"], meta["note"], rows[0]["predicate"]), ("Grace Editor", "goes with", "see_also"))
 
     def test_either_direction_is_the_same_link_and_a_repeat_writes_nothing(self):
         client = site()
@@ -94,7 +94,7 @@ class LinkStoryTests(unittest.TestCase):
     def test_no_relation_name_can_be_chosen(self):
         client = site()
         _out, _err, failure = link(client, "--story", "item-big", "--to", "item-post-1", "--relation", "expands_on")
-        self.assertIn("Allowed values: related_to", str(failure))
+        self.assertIn("Allowed values: see_also", str(failure))
         self.assertEqual(client.tables.get("SemanticRelation", {}), {})
         _out, _err, failure = link(client, "--story", "item-big", "--to", "item-post-1", "--relation", STORY_LINK_RELATION)
         self.assertIsNone(failure)
@@ -103,7 +103,7 @@ class LinkStoryTests(unittest.TestCase):
         client = site()
         link(client, "--story", "item-big", "--to", "item-post-1")
         row = next(iter(client.tables["SemanticRelation"].values()))
-        self.assertEqual((row["predicate"], row["relationTypeKey"], row["relationTypeId"]), (STORY_LINK_RELATION, STORY_LINK_RELATION, "semantic-relation-type-related-to"))
+        self.assertEqual((row["predicate"], row["relationTypeKey"], row["relationTypeId"]), (STORY_LINK_RELATION, STORY_LINK_RELATION, "semantic-relation-type-see-also"))
         self.assertTrue(row["predicateObjectStateKey"].startswith(STORY_LINK_RELATION + "#"))
 
     def test_a_rejected_link_is_never_flipped_back_and_says_so(self):
@@ -152,14 +152,14 @@ class LinkStoryTests(unittest.TestCase):
         self.assertFalse(schema["additionalProperties"])
         client = site()
         with self.assertRaisesRegex(ValueError, "no relation to choose"):
-            call_story_signal_tool("papyrus_link_stories", {"story": "big", "related_to_stories": ["post-1"], "relation": "x"}, client, actor="Grace Editor")
-        done = call_story_signal_tool("papyrus_link_stories", {"story": "big", "related_to_stories": ["post-1", "post-2"], "note": "n"}, client, actor="Grace Editor")
+            call_story_signal_tool("papyrus_link_stories", {"story": "big", "see_also_stories": ["post-1"], "relation": "x"}, client, actor="Grace Editor")
+        done = call_story_signal_tool("papyrus_link_stories", {"story": "big", "see_also_stories": ["post-1", "post-2"], "note": "n"}, client, actor="Grace Editor")
         self.assertEqual([(row["title"], row["outcome"]) for row in done["links"]], [("First post", "write"), ("Second post", "write")])
         self.assertIn("not published yet", done["links"][1]["warning"])
-        again = call_story_signal_tool("papyrus_link_stories", {"story": "post-1", "related_to_stories": ["big"]}, client, actor="Grace Editor")
+        again = call_story_signal_tool("papyrus_link_stories", {"story": "post-1", "see_also_stories": ["big"]}, client, actor="Grace Editor")
         self.assertEqual(again["links"][0]["outcome"], "exists")
         with self.assertRaisesRegex(ValueError, "itself"):
-            call_story_signal_tool("papyrus_link_stories", {"story": "big", "related_to_stories": ["big"]}, client, actor="Grace Editor")
+            call_story_signal_tool("papyrus_link_stories", {"story": "big", "see_also_stories": ["big"]}, client, actor="Grace Editor")
 
     def test_the_tactus_tool_links_with_the_same_rules(self):
         from unittest import mock

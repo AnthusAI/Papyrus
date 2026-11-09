@@ -20,6 +20,7 @@ from .relation_types import semantic_relation_type_fields_for_predicate
 from .story_reporting import current_reference, latest_story_version
 
 RELATED_TO = "related_to"
+SEE_ALSO = "see_also"   # story to story: "read this too" (one meaning; a story pair is never `related_to`)
 CITES = "cites"
 SUPPORTS = "supports"
 CONTRADICTS = "contradicts"
@@ -291,7 +292,7 @@ def link_items(
     note: str | None = None,
     now: str | None = None,
 ) -> dict[str, Any]:
-    """Links two stories (Items, as their current records) with the one official ``related_to`` edge, kind ``item.link``.
+    """Links two stories (Items, as their current records) with the one official ``see_also`` edge, kind ``item.link``.
 
     Symmetric like reference links: one row, the lower lineage id as subject, the deterministic id from the pair, so A to B and B to A are one row.
     A rejected edge is never flipped back (see ``_write_edge``)."""
@@ -303,9 +304,9 @@ def link_items(
         raise ValueError("A story cannot be linked to itself.")
     return _write_edge(
         client,
-        relation_id=reference_link_relation_id(RELATED_TO, ends[0]["lineageId"], ends[1]["lineageId"]),
+        relation_id=reference_link_relation_id(SEE_ALSO, ends[0]["lineageId"], ends[1]["lineageId"]),
         kind=ITEM_LINK_KIND,
-        predicate=RELATED_TO,
+        predicate=SEE_ALSO,
         subject=ends[0],
         object_=ends[1],
         provenance=provenance,

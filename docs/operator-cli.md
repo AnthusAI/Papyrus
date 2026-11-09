@@ -168,7 +168,7 @@ check itself is unchanged.
 
 ## Creating stories and discovering commands
 
-`papyrus stories link-story --story LINEAGE|SLUG --to LINEAGE|SLUG [--to ...] [--note TEXT] [--dry-run] [--json]` links a story to related stories for its Related block with the one official `related_to` relation (no relation can be chosen); a link in either direction counts as the same link, so repeating writes nothing, and a target that is not published yet is warned about. `stories show` lists a story's related stories (and any item-to-item relation under a non-official name). It writes unless `--dry-run`. See [Linking stories to each other](story-reporting.md#linking-stories-to-each-other).
+`papyrus stories link-story --story LINEAGE|SLUG --to LINEAGE|SLUG [--to ...] [--note TEXT] [--dry-run] [--json]` links a story to related stories for its See also block with the one official `see_also` relation (no relation can be chosen); a link in either direction counts as the same link, so repeating writes nothing, and a target that is not published yet is warned about. `stories show` lists a story's related stories (and any item-to-item relation under a non-official name). It writes unless `--dry-run`. See [Linking stories to each other](story-reporting.md#linking-stories-to-each-other).
 
 `papyrus items link-references --site KEY [--role consulted|cited|based_on] [--json] [--dry-run]` links the stories whose text already links to a Reference's address to that Reference (see [Stories based on a Reference](reference-curation-pipeline.md#6a-stories-based-on-a-reference-core-rules)); it writes unless `--dry-run`.
 

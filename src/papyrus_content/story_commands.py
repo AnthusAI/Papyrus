@@ -269,11 +269,11 @@ def stories_link_reference(flags: list[str]) -> None:
 def stories_link_story(flags: list[str]) -> None:
     """papyrus stories link-story --story <lineage|slug> --to <lineage|slug> [--to ...] [--note <text>] [--author-label <name>] [--dry-run] [--json]
 
-    Links a story to one or more other stories (an article to related articles, a larger story to several posts) for its Related block. There is
-    one relation, `related_to`, and it cannot be chosen: no relation name is accepted (`--relation related_to` is tolerated, anything else is refused).
+    Links a story to one or more other stories (an article to related articles, a larger story to several posts) for its See also block. There is
+    one relation, `see_also`, and it cannot be chosen: no relation name is accepted (`--relation see_also` is tolerated, anything else is refused).
     Every story must exist and none may be the story itself; all are checked before anything is written. The link is symmetric, so one that exists in
     either direction is reported as `exists` and nothing is written (safe to repeat). A line per target gives its title, type and stage; a target that
-    is not published yet gets a warning on stderr, because the public Related block shows published stories only. Signed in, the link records the
+    is not published yet gets a warning on stderr, because the public See also block shows published stories only. Signed in, the link records the
     person who signed in (--author-label is ignored); on the IAM lane --author-label is required. The `write` line prints only after the link was
     saved. Links are only created: removing one is not a command yet (docs/story-reporting.md)."""
     from .operator_errors import OperatorError
@@ -415,7 +415,7 @@ def stories_show(flags: list[str]) -> None:
     """papyrus stories show --story <lineage> [--bucket day|week|none] [--json]
 
     --json prints only the story, its `related` stories (either end of a link: title, type, stage, published, note) and `unofficialRelations`
-    (item-to-item relations whose name is not the official `related_to`, which the Related block never shows). After the headline line, a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt)."""
+    (item-to-item relations whose name is not the official `see_also`, which the See also block never shows). After the headline line, a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt)."""
     options = parse_options(flags)
     lineage_id = _required_option(options, "story")
     client, _ = create_authoring_client()

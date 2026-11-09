@@ -1,11 +1,11 @@
 """Story-to-story links: one ``SemanticRelation`` between two stories (Items), for a story's Related block.
 
-There is exactly one official relation name, ``STORY_LINK_RELATION`` (``related_to``). The writer here, the reader (``stories show``, the data-quality
+There is exactly one official relation name, ``STORY_LINK_RELATION`` (``see_also``). The writer here, the reader (``stories show``, the data-quality
 check) and the tests all use that one constant, and no caller can pass a relation name: the CLI, the Tactus tool and the MCP tool have no field for it,
 and ``link_stories`` refuses to write any other predicate. ``SemanticRelation.predicate`` is a free string in the schema, so this code path is the guard;
 a story-to-story relation written by hand under another name is listed by ``unofficial_item_relations`` instead of being silently ignored.
 
-``related_to`` is symmetric, so A to B and B to A are the same link: the id is built from the sorted pair, and a link that exists in either direction
+``see_also`` is symmetric, so A to B and B to A are the same link: the id is built from the sorted pair, and a link that exists in either direction
 is reported, never written again. A link is only ever created (a signed-in editor's token may create a SemanticRelation but never update one), which is
 why a repeat writes nothing. See docs/story-reporting.md ("Linking stories to each other").
 """
@@ -17,11 +17,11 @@ from typing import Any
 
 from .content_item_lifecycle import SYSTEM_ITEM_TYPES
 from .publishing import published_item_id_for
-from .reference_links import ITEM_LINK_KIND, RELATED_TO, link_items, reference_link_relation_id
+from .reference_links import ITEM_LINK_KIND, SEE_ALSO, link_items, reference_link_relation_id
 from .relation_types import load_relation_type_lookup
 from .story_reporting import current_story_version, story_versions
 
-STORY_LINK_RELATION = RELATED_TO   # the one name, from reference_links, where every reference and concept edge gets it
+STORY_LINK_RELATION = SEE_ALSO   # the one name, from reference_links, where every reference and concept edge gets it
 STORY_LINK_KIND = ITEM_LINK_KIND
 
 

@@ -396,6 +396,17 @@ relationTypes:
     isSymmetric: true
     isTransitive: false
     contextPackTags: [reference_graph]
+  - key: see_also
+    label: see also
+    inverseLabel: see also
+    description: An editor or agent says "read this too" between two stories (Items). One symmetric row per pair; the public page shows it as See also on an article and as Posts when the other story is a post.
+    domain: editorial
+    allowedSubjectKinds: [item]
+    allowedObjectKinds: [item]
+    isDirectional: false
+    isSymmetric: true
+    isTransitive: false
+    contextPackTags: [editing, publication]
   - key: same_as
     label: same as
     inverseLabel: same as
