@@ -39,6 +39,34 @@ class IncludeAttrs(_Strict):
     model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
 
 
+class VideoAttrs(_Strict):
+    """``::video{...}`` as Papyrus documents it (docs/markus-content-markup.md, "Videos"). Markus's built-in spec only knows
+    ``src``/``title``/``poster``; the rest is read by Papyrus's own video markup when a site's ``embeds.providers`` is on, and
+    otherwise ignored by the built-in renderer. Which attributes are *named* must not depend on the site setting, so this
+    one spec is shared by every path that parses Story Markus."""
+
+    src: str
+    title: str | None = None
+    poster: str | None = None
+    credit: str | None = None
+    caption: str | None = None
+    start: str | int | None = None
+
+
+def video_directive_spec() -> DirectiveSpec:
+    """The ``video`` directive with Papyrus's attribute names and Markus's own renderer (so output is unchanged)."""
+    builtin = Registry.default().resolve("video")
+    assert builtin is not None
+    return DirectiveSpec(name="video", schema=VideoAttrs, renderer=builtin.renderer, leaf=True)
+
+
+def base_registry() -> Registry:
+    """Markus's default directives plus Papyrus's wider ``video``; no wiki directives."""
+    registry = Registry.default()
+    registry.register(video_directive_spec())
+    return registry
+
+
 def _render_dynamic_placeholder(directive: Directive, inner: str, attrs: dict[str, Any]) -> str:
     return f'<div class="papyrus-dynamic" data-papyrus-dynamic="{escape(directive.name)}"></div>'
 
@@ -58,7 +86,7 @@ def wiki_directive_specs(render: Callable[[str, dict[str, Any]], str] | None = N
 
 
 def papyrus_registry(render: Callable[[str, dict[str, Any]], str] | None = None) -> Registry:
-    registry = Registry.default()
+    registry = base_registry()
     for spec in wiki_directive_specs(render):
         registry.register(spec)
     return registry
