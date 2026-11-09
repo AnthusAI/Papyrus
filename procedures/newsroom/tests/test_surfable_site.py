@@ -218,6 +218,106 @@ def test_a_client_with_no_relation_index_gives_no_relations_and_no_error():
     assert not read_site_relations(object(), [("i1", "L1", None)], ["alpha"]).related
 
 
+# ------------------------------------------------------------------ related References (see_also, story to Reference)
+
+def see_also_reference(story: str, reference: str, added_at: str = "2026-11-01", note: str | None = None, state: str = "current") -> dict:
+    metadata = json.dumps({"kind": "item.reference-link", "addedAt": added_at, "note": note})
+    return {**relation(story, "see_also", "reference", f"lin-{reference}", reference, metadata=metadata), "relationState": state}
+
+
+def evidence(story: str, reference: str, role: str) -> dict:
+    return relation(story, "uses_evidence", "reference", f"lin-{reference}", reference, metadata=json.dumps({"role": role}))
+
+
+def reference_client(references: list[dict], links: list[dict]) -> FakeAuthoringClient:
+    return FakeAuthoringClient({"SemanticRelation": links, "Reference": references})
+
+
+def reference_row(identifier: str, accepted_at: str = "2026-10-01", status: str = "accepted", **extra) -> dict:
+    return {"id": identifier, "lineageId": f"lin-{identifier}", "curationStatus": status, "curationStatusUpdatedAt": accepted_at, "title": f"Title {identifier}",
+            "sourceUri": f"https://www.example.org/{identifier}", **extra}
+
+
+def test_related_references_are_the_accepted_see_also_references_newest_linked_first():
+    links = [see_also_reference("L1", "r-old", "2026-10-01"), see_also_reference("L1", "r-new", "2026-11-05", note="Start here"), see_also_reference("L1", "r-mid", "2026-10-20")]
+    rows = [reference_row("r-old"), reference_row("r-new"), reference_row("r-mid")]
+    found = read_site_relations(reference_client(rows, links), [("item-1", "L1", None)], []).references["item-1"]
+    assert [entry["referenceId"] for entry in found] == ["r-new", "r-mid", "r-old"]
+    assert found[0]["note"] == "Start here" and found[1]["note"] is None
+
+
+def test_only_accepted_references_with_a_current_link_are_related_references():
+    statuses = ("pending", "recommended", "rejected", "accepted")
+    links = [see_also_reference("L1", f"r-{status}") for status in statuses] + [see_also_reference("L1", "r-retired", state="rejected"), see_also_reference("L1", "r-missing")]
+    rows = [reference_row(f"r-{status}", status=status) for status in statuses] + [reference_row("r-retired")]
+    # the index key carries the state, so a rejected edge is simply not read; the fake keys by relationState like the real table
+    found = read_site_relations(reference_client(rows, links), [("item-1", "L1", None)], []).references
+    assert [entry["referenceId"] for entry in found["item-1"]] == ["r-accepted"]
+
+
+def test_evidence_only_references_never_appear_as_related_references():
+    links = [evidence("L1", "r-cited", "cited"), evidence("L1", "r-based", "based_on"), evidence("L1", "r-consulted", "consulted")]
+    rows = [reference_row("r-cited"), reference_row("r-based"), reference_row("r-consulted")]
+    found = read_site_relations(reference_client(rows, links), [("item-1", "L1", None)], [])
+    assert found.references == {}
+    assert dict(found.based_on) == {"example.org/r-based": ("item-1",)}   # the evidence reading is unchanged
+
+
+def test_a_related_reference_carries_its_card_fields_and_never_the_captured_text():
+    row = reference_row("r1", "2026-11-02", cardImage="https://cdn.example.org/a.png", cardSummary="A summary.", cardSiteName="Example", medium="video",
+                        extractedText="SECRET CAPTURED TEXT", contentText="MORE CAPTURED TEXT")
+    links = [see_also_reference("L1", "r1", "2026-11-03"), see_also_reference("L1", "r2", "2026-11-02")]
+    first, second = read_site_relations(reference_client([row, reference_row("r2")], links), [("item-1", "L1", None)], []).references["item-1"]
+    assert first == {"referenceId": "r1", "lineageId": "lin-r1", "title": "Title r1", "url": "https://www.example.org/r1", "host": "Example",
+                     "image": "https://cdn.example.org/a.png", "summary": "A summary.", "medium": "video", "acceptedAt": "2026-11-02", "note": None}
+    assert "CAPTURED" not in json.dumps(first) and "role" not in first
+    assert (second["image"], second["summary"], second["medium"]) == (None, None, None) and second["host"]
+
+
+def test_related_references_are_read_without_a_scan_and_empty_when_there_are_none():
+    client = reference_client([reference_row("r1")], [see_also_reference(lineage, "r1") for lineage in ("L1", "L2")])
+    found = read_site_relations(client, [("a", "L1", None), ("b", "L2", None), ("c", "L3", None)], [])
+    assert set(found.references) == {"a", "b"}
+    assert "list" not in {call[0] for call in client.calls}
+    assert not read_site_relations(reference_client([], []), [("a", "L1", None)], []).references
+
+
+def test_a_page_gets_its_related_references_and_a_snapshot_client_gets_none():
+    from papyrus_content.projection.url_compare import SnapshotClient
+
+    entry = {"referenceId": "r1", "title": "T"}
+    created = DirectorySite(settings(urls={"style": "directory"}), [item("one", section="posts")])
+    source = RelatedSource(created.content)
+    projector = StandardMarkusProjector.from_static_directory(created.static, environ=created.environ)
+    site = source.site_index()
+    site = type(site)(items=site.items, load_item=site.load_item, relations=SiteRelations(references={"file:posts/one.md": (entry,)}))
+    try:
+        assert projector._related_references(site, site.items[0]) == (entry,)
+    finally:
+        created.cleanup()
+    assert read_site_relations(SnapshotClient([{"id": "p1", "sourceItemId": "i1"}]), [("i1", "L1", None)], []).references == {}
+
+
+def test_a_link_or_a_reference_changing_changes_the_shared_inputs_but_the_same_data_does_not():
+    created = DirectorySite(settings(urls={"style": "directory"}), [item("one", section="posts")])
+    source = RelatedSource(created.content)
+    projector = StandardMarkusProjector.from_static_directory(created.static, environ=created.environ)
+
+    def digest(status: str = "accepted", title: str = "Title", linked: bool = True) -> str:
+        links = [see_also_reference("L1", "r1")] if linked else []
+        source.relations = read_site_relations(reference_client([reference_row("r1", status=status, title=title)], links), [("file:posts/one.md", "L1", None)], [])
+        return projector.shared_inputs(source.site_index())
+
+    try:
+        accepted = digest()
+        assert digest() == accepted
+        assert digest(status="rejected") != accepted
+        assert digest(title="Edited") != accepted
+        assert digest(linked=False) != accepted
+    finally:
+        created.cleanup()
+
+
 def test_outside_links_are_the_original_markup_unless_the_site_opts_in_to_the_icon():
     created = DirectorySite(settings(urls={"style": "directory"}), [item("reader", section="posts", body=BODY, citations=CITATIONS)])
     try:

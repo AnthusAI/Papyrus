@@ -39,6 +39,7 @@ REFERENCE_LINK_KIND = "reference.link"
 REFERENCE_CONCEPT_KIND = "reference.concept"
 ITEM_CONCEPT_KIND = "item.concept"
 ITEM_LINK_KIND = "item.link"
+ITEM_REFERENCE_LINK_KIND = "item.reference-link"   # story -> Reference see_also, named like its neighbours item.link and item.concept
 REFERENCE_LINK_FEED_KEY = "reference-links"
 STATE_FOR_PROVENANCE = {"human": "current", "derived": "current", "suggested": "suggested"}
 STATE_FOR_DECISION = {"accepted": "current", "rejected": "rejected"}
@@ -325,6 +326,53 @@ def link_items(
         predicate=SEE_ALSO,
         subject=ends[0],
         object_=ends[1],
+        provenance=provenance,
+        actor=actor,
+        score=None,
+        confidence=None,
+        classifier_id=None,
+        model_version=None,
+        note=note,
+        now=now,
+    )
+
+
+def link_item_reference_see_also(
+    client,
+    item_lineage_id: str,
+    reference: str,
+    provenance: str,
+    *,
+    actor: str,
+    note: str | None = None,
+    now: str | None = None,
+    story: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Links a story to a Reference with the official ``see_also`` edge ("read this source too"), kind ``item.reference-link``.
+
+    Directional: the story is the subject, the Reference (a record id or a lineage id) the object. The id is deterministic from the predicate, the story
+    lineage and the Reference lineage, so a repeat finds the row: a current (or suggested) edge is reported as ``exists`` and nothing is written, and a rejected
+    edge is never flipped back (``outcome`` ``rejected``). Only an accepted Reference can be linked: the public page shows accepted References only.
+    ``story`` is the story's record when the caller has it (the lineage index is eventually consistent)."""
+    _require_provenance(provenance)
+    now = now or utc_now_iso()
+    found = _require_reference(client, reference)
+    if found.get("curationStatus") != "accepted":
+        raise ValueError(f"Reference {reference} is {found.get('curationStatus') or 'not accepted'}; only accepted References can be linked to a story, because only those are shown on the page.")
+    reference_end = _reference_end(found, reference)
+    story = story or latest_story_version(client, item_lineage_id)
+    item_end = {"kind": "item", "id": story["id"], "lineageId": item_lineage_id, "versionNumber": story.get("versionNumber")}
+    relation_id = reference_link_relation_id(SEE_ALSO, item_lineage_id, reference_end["lineageId"])
+    existing = client.get_record("SemanticRelation", relation_id)
+    if existing and existing.get("relationState") in ("current", "suggested"):
+        return {"relationId": relation_id, "relationState": existing["relationState"], "outcome": "exists"}
+    return _write_edge(
+        client,
+        relation_id=relation_id,
+        kind=ITEM_REFERENCE_LINK_KIND,
+        predicate=SEE_ALSO,
+        subject=item_end,
+        object_=reference_end,
         provenance=provenance,
         actor=actor,
         score=None,

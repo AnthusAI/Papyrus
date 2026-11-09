@@ -228,7 +228,23 @@ Agents use the same code through `papyrus_link_stories(story, see_also_stories[]
 `papyrus_newsroom/tactus_tools.py`, available to every procedure that loads the `papyrus` toolset) and the MCP-shaped `papyrus_link_stories`
 (`story_signals_mcp.py`, `additionalProperties: false`, no relation field). Neither has any field for a relation type. No server registers the MCP-shaped table today.
 
-**Deploy.** `see_also` is a new seeded relation type. A site accepts the row without it (`relationTypeId` is a plain id and `predicate` a free string), but its relation-type table should hold it: on each site run `papyrus relations import-types --config corpora/papyrus-semantic-relation-types.yml` (an idempotent upsert of the seeds; the CLI must be the release that carries the new seed). No schema change, no backfill (no `see_also` row exists yet).
+**Linking a story to a Reference ("read this source too").** The same `see_also` also runs from a story to a Reference: a looser association than citing or consulting
+(`uses_evidence` stays the reporting trail and is never shown as a related Reference). It is directional, story to Reference, one `SemanticRelation` written by
+`reference_links.link_item_reference_see_also` (metadata `kind: item.reference-link`, deterministic id from the predicate, the story lineage and the Reference lineage,
+`relationState` `current`, the same provenance, `addedBy`, `addedAt` and `note`). It is idempotent (an existing edge writes nothing), never flips a rejected edge back,
+and refuses a Reference that is not accepted, because only accepted References are shown on the page.
+
+```bash
+papyrus stories link-story --story <lineage-or-slug> --reference <reference-id> [--reference <...>] [--to <lineage-or-slug>] [--note TEXT] [--dry-run] [--json]
+```
+
+All Reference ids are checked before anything is written; if one does not exist or is not accepted the command stops with a plain message naming it and writes nothing (no
+override). Each line prints the Reference's title, host and curation status. `stories show` lists them (`see-also-reference` lines; `--json` as `relatedReferences`). Agents
+pass `see_also_references[]` to `papyrus_link_stories` (Tactus and the MCP-shaped table). The site build reads these edges into `page.related_references`
+([surfable site](surfable-site.md)). `stories check-links` treats a current edge to an accepted Reference as official and flags a state that is not `current`, a wrong kind, a
+Reference that is missing or not accepted, and any other story-to-Reference predicate than `uses_evidence` and `see_also`.
+
+**Deploy.** `see_also` is a new seeded relation type. A site accepts the row without it (`relationTypeId` is a plain id and `predicate` a free string; the seed now also allows a Reference object), but its relation-type table should hold it: on each site run `papyrus relations import-types --config corpora/papyrus-semantic-relation-types.yml` (an idempotent upsert of the seeds; the CLI must be the release that carries the new seed). No schema change, no backfill (no `see_also` row exists yet).
 
 **Removing a link is not a command.** The editor and administrator groups can create a `SemanticRelation` but never update or delete one, so removal
 needs a backend change: a `status` (or `relationState: retired`) field written through a new route like `setStoryReferenceRole`

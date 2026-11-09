@@ -110,3 +110,84 @@ def related_both(context) -> None:
 def index_only(context) -> None:
     assert "list" not in {call[0] for call in context.client.calls}
     assert {call[1] for call in context.client.calls if call[0] == "list_by_index"} <= {"semanticRelationsBySubjectState", "semanticRelationsByObjectState"}
+
+
+# -- related References
+
+def _one_story(context, links, rows) -> None:
+    context.client = t.reference_client(rows, links)
+    context.stories = [("item-1", "L1", None)]
+
+
+@given("a Story that points to three accepted References linked on different days")
+def three_links(context) -> None:
+    _one_story(
+        context,
+        [t.see_also_reference("L1", "old", "2026-10-01"), t.see_also_reference("L1", "new", "2026-11-05", note="Start here"), t.see_also_reference("L1", "mid", "2026-10-20")],
+        [t.reference_row("old"), t.reference_row("new"), t.reference_row("mid")],
+    )
+
+
+@given("a Story that points to pending, recommended, rejected and accepted References")
+def several_statuses(context) -> None:
+    statuses = ("pending", "recommended", "rejected", "accepted")
+    _one_story(context, [t.see_also_reference("L1", f"r-{status}") for status in statuses], [t.reference_row(f"r-{status}", status=status) for status in statuses])
+
+
+@given("a Story that cites, consults and is based on References without any see-also link")
+def evidence_only(context) -> None:
+    _one_story(context, [t.evidence("L1", "a", "cited"), t.evidence("L1", "b", "consulted"), t.evidence("L1", "c", "based_on")], [t.reference_row(name) for name in "abc"])
+
+
+@given("a Story that points to an accepted Reference with a card image, summary and captured text")
+def card_reference(context) -> None:
+    row = t.reference_row("r1", "2026-11-02", cardImage="https://cdn.example.org/a.png", cardSummary="A summary.", cardSiteName="Example", medium="video", extractedText="SECRET CAPTURED TEXT")
+    _one_story(context, [t.see_also_reference("L1", "r1", note="Primary filing")], [row])
+
+
+@given("a snapshot client")
+def snapshot(context) -> None:
+    from papyrus_content.projection.url_compare import SnapshotClient
+
+    context.client = SnapshotClient([{"id": "p1", "sourceItemId": "i1"}])
+    context.stories = [("i1", "L1", None)]
+
+
+@given("a published Story pointing to an accepted Reference")
+def pointing(context) -> None:
+    context.digest_test = t.test_a_link_or_a_reference_changing_changes_the_shared_inputs_but_the_same_data_does_not
+
+
+@then("the Story lists them newest linked first with the note on the link")
+def listed(context) -> None:
+    found = context.found.references["item-1"]
+    assert [entry["referenceId"] for entry in found] == ["new", "mid", "old"] and found[0]["note"] == "Start here"
+
+
+@then("only the accepted Reference is listed")
+def only_accepted(context) -> None:
+    assert [entry["referenceId"] for entry in context.found.references["item-1"]] == ["r-accepted"]
+
+
+@then("the Reference has its title, address, host, image, summary, medium, accepted time and note and no captured text")
+def card_fields(context) -> None:
+    (entry,) = context.found.references["item-1"]
+    assert entry == {"referenceId": "r1", "lineageId": "lin-r1", "title": "Title r1", "url": "https://www.example.org/r1", "host": "Example",
+                     "image": "https://cdn.example.org/a.png", "summary": "A summary.", "medium": "video", "acceptedAt": "2026-11-02", "note": "Primary filing"}
+    assert "CAPTURED" not in str(entry)
+
+
+@then("the Story has no related References")
+@then("no related References are found")
+def none_found(context) -> None:
+    assert not context.found.references
+
+
+@when("the link is removed, or the Reference is rejected or its title is edited")
+def changed(context) -> None:
+    context.digest_test()   # asserts inside: each change alters the shared inputs, the same data does not
+
+
+@then("the shared inputs of the item pages change and unchanged data leaves them the same")
+def digest_changes(context) -> None:
+    pass

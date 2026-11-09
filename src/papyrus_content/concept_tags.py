@@ -29,6 +29,7 @@ from .reference_links import (
     CONCEPT_TAG_PREDICATES,
     ITEM_CONCEPT_KIND,
     ITEM_LINK_KIND,
+    ITEM_REFERENCE_LINK_KIND,
     LEGACY_CONCEPT_TAG_PREDICATE,
     REFERENCE_CONCEPT_KIND,
     link_concept,
@@ -37,7 +38,7 @@ from .reference_links import (
 )
 from .section_concepts import CONCEPT_KEY_SEPARATOR, concept_label, current_concept_nodes, name_part
 from .story_links import STORY_LINK_RELATION, resolve_story
-from .story_reporting import current_reference
+from .story_reporting import STORY_REFERENCE_PREDICATE, current_reference
 
 ACCEPTED = "accepted"
 EDITOR_CONCEPT_PREFIX = "editor_concept--"
@@ -242,10 +243,25 @@ def audit_story_links(client, lineage_ids: list[str]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     all_rows = {lineage: [row for state in STATES for row in by_key.get(f"item#{lineage}#{state}") or []] for lineage in lineage_ids}
     nodes = _fetch_nodes(client, [row for rows in all_rows.values() for row in rows])
+    reference_ids = [str(row["objectId"]) for rows in all_rows.values() for row in rows if row.get("objectKind") == "reference" and row.get("objectId")]
+    references = client.get_records_by_id("Reference", reference_ids) if reference_ids else {}
     pairs: dict[frozenset, list[dict[str, Any]]] = {}
     for lineage, rows in all_rows.items():
         concept_rows = [row for row in rows if row.get("objectKind") == "semanticNode"]
         findings.extend(_audit_concept_edges(lineage, concept_rows, ITEM_CONCEPT_KIND, nodes, pages))
+        for row in (row for row in rows if row.get("objectKind") == "reference" and row.get("predicate") != STORY_REFERENCE_PREDICATE):
+            if row.get("predicate") != STORY_LINK_RELATION:
+                findings.append(_finding(lineage, row, "wrong predicate", f"expected {STORY_LINK_RELATION} or {STORY_REFERENCE_PREDICATE}"))
+                continue
+            if row.get("relationState") != "current":
+                findings.append(_finding(lineage, row, "state not current", str(row.get("relationState"))))
+            if _metadata(row).get("kind") != ITEM_REFERENCE_LINK_KIND:
+                findings.append(_finding(lineage, row, "wrong kind", f"expected {ITEM_REFERENCE_LINK_KIND}, found {_metadata(row).get('kind')}"))
+            found = references.get(str(row.get("objectId")))
+            if found is None:
+                findings.append(_finding(lineage, row, "reference missing", "no Reference with that id"))
+            elif found.get("curationStatus") != ACCEPTED:
+                findings.append(_finding(lineage, row, "reference not accepted", f"status {found.get('curationStatus')}"))
         for row in (row for row in rows if row.get("objectKind") == "item"):
             pairs.setdefault(frozenset((str(row.get("subjectLineageId")), str(row.get("objectLineageId")))), []).append(row)
             if row.get("predicate") != STORY_LINK_RELATION:
