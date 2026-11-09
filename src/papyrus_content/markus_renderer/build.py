@@ -28,7 +28,7 @@ from .pages import (
 from .security import assert_markus_version
 from .shell import DEFAULT_CHROME, NavItem, SiteChrome
 from .transforms import FragmentTransform
-from .video import VideoRendering, VideoRequest
+from .video import VideoRendering
 from .vendor_css import vendor_markus_css
 
 DEFAULT_CONTENT_DIR = PAPYRUS_ROOT / "web" / "content"
@@ -132,7 +132,6 @@ def render_fragment_text(
     transform: FragmentTransform | None = None,
     equations: str = "mathml",
     videos: VideoRendering | None = None,
-    video_poster: Callable[[VideoRequest, int], str | None] | None = None,
 ) -> str:
     """Convert one Markdown text, resolving Papyrus content markup around it.
 
@@ -164,7 +163,6 @@ def render_fragment_text(
         image_builder=image_builder,
         citations=citations,
         videos=videos,
-        video_poster=video_poster,
     )
     # Last, so a publication's transform sees the final markup, images and
     # bibliography included.

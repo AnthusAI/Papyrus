@@ -45,14 +45,11 @@ def embeds_from_mapping(value: object) -> VideoRendering:
     A site that never mentions ``embeds``, or lists no provider, is exactly as it was: core does not read ``::video``. With a provider listed, a ``::video`` of
     a provider that is known but not listed shows as a plain linked credit line.
 
-    There is deliberately no ``clickToPlay``: a video always loads its player only after a click, because a player loaded with the page would
-    contact the provider before the reader chose to."""
+    A video is the provider's standard iframe, so the provider is contacted when the page loads (YouTube through youtube-nocookie.com)."""
     if value is None:
         return VideoRendering()
     if not isinstance(value, Mapping):
         raise ValueError('embeds must be an object such as {"providers": ["youtube"]}')
-    if "clickToPlay" in value:
-        raise ValueError("embeds.clickToPlay is not a setting: a video always loads its player only after a click, so the page never contacts the provider on load")
     _only(value, {"providers"}, "embeds")
     providers = value.get("providers", [])
     if not isinstance(providers, list) or not all(isinstance(name, str) for name in providers):

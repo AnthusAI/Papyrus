@@ -349,38 +349,33 @@ A video is written like an image, on a line of its own:
 | Attribute | Required | Meaning |
 |-----------|----------|---------|
 | `src` | yes | The address of the video. YouTube (`watch?v=`, `youtu.be`, `shorts`, `live`, `embed`), Vimeo (`vimeo.com/ID`, `player.vimeo.com/video/ID`) and Instagram (`/p/`, `/reel/`, `/tv/`) are known. |
-| `title` | yes | The player's accessible name (the button and the frame are named by it). |
+| `title` | yes | The frame's accessible name (the iframe `title`). |
 | `credit` | yes | Who made the video. Third-party media is always credited; the credit links to the video. |
 | `caption` | no | What the reader will see before pressing play. |
 | `start` | no | Whole seconds to start from. Refused for a provider that cannot start part way (Instagram). |
 | `layout` | no | `inline` (default) or `full`, the same classes as `::image`. |
-| `poster` | no | A picture in the site's own storage (`/assets/reel-poster.jpg`) to show before the click. Needed for a provider with no thumbnail to copy (Instagram); optional for the others. |
+| `poster` | no | Accepted and ignored. The provider draws its own thumbnail, so older lines that carry it keep working. |
 
-**Click to play.** The page holds a poster (our own copy, read from the site's storage like any picture), a real `<button>` named by the title, and a plain
-link to the video for readers without JavaScript. Nothing in the static page asks the provider for anything. Only a click, Enter or Space puts the provider's
-player in the poster's place (`_plugins/papyrus-video-v1.js`, which creates a frame only for a registered provider's player address). There is deliberately no
-autoplay-on-load and no `clickToPlay` setting.
+**The provider's own embed.** A video is the provider's standard `<iframe>` (YouTube through `youtube-nocookie.com`, Vimeo with `dnt=1`, Instagram's own embed address), lazy-loaded,
+in a responsive 16:9 wrapper (Instagram is portrait with a minimum height). The provider draws its own thumbnail and play button; there is no poster, no placeholder and no script of ours,
+and no poster-capture step. **Privacy:** the provider loads with the page, so it may set its own cookies or measure the visit as soon as the page opens. A site that does not want that
+leaves `embeds.providers` empty. The credit line under the frame links to the video on the provider.
 
-**Posters.** For a provider with a thumbnail (YouTube, Vimeo) the poster is `assets/video-posters/<provider>-<id>.jpg` in the site's media storage, copied by
-`papyrus stories capture-video-posters --story <lineage>` (run where the provider answers, signed in with `papyrus login`; it skips a video that names its own
-`poster=`, and tells you which videos need one). A video whose poster is missing shows a flat placeholder with its title, never a broken image and never an address
-on the provider. The site needs `"media": {"originals": true}` so the renditions function makes the poster's sizes.
-
-**The provider registry is data** (`markus_renderer/video.py`, `REGISTRY`): for each provider, its hosts and address shapes, the plain address, the player
-address, whether a thumbnail can be copied, and the origin the Content-Security-Policy must allow. Adding a provider is adding a row.
+**The provider registry is data** (`markus_renderer/video.py`, `REGISTRY`): for each provider, its hosts and address shapes, the plain address, the iframe
+address, and the origins the Content-Security-Policy must allow. Adding a provider is adding a row.
 
 **Which providers play** is a setting of the site, `embeds.providers` in `projection.json` (see [the standard front end](standard-site.md#video-embeds-embeds)):
 
 * No `embeds`, or an empty `providers` list (the default): the feature is **absent**. Core does not read `::video` at all, so a site's own hooks see the line exactly as before,
   the site publishes exactly the files it did, and a Story saves with no list of videos.
-* A provider listed: its `::video` plays as above.
+* A provider listed: its `::video` is the provider's embed, as above.
 * Another registered provider that the site does not list, while some provider is listed: a plain linked credit line, `Video: <title linked to the video>. <caption>. Credit: <credit>.`,
-  with no player, no picture and no script.
+  with no frame and no picture.
 * An address of a host that is not in the registry is never core's: the line is left for the site's hooks.
 
 The Markdown copy of the Story keeps the directive exactly as written.
 
-**Checks.** The four-lens review has P16 (title and credit, a problem that blocks), P17 (caption), P18 (the site lists the video's provider, and an Instagram video has a poster) and A15 (a credited video is among the Story's citations).
+**Checks.** The four-lens review has P16 (title and credit, a problem that blocks), P17 (caption), P18 (the site lists the video's provider) and A15 (a credited video is among the Story's citations).
 
 ## Citations
 

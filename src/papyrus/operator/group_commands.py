@@ -49,7 +49,6 @@ COMMAND_USAGE = {
   ("content", "update-live"): "--story LINEAGE [--run] [--force-paths N] [--verify-seconds N] [--dry-run] [--json]  (re-project one Story, purge exactly its pages and the index pages that list it, check the live page shows the new version)",
   ("content", "inspect-page"): "--path PATH | --story LINEAGE [--fix] [--run] [--force-paths N] [--json]  (read only unless --fix: the record, the stored page and what the edge serves, with one verdict)",
   ("content", "rerender"): "--story LINEAGE | --indexes | --all  [--no-invalidate] [--dry-run] [--json]  (rebuild pages from the deployed hooks, then purge what was written)",
-  ("stories", "capture-video-posters"): "--story LINEAGE [--bucket NAME] [--identity-pool-id ID] [--dry-run]  (copies the thumbnail of each ::video into the site's media storage as its poster; run where YouTube answers, signed in)",
   ("stories", "list"): "[--stage STAGE] [--section ID|SLUG|NAME] [--limit N]  (read only; prints the lineage ids stories show takes)",
   ("stories", "show"): "--story LINEAGE  (read only; prints its References by lineage id, which references show accepts)",
   ("assignments", "show"): "--assignment ID  (read only; status, type, section, Story and events)",

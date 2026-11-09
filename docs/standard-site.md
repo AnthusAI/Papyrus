@@ -476,7 +476,7 @@ Tests: `features_backend/reference-medium.feature` (the page lists only accepted
 
 ### Video embeds (`embeds`)
 
-`::video{...}` in a Story ([the markup](markus-content-markup.md#videos)) is a click-to-play poster. Which providers play is one setting in `projection.json`:
+`::video{...}` in a Story ([the markup](markus-content-markup.md#videos)) is the provider's standard iframe embed: the provider draws its own thumbnail and play button, and we ship no poster, placeholder or script. Which providers play is one setting in `projection.json`:
 
 ```json
 "embeds": { "providers": ["youtube", "vimeo", "instagram"] }
@@ -484,19 +484,20 @@ Tests: `features_backend/reference-medium.feature` (the page lists only accepted
 
 `providers` names any of the registry's providers (`youtube`, `vimeo`, `instagram`); it is empty by default. **With no `embeds`, or an empty list, nothing about the
 site changes**: core does not read `::video`, the site publishes the same files, and the site's own hooks keep the line. With providers listed, the site also publishes
-`_plugins/papyrus-video-v1.js` (linked only from a page that has a player) and `_config/content-security-policy.txt`, a one-line fragment such as
-`frame-src https://www.youtube-nocookie.com https://player.vimeo.com`, with one frame origin for each listed provider and nothing else, for the site's edge (`customHttp.yml` or the
-CloudFront response-headers policy) to include. A known provider that is not listed shows as a plain linked credit line. `clickToPlay` is not a setting: the player is always loaded only after a click.
+`_config/content-security-policy.txt`, a one-line fragment such as
+`frame-src https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com`, with the frame origins of each listed provider and nothing else, for the site's edge (`customHttp.yml` or the
+CloudFront response-headers policy) to include. A known provider that is not listed shows as a plain linked credit line.
+
+**Privacy.** The iframe loads with the page (YouTube through `youtube-nocookie.com`, Vimeo with `dnt=1`), so the provider is contacted when a reader opens the page, not when they press play. A site that wants no such contact leaves `embeds.providers` empty.
 
 **Migrating a site that embeds with its own hooks (Pilobolus).** Pilobolus lifts `::video{src="https://www.instagram.com/..." title="..."}` lines in its `hooks.py`
 (`source`, then `item_decorator`) and draws Instagram's `blockquote` embed, which loads Instagram's own script on every page view. Nothing changes until the site opts in, so it can move one step at a time:
-(1) for each Instagram line add `credit="..."` (required) and `poster="/assets/<picture>.jpg"` (Instagram has no thumbnail to copy; put the picture in the site's media storage),
+(1) for each Instagram line add `credit="..."` (required),
 (2) delete the Instagram handling from `hooks.py` and the loading of Instagram's script, (3) add `"embeds": {"providers": ["instagram"]}` to `projection.json`, (4) add the published
 `_config/content-security-policy.txt` fragment (`frame-src https://www.instagram.com`) to the site's headers and drop Instagram's script and the `script-src` entries it needed,
 (5) check the Stories with `papyrus stories lens-check` (P16 and P18). Steps 1 to 3 go in one deploy, because a line without a credit is refused at save once Instagram is listed.
-A reader's browser then contacts Instagram only after pressing play, where the old embed contacted it on load.
 
-Tests: `features_backend/video-embed.feature`, `scripts/test-papyrus-video.cjs`.
+Tests: `features_backend/video-embed.feature`.
 
 ### Images and citations
 
