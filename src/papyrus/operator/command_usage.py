@@ -162,7 +162,7 @@ _ENTRIES = dict([
   _e("knowledge concepts import-types", "Operator: import the relation-type vocabulary. Writes immediately.", "[--config FILE]", "operator", "writes", ""),
   _e("knowledge concepts backfill", "Operator: backfill concept relations.", "[--config FILE] [--dry-run]", "operator", _DRY, ""),
   _e("knowledge entities list", "List concepts (about 100 generated ones by default). It cannot search: use `knowledge concepts search`.",
-     "[--status accepted|generated|rejected|all] [--kind KIND] [--query TEXT] [--import-run ID] [--limit N] [--counts] [--actor ai|human]", "both", "reads", "find"),
+     "[--status accepted|generated|rejected|all] [--kind KIND] [--query TEXT] [--import-run ID] [--limit N] [--counts]  (--status defaults to generated: add --status accepted to see the concepts you can tag with)", "both", "reads", "find"),
   _e("knowledge entities link", "Link two concepts with a related_to link and the words that say how they relate.",
      "--key CONCEPT --to CONCEPT --note TEXT [--dry-run]  (CONCEPT is a node key, node id or lineage id; running it again replaces the words)", "editor", _DRY, "tag-and-link"),
   _e("knowledge entities accept", "Accept a generated concept.", "--key KEY --actor ai|human [--actor-name N] [--keep-links-unconfirmed] [--dry-run]", "operator", _DRY, ""),
@@ -176,8 +176,8 @@ _ENTRIES = dict([
   _e("knowledge entities registry", "Write the entity registry JSON for `knowledge extract-entities --registry`.", "--out FILE [--vocabulary FILE]", "operator", "reads", ""),
   _e("knowledge clusters list", "List topic clusters.", "[--status proposed|accepted|rejected|all] [--limit N] --actor ai|human", "operator", "reads", ""),
   _e("knowledge relations list", "List typed relations between concepts.", "[--state proposed|accepted|rejected|all] [--limit N] --actor ai|human", "operator", "reads", ""),
-  _e("knowledge query", "Query the shared knowledge engine: ranked records around a query text or anchors.",
-     "[--query TEXT] [--anchor KIND:ID ...] [--input FILE|-] [--profile researcher|reporter|reporting|editor|reviewer|chat] [--format structured|markdown|both] "
+  _e("knowledge query", "Query the shared knowledge engine: ranked records around a query text or anchors. Prints one JSON object (structured, context, warnings, provenance, debug); with no query it succeeds and returns an empty one.",
+     "(--query TEXT | --anchor KIND:ID [--anchor ...] | --input FILE|-) [--profile researcher|reporter|reporting|editor|reviewer|chat] [--format structured|markdown|both] "
      "[--site HOST] [--max-tokens N] [--depth N] [--top-k N] [--include-kind KIND ...] [--exclude-kind KIND ...] [--execution auto|remote|local]",
      "both", "reads", "find"),
   # ---- ops content ------------------------------------------------------------------------------------------------

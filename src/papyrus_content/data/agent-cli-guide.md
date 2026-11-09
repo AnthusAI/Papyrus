@@ -2,7 +2,7 @@
 
 <!-- guide:top -->
 
-**Agents: read this file, or run `papyrus guide` (`papyrus guide --list` lists the tasks, `papyrus guide find` prints one section).** It is written so you never have to guess a flag.
+**Agents: read this file, or run `papyrus guide` (5.101+; on older versions read this file) (`papyrus guide --list` lists the tasks, `papyrus guide find` prints one section).** It is written so you never have to guess a flag.
 
 > **Maintainer note.** Whoever builds or changes a `papyrus` command updates the recipe for it in this file in the same pull request. The drift test (`procedures/newsroom/tests/test_agent_cli_guide.py`, specified by `features_backend/agent-cli-guide.feature`) parses every fenced `papyrus ...` command below and fails CI when a command is not in the CLI's route table or when a `--flag` is not in that command's `--help` usage. Commands that are still in an open pull request sit in fences marked `pending` and in the test's `PENDING` list; remove both marks when the pull request merges. The usage text `--help` prints comes from the table in `src/papyrus/operator/command_usage.py`: change an entry in the same pull request when you change a command's flags (the drift test checks every `--flag` used here against it). After editing, copy the file to `src/papyrus_content/data/agent-cli-guide.md` (the copy `papyrus guide` prints; the same test fails when the two differ). Verified against Papyrus 5.100.0 on 2026-11-09 with a signed-in editor on `newsroom.machines-on-machines.anth.us`.
 
@@ -23,6 +23,7 @@ export PAPYRUS_GRAPHQL_TIMEOUT_SECONDS=300
 ```
 
 - `papyrus login SITE` opens a browser once (Google sign-in only). `papyrus whoami` renews and prints every signed-in site's session as JSON; a site you are not signed in to prints `No session; run papyrus login SITE`.
+- `papyrus auth status` and `papyrus whoami` always list every signed-in site, whatever `PAPYRUS_SITE` says.
 - Choose the site for a command with `PAPYRUS_SITE=host`, or a leading `papyrus --site host <group> <command>` (only the leading position; a trailing `--site` means something else for several commands). With several sites signed in and none chosen, the CLI lists them and stops; it never guesses.
 - A signed-in editor needs no `amplify_outputs.json`, no `AWS_PROFILE` and no endpoint variable. Run from any folder outside a Papyrus checkout (inside one, the root guard stops a different install; `--allow-cross-root` overrides it on purpose).
 - Set `PAPYRUS_GRAPHQL_TIMEOUT_SECONDS=300` before any write. The default is 30 seconds, and a write that times out has an unknown outcome (see the safe re-run rule below).
@@ -106,12 +107,12 @@ papyrus stories versions --story LINEAGE
 papyrus knowledge concepts search --list
 papyrus knowledge concepts search "license plate" --limit 10
 papyrus knowledge concepts related --concept "License plate readers" --limit 10
-papyrus knowledge entities list --actor human
+papyrus knowledge entities list --status accepted --limit 20
 ```
 
 - `search --list` prints every accepted concept and needs no key. Free text searches by meaning and needs `OPENAI_API_KEY` set in your shell (a signed-in editor session does not carry one); name matches come first and duplicates are flagged.
 - `related` lists the concepts near one: confirmed links, aliases, and concepts that appear together on published Stories and accepted References. It finds the concept the way `link-concept` does (exact name, alias, `#hashtag` or node key) and needs no key.
-- `knowledge entities list` returns about 100 generated concepts and cannot search; use `search`.
+- `knowledge entities list` lists concepts with `--status generated` by default (141 on Machines on Machines); the concepts you can tag with are `--status accepted` (207 there). It cannot search by meaning; use `search`. It needs no `--actor`.
 
 ### Suggested links for a Story
 **Lane:** both. **Version:** 5.101+ (PR #1341). Read only.
@@ -160,6 +161,7 @@ papyrus references list --status pending --limit 10
 - `--status` must be `pending`; accept or reject with the review commands afterwards.
 - If a source reports `timed out`, run the identical command again.
 - Each Reference id looks like `reference-knowledge-corpus-ai-ml-research-url-<64 hex>-v1`. Within about five minutes the router captures the text and writes the summary and the prediction.
+- `--ingestion-rationale TEXT` supplies one rationale for every item that has none (an item's own `ingestion_rationale` wins). Every item still needs a `title`: `Every source needs a title and ingestion rationale.` is the error when either is missing.
 - Do **not** use `references prepare-catalog` signed in: it needs a local steering config and prints `Unknown --corpus-key: ai-ml-research`.
 
 ## Tag and link
@@ -174,7 +176,7 @@ papyrus references link-concept --reference REFERENCE_ID --concept "License plat
 papyrus stories link-concept --story LINEAGE --concept "License plate readers"
 ```
 
-Edge: `tagged_with`. A concept is found by exact name, alias, `#hashtag` or node key; it **never creates one**. An unknown name lists the closest accepted concepts; a concept already tagged prints that and writes nothing.
+Edge: `tagged_with`. A concept is found by exact name, alias, `#hashtag` or node key; it **never creates one**. An unknown name lists the closest accepted concepts; a concept already tagged prints `exists` and writes nothing. A name that two concepts share (`prompt injection` is both `topic--prompt-injection` and `editor_concept--prompt-injection`) is refused: pass the node key. A concept with no public wiki page prints a `warning` line (the tag is kept; the page just shows no link until a page exists). Output row: `references link-concept REFERENCE NODEKEY NAME [no public page] dry run|write|exists`.
 
 ### Create a concept while linking the first Reference
 **Lane:** editor. **Version:** 5.100.0. **Writes:** yes; `--dry-run` previews.
@@ -234,10 +236,19 @@ papyrus stories create --title "Headline" --section security --stage reporting -
 papyrus stories create --title "Headline" --section security --stage reporting --summary "One sentence." --reference REFERENCE_ID
 ```
 
-Prints `stories create created ITEM_ID`, `stories create lineage LINEAGE` and one `based on` line per Reference, then the reminder of the next procedure step. **Run it once**: each run makes a new Story. `--stage` is `idea`, `assignment` or `reporting` (default `idea`); `--section` takes a section id, slug or name.
+Prints `stories create created ITEM_ID`, `stories create lineage LINEAGE` and one `based on` line per Reference, then the reminder of the next procedure step. **Run it once**: each run makes a new Story. The dry run prints one line and does not check that the `--reference` ids exist. `--stage` is `idea`, `assignment` or `reporting` (default `idea`); `--section` takes a section id, slug or name.
 
 ### Set the Story type (post or article)
 **Lane:** editor. **Status:** not built. `stories create` has no `--type` and there is no `stories set-type` (board story PPY-b3032b). A Story with type `untyped` cannot be published. Interim route: open the newsroom story editor and choose the type, or start the Story from the Create Story button on the Reference card. Check the result with `papyrus stories show --story LINEAGE` (the `signals` line shows `type`).
+
+### List the versions
+**Lane:** both. **Version:** any. Read only.
+
+```sh
+papyrus stories versions --story LINEAGE
+```
+
+Prints `stories versions N state time author reason ITEM_ID` per version, newest first; the last column is the version id (`LINEAGE-vN`) that `ops content publish --id` takes.
 
 ### Save a version
 **Lane:** both. **Version:** 5.100.0. **Writes:** yes; `--dry-run` previews.
@@ -285,6 +296,7 @@ papyrus ops content refresh --path /articles/slug/ --dry-run
 papyrus ops content inspect-page --story LINEAGE
 ```
 
+- `update-live` on a Story that was never published stops with `site_update_live: refused [not_found]: No published Story with lineage id ...`; publish first.
 - `update-live` re-projects one Story, purges exactly its pages and the index pages that list it (12 exact paths for a typical article) and checks the live page shows the new version. The dry run prints `site_update_live: ok (dry run: nothing written or invalidated)`, the pages and `invalidation: ok (dry-run), 12 paths`.
 - `rerender --no-invalidate` rebuilds the pages from the deployed hooks and **does not purge**; use it after link writes when the edge may wait five minutes. Once PR #1344 merges the link commands (`link-story`, `link-concept`, `link-reference`) re-render the published Stories whose page changed by themselves (never purging, a failure is only a warning, at most 20 per command) and `--no-rerender` skips that (the recipe at the end of this section).
 - `refresh --path PATH` purges exact pages (both URL forms and the Markdown twin) and nothing else. Never `/*`.
@@ -321,7 +333,7 @@ papyrus stories step --story LINEAGE --step copy_edit --state done --note "Check
 <!-- guide:ideas -->
 
 ### Digest recent References and synthesize ideas
-**Lane:** operator (needs a model key). **Version:** 5.100.0.
+**Lane:** both in the code (`ideas` accepts a `papyrus login` session); `synthesize` needs a model key (`OPENAI_API_KEY`) and files the ideas it makes, with no `--dry-run`. Not run on the editor lane. **Version:** 5.100.0.
 
 ```sh
 papyrus ideas digest --publication ai-ml-research --since 7d
@@ -343,7 +355,12 @@ Both group by section and Cyclotron label, not by concept cluster or Reference l
 | `User-session catalog intake supports --status pending only` | `--status accepted` signed in | File pending, then review |
 | `timed out` / `The read operation timed out` / `GraphQL request failed: The read operation timed out` | 30 second default timeout; outcome unknown | `export PAPYRUS_GRAPHQL_TIMEOUT_SECONDS=300`, then run the identical command again |
 | `N of M sources were not confirmed` | Some creates timed out | Run the same command again; recorded sources are returned unchanged |
-| `Missing PAPYRUS_S3_VECTOR_INDEX_ARN` | `references suggest-links` needs the vector index; an editor cannot reach it | Do not retry; tag by hand with `link-concept` (see PPY-b3032b) |
+| `Missing PAPYRUS_S3_VECTOR_INDEX_ARN and custom.knowledgeQuery.s3VectorIndexArn` (then a Python traceback) | `references suggest-links` needs the vector index; an editor cannot reach it | Do not retry; use `stories suggest-links` and `knowledge concepts related`, then tag with `link-concept` (PPY-b3032b) |
+| `Unsupported papyrus command: relations search` / `stories suggest-links` | The installed `papyrus` is older than 5.101 (concept names show as `relations`) | Upgrade; see `papyrus --version` |
+| `'x' means more than one concept; name one by its node key: a, b` | `link-concept` with a name two concepts share | Pass the node key it lists |
+| `Search by meaning needs an embedding key: OPENAI_API_KEY must be set in this shell and valid.` | Free-text `knowledge concepts search` embeds your words locally | Use `knowledge concepts search --list`, or `knowledge concepts related --concept NAME`, or export the key |
+| `site_update_live: refused [not_found]: No published Story with lineage id ...` | The Story has no published version | `ops content publish` first |
+| `Reference ... is pending. Nothing was written: only accepted References are shown on the page, so only those can be linked.` | `stories link-story --reference` with a pending Reference | Accept it first, or use `stories link-reference` |
 | `No concept is named 'x'. Name an existing concept, or add --create to make it.` | `references link --concept` with an unknown name | Check `knowledge entities list`, or add `--create` |
 | `No concept is named 'x'. Name an existing concept by its name, alias, #hashtag or node key.` | Same, from `link-concept` / `entities link` | `link-concept` never creates; use `references link --create` for the first Reference |
 | `references link requires exactly one of --to-reference REF or --concept NAME.` | Both or neither given | Give one |
@@ -371,11 +388,11 @@ Honest rough edges. Board story **PPY-b3032b** ("Editor-session rough edges from
 | `stories create --type article|post` and `stories set-type` | Type is set only in the newsroom editor; untyped Stories cannot publish | PPY-b3032b (1) |
 | `make-catalog` output accepted as is; `prepare-catalog` signed in | Hand-edit the catalog; skip `prepare-catalog` | PPY-b3032b (2) |
 | Longer default timeout or may-have-completed reporting | `PAPYRUS_GRAPHQL_TIMEOUT_SECONDS=300` and re-run | PPY-b3032b (3) |
-| `references suggest-links` and concept search for editors | Operator only; PR #1341 adds `knowledge concepts search` | PPY-b3032b (4), PR #1341 |
-| Searching `knowledge entities list` | Lists about 100 concepts, no search | PPY-b3032b (5) |
+| `references suggest-links` for editors; concept search without a local key | Operator only (`stories suggest-links` and `concepts related` cover editors; free-text `concepts search` needs `OPENAI_API_KEY` in the shell) | PPY-b3032b (4) |
+| Searching `knowledge entities list` | Lists by status, no search; use `knowledge concepts search --list` | PPY-b3032b (5) |
 | `references list --stars/--min-stars/--sort rank` | Use `references search` or `stories list` | PPY-b3032b (6) |
 | Source kind (`Reference.type`) and same-story grouping | Only `references link` with `related_to`, `cites`, `supports`, `contradicts` | PPY-b3032b (7), PPY-0cd359 |
-| `references link --create` makes concepts with the legacy `related_to` | Migrate to `tagged_with` later (`check-links` reports it) | PPY-b3032b (8) |
+| `references link --create` makes concepts with the legacy `related_to` | Migration of legacy `related_to` concept tags to `tagged_with` is in flight; `check-links` reports the rest | PPY-b3032b (8) |
 | `ideas digest` groups by concept cluster or Reference link | Groups by section and label | PPY-b3032b (9) |
 | Editors updating relations | Editors can create relations, never update or remove them | PPY-b3032b |
-| Re-render after link writes | Run `rerender --no-invalidate`; automatic with PR #1344 | PR #1344 |
+| Re-render after link writes | Run `rerender --no-invalidate` yourself; PR #1344 (open) makes the link commands do it and adds `--no-rerender` | PR #1344 |
