@@ -13,6 +13,7 @@ from ..publishing import published_item_id_for
 from .body_cache import BodyCache, version_fingerprint
 from .model import ItemSummary, ProjectedItem, SiteIndex
 from .story_stars import known_stars, stars_of_lineage
+from .site_relations import SiteRelations, read_site_relations
 from .stored import PROJECTION_METADATA_KEY, projection_metadata
 
 
@@ -88,7 +89,7 @@ def replace_item(site: SiteIndex, item_id: str, summary: ItemSummary | None) -> 
     if summary is not None:
         remaining.append(summary)
     ordered = tuple(sorted(remaining, key=lambda existing: existing.output_path))
-    return SiteIndex(items=ordered, load_item=site.load_item, story_stars=site.story_stars)
+    return SiteIndex(items=ordered, load_item=site.load_item, story_stars=site.story_stars, relations=site.relations)
 
 
 class PublishedContentSource:
@@ -163,7 +164,7 @@ class PublishedContentSource:
                 indexed[summary.item_id] = (summary, version_fingerprint(row))
         self._indexed = indexed
         ordered = tuple(sorted((summary for summary, _fingerprint in indexed.values()), key=lambda summary: summary.output_path))
-        return SiteIndex(items=ordered, load_item=self.load_item, story_stars=self.story_stars(ordered))
+        return SiteIndex(items=ordered, load_item=self.load_item, story_stars=self.story_stars(ordered), relations=self.site_relations(ordered))
 
     def story_stars(self, summaries) -> dict[str, int]:
         """``{lineage id: stars}`` of the rated Stories among ``summaries``: one request for the stored ratings, and one more for each Story not seen before.
@@ -173,6 +174,15 @@ class PublishedContentSource:
         if self.star_store is None:
             return {}
         return known_stars(self.star_store, (summary.lineage_id for summary in summaries), lambda lineage: stars_of_lineage(self._client, lineage))
+
+    def site_relations(self, summaries) -> SiteRelations:
+        """The ``based_on`` Reference addresses and concept links of the published Stories (``site_relations.py``): indexed reads, about ten requests for a site of 120 Stories."""
+        summaries = tuple(summaries)
+        return read_site_relations(
+            self._client,
+            [(summary.item_id, summary.lineage_id, summary.published_at) for summary in summaries],
+            [str(summary.front_matter["entityKey"]) for summary in summaries if isinstance(summary.front_matter.get("entityKey"), str)],
+        )
 
     def all_published_items(self) -> list[ProjectedItem]:
         """Every published item with its body: a whole-table read, for the whole-site render. It also fills the body cache."""

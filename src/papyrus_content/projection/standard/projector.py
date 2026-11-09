@@ -28,6 +28,7 @@ import math
 import re
 from collections.abc import Callable, Collection, Mapping
 from pathlib import Path, PurePosixPath
+from typing import Any
 from types import SimpleNamespace
 
 from ...markus_export import EXPORTED_TYPES
@@ -36,7 +37,9 @@ from ...markus_renderer.shell import BodyParts, PageContext, SiteChrome, render_
 from ...markus_renderer.video import csp_text as video_csp_text
 from ...renditions import PrefixedRenditionStore, RenditionCatalog
 
+from ...story_from_reference import url_key
 from ..model import ItemSummary, ProjectedItem, SiteIndex
+from ..site_relations import EMPTY as EMPTY_RELATIONS, SiteRelations
 from ..plugins import plugin_static_files
 from ..engine import content_error_types
 from ..projector import (
@@ -282,11 +285,79 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _use_site(self, site: SiteIndex) -> None:
         """A new site index is a new projection run: the snapshot files are read again, and so are the editors' private Story ratings."""
         self._story_stars = site.story_stars
+        self._relations = site.relations
         self._as_of = self.clock()
         if site.items is not self._knowledge_items:
             self._knowledge.reset()
             self._home_page.reset()
             self._knowledge_items = site.items
+
+    _relations: SiteRelations = EMPTY_RELATIONS
+    _surf_memo: tuple[object, dict, dict] | None = None
+
+    def _surf_lookups(self, site: SiteIndex) -> tuple[dict, dict]:
+        """``({entityKey: published wiki entry}, {concept slug: how many Stories link it})`` for this site index, built once."""
+        if self._surf_memo is None or self._surf_memo[0] is not site.items:
+            pages: dict[str, StandardEntry] = {}
+            for summary in site.items:
+                slug = summary.front_matter.get("entityKey")
+                if isinstance(slug, str):
+                    entry = self._entry(summary)
+                    if entry is not None and entry.url and not entry.draft and wiki.is_wiki_entry(entry, self.standard):
+                        pages[slug] = entry
+            uses: dict[str, int] = {}
+            for slugs in site.relations.concepts.values():
+                for slug in slugs:
+                    uses[slug] = uses.get(slug, 0) + 1
+            self._surf_memo = (site.items, pages, uses)
+        return self._surf_memo[1], self._surf_memo[2]
+
+    def _concept_links(self, site: SiteIndex, summary: ItemSummary) -> tuple[dict, ...]:
+        """The public concept pages this Story's ``mentions`` and ``related_to`` relations reach, most used first and then by name:
+        ``{"slug", "name", "href", "stories"}``. Empty on a wiki page and where the Story has none."""
+        pages, uses = self._surf_lookups(site)
+        found = [
+            {"slug": slug, "name": pages[slug].title, "href": pages[slug].url, "stories": uses.get(slug, 0)}
+            for slug in site.relations.concepts.get(summary.item_id, ())
+            if slug in pages
+        ]
+        return tuple(sorted(found, key=lambda link: (-link["stories"], link["name"].casefold())))
+
+    def _related_stories(self, site: SiteIndex, summary: ItemSummary) -> tuple[dict, ...]:
+        """The published Stories this one is related to (``related_to`` between Stories, either direction), newest first: ``{"itemId", "type", "section",
+        "title", "url", "image", "summary", "date"}``. Never the Story itself, and never one that is not published (the relation read only knows the
+        published ones). A hook draws articles and posts as it likes."""
+        by_id = {found.item_id: found for found in site.items}
+        found = []
+        for item_id in site.relations.related.get(summary.item_id, ()):
+            other = by_id.get(item_id)
+            entry = self._entry(other) if other is not None and item_id != summary.item_id else None
+            if entry is not None and entry.url and not entry.draft:
+                found.append(entry)
+        return tuple(
+            {"itemId": entry.item_id, "type": entry.type, "section": entry.summary.section, "title": entry.title, "url": entry.url, "image": entry.image,
+             "summary": entry.summary_text, "date": entry.date}
+            for entry in newest_first(found)
+        )
+
+    def _citation_pages(self, site: SiteIndex, summary: ItemSummary):
+        """``entry -> path`` of our own page for a cited source: the newest published Story (never this page) based on the accepted Reference at
+        that address, else ``None`` (the page then links out). A seam for the Reference pages (PPY-13fb8aa8) sits after the Story lookup."""
+        based_on = site.relations.based_on
+        if not based_on:
+            return None
+        by_id = {found.item_id: found for found in site.items}
+
+        def page_for(entry: Mapping[str, Any]) -> str | None:
+            key = url_key(str(entry.get("URL") or entry.get("url") or ""))
+            for item_id in based_on.get(key, ()) if key else ():
+                story = by_id.get(item_id)
+                found = self._entry(story) if story is not None and item_id != summary.item_id else None
+                if found is not None and found.url and not found.draft:
+                    return found.url
+            return None   # the Reference's own page comes here once Reference pages exist
+
+        return page_for
 
     _unrenderable: list[dict] | None = None
 
@@ -645,11 +716,15 @@ class StandardMarkusProjector(MarkusSiteProjector):
         text = item.source_text if self.hooks.source is None else self.hooks.source(summary, item.source_text, self._hook_site(site))
         transform = self.hooks.item_transform(summary) if self.hooks.item_transform is not None else None
         is_wiki = wiki.is_wiki_entry(self._entry(summary), self.standard)
-        fragment = self._fragment(
-            text, key.count("/"), summary.output_path, transform=transform,
-            include=lambda attributes: self._item_include(attributes, summary.output_path, site, wiki_page=is_wiki),
-            implicit_band=is_wiki,
-        )
+        self._citation_page_for = self._citation_pages(site, summary)
+        try:
+            fragment = self._fragment(
+                text, key.count("/"), summary.output_path, transform=transform,
+                include=lambda attributes: self._item_include(attributes, summary.output_path, site, wiki_page=is_wiki),
+                implicit_band=is_wiki,
+            )
+        finally:
+            self._citation_page_for = None
         if self.hooks.item_decorator is not None:
             keywords = {"site": self._hook_site(site)} if "site" in inspect.signature(self.hooks.item_decorator).parameters else {}
             fragment = self.hooks.item_decorator(fragment, summary, **keywords)
@@ -673,7 +748,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         entry = self._entry(summary)
         head = item_share_preview(entry, self.standard, self.policy, opening=lede_of(fragment), body_image=first_image_of(fragment)).head
         crumbs = head.breadcrumbs
-        page = self._page("item", head, site, entry=entry, entries=entries, fragment=fragment, crumbs=crumbs)
+        concept_links = () if is_wiki else self._concept_links(site, summary)
+        page = self._page("item", head, site, entry=entry, entries=entries, fragment=fragment, crumbs=crumbs, concept_links=concept_links, related_stories=() if is_wiki else self._related_stories(site, summary))
         pages = {key: self._render(page)}
         if len(paths) > 1:
             canonical = entry.canonical or self.head.absolute(entry.url)
@@ -723,7 +799,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         self._use_site(site)
         entries = self._entries(site) if self._depends_on_entries() else []
         inputs = self._page_inputs(site)
-        return digest_of([self._shared(), self._dependency_digest(entries), self._authored_home(site), inputs])
+        return digest_of([self._shared(), self._dependency_digest(entries), self._authored_home(site), inputs, site.relations.digest_input()])
 
     # ------------------------------------------------------------------ generated pages
 

@@ -37,6 +37,11 @@ def undeclared(context) -> None:
     context.citations_raw = {}
 
 
+@given("a Papyrus site whose citations setting is externalIcon")
+def icon_on(context) -> None:
+    context.citations_raw = {"citations": {"externalIcon": True}}
+
+
 @given('a Papyrus site whose citations links are "{mode}"')
 def declared(context, mode: str) -> None:
     context.citations_raw = {"citations": {"links": mode}}
@@ -61,7 +66,7 @@ def listed_once(context, title: str) -> None:
 
 @then('the source "{title}" links to "{href}"')
 def source_links(context, title: str, href: str) -> None:
-    assert f'<a href="{href}"' in context.page and title in context.page, context.page
+    assert re.search(rf'<a (?:class="[^"]*" )?href="{re.escape(href)}"', context.page) and title in context.page, context.page
 
 
 @then('the page is the same as for a site whose citations links are "{mode}"')
@@ -92,3 +97,25 @@ def refused(context, setting: str, name: str) -> None:
         assert name in str(exc)
     else:
         raise AssertionError("the setting was accepted")
+
+
+def item_of(page: str, title: str) -> str:
+    return re.search(rf'<li id="citation-\d+">(?:(?!</li>).)*?{re.escape(title)}.*?</li>', page, re.S).group(0)
+
+
+@then('the source "{title}" opens in a new tab and carries the external-link icon')
+def outside_marked(context, title: str) -> None:
+    entry = item_of(context.page, title)
+    assert 'target="_blank"' in entry and 'rel="noopener noreferrer"' in entry and 'data-icon="external-link"' in entry, entry
+
+
+@then('the source "{title}" has no icon and does not open a new tab')
+def inside_unmarked(context, title: str) -> None:
+    entry = item_of(context.page, title)
+    assert "<svg" not in entry and "_blank" not in entry, entry
+
+
+@then('the source "{title}" has no icon and opens in a new tab')
+def outside_plain(context, title: str) -> None:
+    entry = item_of(context.page, title)
+    assert "<svg" not in entry and "citation-external" not in entry and 'target="_blank"' in entry, entry
