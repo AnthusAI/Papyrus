@@ -20,7 +20,38 @@ permissions:
   contents: read
 
 jobs:
+  # The same tree is tested up to four times per change (pull request, develop, release pull request, main). When an earlier run of this
+  # workflow already passed on a byte-identical tree, the heavy jobs below are skipped and the summary names that run.
+  # Any doubt - no match, a lookup error, a missing permission - runs everything. See infra/pipeline/reuse_green_tests.py.
+  reuse:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tree: ${{ steps.check.outputs.tree }}
+      reused: ${{ steps.check.outputs.reused }}
+    steps:
+      # Default checkout: the merge ref on pull_request, which is exactly what the heavy jobs test, so its tree is the key.
+      - uses: actions/checkout@v4
+      - id: check
+        run: python3 infra/pipeline/reuse_green_tests.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # Runs only when every test job passed (or was justified by a reuse). Its name carries the tree it vouches for, which is how a
+  # later run finds this one.
+  record:
+    needs: [reuse, ts, python]
+    if: ${{ !cancelled() && needs.reuse.result == 'success' && (needs.reuse.outputs.reused == 'true' || (needs.ts.result == 'success' && needs.python.result == 'success')) }}
+    name: tested-tree ${{ needs.reuse.outputs.tree }}
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo "tree ${{ needs.reuse.outputs.tree }} passed (reused=${{ needs.reuse.outputs.reused }})"
+
   ts:
+    needs: reuse
+    if: needs.reuse.outputs.reused != 'true'
     # Pinned: ubuntu-24.04 moved to 26.04, where Playwright cannot install Chromium (2026-10-31).
     runs-on: ubuntu-24.04
     steps:
@@ -61,6 +92,8 @@ jobs:
       - run: npm test
 
   python:
+    needs: reuse
+    if: needs.reuse.outputs.reused != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
