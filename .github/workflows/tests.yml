@@ -49,34 +49,50 @@ jobs:
     steps:
       - run: echo "tree ${{ needs.reuse.outputs.tree }} passed (reused=${{ needs.reuse.outputs.reused }})"
 
-  ts:
+  # ---- ts: five parallel jobs behind one aggregate named `ts` (the name `record` and everything downstream already know) ----
+
+  ts-check:
     needs: reuse
     if: needs.reuse.outputs.reused != 'true'
     # Pinned: ubuntu-24.04 moved to 26.04, where Playwright cannot install Chromium (2026-10-31).
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/node-deps
         with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      # amplify_outputs.json is generated per deployment and git-ignored; typecheck
-      # only needs the module to resolve, so an empty stub stands in. No secrets.
-      - run: echo '{}' > amplify_outputs.json
+          app-shell: "true"
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm run test:monitoring-receipt
-      - run: node scripts/test-email-reference-handoff.cjs
-      - run: npm run test:assignment-data-access
-      - run: npm run test:public-forms
-      - run: npm run test:alexa
+      # The app-shell CDK app must type-check cleanly with no TS_NODE_TRANSPILE_ONLY escape hatch.
+      - run: npm run build
+        working-directory: infra/amplify-app-shell
+
+  ts-build:
+    needs: reuse
+    if: needs.reuse.outputs.reused != 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/node-deps
       # Reader routes enumerate published editions from AppSync at build time. Staging drafts
       # mode skips that enumeration, so the build needs no deployed backend and no secrets.
       - run: npm run build
         env:
           SITE_ENV: staging
           PAPYRUS_CONTENT_SOURCE: drafts
+
+  ts-misc:
+    needs: reuse
+    if: needs.reuse.outputs.reused != 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/node-deps
+      - run: npm run test:monitoring-receipt
+      - run: node scripts/test-email-reference-handoff.cjs
+      - run: npm run test:assignment-data-access
+      - run: npm run test:public-forms
+      - run: npm run test:alexa
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
@@ -84,34 +100,85 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Shared chat browser acceptance
         run: npm run test:shared-chat
-      - run: npm ci
-        working-directory: infra/amplify-app-shell
-      # The app-shell CDK app must type-check cleanly with no TS_NODE_TRANSPILE_ONLY escape hatch.
+
+  # `npm test` as three shards. The file list is the same set of globs package.json's `test` script uses, sorted, and shard N takes every
+  # third file starting at N; the three shards together are exactly the files `npm test` would run, none dropped, none repeated.
+  ts-test:
+    needs: reuse
+    if: needs.reuse.outputs.reused != 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    name: ts-test (shard ${{ matrix.shard }} of 3)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/node-deps
+        with:
+          app-shell: "true"
+      # The app-shell CDK tests synthesize against compiled output, as they did when `npm test` followed this build in one job.
       - run: npm run build
         working-directory: infra/amplify-app-shell
-      - run: npm test
+      # Several of these tests drive a real browser, as they did when Chromium was installed earlier in the one big job.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npx playwright install --with-deps chromium
+      - name: Run this shard of npm test
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: "3"
+        run: |
+          files=$(shopt -s nullglob globstar
+            printf '%s\n' scripts/test-*.ts scripts/test-*.mts scripts/test-*.cjs scripts/test-*.mjs amplify/functions/**/*.test.mjs \
+              publications/threat_intelligence/tests/test-blog-defense-graph.cjs publications/threat_intelligence/tests/test-pictograms.cjs \
+              | grep -v node_modules | LC_ALL=C sort -u)
+          echo "$files" | wc -l
+          mine=$(echo "$files" | awk -v s="$SHARD" -v n="$SHARDS" '(NR-1) % n == s')
+          echo "$mine"
+          node --import tsx --test --test-reporter=spec --test-concurrency=4 $mine
 
-  python:
+  ts:
+    needs: [reuse, ts-check, ts-build, ts-misc, ts-test]
+    if: ${{ !cancelled() && needs.reuse.result == 'success' && needs.reuse.outputs.reused != 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Every ts job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || { echo "a ts job did not succeed: $r"; exit 1; }; done
+
+  # ---- python: guards, unit tests (xdist) and the behave suite in three shards, then one aggregate named `python` ----
+
+  python-checks:
     needs: reuse
     if: needs.reuse.outputs.reused != 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install poetry
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/pypoetry
-          key: poetry-${{ runner.os }}-${{ hashFiles('poetry.lock') }}
-      - run: poetry install --no-interaction --extras "newsroom markus priming" --with cyclotron
+      - uses: ./.github/actions/python-deps
       - name: Biblicus is the released PyPI package
         run: |
           poetry run python -c "import biblicus, sys; assert 'site-packages' in biblicus.__file__, biblicus.__file__"
           poetry run biblicus --help > /dev/null
       - name: Pilot identifiers stay out of application logic
         run: python procedures/guards/check_pilot_identifiers.py
+      # Keep this boundary visible independently of broad-suite collection: it
+      # imports and executes the real Lambda handler, including payload upload.
+      - name: Pending Reference intake handler and concurrency
+        run: poetry run pytest -vv procedures/newsroom/tests/test_reference_intake.py
+
+  python-unit:
+    needs: reuse
+    if: needs.reuse.outputs.reused != 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/python-deps
       # Explicit exclusions, each with a reason; nothing is skipped silently.
       #   test_content_cli_live          live: needs AWS credentials for the papyrus-authoring role, PAPYRUS_GRAPHQL_ENDPOINT and network
       #   test_references_commands       PPY-c22e1c (stale assertions)
@@ -121,13 +188,10 @@ jobs:
       #   test_cloud_procedure_execution PPY-c22e1c (stale assertions)
       #   test_newsroom_tools            PPY-7e2ca6 (needs local poetry/Biblicus/corpora)
       #   test_papyrus_content           PPY-7e2ca6 (needs local uv/corpora)
-      # Keep this boundary visible independently of broad-suite collection: it
-      # imports and executes the real Lambda handler, including payload upload.
-      - name: Pending Reference intake handler and concurrency
-        run: poetry run pytest -vv procedures/newsroom/tests/test_reference_intake.py
+      # pytest-xdist: one worker per vCPU.
       - name: Python unit tests
         run: |
-          poetry run pytest -q \
+          poetry run pytest -q -n auto \
             --ignore=procedures/newsroom/tests/test_content_cli_live.py \
             --ignore=procedures/newsroom/tests/test_references_commands.py \
             --ignore=procedures/newsroom/tests/test_tavily_research.py \
@@ -136,11 +200,40 @@ jobs:
             --ignore=procedures/newsroom/tests/test_cloud_procedure_execution.py \
             --ignore=procedures/newsroom/tests/test_newsroom_tools.py \
             --ignore=procedures/newsroom/tests/test_papyrus_content.py
-      # Excluded feature, PPY-c22e1c (stale steps/assertions): research-reporting-context
-      # The curation-routes scenario drives the real Next route handlers (tsx) against a live peer.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: poetry run behave features_backend --tags=~@live-agent --exclude 'research-reporting-context'
+
+  # Excluded feature, PPY-c22e1c (stale steps/assertions): research-reporting-context
+  # The curation-routes scenario drives the real Next route handlers (tsx) against a live peer.
+  # Feature files sorted by name; shard N takes every third file starting at N, so the shards partition features_backend exactly.
+  python-behave:
+    needs: reuse
+    if: needs.reuse.outputs.reused != 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    name: python-behave (shard ${{ matrix.shard }} of 3)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/python-deps
+      - uses: ./.github/actions/node-deps
+      - name: Run this shard of the backend features
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: "3"
+        run: |
+          mine=$(ls features_backend/*.feature | LC_ALL=C sort | awk -v s="$SHARD" -v n="$SHARDS" '(NR-1) % n == s')
+          echo "$mine"
+          poetry run behave --tags=~@live-agent --exclude 'research-reporting-context' $mine
+
+  python:
+    needs: [reuse, python-checks, python-unit, python-behave]
+    if: ${{ !cancelled() && needs.reuse.result == 'success' && needs.reuse.outputs.reused != 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Every python job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || { echo "a python job did not succeed: $r"; exit 1; }; done

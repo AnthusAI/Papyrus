@@ -75,6 +75,7 @@ decision-flywheel = { git = "https://github.com/AnthusAI/Cyclotron.git", rev = "
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"
+pytest-xdist = "^3.8.0"
 behave = "^1.2.6"
 requests = "^2.32.3"
 kanbus = ">=0.18.3"
