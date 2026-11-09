@@ -15,7 +15,12 @@ import { parseSiteConfig } from "./site-config";
 
 const env = { account: "111122223333", region: "us-east-1" };
 const examples = path.resolve(__dirname, "../examples");
-const readSite = (name: string) => parseSiteConfig(JSON.parse(fs.readFileSync(path.join(examples, `${name}.site.json`), "utf8")));
+const readSite = (name: string, costAccounting?: boolean) =>
+  parseSiteConfig({ ...JSON.parse(fs.readFileSync(path.join(examples, `${name}.site.json`), "utf8")), ...(costAccounting === undefined ? {} : { costAccounting }) });
+const branchVariables = (template: any) => {
+  const branch = Object.values<any>(template.Resources).find((resource) => resource.Type === "AWS::Amplify::Branch" && resource.Properties.BranchName === "main");
+  return branch ? Object.fromEntries(branch.Properties.EnvironmentVariables.map((variable: any) => [variable.Name, variable.Value])) : undefined;
+};
 const tagsOf = (resource: any): Record<string, unknown> =>
   Object.fromEntries((resource.Properties?.Tags ?? []).map((tag: any) => [tag.Key, tag.Value]));
 
@@ -24,7 +29,22 @@ for (const file of ["run-worker.js", "probe-worker.js"]) fs.writeFileSync(path.j
 
 const names = fs.readdirSync(examples).filter((file) => file.endsWith(".site.json")).map((file) => file.replace(".site.json", ""));
 for (const name of names) {
-  const site = readSite(name);
+  // A site that has not opted in (the default) gets no tags and no cost branch variables, so the deploy changes no resource.
+  const defaultSite = readSite(name);
+  assert.equal(defaultSite.costAccounting, false, name);
+  const offTemplate = Template.fromStack(new AmplifyAppShellStack(new App(), `Off-${name}`, defaultSite, { env })).toJSON();
+  assert.ok(!JSON.stringify(offTemplate).includes("anthus:"), `${name}: no anthus: tag without costAccounting`);
+  const offVariables = branchVariables(offTemplate);
+  if (offVariables) {
+    assert.equal(offVariables.PAPYRUS_SITE_ID, undefined, name);
+    assert.equal(offVariables.PAPYRUS_COST_TAGS, undefined, name);
+  }
+  if (defaultSite.chat?.enabled) {
+    const offChat = Template.fromStack(new PapyrusChatStack(new App(), { config: defaultSite, env, lambdaAssetDirectory: chatLambdas })).toJSON();
+    assert.ok(!JSON.stringify(offChat).includes("anthus:"), `${name}: no anthus: tag on the chat stack without costAccounting`);
+  }
+
+  const site = readSite(name, true);
   const template = Template.fromStack(new AmplifyAppShellStack(new App(), `Shell-${name}`, site, { env })).toJSON();
   assertCostTags(template);
   for (const [logicalId, resource] of Object.entries<any>(template.Resources)) {
@@ -39,6 +59,7 @@ for (const name of names) {
   const branch = Object.values<any>(template.Resources).find((resource) => resource.Type === "AWS::Amplify::Branch" && resource.Properties.BranchName === "main");
   if (branch) {
     const variables = Object.fromEntries(branch.Properties.EnvironmentVariables.map((variable: any) => [variable.Name, variable.Value]));
+    assert.equal(variables.PAPYRUS_COST_TAGS, "on", name);
     assert.equal(variables.PAPYRUS_SITE_ID, site.siteId, name);
     assert.equal(variables.PAPYRUS_COST_ACCOUNT, undefined, name);
   }

@@ -1,6 +1,10 @@
 """Usage reports to Prospectus through the Python sender, with a fake queue (no AWS)."""
+import importlib.util
 import json
+import os
+import pathlib
 import uuid
+from unittest import mock
 
 from behave import given, then, when
 
@@ -176,3 +180,31 @@ def step_owner_without_deployment(context):
 @then('it fails saying "owner" needs a deployment')
 def step_owner_error(context):
     assert context.error and '"owner" needs a deployment' in context.error, context.error
+
+
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+
+
+@given("a site backend with no PAPYRUS_COST_TAGS, PAPYRUS_SITE_ID or PROSPECTUS_USAGE_QUEUE_URL")
+def step_no_usage_environment(context):
+    context.cleared = ("PAPYRUS_COST_TAGS", "PAPYRUS_SITE_ID", "PROSPECTUS_USAGE_QUEUE_URL")
+
+
+@when("the editorial-checks and knowledge-query functions start and flush")
+def step_handlers_start(context):
+    environment = {key: value for key, value in os.environ.items() if key not in context.cleared}
+    context.handler_usage = []
+    with mock.patch.dict(os.environ, environment, clear=True):
+        for name in ("editorial-checks", "knowledge-query"):
+            path = REPO_ROOT / "amplify" / "functions" / name / "handler.py"
+            spec = importlib.util.spec_from_file_location(f"cost_off_{name.replace('-', '_')}", path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            module.USAGE.flush()
+            context.handler_usage.append(module.USAGE)
+
+
+@then("both start, their usage senders are inactive, and nothing is sent")
+def step_handlers_inactive(context):
+    assert len(context.handler_usage) == 2
+    assert not any(usage.active for usage in context.handler_usage)

@@ -45,10 +45,45 @@ function tagsOf(template: any, logicalId: string): Record<string, unknown> {
   assert.throws(() => assertCostTags(Template.fromStack(stack).toJSON()), /Ledger[A-Z0-9]+ \(AWS::DynamoDB::Table\): anthus:app, anthus:account, anthus:cost-key/);
 }
 
-// Scenario: the backend build needs its site ID, and configures no Account.
+// Scenario: cost accounting is opt-in; on, the backend build needs its site ID and configures no Account.
 {
-  assert.throws(() => siteCostAttribution({}), /needs PAPYRUS_SITE_ID .*Refusing to synthesize an untagged backend/);
-  assert.deepEqual(siteCostAttribution({ PAPYRUS_SITE_ID: "dataparade" }), { account: "owner", app: "papyrus", deployment: "dataparade" });
+  assert.equal(siteCostAttribution({}), null);
+  assert.equal(siteCostAttribution({ PAPYRUS_SITE_ID: "dataparade" }), null, "a site ID alone does not opt in");
+  for (const value of ["", "ON", "true", "1", "off", " on"]) assert.equal(siteCostAttribution({ PAPYRUS_COST_TAGS: value, PAPYRUS_SITE_ID: "dataparade" }), null, JSON.stringify(value));
+  assert.throws(() => siteCostAttribution({ PAPYRUS_COST_TAGS: "on" }), /needs PAPYRUS_SITE_ID .*Refusing to synthesize an untagged backend/);
+  assert.deepEqual(siteCostAttribution({ PAPYRUS_COST_TAGS: "on", PAPYRUS_SITE_ID: "dataparade" }), { account: "owner", app: "papyrus", deployment: "dataparade" });
+}
+
+// Scenario: a site that has not opted in synthesizes a backend with no cost tags and no usage environment.
+{
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), "papyrus-cost-off-"));
+  try {
+    const environment = { ...process.env };
+    delete environment.PAPYRUS_COST_TAGS;
+    delete environment.PAPYRUS_SITE_ID;
+    const run = spawnSync(process.execPath, ["--import", "tsx", path.join(repo, "scripts/synth-site-backend.mts"), out], { cwd: repo, encoding: "utf8", env: environment });
+    assert.equal(run.status, 0, run.stderr || run.stdout);
+    const templates = fs.readdirSync(out).filter((file) => file.endsWith(".template.json"));
+    assert.ok(templates.length > 5, `expected the backend's nested stacks, got ${templates.join(", ")}`);
+    for (const file of templates) {
+      const text = fs.readFileSync(path.join(out, file), "utf8");
+      assert.ok(!text.includes("anthus:"), `${file} has an anthus: tag`);
+      assert.ok(!text.includes("SendUsageToOwnProspectusQueue"), `${file} grants usage sends`);
+      for (const resource of Object.values<any>(JSON.parse(text).Resources ?? {})) {
+        // Tags on a table are what made 5.99.0 update every table at once: a site that has not opted in has none.
+        // (Amplify's own tags, such as amplify:app-id and created-by, are the pre-cost-accounting ones and stay.)
+        if (resource.Type === "AWS::DynamoDB::Table") {
+          const keys = (resource.Properties?.Tags ?? []).map((tag: any) => tag.Key);
+          assert.deepEqual(keys.filter((key: string) => key.startsWith("anthus:")), [], `${file} has a table with an anthus: tag`);
+        }
+        const variables = resource.Properties?.Environment?.Variables ?? {};
+        assert.equal(variables.PAPYRUS_SITE_ID, undefined, file);
+        assert.equal(variables.PROSPECTUS_USAGE_QUEUE_URL, undefined, file);
+      }
+    }
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
 }
 
 // Scenario: each site's app shell and private chat stack are tagged with its site ID. The harness lives in the
@@ -81,7 +116,7 @@ function tagsOf(template: any, logicalId: string): Record<string, unknown> {
     const run = spawnSync(process.execPath, ["--import", "tsx", path.join(repo, "scripts/synth-site-backend.mts"), out], {
       cwd: repo,
       encoding: "utf8",
-      env: { ...process.env, PAPYRUS_SITE_ID: "dataparade" },
+      env: { ...process.env, PAPYRUS_COST_TAGS: "on", PAPYRUS_SITE_ID: "dataparade" },
     });
     assert.equal(run.status, 0, run.stderr || run.stdout);
     const templates = fs.readdirSync(out).filter((file) => file.endsWith(".template.json"));

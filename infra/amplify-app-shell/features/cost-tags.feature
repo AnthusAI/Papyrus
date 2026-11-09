@@ -10,24 +10,41 @@ Feature: Every Papyrus stack tags its resources for Prospectus cost accounting
   CDK stacks, and the same four tags written into the CloudFormation templates. These scenarios are verified by
   scripts/test-cost-tags.ts and infra/amplify-app-shell/lib/cost-tags.test.ts, which CI runs with npm test.
 
+  Cost accounting is opt-in. Tagging every resource updates every DynamoDB table, and a site backend with about sixty
+  table stacks cannot take that in one CloudFormation operation (Papyrus 5.99.0 rolled Machines on Machines back). A site
+  turns it on with site.json "costAccounting": true (default false), which sets the Amplify branch variables
+  PAPYRUS_COST_TAGS=on and PAPYRUS_SITE_ID. Every scenario below that tags a site's stacks is about a site that did.
+
+  Scenario: A site that has not opted in is deployed with no tag changes
+    Given a site whose site.json does not set costAccounting
+    When its app-shell stack, private chat stack and site backend are synthesized
+    Then no template has an anthus: tag, no DynamoDB table has a Tags property and no function has PAPYRUS_SITE_ID or PROSPECTUS_USAGE_QUEUE_URL
+    And no role may send usage to a Prospectus queue
+    And the branch carries neither PAPYRUS_COST_TAGS nor PAPYRUS_SITE_ID
+    And the backend synthesizes without PAPYRUS_SITE_ID
+
+  Scenario: Only the exact value "on" turns the backend's cost accounting on
+    Given PAPYRUS_SITE_ID is set but PAPYRUS_COST_TAGS is "ON", "true", "1" or empty
+    Then the backend has no cost attribution
+
   Scenario: An untagged costed resource fails CI
     Given a stack with a table that has no anthus: tags
     When the cost tag check reads its synthesized template
     Then the check fails naming the table and the missing tags
 
   Scenario: A dedicated site's stacks are tagged with its site ID and account "owner"
-    Given any example site
+    Given any example site with costAccounting true
     When its app-shell stack, its private chat stack and its knowledge-run stack are synthesized
     Then every costed resource carries account "owner", app "papyrus", deployment the site ID and cost key "owner/papyrus/<site>"
 
   Scenario: The site backend is tagged in every nested stack
-    Given the app-shell stack sets PAPYRUS_SITE_ID on the site's Amplify branches
+    Given the app-shell stack sets PAPYRUS_COST_TAGS "on" and PAPYRUS_SITE_ID on the site's Amplify branches
     When the site backend is synthesized
     Then every costed resource in every nested stack carries cost key "owner/papyrus/<site>"
     And a costed resource CDK writes without tag support, such as the bucket auto-delete provider, is tagged too
 
-  Scenario: A backend build without its site ID is refused
-    Given an Amplify build with no PAPYRUS_SITE_ID
+  Scenario: A backend build that opted in without its site ID is refused
+    Given an Amplify build with PAPYRUS_COST_TAGS "on" and no PAPYRUS_SITE_ID
     When the site backend is synthesized
     Then the synth fails saying the app-shell stack sets it, rather than leaving the resources untagged
 

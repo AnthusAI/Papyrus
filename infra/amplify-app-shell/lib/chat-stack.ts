@@ -41,7 +41,7 @@ export class PapyrusChatStack extends Stack {
     if (!chat || !stackName) throw new Error(`site ${config.siteId} does not enable chat`);
     // The construct id is the stack name: the SQS event source mapping logical ids derive from it.
     super(scope, stackName, { ...stackProps, stackName });
-    applySiteCostTags(this, config.siteId);
+    if (config.costAccounting) applySiteCostTags(this, config.siteId);
 
     const modelKeyParameter = chat.modelKeyParameter;
     const logGroupPrefix = resolveChatLogGroupPrefix(config);
