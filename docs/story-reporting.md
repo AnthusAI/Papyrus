@@ -251,12 +251,15 @@ The other writers that still create Messages without a person (research and repo
 
 ```bash
 papyrus stories list [--stage STAGE] [--section ID|SLUG|NAME] [--limit N]
-papyrus stories show --story <lineage>
+papyrus stories show --story <lineage> [--bucket day|week|none]
+papyrus stories set-stars --story <lineage> --stars <0-5> [--agent NAME] [--dry-run]
 papyrus references show <reference lineage id or record id> [--corpus-key KEY]
 papyrus assignments show --assignment <id>
 ```
 
 `stories list` prints the lineage ids that `stories show --story` takes. The lineage ids of the References that `stories show` lists are accepted by `references show` (so are the `...-v1` record ids that `references list` prints). `assignments show` prints an Assignment's status, type, queue, section, Story and holder, then its events.
+
+`stories list` also takes `--type article|post`, `--stars N` (0 finds unrated Stories), `--min-stars N`, `--max-stars N` (these two match rated Stories only), `--sort updated|stars|rank` and `--bucket day|week|none`. After the six original columns it appends the layout signals by their layout names: `stars` (the effective quality rating, 0 when unrated), `source` (`editor` today, `none` when unrated), `votes`, `bucket` (the rolling window: `week:0` is the last seven days, `week:1` the seven before; `none`; `undated`), `type`, `words` and `published` (the last-published date). `--sort stars` is rated high to low with unrated last; `--sort rank` is what the Articles and Posts page shows first: it calls the projection's own `rank_entries` (newest bucket first, rated Stories first inside a bucket, then newest first) with the site's default bucket. The rating comes from the Item rows the list already reads in one batched request, so a list costs no request per Story and never reads the private rating map. `stories show` prints a `signals` line (type, section, bucket, stars, source, votes, words, published) and, for an editor rating, a `rating` line (ratedBy, ratedAt). `stories set-stars` sets the editor's rating (1 to 5, 0 clears) through the `setItemStars` mutation, so the site re-renders the listings whose order changed; it prints the previous and new rating and writes unless `--dry-run`. The effective rating is read in one place (`effective_rating` in `item_stars.py`); a vote aggregate would plug into `aggregate_rating` there. Ratings are private: none of this output reaches a published row, page, twin or feed. The MCP tools `stories_list`, `stories_show` and `stories_set_stars` (`story_signals_mcp.py`) use the same names (`minStars` for `--min-stars`).
 
 `stories show` prints the latest version, how many versions exist, each stage move, every attached reference with its role, each Message on the Story's threads (`message`, time, `<author> (<kind>)`, summary; oldest first, active ones only) and each agent note (labelled `AI agent <name>`).
 
