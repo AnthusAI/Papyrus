@@ -47,7 +47,7 @@ def relations_related(flags: list[str]) -> None:
 
 
 def stories_suggest_links(flags: list[str]) -> None:
-    """papyrus stories suggest-links --story LINEAGE|SLUG [--kinds articles,posts,references] [--limit N] [--min-score S] [--json]
+    """papyrus stories suggest-links --story LINEAGE|SLUG [--kinds articles,posts,references] [--limit N] [--min-score S] [--include-linked] [--json]
 
     Read only; writes nothing. Starts from the story's concepts (curated tags, then accepted mentions), expands them to related concepts, and scans those for the
     published articles and posts and accepted References that carry them. Scores are rarity-weighted (rare shared concepts count most). Already linked stories (either
@@ -68,7 +68,7 @@ def stories_suggest_links(flags: list[str]) -> None:
     except ValueError as error:
         raise ValueError("--min-score must be a number.") from error
     client, _ = create_authoring_client()
-    result = suggest_links(client, story, kinds=kinds, limit=_limit(options, "limit", 5), min_score=min_score)
+    result = suggest_links(client, story, kinds=kinds, limit=_limit(options, "limit", 5), min_score=min_score, include_linked=bool(options.get("include-linked")))
     if options.get("json"):
         print(json.dumps({"ok": True, **result}, indent=2))
         return
@@ -80,6 +80,6 @@ def stories_suggest_links(flags: list[str]) -> None:
         items = result["candidates"].get(kind) or []
         print(f"\n{KIND_LABELS[kind]} ({kind}): {len(items)}")
         for index, item in enumerate(items, 1):
-            print(f"  {index}. {item['score']:.2f}\t{item['title']}\t{item['type']}\t{item['date'] or '-'}\tshared: {', '.join(item['shared'])}\tpath: {item['path']}")
+            print(f"  {index}. {item['score']:.2f}\t{item['title']}\t{item['type']}\t{item['date'] or '-'}\tshared: {', '.join(item['shared'])}\tpath: {item['path']}" + ("\talready linked" if item.get("alreadyLinked") else ""))
             print(f"     {item['command']}")
     print(f"\nstories\tsuggest-links\t{result['requests']} request(s)")

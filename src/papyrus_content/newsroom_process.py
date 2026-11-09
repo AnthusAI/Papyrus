@@ -28,7 +28,7 @@ STAGES_AT_OR_AFTER_COPYWRITING = ("copywriting", "illustration", "typesetting", 
 STAGES_WITHOUT_NEXT_STEP = ("spiked", "held", "published")
 
 #: The version of this template. Raise it whenever a step is added, removed or changes its status, so each checklist item records the template it came from.
-TEMPLATE_VERSION = 2
+TEMPLATE_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -60,6 +60,10 @@ STEPS: tuple[Step, ...] = (
     Step("draft", "copywriting", "Copywriter", "Write the draft",
          "papyrus stories draft --story {story}", LIVE, False,
          "A version newer than the outline; a person can save their own with stories save-version."),
+    Step("related_content", "copywriting", "Editor or reviewing agent", "Link related content",
+         "papyrus stories suggest-links --story {story}", LIVE, True,
+         "Read only: ranked related articles, posts and References from the Story's concepts. Link the good ones with stories link-story (and link-concept for a missing concept); "
+         "record the ones skipped with a reason. Mark it done or skipped with stories step --step related_content.", True),
     Step("fact_check", "copywriting", "Fact-check agent", "Fact-check the draft", "", NOT_BUILT, False,
          "Not built yet (PPY-719a02)."),
     Step("copy_edit", "copywriting", "Copywriter with Humanus", "Copy-edit the draft",

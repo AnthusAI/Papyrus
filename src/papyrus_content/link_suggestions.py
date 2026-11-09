@@ -115,8 +115,11 @@ class Graph:
     def published(self) -> dict[str, dict[str, Any]]:
         """Published articles and posts by lineage id (one read of the published summaries)."""
         if self._published is None:
-            self._published = {str(row["itemLineageId"]): row for row in self.client.list_published_item_summaries()
-                               if row.get("itemLineageId") and row.get("type") in STORY_TYPES}
+            from . import request_meter
+
+            with request_meter.sweep("link-suggestions-published"):   # the one read of the published summaries (a few hundred rows), as stories check-links does
+                rows = self.client.list_published_item_summaries()
+            self._published = {str(row["itemLineageId"]): row for row in rows if row.get("itemLineageId") and row.get("type") in STORY_TYPES}
         return self._published
 
     # ---- concepts ------------------------------------------------------------------------------------------------------------------------------------
@@ -270,7 +273,11 @@ def related_concepts(client: Any, concept: str, *, limit: int = 15) -> dict[str,
     from .section_concepts import current_concept_nodes
 
     before = _requests(client)
-    node = resolve_concept_exact(current_concept_nodes(client), concept)
+    from . import request_meter
+
+    with request_meter.sweep("link-suggestions-concept-catalogue"):   # the exact resolver of `stories link-concept` reads the concept catalogue once
+        catalogue = current_concept_nodes(client)
+    node = resolve_concept_exact(catalogue, concept)
     graph = Graph(client)
     related = graph.related([node], limit=limit)[_lineage(node)]
     return {"concept": {"lineageId": _lineage(node), "nodeKey": node.get("nodeKey"), "name": concept_label(node), "publicPage": has_public_page(node, concept_page_keys(client))},
@@ -291,7 +298,7 @@ def _idf(graph: Graph, lineage: str, total: int) -> float:
 
 
 def suggest_links(client: Any, story_ref: str, *, kinds: tuple[str, ...] = ("articles", "posts", "references"), limit: int = 5, min_score: float = 0.0,
-                  now: datetime | None = None) -> dict[str, Any]:
+                  include_linked: bool = False, now: datetime | None = None) -> dict[str, Any]:
     """Ranked candidates to link from a story (read only): other published articles and posts, and accepted References, that share its concepts directly or through a related concept."""
     from .story_links import resolve_story
 
@@ -351,10 +358,11 @@ def suggest_links(client: Any, story_ref: str, *, kinds: tuple[str, ...] = ("art
         idf = _idf(graph, concept_lineage, total)
         for owner, edge in graph.carriers(concept_lineage).items():
             kind, owner_lineage = owner.split(":", 1)
-            if (kind == "item" and owner_lineage in linked_stories) or (kind == "reference" and owner_lineage in linked_references):
+            already = (kind == "item" and owner_lineage in linked_stories) or (kind == "reference" and owner_lineage in linked_references)
+            if already and not include_linked:
                 continue
             factor = MENTION_CARRIER_FACTOR if edge.get("predicate") == MENTIONS else 1.0
-            entry = scores.setdefault(owner, {"score": 0.0, "shared": [], "best": (0.0, ""), "subjectId": edge.get("subjectId")})
+            entry = scores.setdefault(owner, {"score": 0.0, "shared": [], "best": (0.0, ""), "subjectId": edge.get("subjectId"), "linked": already})
             part = info["weight"] * idf * factor
             entry["score"] += part
             entry["shared"].append((part, info["name"]))
@@ -367,7 +375,7 @@ def suggest_links(client: Any, story_ref: str, *, kinds: tuple[str, ...] = ("art
         recency = max(0.0, 1 - (moment - stamp).days / 365) if stamp else 0.0
         shared = [name for _, name in sorted(entry["shared"], reverse=True)]
         return {"id": owner.split(":", 1)[1], "score": round(entry["score"] * (1 + RECENCY_BONUS * recency), 3), "title": title, "type": kind_label, "date": str(when or "")[:10],
-                "shared": list(dict.fromkeys(shared)), "path": entry["best"][1], **extra}
+                "shared": list(dict.fromkeys(shared)), "path": entry["best"][1], **({"alreadyLinked": True} if entry.get("linked") else {}), **extra}
 
     story_ranked = sorted(((owner, entry) for owner, entry in scores.items() if owner.startswith("item:")), key=lambda pair: -pair[1]["score"])
     for owner, entry in story_ranked:
