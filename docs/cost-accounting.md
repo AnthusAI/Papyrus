@@ -26,7 +26,7 @@ Every costed resource carries four tags from the vendored Prospectus package `@a
 
 The site backend learns its site ID from the Amplify branch variable `PAPYRUS_SITE_ID`, which the app-shell stack sets. A backend build without it fails rather than synthesizing untagged resources. For a sandbox, export it. The Anth.us edge templates are left unchanged.
 
-**IAM roles** carry the tags too (`PAPYRUS_TAGGED_RESOURCE_TYPES` in `amplify/cost-attribution.ts`). A site's usage queue accepts any role in the account tagged `anthus:app=papyrus` and `anthus:deployment=<site>` (AnthusAI/Prospectus#150), so every role in a site's stacks may send to that site's queue. The `infra/pipeline` deploy roles are left out: they change only through their own approval flow and never send usage.
+**IAM roles** carry the tags too: the package's check includes them. A site's usage queue accepts any role in the account tagged `anthus:app=papyrus` and `anthus:deployment=<site>` (AnthusAI/Prospectus#150), so every role in a site's stacks may send to that site's queue. The `infra/pipeline` templates are not checked: they hold only the deploy roles, which change only through their own approval flow and never send usage.
 
 **CI:** `scripts/test-cost-tags.ts` synthesizes every CDK stack and reads every template under `infra/`, then runs the package's `assertCostTags`. An untagged costed resource fails the build, naming the resource. It also catches costed resources that CDK writes without tag support (the bucket auto-delete provider Lambda); `amplify/cost-attribution.ts` tags those directly.
 

@@ -4,8 +4,8 @@
 
 The Prospectus cost-accounting package (Prospectus `packages/cost-accounting`, model in Prospectus `docs/COST_ACCOUNTING.md`).
 
-- Built from AnthusAI/Prospectus `develop` at `3eaedd6` (after AnthusAI/Prospectus#148 and #149, which added account `"owner"` to tags and to usage messages), with `npm run build && npm pack`.
-- `anthus-cost-accounting-0.1.0.tgz` sha256: `e8621e7f75fa91dd8eb30ad23880fce96b0741be1610228cc10d87176e157303`
+- Built from AnthusAI/Prospectus `develop` at `5d95c02` (after AnthusAI/Prospectus#148, #149 and #150: account `"owner"` in tags and usage messages, and IAM roles in the tag check), with `npm run build && npm pack`.
+- `anthus-cost-accounting-0.1.0.tgz` sha256: `c0ce240c407c7c7f54d0248608695545b6a1e7000a5a3a67e1212e4b117796a4`
 
 The published `@anthusai/papyrus` package cannot depend on a local tarball, so the package's TypeScript sources are copied where each part of Papyrus compiles them:
 

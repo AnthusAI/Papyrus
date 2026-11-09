@@ -28,8 +28,8 @@ for (const name of names) {
   const template = Template.fromStack(new AmplifyAppShellStack(new App(), `Shell-${name}`, site, { env })).toJSON();
   assertCostTags(template);
   for (const [logicalId, resource] of Object.entries<any>(template.Resources)) {
-    // IAM roles too: a site's usage queue accepts roles tagged with its site (AnthusAI/Prospectus#150).
-    if ((COSTED_RESOURCE_TYPES as readonly string[]).includes(resource.Type) || resource.Type === "AWS::IAM::Role") {
+    // The package's list includes IAM roles: a site's usage queue accepts roles tagged with its site (AnthusAI/Prospectus#150).
+    if ((COSTED_RESOURCE_TYPES as readonly string[]).includes(resource.Type)) {
       assert.equal(tagsOf(resource)["anthus:cost-key"], `owner/papyrus/${site.siteId}`, `${name} ${logicalId}`);
       assert.equal(tagsOf(resource)["anthus:deployment"], site.siteId, `${name} ${logicalId}`);
       assert.equal(tagsOf(resource)["anthus:account"], "owner", `${name} ${logicalId}`);
