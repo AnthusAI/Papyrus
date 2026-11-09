@@ -128,7 +128,7 @@ On a line of its own:
 | `alt` | — | Alt text. Use `alt=""` for decoration. |
 | `layout` | — | Named layout; drives the CSS class and the `sizes` attribute. Defaults to `inline`. |
 | `caption` | — | Renders a `<figcaption>`. |
-| `credit` | — | Appended to the caption in `<span class="papyrus-image-credit">`. |
+| `credit` | — | Appended to the caption in `<span class="papyrus-image-credit">`. A generated image's credit is exactly "Generated". A credit that only says a machine made the picture ("Illustration generated with AI", "Drafted by AI.") is rendered, and served in the Markdown copy, as "Generated". |
 | `sizes` | — | Override the layout's `sizes` for this one image. |
 | `loading` | — | `lazy` (default) or `eager`. `eager` also sets `fetchpriority="high"`. |
 | `srcDark` | — | The dark-mode picture of `src`. See [Light and dark pictures](#light-and-dark-pictures). `srcDark="none"` turns off name pairing for this one image. |
