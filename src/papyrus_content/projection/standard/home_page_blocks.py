@@ -38,7 +38,7 @@ THREADS_ATTRIBUTES = {"select", "count", "layout", "heading", "empty", "section"
 THREAD_SELECTIONS = ("recent",)
 THREAD_LAYOUTS = ("list", "grid")
 THREAD_LEDGER_PREFIX = "thread:"
-ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket", "medium", "paged", "id", "image", "counts", "explainer", "explainerKicker", "explainerBody"}
+ATTRIBUTES = {"select", "count", "section", "card", "heading", "more", "empty", "bucket", "medium", "notMedium", "notSection", "paged", "id", "image", "counts", "explainer", "explainerKicker", "explainerBody"}
 LIST_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SELECTIONS = ("recent", "confident", "recommended")
 CARDS = ("tile", "row")
@@ -68,6 +68,10 @@ def check(attributes: Mapping, source: str) -> None:
         raise ValueError(f"{source}: ::include references bucket must be one of {', '.join(BUCKETS)}, got {attributes['bucket']!r}")
     if "medium" in attributes and attributes["medium"] not in MEDIUMS:
         raise ValueError(f"{source}: ::include references medium must be one of {', '.join(MEDIUMS)}, got {attributes['medium']!r}")
+    if "notMedium" in attributes and attributes["notMedium"] not in MEDIUMS:
+        raise ValueError(f"{source}: ::include references notMedium must be one of {', '.join(MEDIUMS)}, got {attributes['notMedium']!r}")
+    if attributes.get("medium") and attributes.get("notMedium"):
+        raise ValueError(f"{source}: ::include references cannot use medium and notMedium together")
     if attributes.get("card", "tile") not in CARDS:
         raise ValueError(f"{source}: ::include references card must be one of {', '.join(CARDS)}, got {attributes['card']!r}")
     if "more" in attributes and not safe_href(attributes["more"]):
@@ -146,6 +150,14 @@ def _in_section(record: Mapping, section: str, labels: Mapping[str, str]) -> boo
     return _text(record, "section").casefold() in wanted
 
 
+def _section_values(value: str) -> list[str]:
+    return [part.strip() for part in str(value).split("|") if part.strip()]
+
+
+def _in_any_section(record: Mapping, value: str, labels: Mapping[str, str]) -> bool:
+    return any(_in_section(record, section, labels) for section in _section_values(value))
+
+
 def candidates_of(document: Mapping | None, attributes: Mapping, section_labels: Mapping[str, str] | None = None, as_of: date | None = None) -> list[Mapping[str, Any]]:
     """Every Reference an include's selection could place, in the order it places them: no ledger, no count. Worked out once per snapshot document,
     selection, filter and day, like :func:`ordered`; the caller gets its own copy."""
@@ -174,8 +186,12 @@ def _candidates(records: list, attributes: Mapping, section_labels: Mapping[str,
         candidates = [record for record in candidates if not _text(record, "image")]
     elif attributes.get("image") == "any":   # only the References with a picture
         candidates = [record for record in candidates if _text(record, "image")]
+    if attributes.get("notMedium"):   # a record with no `medium` field passes
+        candidates = [record for record in candidates if record.get("medium") != attributes["notMedium"]]
     if attributes.get("section"):
-        candidates = [record for record in candidates if _in_section(record, attributes["section"], section_labels or {})]
+        candidates = [record for record in candidates if _in_any_section(record, attributes["section"], section_labels or {})]
+    if attributes.get("notSection"):   # a record with no section, or a section not listed, passes
+        candidates = [record for record in candidates if not (_text(record, "section") and _in_any_section(record, attributes["notSection"], section_labels or {}))]
     return candidates
 
 
