@@ -169,7 +169,6 @@ class Video:
     title: str
     caption: str
     credit: str
-    poster: str = ""
 
 
 def videos_of(masked_body: str) -> list[Video]:
@@ -179,7 +178,7 @@ def videos_of(masked_body: str) -> list[Video]:
         if provider_of(attributes.get("src", "")) is None:
             continue   # an address of no registered provider (a site's own embed) is not core's: no check applies to it
         found.append(Video(masked_body.count("\n", 0, match.start()) + 1, attributes.get("src", "").strip(), " ".join(attributes.get("title", "").split()),
-                           " ".join(attributes.get("caption", "").split()), " ".join(attributes.get("credit", "").split()), attributes.get("poster", "").strip()))
+                           " ".join(attributes.get("caption", "").split()), " ".join(attributes.get("credit", "").split())))
     return found
 
 
@@ -431,8 +430,6 @@ def check_p10(facts: Facts) -> list[dict[str, Any]]:
         rows.append(row)
         if not third and not image.ours and not image.credit.strip():
             unknown.append(row)
-    for video in facts.videos:   # a video's poster is a picture the Story shows that someone else made: it counts as a third-party picture
-        rows.append({"line": video.line, "src": video.src, "thirdParty": True, "origin": "a video's poster (the video's own thumbnail)", "credit": video.credit or None})
     if cover_src and cover_image and not any(image.src.lstrip("/") == cover_src for image in facts.images):
         rows.append({"line": None, "src": "/" + cover_src, "thirdParty": True, "origin": "the stock cover record (front matter only)", "credit": None})
     uncredited = [row for row in rows if row["thirdParty"] and not row["credit"]]
@@ -487,23 +484,17 @@ def check_p18(facts: Facts) -> dict[str, Any]:
     if not embeds.enabled:
         return finding("P18", CONCERN, "This site lists no video provider (projection.json \"embeds\": {\"providers\": []}), so Papyrus leaves these videos to the site's own code. "
                        "List the providers that should play, for example \"embeds\": {\"providers\": [\"youtube\"]}.", embeds=False)
-    unlisted, no_poster = [], []
+    unlisted = []
     for video in facts.all_videos:
         name = provider_of(video.src)
         if name is None:
             continue
         if name not in embeds.providers:
             unlisted.append(f"line {video.line} ({REGISTRY[name].label})")
-        elif not REGISTRY[name].thumbnail and not video.poster:
-            no_poster.append(f"line {video.line} ({REGISTRY[name].label})")
-    if unlisted or no_poster:
-        said = []
-        if unlisted:
-            said.append("not a provider this site lists, so each shows as a plain linked credit line: " + "; ".join(unlisted))
-        if no_poster:
-            said.append("has no thumbnail to copy and no poster= (it shows a placeholder): " + "; ".join(no_poster))
-        return finding("P18", CONCERN, "Some videos will not play as a click-to-play poster. " + ". ".join(said) + ".", embeds=True, providers=list(embeds.providers))
-    return finding("P18", PASS, "This site lists the provider of each video, so each is a click-to-play poster.", embeds=True, providers=list(embeds.providers))
+    if unlisted:
+        return finding("P18", CONCERN, "Some videos will not play. Not a provider this site lists, so each shows as a plain linked credit line: " + "; ".join(unlisted) + ".",
+                       embeds=True, providers=list(embeds.providers))
+    return finding("P18", PASS, "This site lists the provider of each video, so each plays in the provider's own embed.", embeds=True, providers=list(embeds.providers))
 
 
 def _cited_video_ids(facts: Facts) -> set[tuple[str, str]]:

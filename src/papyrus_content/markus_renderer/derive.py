@@ -192,7 +192,6 @@ def derive_body(front_matter_yaml: str | None, body_markus: str, features: BodyF
                             "credit": request.credit,
                             "start": request.start,
                             "layout": request.layout,
-                            "poster": request.poster,
                         }
                         for token, request in prepared.videos.items()
                     }

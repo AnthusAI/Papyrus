@@ -368,7 +368,6 @@ PORTED_COMMANDS = frozenset(
         "stories:step",
         "stories:checklist-backfill",
         "stories:lens-check",
-        "stories:capture-video-posters",
         "stories:outline",
         "stories:draft",
         "stories:create",
@@ -880,12 +879,6 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_checklist_backfill
 
         stories_checklist_backfill(flags)
-    elif route == "stories:capture-video-posters":
-        from .video_posters import stories_capture_video_posters
-
-        status = stories_capture_video_posters(flags)
-        if status:
-            raise SystemExit(status)
     elif route == "stories:lens-check":
         from .story_commands import stories_lens_check
 

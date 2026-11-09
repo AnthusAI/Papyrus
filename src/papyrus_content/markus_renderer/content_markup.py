@@ -430,11 +430,8 @@ def resolve_fragment(
     image_builder: ImageBuilder | None = None,
     citations: CitationRendering | None = None,
     videos: VideoRendering | None = None,
-    video_poster: Callable[[VideoRequest, int], str | None] | None = None,
 ) -> str:
-    """Substitute real HTML for the sentinels in a converted fragment.
-
-    ``video_poster(request, depth)`` finds the markup of a video's own poster in the site's storage, or ``None`` when the copy is missing."""
+    """Substitute real HTML for the sentinels in a converted fragment."""
     if image_builder is not None and image_builder.pipeline.upgrade_plain_images:
         fragment = upgrade_plain_images(fragment, image_builder, depth=depth)
 
@@ -473,8 +470,7 @@ def resolve_fragment(
             pipeline = image_builder.pipeline if image_builder is not None else ImagePipeline()
             if request.provider not in rendering.providers:   # embeds are on but this provider is not listed: the plain linked credit line
                 return render_plain(request)
-            poster = video_poster(request, depth) if video_poster is not None and request.has_poster_source else None
-            html_text = render_video(request, rendering, poster=poster, classes=pipeline.classes_for(request.layout), with_style=not video_style_emitted)
+            html_text = render_video(request, rendering, classes=pipeline.classes_for(request.layout), with_style=not video_style_emitted)
             video_style_emitted = True
             return html_text
         if collector is not None and token in page.citation_keys:
