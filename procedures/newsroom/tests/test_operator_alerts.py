@@ -557,7 +557,12 @@ caducus = pytest.importorskip("caducus.notify.fakes", reason="caducus is not imp
 
 @pytest.fixture()
 def world(tmp_path):
+    from pathlib import Path
+
     from caducus.notify.catalog import catalog_from_mapping
+
+    if not Path(caducus.FIXTURES).is_dir():
+        pytest.skip("the installed caducus wheel ships no test fixtures; set PYTHONPATH to a Caducus checkout")
 
     world = caducus.World(operators=1)
     world.catalog = catalog_from_mapping(yaml.safe_load(CATALOG.read_text()))
