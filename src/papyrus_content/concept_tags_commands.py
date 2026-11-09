@@ -63,8 +63,16 @@ def _link_concept(flags: list[str], group: str, target_kind: str, target_flag: s
 
     result = tag_with_concepts(client, target_kind, target, concepts, actor=actor, provenance="human" if user_auth_requested() else "derived",
                                note=normalize_string(options.get("note")), apply=apply, on_row=show)
+    done = None
+    if target_kind == "story":   # a Reference has no public page yet: nothing to re-render
+        from .story_rerender import announce, rerender_after_write
+
+        wrote = any(row["outcome"] == "write" for row in result["concepts"])
+        done = rerender_after_write(client, [result["target"]] if wrote else [], enabled=apply and not parse_boolean_option(options.get("no-rerender"), default=False, label="--no-rerender"))
     if as_json:
-        print(json.dumps({"ok": True, **result}, indent=2))
+        print(json.dumps({"ok": True, **result, **({"rerendered": done["rerendered"]} if done else {})}, indent=2))
+    if done:
+        announce(done, quiet=as_json)
 
 
 def stories_link_concept(flags: list[str]) -> None:
