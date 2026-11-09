@@ -37,8 +37,8 @@ papyrus.cli:main`). It is a thin facade over `papyrus_content` and
   record id (`...-v1`) from `references list`, or the lineage id that `stories show`
   prints. With `--corpus-key` a Reference from another corpus is an error that says which
   corpus it is in.
-- **Reading one thing.** `papyrus stories list [--stage STAGE] [--section ID|SLUG|NAME] [--limit N]`
-  prints one line per Story (lineage id, stage, section, title; newest change first; spiked and
+- **Reading one thing.** `papyrus stories list [--stage STAGE] [--section ID|SLUG|NAME] [--type article|post] [--stars N|--min-stars N|--max-stars N] [--sort updated|stars|rank] [--limit N]`
+  prints one line per Story (lineage id, stage, section, title, then stars, source, votes, bucket, type, words, published; see docs/story-reporting.md; newest change first; spiked and
   held Stories only with `--stage`). `papyrus assignments show --assignment ID` prints one
   Assignment's status, type, queue, section, Story and holder, then its direction (what it asks for, read whole from the Assignment's
   metadata attachment), then its events. The direction prints as one `direction` row per line so a multi-line direction stays

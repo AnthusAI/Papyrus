@@ -289,21 +289,6 @@ class MarkusSiteProjector:
         catalog.prefetch(sources)
         return StoredRenditionImageBuilder(pipeline, catalog, url_root=self._image_url_root())
 
-    def _poster_html(self, request: VideoRequest, depth: int) -> str | None:
-        """The markup of a video's own poster, read from the site's storage like any stored picture; ``None`` when there is no copy yet.
-
-        The poster is ``assets/video-posters/<id>.jpg`` (``papyrus stories capture-video-posters`` puts it there and the renditions function makes its
-        renditions). It is never an address on the video provider: a missing copy shows the placeholder, not a broken image and not a hotlink."""
-        pipeline = self._pipeline()
-        if pipeline is None or self._renditions is None:
-            return None
-        builder = StoredRenditionImageBuilder(pipeline, RenditionCatalog(self._renditions, pipeline), url_root=self._image_url_root())
-        builder.start_page()
-        try:
-            return builder.render(ImageRequest(src=request.poster_source, alt="", bare=True, loading="lazy"), depth=depth)
-        except ImagePipelineError:
-            return None
-
     def _fragment(self, text: str, depth: int, *, transform=None) -> str:
         videos = self._embeds if self._embeds.enabled and "::video{" in text else None   # embeds off, or no directive: rendered exactly as before
         return render_fragment_text(
@@ -315,7 +300,6 @@ class MarkusSiteProjector:
             citations=self._citations,
             transform=transform,
             videos=videos,
-            video_poster=self._poster_html,
         )
 
     def item_page_paths(self, summary: ItemSummary) -> tuple[str, ...]:
