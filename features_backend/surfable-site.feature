@@ -38,6 +38,36 @@ Feature: A page keeps readers on the site: citations link to our own Story, and 
     When the relations of the published Stories are read
     Then each of the two is related to the other and the third is related to none
 
+  Scenario: Related References are the accepted see-also References, newest linked first
+    Given a Story that points to three accepted References linked on different days
+    When the relations of the published Stories are read
+    Then the Story lists them newest linked first with the note on the link
+
+  Scenario: Only accepted References are related References
+    Given a Story that points to pending, recommended, rejected and accepted References
+    When the relations of the published Stories are read
+    Then only the accepted Reference is listed
+
+  Scenario: A Reference a Story only cites or consulted is not a related Reference
+    Given a Story that cites, consults and is based on References without any see-also link
+    When the relations of the published Stories are read
+    Then the Story has no related References
+
+  Scenario: A related Reference carries its card fields and none of the captured text
+    Given a Story that points to an accepted Reference with a card image, summary and captured text
+    When the relations of the published Stories are read
+    Then the Reference has its title, address, host, image, summary, medium, accepted time and note and no captured text
+
+  Scenario: A client that cannot read relations gives no related References and no error
+    Given a snapshot client
+    When the relations of the published Stories are read
+    Then no related References are found
+
+  Scenario: Adding a link or changing a Reference changes what the item pages are built from
+    Given a published Story pointing to an accepted Reference
+    When the link is removed, or the Reference is rejected or its title is edited
+    Then the shared inputs of the item pages change and unchanged data leaves them the same
+
   Scenario: The read costs only index queries
     Given Stories with relations
     When the relations of the published Stories are read

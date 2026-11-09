@@ -340,6 +340,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
             for entry in newest_first(found)
         )
 
+    def _related_references(self, site: SiteIndex, summary: ItemSummary) -> tuple[dict, ...]:
+        """The accepted References this Story points a reader to with a ``see_also`` relation, read with the relations (``site_relations.py``), newest linked
+        first. Empty where the Story has none or the client reads no relations. The evidence trail (``uses_evidence``) is not part of it."""
+        return tuple(dict(entry) for entry in site.relations.references.get(summary.item_id, ()))
+
     def _citation_pages(self, site: SiteIndex, summary: ItemSummary):
         """``entry -> path`` of our own page for a cited source: the newest published Story (never this page) based on the accepted Reference at
         that address, else ``None`` (the page then links out). A seam for the Reference pages (PPY-13fb8aa8) sits after the Story lookup."""
@@ -749,7 +754,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         head = item_share_preview(entry, self.standard, self.policy, opening=lede_of(fragment), body_image=first_image_of(fragment)).head
         crumbs = head.breadcrumbs
         concept_links = () if is_wiki else self._concept_links(site, summary)
-        page = self._page("item", head, site, entry=entry, entries=entries, fragment=fragment, crumbs=crumbs, concept_links=concept_links, related_stories=() if is_wiki else self._related_stories(site, summary))
+        page = self._page("item", head, site, entry=entry, entries=entries, fragment=fragment, crumbs=crumbs, concept_links=concept_links, related_stories=() if is_wiki else self._related_stories(site, summary), related_references=() if is_wiki else self._related_references(site, summary))
         pages = {key: self._render(page)}
         if len(paths) > 1:
             canonical = entry.canonical or self.head.absolute(entry.url)
