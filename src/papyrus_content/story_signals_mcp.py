@@ -35,6 +35,22 @@ TOOLS_TABLE: dict[str, tuple[str, dict, str]] = {
         "Links a story to other stories for its See also block. Every one must be an existing story and none the story itself; a link that exists in either direction is left alone. "
         "Returns each target's title, type, stage, outcome (write, exists or dry run) and a warning when it is not published yet (the public block shows published stories only). "
         "Give at least one story or Reference; see_also_references links the story to accepted References (directional, story to Reference)."),
+    "papyrus_suggest_links": ("staff", _closed({
+        "story": {"type": "string", "description": "lineage id or slug of the story"},
+        "kinds": {"type": "array", "items": {"type": "string", "enum": ["articles", "posts", "references"]}},
+        "limit": {"type": "integer", "minimum": 1}}, ("story",)),
+        "Read only. Ranked related articles, posts and accepted References for a story, computed from its concepts and the concepts related to them (no model call). Each candidate has a score, "
+        "the shared concepts, the path ('direct' or 'via A, then B') and the exact link command. Already linked content is left out. You judge the short list, then link the good ones."),
+    "papyrus_related_concepts": ("staff", _closed({
+        "concept": {"type": "string", "description": "exact node key, hashtag, name or alias of an accepted concept"},
+        "limit": {"type": "integer", "minimum": 1}}, ("concept",)),
+        "Read only. The concepts near a concept: editor-confirmed links with their explanation, aliases, and concepts that co-occur on the same stories and References (count, lift, strength)."),
+    "papyrus_search_concepts": ("staff", _closed({
+        "query": {"type": "string", "description": "free text to find concepts for; leave out with list=true"},
+        "list": {"type": "boolean", "description": "list every accepted concept alphabetically instead of searching"},
+        "limit": {"type": "integer", "minimum": 1}}, ()),
+        "Read only. Finds accepted concepts by meaning (one embedding, concept vectors only); an exact or prefix name match comes first. Order is relevance, never popularity. Each result has the node key, reason, "
+        "similarity, whether it has a public wiki page, counts of stories and References that carry it (information only) and a duplicate flag. Reports an empty or stale concept index with the command that rebuilds it."),
     "papyrus_link_concepts": ("staff", _closed({
         "target_kind": {"type": "string", "enum": ["story", "reference"]},
         "target": {"type": "string", "description": "a story's lineage id or slug, or a Reference id"},
@@ -84,6 +100,27 @@ def call_story_signal_tool(name: str, arguments: dict[str, Any], client, actor: 
         rows = link_story_set(client, story, others, actor=actor, provenance="derived", note=args.get("note") or None, apply=not args.get("dryRun"))
         reference_rows = link_reference_set(client, story, references, actor=actor, provenance="derived", note=args.get("note") or None, apply=not args.get("dryRun"))
         return {"story": story.get("lineageId") or story["id"], "dryRun": bool(args.get("dryRun")), "links": rows, "referenceLinks": reference_rows}
+    if name == "papyrus_suggest_links":
+        from .link_suggestions import suggest_links
+
+        unknown = set(args) - {"story", "kinds", "limit"}
+        if unknown:
+            raise ValueError(f"Unknown argument(s) for papyrus_suggest_links: {', '.join(sorted(unknown))}.")
+        return suggest_links(client, args["story"], kinds=tuple(args.get("kinds") or ("articles", "posts", "references")), limit=int(args.get("limit") or 5))
+    if name == "papyrus_related_concepts":
+        from .link_suggestions import related_concepts
+
+        unknown = set(args) - {"concept", "limit"}
+        if unknown:
+            raise ValueError(f"Unknown argument(s) for papyrus_related_concepts: {', '.join(sorted(unknown))}.")
+        return related_concepts(client, args["concept"], limit=int(args.get("limit") or 15))
+    if name == "papyrus_search_concepts":
+        from .concept_search import default_provider, search_concepts
+
+        unknown = set(args) - {"query", "list", "limit"}
+        if unknown:
+            raise ValueError(f"Unknown argument(s) for papyrus_search_concepts: {', '.join(sorted(unknown))}.")
+        return search_concepts(client, None if args.get("list") else default_provider(), args.get("query"), limit=int(args.get("limit") or 10), list_all=bool(args.get("list")))
     if name == "papyrus_link_concepts":
         from .concept_tags import tag_with_concepts
 

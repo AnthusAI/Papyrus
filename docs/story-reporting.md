@@ -285,6 +285,46 @@ concept is an accepted shape. Fixing is out of scope. Cost: the stories audit re
 request) and one batched concept read; the References audit reads the corpus's accepted References through `referencesByCurationStatusKey` and the same three index reads
 per Reference (827 References: about 100 relation requests), with no table scan. Specs: `features_backend/concept-tags.feature`.
 
+## Suggesting related content
+
+Ryan, 2026-11-09: linking a story to related articles, posts and References starts from the story's concepts and is computed from the graph, with no model call, so a
+person or model judges a short ranked list. Two hops: first the **related concepts**, then the **carriers** of those concepts.
+
+```bash
+papyrus stories suggest-links --story <lineage-or-slug> [--kinds articles,posts,references] [--limit N] [--min-score S] [--include-linked] [--json]
+papyrus knowledge concepts related --concept <name|#hashtag|nodeKey> [--limit N] [--json]
+papyrus knowledge concepts search "free text" [--limit N] [--json]      # or: --list
+```
+
+`suggest-links` is read only. The story's own concepts weigh 1.0 when curated (`tagged_with`, or the older `related_to`) and 0.4 when only an accepted `mentions`. Related
+concepts add: a confirmed concept link (`related_to`, `same_as`, `alias_of` between two concepts, with the explanation a person wrote) about 0.5, a concept that appears
+together with one of the story's on the newest 60 published stories and accepted References that carry it about 0.3 times a lift-based strength (so hubs do not dominate;
+at least 2 shared carriers and lift 1.5). Then every published article, post and accepted Reference that carries any of those concepts is scored: the sum of the concept's
+weight times its rarity (`ln((N+1)/(df+1))`), a mention counting 0.6 of a tag, with up to 10% more for recent content. A concept carried by more than 25% of the published
+stories counts at a low weight. Left out: the story itself, stories already linked by `see_also` in either direction, References already linked by `uses_evidence` (any role)
+or a `see_also` edge from the story, unpublished stories, References that are not accepted, and concepts that are not accepted. Output is grouped **See also**
+(articles), **Posts** and **Related findings** (References), top 5 each by default: score, title, type, date or host, the shared concepts by readable name, the path
+(`direct` or `via A, then B`), and the exact ready command (`papyrus stories link-story --story <lineage> --to <lineage>` or `--reference <id>`). A story with no accepted
+concept says so; tag it first with `link-concept`. The last line is the request count (about 20 to 35 for one story on the live Machines on Machines site; no table is
+scanned: indexes and 25-key batched gets only).
+
+`concepts related` lists the concepts near one concept with the reason (`confirmed`, `alias`, `linked`, `cooccurrence`), found with the same exact resolver as
+`link-concept` (never created, never fuzzy). `concepts search` finds accepted concepts for free text by meaning: the text is embedded once (`text-embedding-3-small`, the
+same provider as `references suggest-links`) and only `concept_card` and `ontology_concept_profile` vectors are queried; popularity never affects the order. A typed
+exact (then prefix) concept name or alias comes first, labelled `name match`; the rest are `meaning`. Each result shows the similarity, whether the concept has a public wiki
+page (a published `wiki_page` Item whose `entityKey` is the bare slug, the part of the node key after `--`, read from the published-item summaries when the type index is empty;
+the same check `stories link-concept` and `check-links` use), how many published stories and accepted References carry it (information only), and duplicate flags in three
+tiers: `same name` (equal once case and punctuation are ignored, or the same words in any order), `likely duplicate` (concept cards at least 0.90 alike) and `possible
+duplicate`, a suggestion for a person to check (cards at least 0.60 alike and a shared word of 4+ letters; the two "contextual integrity" cards are only 0.66 alike).
+
+**Free-text search needs an embedding key and is not validated against live data.** It embeds the query with `OPENAI_API_KEY`, which must be set and valid in the shell. The
+signed-in editor lane has no embedding key (unlike `references search`, which embeds on the server through the `searchReferences` query), so there the command stops with
+that explanation instead of a raw HTTP 401. A server-side lane (a new query field next to `searchReferences`) is a follow-up. Name matches, `--list`, `concepts related` and
+`suggest-links` need no key. It says plainly when the index has no concept vectors or is missing some accepted concepts, and prints the `knowledge-vector-index --action sync` command that
+repairs it. `--list` prints every accepted concept alphabetically. Agent tools (read only, closed argument lists): `papyrus_suggest_links`, `papyrus_related_concepts`,
+`papyrus_search_concepts` (Tactus `tactus_tools.py` and `story_signals_mcp.py`). The story checklist has a **Related content** step (`related_content`, not required) that
+points here. Code: `src/papyrus_content/link_suggestions.py`, `concept_search.py`; specs: `features_backend/suggest-links.feature`.
+
 ## Notes: people write Messages, agents write agent notes
 
 Messages come only from people. A person's note is a `Message`, and the newsroom, not the caller, says who wrote it. An AI agent never
