@@ -621,11 +621,12 @@ def project_static(context: ProjectionContext) -> ProjectionReport:
 
 
 @_leased
-def project_listings(context: ProjectionContext) -> ProjectionReport:
+def project_listings(context: ProjectionContext, only: Collection[str] | None = None) -> ProjectionReport:
+    """Write the listing pages; with ``only``, just those keys (the page-refresh re-render of the index pages under a URL prefix)."""
     report = ProjectionReport()
     site = context.source.site_index()
     inputs = context.projector.listing_inputs(site)
-    _write_listing_pages(context, report, context.projector.listing_pages(site, None), inputs)
+    _write_listing_pages(context, report, context.projector.listing_pages(site, None if only is None else set(only)), inputs)
     return _finish(context, report)
 
 

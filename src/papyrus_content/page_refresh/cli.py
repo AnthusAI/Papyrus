@@ -23,12 +23,20 @@ BOOLEAN_FLAGS = ("fix", "indexes", "all", "dry-run", "json", "no-invalidate", "r
 
 
 def split_flags(flags: list[str]) -> tuple[list[str], dict[str, Any]]:
-    """``--path`` may repeat, so it is taken out before the shared flag parser (which keeps only the last of a repeated flag) sees the rest."""
+    """``--path`` and ``--under`` may repeat, so it is taken out before the shared flag parser (which keeps only the last of a repeated flag) sees the rest."""
     paths: list[str] = []
+    under: list[str] = []
     rest: list[str] = []
     index = 0
     while index < len(flags):
         token = flags[index]
+        if token == "--under":
+            value = flags[index + 1] if index + 1 < len(flags) else None
+            if not value or value.startswith("--"):
+                raise ValueError("--under needs a URL path prefix, for example --under /posts/.")
+            under.append(value)
+            index += 2
+            continue
         if token in ("--path", "--paths"):
             value = flags[index + 1] if index + 1 < len(flags) else None
             if not value or value.startswith("--"):
@@ -42,6 +50,8 @@ def split_flags(flags: list[str]) -> tuple[list[str], dict[str, Any]]:
         rest.append(token)
         index += 1
     options = parse_options(_explicit(rest))
+    if under:
+        options["under"] = under
     return paths, options
 
 
@@ -77,6 +87,10 @@ def operation_for(paths: list[str], options: dict[str, Any], *, rerender: bool, 
         arguments: dict[str, Any] = {"scope": chosen[0], "invalidate": not flag("no-invalidate"), **guard_arguments}
         if story:
             arguments["storyLineageId"] = story
+        if options.get("under"):
+            if chosen[0] != "indexes":
+                raise ValueError("--under limits a re-render of the index pages: use it with --indexes.")
+            arguments["under"] = list(options["under"])
         return "site_rerender_pages", arguments
     if inspect:
         if bool(story) == bool(paths):
@@ -173,9 +187,15 @@ def render_text(result: dict[str, Any]) -> str:
     rendered = result.get("rendered")
     if rendered is not None:
         if rendered.get("scheduled"):
-            lines.append("  re-render: scheduled in the newsroom function; it writes the pages and then purges them (outcome is in its log, not here)")
-        elif rendered.get("dryRun"):
-            lines.append(f"  re-render: would write {rendered['count']} pages")
+            requested = rendered.get("requested")
+            asked = f"asked to rebuild {requested} pages" if requested is not None else "asked to rebuild its pages"
+            lines.append(f"  re-render: scheduled in the newsroom function, {asked}; it writes them and then purges them (the outcome is in its log, not here)")
+        elif rendered.get("dryRun") or result.get("dryRun"):
+            would = rendered.get("wouldWrite") or []
+            lines.append(f"  re-render: would write {rendered.get('count', len(would))} pages (a dry run: nothing was written)")
+            lines.extend(f"    would write /{key}" for key in would[:50])
+            if len(would) > 50:
+                lines.append(f"    ... and {len(would) - 50} more (use --json for the full list)")
         else:
             lines.append(f"  re-render: {'ok' if rendered.get('ok') else 'FAILED'}, wrote {rendered['count']} pages" + (f", deleted {len(rendered['deleted'])}" if rendered.get("deleted") else ""))
             lines.extend(f"    error: {error}" for error in rendered.get("errors", []))
