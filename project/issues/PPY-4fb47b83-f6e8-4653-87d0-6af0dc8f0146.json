@@ -1,0 +1,31 @@
+{
+  "id": "PPY-4fb47b83-f6e8-4653-87d0-6af0dc8f0146",
+  "title": "Publish went through with open required checklist steps (reported by the editing session, 2026-11-09)",
+  "description": "The news desk editing session published a new post (typed with stories set-type, set-slug, saved with --images) while several required checklist steps (direction, research, review_*) were still not_done, even though publishing.publish_item calls require_checklist_closed. Reproduce on a throwaway story: which command published (papyrus ops content publish?), and whether the gate is skipped for posts, for new stories whose checklist template version differs (template version 3 added related_content), or when the checklist rows are state not_done rather than open (open_required only matches state OPEN?). Add a test that every publish path (ops content publish, the console, the content-actions handler) refuses with open required steps. Also: Markdown twin of posts printed 'By <author>' (core ignored an empty hook byline): PR #1349.",
+  "type": "bug",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-6bd9810f-7831-4994-9b4a-cb7607292703",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "ea5b2389-f7da-46db-841e-cb0af83582a7",
+      "author": "home",
+      "text": "Investigated 2026-11-09: NOT a bypass. The stored checklist history shows direction done 22:34:41, review_people done 22:35:03 (the other steps between), publish recorded 22:35:25: the news desk's step commands succeeded before the publish, so require_checklist_closed saw no open required step. The confusion came from `stories next`, which shows an evidence view (an Assignment with a direction or research packet; the four review lenses always not_done) that ignores the stored checklist. Follow-up story filed.",
+      "created_at": "2026-11-09T22:48:53.706093Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-11-09T22:41:11.813376Z",
+  "updated_at": "2026-11-09T22:48:53.706602Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
