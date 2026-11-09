@@ -89,9 +89,15 @@ def test_fork_pull_requests_and_other_branches_are_not_trusted():
 def test_workflow_wiring():
     tests = yaml.safe_load((ROOT / ".github/workflows/tests.yml").read_text())
     jobs = tests["jobs"]
-    for name in ("ts", "python"):
+    shards = ("ts-check", "ts-build", "ts-misc", "ts-test", "python-checks", "python-unit", "python-behave")
+    for name in shards:
         assert jobs[name]["needs"] == "reuse"
         assert jobs[name]["if"] == "needs.reuse.outputs.reused != 'true'"
+    # `ts` and `python` stay as aggregates: they wait for every shard, so each keeps its name and fails if any shard fails.
+    assert set(jobs["ts"]["needs"]) == {"reuse", "ts-check", "ts-build", "ts-misc", "ts-test"}
+    assert set(jobs["python"]["needs"]) == {"reuse", "python-checks", "python-unit", "python-behave"}
+    for name in ("ts", "python"):
+        assert "needs.reuse.outputs.reused != 'true'" in jobs[name]["if"] and "!cancelled()" in jobs[name]["if"]
     assert set(jobs["record"]["needs"]) == {"reuse", "ts", "python"}
     assert jobs["record"]["name"].startswith("tested-tree ")
     assert jobs["reuse"]["permissions"] == {"contents": "read", "actions": "read"}
