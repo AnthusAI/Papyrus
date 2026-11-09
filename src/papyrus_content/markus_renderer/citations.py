@@ -351,6 +351,9 @@ class CitationRendering:
     #: Resolves a cited source to this site's own page: ``entry -> path`` or ``None``. The collector writes the answer into the
     #: entry's ``internalUrl`` (the projection sets it per page; see ``projection/site_relations.py``). With the ``external``
     #: mode a source that has a page links to it, with no icon and in the same tab; one that has none links out.
+    #: Opt-in (``projection.json`` ``citations.externalIcon``): an outside link gets the class ``citation-external`` and ends with the Lucide
+    #: ``external-link`` icon. Off, an outside link is the original markup, byte for byte.
+    external_icon: bool = False
     page_for: Callable[[Mapping[str, Any]], str | None] | None = None
 
     def __post_init__(self) -> None:
@@ -447,9 +450,11 @@ class CitationCollector:
             body = html.escape(text, quote=False)
             if url:
                 safe = html.escape(url, quote=True)
+                klass = 'class="citation-external" ' if self.config.external_icon else ""
+                icon = EXTERNAL_LINK_ICON if self.config.external_icon else ""
                 body += (
-                    f'<a class="citation-external" href="{safe}" target="_blank" '
-                    f'rel="noopener noreferrer">{html.escape(url, quote=False)}{EXTERNAL_LINK_ICON}</a>'
+                    f'<a {klass}href="{safe}" target="_blank" '
+                    f'rel="noopener noreferrer">{html.escape(url, quote=False)}{icon}</a>'
                 )
             items.append(f'<li id="{anchor}">{body}</li>')
         klass = html.escape(self.config.list_class, quote=True)

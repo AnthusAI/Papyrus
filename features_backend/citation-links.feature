@@ -34,13 +34,19 @@ Feature: A cited Story never links to a source list that is not on the page, and
     And the source "A Page Cited" links to "/references/smith/"
     And the page is the same as for a site whose citations links are "external"
 
-  Scenario: A source that leaves the site opens in a new tab and carries the external-link icon
+  Scenario: A site that says nothing keeps the original outside link, with no icon
     Given a Papyrus site whose citations setting is not declared
+    When the site renders a Story with citation markers and a bibliography line
+    Then the source "Another Page" has no icon and opens in a new tab
+
+  Scenario: A source that leaves the site opens in a new tab and carries the external-link icon when the site opts in
+    Given a Papyrus site whose citations setting is externalIcon
+
     When the site renders a Story with citation markers and a bibliography line
     Then the source "Another Page" opens in a new tab and carries the external-link icon
 
   Scenario: A source that stays on the site carries no icon and opens in the same tab
-    Given a Papyrus site whose citations setting is not declared
+    Given a Papyrus site whose citations setting is externalIcon
     When the site renders a Story with citation markers and a bibliography line
     Then the source "A Page Cited" has no icon and does not open a new tab
 

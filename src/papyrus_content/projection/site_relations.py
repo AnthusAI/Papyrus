@@ -24,7 +24,6 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..batched_reads import references_by_id
 from ..concept_link_predicates import CONCEPT_KIND, CONCEPT_LINK_PREDICATES
 from ..story_from_reference import url_key
 from ..story_reporting import BASED_ON, STORY_REFERENCE_PREDICATE
@@ -72,10 +71,28 @@ def _metadata(relation: Mapping[str, Any]) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def can_read_relations(client: Any) -> bool:
+    """True for a client that answers the relation indexes (the authoring client, a test double). A snapshot, a fixture or an offline build has none:
+    it gets no relations, and no error."""
+    return hasattr(client, "index_many") or (
+        hasattr(client, "list_semantic_relations_by_subject_state") and hasattr(client, "list_semantic_relations_by_object_state")
+    )
+
+
 def _relations_of(client: Any, keys: list[str]) -> dict[str, list[dict[str, Any]]]:
     if hasattr(client, "index_many"):
         return client.index_many("semanticRelationsBySubjectState", keys)
     return {key: list(client.list_semantic_relations_by_subject_state(key)) for key in keys}
+
+
+def _rows_by_id(client: Any, model: str, ids: list[str]) -> dict[str, dict[str, Any]]:
+    """The rows of ``ids`` (`get_many`, else one `get_record` each); none for a client that reads neither."""
+    wanted = [value for value in dict.fromkeys(ids) if value]
+    if hasattr(client, "get_many"):
+        return client.get_many(model, wanted)
+    if hasattr(client, "get_record"):
+        return {value: row for value in wanted if (row := client.get_record(model, value))}
+    return {}
 
 
 def read_site_relations(client: Any, stories: Iterable[tuple[str, str | None, str | None]], page_slugs: Iterable[str]) -> SiteRelations:
@@ -85,7 +102,7 @@ def read_site_relations(client: Any, stories: Iterable[tuple[str, str | None, st
     """
     published = {lineage: (item_id, published_at or "") for item_id, lineage, published_at in stories if lineage}
     wanted = set(page_slugs)
-    if not published:
+    if not published or not can_read_relations(client):
         return EMPTY
     rows = _relations_of(client, [f"item#{lineage}#current" for lineage in published])
     based_pairs: list[tuple[str, str]] = []
@@ -105,7 +122,7 @@ def read_site_relations(client: Any, stories: Iterable[tuple[str, str | None, st
 
     by_address: dict[str, list[tuple[str, str]]] = {}
     if based_pairs:
-        references = references_by_id(client, [reference_id for _, reference_id in based_pairs])
+        references = _rows_by_id(client, "Reference", [reference_id for _, reference_id in based_pairs])
         for lineage, reference_id in based_pairs:
             reference = references.get(reference_id) or {}
             if str(reference.get("curationStatus") or "") != ACCEPTED:
@@ -162,7 +179,4 @@ def _related_stories(client: Any, published: Mapping[str, tuple[str, str]], outg
 
 
 def _nodes_by_id(client: Any, node_ids: list[str]) -> dict[str, dict[str, Any]]:
-    ids = [value for value in dict.fromkeys(node_ids) if value]
-    if hasattr(client, "get_many"):
-        return client.get_many("SemanticNode", ids)
-    return {value: row for value in ids if (row := client.get_record("SemanticNode", value))}
+    return _rows_by_id(client, "SemanticNode", node_ids)

@@ -29,7 +29,7 @@ class RelatedSource(DirectoryContentSource):
 
 
 def project(items, relations: SiteRelations) -> DirectorySite:
-    created = DirectorySite(settings(urls={"style": "directory"}), items)
+    created = DirectorySite(settings(urls={"style": "directory"}, citations={"externalIcon": True}), items)
     source = RelatedSource(created.content)
     source.relations = relations
     projector = StandardMarkusProjector.from_static_directory(created.static, environ=created.environ)
@@ -206,5 +206,24 @@ def test_a_page_lists_its_related_published_stories_with_their_type_and_never_it
         links = projector._related_stories(site, one)
         assert sorted(link["title"] for link in links) == ["THREE", "TWO"]
         assert all(link["url"] and link["itemId"] != one.item_id for link in links)
+    finally:
+        created.cleanup()
+
+
+def test_a_client_with_no_relation_index_gives_no_relations_and_no_error():
+    from papyrus_content.projection.url_compare import SnapshotClient
+
+    found = read_site_relations(SnapshotClient([{"id": "p1", "sourceItemId": "i1"}]), [("i1", "L1", None)], ["alpha"])
+    assert not found.based_on and not found.concepts and not found.related
+    assert not read_site_relations(object(), [("i1", "L1", None)], ["alpha"]).related
+
+
+def test_outside_links_are_the_original_markup_unless_the_site_opts_in_to_the_icon():
+    created = DirectorySite(settings(urls={"style": "directory"}), [item("reader", section="posts", body=BODY, citations=CITATIONS)])
+    try:
+        assert created.project_all().ok
+        page = created.text("reader/index.html")
+        assert '<a href="https://example.net/elsewhere" target="_blank" rel="noopener noreferrer">' in page
+        assert "citation-external" not in page and 'data-icon="external-link"' not in page
     finally:
         created.cleanup()
